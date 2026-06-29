@@ -29,4 +29,12 @@ def load_model(llm_provider: str = "openai", model: str = "gpt-5-mini") -> BaseC
             base_url="https://api.deepseek.com",
         )
 
+    if llm_provider == "custom":
+        return ChatOpenAI(
+            model=model,
+            base_url=os.getenv("CUSTOM_API_BASE"),
+            api_key=os.getenv("CUSTOM_API_KEY", "dummy"),
+            temperature=0,
+        )
+
     raise ValueError(f"Unsupported llm provider: {llm_provider}")

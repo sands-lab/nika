@@ -12,7 +12,7 @@ from nika.utils.agent_config import (
 )
 
 SUPPORTED_AGENT_TYPES = ("react", "mock", "codex_cli", "claude_cli")
-SUPPORTED_LLM_PROVIDERS = ("openai", "ollama", "deepseek")
+SUPPORTED_LLM_PROVIDERS = ("openai", "ollama", "deepseek", "custom")
 
 agent_app = typer.Typer(help="Troubleshooting agents.")
 
