@@ -24,3 +24,5 @@ uv.lock
 !src/agent/skills/.claude/
 !src/agent/skills/.claude/**
 .pytest_cache/
+benchmark/additional_splits/inputs/*
+benchmark/additional_splits/outputs/*

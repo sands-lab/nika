@@ -1,0 +1,172 @@
+# NIKA Generalization Splits
+
+A set of train / validation / test splits built from the public [NIKA](https://github.com/sands-lab/nika) reasoning traces, used to measure generalization along three independent axes: the *problem* (root cause), the *scenario* (topology family), and the *topology size*.
+
+---
+
+## What the splits are
+
+Every experiment uses one `(train, validation)` pair and two test sets:
+
+1. A generalization test set: held-out groups, taken from the 490-config pool, to measure transfer to unseen conditions.
+2. `benchmark_selected_150` (the 150): a fixed test set common to all experiments, so different methodologies can be compared on the same data.
+
+The splits come in four types:
+- three that hold out **problem categories**,
+- three that hold out **scenario families**,
+- one that holds out **topology size**, and
+- three **no-generalization** controls.
+
+### Splits by problem category (`problem{1,2,3}`)
+
+Holds out root-cause families, to test whether a method handles fault types not seen in training.
+
+| Seed | train | validation | test |
+|------|-------|------------|------|
+| `problem1` | link_failures (138) | misconfigurations, network_under_attack (96+42) | end_host_failures, resource_contention, network_node_errors (124+59+31) |
+| `problem2` | end_host_failures (124) | misconfigurations, resource_contention (96+59) | link_failures, network_under_attack, network_node_errors (138+42+31) |
+| `problem3` | misconfigurations (96) | link_failures, resource_contention (138+59) | end_host_failures, network_under_attack, network_node_errors (124+42+31) |
+
+Train is smaller than validation here, following the GEPA setup where train ≈150 sits below validation ≈300.
+
+### Splits by scenario family (`scenario{1,2,3}`)
+
+Holds out topology families (`dc*` = data-center CLOS, `ospf*` = 3-tier campus, `rip*` = ISP backbone, `sdn*` = SDN fabric, `p4*` = P4 testbed, `simple*` = simple BGP), to test transfer across network architectures.
+
+| Seed | train | validation | test |
+|------|-------|------------|------|
+| `scenario1` | dc* (126) | sdn*, rip* (99+69) | ospf*, p4*, simple* (102+72+22) |
+| `scenario2` | ospf* (102) | sdn*, p4* (99+72) | dc*, rip*, simple* (126+69+22) |
+| `scenario3` | sdn* (99) | dc*, p4* (126+72) | ospf*, rip*, simple* (102+69+22) |
+
+### Split by topology size (`topo_size`)
+
+Holds out scale: train on small, validate on medium, test on large.
+
+| train | validation | test |
+|-------|------------|------|
+| s (132) | m (132) | l (132) |
+
+(`-`, the non-scalable configs, is discarded for this axis.)
+
+### No-generalization control (`wo_generalization{1,2,3}`)
+
+Three random partitions of the 490 into ~163 / 163 / 164, seeded for reproducibility. Here train/val/test are drawn from the same distribution.
+
+### Files
+
+Each CSV holds one row per configuration with columns `problem, scenario, topo_size`:
+
+```
+problem1_train.csv      problem1_validation.csv      problem1_test.csv
+problem2_train.csv      problem2_validation.csv      problem2_test.csv
+problem3_train.csv      problem3_validation.csv      problem3_test.csv
+scenario1_train.csv     scenario1_validation.csv     scenario1_test.csv
+scenario2_train.csv     scenario2_validation.csv     scenario2_test.csv
+scenario3_train.csv     scenario3_validation.csv     scenario3_test.csv
+topo_size_train.csv     topo_size_validation.csv     topo_size_test.csv
+wo_generalization{1,2,3}_train.csv   …_validation.csv   …_test.csv
+```
+
+<!--
+> To also emit `category` and `scenario_prefix`, set `information_added_regarding_category = True` (or call `add_prefix_and_category`). These go to `benchmark/splits_with_additional_columns/` so the canonical 3-column files are not overwritten.
+-->
+
+---
+
+## How the splits are built (methodology)
+
+### The two universes: 150 vs 640
+
+The paper does not use the full benchmark. The published traces cover 150 `(problem, scenario, topo_size)` configurations; the authors separately provide a 640-config benchmark. The 150 are a subset of the 640, which partitions into:
+
+- 150 → `benchmark_selected_150`, used as the shared comparison test set.
+- 490 (= 640 − 150) → the pool from which the generalization splits are drawn.
+
+The original 150 are not modified when building the generalization splits; all splitting happens on the 490.
+
+### The three axes
+
+Each configuration has three attributes, each defining a generalization question:
+
+- `category` — the root-cause family (6). Taken from the authors' grouping (Table 3 / README "Network issues"), encoded as the top-level subfolder in `NIKA Traces.zip`, rather than from string matching.
+- `scenario_prefix` — the topology family (6), the first underscore token of the scenario (`dc_clos_bgp → dc*`). `dc*`/`sdn*`/`p4*` map directly; `rip*` ↔ ISP backbone, `ospf*` ↔ campus, and `simple*` (kept separate) are checked against Table 5.
+- `topo_size` — `s` / `m` / `l`, with `-` for non-scalable experiments.
+
+The groupings ("seeds") are chosen so each of train/validation/test has a usable size.
+
+---
+
+## Statistics
+
+### The trace dataset
+
+- 904 experiments in `NIKA Traces.zip`.
+- Each of the 150 configs is run by 3 models (`gpt-5`, `gpt-5-mini`, `gpt-oss:20b`), twice → 900, plus 4 configs run a third time → 904 (`150·2·3 + 4`). All three models cover the same set of 150.
+- The 4 triple-runs are all `dc_clos_bgp`: `link_down/m/gpt-5-mini`, plus `link_flap/s`, `link_flap/m`, `link_fragmentation_disabled/s` for `gpt-oss:20b`.
+
+### The 640-config benchmark — by category
+
+Counts are the same whether derived from Table 3's 41 problems or the 55 problems in the trace data:
+
+| category | count |
+|----------|------:|
+| link_failures | 156 |
+| end_host_failures | 154 |
+| misconfigurations | 137 |
+| resource_contention | 77 |
+| network_under_attack | 69 |
+| network_node_errors | 47 |
+| **total** | **640** |
+
+Topology sizes: `s` 180 · `m` 180 · `l` 180 · `-` 100.
+
+### The 490-config split pool — counts across axes
+
+| category | n | scenario_prefix | n | topo_size | n |
+|----------|--:|-----------------|--:|-----------|--:|
+| link_failures | 138 | dc* | 126 | s | 132 |
+| end_host_failures | 124 | ospf* | 102 | m | 132 |
+| misconfigurations | 96 | sdn* | 99 | l | 132 |
+| resource_contention | 59 | p4* | 72 | - | 94 |
+| network_under_attack | 42 | rip* | 69 | | |
+| network_node_errors | 31 | simple* | 22 | | |
+| **total** | **490** | | **490** | | **490** |
+
+### The 150 (`benchmark_selected_150`) — counts across axes
+
+- category: misconfigurations 41 · end_host_failures 30 · network_under_attack 27 · link_failures 18 · resource_contention 18 · network_node_errors 16
+- topo_size: `l` 48 · `m` 48 · `s` 48 · `-` 6
+- scenario_prefix: ospf* 84 · dc* 42 · sdn* 15 · p4* 6 · rip* 3
+
+The 150 cover all three axes, so the set is used as the shared test set without modification.
+
+---
+
+## Reproducing the splits
+
+```bash
+python splitting.py --git_path '/path/to/github/repo/nika'
+```
+
+This reads the inputs from the repo, checks they are consistent, and writes every split as a CSV under `benchmark/splits/`.
+
+### Inputs expected (under `--git_path`)
+
+| File | What it is | Source |
+|------|------------|--------|
+| `other_experiments/selected_splits/NIKA Traces.zip` | The published reasoning traces | [Zenodo 17971675](https://zenodo.org/records/17971675) |
+| `benchmark/benchmark_full.csv` | All 640 `(problem, scenario, topo_size)` configurations | [NIKA repo](https://github.com/sands-lab/nika/blob/main/benchmark/benchmark_full.csv) |
+| `benchmark/benchmark_selected_150.csv` | The 150 configurations used in the paper | extracted previously by us, rechecked in this code |
+
+### Built-in checks
+
+The script verifies:
+
+- Traces ↔ paper: the 150 reconstructed from `NIKA Traces.zip` match `nika_selected.csv` (`identical up to ordering: True`).
+- Model coverage: all three LLM models used in Nika cover the same 150 (`all three cover the same configs: True`).
+- Subset: every one of the 150 is in the 640 full benchmark csv (`missing: set()`), and the complement is 490.
+
+### Helper
+
+`add_prefix_and_category(df)` takes a DataFrame with `problem, scenario, topo_size` and returns it with `category` and `scenario_prefix` added, for re-annotating an existing split without rerunning the pipeline.
