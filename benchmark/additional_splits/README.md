@@ -2,6 +2,8 @@
 
 A set of train / validation / test splits built from the public [NIKA](https://github.com/sands-lab/nika) reasoning traces, used to measure generalization along three independent axes: the *problem* (root cause), the *scenario* (topology family), and the *topology size*.
 
+Each split is produced as a CSV and then converted to a fully-filled YAML (with per-case `inject:` details) using the 640-config benchmark as a pivot.
+
 ---
 
 ## What the splits are
@@ -55,7 +57,7 @@ Three random partitions of the 490 into ~163 / 163 / 164, seeded for reproducibi
 
 ### Files
 
-Each CSV holds one row per configuration with columns `problem, scenario, topo_size`:
+Each split is written as a CSV (one row per configuration, columns `problem, scenario, topo_size`, plus `category` and `scenario_prefix`) and then as a matching YAML (the same rows, fully filled with their `inject:` details).
 
 ```
 problem1_train.csv      problem1_validation.csv      problem1_test.csv
@@ -67,6 +69,8 @@ scenario3_train.csv     scenario3_validation.csv     scenario3_test.csv
 topo_size_train.csv     topo_size_validation.csv     topo_size_test.csv
 wo_generalization{1,2,3}_train.csv   …_validation.csv   …_test.csv
 ```
+
+The CSVs land in `benchmark/additional_splits/outputs/csv/`; the converted YAMLs (same basenames, `.yaml`) land one level up in `benchmark/additional_splits/outputs/`.
 
 <!--
 > To also emit `category` and `scenario_prefix`, set `information_added_regarding_category = True` (or call `add_prefix_and_category`). These go to `benchmark/splits_with_additional_columns/` so the canonical 3-column files are not overwritten.
@@ -94,6 +98,15 @@ Each configuration has three attributes, each defining a generalization question
 - `topo_size` — `s` / `m` / `l`, with `-` for non-scalable experiments.
 
 The groupings ("seeds") are chosen so each of train/validation/test has a usable size.
+
+### From CSV to fully-filled YAML
+
+The split CSVs only carry `(problem, scenario, topo_size)`; the YAML shape additionally needs the per-case `inject:` block (`host_name`, `intf_name`, ports, rates, etc.), which is not in the CSV. The conversion is therefore a two-step lookup, using the 640-config benchmark as a pivot:
+
+1. Build the fully-filled `benchmark_selected_640.yaml` once. The 640 CSV is first converted to a YAML skeleton (correct per-problem `inject:` keys, values set to `<MISSING>`), then those `<MISSING>` values are filled by matching each case against the canonical `benchmark_full.yaml` on the `(scenario, topo_size, problem)` key.
+2. Convert every other split CSV by looking each row up in `benchmark_selected_640.yaml` and copying the matching fully-filled case. CSV row order is preserved, and `topo_size: -` maps to YAML `null`.
+
+The `(scenario, topo_size, problem)` triple is unique across the 640 (and across the 685-case `benchmark_full.yaml`), so each CSV row maps to exactly one case; the converter aborts if any row is unmatched or any reference key is duplicated.
 
 ---
 
@@ -149,15 +162,17 @@ The 150 cover all three axes, so the set is used as the shared test set without 
 python splitting.py --git_path '/path/to/github/repo/nika'
 ```
 
-This reads the inputs from the repo, checks they are consistent, and writes every split as a CSV under `benchmark/splits/`.
+This reads the inputs from the repo, checks they are consistent, writes every split as a CSV under `benchmark/additional_splits/outputs/csv/`, and converts each split (plus the 640 pivot) to a YAML under `benchmark/additional_splits/outputs/`.
 
 ### Inputs expected (under `--git_path`)
 
 | File | What it is | Source |
 |------|------------|--------|
-| `other_experiments/selected_splits/NIKA Traces.zip` | The published reasoning traces | [Zenodo 17971675](https://zenodo.org/records/17971675) |
-| `benchmark/benchmark_full.csv` | All 640 `(problem, scenario, topo_size)` configurations | [NIKA repo](https://github.com/sands-lab/nika/blob/main/benchmark/benchmark_full.csv) |
-| `benchmark/benchmark_selected_150.csv` | The 150 configurations used in the paper | extracted previously by us, rechecked in this code |
+| `benchmark/additional_splits/inputs/NIKA Traces.zip` | The published reasoning traces | [Zenodo 17971675](https://zenodo.org/records/17971675) |
+| `benchmark/additional_splits/inputs/benchmark_selected_640.csv` | All 640 `(problem, scenario, topo_size)` configurations | [NIKA repo](https://github.com/sands-lab/nika/blob/main/benchmark/benchmark_full.csv) |
+| `benchmark/additional_splits/inputs/benchmark_selected_150.csv` | The 150 configurations used in the paper | extracted previously by us, rechecked in this code |
+| `benchmark/additional_splits/inputs/benchmark_selected_32.csv` | A 32-config subset of the 150 for quick tests | extracted by us |
+| `benchmark/additional_splits/inputs/benchmark_full.yaml` | Frozen copy of the canonical full YAML (685 cases, the 640 in original order, with `inject:` details) used as the pivot to fill `<MISSING>` values | copied from `benchmark/benchmark_full.yaml` |
 
 ### Built-in checks
 
@@ -166,6 +181,15 @@ The script verifies:
 - Traces ↔ paper: the 150 reconstructed from `NIKA Traces.zip` match `nika_selected.csv` (`identical up to ordering: True`).
 - Model coverage: all three LLM models used in Nika cover the same 150 (`all three cover the same configs: True`).
 - Subset: every one of the 150 is in the 640 full benchmark csv (`missing: set()`), and the complement is 490.
+- The 32-config quick-test set is a subset of the 150 (`all 32 present in selected: True`).
+- YAML conversion: the `(scenario, topo_size, problem)` key is unique across the pivot, and every split-CSV row resolves to exactly one fully-filled case.
+
+### Outputs also copied
+
+For convenience the script also copies the canonical YAMLs into the outputs folder, suffixed with their current sizes (update the numbers if the benchmark grows):
+
+- `benchmark_full_685.yaml` — the full benchmark (685 cases).
+- `benchmark_selected_56.yaml` — the 56-case selection (fully inside the 685; 55 of its 56 are in the 640, the exception being `(ospf_enterprise_dhcp, s, dhcp_spoofed_subnet)`).
 
 ### Helper
 
