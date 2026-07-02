@@ -1,0 +1,182 @@
+cases:
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dns_record_error
+  inject:
+    host_name: dns_server
+    target_website: web0
+    target_domain: local
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc_0_0
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dhcp_service_down
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_vpn_membership_missing
+  inject:
+    host_name: pc1
+    host_name_2: vpn_server_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_server
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_hijacking
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: load_balancer
+    host_name_2: backend_web_0
+- scenario: sdn_clos
+  topo_size: s
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_clos
+  topo_size: s
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_clos
+  topo_size: s
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_compilation_error_parser_state
+  inject:
+    host_name: switch_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: bmv2_switch_down
+  inject:
+    host_name: switch_1
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: load_balancer_overload
+  inject:
+    host_name: load_balancer
+    duration: '300'

@@ -1,0 +1,4023 @@
+cases:
+- scenario: dc_clos_service
+  topo_size: s
+  problem: dns_record_error
+  inject:
+    host_name: dns_pod0
+    target_website: web0
+    target_domain: pod0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: dns_record_error
+  inject:
+    host_name: dns_pod0
+    target_website: web0
+    target_domain: pod0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_record_error
+  inject:
+    host_name: dns_pod0
+    target_website: web0
+    target_domain: pod0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dns_record_error
+  inject:
+    host_name: dns_server
+    target_website: web0
+    target_domain: local
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dns_record_error
+  inject:
+    host_name: dns_server
+    target_website: web0
+    target_domain: local
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dns_record_error
+  inject:
+    host_name: dns_server
+    target_website: web0
+    target_domain: local
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: sdn_clos
+  topo_size: s
+  problem: host_crash
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: host_crash
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: p4_counter
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: p4_int
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: p4_mpls
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: host_crash
+  inject:
+    host_name: client
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_0_0
+    host_name_2: pc_0_1
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_0_0
+    host_name_2: pc_0_1
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_0_0
+    host_name_2: pc_0_1
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: client_0
+    host_name_2: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: client_0
+    host_name_2: client_1
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: client_0
+    host_name_2: client_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1_1_1
+    host_name_2: pc_2_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1_1_1
+    host_name_2: pc_1_1_1_2
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1_1_1
+    host_name_2: pc_1_1_1_2
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1_1_1
+    host_name_2: pc_2_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1_1_1
+    host_name_2: pc_1_1_1_2
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1_1_1
+    host_name_2: pc_1_1_1_2
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: sdn_star
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: sdn_star
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: sdn_star
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc10
+- scenario: sdn_clos
+  topo_size: s
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1
+    host_name_2: pc_1_2
+- scenario: sdn_clos
+  topo_size: m
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1
+    host_name_2: pc_1_2
+- scenario: sdn_clos
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: pc_1_1
+    host_name_2: pc_1_2
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: p4_counter
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: p4_int
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: p4_mpls
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: pc1
+    host_name_2: pc2
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: client
+    host_name_2: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: host_ip_conflict
+  inject:
+    host_name: client
+    host_name_2: client
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_incorrect_dns
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_incorrect_dns
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_incorrect_dns
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_incorrect_dns
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_incorrect_dns
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_incorrect_dns
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_incorrect_gateway
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_incorrect_gateway
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_incorrect_gateway
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_incorrect_gateway
+  inject:
+    host_name: client
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_clos
+  topo_size: s
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: p4_counter
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: p4_int
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: p4_mpls
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: host_incorrect_ip
+  inject:
+    host_name: client
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_0_0
+    netmask_prefix: '8'
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_0_0
+    netmask_prefix: '8'
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_0_0
+    netmask_prefix: '8'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_incorrect_netmask
+  inject:
+    host_name: client_0
+    netmask_prefix: '8'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_incorrect_netmask
+  inject:
+    host_name: client_0
+    netmask_prefix: '8'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_incorrect_netmask
+  inject:
+    host_name: client_0
+    netmask_prefix: '8'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc1
+    netmask_prefix: '8'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc1
+    netmask_prefix: '8'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc1
+    netmask_prefix: '8'
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc1
+    netmask_prefix: '8'
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_incorrect_netmask
+  inject:
+    host_name: client
+    netmask_prefix: '8'
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: sdn_clos
+  topo_size: s
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: p4_counter
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: p4_int
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: p4_mpls
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: host_missing_ip
+  inject:
+    host_name: client
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dhcp_service_down
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dhcp_service_down
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_service_down
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: dc_clos_service
+  topo_size: s
+  problem: dns_service_down
+  inject:
+    host_name: dns_pod0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: dns_service_down
+  inject:
+    host_name: dns_pod0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_service_down
+  inject:
+    host_name: dns_pod0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dns_service_down
+  inject:
+    host_name: dns_server
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dns_service_down
+  inject:
+    host_name: dns_server
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dns_service_down
+  inject:
+    host_name: dns_server
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: host_vpn_membership_missing
+  inject:
+    host_name: pc1
+    host_name_2: vpn_server_1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: host_vpn_membership_missing
+  inject:
+    host_name: pc1
+    host_name_2: vpn_server_1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_vpn_membership_missing
+  inject:
+    host_name: pc1
+    host_name_2: vpn_server_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_star
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_star
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_star
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_clos
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+- scenario: sdn_clos
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+- scenario: sdn_clos
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: p4_counter
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: p4_int
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: p4_mpls
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: simple_bgp
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: k8s_lab
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: client
+    intf_name: eth0
+- scenario: llmd_lab
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: client
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_star
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_star
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_star
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: sdn_clos
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+- scenario: sdn_clos
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+- scenario: sdn_clos
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: p4_counter
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: p4_int
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: p4_mpls
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: simple_bgp
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: pc1
+    intf_name: eth0
+- scenario: k8s_lab
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: client
+    intf_name: eth0
+- scenario: llmd_lab
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: client
+    intf_name: eth0
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: sdn_star
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: sdn_star
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: sdn_star
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: sdn_clos
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: sdn_clos
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: sdn_clos
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: p4_counter
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: p4_int
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: p4_mpls
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: simple_bgp
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: k8s_lab
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: client
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: llmd_lab
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: client
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: sdn_star
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: sdn_star
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: sdn_star
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: sdn_clos
+  topo_size: s
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: sdn_clos
+  topo_size: m
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: sdn_clos
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    mtu: '100'
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: p4_counter
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: p4_int
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: p4_mpls
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: simple_bgp
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    mtu: '100'
+- scenario: k8s_lab
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: client
+    intf_name: eth0
+    mtu: '100'
+- scenario: llmd_lab
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: client
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_clos
+  topo_size: s
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: p4_counter
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: p4_int
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: p4_mpls
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: arp_acl_block
+  inject:
+    host_name: client
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_0
+- scenario: simple_bgp
+  topo_size: null
+  problem: bgp_acl_block
+  inject:
+    host_name: router1
+- scenario: k8s_lab
+  topo_size: null
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_1_1
+- scenario: dc_clos_service
+  topo_size: s
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_pod0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_pod0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_pod0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_server
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_server
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_server
+- scenario: dc_clos_service
+  topo_size: s
+  problem: http_acl_block
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: http_acl_block
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: http_acl_block
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: http_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: http_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: http_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: http_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: http_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: http_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: http_acl_block
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: http_acl_block
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: http_acl_block
+  inject:
+    host_name: pc1
+- scenario: llmd_lab
+  topo_size: null
+  problem: http_acl_block
+  inject:
+    host_name: client
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: sdn_clos
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: p4_counter
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: p4_int
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: p4_mpls
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: client
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_router_0_0
+- scenario: simple_bgp
+  topo_size: null
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: router1
+- scenario: k8s_lab
+  topo_size: null
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: leaf_1_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_0_0
+- scenario: simple_bgp
+  topo_size: null
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: router1
+- scenario: k8s_lab
+  topo_size: null
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_1_1
+- scenario: dc_clos_service
+  topo_size: s
+  problem: bgp_hijacking
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: bgp_hijacking
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_hijacking
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_router_0_0
+- scenario: simple_bgp
+  topo_size: null
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: router1
+- scenario: k8s_lab
+  topo_size: null
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: leaf_1_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_router_0_0
+- scenario: simple_bgp
+  topo_size: null
+  problem: host_static_blackhole
+  inject:
+    host_name: router1
+- scenario: k8s_lab
+  topo_size: null
+  problem: host_static_blackhole
+  inject:
+    host_name: leaf_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dhcp_missing_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dhcp_missing_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_missing_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_router_0_0
+    host_name_2: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_router_0_0
+    host_name_2: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_router_0_0
+    host_name_2: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_router_0_0
+    host_name_2: dns_pod0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_router_0_0
+    host_name_2: dns_pod0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_router_0_0
+    host_name_2: dns_pod0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: load_balancer
+    host_name_2: backend_web_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: load_balancer
+    host_name_2: backend_web_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: load_balancer
+    host_name_2: backend_web_0
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: router_core_1
+    host_name_2: router_core_2
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: router_core_1
+    host_name_2: router_core_2
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: router_core_1
+    host_name_2: router_core_2
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: gateway_router
+    host_name_2: external_router_1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: gateway_router
+    host_name_2: external_router_1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: gateway_router
+    host_name_2: external_router_1
+- scenario: sdn_star
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: switch_1
+    host_name_2: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: switch_1
+    host_name_2: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: switch_10
+    host_name_2: pc10
+- scenario: sdn_clos
+  topo_size: s
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_1
+    host_name_2: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_1
+    host_name_2: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_1
+    host_name_2: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: pc1
+    host_name_2: switch_1
+- scenario: p4_counter
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: pc1
+    host_name_2: s1
+- scenario: p4_int
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: pc1
+    host_name_2: leaf1
+- scenario: p4_mpls
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: pc1
+    host_name_2: switch_1
+- scenario: simple_bgp
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: router1
+    host_name_2: router2
+- scenario: k8s_lab
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: leaf_1_1
+    host_name_2: spine_1_1
+- scenario: llmd_lab
+  topo_size: null
+  problem: mac_address_conflict
+  inject:
+    host_name: controller
+    host_name_2: worker1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: router_core_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_aggressive_detection_thresholds
+  inject:
+    host_name: switch_1
+- scenario: sdn_star
+  topo_size: s
+  problem: flow_rule_loop
+  inject:
+    host_name: switch_0
+    host_name_2: switch_1
+- scenario: sdn_star
+  topo_size: m
+  problem: flow_rule_loop
+  inject:
+    host_name: switch_0
+    host_name_2: switch_1
+- scenario: sdn_star
+  topo_size: l
+  problem: flow_rule_loop
+  inject:
+    host_name: switch_0
+    host_name_2: switch_1
+- scenario: sdn_clos
+  topo_size: s
+  problem: flow_rule_loop
+  inject:
+    host_name: leaf_1
+    host_name_2: leaf_2
+- scenario: sdn_clos
+  topo_size: m
+  problem: flow_rule_loop
+  inject:
+    host_name: leaf_1
+    host_name_2: leaf_2
+- scenario: sdn_clos
+  topo_size: l
+  problem: flow_rule_loop
+  inject:
+    host_name: leaf_1
+    host_name_2: leaf_2
+- scenario: sdn_star
+  topo_size: s
+  problem: flow_rule_shadowing
+  inject:
+    host_name: switch_0
+- scenario: sdn_star
+  topo_size: m
+  problem: flow_rule_shadowing
+  inject:
+    host_name: switch_0
+- scenario: sdn_star
+  topo_size: l
+  problem: flow_rule_shadowing
+  inject:
+    host_name: switch_0
+- scenario: sdn_clos
+  topo_size: s
+  problem: flow_rule_shadowing
+  inject:
+    host_name: leaf_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: flow_rule_shadowing
+  inject:
+    host_name: leaf_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: flow_rule_shadowing
+  inject:
+    host_name: leaf_1
+- scenario: sdn_star
+  topo_size: s
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_star
+  topo_size: m
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_star
+  topo_size: l
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_clos
+  topo_size: s
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_clos
+  topo_size: m
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_clos
+  topo_size: l
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: sdn_star
+  topo_size: s
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_star
+  topo_size: m
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_star
+  topo_size: l
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_clos
+  topo_size: s
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_clos
+  topo_size: m
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_clos
+  topo_size: l
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_star
+  topo_size: s
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: sdn_star
+  topo_size: m
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: sdn_star
+  topo_size: l
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: sdn_clos
+  topo_size: s
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: sdn_clos
+  topo_size: m
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: sdn_clos
+  topo_size: l
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_header_definition_error
+  inject:
+    host_name: switch_1
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_header_definition_error
+  inject:
+    host_name: s1
+- scenario: p4_int
+  topo_size: null
+  problem: p4_header_definition_error
+  inject:
+    host_name: leaf1
+- scenario: p4_mpls
+  topo_size: null
+  problem: p4_header_definition_error
+  inject:
+    host_name: switch_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_compilation_error_parser_state
+  inject:
+    host_name: switch_1
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_compilation_error_parser_state
+  inject:
+    host_name: s1
+- scenario: p4_int
+  topo_size: null
+  problem: p4_compilation_error_parser_state
+  inject:
+    host_name: leaf1
+- scenario: p4_mpls
+  topo_size: null
+  problem: p4_compilation_error_parser_state
+  inject:
+    host_name: switch_1
+- scenario: p4_mpls
+  topo_size: null
+  problem: mpls_label_limit_exceeded
+  inject:
+    host_name: switch_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_table_entry_misconfig
+  inject:
+    host_name: switch_1
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_table_entry_misconfig
+  inject:
+    host_name: s1
+- scenario: p4_int
+  topo_size: null
+  problem: p4_table_entry_misconfig
+  inject:
+    host_name: leaf1
+- scenario: p4_mpls
+  topo_size: null
+  problem: p4_table_entry_misconfig
+  inject:
+    host_name: switch_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_table_entry_missing
+  inject:
+    host_name: switch_1
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_table_entry_missing
+  inject:
+    host_name: s1
+- scenario: p4_int
+  topo_size: null
+  problem: p4_table_entry_missing
+  inject:
+    host_name: leaf1
+- scenario: p4_mpls
+  topo_size: null
+  problem: p4_table_entry_missing
+  inject:
+    host_name: switch_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: bmv2_switch_down
+  inject:
+    host_name: switch_1
+- scenario: p4_counter
+  topo_size: null
+  problem: bmv2_switch_down
+  inject:
+    host_name: s1
+- scenario: p4_int
+  topo_size: null
+  problem: bmv2_switch_down
+  inject:
+    host_name: leaf1
+- scenario: p4_mpls
+  topo_size: null
+  problem: bmv2_switch_down
+  inject:
+    host_name: switch_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_0_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_0_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: frr_service_down
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: frr_service_down
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: frr_service_down
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: frr_service_down
+  inject:
+    host_name: router_core_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: router_core_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: frr_service_down
+  inject:
+    host_name: external_router_1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: frr_service_down
+  inject:
+    host_name: external_router_1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: external_router_1
+- scenario: simple_bgp
+  topo_size: null
+  problem: frr_service_down
+  inject:
+    host_name: router1
+- scenario: k8s_lab
+  topo_size: null
+  problem: frr_service_down
+  inject:
+    host_name: leaf_1_1
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_0_0
+- scenario: dc_clos_service
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: client_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: client_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: sdn_star
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: sdn_clos
+  topo_size: s
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: m
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1
+- scenario: sdn_clos
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_1
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: p4_counter
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: p4_int
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: p4_mpls
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: simple_bgp
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc1
+- scenario: k8s_lab
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: client
+- scenario: llmd_lab
+  topo_size: null
+  problem: arp_cache_poisoning
+  inject:
+    host_name: client
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dhcp_spoofed_dns
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dhcp_spoofed_dns
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_spoofed_dns
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dhcp_spoofed_gateway
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dhcp_spoofed_gateway
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_spoofed_gateway
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dhcp_spoofed_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dhcp_spoofed_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_spoofed_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+- scenario: dc_clos_service
+  topo_size: s
+  problem: web_dos_attack
+  inject:
+    host_name: webserver0_pod0
+    attacker_device: client_0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: web_dos_attack
+  inject:
+    host_name: webserver0_pod0
+    attacker_device: client_1
+- scenario: dc_clos_service
+  topo_size: l
+  problem: web_dos_attack
+  inject:
+    host_name: webserver0_pod0
+    attacker_device: client_3
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_0
+    attacker_device: pc_2_1_1_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_0
+    attacker_device: pc_2_2_2_2
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_0
+    attacker_device: pc_2_4_4_4
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_0
+    attacker_device: pc_2_1_1_1
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_0
+    attacker_device: pc_2_2_2_2
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_0
+    attacker_device: pc_2_4_4_4
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_1_1
+    attacker_device: pc2
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_1_1
+    attacker_device: pc4
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: web_dos_attack
+  inject:
+    host_name: web_server_1_1
+    attacker_device: pc8
+- scenario: llmd_lab
+  topo_size: null
+  problem: web_dos_attack
+  inject:
+    host_name: controller
+    attacker_device: client
+- scenario: dc_clos_service
+  topo_size: s
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: webserver0_pod0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: webserver0_pod0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: webserver0_pod0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_0
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_1_1
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_1_1
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: web_server_1_1
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: llmd_lab
+  topo_size: null
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: client
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_service
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_service
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: sdn_star
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: sdn_star
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: sdn_star
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: sdn_clos
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: sdn_clos
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: sdn_clos
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: p4_counter
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: p4_int
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: p4_mpls
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: simple_bgp
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: k8s_lab
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: client
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: llmd_lab
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: client
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_bgp
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: dc_clos_bgp
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_0_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: sdn_star
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: sdn_star
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: sdn_star
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: sdn_clos
+  topo_size: s
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: sdn_clos
+  topo_size: m
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: sdn_clos
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_1_1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: p4_counter
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: p4_int
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: p4_mpls
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: simple_bgp
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc1
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: k8s_lab
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: client
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: llmd_lab
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: client
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_pod0
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_pod0
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_pod0
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_server
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_server
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_server
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: load_balancer_overload
+  inject:
+    host_name: load_balancer
+    duration: '300'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: load_balancer_overload
+  inject:
+    host_name: load_balancer
+    duration: '300'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: load_balancer_overload
+  inject:
+    host_name: load_balancer
+    duration: '300'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: receiver_resource_contention
+  inject:
+    host_name: client_0
+    duration: '600'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: receiver_resource_contention
+  inject:
+    host_name: client_0
+    duration: '600'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: receiver_resource_contention
+  inject:
+    host_name: client_0
+    duration: '600'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc_1_1_1_1
+    duration: '600'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc_1_1_1_1
+    duration: '600'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc_1_1_1_1
+    duration: '600'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc_1_1_1_1
+    duration: '600'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc_1_1_1_1
+    duration: '600'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc_1_1_1_1
+    duration: '600'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc1
+    duration: '600'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc1
+    duration: '600'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: receiver_resource_contention
+  inject:
+    host_name: pc1
+    duration: '600'
+- scenario: llmd_lab
+  topo_size: null
+  problem: receiver_resource_contention
+  inject:
+    host_name: client
+    duration: '600'
+- scenario: dc_clos_service
+  topo_size: s
+  problem: sender_application_delay
+  inject:
+    host_name: webserver0_pod0
+- scenario: dc_clos_service
+  topo_size: m
+  problem: sender_application_delay
+  inject:
+    host_name: webserver0_pod0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: sender_application_delay
+  inject:
+    host_name: webserver0_pod0
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_0
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_0
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_0
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_0
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_0
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_1_1
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: sender_application_delay
+  inject:
+    host_name: web_server_1_1
+- scenario: llmd_lab
+  topo_size: null
+  problem: sender_application_delay
+  inject:
+    host_name: client
+- scenario: dc_clos_service
+  topo_size: s
+  problem: sender_resource_contention
+  inject:
+    host_name: webserver0_pod0
+    duration: '600'
+- scenario: dc_clos_service
+  topo_size: m
+  problem: sender_resource_contention
+  inject:
+    host_name: webserver0_pod0
+    duration: '600'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: sender_resource_contention
+  inject:
+    host_name: webserver0_pod0
+    duration: '600'
+- scenario: ospf_enterprise_dhcp
+  topo_size: s
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_0
+    duration: '600'
+- scenario: ospf_enterprise_dhcp
+  topo_size: m
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_0
+    duration: '600'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_0
+    duration: '600'
+- scenario: ospf_enterprise_static
+  topo_size: s
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_0
+    duration: '600'
+- scenario: ospf_enterprise_static
+  topo_size: m
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_0
+    duration: '600'
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_0
+    duration: '600'
+- scenario: rip_small_internet_vpn
+  topo_size: s
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_1_1
+    duration: '600'
+- scenario: rip_small_internet_vpn
+  topo_size: m
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_1_1
+    duration: '600'
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: sender_resource_contention
+  inject:
+    host_name: web_server_1_1
+    duration: '600'
+- scenario: llmd_lab
+  topo_size: null
+  problem: sender_resource_contention
+  inject:
+    host_name: client
+    duration: '600'

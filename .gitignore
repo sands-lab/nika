@@ -24,5 +24,8 @@ uv.lock
 !src/agent/skills/.claude/
 !src/agent/skills/.claude/**
 .pytest_cache/
-benchmark/additional_splits/inputs/*
+benchmark/additional_splits/inputs/NIKA Traces.zip
 benchmark/additional_splits/outputs/*
+!benchmark/additional_splits/outputs/benchmark_selected_150.yaml
+!benchmark/additional_splits/outputs/benchmark_selected_32.yaml
+!benchmark/additional_splits/outputs/benchmark_selected_640.yaml

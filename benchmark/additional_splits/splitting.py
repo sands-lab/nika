@@ -1,4 +1,4 @@
-## Usage: `python splitting.py --git_path '/home/alexis/git/nika'`
+## Usage: `python splitting.py --git_path '/home/user/git/nika'`
 
 ## Data sources:
 # 1. `NIKA Traces.zip`
@@ -137,13 +137,13 @@ def add_prefix(df, col='scenario', out='scenario_prefix'):
     df[out] = df[col].str.split('_').str[0] + '*'
     return df
 
-def add_prefix_and_category(df_cur, zip_path = '/home/alexis/git/nika/other_experiments/selected_splits/NIKA Traces.zip'):
+def add_prefix_and_category(df_cur, zip_path = '/home/user/git/nika/other_experiments/selected_splits/NIKA Traces.zip'):
     """
     Function for adding prefix and category from the 3 columns list of experiment
 
     Example usage:
-    outfile = '/home/alexis/git/nika/benchmark/splits/problem2_train.csv'
-    zip_path = '/home/alexis/git/nika/other_experiments/selected_splits/NIKA Traces.zip'
+    outfile = '/home/user/git/nika/benchmark/splits/problem2_train.csv'
+    zip_path = '/home/user/git/nika/other_experiments/selected_splits/NIKA Traces.zip'
     df_cur = pd.read_csv(outfile)
     add_prefix_and_category(df_cur, zip_path)
 
@@ -902,10 +902,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--git_path",
-        default='/home/alexis/git/nika',
+        default='/home/user/git/nika',
         help="path to the nika git repository",
     )
-    # git_path = '/home/alexis/git/nika'
+    # git_path = '/home/user/git/nika'
 
     ## Perform the csv splits ----
     args = parser.parse_args()

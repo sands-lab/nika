@@ -1,6 +1,6 @@
 # NIKA Generalization Splits
 
-A set of train / validation / test splits built from the public [NIKA](https://github.com/sands-lab/nika) reasoning traces, used to measure generalization along three independent axes: the *problem* (root cause), the *scenario* (topology family), and the *topology size*.
+A set of train / validation / test splits built from the public NIKA reasoning traces, used to measure generalization along three independent axes: the *problem* (root cause), the *scenario* (topology family), and the *topology size*.
 
 Each split is produced as a CSV and then converted to a fully-filled YAML (with per-case `inject:` details) using the 640-config benchmark as a pivot.
 
@@ -82,7 +82,7 @@ The CSVs land in `benchmark/additional_splits/outputs/csv/`; the converted YAMLs
 
 ### The two universes: 150 vs 640
 
-The paper does not use the full benchmark. The published traces cover 150 `(problem, scenario, topo_size)` configurations; the authors separately provide a 640-config benchmark. The 150 are a subset of the 640, which partitions into:
+The [arXiv v1](https://arxiv.org/abs/2512.16381v1) draft does not use the full benchmark. The published traces cover 150 `(problem, scenario, topo_size)` configurations; the authors separately provide a 640-config benchmark. The 150 are a subset of the 640, which partitions into:
 
 - 150 → `benchmark_selected_150`, used as the shared comparison test set.
 - 490 (= 640 − 150) → the pool from which the generalization splits are drawn.
@@ -169,10 +169,10 @@ This reads the inputs from the repo, checks they are consistent, writes every sp
 | File | What it is | Source |
 |------|------------|--------|
 | `benchmark/additional_splits/inputs/NIKA Traces.zip` | The published reasoning traces | [Zenodo 17971675](https://zenodo.org/records/17971675) |
-| `benchmark/additional_splits/inputs/benchmark_selected_640.csv` | All 640 `(problem, scenario, topo_size)` configurations | [NIKA repo](https://github.com/sands-lab/nika/blob/main/benchmark/benchmark_full.csv) |
+| `benchmark/additional_splits/inputs/benchmark_selected_640.csv` | All 640 `(problem, scenario, topo_size)` configurations | [Legacy NIKA repo](https://github.com/sands-lab/nika/blob/002502666752630066319858de2c7273b2ce85a6/benchmark/benchmark_full.csv) |
 | `benchmark/additional_splits/inputs/benchmark_selected_150.csv` | The 150 configurations used in the paper | extracted previously by us, rechecked in this code |
 | `benchmark/additional_splits/inputs/benchmark_selected_32.csv` | A 32-config subset of the 150 for quick tests | extracted by us |
-| `benchmark/additional_splits/inputs/benchmark_full.yaml` | Frozen copy of the canonical full YAML (685 cases, the 640 in original order, with `inject:` details) used as the pivot to fill `<MISSING>` values | copied from `benchmark/benchmark_full.yaml` |
+| `benchmark/additional_splits/inputs/benchmark_full.yaml` | Frozen copy of the canonical full YAML (685 cases, the 640 in original order, with `inject:` details) used as the pivot to fill `<MISSING>` values | copied from [`benchmark/benchmark_full.yaml`](https://github.com/sands-lab/nika/blob/1ecf23b05107e315b10a0639828b7fee7a3c8bf2/benchmark/benchmark_full.yaml) |
 
 ### Built-in checks
 
