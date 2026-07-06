@@ -67,6 +67,11 @@ class KatharaBaseAPI:
         self._resolved_shell_cache[host_name] = shell
         return shell
 
+    # Sentinel returned to AGENT-FACING callers on exec timeout (the agent can
+    # reason about it). Internal orchestration code must never treat it as
+    # data — use exec_cmd_checked instead.
+    TIMEOUT_SENTINEL = "[TIMEOUT]"
+
     def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
         """
         Run a command on a machine and return its output as a string.
@@ -77,7 +82,35 @@ class KatharaBaseAPI:
         try:
             return func_timeout(cmd_timeout, self._run_cmd, args=(host_name, cmd))
         except FunctionTimedOut:
-            return f"[TIMEOUT] Command '{command}' on '{host_name}' exceeded {cmd_timeout}s."
+            return f"{self.TIMEOUT_SENTINEL} Command '{command}' on '{host_name}' exceeded {cmd_timeout}s."
+
+    def exec_cmd_checked(
+        self,
+        host_name: str,
+        command: str,
+        timeout: float = 10,
+        retries: int = 2,
+        retry_delay: float = 5.0,
+    ) -> str:
+        """exec_cmd for ORCHESTRATION callers: retries transient timeouts and
+        raises instead of returning the ``[TIMEOUT]`` sentinel as data.
+
+        Right after a (re)deploy a container can be slow for a few seconds;
+        without this, the sentinel string leaks into JSON parsers and
+        verification comparisons and produces misleading downstream errors.
+        """
+        last_output = ""
+        for attempt in range(retries + 1):
+            output = self.exec_cmd(host_name, command, timeout=timeout)
+            if not output.startswith(self.TIMEOUT_SENTINEL):
+                return output
+            last_output = output
+            if attempt < retries:
+                time.sleep(retry_delay)
+        raise RuntimeError(
+            f"Command on '{host_name}' kept timing out after {retries + 1} "
+            f"attempts ({timeout}s each): {last_output}"
+        )
 
     def get_hosts(self) -> list[Machine]:
         """
@@ -190,7 +223,9 @@ class KatharaBaseAPI:
         """
 
         cmd = "ip -j addr"
-        result = self.exec_cmd(host_name, cmd)
+        # checked: a slow container right after deploy must retry, not hand a
+        # "[TIMEOUT] ..." string to json.loads below.
+        result = self.exec_cmd_checked(host_name, cmd)
 
         if isinstance(result, list):
             output = "\n".join(result)
@@ -200,7 +235,10 @@ class KatharaBaseAPI:
         try:
             ifaces = json.loads(output)
         except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse `ip -j addr` output: {e}") from e
+            raise RuntimeError(
+                f"Failed to parse `ip -j addr` output from '{host_name}': {e}; "
+                f"raw output started with: {output[:200]!r}"
+            ) from e
 
         def format_ip(ip: str, prefix: Optional[int]) -> str:
             if with_prefix and prefix is not None:

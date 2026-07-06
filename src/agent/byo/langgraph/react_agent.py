@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -176,22 +177,52 @@ class BasicReActAgent:
         submission_runner = submission_phase.get_agent()
 
         diag_text = state["diagnosis_report"][-1]
-        result = await submission_runner.ainvoke(
-            {
+        try:
+            result = await submission_runner.ainvoke(
+                {
+                    "messages": [
+                        HumanMessage(
+                            content=f"Based on the diagnosis report: {diag_text}, please provide the submission. Do not submit if no report available."
+                        ),
+                    ]
+                },
+                config={
+                    "callbacks": [
+                        AgentCallbackLogger(
+                            agent=SUBMISSION, session_dir=self.session_dir
+                        )
+                    ],
+                    "recursion_limit": self.max_steps,
+                },
+                debug=True,
+            )
+            return {
+                "messages": result["messages"],
+            }
+        except GraphRecursionError:
+            # The submit tool records submission.json the moment it is called,
+            # so the submission may already be on disk; raising here would fail
+            # the whole case and discard it. Either way the evaluator handles
+            # the session better than a crash does (missing submission scores
+            # as "no submission").
+            submitted = (Path(self.session_dir) / "submission.json").exists()
+            MessageLogger(agent=SUBMISSION, session_dir=self.session_dir).log(
+                "error",
+                {
+                    "message": (
+                        "Submission phase reached max recursion limit "
+                        + (
+                            "after a successful submission."
+                            if submitted
+                            else "without submitting."
+                        )
+                    )
+                },
+            )
+            return {
                 "messages": [
                     HumanMessage(
-                        content=f"Based on the diagnosis report: {diag_text}, please provide the submission. Do not submit if no report available."
-                    ),
-                ]
-            },
-            config={
-                "callbacks": [
-                    AgentCallbackLogger(agent=SUBMISSION, session_dir=self.session_dir)
+                        content="Error: submission phase did not finish within max steps."
+                    )
                 ],
-                "recursion_limit": self.max_steps,
-            },
-            debug=True,
-        )
-        return {
-            "messages": result["messages"],
-        }
+            }

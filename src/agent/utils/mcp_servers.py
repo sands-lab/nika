@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import functools
 import os
+from datetime import timedelta
+
+from langchain_core.tools import ToolException
 
 from nika.service.mcp_gateway.lifecycle import ENV_GATEWAY_AGENT_URL, ENV_GATEWAY_URL
 from nika.service.mcp_server.registry import (
@@ -13,6 +17,7 @@ from nika.service.mcp_server.registry import (
 
 __all__ = [
     "MCPServerConfig",
+    "harden_mcp_tools",
     "select_diagnosis_servers",
     "select_session_servers",
     "session_http_headers",
@@ -53,6 +58,94 @@ def select_session_servers(
     return servers
 
 
+# Read timeout for MCP client requests (seconds; 0 disables).
+# Without it the mcp ClientSession waits FOREVER on a lost response — the
+# observed failure mode: a benchmark run frozen for days with the server's
+# "Processing request of type ListToolsRequest" as the last log line.
+MCP_READ_TIMEOUT_ENV = "NIKA_MCP_READ_TIMEOUT"
+DEFAULT_MCP_READ_TIMEOUT_SECONDS = 120.0
+
+
+@functools.lru_cache(maxsize=1)
+def _mcp_read_timeout() -> timedelta | None:
+    raw = os.getenv(MCP_READ_TIMEOUT_ENV, "").strip()
+    try:
+        seconds = float(raw) if raw else DEFAULT_MCP_READ_TIMEOUT_SECONDS
+    except ValueError:
+        seconds = DEFAULT_MCP_READ_TIMEOUT_SECONDS
+    if seconds <= 0:
+        return None
+    if not _adapter_supports_session_kwargs():
+        print(
+            "WARNING: installed langchain_mcp_adapters does not support "
+            "session_kwargs — MCP calls have NO read timeout (hang risk); "
+            "upgrade with `pip install -U langchain-mcp-adapters`."
+        )
+        return None
+    return timedelta(seconds=seconds)
+
+
+def _adapter_supports_session_kwargs() -> bool:
+    """Feature-detect session_kwargs so an older adapter lib does not choke
+    on an unknown connection key."""
+    for module_name in (
+        "langchain_mcp_adapters.sessions",
+        "langchain_mcp_adapters.client",
+    ):
+        try:
+            module = __import__(
+                module_name, fromlist=["StreamableHttpConnection", "StdioConnection"]
+            )
+        except ImportError:
+            continue
+        for class_name in ("StreamableHttpConnection", "StdioConnection"):
+            connection = getattr(module, class_name, None)
+            if connection is not None:
+                return "session_kwargs" in getattr(connection, "__annotations__", {})
+    return False
+
+
+def _flatten_exception(exc: BaseException) -> str:
+    """Readable one-line summary of *exc*, unwrapping ExceptionGroups."""
+    if isinstance(exc, BaseExceptionGroup):
+        parts = [_flatten_exception(sub) for sub in exc.exceptions]
+        return "; ".join(dict.fromkeys(parts))
+    text = str(exc).strip()
+    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+
+
+def _hardened_coroutine(tool_name: str, coro_fn):
+    @functools.wraps(coro_fn)
+    async def wrapped(*args, **kwargs):
+        try:
+            return await coro_fn(*args, **kwargs)
+        except ToolException:
+            raise
+        except Exception as exc:  # noqa: BLE001 - includes ExceptionGroup
+            raise ToolException(
+                f"MCP tool '{tool_name}' failed with a transport error "
+                f"({_flatten_exception(exc)}). Any result was lost; retry the "
+                "call if you still need it."
+            ) from exc
+
+    return wrapped
+
+
+def harden_mcp_tools(tools) -> None:
+    """Convert transport-level failures of MCP tools into ToolExceptions.
+
+    langchain opens a fresh MCP session per tool call, and the client's
+    stream reader can hit a teardown race (e.g. BrokenResourceError inside an
+    ExceptionGroup) when the server flushes output while the session closes.
+    ``handle_tool_error = True`` only catches ToolException, so without this
+    wrapper one such race escapes the tool node and kills the whole benchmark
+    case. With it, the agent sees an error ToolMessage and can just retry.
+    """
+    for tool in tools:
+        if getattr(tool, "coroutine", None) is not None:
+            tool.coroutine = _hardened_coroutine(tool.name, tool.coroutine)
+
+
 class MCPServerConfig:
     def __init__(self, session_id: str):
         if not session_id:
@@ -63,11 +156,17 @@ class MCPServerConfig:
         if name not in MCP_SERVER_SPECS:
             raise KeyError(f"Unknown MCP server: {name!r}")
         base = _gateway_base_url()
-        return {
+        entry = {
             "transport": "http",
             "url": f"{base}/mcp/{name}/mcp",
             "headers": session_http_headers(self.session_id),
         }
+        read_timeout = _mcp_read_timeout()
+        if read_timeout is not None:
+            # Forwarded to mcp.ClientSession(read_timeout_seconds=...):
+            # a lost/blocked response raises McpError instead of hanging.
+            entry["session_kwargs"] = {"read_timeout_seconds": read_timeout}
+        return entry
 
     def load_http_config(self, server_names: list[str]) -> dict:
         """Return HTTP MCP client config for *server_names*."""

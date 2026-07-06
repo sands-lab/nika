@@ -6,6 +6,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import load_session_mcp_config
+from agent.utils.mcp_servers import harden_mcp_tools
 from agent.utils.phases import DIAGNOSIS
 
 load_dotenv()
@@ -31,6 +32,7 @@ class DiagnosisPhase:
 
     async def load_tools(self):
         self.tools: list[StructuredTool] = await self.client.get_tools()
+        harden_mcp_tools(self.tools)
         for tool in self.tools:
             tool.handle_tool_error = True
             tool.handle_validation_error = True

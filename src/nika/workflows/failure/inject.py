@@ -1,5 +1,7 @@
 """Inject configured faults for the current session and write ground truth."""
 
+import json
+import os
 import time
 from datetime import datetime
 from enum import Enum
@@ -13,8 +15,8 @@ from nika.utils.logger import bind_session_dir, log_error_event, log_event
 from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 
-VERIFY_MAX_ATTEMPTS = 3
-VERIFY_RETRY_DELAY_SEC = 2
+VERIFY_MAX_ATTEMPTS = int(os.getenv("NIKA_VERIFY_MAX_ATTEMPTS", "3"))
+VERIFY_RETRY_DELAY_SEC = float(os.getenv("NIKA_VERIFY_RETRY_DELAY_SEC", "5"))
 
 
 def _json_safe(value: Any) -> Any:
@@ -225,8 +227,20 @@ def inject_failure(
             problems=problem_names,
             verify_result=verify_payload,
         )
+        hint = ""
+        if "[TIMEOUT]" in json.dumps(verify_payload):
+            # The verifier's container exec timed out — the fault may well be
+            # injected; the CHECK could not run (container slow/not ready).
+            hint = (
+                " NOTE: the verification command itself timed out inside the "
+                "container ('[TIMEOUT]' in details) — this is usually a "
+                "transient readiness/load issue, not a bad case: retry the "
+                "case, or raise NIKA_VERIFY_MAX_ATTEMPTS / "
+                "NIKA_VERIFY_RETRY_DELAY_SEC."
+            )
         raise RuntimeError(
-            f"Failure injection verification failed for {problem_names}: {verify_result}"
+            f"Failure injection verification failed for {problem_names}: "
+            f"{verify_result}.{hint}"
         )
 
     for failure_id, problem_name in failure_rows:

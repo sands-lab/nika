@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -12,6 +13,7 @@ from pydantic import ValidationError
 
 from nika.config import BENCHMARK_DIR
 from nika.utils.session import Session
+from nika.utils.session_artifacts import RUN_FILENAME
 from nika.utils.session_store import SessionStore
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.prob_pool import get_problem_instance
@@ -25,6 +27,7 @@ from nika.workflows.benchmark.resume import (
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import eval_results
 from nika.workflows.failure.inject import inject_failure
+from nika.workflows.session.close import close_session
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
 _BENCHMARK_DONE_RE = re.compile(
@@ -239,36 +242,58 @@ def run_single_case(
     )
     session_dir = Path(SessionStore().get_session(session_id)["session_dir"])
 
-    inject_failure(
-        problem_names=[problem], session_id=session_id, param_overrides=params
-    )
+    try:
+        inject_failure(
+            problem_names=[problem], session_id=session_id, param_overrides=params
+        )
 
-    row = benchmark_row_from_case(
-        scenario=scenario,
-        problem=problem,
-        topo_size=topo_size,
-        inject_params=params,
-    )
-    Session().load_running_session(session_id=session_id).update_session(
-        "benchmark_fingerprint",
-        benchmark_row_fingerprint(row),
-    )
+        row = benchmark_row_from_case(
+            scenario=scenario,
+            problem=problem,
+            topo_size=topo_size,
+            inject_params=params,
+        )
+        Session().load_running_session(session_id=session_id).update_session(
+            "benchmark_fingerprint",
+            benchmark_row_fingerprint(row),
+        )
 
-    start_agent(
-        agent_type=agent_type,
-        llm_provider=llm_provider,
-        model=model,
-        max_steps=max_steps,
-        session_id=session_id,
-        stream_output=False,
-    )
+        start_agent(
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            session_id=session_id,
+            stream_output=False,
+        )
 
-    eval_results(
-        session_id=session_id,
-        run_judge=run_judge,
-        judge_llm_provider=judge_llm_provider,
-        judge_model=judge_model,
-    )
+        eval_results(
+            session_id=session_id,
+            run_judge=run_judge,
+            judge_llm_provider=judge_llm_provider,
+            judge_model=judge_model,
+        )
+    except BaseException:
+        # A failed case must not strand a "running" session with its Kathara
+        # lab still deployed (leaked labs burn CPU and skew later cases).
+        # eval_results closes the session on the success path.
+        try:
+            close_session(session_id=session_id, undeploy=True)
+            print(f"cleaned up failed session {session_id} (lab undeployed)")
+        except Exception as cleanup_error:  # noqa: BLE001 - best effort
+            print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
+        # If the failure happened after close_session already marked the run
+        # "finished" (e.g. during evaluation), resume would skip this case
+        # forever even though its artifacts are incomplete.
+        try:
+            run_path = session_dir / RUN_FILENAME
+            run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+            if run_meta.get("status") == "finished":
+                run_meta["status"] = "error"
+                run_path.write_text(json.dumps(run_meta, indent=2), encoding="utf-8")
+        except Exception:  # noqa: BLE001 - best effort
+            pass
+        raise
 
     print(
         f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} scenario={scenario} "

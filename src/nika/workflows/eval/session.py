@@ -232,4 +232,16 @@ def eval_results(
     close_session(session_id=resolved_session_id, undeploy=destroy_env)
     run_eval_metrics(session_id=resolved_session_id)
     if run_judge:
-        run_llm_judge(judge_llm_provider, judge_model, session_id=resolved_session_id)
+        try:
+            run_llm_judge(
+                judge_llm_provider, judge_model, session_id=resolved_session_id
+            )
+        except Exception as exc:  # noqa: BLE001 - judge is post-hoc analysis
+            # The session is closed and metrics are on disk; a transient judge
+            # failure (LLM/network) must not fail the whole case. The judge can
+            # be re-run offline on the closed session.
+            print(
+                f"WARNING: LLM judge failed for session {resolved_session_id}: {exc}\n"
+                f"Re-run it later with: nika eval judge -p {judge_llm_provider} "
+                f"-m {judge_model} --session_id {resolved_session_id}"
+            )
