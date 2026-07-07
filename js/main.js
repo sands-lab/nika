@@ -115,18 +115,36 @@
   const menu = document.getElementById('mobile-menu');
   if (!btn || !menu) return;
 
+  const navbar = document.getElementById('navbar');
+
+  function preventTouchScroll(e) {
+    if (!menu.contains(e.target)) e.preventDefault();
+  }
+
+  function lockScroll() {
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('touchmove', preventTouchScroll, { passive: false });
+    navbar.classList.add('menu-open');
+  }
+
+  function unlockScroll() {
+    document.body.style.overflow = '';
+    document.removeEventListener('touchmove', preventTouchScroll);
+    navbar.classList.remove('menu-open');
+  }
+
   function closeMenu() {
     menu.classList.remove('open');
     menu.setAttribute('aria-hidden', 'true');
     btn.setAttribute('aria-expanded', 'false');
-    document.body.style.overflow = '';
+    unlockScroll();
   }
 
   btn.addEventListener('click', () => {
     const open = menu.classList.toggle('open');
     menu.setAttribute('aria-hidden', String(!open));
     btn.setAttribute('aria-expanded', String(open));
-    document.body.style.overflow = open ? 'hidden' : '';
+    open ? lockScroll() : unlockScroll();
   });
 
   // Close when a section link is tapped
@@ -134,7 +152,12 @@
     a.addEventListener('click', closeMenu);
   });
 
-  // Close on outside click
+  // Close when tapping the dark backdrop (click lands on the menu element itself, not a child)
+  menu.addEventListener('click', e => {
+    if (e.target === menu) closeMenu();
+  });
+
+  // Close on outside click (fallback for non-fullscreen contexts)
   document.addEventListener('click', e => {
     if (!btn.contains(e.target) && !menu.contains(e.target)) {
       closeMenu();

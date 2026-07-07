@@ -151,7 +151,7 @@
             <circle cx="12" cy="12" r="10" />
             <path d="M12 8v4l3 3" />
           </svg>
-          New — support for Claude Code and Codex CLI available
+          New: support for Claude Code and Codex CLI available
         </div>
         <h1 class="hero-title">
           <span class="hero-nika">NIKA</span>
@@ -251,7 +251,7 @@ A unified platform for benchmarking AI agents on realistic network troubleshooti
                 loading="lazy"
               />
               <div class="overview-image-caption">
-                NIKA system architecture
+                <!-- md:overview.image_caption -->
               </div>
             </div>
           </div>
@@ -359,7 +359,7 @@ nika eval judge</code></pre>
               </svg>
             </div>
             <h3>MCP Tool Integration</h3>
-            <p>Model Context Protocol servers expose network operations — ping, iperf, BGP/OSPF config, flow rules, telemetry — as callable tools for any MCP-compatible agent.</p>
+            <p>Model Context Protocol servers expose network operations (ping, iperf, BGP/OSPF config, flow rules, telemetry) as callable tools for any MCP-compatible agent.</p>
           </div>
 
           <div class="feature-card">
@@ -969,7 +969,7 @@ source .venv/bin/activate</code></pre>
             <div class="qs-step-num">2</div>
             <div class="qs-step-body">
               <h3>Configure</h3>
-              <p>Copy <code>.env.example</code> to <code>.env</code> and fill in your API keys. NIKA ships no hard-coded defaults — every run needs a configured <code>.env</code> or explicit CLI flags.</p>
+              <p>Copy <code>.env.example</code> to <code>.env</code> and fill in your API keys. NIKA ships no hard-coded defaults: every run needs a configured <code>.env</code> or explicit CLI flags.</p>
               <div class="code-block">
                 <div class="code-header">
                   <span>.env</span>
@@ -1074,11 +1074,11 @@ nika eval summary</code></pre>
               <h3>Base Kathará Server</h3>
             </div>
             <ul class="mcp-tools">
-              <li><code>get_reachability</code> — Ping all host pairs</li>
-<li><code>iperf_test</code> — Bandwidth test between two hosts</li>
-<li><code>systemctl_ops</code> — Start / stop / restart services</li>
-<li><code>get_host_net_config</code> — Retrieve host network config</li>
-<li><code>nft_list_ruleset</code> — Dump nftables ruleset</li>
+              <li><code>get_reachability</code>: Ping all host pairs</li>
+<li><code>iperf_test</code>: Bandwidth test between two hosts</li>
+<li><code>systemctl_ops</code>: Start, stop, or restart services</li>
+<li><code>get_host_net_config</code>: Retrieve host network config</li>
+<li><code>nft_list_ruleset</code>: Dump nftables ruleset</li>
             </ul>
           </div>
 
@@ -1099,8 +1099,8 @@ nika eval summary</code></pre>
               <h3>BMv2 P4 Server</h3>
             </div>
             <ul class="mcp-tools">
-              <li><code>bmv2_get_log</code> — Retrieve BMv2 switch logs</li>
-<li><code>bmv2_get_counter_arrays</code> — Read counter arrays</li>
+              <li><code>bmv2_get_log</code>: Retrieve BMv2 switch logs</li>
+<li><code>bmv2_get_counter_arrays</code>: Read counter arrays</li>
             </ul>
           </div>
 
@@ -1119,8 +1119,8 @@ nika eval summary</code></pre>
               <h3>FRRouting Server</h3>
             </div>
             <ul class="mcp-tools">
-              <li><code>frr_get_bgp_conf</code> — Retrieve BGP configuration</li>
-<li><code>frr_get_ospf_conf</code> — Retrieve OSPF configuration</li>
+              <li><code>frr_get_bgp_conf</code>: Retrieve BGP configuration</li>
+<li><code>frr_get_ospf_conf</code>: Retrieve OSPF configuration</li>
             </ul>
           </div>
 
@@ -1141,9 +1141,9 @@ nika eval summary</code></pre>
               <h3>INT / InfluxDB Server</h3>
             </div>
             <ul class="mcp-tools">
-              <li><code>influx_list_buckets</code> — List InfluxDB buckets</li>
-<li><code>influx_get_measurements</code> — Retrieve measurements</li>
-<li><code>influx_query_measurement</code> — Query telemetry data</li>
+              <li><code>influx_list_buckets</code>: List InfluxDB buckets</li>
+<li><code>influx_get_measurements</code>: Retrieve measurements</li>
+<li><code>influx_query_measurement</code>: Query telemetry data</li>
             </ul>
           </div>
 
@@ -1163,7 +1163,7 @@ nika eval summary</code></pre>
               <h3>Generic Server</h3>
             </div>
             <ul class="mcp-tools">
-              <li><code>google_search</code> — Web search for context</li>
+              <li><code>google_search</code>: Web search for context</li>
             </ul>
           </div>
 
@@ -1185,13 +1185,13 @@ nika eval summary</code></pre>
               <h3>Task Management Server</h3>
             </div>
             <ul class="mcp-tools">
-              <li><code>list_avail_problems</code> — List available problems</li>
-<li><code>get_submission_template</code> — Get submission template</li>
-<li><code>submit</code> — Submit a solution</li>
+              <li><code>list_avail_problems</code>: List available problems</li>
+<li><code>get_submission_template</code>: Get submission template</li>
+<li><code>submit</code>: Submit a solution</li>
             </ul>
           </div>
         </div>
-        <p class="mcp-note">More tools coming soon. You can also plug in any custom MCP server — browse <a href="https://mcp.so/" target="_blank" rel="noopener">mcp.so</a> for the community catalogue.</p>
+        <p class="mcp-note">More tools coming soon. You can also plug in any custom MCP server; browse <a href="https://mcp.so/" target="_blank" rel="noopener">mcp.so</a> for the community catalogue.</p>
       </div>
     </section>
 

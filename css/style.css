@@ -163,6 +163,10 @@ code {
   backdrop-filter: blur(16px);
   box-shadow: 0 1px 0 var(--border);
 }
+.navbar.menu-open {
+  background: rgba(8,13,24,0.97);
+  backdrop-filter: blur(16px);
+}
 .nav-inner {
   display: flex;
   align-items: center;
@@ -389,6 +393,7 @@ code {
   padding: 28px;
   transition: var(--transition);
   border-left: 3px solid transparent;
+  min-width: 0;
 }
 .card-accent-cyan  { border-left-color: var(--cyan); }
 .card-accent-purple{ border-left-color: var(--purple); }
@@ -418,24 +423,10 @@ code {
 .overview-card p { font-size: 0.9375rem; color: var(--text-muted); line-height: 1.65; }
 .overview-card strong { color: var(--text); }
 
-.overview-image-frame {
-  position: relative;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-}
 .overview-image {
   width: 100%;
   height: auto;
   display: block;
-}
-.overview-image-caption {
-  padding: 10px 16px;
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  text-align: center;
-  border-top: 1px solid var(--border);
 }
 
 /* ── FEATURES ────────────────────────────────────────────────────────────── */
