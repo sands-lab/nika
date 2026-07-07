@@ -111,24 +111,33 @@
 
 /* ── MOBILE MENU ─────────────────────────────────────────────────────────── */
 (function () {
-  const btn   = document.getElementById('nav-hamburger');
-  const links = document.getElementById('nav-links');
-  if (!btn || !links) return;
+  const btn  = document.getElementById('nav-hamburger');
+  const menu = document.getElementById('mobile-menu');
+  if (!btn || !menu) return;
+
+  function closeMenu() {
+    menu.classList.remove('open');
+    menu.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
 
   btn.addEventListener('click', () => {
-    const open = links.classList.toggle('open');
-    btn.setAttribute('aria-expanded', open);
+    const open = menu.classList.toggle('open');
+    menu.setAttribute('aria-hidden', String(!open));
+    btn.setAttribute('aria-expanded', String(open));
+    document.body.style.overflow = open ? 'hidden' : '';
   });
 
-  // Close on link click
-  links.querySelectorAll('a').forEach(a => {
-    a.addEventListener('click', () => links.classList.remove('open'));
+  // Close when a section link is tapped
+  menu.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', closeMenu);
   });
 
   // Close on outside click
   document.addEventListener('click', e => {
-    if (!btn.contains(e.target) && !links.contains(e.target)) {
-      links.classList.remove('open');
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      closeMenu();
     }
   });
 })();

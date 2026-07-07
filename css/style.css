@@ -37,13 +37,14 @@
 /* ── RESET & BASE ────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; font-size: 17px; }
+html { scroll-behavior: smooth; font-size: 17px; overflow-x: hidden; }
 
 body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -195,6 +196,8 @@ code {
 .nav-links a.active { color: var(--cyan); }
 
 .nav-actions { display: flex; gap: 8px; margin-left: auto; }
+
+.mobile-menu { display: none; }
 
 .nav-hamburger {
   display: none;
@@ -652,6 +655,7 @@ code {
   flex-shrink: 0;
   margin-top: 2px;
 }
+.qs-step-body { min-width: 0; }
 .qs-step-body h3 {
   font-size: 1.125rem;
   font-weight: 700;
@@ -999,26 +1003,44 @@ code {
   .nav-actions { display: none; }
   .nav-hamburger { display: flex; }
 
-  .nav-links.open {
+  .mobile-menu.open {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     position: fixed;
-    top: 64px; left: 0; right: 0;
+    top: 64px; left: 0; right: 0; bottom: 0;
     background: rgba(8,13,24,0.97);
     backdrop-filter: blur(16px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--border);
+    z-index: 9999;
+  }
+  .mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     padding: 24px;
     gap: 16px;
     border-bottom: 1px solid var(--border);
   }
-  .nav-links.open + .nav-actions {
+  .mobile-nav-links a {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color var(--transition);
+  }
+  .mobile-nav-links a:hover { color: var(--text); }
+  .mobile-nav-actions {
     display: flex;
     flex-direction: column;
-    position: fixed;
-    top: 260px; left: 0; right: 0;
-    background: rgba(8,13,24,0.97);
-    padding: 0 24px 24px;
+    align-items: stretch;
+    padding: 24px;
     gap: 8px;
-    border-bottom: 1px solid var(--border);
+  }
+  .mobile-nav-actions .btn {
+    justify-content: center;
   }
 
   .overview-cards  { grid-template-columns: 1fr; }
