@@ -114,6 +114,16 @@ def start_net_env(
             error=str(exc),
             error_type=type(exc).__name__,
         )
+        # A failed start must not strand the lab we just deployed: with one
+        # leaked lab per failed verification, a long benchmark run piles up
+        # dozens of running container sets.
+        try:
+            net_env.undeploy()
+        except Exception as cleanup_exc:  # noqa: BLE001 - best effort
+            print(
+                f"WARNING: could not undeploy lab {net_env.name} after "
+                f"failed start: {cleanup_exc}"
+            )
         raise
 
     log_event(

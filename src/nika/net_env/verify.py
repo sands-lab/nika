@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
@@ -10,8 +11,11 @@ if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-LAB_VERIFY_MAX_WAIT_SEC = 180
-LAB_VERIFY_RETRY_DELAY_SEC = 5
+# Env-overridable: on a loaded host (parallel cases, container churn) labs —
+# especially DHCP-based ones — can legitimately need longer than 180s to
+# converge, and a too-short wait fails the whole case before the agent runs.
+LAB_VERIFY_MAX_WAIT_SEC = int(os.getenv("NIKA_LAB_VERIFY_MAX_WAIT", "180"))
+LAB_VERIFY_RETRY_DELAY_SEC = float(os.getenv("NIKA_LAB_VERIFY_RETRY_DELAY", "5"))
 
 
 def build_lab_verify_result(
