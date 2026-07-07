@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import signal
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -134,8 +136,14 @@ def _run_benchmark_row_subprocess(
     judge_model: str | None,
     result_dir: str | None = None,
     session_tag: str | None = None,
+    case_timeout: int = 0,
 ) -> None:
-    """Run one YAML row via a subprocess for thread-safe parallel batch execution."""
+    """Run one YAML row via a subprocess for thread-safe parallel batch execution.
+
+    ``case_timeout`` > 0 arms a hard per-case watchdog: the whole subprocess
+    group is killed when it expires, so one hung case (frozen agent, stuck
+    tool call) cannot stall the run forever.
+    """
     cli_args = _benchmark_row_cli_args(
         row,
         agent_type=agent_type,
@@ -148,17 +156,39 @@ def _run_benchmark_row_subprocess(
         result_dir=result_dir,
         session_tag=session_tag,
     )
-    proc = subprocess.run(
+    proc = subprocess.Popen(
         [sys.executable, "-m", "nika.cli.main", "benchmark", "run", *cli_args],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
-    )
-    output = proc.stdout
-    if proc.stderr:
-        output += proc.stderr
+        start_new_session=True,  # own process group: the watchdog kill reaps
+    )                            # docker clients/agents too, not just the CLI
+    timed_out = False
+    try:
+        output, _ = proc.communicate(timeout=case_timeout if case_timeout > 0 else None)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(os.getpgid(proc.pid), sig)
+            except ProcessLookupError:
+                break
+            try:
+                proc.wait(timeout=15)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        output, _ = proc.communicate()
+
+    scenario = row.get("scenario", "?")
+    problem = row.get("problem", "?")
+    if timed_out:
+        raise RuntimeError(
+            f"[{scenario}/{problem}] case exceeded --case-timeout ({case_timeout}s) "
+            f"and was killed. Its lab may be leaked — check `nika session ps`. "
+            f"Output tail:\n{(output or '')[-2000:]}"
+        )
     if proc.returncode != 0:
-        scenario = row.get("scenario", "?")
-        problem = row.get("problem", "?")
         raise RuntimeError(
             f"[{scenario}/{problem}] `nika benchmark run {' '.join(cli_args)}` "
             f"exited {proc.returncode}:\n{output}"
@@ -170,35 +200,30 @@ def _run_benchmark_row_subprocess(
 def _run_benchmark_batch_parallel(
     indexed_rows: list[tuple[int, dict]],
     *,
-    agent_type: str,
-    llm_provider: str | None,
-    model: str | None,
-    max_steps: int | None,
-    run_judge: bool,
-    judge_llm_provider: str | None,
-    judge_model: str | None,
-    result_dir: str | None = None,
-    session_tag: str | None = None,
-) -> None:
-    """Run indexed rows simultaneously (one subprocess each), then return."""
-    shared_kwargs = dict(
-        agent_type=agent_type,
-        llm_provider=llm_provider,
-        model=model,
-        max_steps=max_steps,
-        run_judge=run_judge,
-        judge_llm_provider=judge_llm_provider,
-        judge_model=judge_model,
-        result_dir=result_dir,
-        session_tag=session_tag,
-    )
+    continue_on_error: bool = False,
+    **shared_kwargs,
+) -> list[str]:
+    """Run indexed rows simultaneously (one subprocess each), then return.
+
+    Returns the error messages of failed rows. With ``continue_on_error``
+    False (historic behavior) the first failure raises; otherwise failures
+    are reported and the batch keeps going.
+    """
+    failures: list[str] = []
     with ThreadPoolExecutor(max_workers=len(indexed_rows)) as pool:
         futures = [
             pool.submit(_run_benchmark_row_subprocess, row, **shared_kwargs)
             for _index, row in indexed_rows
         ]
         for future in as_completed(futures):
-            future.result()
+            try:
+                future.result()
+            except Exception as e:  # noqa: BLE001 - row errors are aggregated
+                if not continue_on_error:
+                    raise
+                print(f"CASE FAILED (continuing): {e}")
+                failures.append(str(e))
+    return failures
 
 
 def run_single_case(
@@ -316,6 +341,9 @@ def run_benchmark_from_yaml(
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
+    case_timeout: int = 0,
+    continue_on_error: bool = False,
+    retry_passes: int = 0,
 ) -> None:
     """
     Run benchmark cases defined in a YAML file.
@@ -326,9 +354,22 @@ def run_benchmark_from_yaml(
     completed cases are skipped and incomplete ones are cleaned. Remaining cases run
     sequentially when ``batch_size == 1`` (default), or in parallel chunks when
     ``batch_size > 1``. Re-run the same command to resume after an interruption.
+
+    ``case_timeout`` > 0 arms a hard per-case watchdog (each row then runs in
+    its own subprocess even with ``batch_size == 1``). ``continue_on_error``
+    keeps the run going past failed rows and summarizes them at the end
+    instead of aborting on the first failure. ``retry_passes`` > 0 then
+    automatically re-scans and retries the failed cases up to that many extra
+    passes (implies ``continue_on_error``); retries stop early when a full
+    pass completes no new case, so a deterministic bug cannot burn passes.
     """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
+    if retry_passes < 0:
+        raise ValueError("retry_passes must be >= 0")
+    if retry_passes and not continue_on_error:
+        # A retry loop is pointless if the first failure aborts the run.
+        continue_on_error = True
 
     rows = load_benchmark_yaml(benchmark_file)
 
@@ -348,35 +389,82 @@ def run_benchmark_from_yaml(
         session_tag=session_tag,
     )
 
-    _results_root, pending = scan_benchmark_cases(
-        rows=rows,
-        result_dir=result_dir,
-        resume=resume,
-    )
-    if not pending:
-        return
+    def _run_pending(pending: list[int]) -> list[str]:
+        failures: list[str] = []
+        # The watchdog needs a killable process per case, so a timeout forces
+        # the subprocess path even for sequential runs.
+        if batch_size == 1 and case_timeout <= 0:
+            for index in pending:
+                row = rows[index]
+                label = f"[{index + 1}/{len(rows)}] {row['scenario']}/{row['problem']}"
+                print(f"{label} running")
+                try:
+                    run_single_case(
+                        problem=row["problem"],
+                        scenario=row["scenario"],
+                        topo_size=row.get("topo_size") or "",
+                        inject_params=row["inject"],
+                        **_shared_kwargs,
+                    )
+                except Exception as e:  # noqa: BLE001 - row errors are aggregated
+                    if not continue_on_error:
+                        raise
+                    print(
+                        f"CASE FAILED (continuing): [{row['scenario']}/{row['problem']}] {e}"
+                    )
+                    failures.append(f"[{row['scenario']}/{row['problem']}] {e}")
+        else:
+            for chunk_start in range(0, len(pending), batch_size):
+                chunk_indices = pending[chunk_start : chunk_start + batch_size]
+                indexed_rows = [(index, rows[index]) for index in chunk_indices]
+                first = chunk_indices[0] + 1
+                last = chunk_indices[-1] + 1
+                print(
+                    f"[batch {chunk_start // batch_size + 1}] running {len(chunk_indices)} session(s) in parallel "
+                    f"(rows {first}–{last} of {len(rows)})"
+                )
+                failures += _run_benchmark_batch_parallel(
+                    indexed_rows,
+                    continue_on_error=continue_on_error,
+                    case_timeout=case_timeout,
+                    **_shared_kwargs,
+                )
+        return failures
 
-    if batch_size == 1:
-        for index in pending:
-            row = rows[index]
-            label = f"[{index + 1}/{len(rows)}] {row['scenario']}/{row['problem']}"
-            print(f"{label} running")
-            run_single_case(
-                problem=row["problem"],
-                scenario=row["scenario"],
-                topo_size=row.get("topo_size") or "",
-                inject_params=row["inject"],
-                **_shared_kwargs,
-            )
-        return
-
-    for chunk_start in range(0, len(pending), batch_size):
-        chunk_indices = pending[chunk_start : chunk_start + batch_size]
-        indexed_rows = [(index, rows[index]) for index in chunk_indices]
-        first = chunk_indices[0] + 1
-        last = chunk_indices[-1] + 1
-        print(
-            f"[batch {chunk_start // batch_size + 1}] running {len(chunk_indices)} session(s) in parallel "
-            f"(rows {first}–{last} of {len(rows)})"
+    failures: list[str] = []
+    previous_pending: int | None = None
+    for attempt in range(retry_passes + 1):
+        _results_root, pending = scan_benchmark_cases(
+            rows=rows,
+            result_dir=result_dir,
+            # Retry passes must skip completed cases regardless of --no-resume.
+            resume=resume or attempt > 0,
         )
-        _run_benchmark_batch_parallel(indexed_rows, **_shared_kwargs)
+        if not pending:
+            if attempt > 0:
+                print("\nAll benchmark cases completed after retries.")
+            return
+        if attempt > 0:
+            if previous_pending is not None and len(pending) >= previous_pending:
+                print(
+                    f"\nRetry made no progress ({len(pending)} case(s) still "
+                    "failing deterministically); stopping retries."
+                )
+                break
+            print(
+                f"\n[retry {attempt}/{retry_passes}] retrying {len(pending)} failed case(s)"
+            )
+        previous_pending = len(pending)
+        failures = _run_pending(pending)
+        if not failures:
+            if attempt > 0:
+                print("\nAll benchmark cases completed after retries.")
+            return
+
+    if failures:
+        print(
+            f"\n{len(failures)} case(s) still FAILED "
+            "(re-run the same command with --resume to retry only these):"
+        )
+        for message in failures:
+            print(f"  - {message.splitlines()[0]}")

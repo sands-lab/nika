@@ -142,6 +142,36 @@ def benchmark_run(
             "Use --no-resume to re-run every case."
         ),
     ),
+    case_timeout: int = typer.Option(
+        0,
+        "--case-timeout",
+        envvar="NIKA_CASE_TIMEOUT",
+        help=(
+            "YAML batch mode: hard per-case watchdog in seconds (0 = disabled). "
+            "A case exceeding it is killed (whole process group) and counted as "
+            "failed instead of stalling the run forever."
+        ),
+    ),
+    continue_on_error: bool = typer.Option(
+        False,
+        "--continue-on-error/--abort-on-error",
+        envvar="NIKA_CONTINUE_ON_ERROR",
+        help=(
+            "YAML batch mode: keep running past failed cases and summarize them "
+            "at the end (default: abort on the first failure)."
+        ),
+    ),
+    retry_passes: int = typer.Option(
+        0,
+        "--retry-passes",
+        envvar="NIKA_RETRY_PASSES",
+        help=(
+            "YAML batch mode: after the first pass, automatically re-scan and "
+            "retry failed cases up to this many extra passes (implies "
+            "--continue-on-error). Stops early when a pass completes no new "
+            "case, so a deterministic bug cannot burn all passes."
+        ),
+    ),
 ) -> None:
     """Run one benchmark row from YAML, or a single case when SCENARIO and --problem are set."""
     if run_judge:
@@ -165,6 +195,18 @@ def benchmark_run(
         if batch_size != 1:
             raise typer.BadParameter(
                 "--batch-size applies to YAML batch mode only; omit it for a single case."
+            )
+        if case_timeout:
+            raise typer.BadParameter(
+                "--case-timeout applies to YAML batch mode only; omit it for a single case."
+            )
+        if continue_on_error:
+            raise typer.BadParameter(
+                "--continue-on-error applies to YAML batch mode only; omit it for a single case."
+            )
+        if retry_passes:
+            raise typer.BadParameter(
+                "--retry-passes applies to YAML batch mode only; omit it for a single case."
             )
         if not problem:
             raise typer.BadParameter("--problem is required when SCENARIO is given.")
@@ -225,4 +267,7 @@ def benchmark_run(
         result_dir=result_dir,
         resume=resume,
         session_tag=session_tag,
+        case_timeout=case_timeout,
+        continue_on_error=continue_on_error,
+        retry_passes=retry_passes,
     )
