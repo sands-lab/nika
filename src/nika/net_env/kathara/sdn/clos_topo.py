@@ -218,11 +218,16 @@ class SDNClos(NetworkEnvBase):
         self.lab.connect_machine_to_link(controller.name, "switch_controller")
 
         # ---------- Controller start script ----------
+        # m/l fabrics have multiple spines, so the leaf-spine mesh contains
+        # loops; plain l2_learning floods on all ports and storms. Discovery +
+        # spanning_tree marks redundant inter-switch ports NO_FLOOD so floods
+        # follow a loop-free tree (--hold-down: no flooding until it settles).
         self.lab.create_file_from_list(
             [
                 "ip addr add 20.0.0.100/24 dev eth0",
                 "ip link set eth0 up",
-                "python3 /pox/pox.py forwarding.l2_learning &",
+                "python3 /pox/pox.py openflow.discovery openflow.spanning_tree"
+                " --no-flood --hold-down forwarding.l2_learning &",
             ],
             f"{controller.name}.startup",
         )
@@ -243,7 +248,13 @@ class SDNClos(NetworkEnvBase):
 
         self.load_machines()
 
+        self._host_ips = {h.name: h.ip_address for h in tot_host_list}
+
     def verify_lab(self) -> dict:
         from nika.net_env.kathara.sdn.verify import verify_sdn_clos_lab
 
-        return verify_sdn_clos_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
+        return verify_sdn_clos_lab(
+            self._build_runtime(),
+            scenario_name=self.LAB_NAME,
+            host_ips=self._host_ips,
+        )

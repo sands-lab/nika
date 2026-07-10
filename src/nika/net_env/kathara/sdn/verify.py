@@ -42,16 +42,24 @@ def verify_sdn_star_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str,
     )
 
 
-def verify_sdn_clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
+def verify_sdn_clos_lab(
+    runtime: LabRuntime,
+    *,
+    scenario_name: str,
+    host_ips: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    # Host addresses are assigned sequentially across leaves, so pc_2_1's IP
+    # depends on hosts-per-leaf: 10.0.0.3 on "s" but 10.0.0.5/.9 on "m"/"l".
+    ips = host_ips or {"pc_1_1": "10.0.0.1", "pc_2_1": "10.0.0.3"}
     expected = ("controller", "spine_1", "leaf_1", "leaf_2", "pc_1_1", "pc_2_1")
     checks = {
         "nodes_deployed": nodes_deployed(runtime, expected),
         "controller_link_up": link_up(runtime, "controller"),
         "controller_process": process_running(runtime, "controller", "python3"),
         "ovs_switches_ready": _ovs_ready(runtime, ("spine_1", "leaf_1", "leaf_2")),
-        "pc_1_1_ipv4": host_has_ipv4(runtime, "pc_1_1", "10.0.0.1"),
-        "pc_2_1_ipv4": host_has_ipv4(runtime, "pc_2_1", "10.0.0.3"),
-        "cross_leaf_host_reachable": ping_ok(runtime, "pc_1_1", "10.0.0.3"),
+        "pc_1_1_ipv4": host_has_ipv4(runtime, "pc_1_1", ips["pc_1_1"]),
+        "pc_2_1_ipv4": host_has_ipv4(runtime, "pc_2_1", ips["pc_2_1"]),
+        "cross_leaf_host_reachable": ping_ok(runtime, "pc_1_1", ips["pc_2_1"]),
     }
     return build_lab_verify_result(
         scenario_name=scenario_name,
