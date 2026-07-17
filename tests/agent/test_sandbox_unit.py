@@ -117,7 +117,7 @@ class GatewayPhaseRouteTest:
     def _setup(self) -> None:
         clear_sessions()
         yield
-        self.tmp.cleanup()
+        clear_sessions()
 
     def test_advance_phase_via_http(self) -> None:
         register_session("sess-1", scenario_name="simple_bgp")

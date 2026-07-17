@@ -46,7 +46,6 @@ class _OSPFEnterpriseVerifyBase(SharedSessionTestCase):
     def _setup_class(cls) -> None:
         if cls is _OSPFEnterpriseVerifyBase:
             pytest.skip("base test class")
-        super().setUpClass()
 
     def _runtime(self):
         from nika.runtime.factory import runtime_for_session
