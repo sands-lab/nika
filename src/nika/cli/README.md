@@ -201,6 +201,17 @@ nika benchmark run --result_dir results/list1 --batch-size 4   # resume skips co
 
 **`--batch-size`**: number of YAML rows to run simultaneously per batch (default `1`). Rows are chunked into groups of this size; each group runs fully in parallel (one subprocess per row) and the next group starts only after all rows in the current group have finished. Applies to batch mode only.
 
+**`--case-timeout SECONDS`** (`NIKA_CASE_TIMEOUT`, batch mode): hard per-case time limit. When it expires, the case's entire process group is killed (agent subprocesses and docker clients included) and the case counts as failed. When set, each row runs in its own subprocess even at `--batch-size 1`, so a stuck case can be killed cleanly.
+
+**`--continue-on-error`** (`NIKA_CONTINUE_ON_ERROR`, batch mode): keep going after a failed case instead of aborting the run; failed cases are summarized at the end. Re-running the same command with `--resume` retries only the failed cases.
+
+**`--retry-passes N`** (`NIKA_RETRY_PASSES`, batch mode): after the first pass, automatically re-scan and retry failed cases up to `N` extra passes (implies `--continue-on-error`). Retries stop early when a pass completes no new case. Example for a long unattended run:
+
+```bash
+nika benchmark run --config benchmark/benchmark_selected.yaml --batch-size 4 \
+    --case-timeout 2400 --retry-passes 2
+```
+
 **YAML case fields**:
 
 | Field | Meaning |
