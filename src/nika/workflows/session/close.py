@@ -5,12 +5,10 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from Kathara.manager.Kathara import Kathara
-
+import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
 from nika.config import RESULTS_DIR, RUNTIME_DIR, SESSIONS_DB, SESSIONS_DIR, resolve_results_root
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.runtime.factory import resolve_backend, runtime_for_session
-import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
 from nika.runtime.meta import meta_get, meta_path
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
 from nika.utils.session import Session
@@ -99,19 +97,29 @@ def wipe_runtime_artifacts(
 
 def wipe_kathara_labs() -> None:
     """Remove all Kathara devices and collision domains for the current user."""
-    Kathara.get_instance().wipe()
+    try:
+        from Kathara.manager.Kathara import Kathara
+        Kathara.get_instance().wipe()
+    except ModuleNotFoundError:
+        # Kathara is not installed; nothing to clean up
+        pass
 
 
 def wipe_all_containerlab_labs() -> None:
     """Remove all Containerlab labs for the current user."""
-    result = subprocess.run(
-        ["clab", "destroy", "--all", "--cleanup", "--yes", "--log-level", "error"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"Error wiping containerlab labs: {result.stderr or result.stdout}")
+    try:
+        result = subprocess.run(
+            ["clab", "destroy", "--all", "--cleanup", "--yes", "--log-level", "error"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            print(f"Error wiping containerlab labs: {result.stderr or result.stdout}")
+    except FileNotFoundError:
+        # Containerlab is not installed; nothing to clean up
+        return
 
 
 def _stop_session_record(session_meta: dict, *, undeploy: bool = True) -> None:
