@@ -106,7 +106,12 @@ def scan_benchmark_cases(
     result_dir: str | Path | None,
     resume: bool,
 ) -> tuple[Path, list[int]]:
-    """Scan session dirs under the results root and return row indices still to run."""
+    """Legacy flat-session resume scan (fingerprint match under ``result_dir``).
+
+    Batch ``nika benchmark run --config`` / ``--release`` use
+    ``scan_trials`` under ``trials/`` instead. Kept for unit tests
+    and older flat result trees.
+    """
     results_root = resolve_results_root(result_dir)
     results_root.mkdir(parents=True, exist_ok=True)
     total = len(rows)

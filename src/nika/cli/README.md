@@ -17,6 +17,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika agent` | Run a troubleshooting agent on one selected session task |
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
+| `nika leaderboard` | Pack, validate, and submit leaderboard entries (GitHub PR) from official release runs |
 | `nika traffic` | Synthetic traffic (`od`, `web`) against the running lab |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
@@ -41,7 +42,10 @@ This flag is reused on **`nika benchmark run`** and **`nika traffic run`** when 
 
 ### Results directory (`--result_dir`)
 
-Session artifacts are written under **`{result_dir}/{session_id}/`**. Use this to isolate experiments (different datasets, models, agents, or benchmark runs) under separate folders.
+- **Ad-hoc / single-case / env**: session artifacts under **`{result_dir}/{session_id}/`** for bare single-case CLI; batch `--config` uses the same **`{result_dir}/trials/{case_key}__t01/`** trials/ layout as release runs (`n_trials=1`).
+- **Release run**: `--result_dir` **is** one run — `{result_dir}/run.json` plus `{result_dir}/trials/{case_key}__tNN/`.
+
+Use separate directories to isolate experiments (different datasets, models, agents, or release runs).
 
 | Source | Variable / flag | Default |
 |--------|-----------------|---------|
@@ -54,10 +58,14 @@ CLI `--result_dir` overrides `NIKA_RESULT_DIR` when both are set. Relative paths
 nika env run simple_bgp --result_dir results/list1
 # → results/list1/20260702-053412-abc123/
 
+nika benchmark run --release 0.1.0 --result_dir results/my-release-run
+# → results/my-release-run/run.json
+# → results/my-release-run/trials/<case_key>__t01/ …
+
 NIKA_RESULT_DIR=results/gpt4-bgp nika benchmark run --config benchmark/benchmark_selected.yaml
 ```
 
-**Benchmark resume** (batch mode, `--resume` by default): before running, NIKA scans **only** the resolved `--result_dir` for existing session dirs. Rows whose `run.json` has `status == finished` and a matching `benchmark_fingerprint` are skipped; incomplete sessions are cleaned and re-run. Re-run the same command with the same `--config` and `--result_dir` to continue after a failure. Pass **`--no-resume`** to execute every YAML row regardless of existing artifacts.
+**Benchmark resume** (batch mode, `--resume` by default): before running, NIKA scans **only** the resolved `--result_dir` trials. Completed trials (`outcome` in `{success, agent_failed}`) are skipped; incomplete dirs are cleaned and re-run in place. Pass **`--no-resume`** to execute every trial regardless of existing artifacts.
 
 ### Agent options
 
@@ -70,16 +78,6 @@ Aligned with `nika agent run`:
 - **`-e` / `--reasoning-effort`**: Codex `model_reasoning_effort` (`local_cli.codex_cli`, `sdk.codex_sdk`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`.
 
 `nika eval judge` uses **`-p`** and **`-m`** for the judge only (no agent in that command).
-
-### Benchmark judge options
-
-`nika benchmark run` configures **both** agent and judge in one command. By default it runs **metrics only**; pass **`--judge`** to also run the LLM judge. Judge options use a **prefix** to avoid clashing with the agent:
-
-- **`--judge`**: enable LLM-as-judge after metrics.
-- **`--judge-provider`**
-- **`--judge-model`**
-
-Both judge options are required when **`--judge`** is set.
 
 ---
 
@@ -151,12 +149,20 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
 
 ## `nika eval`
 
-Eval commands operate on **closed** sessions only. Close the lab with **`nika session close`** before running eval; artifacts are read from and written to `results/{session_id}/`.
+Eval commands operate on **closed** sessions only. After a benchmark run (or a manual `nika session close`), use eval for post-hoc scoring:
 
-- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: rule-based metrics → `eval_metrics.json` (records eval completion in `events.jsonl`). With `--result_dir` and no `--session_id`, runs on every closed session under that directory.
+- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: rule-based metrics → `eval_metrics.json` (records eval completion in `events.jsonl`). With `--result_dir` and no `--session_id`, runs on every closed session under that directory. Benchmark already writes metrics when each case closes; re-run this to recompute.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
 - **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions and write one CSV.
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.
+
+Typical post-benchmark flow:
+
+```shell
+nika benchmark run --release 0.1.0 --result_dir results/my_run
+nika eval judge -p openai -m gpt-5-mini --result_dir results/my_run   # optional
+nika eval summary --result_dir results/my_run
+```
 
 ### `nika eval summary` filters
 
@@ -177,39 +183,64 @@ Each finished session directory should contain at least `run.json`, `ground_trut
 
 ---
 
-## `nika benchmark`
+## `nika leaderboard`
 
-Implements the end-to-end benchmark pipeline: start env → inject → agent → close session → eval (metrics, optional judge). Run `nika eval summary` afterward to aggregate CSV rows across finished sessions.
-
-### Batch mode (default)
-
-Omit the `SCENARIO` positional argument. Rows are read from a YAML file.
+Pack, validate, and open a GitHub PR for a leaderboard submission from an official release run. See [`docs/leaderboard-submission.md`](../../docs/leaderboard-submission.md).
 
 ```shell
-nika benchmark run
-nika benchmark run --config benchmark/benchmark_selected.yaml
-nika benchmark run --batch-size 4
-nika benchmark run --result_dir results/list1
-nika benchmark run --result_dir results/list1 --batch-size 4   # resume skips completed rows in that dir only
+nika leaderboard template -o results/my-run/submission
+# edit metadata.yaml + README.md
+nika leaderboard pack --result_dir results/my-run \
+  --submission results/my-run/submission
+
+nika leaderboard validate results/my-run/YYYYMMDD_slug \
+  --source-result-dir results/my-run
+
+nika leaderboard submit results/my-run/YYYYMMDD_slug
 ```
 
-**Default config path**: `benchmark/benchmark_selected.yaml` under the repository root.
+Pack flags: `--result_dir`, required `--submission`, optional `--out`. Pack writes `{result_dir}/{YYYYMMDD}_{slug}/` by default. Submit requires authenticated [`gh`](https://cli.github.com/) and opens a PR on `sands-lab/nika-leaderboard` (override with `--repo`).
 
-**`--result_dir`**: parent directory for session outputs (see [Results directory](#results-directory---result_dir)). Resume and skip logic inspect **only** this directory—not other folders under `results/` and not the SQLite index.
+---
 
-**`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished cases, clean incomplete ones, then run the rest. Works with any `--batch-size`.
+## `nika benchmark`
 
-**`--batch-size`**: number of YAML rows to run simultaneously per batch (default `1`). Rows are chunked into groups of this size; each group runs fully in parallel (one subprocess per row) and the next group starts only after all rows in the current group have finished. Applies to batch mode only.
+Implements the experiment pipeline: start env → inject → agent → close session → rule-based metrics. Use **`nika eval judge`** / **`nika eval summary`** afterward for LLM judge and CSV aggregation.
 
-**`--case-timeout SECONDS`** (`NIKA_CASE_TIMEOUT`, batch mode): hard per-case time limit. When it expires, the case's entire process group is killed (agent subprocesses and docker clients included) and the case counts as failed. When set, each row runs in its own subprocess even at `--batch-size 1`, so a stuck case can be killed cleanly.
+### Batch mode
 
-**`--continue-on-error`** (`NIKA_CONTINUE_ON_ERROR`, batch mode): keep going after a failed case instead of aborting the run; failed cases are summarized at the end. Re-running the same command with `--resume` retries only the failed cases.
+Omit the `SCENARIO` positional argument and pass either **`--release`** (frozen suite) or **`--config`** (ad-hoc YAML). There is no bare default suite.
 
-**`--retry-passes N`** (`NIKA_RETRY_PASSES`, batch mode): after the first pass, automatically re-scan and retry failed cases up to `N` extra passes (implies `--continue-on-error`). Retries stop early when a pass completes no new case. Example for a long unattended run:
+```shell
+nika benchmark run --release 0.1.0              # frozen release
+nika benchmark run --release 0.1.0 --result_dir results/my-run
+nika benchmark releases                         # list + verify each release
+nika benchmark run --config benchmark/benchmark_selected.yaml
+nika benchmark run --release 0.1.0 --batch-size 4
+nika benchmark run --release 0.1.0 --result_dir results/list1
+nika benchmark run --release 0.1.0 --result_dir results/list1 --batch-size 4
+```
+
+**Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case count / `cases_sha256` / `benchmark_digest`, Dev∩Test fingerprint isolation, scenario/problem registration, source-file pins, MCP allowlist, and required Docker images (images must already exist; release mode does not auto-build).
+
+Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) under `{result_dir}/trials/{case_key}__tNN/`. Ad-hoc `--config` uses the same layout with `n_trials=1`. Resume skips completed trials (including `agent_failed`); incomplete trials are re-run without creating extra trial indices.
+
+**Artifacts**: release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`, and stamp each trial `run.json` with `benchmark_id` / `benchmark_version` / `benchmark_digest` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live run progress (completed/pending trials) is written to `runtime/benchmark_runs/{run_id}.json`.
+
+**`--result_dir`**: for batch `--config` / `--release` this directory **is** the run root (see [Results directory](#results-directory---result_dir)). Resume and skip logic inspect **only** this directory—not other folders under `results/` and not the SQLite index.
+
+**`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished trials, clean incomplete ones, then run the rest. Works with any `--batch-size`.
+
+**`--batch-size`**: number of trials to run simultaneously per batch (default `1`). Trials are chunked into groups of this size; each parallel group runs via spawn processes (and timeouts also use spawn). Applies to batch mode only.
+
+**`--case-timeout SECONDS`** (`NIKA_CASE_TIMEOUT`, batch mode): hard per-trial time limit. When omitted, the release default is used (**2400** for `0.1.0`); ad-hoc `--config` defaults to `0` (disabled). When set, each trial runs in an isolated spawn process so a stuck case can be killed cleanly.
+
+**`--continue-on-error`** (`NIKA_CONTINUE_ON_ERROR`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
+
+**`--retry-passes N`** (`NIKA_RETRY_PASSES`, batch mode): after the first pass, automatically re-scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). Never overwrites `agent_failed` trials. Retries stop early when a pass completes no new trial. Example for a long unattended run:
 
 ```bash
-nika benchmark run --config benchmark/benchmark_selected.yaml --batch-size 4 \
-    --case-timeout 2400 --retry-passes 2
+nika benchmark run --release 0.1.0 --batch-size 4 --retry-passes 2 --result_dir results/my-run
 ```
 
 **YAML case fields**:
@@ -221,7 +252,7 @@ nika benchmark run --config benchmark/benchmark_selected.yaml --batch-size 4 \
 | `topo_size` | Size `s`, `m`, or `l`; **null/empty** for scenarios without sizes |
 | `inject` | Map of `--set key=value` pairs passed to `nika failure inject` |
 
-Agent and judge options use the same flags as below (including `-a local_cli.codex_cli` and `-e` for Codex runs; `-n` applies to `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, and `community.sade`).
+Agent options use the same flags as below (including `-a local_cli.codex_cli` and `-e` for Codex runs; `-n` applies to `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, and `community.sade`).
 
 ### Single-case mode
 
@@ -229,13 +260,14 @@ Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`),
 
 ```shell
 nika benchmark run dc_clos_bgp --problem bgp_asn_misconfig -s s \
-  -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
-  --judge --judge-provider openai --judge-model gpt-5-mini
+  -a byo.langgraph -p openai -m gpt-5-mini -n 20
+nika eval judge -p openai -m gpt-5-mini --result_dir results/
+nika eval summary --result_dir results/
 ```
 
 - **`-s` / `--size`**: required only when `SCENARIO` is scalable.
-- **`--judge`**: optional; without it, only metrics run after the agent finishes.
-- Each benchmark case gets its own lab; the lab is torn down when the session closes (before evaluation).
+- Each benchmark case gets its own lab; the lab is torn down when the session closes (before metrics).
+- LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
 
 ---
 

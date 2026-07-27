@@ -106,7 +106,9 @@ def test_exec_command_forwards_custom_placeholder() -> None:
     assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
 
 
-def test_workspace_roundtrip_excludes_sensitive_and_ephemeral_files(tmp_path) -> None:
+def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
+    from agent.sandbox.sbx.workspace import cleanup_workspace
+
     session_dir = tmp_path / "session"
     session_dir.mkdir()
     (session_dir / "ground_truth.json").write_text("secret", encoding="utf-8")
@@ -122,21 +124,18 @@ def test_workspace_roundtrip_excludes_sensitive_and_ephemeral_files(tmp_path) ->
     assert json.loads(workspace.manifest_path.read_text())["session_id"] == "sess-1"
 
     (workspace.workspace_dir / "messages.jsonl").write_text("line\n", encoding="utf-8")
+    (workspace.workspace_dir / "submission.json").write_text("{}", encoding="utf-8")
     sdk_workspace = workspace.workspace_dir / "codex_sdk_workspace"
-    ephemeral = sdk_workspace / ".codex_home" / "tmp" / "arg0"
-    ephemeral.mkdir(parents=True)
-    (ephemeral / "ghost-bin").write_text("x", encoding="utf-8")
-    auth = sdk_workspace / ".codex_home" / "auth.json"
-    auth.write_text('{"OPENAI_API_KEY":"sk-leak"}', encoding="utf-8")
+    sdk_workspace.mkdir()
     (sdk_workspace / "keep.txt").write_text("ok", encoding="utf-8")
     collect_artifacts(workspace)
+    cleanup_workspace(workspace)
 
     assert (session_dir / "messages.jsonl").read_text() == "line\n"
-    assert (session_dir / "codex_sdk_workspace" / "keep.txt").is_file()
-    assert not (session_dir / "codex_sdk_workspace" / ".codex_home" / "tmp").exists()
-    assert not (
-        session_dir / "codex_sdk_workspace" / ".codex_home" / "auth.json"
-    ).exists()
+    assert (session_dir / "submission.json").read_text() == "{}"
+    assert (session_dir / "sandbox_manifest.json").is_file()
+    assert not (session_dir / ".sandbox_run").exists()
+    assert not (session_dir / "codex_sdk_workspace").exists()
 
 
 def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:

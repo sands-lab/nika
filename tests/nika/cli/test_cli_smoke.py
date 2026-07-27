@@ -6,7 +6,16 @@ from pathlib import Path
 from typer.testing import CliRunner
 from nika.cli.main import app
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+def _repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in (here, *here.parents):
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    raise RuntimeError(f"Could not locate repository root from {here}")
+
+
+_REPO_ROOT = _repo_root()
 _RUNNER = CliRunner()
 CLI_COMMAND_MODULES = [
     "nika.cli.commands.agent",
@@ -101,7 +110,38 @@ class CliSmokeTest:
 
             assert result.exit_code == 0
 
+    def test_benchmark_run_requires_config_or_release(self) -> None:
+        """Bare ``nika benchmark run`` has no default suite."""
+        result = _RUNNER.invoke(app, ["benchmark", "run"])
+        assert result.exit_code != 0
+        combined = f"{result.output}\n{result.stderr or ''}"
+        assert "--config" in combined
+        assert "--release" in combined
+
+        result_dir_only = _RUNNER.invoke(
+            app, ["benchmark", "run", "--result_dir", "results/tmp"]
+        )
+        assert result_dir_only.exit_code != 0
+        combined_dir = f"{result_dir_only.output}\n{result_dir_only.stderr or ''}"
+        assert "no default" in combined_dir.lower() or "--release" in combined_dir
+
+        both = _RUNNER.invoke(
+            app,
+            [
+                "benchmark",
+                "run",
+                "--config",
+                "benchmark/benchmark_selected.yaml",
+                "--release",
+                "0.1.0",
+            ],
+        )
+        assert both.exit_code != 0
+        both_text = f"{both.output}\n{both.stderr or ''}"
+        assert "--config" in both_text and "--release" in both_text
+
     def test_console_script_help_invocations(self) -> None:
+        assert (_REPO_ROOT / "src" / "nika").is_dir(), _REPO_ROOT
         for args in CLI_HELP_ARGS:
             completed = subprocess.run(
                 [sys.executable, "-m", "nika.cli.main", *args],
@@ -111,4 +151,7 @@ class CliSmokeTest:
                 text=True,
             )
 
-            assert completed.returncode == 0
+            assert completed.returncode == 0, (
+                f"args={args!r} cwd={_REPO_ROOT}\n"
+                f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+            )

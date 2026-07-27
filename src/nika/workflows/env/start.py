@@ -37,6 +37,8 @@ def start_net_env(
     instance_tag: str | None = None,
     session_tag: str | None = None,
     result_dir: str | None = None,
+    session_id: str | None = None,
+    session_dir: str | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     size = _normalize_topo_size(topo_size)
@@ -59,7 +61,9 @@ def start_net_env(
         else f"{datetime.now().strftime('%m%d%H%M%S')}-{suffix}"
     )
     lab_name = f"{scenario}__{tag}"
-    session_id = make_session_id(session_tag=session_tag, suffix=suffix)
+    resolved_session_id = session_id or make_session_id(
+        session_tag=session_tag, suffix=suffix
+    )
     net_env = get_net_env_instance(
         scenario, backend=backend, topo_size=size, lab_name=lab_name
     )
@@ -73,12 +77,13 @@ def start_net_env(
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     session.init_session(
-        session_id=session_id,
+        session_id=resolved_session_id,
         scenario_name=scenario,
         lab_name=net_env.name,
         scenario_topo_size=size,
         scenario_params=scenario_params,
         result_dir=result_dir,
+        session_dir=session_dir,
         backend=backend,
         topology_file=topology_file,
         runtime_workdir=runtime_workdir,
@@ -105,11 +110,11 @@ def start_net_env(
         event_type = "env_verify_failed" if net_env.lab_exists() else "env_start_failed"
         log_error_event(
             event_type,
-            f"Failed to start network environment: {scenario} ({session_id}): {exc}",
+            f"Failed to start network environment: {scenario} ({resolved_session_id}): {exc}",
             scenario=scenario,
             backend=backend,
             topo_size=size,
-            session_id=session_id,
+            session_id=resolved_session_id,
             lab_name=net_env.name,
             error=str(exc),
             error_type=type(exc).__name__,
@@ -128,11 +133,11 @@ def start_net_env(
 
     log_event(
         "env_start",
-        f"Started network environment: {scenario} (backend={backend}, size={size}) — session {session_id}, lab {net_env.name}",
+        f"Started network environment: {scenario} (backend={backend}, size={size}) — session {resolved_session_id}, lab {net_env.name}",
         scenario=scenario,
         backend=backend,
         topo_size=size,
-        session_id=session_id,
+        session_id=resolved_session_id,
         lab_name=net_env.name,
     )
-    return session_id
+    return resolved_session_id

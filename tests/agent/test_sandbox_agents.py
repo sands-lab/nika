@@ -69,7 +69,14 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         text = manifest.read_text(encoding="utf-8")
         assert "OPENAI_API_KEY" not in text
         assert "ANTHROPIC_API_KEY" not in text
-        assert not (self.session_dir / ".sandbox_run" / ".host_auth").exists()
+        assert not (self.session_dir / ".sandbox_run").exists()
+        for dirname in (
+            "codex_workspace",
+            "claude_workspace",
+            "codex_sdk_workspace",
+            "claude_sdk_workspace",
+        ):
+            assert not (self.session_dir / dirname).exists()
         for path in self.session_dir.rglob("*"):
             if path.name in _SENSITIVE_NAMES:
                 pytest.fail(f"credential file leaked into results: {path}")
@@ -157,7 +164,14 @@ class SandboxSadePipelineTest(SandboxAgentPipelineBase):
         text = manifest.read_text(encoding="utf-8")
         assert "OPENAI_API_KEY" not in text
         assert "ANTHROPIC_API_KEY" not in text
-        assert not (self.session_dir / ".sandbox_run" / ".host_auth").exists()
+        assert not (self.session_dir / ".sandbox_run").exists()
+        for dirname in (
+            "codex_workspace",
+            "claude_workspace",
+            "codex_sdk_workspace",
+            "claude_sdk_workspace",
+        ):
+            assert not (self.session_dir / dirname).exists()
         for path in self.session_dir.rglob("*"):
             if path.name in _SENSITIVE_NAMES:
                 pytest.fail(f"credential file leaked into results: {path}")

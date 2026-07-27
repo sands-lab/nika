@@ -1,0 +1,321 @@
+seed: 43
+cases:
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: arp_acl_block
+  inject:
+    host_name: pc_2_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: arp_cache_poisoning
+  inject:
+    host_name: pc_1_6
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_acl_block
+  inject:
+    host_name: leaf_router_0_7
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: spine_router_1_0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: leaf_router_3_3
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: bgp_hijacking
+  inject:
+    host_name: leaf_router_2_5
+- scenario: dc_clos_service
+  topo_size: l
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: spine_router_2_2
+- scenario: p4_counter
+  topo_size: null
+  problem: bmv2_switch_down
+  inject:
+    host_name: s1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_missing_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_2_4_1_3
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_service_down
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_2_4_2
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_spoofed_dns
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_3_3_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_spoofed_gateway
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_3_2_1
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: dhcp_spoofed_subnet
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_2_4_1_1
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_lookup_latency
+  inject:
+    host_name: dns_pod1
+    intf_name: eth0
+    delay_ms: '1000'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_port_blocked
+  inject:
+    host_name: dns_pod3
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_record_error
+  inject:
+    host_name: dns_pod3
+    target_website: web4
+    target_domain: pod3
+- scenario: dc_clos_service
+  topo_size: l
+  problem: dns_service_down
+  inject:
+    host_name: dns_pod3
+- scenario: sdn_star
+  topo_size: l
+  problem: flow_rule_loop
+  inject:
+    host_name: switch_0
+    host_name_2: switch_3
+- scenario: sdn_star
+  topo_size: l
+  problem: flow_rule_shadowing
+  inject:
+    host_name: switch_12
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: leaf_router_2_7
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_crash
+  inject:
+    host_name: client_1
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_incorrect_dns
+  inject:
+    host_name: client_3
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_incorrect_gateway
+  inject:
+    host_name: pc_3_3
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_incorrect_ip
+  inject:
+    host_name: pc_0_5
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_incorrect_netmask
+  inject:
+    host_name: pc_1_1
+    netmask_prefix: '8'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_ip_conflict
+  inject:
+    host_name: client_3
+    host_name_2: client_0
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: host_missing_ip
+  inject:
+    host_name: pc_2_7
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: host_static_blackhole
+  inject:
+    host_name: spine_router_3_0
+- scenario: rip_small_internet_vpn
+  topo_size: l
+  problem: host_vpn_membership_missing
+  inject:
+    host_name: web_server_4_3
+    host_name_2: vpn_server_1
+- scenario: dc_clos_service
+  topo_size: l
+  problem: http_acl_block
+  inject:
+    host_name: client_2
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_1_3
+- scenario: dc_clos_service
+  topo_size: l
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: webserver0_pod1
+    rate: 1mbit
+    burst: 500kb
+    limit: 500kb
+    delay_ms: '20'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: client_3
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: client_0
+    intf_name: eth0
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: client_1
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: client_0
+    intf_name: eth0
+    mtu: '100'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: link_high_packet_corruption
+  inject:
+    host_name: client_3
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: ospf_enterprise_dhcp
+  topo_size: l
+  problem: load_balancer_overload
+  inject:
+    host_name: load_balancer
+    duration: '300'
+- scenario: dc_clos_bgp
+  topo_size: l
+  problem: mac_address_conflict
+  inject:
+    host_name: spine_router_1_2
+    host_name_2: leaf_router_1_0
+- scenario: p4_mpls
+  topo_size: null
+  problem: mpls_label_limit_exceeded
+  inject:
+    host_name: switch_1
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: ospf_acl_block
+  inject:
+    host_name: switch_server_access
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: switch_dist_1_2
+- scenario: ospf_enterprise_static
+  topo_size: l
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: switch_dist_2_3
+- scenario: p4_bloom_filter
+  topo_size: null
+  problem: p4_aggressive_detection_thresholds
+  inject:
+    host_name: switch_2
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_compilation_error_parser_state
+  inject:
+    host_name: s2
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_header_definition_error
+  inject:
+    host_name: s2
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_table_entry_misconfig
+  inject:
+    host_name: s1
+- scenario: p4_counter
+  topo_size: null
+  problem: p4_table_entry_missing
+  inject:
+    host_name: s4
+- scenario: dc_clos_service
+  topo_size: l
+  problem: receiver_resource_contention
+  inject:
+    host_name: client_3
+    duration: '600'
+- scenario: sdn_star
+  topo_size: l
+  problem: sdn_controller_crash
+  inject:
+    host_name: controller
+- scenario: dc_clos_service
+  topo_size: l
+  problem: sender_application_delay
+  inject:
+    host_name: webserver3_pod3
+- scenario: dc_clos_service
+  topo_size: l
+  problem: sender_resource_contention
+  inject:
+    host_name: webserver5_pod3
+    duration: '600'
+- scenario: sdn_star
+  topo_size: l
+  problem: southbound_port_block
+  inject:
+    host_name: controller
+    southbound_port: '6633'
+- scenario: sdn_star
+  topo_size: l
+  problem: southbound_port_mismatch
+  inject:
+    host_name: controller
+    mismatched_port: '6653'
+    original_port: '6633'
+- scenario: dc_clos_service
+  topo_size: l
+  problem: web_dos_attack
+  inject:
+    host_name: webserver0_pod0
+    attacker_device: client_3

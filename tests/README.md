@@ -5,6 +5,7 @@ Test layout mirrors product surfaces:
 - `tests/agent/` → `src/agent/`
 - `tests/nika/` → `src/nika/`
 - `tests/benchmark/` → `nika benchmark` (YAML cases + `src/nika/workflows/benchmark/`)
+- `tests/leaderboard/` → `nika leaderboard` (pack / validate / submit + release→submit E2E)
 - `tests/support/` → shared helpers
 
 ## Layout
@@ -13,8 +14,9 @@ Test layout mirrors product surfaces:
 |-----------|---------|---------|
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
 | `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, resume, sandbox benchmark runs |
+| `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
-| `tests/nika/workflows/integration/` | end-to-end session pipeline | env → inject → mock agent → eval |
+| `tests/nika/workflows/integration/` | end-to-end session pipeline | env → inject → mock agent → close → metrics → summary |
 | `tests/nika/problems/` | `src/nika/problems/` | Failure injection smoke tests (Kathara + Containerlab) |
 | `tests/nika/net_env/` | `src/nika/net_env/` | Network environment deploy and topology checks |
 | `tests/nika/service/` | `src/nika/service/` | Service-layer unit and live API smoke tests |
@@ -78,18 +80,44 @@ uv run pytest tests/agent/test_sandbox_agents.py -v
 ## Benchmark tests (`tests/benchmark/`)
 
 Covers `nika benchmark run` / resume — not YAML inject-param generation.
+Batch mode requires explicit `--config` or `--release` (no bare default suite).
 
 | Module | Purpose |
 |--------|---------|
+| `test_release.py` | Frozen `nika-bench@0.1.0` Dev/Test digests, isolation, job metadata; optional Docker smoke |
 | `test_resume.py` | Resume/fingerprint unit tests (no Docker) |
-| `test_batch.py` | Parallel mock batch |
+| `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
+| `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |
 | `helpers.py` | Load inject params from bundled benchmark YAML |
 
 ```shell
+uv run pytest tests/benchmark/test_release.py -v
+uv run pytest tests/benchmark/test_release.py -v -k DockerSmoke   # requires Docker
 uv run pytest tests/benchmark/test_resume.py -v
+uv run pytest tests/benchmark/test_trials.py -v
+uv run pytest tests/benchmark/test_trials.py -v -k ReleaseRunE2E  # requires Docker
 uv run pytest tests/benchmark/test_batch.py -v                 # requires Docker
 uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + API key
+```
+
+## Leaderboard tests (`tests/leaderboard/`)
+
+Covers `nika leaderboard template|pack|validate|submit` — no Docker for the default suite. Packs require a filled `metadata.yaml` + `README.md`. Docs: [`docs/leaderboard-submission.md`](../docs/leaderboard-submission.md).
+
+| Module | Purpose |
+|--------|---------|
+| `test_pack_validate.py` | Schema/pack/validate unit tests (coverage, hashes, secrets, bad meta) |
+| `test_submit_unit.py` | Mocked submit (direct push + fork path) |
+| `test_e2e_release_pack.py` | Mocked `run_benchmark_from_release` → template → pack → validate |
+| `test_e2e_release_submit.py` | Mocked release → pack → validate → submit (no network) |
+| `test_e2e_submit_github.py` | Opt-in live draft PR + close (`NIKA_LEADERBOARD_E2E=1`) |
+
+```shell
+uv run pytest tests/leaderboard/ -v
+uv run pytest tests/leaderboard/test_e2e_release_pack.py -v
+uv run pytest tests/leaderboard/test_e2e_release_submit.py -v
+NIKA_LEADERBOARD_E2E=1 uv run pytest tests/leaderboard/test_e2e_submit_github.py -v
 ```
 
 ## Sandbox verified status (local E2E, 2026-07-24)
@@ -114,7 +142,7 @@ Prerequisites: `sbx login`, KVM, Docker/Kathara. Optional `NIKA_SANDBOX_UPSTREAM
 
 | Module | Purpose |
 |--------|---------|
-| `test_pipeline_kathara.py` | Kathara pipeline: env → inject → MCP → mock agent → close → eval |
+| `test_pipeline_kathara.py` | Kathara pipeline: env → inject → MCP → mock agent → close → metrics → summary |
 | `test_pipeline_clab.py` | Containerlab min3clos pipeline (same steps) |
 
 ```shell

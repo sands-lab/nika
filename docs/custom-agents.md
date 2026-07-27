@@ -39,7 +39,7 @@ src/agent/community/my_agent/
 `-- prompts.py
 ```
 
-Minimal implementation:
+Minimal implementation (same MCP helpers as `mock`; run via `nika agent run`):
 
 ```python
 from typing import Any
@@ -47,7 +47,7 @@ from typing import Any
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_servers import MCPServerConfig, select_diagnosis_servers
+from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.utils.phases import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
@@ -76,10 +76,7 @@ class MyAgent:
         logger = MessageLogger(agent=DIAGNOSIS, session_dir=self.session.session_dir)
         logger.log("llm_start", {"messages": {"role": "user", "content": task_description}})
 
-        servers = select_diagnosis_servers(
-            self.session.scenario_name,
-        )
-        config = MCPServerConfig(self.session_id).load_filtered_config(servers)
+        config = load_session_mcp_config(self.session_id, self.session.scenario_name)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
@@ -92,8 +89,9 @@ class MyAgent:
 
     async def _submit(self, diagnosis: str) -> None:
         logger = MessageLogger(agent=SUBMISSION, session_dir=self.session.session_dir)
+        begin_submission_mcp_phase(self.session_id)
 
-        config = MCPServerConfig(self.session_id).load_config(if_submit=True)
+        config = load_session_mcp_config(self.session_id, self.session.scenario_name)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
@@ -131,20 +129,16 @@ If the agent needs custom environment variables, resolve them in `config.py` and
 
 ## MCP Access
 
-NIKA exposes tools through stdio MCP servers. Always pass the active `session_id`; `MCPServerConfig` injects `NIKA_SESSION_ID` into each server process.
-
-Diagnosis phase:
+NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helpers:
 
 ```python
-config = MCPServerConfig(session_id).load_filtered_config(
-    ["kathara_base_mcp_server", "kathara_frr_mcp_server"]
-)
-```
+from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 
-Submission phase:
+# Diagnosis (and submission after phase advance): all session servers
+config = load_session_mcp_config(session_id, scenario_name)
 
-```python
-config = MCPServerConfig(session_id).load_config(if_submit=True)
+# Before submission tools: advance gateway phase
+begin_submission_mcp_phase(session_id)
 ```
 
 Common submission flow:

@@ -31,6 +31,11 @@ LAZY_COMMANDS.update(
         "benchmark": LazyCommandSpec(
             "nika.cli.commands.benchmark", "benchmark_app", "Batch benchmark runs."
         ),
+        "leaderboard": LazyCommandSpec(
+            "nika.cli.commands.leaderboard",
+            "leaderboard_app",
+            "Pack and validate leaderboard submissions.",
+        ),
         "traffic": LazyCommandSpec(
             "nika.cli.commands.traffic",
             "traffic_app",

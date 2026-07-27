@@ -9,12 +9,11 @@ from pathlib import Path
 from typing import NamedTuple
 import yaml
 from agent.utils.phases import DIAGNOSIS, SUBMISSION
-from nika.utils.session_id import resolve_session_tag, session_id_pattern
+from nika.utils.session_id import resolve_session_tag
 from nika.utils.session_store import SESSIONS_DIR, SessionStore
 from tests.benchmark.helpers import inject_params_from_benchmark_yaml
 from tests.support.integration_base import IntegrationTestCase
 
-TEST_SESSION_ID_RE = session_id_pattern("test")
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _BENCHMARK_DONE_RE = re.compile(
     "benchmark_done session_id=(\\S+) scenario=(\\S+) problem=(\\S+) session_dir=(\\S+)"
@@ -46,11 +45,13 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
     """Run all benchmark YAML rows as one parallel batch, then verify per-session results."""
 
     _pipeline_results: dict[str, tuple[str, Path] | BaseException]
+    _result_root: Path
 
     @pytest.fixture(scope="class", autouse=True)
     def _setup_class(self) -> None:
         type(self)._pipeline_results = {}
         result_root = Path(tempfile.mkdtemp(prefix="nika-batch-"))
+        type(self)._result_root = result_root
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yaml", delete=False, encoding="utf-8"
         ) as handle:
@@ -149,7 +150,8 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
 
         assert len(ids) == len(set(ids)), f"Duplicate session IDs: {ids}"
         for session_id in ids:
-            assert re.search(TEST_SESSION_ID_RE, session_id)
+            # Batch --config uses trial ids: {case_key}__t01
+            assert session_id.endswith("__t01"), session_id
 
     def test_session_dirs_are_isolated(self) -> None:
         dirs = [
@@ -159,6 +161,8 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         ]
 
         assert len(dirs) == len(set(dirs)), f"Overlapping session dirs: {dirs}"
+        for path in dirs:
+            assert "/trials/" in path.replace("\\", "/")
 
     def test_ground_truth_correctness(self) -> None:
         for case in SCENARIO_CASES:
@@ -218,6 +222,18 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
 
             assert metrics["tool_calls"] > 0
 
+            assert not (session_dir / "llm_judge.json").exists()
+
+    def test_eval_summary_aggregates_batch(self) -> None:
+        """Summary is a post-hoc ``nika eval`` step; benchmark does not write judge/summary."""
+        from nika.workflows.eval.summary import run_eval_summary
+
+        out = run_eval_summary(results_dir=str(type(self)._result_root))
+        assert out.is_file()
+        text = out.read_text(encoding="utf-8")
+        for case in SCENARIO_CASES:
+            session_id, session_dir = self._result(case)
+            assert session_id in text
             assert not (session_dir / "llm_judge.json").exists()
 
     def test_messages_trace_has_expected_tool_calls(self) -> None:
