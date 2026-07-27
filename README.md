@@ -51,7 +51,7 @@ NIKA is a unified platform that combines:
 - **Agent sandbox**: CLI / SDK / SADE agents run in Docker Sandboxes (`sbx` microVMs with official `codex` / `claude` / `shell` templates), isolated per session (workspace + MCP gateway port). Codex uses OpenAI; Claude/SADE use DeepSeek Anthropic-compatible API keys by default.
 - **Zero-touch eval**: Pre-built network scenarios and fault injection mechanisms, with automatic evaluation mechanism.
 - **MCP**: native MCP-based tool support.
-- **Reproducibility**: Reproducible evaluation framework with batch summary (`nika eval summary`). Easy to add new agents to the leaderboard. 
+- **Reproducibility**: Frozen `nika-bench@0.1.0` release with content digests, git commit stamping, and batch summary (`nika eval summary`).
 - **CLI**: Unified `nika` CLI for env deploy, fault injection, agent runs, and evaluation
 - **Multi-session evals**: Session-based workflow with multi-session support (`nika session`, `--session_id`). Run isolated sessions in parallel to speed-up evaluations.
 - **NIKA SDK**: Extend with your own network topology and configuration, and reproduce your failure case using NIKA's modules for traffic generation and fault injection. 
@@ -188,31 +188,54 @@ Each `nika env run` creates a **session** (printed as `session_id=…`). Session
    nika eval clean -y                              # wipe results/, session JSON, and SQLite index
    ```
 
-Full CLI documentation (traffic types, parameter tables, and conventions) lives in **[src/nika/cli/README.md](src/nika/cli/README.md)**. Developer guides: **[Creating Benchmark Tasks](docs/creating-benchmark-tasks.md)** (scenarios, `ProblemBase` faults, benchmark YAML), **[Custom Agents](docs/custom-agents.md)**, and **[Agent Skills](docs/agent-skills.md)**.
+Full CLI documentation (traffic types, parameter tables, and conventions) lives in **[src/nika/cli/README.md](src/nika/cli/README.md)**. Developer guides: **[Creating Benchmark Tasks](docs/creating-benchmark-tasks.md)** (scenarios, `ProblemBase` faults, benchmark YAML), **[Custom Agents](docs/custom-agents.md)**, **[Agent Skills](docs/agent-skills.md)**, and **[Leaderboard Submission](docs/leaderboard-submission.md)**.
 
 ## Benchmark
 
-`nika benchmark run` is the primary evaluation entry point. For each case it deploys the lab, injects the fault, runs the agent, closes the session, and evaluates (metrics by default; pass `--judge` for LLM-as-judge). Cases are defined in YAML under [`benchmark/`](benchmark/); details and stats: **[benchmark/README.md](benchmark/README.md)**.
+`nika benchmark run` runs the experiment pipeline: deploy lab → inject fault → run agent → close session → rule-based metrics. **LLM judge and CSV summary belong to `nika eval`**. You must pass **`--release`** (frozen suite) or **`--config`** (ad-hoc YAML); there is no bare default. Details: **[benchmark/README.md](benchmark/README.md)**.
 
 Shipped datasets:
 
-| File | Role |
+| Path | Role |
 |------|------|
-| `benchmark/benchmark_selected.yaml` | Default curated suite (one case per failure type) |
-| `benchmark/benchmark_full.yaml` | Full scenario × failure matrix |
+| `benchmark/releases/0.1.0/` | Frozen release (`RELEASE.yaml` + Dev/Test case files) |
+| `benchmark/benchmark_selected.yaml` | Editable curated suite (source for Dev freeze) |
+| `benchmark/benchmark_full.yaml` | Full scenario × failure matrix (702 cases; Test source pool) |
 
 ```shell
-# Curated suite (default --config)
-nika benchmark run
+# Frozen release (required: --release)
+nika benchmark run --release 0.1.0
+nika benchmark run --release 0.1.0 --result_dir results/my-run
+nika benchmark releases   # list + preflight-verify
 
-# Full matrix
+# Ad-hoc / working YAML (required: --config)
+nika benchmark run --config benchmark/benchmark_selected.yaml
 nika benchmark run --config benchmark/benchmark_full.yaml
 
-# Single case (no YAML)
+# Single case (no YAML / release)
 nika benchmark run dc_clos_bgp --problem bgp_asn_misconfig -s s
 
-# With LLM judge after metrics
-nika benchmark run --judge --judge-provider openai --judge-model gpt-5-mini
+# Post-hoc judge + summary
+nika eval judge -p openai -m gpt-5-mini --result_dir results/my_run
+nika eval summary --result_dir results/my_run
+```
+
+Release runs treat `--result_dir` as one run: `run.json` (plus legacy `benchmark_job.json`) records release version/digest, `split`, case count / `cases_sha256`, agent/model/`n_trials`, NIKA git commit, and scoring; trials live under `trials/{case_key}__tNN/`. Trial count comes from `RELEASE.yaml` `defaults.n_trials` (3 for `0.1.0`).
+
+### Leaderboard submission
+
+After an official release run, pack, validate, and open a PR on
+[`sands-lab/nika-leaderboard`](https://github.com/sands-lab/nika-leaderboard).
+Guide: **[docs/leaderboard-submission.md](docs/leaderboard-submission.md)**.
+
+```shell
+nika leaderboard template -o results/my-run/submission
+# edit metadata.yaml + README.md
+nika leaderboard pack --result_dir results/my-run \
+  --submission results/my-run/submission
+nika leaderboard validate results/my-run/YYYYMMDD_slug \
+  --source-result-dir results/my-run
+nika leaderboard submit results/my-run/YYYYMMDD_slug   # requires authenticated gh
 ```
 
 ### Custom datasets (`--config`)
@@ -246,15 +269,13 @@ Use **`--result_dir`** (or `NIKA_RESULT_DIR`) to isolate runs by dataset, model,
 
 ```shell
 # Isolate one experiment; resume continues after interrupt
-nika benchmark run --config benchmark/benchmark_selected.yaml \
-  --result_dir results/list1 --batch-size 4
+nika benchmark run --release 0.1.0 --result_dir results/list1 --batch-size 4
 
-# Same command again → skips completed rows in results/list1 only
-nika benchmark run --config benchmark/benchmark_selected.yaml \
-  --result_dir results/list1 --batch-size 4
+# Same command again → skips completed trials in results/list1 only
+nika benchmark run --release 0.1.0 --result_dir results/list1 --batch-size 4
 
 # Force a full re-run in that directory
-nika benchmark run --result_dir results/list1 --no-resume
+nika benchmark run --release 0.1.0 --result_dir results/list1 --no-resume
 
 # Aggregate finished sessions under that directory
 nika eval summary --result_dir results/list1
@@ -407,7 +428,7 @@ nika agent run -a byo.autogen -m gpt-4.1-mini -n 20
 
 ### `local_cli.codex_cli` (`local_cli/codex_cli`)
 
-Requires [Codex CLI](https://developers.openai.com/codex) on `PATH`. Runs inside Docker Sandboxes (`sbx` `codex` template). Workspace: `{result_dir}/{session_id}/codex_workspace/`. Loads shared skills from `src/agent/skills/` when `NIKA_ENABLE_SKILLS=true`.
+Requires [Codex CLI](https://developers.openai.com/codex) on `PATH`. Runs inside Docker Sandboxes (`sbx` `codex` template). Ephemeral agent workspace is discarded after the run; session results match other agents (`messages.jsonl`, `submission.json`). Loads shared skills from `src/agent/skills/` when `NIKA_ENABLE_SKILLS=true`.
 
 Auth: `OPENAI_API_KEY` → sbx `openai` secret, or `sbx secret set -g openai --oauth`.
 
@@ -422,7 +443,7 @@ nika agent run -a local_cli.codex_cli -m gpt-5-mini -e medium
 
 ### `local_cli.claude_cli` (`local_cli/claude_cli`)
 
-Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) on `PATH`. Runs inside Docker Sandboxes (`sbx` `claude` template). Workspace: `{result_dir}/{session_id}/claude_workspace/`. Loads shared skills via `--setting-sources project` when `NIKA_ENABLE_SKILLS=true`.
+Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) on `PATH`. Runs inside Docker Sandboxes (`sbx` `claude` template). Ephemeral agent workspace is discarded after the run; session results match other agents (`messages.jsonl`, `submission.json`). Loads shared skills via `--setting-sources project` when `NIKA_ENABLE_SKILLS=true`.
 
 Auth (pick one): `DEEPSEEK_API_KEY` / `ANTHROPIC_AUTH_TOKEN` (+ `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`), native `ANTHROPIC_API_KEY`, or Claude `/login` subscription on the host.
 
@@ -506,7 +527,7 @@ nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20
 # 5. Inspect session state and artifacts
 nika session inspect
 ls {result_dir}/{session_id}/
-# run.json, ground_truth.json, events.jsonl, messages.jsonl, submission.json, codex_workspace/ (cli only)
+# run.json, ground_truth.json, events.jsonl, messages.jsonl, submission.json
 
 # 6. Close the lab, then evaluate
 nika session close -y

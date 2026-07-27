@@ -9,8 +9,8 @@
 
 ## Repository Map
 
-- `src/nika/cli/`: Typer command groups for `session`, `env`, `failure`, `exec`, `agent`, `eval`, `benchmark`, and `traffic`.
-- `src/nika/workflows/`: command orchestration split by domain (`agent/`, `benchmark/`, `env/`, `eval/`, `exec/`, `failure/`, `session/`).
+- `src/nika/cli/`: Typer command groups for `session`, `env`, `failure`, `exec`, `agent`, `eval`, `benchmark`, `leaderboard`, and `traffic`.
+- `src/nika/workflows/`: command orchestration split by domain (`agent/`, `benchmark/`, `env/`, `eval/`, `exec/`, `failure/`, `leaderboard/`, `session/`).
 - `src/nika/runtime/`: backend-neutral runtime contracts plus Kathara and Containerlab runtime implementations.
 - `src/nika/net_env/`: registered network lab definitions under `kathara/` and `containerlab/`.
 - `src/nika/problems/`: injectable `ProblemBase` fault classes grouped by root-cause category and registered through `prob_pool`.
@@ -28,6 +28,7 @@
 - Run the CLI during development: `uv run nika --help`
 - List available scenarios/problems/agents: `uv run nika env list`, `uv run nika failure list`, `uv run nika agent list`
 - Regenerate benchmark YAML: `uv run python benchmark/generate_benchmark.py`
+- Leaderboard pack/validate: `uv run nika leaderboard --help` (see `docs/leaderboard-submission.md`)
 - Format Python code: `uv run ruff format .`
 - Lint Python code: `uv run ruff check .`
 
@@ -37,6 +38,7 @@
 - Run all tests: `uv run pytest`
 - Run a focused path: `uv run pytest tests/nika/runtime/ -v`
 - Run agent tests: `uv run pytest tests/agent/ -v`
+- Run leaderboard tests: `uv run pytest tests/leaderboard/ -v`
 - Prefer focused tests near the changed behavior before broader suites.
 - Docker, Kathara, Containerlab, local CLIs, or API credentials are required for many integration and agent tests; report unavailable prerequisites instead of treating them as code failures.
 
@@ -67,7 +69,7 @@
 - Python code must be formatted with Ruff using `uv run ruff format .`.
 - Run `uv run ruff check .` before submitting changes when practical.
 - Prefer Ruff auto-fixes only for mechanical cleanup; avoid unrelated style churn outside the task scope.
-- Keep documentation concise and point detailed usage to `README.md`, `src/nika/cli/README.md`, `docs/custom-agents.md`, `docs/agent-skills.md`, and `docs/creating-benchmark-tasks.md`.
+- Keep documentation concise and point detailed usage to `README.md`, `src/nika/cli/README.md`, `docs/custom-agents.md`, `docs/agent-skills.md`, `docs/creating-benchmark-tasks.md`, and `docs/leaderboard-submission.md`.
 
 ## Testing Guidance
 

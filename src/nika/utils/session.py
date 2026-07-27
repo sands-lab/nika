@@ -28,6 +28,7 @@ class Session:
         scenario_topo_size: str | None,
         scenario_params: dict | None = None,
         result_dir: str | Path | None = None,
+        session_dir: str | Path | None = None,
         backend: str = "kathara",
         topology_file: str | Path | None = None,
         runtime_workdir: str | Path | None = None,
@@ -47,8 +48,11 @@ class Session:
             self.scenario_params.setdefault("topology_file", self.topology_file)
         if self.runtime_workdir:
             self.scenario_params.setdefault("runtime_workdir", self.runtime_workdir)
-        results_root = resolve_results_root(result_dir)
-        self.session_dir = os.path.join(str(results_root), session_id)
+        if session_dir is not None:
+            self.session_dir = str(Path(session_dir))
+        else:
+            results_root = resolve_results_root(result_dir)
+            self.session_dir = os.path.join(str(results_root), session_id)
         os.makedirs(self.session_dir, exist_ok=True)
         self.store.create_session(
             {

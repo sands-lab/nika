@@ -163,7 +163,7 @@ No API key. `load_model()` validates the model at init — run `ollama pull` fir
 
 ## local_cli.codex_cli
 
-Native two-phase orchestration + `codex exec` via `sbx exec` (native `codex` template). Workspace: `results/{session_id}/codex_workspace/`. MCP config written to an isolated `CODEX_HOME`.
+Native two-phase orchestration + `codex exec` via `sbx exec` (native `codex` template). Ephemeral workspace under `.sandbox_run/` (discarded after the run). MCP config written to an isolated `CODEX_HOME`.
 
 **Entry**: `agent.local_cli.codex_cli.agent.CodexCliAgent`
 
@@ -189,7 +189,7 @@ nika agent run -a local_cli.codex_cli -m gpt-5-mini -e medium
 
 ## local_cli.claude_cli
 
-Native two-phase orchestration + `claude -p` via `sbx exec` (native `claude` template). Workspace: `results/{session_id}/claude_workspace/`. MCP config: `{phase}_mcp_config.json`.
+Native two-phase orchestration + `claude -p` via `sbx exec` (native `claude` template). Ephemeral workspace under `.sandbox_run/` (discarded after the run). MCP config: `{phase}_mcp_config.json`.
 
 **Entry**: `agent.local_cli.claude_cli.agent.ClaudeAgent`
 
@@ -347,9 +347,23 @@ See the root [README.md](../../README.md#troubleshooting-agents) for a longer wa
 
 ## Adding a New Agent
 
-1. Implement `async def run(task_description) -> dict` in a subpackage.
-2. Register in `agent.registry.create_agent()`.
-3. Write events to `{session_dir}/messages.jsonl` via `MessageLogger` or `AgentCallbackLogger`.
+Place each agent in its own package under `src/agent/`:
+
+```text
+src/agent/community/my_agent/
+├── __init__.py
+├── agent.py
+└── (other files)
+```
+
+Implement `agent.protocols.TroubleshootingAgent` (`session_id` +
+`async def run(task_description) -> dict`), register the id in
+`agent.registry.create_agent()`, write traces to `{session_dir}/messages.jsonl`,
+and call the task MCP `submit` tool before returning. Sandbox agents also need
+their id in `SANDBOX_AGENT_TYPES`.
+
+Implementation example, registration, and checklist:
+[docs/custom-agents.md](../../docs/custom-agents.md).
 
 ## CLI Reference
 

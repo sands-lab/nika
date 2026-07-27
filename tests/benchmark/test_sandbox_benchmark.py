@@ -49,7 +49,14 @@ def _assert_sandbox_session(session_path: Path, *, agent_type: str) -> None:
     assert "ANTHROPIC_API_KEY" not in manifest_text
     assert "DEEPSEEK_API_KEY" not in manifest_text
     assert "OPENAI_API_KEY" not in manifest_text
-    assert not (session_path / ".sandbox_run" / ".host_auth").exists()
+    assert not (session_path / ".sandbox_run").exists()
+    for dirname in (
+        "codex_workspace",
+        "claude_workspace",
+        "codex_sdk_workspace",
+        "claude_sdk_workspace",
+    ):
+        assert not (session_path / dirname).exists()
 
     for path in session_path.rglob("*"):
         if path.name in _SENSITIVE_NAMES:

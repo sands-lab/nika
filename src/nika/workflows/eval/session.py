@@ -216,16 +216,12 @@ def eval_results(
     *,
     destroy_env: bool = True,
     session_id: str | None = None,
-    run_judge: bool = False,
-    judge_llm_provider: str | None = None,
-    judge_model: str | None = None,
 ) -> None:
-    """Close the session, then run metrics; LLM judge runs only when ``run_judge`` is set."""
-    if run_judge and (not judge_llm_provider or not judge_model):
-        raise ValueError(
-            "--judge-provider and --judge-model are required when run_judge is enabled."
-        )
+    """Close the session, then write rule-based ``eval_metrics.json``.
 
+    LLM judge and CSV summary are offline steps via ``nika eval judge`` /
+    ``nika eval summary``.
+    """
     resolved_session_id = session_id
     try:
         session = Session()
@@ -238,17 +234,3 @@ def eval_results(
         if resolved_session_id is None:
             raise
     run_eval_metrics(session_id=resolved_session_id)
-    if run_judge:
-        try:
-            run_llm_judge(
-                judge_llm_provider, judge_model, session_id=resolved_session_id
-            )
-        except Exception as exc:  # noqa: BLE001 - judge is post-hoc analysis
-            # The session is closed and metrics are on disk; a transient judge
-            # failure (LLM/network) must not fail the whole case. The judge can
-            # be re-run offline on the closed session.
-            print(
-                f"WARNING: LLM judge failed for session {resolved_session_id}: {exc}\n"
-                f"Re-run it later with: nika eval judge -p {judge_llm_provider} "
-                f"-m {judge_model} --session_id {resolved_session_id}"
-            )

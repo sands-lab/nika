@@ -16,21 +16,8 @@ from agent.utils.skills import resolve_skills_root
 
 SANDBOX_RUN_DIRNAME = ".sandbox_run"
 SKILLS_DIRNAME = "skills"
-COLLECTED_WORKSPACES = (
-    "codex_workspace",
-    "claude_workspace",
-    "codex_sdk_workspace",
-    "claude_sdk_workspace",
-)
+# Standardized session artifacts only — agent CLI/SDK workspaces stay ephemeral.
 COLLECTED_FILES = ("messages.jsonl", "submission.json")
-_EPHEMERAL_DIR_NAMES = frozenset({"tmp", ".tmp"})
-_SENSITIVE_NAMES = frozenset(
-    {
-        "auth.json",
-        ".credentials.json",
-        ".host_auth",
-    }
-)
 
 
 @dataclass
@@ -45,13 +32,6 @@ class SandboxWorkspace:
 
 def sandbox_workspace_dir(session_dir: str | Path) -> Path:
     return Path(session_dir).resolve() / SANDBOX_RUN_DIRNAME
-
-
-def _ignore_ephemeral(_directory: str, names: list[str]) -> set[str]:
-    """Skip ephemeral dirs and credential files that must not leave the sandbox."""
-    ignored = {name for name in names if name in _EPHEMERAL_DIR_NAMES}
-    ignored.update(name for name in names if name in _SENSITIVE_NAMES)
-    return ignored
 
 
 def prepare_workspace(
@@ -91,32 +71,16 @@ def prepare_workspace(
 
 
 def collect_artifacts(workspace: SandboxWorkspace) -> None:
-    """Copy agent outputs from the sandbox workspace back to the session dir."""
+    """Copy standardized agent outputs from the sandbox workspace to the session dir.
+
+    Agent workspaces (``codex_workspace``, ``claude_workspace``, SDK variants)
+    are intentionally not retained — same session layout as BYO agents.
+    """
     session_dir = workspace.session_dir
     for name in COLLECTED_FILES:
         src = workspace.workspace_dir / name
         if src.is_file():
             shutil.copy2(src, session_dir / name)
-
-    for dirname in COLLECTED_WORKSPACES:
-        src = workspace.workspace_dir / dirname
-        if not src.is_dir():
-            continue
-        dst = session_dir / dirname
-        if dst.exists():
-            shutil.rmtree(dst)
-        try:
-            shutil.copytree(
-                src,
-                dst,
-                ignore=_ignore_ephemeral,
-                ignore_dangling_symlinks=True,
-            )
-        except shutil.Error:
-            # Codex SDK leaves ephemeral binaries under .codex_home/tmp that may
-            # vanish or reference microVM-only paths; keep other artifacts.
-            if not dst.exists():
-                raise
 
     manifest_src = workspace.manifest_path
     if manifest_src.is_file():

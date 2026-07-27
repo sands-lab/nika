@@ -55,7 +55,7 @@ Host (NIKA orchestration)          sbx microVM (agent-only)
                                        lab interaction: MCP HTTP only
 ```
 
-Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (manifest + skills). `ground_truth.json` stays on the host and is never mounted into the microVM. Artifacts are collected after the run.
+Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (manifest + skills). `ground_truth.json` stays on the host and is never mounted into the microVM. After the run, only standardized session artifacts (`messages.jsonl`, `submission.json`, plus `sandbox_manifest.json`) are copied back; `.sandbox_run` and agent CLI/SDK workspaces are discarded.
 
 **Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows only that session’s `localhost:{port}`; peer gateway ports are blocked. Parallel benchmark batches (`--batch-size N`) run one subprocess per case so gateways never share a process.
 

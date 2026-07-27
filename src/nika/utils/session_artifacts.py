@@ -16,6 +16,12 @@ def is_finished_session(run_meta: dict) -> bool:
 
 
 def iter_session_dirs(results_dir: str | Path | None = None) -> list[Path]:
+    """Discover session/trial dirs that contain ``run.json``.
+
+    Supports flat ``{root}/{session_id}/`` and one nesting level such as
+    trial runs under ``{root}/trials/{trial_id}/``. Skips ``0_summary``.
+    Root-level ``run.json`` (run config) is not a session directory.
+    """
     root = Path(results_dir or RESULTS_DIR)
     if not root.exists():
         return []

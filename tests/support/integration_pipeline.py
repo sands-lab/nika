@@ -6,6 +6,7 @@ from pathlib import Path
 from nika.utils.session_index import SessionIndex
 from nika.utils.session_store import SessionStore
 from nika.workflows.eval.session import run_eval_metrics
+from nika.workflows.eval.summary import run_eval_summary
 from nika.workflows.session.close import close_session
 from tests.support.prerequisites import containerlab_prerequisites
 
@@ -147,6 +148,24 @@ class CommonPipelineSteps:
         index_row = SessionIndex().get_row(self.session_id)
         assert index_row is not None
         assert index_row.get("detection_score") is not None
+        self._step_eval_summary()
+
+    def _step_eval_summary(self) -> None:
+        """Post-hoc CSV summary via ``nika eval summary`` (not part of agent/benchmark run)."""
+        assert self.session_id is not None
+        assert self.session_dir is not None
+        results_root = self.session_dir.parent
+        # Trials nest under trials/; summary scans the results root.
+        if results_root.name == "trials":
+            results_root = results_root.parent
+        out = run_eval_summary(
+            results_dir=str(results_root),
+            session_ids=[self.session_id],
+        )
+        assert out.is_file()
+        text = out.read_text(encoding="utf-8")
+        assert self.session_id in text
+        assert not (self.session_dir / "llm_judge.json").exists()
 
 
 class ClabCommonPipelineSteps:
@@ -202,3 +221,20 @@ class ClabCommonPipelineSteps:
         index_row = SessionIndex().get_row(self.session_id)
         assert index_row is not None
         assert index_row.get("detection_score") is not None
+        self._step_eval_summary()
+
+    def _step_eval_summary(self) -> None:
+        """Post-hoc CSV summary via ``nika eval summary`` (not part of agent/benchmark run)."""
+        assert self.session_id is not None
+        assert self.session_dir is not None
+        results_root = self.session_dir.parent
+        if results_root.name == "trials":
+            results_root = results_root.parent
+        out = run_eval_summary(
+            results_dir=str(results_root),
+            session_ids=[self.session_id],
+        )
+        assert out.is_file()
+        text = out.read_text(encoding="utf-8")
+        assert self.session_id in text
+        assert not (self.session_dir / "llm_judge.json").exists()

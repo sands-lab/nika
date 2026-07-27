@@ -15,6 +15,7 @@ from agent.utils.phases import DIAGNOSIS, SUBMISSION
 from nika.cli.utils import env_id_from_lab
 from nika.utils.session_store import SessionStore
 from nika.workflows.eval.session import run_eval_metrics
+from nika.workflows.eval.summary import run_eval_summary
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
 from nika.workflows.session.containers import list_session_containers
@@ -26,7 +27,7 @@ from tests.support.integration_pipeline import tool_text_list
 
 
 class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
-    """Parameterized end-to-end pipeline: env → inject → MCP → mock agent → eval."""
+    """Parameterized end-to-end pipeline: env → inject → MCP → mock agent → close → eval."""
 
     __test__ = False
 
@@ -255,3 +256,17 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         assert metrics["rca_accuracy"] == 1.0
 
         assert metrics["tool_calls"] > 0
+        assert not (self.session_dir / "llm_judge.json").exists()
+
+    def test_step_10_eval_summary(self) -> None:
+        """LLM judge / CSV summary belong to ``nika eval``, not the experiment run."""
+        assert self.session_id is not None
+        assert self.session_dir is not None
+        results_root = self.session_dir.parent
+        out = run_eval_summary(
+            results_dir=str(results_root),
+            session_ids=[self.session_id],
+        )
+        assert out.is_file()
+        assert self.session_id in out.read_text(encoding="utf-8")
+        assert not (self.session_dir / "llm_judge.json").exists()
