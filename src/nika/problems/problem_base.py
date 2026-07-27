@@ -168,11 +168,11 @@ class ProblemBase:
         """Resolve injection parameters; subclasses may fill derived defaults."""
         return self.parse_params(params, **overrides)
 
-    def set_faulty_devices(self, devices: list[str]) -> None:
+    def set_faulty_devices(self, devices: list[str | None]) -> None:
         """Replace the faulty-device set while preserving order."""
         self.faulty_devices = []
         for device in devices:
-            if device not in self.faulty_devices:
+            if device and device not in self.faulty_devices:
                 self.faulty_devices.append(device)
 
     @property

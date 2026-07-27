@@ -80,7 +80,7 @@ kathara list
 docker ps --format '{{.Names}}\t{{.Label "name"}}' | grep k8s_lab
 ```
 
-`kubectl get nodes` shows k3s hostnames (container names), not lab device names. Run `kubectl` on the k3s server device **`controller`**.
+`kubectl get nodes` shows lab device names (`controller`, `worker1`, …): Kathara sets each container's hostname to the device name, and k3s uses the hostname as the node name. Run `kubectl` on the k3s server device **`controller`** — workers ship the binary but have no kubeconfig.
 
 ### 1. BGP fabric — device `leaf_1_1`
 

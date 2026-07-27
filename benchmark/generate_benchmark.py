@@ -81,6 +81,15 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "web_dos_attack": "ospf_enterprise_dhcp",
 }
 
+# Problems whose only compatible scenarios are the Kubernetes labs. Those labs
+# are full-matrix only (a single case costs a full k3s cluster bring-up), so they
+# are skipped when building benchmark_selected.yaml instead of being mapped.
+FULL_ONLY_PROBLEMS: set[str] = {
+    "k8s_clusterip_routing_broken",
+    "k8s_coredns_isolated",
+    "k8s_worker_apiserver_partition",
+}
+
 
 def _topo_sizes_for_scenario(scenario: str) -> list[str]:
     if scenario_requires_topo_size(scenario):
@@ -120,6 +129,8 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
     rows: list[dict] = []
 
     for prob_name in sorted(problem_instances.keys()):
+        if prob_name in FULL_ONLY_PROBLEMS:
+            continue
         scenario = SELECTED_SCENARIO_FOR_PROBLEM.get(prob_name)
         if scenario is None:
             raise ValueError(f"No selected scenario mapping for problem {prob_name!r}")

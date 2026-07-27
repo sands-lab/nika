@@ -35,6 +35,7 @@ class LabRuntime(ExecSemanticOpsMixin, ABC):
             "file",
             "frr",
             "traffic",
+            "k8s",
         }
     )
 

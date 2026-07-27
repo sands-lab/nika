@@ -15,12 +15,16 @@ from nika.problems.prob_pool import list_avail_problem_instances
 
 DEFAULT_SEED = 42
 
-_DEVICE_KEYS = ("host_name", "host_name_2", "attacker_device")
+_DEVICE_KEYS = (
+    "host_name",
+    "host_name_2",
+    "attacker_device",
+    "control_node",
+    "node_name",
+)
 
 
-def _case_rng(
-    seed: int, scenario: str, problem: str, topo_size: str
-) -> random.Random:
+def _case_rng(seed: int, scenario: str, problem: str, topo_size: str) -> random.Random:
     key = f"{seed}|{scenario}|{problem}|{topo_size}".encode()
     digest = int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "big")
     return random.Random(digest)
@@ -198,12 +202,15 @@ def _scenario_device_pools(scenario: str, net_env) -> dict[str, list[str]]:
     if scenario == "k8s_lab":
         client_pool = [h for h in hosts if "client" in h] or hosts
         router_pool = [r for r in routers if "leaf" in r] or routers
+        controller_pool = [n for n in k8s_nodes if "controller" in n] or k8s_nodes
         return {
             "hosts": client_pool,
             "host1_pool": client_pool,
             "routers": router_pool,
             "web": client_pool,
             "attacker_pool": client_pool,
+            "k8s_nodes": k8s_nodes,
+            "k8s_controllers": controller_pool,
         }
     if scenario == "llmd_lab":
         client_pool = [h for h in hosts if "client" in h] or hosts
@@ -215,6 +222,8 @@ def _scenario_device_pools(scenario: str, net_env) -> dict[str, list[str]]:
             "web": client_pool,
             "attacker_pool": client_pool,
             "controllers": controller_pool,
+            "k8s_nodes": k8s_nodes,
+            "k8s_controllers": controller_pool,
         }
     if scenario == "min3clos":
         client_pool = [h for h in hosts if "client" in h] or hosts
@@ -454,6 +463,21 @@ def resolve_inject_params(
         params["host_name"] = web0 if web0 in web_pool else host0
         if problem == "sender_resource_contention":
             params["duration"] = "600"
+
+    elif problem in {"k8s_clusterip_routing_broken", "k8s_worker_apiserver_partition"}:
+        k8s_nodes = pools.get("k8s_nodes") or []
+        control = _first(pools.get("k8s_controllers")) or _first(k8s_nodes) or host0
+        workers = sorted(node for node in k8s_nodes if node != control)
+        params["control_node"] = control
+        params["node_name"] = _choice(rng, workers, control)
+
+    elif problem == "k8s_coredns_isolated":
+        k8s_nodes = pools.get("k8s_nodes") or []
+        control = _first(pools.get("k8s_controllers")) or _first(k8s_nodes) or host0
+        # node_name is intentionally left unset: the fault resolves the nodes
+        # actually hosting CoreDNS at inject time, which is where isolating it
+        # takes the whole cluster's name resolution down.
+        params["control_node"] = control
 
     elif problem == "load_balancer_overload":
         params["host_name"] = lb0

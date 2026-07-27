@@ -40,15 +40,3 @@ kubectl wait -n agentgateway-system --for=condition=ready pod --all --timeout 24
 for f in $(ls /k8s/pd-*.yaml | sort); do
   kubectl apply -f "$f"
 done
-
-kubectl wait -n llm-d --for=condition=ready pod -l app=llm-d-epp --timeout 24h
-kubectl wait -n llm-d --for=condition=ready pod -l llm-d.ai/role=prefill --timeout 24h
-kubectl wait -n llm-d --for=condition=ready pod -l llm-d.ai/role=decode --timeout 24h
-
-while true; do
-  GW_ADDR=$(kubectl get gateway -n llm-d llm-d-gateway -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
-  if [ -n "$GW_ADDR" ]; then
-    break
-  fi
-  sleep 5
-done

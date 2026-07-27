@@ -47,6 +47,10 @@ def _extract_injection_params(problem: Any) -> dict[str, Any]:
         "original_port",
         "mismatched_port",
         "deleted_subnet",
+        "k8s_control_node",
+        "k8s_objects",
+        "k8s_namespace",
+        "k8s_workload",
     ):
         if hasattr(problem, attr):
             params[attr] = _json_safe(getattr(problem, attr))

@@ -5,6 +5,7 @@ All nodes connect to a single bridged switch and use the internet for downloadin
 """
 
 import os
+import platform
 import shutil
 import tarfile
 import tempfile
@@ -14,6 +15,7 @@ from pathlib import Path
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
+from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -22,14 +24,21 @@ _K3S_IMAGE = "rancher/k3s"
 _BASE_IMAGE = "kathara/base"
 
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
-_HELM_VERSION = "v3.16.4"
-_HELM_ARCHIVE_URL = f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-amd64.tar.gz"
+_HELM_VERSION = "v3.21.3"
+machine = platform.machine().lower()
+if machine in ("x86_64", "amd64"):
+    _HELM_ARCHITECTURE = "amd64"
+elif machine in ("aarch64", "arm64"):
+    _HELM_ARCHITECTURE = "arm64"
+else:
+    _HELM_ARCHITECTURE = "amd64"
+_HELM_ARCHIVE_URL = f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-{_HELM_ARCHITECTURE}.tar.gz"
 
 
 def _ensure_helm_binary() -> Path:
     """Download Helm on the host (k3s busybox wget has no HTTPS) and stage it for Kathara."""
-    cache_dir = Path.home() / ".nika_cache" / "helm" / _HELM_VERSION
-    helm_bin = cache_dir / "helm"
+    cache_dir = RUNTIME_DIR / ".nika_cache" / "helm" / _HELM_VERSION
+    helm_bin = cache_dir / f"helm-{_HELM_ARCHITECTURE}"
     if helm_bin.is_file() and os.access(helm_bin, os.X_OK):
         return helm_bin
 
@@ -38,9 +47,9 @@ def _ensure_helm_binary() -> Path:
         archive = Path(tmp) / "helm.tgz"
         urllib.request.urlretrieve(_HELM_ARCHIVE_URL, archive)
         with tarfile.open(archive, "r:gz") as tar:
-            member = tar.getmember("linux-amd64/helm")
+            member = tar.getmember(f"linux-{_HELM_ARCHITECTURE}/helm")
             tar.extract(member, path=tmp, filter="data")
-        extracted = Path(tmp) / "linux-amd64" / "helm"
+        extracted = Path(tmp) / f"linux-{_HELM_ARCHITECTURE}" / "helm"
         shutil.copy2(extracted, helm_bin)
         helm_bin.chmod(0o755)
     return helm_bin
@@ -55,6 +64,10 @@ class LLMDInferenceCluster(NetworkEnvBase):
     TAGS = [
         "kubernetes",
         "k3s",
+        "k8s_control_plane",
+        "metallb",
+        "coredns",
+        "kube_proxy",
         "llm",
         "inference",
         "link",
@@ -138,9 +151,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
     def load_machines(self):
         super().load_machines()
-        self.kubernetes_nodes = sorted(
-            name for name, m in self.lab.machines.items() if "k3s" in m.get_image()
-        )
+        self.kubernetes_nodes = sorted(name for name, m in self.lab.machines.items() if "k3s" in m.get_image())
 
     def verify_lab(self) -> dict:
         from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab

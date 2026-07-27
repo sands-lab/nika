@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from nika.service.lab.frr_api import FRRAPIMixin
 from nika.service.lab.intf_api import IntfAPIMixin
+from nika.service.lab.k8s_api import K8sAPIMixin
 from nika.service.lab.nft_api import NFTableMixin
 from nika.service.lab.semantic_mixin import SemanticOpsMixin
 from nika.service.lab.tc_api import TCMixin
@@ -45,6 +46,7 @@ class LabRuntimeLabAPI(
     IntfAPIMixin,
     NFTableMixin,
     FRRAPIMixin,
+    K8sAPIMixin,
 ):
     """Shared semantic and traffic-control API backed by ``LabRuntime``."""
 

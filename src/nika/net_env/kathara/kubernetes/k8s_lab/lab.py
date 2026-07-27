@@ -30,6 +30,13 @@ class K8sFatTreeBGP(NetworkEnvBase):
     TAGS = [
         "kubernetes",
         "k3s",
+        "k8s_control_plane",
+        "k8s_workload",
+        "ingress",
+        "metallb",
+        "coredns",
+        "kube_proxy",
+        "k8s_storage",
         "fat-tree",
         "bgp",
         "frr",

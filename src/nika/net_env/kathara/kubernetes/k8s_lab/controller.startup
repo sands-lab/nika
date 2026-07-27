@@ -35,12 +35,10 @@ kubectl apply -f /k8s/pv.yaml
 kubectl apply -f /shared/ns.yaml
 kubectl apply -f /shared/pvc.yaml
 kubectl apply -f /shared/deploy_db.yaml
-kubectl apply -f /shared/deploy_app.yaml
-kubectl apply -f /shared/deploy_app_rev.yaml
-kubectl apply -f /shared/svc.yaml
-kubectl apply -f /shared/ing.yaml
 
 kubectl wait -n word-ns --for=condition=ready pod -l app=worddb --timeout 24h
 kubectl wait -n weather-ns --for=condition=ready pod -l app=weatherdb --timeout 24h
-kubectl wait -n word-ns --for=condition=available deployment/word-dply --timeout 24h
-kubectl wait -n weather-ns --for=condition=available deployment/weather-dply --timeout 24h
+
+kubectl apply -f /shared/deploy_app.yaml
+kubectl apply -f /shared/svc.yaml
+kubectl apply -f /shared/ing.yaml
