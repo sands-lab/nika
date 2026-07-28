@@ -117,6 +117,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
                     "args",
                     "server --disable servicelb --disable traefik --write-kubeconfig-mode 644",
                 )
+                m.add_meta("port", "6443:6443/tcp")
             else:
                 m.add_meta("env", "K3S_URL=https://controller:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")

@@ -127,6 +127,8 @@ class K8sFatTreeBGP(NetworkEnvBase):
             m = self.lab.new_machine(name, **{"image": _FRR_IMAGE})
             if name in _bridged:
                 m.add_meta("bridged", True)
+                # Add port mapping to expose kubectl on the host
+                m.add_meta("port", "6443:6443/tcp")
             if name in _sysctl_machines:
                 m.add_meta("sysctl", _sysctl_multipath)
             if name in _ipv6_machines:

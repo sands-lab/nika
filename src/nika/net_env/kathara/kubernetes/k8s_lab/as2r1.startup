@@ -5,5 +5,11 @@ ip address add 10.0.4.2/30 dev eth1
 # Start FRR
 systemctl start frr
 
+# Forward TCP 6443 to the Kubernetes controller
+iptables -t nat -A PREROUTING -p tcp --dport 6443 -j DNAT --to-destination 201.1.1.2:6443
+iptables -A FORWARD -p tcp -d 201.1.1.2 --dport 6443 -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -p tcp -s 201.1.1.2 --sport 6443 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -t nat -A POSTROUTING -p tcp -d 201.1.1.2 --dport 6443 -j MASQUERADE
+
 # Required to NAT the lab packets for forwarding by the host network
 iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
