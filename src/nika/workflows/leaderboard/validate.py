@@ -15,6 +15,7 @@ from nika.workflows.benchmark.release import ReleaseError, load_release
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
+    build_rca_confusion,
     metrics_nearly_equal,
 )
 from nika.workflows.leaderboard.hashing import sha256_file
@@ -25,6 +26,7 @@ from nika.workflows.leaderboard.schema import (
     METADATA_FILENAME,
     METRICS_FILENAME,
     PRIMARY_METRIC,
+    RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
     SCHEMA_VERSION,
@@ -33,6 +35,7 @@ from nika.workflows.leaderboard.schema import (
     AggregatedMetrics,
     FileInventory,
     PackageIdentity,
+    RcaConfusion,
     TrialResult,
 )
 from nika.workflows.leaderboard.secrets import scan_package_dir
@@ -89,6 +92,7 @@ def validate_leaderboard_submission(
     results_root = root / RESULTS_DIRNAME
     identity_path = results_root / IDENTITY_FILENAME
     metrics_path = results_root / METRICS_FILENAME
+    confusion_path = results_root / RCA_CONFUSION_FILENAME
     trials_root = results_root / TRIALS_DIRNAME
 
     for required in (
@@ -97,6 +101,7 @@ def validate_leaderboard_submission(
         files_path,
         identity_path,
         metrics_path,
+        confusion_path,
         trials_root,
     ):
         if required == trials_root:
@@ -129,7 +134,8 @@ def validate_leaderboard_submission(
     if identity.schema_version != SCHEMA_VERSION:
         errors.append(
             f"unsupported schema_version {identity.schema_version!r}; "
-            f"expected {SCHEMA_VERSION!r}"
+            f"expected {SCHEMA_VERSION!r} "
+            f"(schema 1 packages must be re-packed with NIKA that emits schema 2)"
         )
 
     try:
@@ -137,6 +143,12 @@ def validate_leaderboard_submission(
     except ValidationError as exc:
         errors.append(f"invalid {RESULTS_DIRNAME}/{METRICS_FILENAME}: {exc}")
         metrics = None
+
+    try:
+        confusion = RcaConfusion.model_validate(_load_json(confusion_path))
+    except ValidationError as exc:
+        errors.append(f"invalid {RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME}: {exc}")
+        confusion = None
 
     try:
         inventory = FileInventory.model_validate(_load_json(files_path))
@@ -167,6 +179,7 @@ def validate_leaderboard_submission(
             README_FILENAME,
             f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}",
             f"{RESULTS_DIRNAME}/{METRICS_FILENAME}",
+            f"{RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME}",
         ):
             if required_rel not in expected_package:
                 errors.append(
@@ -254,6 +267,16 @@ def validate_leaderboard_submission(
                 trial_results, n_trials_expected=len(expected_trials)
             )
             errors.extend(metrics_nearly_equal(recomputed, metrics))
+
+        if confusion is not None and not missing and not extra:
+            recomputed_confusion = build_rca_confusion(trial_results)
+            if recomputed_confusion.model_dump(mode="json") != confusion.model_dump(
+                mode="json"
+            ):
+                errors.append(
+                    f"{RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME} does not match "
+                    "trial RCA labels"
+                )
 
     if not identity.run.official:
         errors.append("run.official must be true for leaderboard submissions")

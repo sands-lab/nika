@@ -276,7 +276,7 @@ class TestReleaseRunToLeaderboardPackE2E:
         identity = yaml.safe_load(
             (package / RESULTS_DIRNAME / IDENTITY_FILENAME).read_text(encoding="utf-8")
         )
-        assert identity["schema_version"] == "1"
+        assert identity["schema_version"] == "2"
         assert identity["benchmark"]["version"] == release.version
         assert identity["benchmark"]["digest"] == release.benchmark_digest
         assert identity["benchmark"]["n_trials"] == 2
@@ -301,8 +301,28 @@ class TestReleaseRunToLeaderboardPackE2E:
         assert metrics["mean_rca_f1"] == pytest.approx(0.5)
         assert metrics["primary_metric"] == "rca_f1"
 
+        confusion = json.loads(
+            (package / RESULTS_DIRNAME / "rca_confusion.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert confusion["n_missing_prediction"] == 1
+        assert len(confusion["pairs"]) == 1
+        assert confusion["pairs"][0]["gt"] == "link_down"
+        assert confusion["pairs"][0]["predicted"] == "link_down"
+        assert confusion["pairs"][0]["count"] == 1
+
         trial_dirs = sorted((package / RESULTS_DIRNAME / "trials").iterdir())
         assert len(trial_dirs) == 2
+        by_outcome = {
+            json.loads((d / "result.json").read_text(encoding="utf-8"))["outcome"]: (
+                json.loads((d / "result.json").read_text(encoding="utf-8"))
+            )
+            for d in trial_dirs
+        }
+        assert by_outcome["success"]["gt_root_cause_name"] == ["link_down"]
+        assert by_outcome["success"]["predicted_root_cause_name"] == ["link_down"]
+        assert by_outcome["agent_failed"]["predicted_root_cause_name"] is None
 
         with patch(
             "nika.workflows.benchmark.release.RELEASES_DIR",

@@ -23,6 +23,7 @@ from nika.workflows.benchmark.trials import (
 )
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
+    build_rca_confusion,
     extract_trial_metrics,
 )
 from nika.workflows.leaderboard.hashing import sha256_file
@@ -37,6 +38,7 @@ from nika.workflows.leaderboard.schema import (
     METADATA_FILENAME,
     METRICS_FILENAME,
     PRIMARY_METRIC,
+    RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
     SCHEMA_VERSION,
@@ -130,6 +132,40 @@ def _package_folder_name(metadata: SubmissionMetadata, *, when: datetime) -> str
     return f"{when.strftime('%Y%m%d')}_{slug}"
 
 
+def _root_cause_name_list(raw: Any) -> list[str] | None:
+    """Normalize a root_cause_name field to a non-empty list, else None."""
+    if isinstance(raw, str) and raw.strip():
+        return [raw.strip()]
+    if isinstance(raw, list):
+        names = [str(item).strip() for item in raw if str(item).strip()]
+        return names or None
+    return None
+
+
+def _gt_root_cause_name(session_dir: Path, *, problem: str) -> list[str]:
+    gt_path = session_dir / "ground_truth.json"
+    if gt_path.is_file():
+        try:
+            gt = _read_json(gt_path)
+            names = _root_cause_name_list(gt.get("root_cause_name"))
+            if names:
+                return names
+        except (LeaderboardPackError, json.JSONDecodeError, OSError):
+            pass
+    return [problem]
+
+
+def _predicted_root_cause_name(session_dir: Path) -> list[str] | None:
+    sub_path = session_dir / "submission.json"
+    if not sub_path.is_file():
+        return None
+    try:
+        submission = _read_json(sub_path)
+    except (LeaderboardPackError, json.JSONDecodeError, OSError):
+        return None
+    return _root_cause_name_list(submission.get("root_cause_name"))
+
+
 def _trial_result_from_dir(
     *,
     trial_id: str,
@@ -160,6 +196,8 @@ def _trial_result_from_dir(
         problem=problem,
         outcome=outcome,  # type: ignore[arg-type]
         metrics=metrics,
+        gt_root_cause_name=_gt_root_cause_name(session_dir, problem=problem),
+        predicted_root_cause_name=_predicted_root_cause_name(session_dir),
     )
 
 
@@ -321,6 +359,7 @@ def pack_leaderboard_submission(
     trials_out.mkdir(parents=True)
 
     metrics = aggregate_trial_results(trial_results, n_trials_expected=len(trials))
+    confusion = build_rca_confusion(trial_results)
 
     metadata_path = package_root / METADATA_FILENAME
     _write_yaml(metadata_path, meta_model)
@@ -331,12 +370,15 @@ def pack_leaderboard_submission(
     _write_yaml(identity_path, identity)
     metrics_path = results_out / METRICS_FILENAME
     _write_json(metrics_path, metrics)
+    confusion_path = results_out / RCA_CONFUSION_FILENAME
+    _write_json(confusion_path, confusion)
 
     package_hashes: dict[str, str] = {
         METADATA_FILENAME: sha256_file(metadata_path),
         README_FILENAME: sha256_file(readme_path),
         f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}": sha256_file(identity_path),
         f"{RESULTS_DIRNAME}/{METRICS_FILENAME}": sha256_file(metrics_path),
+        f"{RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME}": sha256_file(confusion_path),
     }
 
     for result in trial_results:

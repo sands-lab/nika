@@ -71,7 +71,7 @@ def _minimal_live_package(tmp_path: Path) -> Path:
     (results / "identity.yaml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": "1",
+                "schema_version": "2",
                 "benchmark": {
                     "id": "nika-bench",
                     "version": "0.1.0",
