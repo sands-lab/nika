@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 NATIVE_SBX_AGENTS: dict[str, str] = {
-    "local_cli.codex_cli": "codex",
-    "local_cli.claude_cli": "claude",
+    "cli.codex": "codex",
+    "cli.claude": "claude",
     "sdk.codex_sdk": "shell",
     "sdk.claude_sdk": "shell",
     "community.sade": "shell",

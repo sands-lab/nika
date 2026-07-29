@@ -1,17 +1,17 @@
-"""Claude Code CLI-backed submission phase worker.
+"""Codex CLI-backed submission phase worker.
 
 Mirrors the role of :class:`~agent.byo.langgraph.phases.SubmissionPhase`
 in the LangChain path: calls the task MCP server's ``submit`` tool to record
 a structured result based on the diagnosis report.
 """
 
-from agent.local_cli.claude_cli.claude_worker import ClaudeWorker
+from agent.cli.codex.codex_worker import CodexWorker
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.utils.phases import SUBMISSION
 
 
-class ClaudeSubmissionPhase:
-    """Calls the task MCP server's ``submit`` tool via a ``claude -p`` subprocess.
+class CodexCliSubmissionPhase:
+    """Calls the task MCP server's ``submit`` tool via a ``codex exec`` subprocess.
 
     Parameters
     ----------
@@ -20,7 +20,9 @@ class ClaudeSubmissionPhase:
     session_dir:
         Absolute path to the session results directory.
     model:
-        Claude/DeepSeek model name (e.g. ``"deepseek-v4-flash"``).
+        Codex model name (e.g. ``"gpt-5.4-mini"``).
+    reasoning_effort:
+        Optional Codex ``model_reasoning_effort`` override.
     timeout:
         Hard timeout in seconds for the subprocess.
     """
@@ -29,16 +31,18 @@ class ClaudeSubmissionPhase:
         self,
         session_id: str,
         session_dir: str,
-        model: str | None = None,
+        model: str = "gpt-5.4-mini",
+        reasoning_effort: str | None = None,
         timeout: int = 300,
         *,
         stream_output: bool = True,
     ) -> None:
-        self._worker = ClaudeWorker(
+        self._worker = CodexWorker(
             session_id=session_id,
             session_dir=session_dir,
             phase=SUBMISSION,
             model=model,
+            reasoning_effort=reasoning_effort,
             timeout=timeout,
             stream_output=stream_output,
         )
@@ -50,7 +54,7 @@ class ClaudeSubmissionPhase:
         ----------
         diagnosis_report:
             Free-text output from the diagnosis phase.  Forwarded verbatim
-            to Claude so it can extract the structured answer and call
+            to the Codex CLI so it can extract the structured answer and call
             ``submit()``.
         """
         prompt = (

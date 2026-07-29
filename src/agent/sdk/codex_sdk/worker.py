@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from agent.sandbox.sbx.auth import apply_codex_auth
-from agent.local_cli.codex_cli.codex_display import format_codex_event
-from agent.local_cli.codex_cli.codex_worker import _build_mcp_toml
+from agent.cli.codex.codex_display import format_codex_event
+from agent.cli.codex.codex_worker import _build_mcp_toml
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config

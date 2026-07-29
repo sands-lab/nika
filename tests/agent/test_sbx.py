@@ -30,8 +30,8 @@ from agent.sandbox.sbx.workspace import collect_artifacts, prepare_workspace
 @pytest.mark.parametrize(
     ("agent_type", "sbx_agent"),
     [
-        ("local_cli.codex_cli", "codex"),
-        ("local_cli.claude_cli", "claude"),
+        ("cli.codex", "codex"),
+        ("cli.claude", "claude"),
         ("sdk.codex_sdk", "shell"),
         ("sdk.claude_sdk", "shell"),
         ("community.sade", "shell"),
@@ -116,7 +116,7 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     workspace = prepare_workspace(
         session_dir=session_dir,
         manifest={"session_id": "sess-1", "task_description": "diagnose"},
-        runtime_env={"NIKA_AGENT_TYPE": "local_cli.codex_cli"},
+        runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
     )
 
     assert not (workspace.workspace_dir / "ground_truth.json").exists()
@@ -293,7 +293,7 @@ def test_ensure_sbx_credentials_missing_raises_guidance(tmp_path) -> None:
 
 
 def test_required_services_for_agent() -> None:
-    assert required_services_for_agent("local_cli.codex_cli") == frozenset({"openai"})
+    assert required_services_for_agent("cli.codex") == frozenset({"openai"})
     assert required_services_for_agent("sdk.claude_sdk") == frozenset({"anthropic"})
 
 

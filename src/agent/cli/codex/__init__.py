@@ -5,7 +5,7 @@ invoke ``codex exec`` subprocesses.
 
 Layout::
 
-    local_cli/codex_cli/
+    cli/codex/
       agent.py                    # CodexCliAgent — sequential phase runner
       codex_worker.py             # CodexWorker — subprocess adapter
       phases/
@@ -22,7 +22,7 @@ __all__ = ["CodexCliAgent"]
 
 def __getattr__(name: str) -> Any:
     if name == "CodexCliAgent":
-        from agent.local_cli.codex_cli.agent import CodexCliAgent
+        from agent.cli.codex.agent import CodexCliAgent
 
         return CodexCliAgent
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

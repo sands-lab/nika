@@ -1,10 +1,10 @@
-"""SADE credential helpers (aligned with ``local_cli.claude_cli``)."""
+"""SADE credential helpers (aligned with ``cli.claude``)."""
 
 from __future__ import annotations
 
 import os
 
-from agent.local_cli.claude_cli.config import (
+from agent.cli.claude.config import (
     claude_sbx_secret_available,
     has_env_claude_credentials,
     prepare_claude_subprocess_env,

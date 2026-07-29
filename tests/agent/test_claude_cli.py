@@ -3,12 +3,12 @@ import pytest
 import json
 import os
 import unittest.mock
-from agent.local_cli.claude_cli.claude_display import (
+from agent.cli.claude.claude_display import (
     format_claude_event,
     should_log_claude_event,
 )
-from agent.local_cli.claude_cli.claude_worker import ClaudeWorker, _build_mcp_json
-from agent.local_cli.claude_cli.config import (
+from agent.cli.claude.claude_worker import ClaudeWorker, _build_mcp_json
+from agent.cli.claude.config import (
     default_claude_model,
     has_env_claude_credentials,
     prepare_claude_subprocess_env,
@@ -61,7 +61,7 @@ class ClaudeConfigTest:
         with (
             unittest.mock.patch.dict(os.environ, {}, clear=True),
             unittest.mock.patch(
-                "agent.local_cli.claude_cli.config.claude_subscription_mode",
+                "agent.cli.claude.config.claude_subscription_mode",
                 return_value=True,
             ),
         ):
@@ -238,9 +238,9 @@ class ClaudeAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_03_run_claude_agent(self) -> None:
         assert self.session_id is not None
-        self._run_agent(agent_type="local_cli.claude_cli", max_steps=20)
+        self._run_agent(agent_type="cli.claude", max_steps=20)
         row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "local_cli.claude_cli"
+        assert row.get("agent_type") == "cli.claude"
 
     def test_step_04_check_workspace_and_messages(self) -> None:
         assert self.session_dir is not None
@@ -291,7 +291,7 @@ class ClaudeAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
         assert_submission_fields(self.session_dir)
 
     def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("local_cli.claude_cli")
+        self._step_close_and_verify("cli.claude")
 
     def test_step_07_eval_metrics(self) -> None:
         self._step_eval_metrics()
@@ -313,9 +313,9 @@ class ClaudeClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_03_run_claude_agent(self) -> None:
         assert self.session_id is not None
-        self._run_agent(agent_type="local_cli.claude_cli", max_steps=20)
+        self._run_agent(agent_type="cli.claude", max_steps=20)
         row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "local_cli.claude_cli"
+        assert row.get("agent_type") == "cli.claude"
 
     def test_step_04_check_workspace_and_messages(self) -> None:
         assert self.session_dir is not None
@@ -348,7 +348,7 @@ class ClaudeClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
         assert_submission_fields(self.session_dir)
 
     def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("local_cli.claude_cli")
+        self._step_close_and_verify("cli.claude")
 
     def test_step_07_eval_metrics(self) -> None:
         self._step_eval_metrics()

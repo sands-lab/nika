@@ -2,19 +2,19 @@
 
 Two-phase pipeline via ``claude -p`` subprocesses (no LangGraph).
 
-* **diagnosis phase** → :class:`~agent.local_cli.claude_cli.phases.ClaudeDiagnosisPhase`
+* **diagnosis phase** → :class:`~agent.cli.claude.phases.ClaudeDiagnosisPhase`
   (``claude -p`` with Kathara MCP servers; server set chosen dynamically
   based on the session scenario)
-* **submission phase** → :class:`~agent.local_cli.claude_cli.phases.ClaudeSubmissionPhase`
+* **submission phase** → :class:`~agent.cli.claude.phases.ClaudeSubmissionPhase`
   (``claude -p`` with the task MCP server; calls ``submit()`` to record
   a structured result)
 
 Authentication supports environment API keys, third-party Anthropic-compatible
 endpoints (``ANTHROPIC_BASE_URL`` + ``ANTHROPIC_AUTH_TOKEN``), and
-``claude auth login``.  See :mod:`agent.local_cli.claude_cli.config` and
+``claude auth login``.  See :mod:`agent.cli.claude.config` and
 ``src/agent/README.md``.
 
-Select with ``nika agent run -a local_cli.claude_cli``.
+Select with ``nika agent run -a cli.claude``.
 """
 
 from __future__ import annotations
@@ -22,9 +22,9 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from agent.local_cli.claude_cli.config import resolve_claude_model
-from agent.local_cli.claude_cli.phases.diagnosis import ClaudeDiagnosisPhase
-from agent.local_cli.claude_cli.phases.submission import ClaudeSubmissionPhase
+from agent.cli.claude.config import resolve_claude_model
+from agent.cli.claude.phases.diagnosis import ClaudeDiagnosisPhase
+from agent.cli.claude.phases.submission import ClaudeSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
 from agent.utils.phases import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
@@ -39,7 +39,7 @@ class ClaudeAgent:
         NIKA session identifier.
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
-        reads from environment (see :func:`~agent.local_cli.claude_cli.config.default_claude_model`).
+        reads from environment (see :func:`~agent.cli.claude.config.default_claude_model`).
     """
 
     def __init__(

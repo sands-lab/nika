@@ -13,11 +13,11 @@ isolated, per-session workspace.  It handles:
   server's ``env`` block, exactly as :class:`~agent.utils.mcp_servers.MCPServerConfig`
   does for the LangChain path.
 * **Auth** – environment API key/token (``--bare``) or ``claude auth login``
-  OAuth; see :mod:`agent.local_cli.claude_cli.config`.
+  OAuth; see :mod:`agent.cli.claude.config`.
 * **Output capture** – the final assistant message is extracted from the
   ``{"type":"result"}`` stream-json event; all events are logged to
   ``messages.jsonl`` and pretty-printed via
-  :func:`~agent.local_cli.claude_cli.claude_display.format_claude_event`.
+  :func:`~agent.cli.claude.claude_display.format_claude_event`.
 """
 
 from __future__ import annotations
@@ -27,11 +27,11 @@ import json
 import sys
 from pathlib import Path
 
-from agent.local_cli.claude_cli.claude_display import (
+from agent.cli.claude.claude_display import (
     format_claude_event,
     should_log_claude_event,
 )
-from agent.local_cli.claude_cli.config import (
+from agent.cli.claude.config import (
     prepare_claude_subprocess_env,
     resolve_claude_model,
     use_bare_claude_mode,
@@ -81,7 +81,7 @@ class ClaudeWorker:
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
         reads from ``ANTHROPIC_MODEL`` and related env vars (see
-        :func:`~agent.local_cli.claude_cli.config.default_claude_model`).
+        :func:`~agent.cli.claude.config.default_claude_model`).
     timeout:
         Hard timeout in seconds for the subprocess (default 600 s).
     scenario_name:

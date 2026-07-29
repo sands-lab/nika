@@ -179,7 +179,7 @@ class SandboxBenchmarkClaudeTest:
                 "--set",
                 "intf_name=eth0",
                 "-a",
-                "local_cli.claude_cli",
+                "cli.claude",
                 "-m",
                 CLAUDE_MODEL,
                 "-n",
@@ -201,11 +201,11 @@ class SandboxBenchmarkClaudeTest:
         _session_id, scenario, problem, session_dir = match.groups()
         assert scenario == "simple_bgp"
         assert problem == "link_down"
-        _assert_sandbox_session(Path(session_dir), agent_type="local_cli.claude_cli")
+        _assert_sandbox_session(Path(session_dir), agent_type="cli.claude")
 
     def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
         _run_parallel_sandbox_benchmark(
-            agent_type="local_cli.claude_cli",
+            agent_type="cli.claude",
             model=CLAUDE_MODEL,
         )
 
@@ -223,6 +223,6 @@ class SandboxBenchmarkCodexTest:
 
     def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
         _run_parallel_sandbox_benchmark(
-            agent_type="local_cli.codex_cli",
+            agent_type="cli.codex",
             model=CODEX_MODEL,
         )

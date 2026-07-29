@@ -14,9 +14,9 @@ src/agent/
 │   │   └── phases/
 │   ├── mcp_agent/        # -a byo.mcp_agent
 │   └── autogen/          # -a byo.autogen
-├── local_cli/            # Local CLI subprocess workers
-│   ├── codex_cli/        # -a local_cli.codex_cli
-│   └── claude_cli/       # -a local_cli.claude_cli
+├── cli/                  # Official Codex / Claude CLI agents (sbx)
+│   ├── codex/            # -a cli.codex
+│   └── claude/           # -a cli.claude
 ├── community/            # Community-contributed agents
 │   └── sade/             # -a community.sade
 ├── mock/                 # Test-only deterministic agent (see tests/README.md)
@@ -35,8 +35,8 @@ src/agent/
 | CLI name | Orchestration | LLM access | Status |
 |----------|---------------|------------|--------|
 | `byo.langgraph` | LangGraph `StateGraph` | LangChain ReAct + `load_model()` | Implemented |
-| `local_cli.codex_cli` | Native two-phase (no LangGraph) | `codex exec` subprocess + shared `.agents/skills/` | Implemented |
-| `local_cli.claude_cli` | Native two-phase (no LangGraph) | `claude -p` subprocess + shared `.claude/skills/` | Implemented |
+| `cli.codex` | Native two-phase (no LangGraph) | `codex exec` subprocess + shared `.agents/skills/` | Implemented |
+| `cli.claude` | Native two-phase (no LangGraph) | `claude -p` subprocess + shared `.claude/skills/` | Implemented |
 | `byo.mcp_agent` | mcp-agent `Workflow` | mcp-agent + OpenAI | Implemented |
 | `byo.autogen` | AutoGen `GraphFlow` | AutoGen AgentChat + OpenAI | Implemented |
 | `community.sade` | Single Claude Code session + 15-skill library | `claude-agent-sdk` (optional extra `sade`) | Implemented |
@@ -71,7 +71,7 @@ Every agent runs **diagnosis** (Kathara MCP, `if_submit=False`) then **submissio
 
 | Flag | Env | Required | Notes |
 |------|-----|----------|-------|
-| `-a` / `--agent` | `NIKA_AGENT_TYPE` | Yes | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `local_cli.codex_cli`, `local_cli.claude_cli`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk` |
+| `-a` / `--agent` | `NIKA_AGENT_TYPE` | Yes | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk` |
 | `-p` / `--provider` | `NIKA_LLM_PROVIDER` | byo.langgraph only | `openai`, `ollama`, `deepseek`, `custom` |
 | `-n` / `--max-steps` | `NIKA_MAX_STEPS` | Yes | Limits steps per phase in `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, and `sdk.claude_sdk` |
 | `-m` / `--model` | `NIKA_MODEL` | No | Overrides agent-specific model env when set |
@@ -95,8 +95,8 @@ Auth uses the host `sbx secret` store (credential proxy). API keys in `.env` are
 Outbound proxy and offline SDK wheels are **off by default**. Enable via repo-root `.env` when needed (see `.env.example`).
 
 ```bash
-uv run nika agent run -a local_cli.codex_cli -m gpt-5-mini -n 20
-uv run nika agent run -a local_cli.claude_cli -m deepseek-v4-flash -n 20
+uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
+uv run nika agent run -a cli.claude -m deepseek-v4-flash -n 20
 ```
 
 Model resolution order: `-m` → `NIKA_MODEL` → agent-specific env (below).
@@ -161,11 +161,11 @@ No API key. `load_model()` validates the model at init — run `ollama pull` fir
 
 ---
 
-## local_cli.codex_cli
+## cli.codex
 
 Native two-phase orchestration + `codex exec` via `sbx exec` (native `codex` template). Ephemeral workspace under `.sandbox_run/` (discarded after the run). MCP config written to an isolated `CODEX_HOME`.
 
-**Entry**: `agent.local_cli.codex_cli.agent.CodexCliAgent`
+**Entry**: `agent.cli.codex.agent.CodexCliAgent`
 
 **Requires**: [Codex CLI](https://github.com/openai/codex) available in the sbx `codex` template. Auth: `OPENAI_API_KEY` in `.env` (synced to `sbx secret`) or `sbx secret set -g openai --oauth`.
 
@@ -176,22 +176,22 @@ Native two-phase orchestration + `codex exec` via `sbx exec` (native `codex` tem
 
 ```bash
 # .env
-NIKA_AGENT_TYPE=local_cli.codex_cli
+NIKA_AGENT_TYPE=cli.codex
 NIKA_MAX_STEPS=20
 NIKA_CODEX_MODEL=gpt-5-mini
 # NIKA_CODEX_REASONING_EFFORT=medium
 # or: sbx secret set -g openai --oauth
 
-nika agent run -a local_cli.codex_cli -m gpt-5-mini -e medium
+nika agent run -a cli.codex -m gpt-5-mini -e medium
 ```
 
 ---
 
-## local_cli.claude_cli
+## cli.claude
 
 Native two-phase orchestration + `claude -p` via `sbx exec` (native `claude` template). Ephemeral workspace under `.sandbox_run/` (discarded after the run). MCP config: `{phase}_mcp_config.json`.
 
-**Entry**: `agent.local_cli.claude_cli.agent.ClaudeAgent`
+**Entry**: `agent.cli.claude.agent.ClaudeAgent`
 
 **Requires**: Claude Code available in the sbx `claude` template.
 
@@ -220,11 +220,11 @@ ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
 ANTHROPIC_AUTH_TOKEN=sk-...
 ANTHROPIC_MODEL=deepseek-v4-pro[1m]
 
-NIKA_AGENT_TYPE=local_cli.claude_cli
+NIKA_AGENT_TYPE=cli.claude
 NIKA_MAX_STEPS=20
 
-nika agent run -a local_cli.claude_cli
-nika agent run -a local_cli.claude_cli -m deepseek-v4-flash
+nika agent run -a cli.claude
+nika agent run -a cli.claude -m deepseek-v4-flash
 ```
 
 ---
@@ -289,7 +289,7 @@ Native two-phase pipeline via ``claude-agent-sdk`` ``ClaudeSDKClient`` (no LangG
 
 **Requires**: `uv sync --extra sdk --prerelease=allow`
 
-**Auth**: Anthropic API key / token in `.env` (auto-synced), or Claude subscription via `/login` (`anthropic` sbx secret). Same modes as `local_cli.claude_cli`.
+**Auth**: Anthropic API key / token in `.env` (auto-synced), or Claude subscription via `/login` (`anthropic` sbx secret). Same modes as `cli.claude`.
 
 ```bash
 ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
@@ -338,7 +338,7 @@ nika agent run -a sdk.codex_sdk -m gpt-5.4-mini -e medium
 ```bash
 nika env run simple_bgp
 nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
-nika agent run -a local_cli.codex_cli -m gpt-5.4-mini
+nika agent run -a cli.codex -m gpt-5.4-mini
 nika session close -y
 nika eval metrics
 ```

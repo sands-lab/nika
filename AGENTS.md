@@ -57,7 +57,7 @@
 ## Agent System Rules
 
 - Agent implementations live under `src/agent/` and implement the shared troubleshooting contract in `agent.protocols`.
-- Production agent ids include `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `local_cli.codex_cli`, `local_cli.claude_cli`, `community.sade`, `sdk.claude_sdk`, and `sdk.codex_sdk`.
+- Production agent ids include `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, and `sdk.codex_sdk`.
 - The `mock` agent is deterministic and test-only; prefer it for no-credential pipeline tests.
 - Agent runs should write standard artifacts such as `messages.jsonl` and `submission.json` in the session result directory.
 - Shared agent skills live under `src/agent/skills/`; helpers live in `agent.utils.skills`. See `docs/agent-skills.md`.

@@ -64,7 +64,7 @@ class AgentConfigTest:
     def test_non_langgraph_agents_do_not_require_llm_provider(self) -> None:
         with unittest.mock.patch.dict(os.environ, {}, clear=True):
             assert resolve_llm_provider(None, agent_type="mock") is None
-            assert resolve_llm_provider(None, agent_type="local_cli.codex_cli") is None
+            assert resolve_llm_provider(None, agent_type="cli.codex") is None
 
     def test_judge_values_from_env(self) -> None:
         with unittest.mock.patch.dict(
@@ -88,7 +88,7 @@ class AgentConfigTest:
             ("byo.langgraph", ENV_LANGGRAPH_MODEL, "deepseek-chat"),
             ("byo.mcp_agent", ENV_MCP_AGENT_MODEL, "gpt-4.1-mini"),
             ("byo.autogen", ENV_AUTOGEN_MODEL, "deepseek-chat"),
-            ("local_cli.codex_cli", ENV_CODEX_MODEL, "gpt-5.4-mini"),
+            ("cli.codex", ENV_CODEX_MODEL, "gpt-5.4-mini"),
             ("sdk.codex_sdk", ENV_CODEX_MODEL, "gpt-5.4-mini"),
             ("sdk.codex_sdk", ENV_CODEX_SDK_MODEL, "gpt-5.4-mini"),
             ("sdk.claude_sdk", ENV_CLAUDE_SDK_MODEL, "deepseek-v4-flash"),
@@ -99,7 +99,7 @@ class AgentConfigTest:
                 assert resolve_agent_model(agent_type, None) == model
 
     def test_claude_family_falls_back_to_anthropic_model(self) -> None:
-        for agent_type in ("local_cli.claude_cli", "sdk.claude_sdk", "community.sade"):
+        for agent_type in ("cli.claude", "sdk.claude_sdk", "community.sade"):
             with unittest.mock.patch.dict(
                 os.environ, {"ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"}, clear=True
             ):

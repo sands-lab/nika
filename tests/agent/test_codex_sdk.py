@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pytest
 import unittest.mock
-from agent.local_cli.codex_cli.codex_worker import _build_mcp_toml
+from agent.cli.codex.codex_worker import _build_mcp_toml
 from agent.sdk.codex_sdk.config import (
     codex_sdk_local_auth_available,
     validate_reasoning_effort,
@@ -40,7 +40,7 @@ class CodexSdkConfigTest:
 
 
 class CodexSdkMcpTest:
-    """MCP config TOML generation reused from codex_cli."""
+    """MCP config TOML generation reused from cli.codex."""
 
     def test_includes_mcp_server_section(self) -> None:
         toml = _build_mcp_toml(

@@ -1,8 +1,8 @@
 """Docker sandbox execution for NIKA troubleshooting agents."""
 
 SANDBOX_SUPPORTED_AGENTS = (
-    "local_cli.codex_cli",
-    "local_cli.claude_cli",
+    "cli.codex",
+    "cli.claude",
     "sdk.codex_sdk",
     "sdk.claude_sdk",
     "community.sade",

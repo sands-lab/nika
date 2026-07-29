@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from agent.local_cli.claude_cli.config import resolve_claude_model
+from agent.cli.claude.config import resolve_claude_model
 
 # Shared CLI options (nika agent run / nika benchmark run)
 ENV_AGENT_TYPE = "NIKA_AGENT_TYPE"
@@ -90,7 +90,7 @@ def resolve_agent_model(agent_type: str, model: str | None = None) -> str:
         return generic
 
     match agent_type.lower():
-        case "local_cli.claude_cli":
+        case "cli.claude":
             return resolve_claude_model(None)
         case "community.sade":
             if sade_model := _env_str(ENV_SADE_MODEL):
@@ -106,7 +106,7 @@ def resolve_agent_model(agent_type: str, model: str | None = None) -> str:
             return _require_str(
                 value=None, env_key=ENV_CODEX_MODEL, cli_flag="-m/--model"
             )
-        case "local_cli.codex_cli":
+        case "cli.codex":
             return _require_str(
                 value=None, env_key=ENV_CODEX_MODEL, cli_flag="-m/--model"
             )
