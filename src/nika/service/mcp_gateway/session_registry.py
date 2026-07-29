@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
 from typing import Literal
 
@@ -21,6 +21,7 @@ class GatewaySession:
     scenario_name: str
     policy_mode: PolicyMode
     phase: Phase = DIAGNOSIS
+    remote_upstreams: dict[str, str] = field(default_factory=dict)
 
 
 def register_session(
@@ -28,6 +29,7 @@ def register_session(
     *,
     scenario_name: str = "",
     policy_mode: PolicyMode = "two_phase",
+    remote_upstreams: dict[str, str] | None = None,
 ) -> None:
     with _lock:
         _sessions[session_id] = GatewaySession(
@@ -35,7 +37,16 @@ def register_session(
             scenario_name=scenario_name,
             policy_mode=policy_mode,
             phase=DIAGNOSIS,
+            remote_upstreams=dict(remote_upstreams or {}),
         )
+
+
+def set_remote_upstream(session_id: str, server_name: str, base_url: str) -> None:
+    with _lock:
+        entry = _sessions.get(session_id)
+        if entry is None:
+            raise KeyError(f"MCP gateway session not registered: {session_id!r}")
+        entry.remote_upstreams[server_name] = base_url.rstrip("/")
 
 
 def unregister_session(session_id: str) -> None:

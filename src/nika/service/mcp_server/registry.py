@@ -9,23 +9,25 @@ from typing import Literal
 from nika.config import MCP_SERVER_DIR
 
 Backend = Literal["kathara", "containerlab"]
-Role = Literal["host", "routing", "switch", "telemetry", "task"]
+Role = Literal["host", "routing", "switch", "telemetry", "task", "kubernetes"]
 ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
 ROUTING_KEYWORDS = frozenset({"bgp", "ospf", "rip", "frr", "routing"})
 SWITCH_KEYWORDS = frozenset({"p4", "bmv2", "sdn", "bloom", "mpls", "int", "counter"})
 TELEMETRY_KEYWORDS = frozenset({"telemetry"})
+KUBERNETES_KEYWORDS = frozenset({"kubernetes", "k3s", "k8s"})
 
 
 @dataclass(frozen=True)
 class MCPServerSpec:
-    """One stdio MCP subprocess exposed to troubleshooting agents."""
+    """One MCP server exposed to troubleshooting agents (in-process or remote)."""
 
     name: str
     backend: Backend | None
     role: Role
     module: str
+    remote: bool = False
 
     @property
     def script_path(self) -> str:
@@ -71,6 +73,14 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         role="telemetry",
         module="kathara/telemetry_server.py",
     ),
+    # In-node Kubernetes MCP (controller process; gateway reverse-proxies)
+    "k8s_mcp_server": MCPServerSpec(
+        name="k8s_mcp_server",
+        backend="kathara",
+        role="kubernetes",
+        module="k8s_mcp_server",
+        remote=True,
+    ),
     # Containerlab — specialised device APIs
     "containerlab_srl_mcp_server": MCPServerSpec(
         name="containerlab_srl_mcp_server",
@@ -86,6 +96,7 @@ MCP_SERVER_PREFIXES: tuple[str, ...] = tuple(f"{name}_" for name in MCP_SERVER_S
 DIAGNOSIS_HOST_SERVER = "kathara_base_mcp_server"
 DIAGNOSIS_PINGMESH_SERVER = "pingmesh_mcp_server"
 SUBMISSION_SERVER = "task_mcp_server"
+K8S_MCP_SERVER = "k8s_mcp_server"
 
 
 def _sandbox_execution() -> bool:
@@ -143,6 +154,8 @@ def select_diagnosis_servers(
         servers.append("kathara_bmv2_mcp_server")
     if tokens & TELEMETRY_KEYWORDS:
         servers.append("kathara_telemetry_mcp_server")
+    if tokens & KUBERNETES_KEYWORDS:
+        servers.append(K8S_MCP_SERVER)
 
     return servers
 

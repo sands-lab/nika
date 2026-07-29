@@ -42,6 +42,9 @@ from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_
 from agent.utils.phases import PHASES, SUBMISSION
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 
+# k8s MCP tool results can emit stream-json lines well above asyncio's 64KiB default.
+_STREAM_READER_LIMIT = 8 * 1024 * 1024
+
 
 def _build_mcp_json(servers: dict) -> str:
     """Serialise an MCP server dict (from MCPServerConfig) as JSON."""
@@ -199,6 +202,7 @@ class ClaudeWorker:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=str(self.workspace),
+                    limit=_STREAM_READER_LIMIT,
                 )
             returncode, final_result, stderr_text = await self._stream_subprocess(proc)
         except asyncio.TimeoutError:

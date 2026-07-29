@@ -14,10 +14,10 @@ from starlette.routing import Mount, Route
 
 from nika.service.mcp_gateway.constants import PHASES
 from nika.service.mcp_gateway.middleware import (
-    SESSION_HEADER,
     PhaseGateMiddleware,
     _empty_mcp,
 )
+from nika.service.mcp_gateway.remote_proxy import RemoteMcpProxy
 from nika.service.mcp_gateway.session_registry import advance_phase, get_session
 from nika.service.mcp_server.registry import MCP_SERVER_SPECS
 
@@ -59,7 +59,9 @@ def _load_mcp(name: str) -> FastMCP:
 
 def reset_gateway_mcp_state() -> None:
     """Allow a fresh gateway process to attach new HTTP session managers."""
-    for name in MCP_SERVER_SPECS:
+    for name, spec in MCP_SERVER_SPECS.items():
+        if spec.remote:
+            continue
         _load_mcp(name)._session_manager = None  # type: ignore[attr-defined]
     _empty_mcp._session_manager = None  # type: ignore[attr-defined]
 
@@ -69,6 +71,8 @@ async def gateway_health(_request: Request) -> JSONResponse:
 
 
 async def gateway_advance_phase(request: Request) -> JSONResponse:
+    from nika.service.mcp_gateway.middleware import SESSION_HEADER
+
     session_id = request.path_params["session_id"]
     header_sid = request.headers.get(SESSION_HEADER, "").strip()
     if header_sid != session_id:
@@ -115,7 +119,19 @@ def create_gateway_app() -> Starlette:
     blocked_app = _empty_mcp.streamable_http_app()
     session_managers.append(_empty_mcp.session_manager)
 
-    for name in MCP_SERVER_SPECS:
+    for name, spec in MCP_SERVER_SPECS.items():
+        if spec.remote:
+            # After Mount(/mcp/{name}), remaining path is ``/mcp`` (client URL
+            # ends with ``/mcp/{name}/mcp``). Forward that path to the in-node
+            # server which also serves streamable HTTP under ``/mcp``.
+            inner = PhaseGateMiddleware(
+                RemoteMcpProxy(name),
+                server_name=name,
+                blocked_app=blocked_app,
+            )
+            routes.append(Mount(f"/mcp/{name}", app=inner))
+            continue
+
         mcp = _load_mcp(name)
         starlette_app = mcp.streamable_http_app()
         session_managers.append(mcp.session_manager)

@@ -29,3 +29,10 @@ uv.lock
 .pytest_cache/
 .ruff_cache/
 **/MagicMock/**
+# Staged portable CPython + site-packages for in-node k8s MCP (see scripts/stage_k8s_mcp_bundle.py)
+src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/runtime/
+src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/pkgs/
+src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/lib/
+src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/start.sh
+src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/bundle.tar.gz
+/artifacts/nika-k8s-mcp-build/

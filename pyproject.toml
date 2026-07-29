@@ -30,6 +30,7 @@ dependencies = [
     "autogen-agentchat>=0.7.5",
     "autogen-ext[mcp,openai]>=0.7.5",
     "ruff>=0.15.20",
+    "kubernetes>=31.0.0",
 ]
 
 [project.optional-dependencies]

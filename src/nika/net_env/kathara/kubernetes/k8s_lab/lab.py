@@ -87,8 +87,9 @@ class K8sFatTreeBGP(NetworkEnvBase):
             "worker5": ["AB"],
         }
 
-        # as2r1 is bridged for internet connectivity
-        _bridged = {"as2r1"}
+        # as2r1 is bridged for internet connectivity; controller is bridged so
+        # k3s has a default route before Kathara startup configures eth0.
+        _bridged = {"as2r1", "controller"}
 
         # Multipath sysctl for core and spine switches
         _sysctl_multipath = "net.ipv4.fib_multipath_hash_policy=1"
@@ -142,6 +143,8 @@ class K8sFatTreeBGP(NetworkEnvBase):
             for ulimit in _K3S_ULIMITS:
                 m.add_meta("ulimit", ulimit)
             m.add_meta("shell", "/bin/sh")
+            if name in _bridged:
+                m.add_meta("bridged", True)
             if name == "controller":
                 m.add_meta("env", "K3S_TOKEN=secret")
                 m.add_meta(
