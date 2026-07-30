@@ -13,6 +13,11 @@ from typing import Iterator, Literal
 import uvicorn
 
 from nika.service.mcp_gateway.app import create_gateway_app, reset_gateway_mcp_state
+from nika.service.mcp_gateway.k8s_upstream import (
+    K8S_MCP_SERVER_NAME,
+    resolve_k8s_mcp_upstream,
+    scenario_needs_k8s_mcp,
+)
 from nika.service.mcp_gateway.session_registry import (
     clear_sessions,
     register_session,
@@ -145,10 +150,14 @@ def mcp_gateway_for_session(
     manager = start_gateway(host=bind_host, port=port)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
+    remote_upstreams: dict[str, str] = {}
+    if scenario_name and scenario_needs_k8s_mcp(scenario_name):
+        remote_upstreams[K8S_MCP_SERVER_NAME] = resolve_k8s_mcp_upstream(session_id)
     register_session(
         session_id,
         scenario_name=scenario_name,
         policy_mode=policy_mode,
+        remote_upstreams=remote_upstreams,
     )
     try:
         yield manager

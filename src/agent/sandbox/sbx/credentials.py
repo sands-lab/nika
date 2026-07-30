@@ -32,9 +32,9 @@ DEEPSEEK_HOST = "api.deepseek.com"
 DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
 
 _AGENT_REQUIRED_SERVICES: dict[str, frozenset[str]] = {
-    "local_cli.codex_cli": frozenset({SERVICE_OPENAI}),
+    "cli.codex": frozenset({SERVICE_OPENAI}),
     "sdk.codex_sdk": frozenset({SERVICE_OPENAI}),
-    "local_cli.claude_cli": frozenset({SERVICE_ANTHROPIC}),
+    "cli.claude": frozenset({SERVICE_ANTHROPIC}),
     "sdk.claude_sdk": frozenset({SERVICE_ANTHROPIC}),
     "community.sade": frozenset({SERVICE_ANTHROPIC}),
 }

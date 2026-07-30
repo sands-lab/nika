@@ -2,10 +2,10 @@
 
 Two-phase pipeline via ``codex exec`` subprocesses (no LangGraph).
 
-* **diagnosis phase** → :class:`~agent.local_cli.codex_cli.phases.CodexCliDiagnosisPhase`
+* **diagnosis phase** → :class:`~agent.cli.codex.phases.CodexCliDiagnosisPhase`
   (``codex exec`` with Kathara MCP servers; server set chosen dynamically
   based on the session scenario)
-* **submission phase** → :class:`~agent.local_cli.codex_cli.phases.CodexCliSubmissionPhase`
+* **submission phase** → :class:`~agent.cli.codex.phases.CodexCliSubmissionPhase`
   (``codex exec`` with the task MCP server; calls ``submit()`` to record
   a structured result)
 
@@ -13,7 +13,7 @@ Session ID propagation follows the same path as the LangChain path:
 ``NIKA_SESSION_ID`` is injected into each MCP server's ``env`` block via
 :class:`~agent.utils.mcp_servers.MCPServerConfig`.
 
-Select with ``nika agent run -a local_cli.codex_cli``.
+Select with ``nika agent run -a cli.codex``.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from agent.local_cli.codex_cli.phases.diagnosis import CodexCliDiagnosisPhase
-from agent.local_cli.codex_cli.phases.submission import CodexCliSubmissionPhase
+from agent.cli.codex.phases.diagnosis import CodexCliDiagnosisPhase
+from agent.cli.codex.phases.submission import CodexCliSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
 from agent.utils.phases import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session

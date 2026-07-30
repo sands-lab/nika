@@ -67,6 +67,12 @@ class K8sLabUnitTest:
 
         assert inst.lab.machines["as2r1"].is_bridged()
 
+    def test_controller_is_bridged(self) -> None:
+        """controller must be bridged so k3s has a default route at boot."""
+        inst = self._inst()
+
+        assert inst.lab.machines["controller"].is_bridged()
+
     def test_k3s_nodes_are_privileged(self) -> None:
         """k3s nodes must run in privileged mode."""
         inst = self._inst()

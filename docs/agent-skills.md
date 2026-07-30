@@ -9,8 +9,8 @@ Skills are optional. Enable or disable them with `NIKA_ENABLE_SKILLS` (default: 
 | Agent | Skill mechanism |
 |-------|-----------------|
 | `sdk.claude_sdk` | Claude Code `Skill` tool + `.claude/skills/` |
-| `local_cli.claude_cli` | Same as above via `claude -p --setting-sources project` |
-| `local_cli.codex_cli` | Codex skills under `.agents/skills/` + `AGENTS.md` |
+| `cli.claude` | Same as above via `claude -p --setting-sources project` |
+| `cli.codex` | Codex skills under `.agents/skills/` + `AGENTS.md` |
 | `sdk.codex_sdk` | Same as Codex CLI |
 | `community.sade` | Own 15-skill library under `src/agent/community/sade/.claude/` (separate from the shared library) |
 
@@ -105,8 +105,8 @@ Integration coverage (real `simple_bgp` / `link_down` scenario):
 | Test class | Agent |
 |------------|-------|
 | `ClaudeSdkSkillPipelineTest` | `sdk.claude_sdk` |
-| `ClaudeCliSkillPipelineTest` | `local_cli.claude_cli` |
-| `CodexCliSkillPipelineTest` | `local_cli.codex_cli` |
+| `ClaudeCliSkillPipelineTest` | `cli.claude` |
+| `CodexCliSkillPipelineTest` | `cli.codex` |
 | `CodexSdkSkillPipelineTest` | `sdk.codex_sdk` |
 
 Claude CLI loads project skills only when **not** using `--bare` (skills enabled disables bare mode so the Skill tool is available).

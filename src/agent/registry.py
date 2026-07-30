@@ -7,8 +7,8 @@ from agent.sandbox.config import ENV_SANDBOX_EXECUTION
 
 SANDBOX_AGENT_TYPES = frozenset(
     {
-        "local_cli.codex_cli",
-        "local_cli.claude_cli",
+        "cli.codex",
+        "cli.claude",
         "sdk.codex_sdk",
         "sdk.claude_sdk",
         "community.sade",
@@ -76,8 +76,8 @@ def create_agent(
                 reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
-        case "local_cli.codex_cli":
-            from agent.local_cli.codex_cli.agent import CodexCliAgent
+        case "cli.codex":
+            from agent.cli.codex.agent import CodexCliAgent
 
             return CodexCliAgent(
                 session_id=session_id,
@@ -85,8 +85,8 @@ def create_agent(
                 reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
-        case "local_cli.claude_cli":
-            from agent.local_cli.claude_cli.agent import ClaudeAgent
+        case "cli.claude":
+            from agent.cli.claude.agent import ClaudeAgent
 
             return ClaudeAgent(
                 session_id=session_id,

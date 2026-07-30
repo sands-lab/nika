@@ -37,7 +37,7 @@ uv sync --extra sade          # or: pip install -e ".[sade]"
 ```
 
 Set Anthropic-compatible credentials in the repo-root `.env` (same as
-`local_cli.claude_cli`; see [`.env.example`](../../.env.example)):
+`cli.claude`; see [`.env.example`](../../.env.example)):
 
 - `ANTHROPIC_API_KEY`, or
 - `ANTHROPIC_AUTH_TOKEN` + optional `ANTHROPIC_BASE_URL` (e.g. DeepSeek)

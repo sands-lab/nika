@@ -239,7 +239,7 @@ class ClaudeSdkSkillPipelineTest(
 class ClaudeCliSkillPipelineTest(
     _SkillPipelineMixin, CommonPipelineSteps, OrderedPipelineTestCase
 ):
-    agent_id = "local_cli.claude_cli"
+    agent_id = "cli.claude"
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -258,7 +258,7 @@ class ClaudeCliSkillPipelineTest(
 class CodexCliSkillPipelineTest(
     _SkillPipelineMixin, CommonPipelineSteps, OrderedPipelineTestCase
 ):
-    agent_id = "local_cli.codex_cli"
+    agent_id = "cli.codex"
     agent_model = CODEX_MODEL
 
     def test_step_01_start_env(self) -> None:
@@ -321,7 +321,7 @@ class ClaudeSdkClabSkillPipelineTest(
 class ClaudeCliClabSkillPipelineTest(
     _ClabSkillPipelineMixin, ClabCommonPipelineSteps, OrderedPipelineTestCase
 ):
-    agent_id = "local_cli.claude_cli"
+    agent_id = "cli.claude"
 
     def test_step_06_session_close(self) -> None:
         self._step_close_and_verify(self.agent_id)
@@ -335,7 +335,7 @@ class ClaudeCliClabSkillPipelineTest(
 class CodexCliClabSkillPipelineTest(
     _ClabSkillPipelineMixin, ClabCommonPipelineSteps, OrderedPipelineTestCase
 ):
-    agent_id = "local_cli.codex_cli"
+    agent_id = "cli.codex"
     agent_model = CODEX_MODEL
 
     def test_step_06_session_close(self) -> None:

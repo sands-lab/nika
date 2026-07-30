@@ -16,6 +16,9 @@ from nika.net_env.verify import (
 )
 from nika.runtime.base import LabRuntime
 
+# Invoked on the controller; FakeRuntime matches the ``18765/health`` / healthcheck marker.
+_MCP_HEALTH_CMD = "/opt/nika-k8s-mcp/healthcheck.sh"
+
 
 def verify_k8s_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
     expected = (
@@ -38,6 +41,12 @@ def verify_k8s_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]
         "-o jsonpath={.status.loadBalancer.ingress[0].ip}",
         timeout=60,
     ).strip()
+    mcp_health = exec_or_empty(
+        runtime,
+        "controller",
+        _MCP_HEALTH_CMD,
+        timeout=30,
+    )
     checks = {
         "nodes_deployed": nodes_deployed(runtime, expected),
         "controller_ipv4": host_has_ipv4(runtime, "controller", "201.1.1.2"),
@@ -47,10 +56,16 @@ def verify_k8s_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]
         "ingress_vip_allocated": ingress_ip.startswith("101."),
         "leaf_bgp_established": frr_bgp_established(runtime, "leaf_1_1"),
         "word_app_http": http_ok(runtime, "client", "http://datacenter.com/word"),
+        "k8s_mcp_healthy": '"status": "ok"' in mcp_health
+        or '"status":"ok"' in mcp_health,
     }
     return build_lab_verify_result(
         scenario_name=scenario_name,
         verified=all(checks.values()),
         checks=checks,
-        details={"ingress_ip": ingress_ip, "ready_nodes": ready_nodes},
+        details={
+            "ingress_ip": ingress_ip,
+            "ready_nodes": ready_nodes,
+            "k8s_mcp_health": mcp_health[:200],
+        },
     )

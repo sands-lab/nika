@@ -12,7 +12,7 @@ def test_non_byo_agent_cannot_run_on_host() -> None:
     with patch.dict(os.environ, {}, clear=True):
         with pytest.raises(RuntimeError, match="only run inside the Docker sandbox"):
             create_agent(
-                "local_cli.codex_cli",
+                "cli.codex",
                 session_id="test-session",
                 model="test-model",
             )

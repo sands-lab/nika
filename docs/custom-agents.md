@@ -107,7 +107,7 @@ class MyAgent:
         logger.log("tool_end", {"output": str(output)})
 ```
 
-Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/local_cli/`, or `src/agent/sdk/` packages as framework-specific references.
+Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/cli/`, or `src/agent/sdk/` packages as framework-specific references.
 
 ## Register The Agent
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from agent.local_cli.codex_cli.codex_worker import REASONING_EFFORT_LEVELS
+from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 
 
 def codex_sdk_local_auth_available() -> bool:

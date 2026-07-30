@@ -19,8 +19,8 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 
 | NIKA agent | Native sbx agent | Execution model |
 |------------|------------------|-----------------|
-| `local_cli.codex_cli` | `codex` | Host two-phase driver → `sbx exec codex exec ...` |
-| `local_cli.claude_cli` | `claude` | Host two-phase driver → `sbx exec claude -p ...` |
+| `cli.codex` | `codex` | Host two-phase driver → `sbx exec codex exec ...` |
+| `cli.claude` | `claude` | Host two-phase driver → `sbx exec claude -p ...` |
 | `sdk.codex_sdk` | `shell` (+ optional offline SDK wheels) | In-sandbox Python runner via `sbx exec` |
 | `sdk.claude_sdk` | `shell` (+ optional offline SDK wheels) | In-sandbox Python runner via `sbx exec` |
 | `community.sade` | `shell` (+ optional offline SDK wheels) | In-sandbox Python runner via `sbx exec` |
@@ -37,9 +37,9 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 ```bash
 uv run nika env run simple_bgp
 uv run nika failure inject link_down --device pc1 --interface eth0
-uv run nika agent run -a local_cli.codex_cli -m gpt-5-mini -n 20
+uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
 # or Claude via DeepSeek:
-# uv run nika agent run -a local_cli.claude_cli -m deepseek-v4-flash -n 20
+# uv run nika agent run -a cli.claude -m deepseek-v4-flash -n 20
 uv run nika session close
 uv run nika eval
 ```

@@ -4,8 +4,8 @@ import asyncio
 
 import pytest
 
-from agent.local_cli.codex_cli.codex_display import format_codex_event
-from agent.local_cli.codex_cli.codex_worker import (
+from agent.cli.codex.codex_display import format_codex_event
+from agent.cli.codex.codex_worker import (
     CodexSubprocessStallError,
     CodexWorker,
     RECONNECT_STALL_TIMEOUT_S,
@@ -192,10 +192,10 @@ class CodexCliAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
     def test_step_03_run_cli_agent(self) -> None:
         assert self.session_id is not None
         self._run_agent(
-            agent_type="local_cli.codex_cli", model=CODEX_MODEL, max_steps=20
+            agent_type="cli.codex", model=CODEX_MODEL, max_steps=20
         )
         row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "local_cli.codex_cli"
+        assert row.get("agent_type") == "cli.codex"
 
     def test_step_04_check_workspace_and_messages(self) -> None:
         assert self.session_dir is not None
@@ -243,7 +243,7 @@ class CodexCliAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
         assert_submission_fields(self.session_dir)
 
     def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("local_cli.codex_cli")
+        self._step_close_and_verify("cli.codex")
 
     def test_step_07_eval_metrics(self) -> None:
         self._step_eval_metrics()
@@ -266,10 +266,10 @@ class CodexClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
     def test_step_03_run_cli_agent(self) -> None:
         assert self.session_id is not None
         self._run_agent(
-            agent_type="local_cli.codex_cli", model=CODEX_MODEL, max_steps=20
+            agent_type="cli.codex", model=CODEX_MODEL, max_steps=20
         )
         row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "local_cli.codex_cli"
+        assert row.get("agent_type") == "cli.codex"
 
     def test_step_04_check_workspace_and_messages(self) -> None:
         assert self.session_dir is not None
@@ -299,7 +299,7 @@ class CodexClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
         assert_submission_fields(self.session_dir)
 
     def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("local_cli.codex_cli")
+        self._step_close_and_verify("cli.codex")
 
     def test_step_07_eval_metrics(self) -> None:
         self._step_eval_metrics()

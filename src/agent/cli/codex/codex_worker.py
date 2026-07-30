@@ -18,7 +18,7 @@ isolated, per-session workspace.  It handles:
 * **Output capture** – the final assistant message is written by
   ``--output-last-message``; JSONL events emitted via ``--json`` are streamed
   line-by-line, logged to ``messages.jsonl`` in real time, and pretty-printed to
-  the terminal via :func:`~agent.local_cli.codex_cli.codex_display.format_codex_event`.
+  the terminal via :func:`~agent.cli.codex.codex_display.format_codex_event`.
 """
 
 import asyncio
@@ -28,7 +28,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from agent.local_cli.codex_cli.codex_display import format_codex_event
+from agent.cli.codex.codex_display import format_codex_event
 from agent.utils.loggers import MessageLogger
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env

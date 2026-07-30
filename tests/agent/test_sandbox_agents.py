@@ -110,7 +110,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     reason="Codex CLI + openai sbx/.env credentials required",
 )
 class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
-    agent_type = "local_cli.codex_cli"
+    agent_type = "cli.codex"
     model = CODEX_MODEL
 
 
@@ -120,7 +120,7 @@ class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
     reason="Claude CLI + anthropic sbx/.env credentials required",
 )
 class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
-    agent_type = "local_cli.claude_cli"
+    agent_type = "cli.claude"
     model = CLAUDE_MODEL
 
 

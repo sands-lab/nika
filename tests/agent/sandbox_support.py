@@ -70,7 +70,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
 
     sandbox_name = sanitize_sandbox_name(session_id)
     agent_host = sandbox_gateway_agent_host()
-    agent_type = "local_cli.codex_cli"
+    agent_type = "cli.codex"
     sbx_agent = "shell"
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -201,13 +201,13 @@ def run_cross_sandbox_isolation_probe() -> None:
                 manifest={
                     "session_id": session_id,
                     "session_dir": str(session_dir),
-                    "agent_type": "local_cli.codex_cli",
+                    "agent_type": "cli.codex",
                     "model": "gpt-5.4-mini",
                     "task_description": "isolation-probe",
                     "mcp_gateway_agent_url": f"http://{agent_host}:{own_port}",
                     "backend": "kathara",
                 },
-                runtime_env={"NIKA_AGENT_TYPE": "local_cli.codex_cli"},
+                runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
             )
 
             run_sbx_optional(["rm", "--force", sandbox_name])

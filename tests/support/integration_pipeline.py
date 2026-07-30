@@ -42,7 +42,7 @@ def codex_cli_available() -> bool:
 
 
 def claude_cli_available() -> bool:
-    from agent.local_cli.claude_cli.config import claude_credentials_available
+    from agent.cli.claude.config import claude_credentials_available
 
     return claude_credentials_available()
 

@@ -43,8 +43,8 @@ pipeline** on `simple_bgp` / `link_down`:
 | Module | Agent | Unit tests | Pipeline requires |
 |--------|-------|------------|-------------------|
 | `test_agent_config.py` | shared config | agent model/env resolution, judge env | — |
-| `test_codex_cli.py` | `local_cli.codex_cli` | Codex TOML/display/worker config | Docker + Codex + OpenAI |
-| `test_claude_cli.py` | `local_cli.claude_cli` | Claude JSON/display/auth helpers | Docker + Claude CLI |
+| `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | Docker + Codex + OpenAI |
+| `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | Docker + Claude CLI |
 | `test_langgraph.py` | `byo.langgraph` | — | Docker + `DEEPSEEK_API_KEY` |
 | `test_mcp_agent.py` | `byo.mcp_agent` | — | Docker + `OPENAI_API_KEY` |
 | `test_autogen.py` | `byo.autogen` | — | Docker + `DEEPSEEK_API_KEY` |

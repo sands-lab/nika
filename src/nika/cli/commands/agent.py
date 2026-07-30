@@ -4,7 +4,7 @@ import os
 
 import typer
 
-from agent.local_cli.codex_cli.codex_worker import REASONING_EFFORT_LEVELS
+from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from agent.sandbox.config import (
     ENV_SANDBOX_CPUS,
     ENV_SANDBOX_ENV_FILE,
@@ -25,8 +25,8 @@ SUPPORTED_AGENT_TYPES = (
     "byo.langgraph",
     "byo.mcp_agent",
     "byo.autogen",
-    "local_cli.codex_cli",
-    "local_cli.claude_cli",
+    "cli.codex",
+    "cli.claude",
     "community.sade",
     "sdk.claude_sdk",
     "sdk.codex_sdk",
@@ -45,7 +45,7 @@ def agent_list() -> None:
     typer.echo("llm_providers (byo.langgraph only):")
     for provider in SUPPORTED_LLM_PROVIDERS:
         typer.echo(f"  {provider}")
-    typer.echo("reasoning_effort (local_cli.codex_cli, sdk.codex_sdk):")
+    typer.echo("reasoning_effort (cli.codex, sdk.codex_sdk):")
     for level in REASONING_EFFORT_LEVELS:
         typer.echo(f"  {level}")
 
@@ -85,7 +85,7 @@ def agent_run(
         "-e",
         "--reasoning-effort",
         envvar=ENV_CODEX_REASONING_EFFORT,
-        help="Codex model_reasoning_effort (local_cli.codex_cli, sdk.codex_sdk): none, minimal, low, medium, high, xhigh.",
+        help="Codex model_reasoning_effort (cli.codex, sdk.codex_sdk): none, minimal, low, medium, high, xhigh.",
     ),
     session_id: str | None = typer.Option(
         None, "--session_id", help="Target session id."
