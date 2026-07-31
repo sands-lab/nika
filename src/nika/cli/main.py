@@ -41,6 +41,11 @@ LAZY_COMMANDS.update(
             "traffic_app",
             "Generate traffic in the Kathará lab.",
         ),
+        "remote": LazyCommandSpec(
+            "nika.cli.commands.remote",
+            "remote_app",
+            "Optional remote lab-host control plane.",
+        ),
     }
 )
 

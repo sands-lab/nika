@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+from urllib.parse import urlparse
 
 from agent.sandbox.sbx.client import (
     SBX_BIN,
@@ -30,8 +31,24 @@ _PYPI_NETWORK_HOSTS = (
 )
 
 
-def mcp_policy_resource(port: int) -> str:
-    return f"localhost:{port}"
+def mcp_policy_resource(port: int, *, host: str = "localhost") -> str:
+    """Return an sbx network policy resource for an MCP gateway endpoint."""
+    return f"{host}:{int(port)}"
+
+
+def mcp_policy_resource_from_url(url: str, *, fallback_port: int | None = None) -> str:
+    """Build ``host:port`` from an MCP gateway URL (local or remote)."""
+    parsed = urlparse(url)
+    host = parsed.hostname or "localhost"
+    if parsed.port is not None:
+        port = parsed.port
+    elif fallback_port is not None:
+        port = fallback_port
+    elif parsed.scheme == "https":
+        port = 443
+    else:
+        port = 80
+    return mcp_policy_resource(port, host=host)
 
 
 def ensure_llm_network_policy() -> None:
@@ -66,10 +83,22 @@ def ensure_pypi_network_policy() -> None:
             )
 
 
-def allow_mcp_gateway(*, sandbox_name: str, port: int) -> str:
-    """Allow a sandbox to reach the host MCP gateway on *port*."""
+def allow_mcp_gateway(
+    *,
+    sandbox_name: str,
+    port: int,
+    host: str = "localhost",
+    gateway_url: str | None = None,
+) -> str:
+    """Allow a sandbox to reach the MCP gateway.
+
+    Prefer *gateway_url* when set (remote lab host); otherwise ``{host}:{port}``.
+    """
     ensure_sbx_ready()
-    resource = mcp_policy_resource(port)
+    if gateway_url:
+        resource = mcp_policy_resource_from_url(gateway_url, fallback_port=port)
+    else:
+        resource = mcp_policy_resource(port, host=host)
     run_sbx_checked(
         [
             "policy",
@@ -83,9 +112,18 @@ def allow_mcp_gateway(*, sandbox_name: str, port: int) -> str:
     return resource
 
 
-def deny_mcp_gateway(*, sandbox_name: str, port: int) -> None:
+def deny_mcp_gateway(
+    *,
+    sandbox_name: str,
+    port: int,
+    host: str = "localhost",
+    gateway_url: str | None = None,
+) -> None:
     """Revoke MCP gateway access for a sandbox."""
-    resource = mcp_policy_resource(port)
+    if gateway_url:
+        resource = mcp_policy_resource_from_url(gateway_url, fallback_port=port)
+    else:
+        resource = mcp_policy_resource(port, host=host)
     # ``sbx policy deny`` can hang against a stopped/missing sandbox; bound it.
     try:
         subprocess.run(

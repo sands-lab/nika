@@ -27,11 +27,7 @@ Each release run treats `--result_dir` as **one run** and writes:
 | `RELEASE.lock.json` | Slim identity lock |
 | `trials/{case_key}__tNN/` | One counted trial (session artifacts) |
 
-Active orchestrator progress (trial counts / status / pointer to `result_dir`) is recorded under `runtime/benchmark_runs/{run_id}.json`, not via environment variables.
-
-```shell
-nika benchmark run --release 0.1.0 --result_dir results/my-run
-```
+Active run progress is recorded under `runtime/benchmark_runs/{run_id}.json`.
 
 After a finished release run, pack and validate a leaderboard submission (see [`docs/leaderboard-submission.md`](../docs/leaderboard-submission.md)):
 
@@ -45,21 +41,6 @@ nika leaderboard validate results/my-run/YYYYMMDD_slug --source-result-dir resul
 `defaults.n_trials` in `RELEASE.yaml` (3 for `0.1.0`) expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials (including `outcome=agent_failed`); incomplete trials are cleaned and re-run in place so retries never inflate past K. Different `--result_dir` values are isolated runs and never skip each other.
 
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
-
-
-Regenerate working YAML (not frozen releases):
-
-```shell
-uv run python benchmark/generate_benchmark.py
-```
-
-Regenerate / refresh the frozen Dev+Test release from selected + full matrices:
-
-```shell
-uv run python benchmark/generate_heldout.py
-```
-
-Ship a new version directory (e.g. `0.1.1`) instead of silently mutating an already published suite when results are in flight.
 
 ## Working YAML (development)
 

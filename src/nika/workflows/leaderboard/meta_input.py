@@ -32,6 +32,7 @@ META_TEMPLATE: dict[str, Any] = {
         "framework": "",
         "tools": [],
         "skills": [],
+        # Harness optimizations (e.g. GEPA, skills, Multi-agent) — not model fine-tunes.
         "optimization_methods": [],
         "tags": [],
         "os_model": False,

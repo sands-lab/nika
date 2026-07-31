@@ -4,37 +4,21 @@
 
 - NIKA is a Python 3.12 network troubleshooting benchmark and orchestration platform.
 - It deploys Kathara or Containerlab labs, injects reproducible network faults, runs troubleshooting agents, and evaluates their submissions.
-- The package uses a `src/` layout. The console entry point is `nika = nika.cli.main:main`.
 - Dependencies are managed with `uv`; `.env` is loaded from the repository root by `src/nika/config.py`.
-
-## Repository Map
-
-- `src/nika/cli/`: Typer command groups for `session`, `env`, `failure`, `exec`, `agent`, `eval`, `benchmark`, `leaderboard`, and `traffic`.
-- `src/nika/workflows/`: command orchestration split by domain (`agent/`, `benchmark/`, `env/`, `eval/`, `exec/`, `failure/`, `leaderboard/`, `session/`).
-- `src/nika/runtime/`: backend-neutral runtime contracts plus Kathara and Containerlab runtime implementations.
-- `src/nika/net_env/`: registered network lab definitions under `kathara/` and `containerlab/`.
-- `src/nika/problems/`: injectable `ProblemBase` fault classes grouped by root-cause category and registered through `prob_pool`.
-- `src/nika/service/`: lab APIs, backend adapters, MCP gateway/server code, shell helpers, and pingmesh telemetry.
-- `src/nika/generator/`: fault and traffic generation utilities.
-- `src/nika/evaluator/`: metrics, submission schemas, trace parsing, summaries, and LLM judge support.
-- `src/agent/`: troubleshooting agents, agent registry, shared protocols, SDK/local-CLI integrations, sandbox runner, and shared skills.
-- `benchmark/`: benchmark YAML cases and regeneration script.
-- `tests/`: unit and integration tests mirroring `src/`, with shared fixtures in `tests/support/`.
 
 ## Common Commands
 
-- Install dependencies: `uv sync`
+- Core install (no lab backends): `uv sync`
+- Local labs: `uv sync --extra labs` (or `--extra kathara` / `--extra containerlab`)
 - Install SDK-agent extras: `uv sync --extra sdk --prerelease=allow`
-- Run the CLI during development: `uv run nika --help`
 - List available scenarios/problems/agents: `uv run nika env list`, `uv run nika failure list`, `uv run nika agent list`
+- Optional remote lab host: `nika remote serve` on the lab machine; set `NIKA_REMOTE_*` locally (see `docs/remote.md`)
 - Regenerate benchmark YAML: `uv run python benchmark/generate_benchmark.py`
 - Leaderboard pack/validate: `uv run nika leaderboard --help` (see `docs/leaderboard-submission.md`)
-- Format Python code: `uv run ruff format .`
-- Lint Python code: `uv run ruff check .`
 
 ## Testing Commands
 
-- Install dev dependencies (includes pytest): `uv sync --group dev`
+- Install dev dependencies (includes pytest): `uv sync --extra labs --group dev`
 - Run all tests: `uv run pytest`
 - Run a focused path: `uv run pytest tests/nika/runtime/ -v`
 - Run agent tests: `uv run pytest tests/agent/ -v`
@@ -56,21 +40,15 @@
 
 ## Agent System Rules
 
-- Agent implementations live under `src/agent/` and implement the shared troubleshooting contract in `agent.protocols`.
-- Production agent ids include `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, and `sdk.codex_sdk`.
 - The `mock` agent is deterministic and test-only; prefer it for no-credential pipeline tests.
-- Agent runs should write standard artifacts such as `messages.jsonl` and `submission.json` in the session result directory.
-- Shared agent skills live under `src/agent/skills/`; helpers live in `agent.utils.skills`. See `docs/agent-skills.md`.
-- SADE keeps its own skill library under `src/agent/community/sade/.claude/`.
-- Sandbox execution uses Docker Sandboxes (`sbx`) under `src/agent/sandbox/` with official `codex` / `claude` / `shell` templates. Behavior: `docs/agent-sandbox.md`; tests: `tests/README.md`.
 
 ## Formatting and Linting
 
 - Python code must be formatted with Ruff using `uv run ruff format .`.
 - Run `uv run ruff check .` before submitting changes when practical.
 - Prefer Ruff auto-fixes only for mechanical cleanup; avoid unrelated style churn outside the task scope.
-- Keep documentation concise and point detailed usage to `README.md`, `src/nika/cli/README.md`, `docs/custom-agents.md`, `docs/agent-skills.md`, `docs/creating-benchmark-tasks.md`, and `docs/leaderboard-submission.md`.
-
+- Keep documentation concise and point detailed usage to `README.md`, `src/nika/cli/README.md`, `docs/custom-agents.md`, `docs/agent-skills.md`, `docs/creating-benchmark-tasks.md`, `docs/leaderboard-submission.md`, and `docs/remote.md`.
+- Optional remote lab control plane belongs under `src/nika/remote/`; do not reuse MCP `remote_proxy` or leaderboard `remote.py` for that purpose.
 ## Testing Guidance
 
 - For pure Python changes, use targeted `pytest` commands before broader suites.

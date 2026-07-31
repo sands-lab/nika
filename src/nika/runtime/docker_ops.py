@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from docker.models.containers import Container
+from typing import Any
 
 
-def pause_container(container: Container) -> None:
+def pause_container(container: Any) -> None:
     container.reload()
     if container.status != "paused":
         container.pause()
 
 
-def unpause_container(container: Container) -> None:
+def unpause_container(container: Any) -> None:
     container.reload()
     if container.status == "paused":
         container.unpause()

@@ -1,12 +1,7 @@
 from collections import defaultdict
 from pathlib import Path
-from typing import ClassVar, Dict, Set
+from typing import Any, ClassVar, Dict, Set
 
-from Kathara.manager.Kathara import Machine
-
-from nika.net_env.kathara.utils.docker_files.docker_images import (
-    ensure_nika_docker_images,
-)
 from nika.runtime.base import LabRuntime
 from nika.runtime.factory import runtime_for_net_env
 from nika.runtime.spec import LabSpec
@@ -55,7 +50,7 @@ class NetworkEnvBase:
         self.switches = []
         self.servers = defaultdict(list)
 
-        machines: Dict[str, Machine] = self.lab.machines
+        machines: Dict[str, Any] = self.lab.machines
         for machine, machine_obj in machines.items():
             image = machine_obj.get_image()
             if "p4" in image:
@@ -169,6 +164,10 @@ class NetworkEnvBase:
 
     def _ensure_docker_images(self) -> None:
         """Ensure local NIKA Docker images required by this lab are available."""
+        from nika.net_env.kathara.utils.docker_files.docker_images import (
+            ensure_nika_docker_images,
+        )
+
         ensure_nika_docker_images(self._collect_lab_images())
 
     def deploy(self):

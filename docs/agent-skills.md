@@ -40,8 +40,6 @@ Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents re
 | `NIKA_ENABLE_SKILLS` | `true` | Set to `false` to disable skill loading |
 | `NIKA_SKILLS_DIR` | `src/agent/skills/` | Override the skill library root |
 
-When skills are enabled, the diagnosis system prompt includes a short suffix describing how to invoke skills (`agent.utils.template.SKILLS_PROMPT_SUFFIX`).
-
 ## Writing a custom skill
 
 ### 1. Create `SKILL.md`
@@ -98,18 +96,7 @@ uv run nika agent run -a sdk.claude_sdk -n 20
 
 Inspect `results/{session_id}/messages.jsonl` for `Skill` tool calls (Claude) or skill-name mentions (Codex).
 
-Unit and integration tests: `tests/agent/test_skills.py`.
-
-Integration coverage (real `simple_bgp` / `link_down` scenario):
-
-| Test class | Agent |
-|------------|-------|
-| `ClaudeSdkSkillPipelineTest` | `sdk.claude_sdk` |
-| `ClaudeCliSkillPipelineTest` | `cli.claude` |
-| `CodexCliSkillPipelineTest` | `cli.codex` |
-| `CodexSdkSkillPipelineTest` | `sdk.codex_sdk` |
-
-Claude CLI loads project skills only when **not** using `--bare` (skills enabled disables bare mode so the Skill tool is available).
+Run `uv run pytest tests/agent/test_skills.py -v` for the skill unit and integration tests.
 
 ## Claude vs Codex invocation
 
@@ -135,8 +122,7 @@ Or implicitly when the task matches the skill description.
 
 Use SADE as a reference for large skill libraries; use `src/agent/skills/` for shared or project-specific additions.
 
-## Implementation reference
+## Code reference
 
 - Shared helpers: [`src/agent/utils/skills.py`](../src/agent/utils/skills.py)
-- Prompt suffix: [`src/agent/utils/template.py`](../src/agent/utils/template.py)
 - Test skill: [`src/agent/skills/skills/nika-test-skill/SKILL.md`](../src/agent/skills/skills/nika-test-skill/SKILL.md)

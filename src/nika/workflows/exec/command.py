@@ -1,7 +1,7 @@
 """Execute one shell command inside a host of the selected running session."""
 
 from nika.runtime.factory import resolve_backend
-from nika.service.containerlab import create_host_api
+from nika.service.lab.host_api import create_host_api
 from nika.utils.session import Session
 
 

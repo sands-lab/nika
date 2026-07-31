@@ -53,16 +53,28 @@ def _gateway_base_for_phase_advance() -> str:
 
 def begin_submission_mcp_phase(session_id: str) -> None:
     """Advance gateway phase before starting the submission workflow step."""
+    base = _gateway_base_for_phase_advance()
+    use_http = False
     if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
         if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
             from nika.service.mcp_gateway.phase import advance_mcp_phase
 
             advance_mcp_phase(session_id, SUBMISSION)
             return
-        base = _gateway_base_for_phase_advance()
+        use_http = True
+    else:
+        try:
+            from nika.remote.config import is_remote_enabled
+
+            use_http = is_remote_enabled()
+        except Exception:  # noqa: BLE001 - remote package optional at import time
+            use_http = False
+
+    if use_http:
         if not base:
             raise RuntimeError(
-                f"{ENV_GATEWAY_AGENT_URL} is not set for sandbox MCP phase advance."
+                f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
+                "MCP phase advance."
             )
         url = f"{base}/gateway/sessions/{session_id}/phase"
         payload = json.dumps({"phase": SUBMISSION}).encode("utf-8")
@@ -87,6 +99,7 @@ def begin_submission_mcp_phase(session_id: str) -> None:
                 f"MCP phase advance failed: HTTP {exc.code}: {body}"
             ) from exc
         return
+
     from nika.service.mcp_gateway.phase import advance_mcp_phase
 
     advance_mcp_phase(session_id, SUBMISSION)

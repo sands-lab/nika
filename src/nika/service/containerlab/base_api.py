@@ -9,7 +9,6 @@ import re
 from typing import Literal
 
 from nika.runtime.base import LabRuntime
-from nika.service.kathara.base_api import KatharaBaseAPI
 from nika.service.shell import ShellResolver
 
 
@@ -213,22 +212,3 @@ class ContainerlabBaseAPI:
     ) -> str:
         command = f"ip link set {interface} {state}"
         return self.exec_cmd(host_name, command)
-
-
-def create_host_api(
-    *,
-    lab_name: str,
-    backend: str = "kathara",
-    runtime: LabRuntime | None = None,
-    session_meta: dict | None = None,
-):
-    """Return KatharaBaseAPI or ContainerlabBaseAPI depending on backend."""
-    if backend == "kathara":
-        return KatharaBaseAPI(lab_name=lab_name)
-    if runtime is None:
-        if session_meta is None:
-            session_meta = {"lab_name": lab_name, "backend": backend}
-        from nika.runtime.factory import runtime_for_session
-
-        runtime = runtime_for_session(session_meta)
-    return ContainerlabBaseAPI(runtime)

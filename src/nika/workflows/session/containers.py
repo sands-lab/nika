@@ -16,6 +16,13 @@ def list_session_containers(
     store: SessionStore | None = None,
 ) -> tuple[str, str, list[dict[str, Any]]]:
     """Return session id, lab name, and running container rows for the session."""
+    from nika.remote.config import is_remote_enabled
+
+    if is_remote_enabled():
+        from nika.remote.workflows import remote_list_session_containers
+
+        return remote_list_session_containers(session_id, store=store)
+
     session_store = store or SessionStore()
     resolved_id = resolve_running_session_id(session_id, store=session_store)
     session = session_store.get_session(resolved_id)

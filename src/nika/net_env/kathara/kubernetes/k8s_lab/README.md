@@ -2,7 +2,7 @@
 
 Two-pod fat-tree datacenter network with EBGP (FRR) and a k3s cluster running sample microservices.
 
-![Topology](../../../../../assets/images/kathara_k3s_lab_topo.png)
+![Topology](../../../../../../assets/images/kathara_k3s_lab_topo.png)
 
 ## Topology
 
@@ -94,8 +94,8 @@ Once the lab is verified, NIKA also fetches the controller's kubeconfig, rewrite
 | `vtysh -c 'show ip route 101.0.0.0/8'` | Route to MetalLB pool via BGP |
 
 ```shell
-nika exec leaf_1_1 vtysh -c 'show bgp summary' --timeout 30
-nika exec leaf_1_1 vtysh -c 'show ip route 101.0.0.0/8' --timeout 30
+nika exec --timeout 30 leaf_1_1 "vtysh -c 'show bgp summary'"
+nika exec --timeout 30 leaf_1_1 "vtysh -c 'show ip route 101.0.0.0/8'"
 ```
 
 ### 2. k3s cluster — device `controller` (k3s server)
@@ -107,14 +107,14 @@ nika exec leaf_1_1 vtysh -c 'show ip route 101.0.0.0/8' --timeout 30
 | `kubectl get svc -n ingress-nginx ingress-nginx-controller` | **EXTERNAL-IP** in `101.0.0.0/8` (typically `101.0.0.1`) |
 
 ```shell
-nika exec controller kubectl get nodes --timeout 30
-nika exec controller kubectl get svc -n ingress-nginx ingress-nginx-controller --timeout 30
+nika exec --timeout 30 controller kubectl get nodes
+nika exec --timeout 30 controller kubectl get svc -n ingress-nginx ingress-nginx-controller
 ```
 
 Cross-leaf reachability (pod-1 fabric):
 
 ```shell
-nika exec controller ping -c 3 201.2.1.2 --timeout 30   # worker3 on leaf_1_2
+nika exec --timeout 30 controller ping -c 3 201.2.1.2   # worker3 on leaf_1_2
 ```
 
 ### 3. External client — device `client`
@@ -129,8 +129,8 @@ nika exec controller ping -c 3 201.2.1.2 --timeout 30   # worker3 on leaf_1_2
 | `curl -s http://datacenter.com/weather` | HTTP 200, weather app response |
 
 ```shell
-nika exec client ping -c 3 201.1.1.2 --timeout 30
-nika exec client ping -c 3 101.0.0.1 --timeout 30
-nika exec client curl -s http://datacenter.com/word --timeout 30
-nika exec client curl -s http://datacenter.com/weather --timeout 30
+nika exec --timeout 30 client ping -c 3 201.1.1.2
+nika exec --timeout 30 client ping -c 3 101.0.0.1
+nika exec --timeout 30 client curl -s http://datacenter.com/word
+nika exec --timeout 30 client curl -s http://datacenter.com/weather
 ```

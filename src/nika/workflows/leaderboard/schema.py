@@ -1,4 +1,4 @@
-"""Versioned leaderboard submission schemas (schema_version ``1``)."""
+"""Versioned leaderboard submission schemas (schema_version ``2``)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
@@ -14,6 +14,7 @@ FILES_FILENAME = "files.json"
 RESULTS_DIRNAME = "results"
 IDENTITY_FILENAME = "identity.yaml"
 METRICS_FILENAME = "metrics.json"
+RCA_CONFUSION_FILENAME = "rca_confusion.json"
 TRIALS_DIRNAME = "trials"
 TRIAL_RESULT_FILENAME = "result.json"
 
@@ -122,7 +123,7 @@ class PackageIdentity(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1"] = SCHEMA_VERSION
+    schema_version: Literal["2"] = SCHEMA_VERSION
     created_at: str
     benchmark: BenchmarkIdentity
     run: RunIdentity
@@ -138,6 +139,49 @@ class TrialResult(BaseModel):
     problem: str
     outcome: Literal["success", "agent_failed"]
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
+    gt_root_cause_name: list[str] = Field(default_factory=list)
+    predicted_root_cause_name: list[str] | None = None
+
+    @field_validator("gt_root_cause_name")
+    @classmethod
+    def _non_empty_gt_names(cls, value: list[str]) -> list[str]:
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("gt_root_cause_name entries must be non-empty strings")
+        return value
+
+    @field_validator("predicted_root_cause_name")
+    @classmethod
+    def _non_empty_pred_names(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError(
+                    "predicted_root_cause_name entries must be non-empty strings"
+                )
+        return value
+
+
+class RcaConfusionPair(BaseModel):
+    """One multi-label GT→predicted edge count for RCA confusion display."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gt: str
+    predicted: str
+    count: int = Field(..., ge=1)
+
+
+class RcaConfusion(BaseModel):
+    """Package-level RCA misclassification summary (multi-label edges)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    labeling: Literal["multi_label_edges"] = "multi_label_edges"
+    pairs: list[RcaConfusionPair] = Field(default_factory=list)
+    n_missing_prediction: int = Field(..., ge=0)
+    missing_prediction_trial_ids: list[str] = Field(default_factory=list)
 
 
 class AggregatedMetrics(BaseModel):

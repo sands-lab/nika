@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from collections import Counter
+
 from nika.workflows.leaderboard.schema import (
     PRIMARY_METRIC,
     SCORE_METRIC_KEYS,
     AggregatedMetrics,
+    RcaConfusion,
+    RcaConfusionPair,
     TrialResult,
 )
 
@@ -115,3 +119,27 @@ def metrics_nearly_equal(a: AggregatedMetrics, b: AggregatedMetrics) -> list[str
             f"metrics.steps_totals: expected {a.steps_totals}, got {b.steps_totals}"
         )
     return issues
+
+
+def build_rca_confusion(trials: list[TrialResult]) -> RcaConfusion:
+    """Build multi-label GT→predicted edge counts for RCA confusion display."""
+    pair_counts: Counter[tuple[str, str]] = Counter()
+    missing_ids: list[str] = []
+    for trial in trials:
+        if trial.predicted_root_cause_name is None:
+            missing_ids.append(trial.trial_id)
+            continue
+        for gt in trial.gt_root_cause_name:
+            for pred in trial.predicted_root_cause_name:
+                pair_counts[(gt, pred)] += 1
+    pairs = [
+        RcaConfusionPair(gt=gt, predicted=pred, count=count)
+        for (gt, pred), count in sorted(
+            pair_counts.items(), key=lambda item: (-item[1], item[0][0], item[0][1])
+        )
+    ]
+    return RcaConfusion(
+        pairs=pairs,
+        n_missing_prediction=len(missing_ids),
+        missing_prediction_trial_ids=sorted(missing_ids),
+    )

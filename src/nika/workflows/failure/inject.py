@@ -79,6 +79,18 @@ def inject_failure(
     param_overrides: dict[str, str] | None = None,
 ) -> None:
     """Inject faults for ``problem_names`` into the lab for the running session."""
+    from nika.remote.config import is_remote_enabled
+
+    if is_remote_enabled():
+        from nika.remote.workflows import remote_inject_failure
+
+        remote_inject_failure(
+            problem_names,
+            session_id=session_id,
+            param_overrides=param_overrides,
+        )
+        return
+
     session = Session()
     session.load_running_session(session_id=session_id)
     session.update_session("problem_names", problem_names)

@@ -19,6 +19,7 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     list_all_net_envs,
     scenario_requires_topo_size,
+    scenario_source_path,
 )
 from nika.problems.prob_pool import get_problem_class, list_avail_problem_instances
 from nika.service.mcp_server.registry import (
@@ -204,10 +205,10 @@ def _problem_source_path(problem_name: str) -> Path:
 
 
 def _scenario_source_path(scenario_name: str) -> Path:
-    envs = list_all_net_envs()
-    if scenario_name not in envs:
-        raise ReleaseError(f"Unknown scenario: {scenario_name!r}")
-    return Path(inspect.getfile(envs[scenario_name])).resolve()
+    try:
+        return scenario_source_path(scenario_name)
+    except ValueError as exc:
+        raise ReleaseError(str(exc)) from exc
 
 
 def collect_images_for_scenarios(scenario_names: set[str]) -> list[str]:

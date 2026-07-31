@@ -34,8 +34,10 @@ from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
     METADATA_FILENAME,
     METRICS_FILENAME,
+    RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
+    SCHEMA_VERSION,
     SubmissionMetadata,
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
@@ -92,6 +94,8 @@ def _write_trial_artifacts(
     *,
     outcome: str = "success",
     rca_f1: float = 1.0,
+    predicted_root_cause_name: list[str] | None = None,
+    write_submission: bool | None = None,
 ) -> None:
     session_dir.mkdir(parents=True, exist_ok=True)
     _write_json(
@@ -132,13 +136,21 @@ def _write_trial_artifacts(
         "tool_errors": 0,
     }
     _write_json(session_dir / "eval_metrics.json", metrics)
-    if outcome == "success":
+    should_write = (
+        write_submission if write_submission is not None else outcome == "success"
+    )
+    if should_write:
+        pred = (
+            predicted_root_cause_name
+            if predicted_root_cause_name is not None
+            else ["link_down"]
+        )
         _write_json(
             session_dir / "submission.json",
             {
                 "is_anomaly": True,
                 "faulty_devices": ["pc1"],
-                "root_cause_name": ["link_down"],
+                "root_cause_name": pred,
             },
         )
 
@@ -286,6 +298,7 @@ class TestLeaderboardPackValidate:
         assert (package / FILES_FILENAME).is_file()
         assert _identity_path(package).is_file()
         assert (package / RESULTS_DIRNAME / METRICS_FILENAME).is_file()
+        assert (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).is_file()
         packed = yaml.safe_load(
             (package / METADATA_FILENAME).read_text(encoding="utf-8")
         )
@@ -302,6 +315,117 @@ class TestLeaderboardPackValidate:
 
         report = validate_leaderboard_submission(package, source_result_dir=result_dir)
         assert report.ok, report.errors
+
+        identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
+        assert identity["schema_version"] == SCHEMA_VERSION
+
+        trial_results = sorted(
+            (package / RESULTS_DIRNAME / "trials").glob("*/result.json")
+        )
+        assert trial_results
+        for path in trial_results:
+            trial = json.loads(path.read_text(encoding="utf-8"))
+            assert trial["gt_root_cause_name"] == ["link_down"]
+            assert trial["predicted_root_cause_name"] == ["link_down"]
+
+        confusion = json.loads(
+            (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert confusion["labeling"] == "multi_label_edges"
+        assert confusion["n_missing_prediction"] == 0
+        assert confusion["pairs"] == [
+            {"gt": "link_down", "predicted": "link_down", "count": len(trial_results)}
+        ]
+
+    def test_pack_records_missing_and_mismatched_rca_labels(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        release = _freeze_mini(tmp_path, n_trials=2)
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR",
+            tmp_path / "releases",
+        )
+        result_dir = tmp_path / "results" / "rca-labels"
+        result_dir.mkdir(parents=True)
+        run_cfg = {
+            "run_id": "rca-labels",
+            "job_id": "rca-labels",
+            "benchmark_id": release.id,
+            "version": release.version,
+            "benchmark_ref": release.ref,
+            "benchmark_digest": release.benchmark_digest,
+            "split": release.split,
+            "case_count": release.case_count,
+            "cases_sha256": release.cases_sha256,
+            "nika_git_commit": None,
+            "nika_git_dirty": False,
+            "scoring": release.scoring,
+            "tools": release.tools,
+            "resources": release.resources,
+            "defaults": release.defaults,
+            "case_timeout_sec": release.case_timeout_sec,
+            "agent_type": "mock",
+            "llm_provider": None,
+            "model": "mock-v1",
+            "max_steps": None,
+            "n_trials": release.n_trials,
+            "official": True,
+        }
+        _write_json(result_dir / "run.json", run_cfg)
+        trials = expand_trials(release.cases, release.n_trials)
+        first = trials[0]
+        second = trials[1]
+        _write_trial_artifacts(
+            trial_dir(result_dir, first.case_key, first.trial_index),
+            outcome="success",
+            rca_f1=0.0,
+            predicted_root_cause_name=["host_missing_ip"],
+        )
+        _write_trial_artifacts(
+            trial_dir(result_dir, second.case_key, second.trial_index),
+            outcome="agent_failed",
+            write_submission=False,
+        )
+
+        package = _pack(result_dir)
+        report = validate_leaderboard_submission(package, source_result_dir=result_dir)
+        assert report.ok, report.errors
+
+        by_id = {
+            path.parent.name: json.loads(path.read_text(encoding="utf-8"))
+            for path in (package / RESULTS_DIRNAME / "trials").glob("*/result.json")
+        }
+        assert by_id[first.trial_id]["gt_root_cause_name"] == ["link_down"]
+        assert by_id[first.trial_id]["predicted_root_cause_name"] == ["host_missing_ip"]
+        assert by_id[second.trial_id]["gt_root_cause_name"] == ["link_down"]
+        assert by_id[second.trial_id]["predicted_root_cause_name"] is None
+
+        confusion = json.loads(
+            (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert confusion["n_missing_prediction"] == 1
+        assert confusion["missing_prediction_trial_ids"] == [second.trial_id]
+        assert confusion["pairs"] == [
+            {"gt": "link_down", "predicted": "host_missing_ip", "count": 1}
+        ]
+
+    def test_schema_v1_package_rejected(self, mini_release_env) -> None:
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        identity_path = _identity_path(package)
+        data = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
+        data["schema_version"] = "1"
+        identity_path.write_text(
+            yaml.safe_dump(data, sort_keys=False), encoding="utf-8"
+        )
+        _refresh_package_hash(package, _identity_rel())
+        report = validate_leaderboard_submission(package)
+        assert not report.ok
+        assert any("schema_version" in e for e in report.errors)
 
     def test_pack_from_submission_dir(self, mini_release_env, tmp_path: Path) -> None:
         _release, result_dir = mini_release_env

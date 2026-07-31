@@ -6,10 +6,6 @@ acquisition from hypothesis commitment) with a **15-skill library** that maps sy
 to confirmation patterns, and plugs into NIKA's standard pluggable-agent interface
 (`agent.protocols.TroubleshootingAgent`).
 
-> Built on top of **[NIKA](https://github.com/sands-lab/nika)** — SADE uses NIKA's
-> unmodified orchestrator, fault-injection environment, and evaluation pipeline, and
-> adds only the agent under this directory.
-
 ## Paper / citation
 
 This work is presented in the paper **"SADE: Symptom-Aware Diagnostic Escalation for
@@ -37,7 +33,7 @@ uv sync --extra sade          # or: pip install -e ".[sade]"
 ```
 
 Set Anthropic-compatible credentials in the repo-root `.env` (same as
-`cli.claude`; see [`.env.example`](../../.env.example)):
+`cli.claude`; see [`.env.example`](../../../../.env.example)):
 
 - `ANTHROPIC_API_KEY`, or
 - `ANTHROPIC_AUTH_TOKEN` + optional `ANTHROPIC_BASE_URL` (e.g. DeepSeek)

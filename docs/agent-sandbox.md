@@ -36,12 +36,12 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 
 ```bash
 uv run nika env run simple_bgp
-uv run nika failure inject link_down --device pc1 --interface eth0
+uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
 uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
 # or Claude via DeepSeek:
 # uv run nika agent run -a cli.claude -m deepseek-v4-flash -n 20
 uv run nika session close
-uv run nika eval
+uv run nika eval metrics
 ```
 
 ## Architecture
@@ -65,9 +65,9 @@ Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (mani
 
 `sdk.*` and SADE create a `shell` sandbox, then install Python deps after `sbx create`. Offline wheels are **off by default**; without them, packages install from PyPI inside the microVM.
 
-Enable offline wheels to speed up SDK/SADE sandbox deploys and avoid re-downloading / reconfiguring deps on every `sbx` start. Host-staged wheels (`.sdk_wheels/`, cached under `.nika_cache/sbx-sdk-wheels/`) are installed with `pip --no-index`, which is also more reliable than slow in-VM PyPI installs that can OOM.
+Enable offline wheels to reuse host-cached dependencies across SDK/SADE sandbox runs. Host-staged wheels (`.sdk_wheels/`, cached under `.nika_cache/sbx-sdk-wheels/`) are installed with `pip --no-index`.
 
-Package versions are **frozen** in [`src/agent/sandbox/sbx/requirements-sdk.txt`](../src/agent/sandbox/sbx/requirements-sdk.txt) (direct + transitive pins). Changing that file invalidates the wheel cache. Prefer editing the freeze intentionally over floating latest PyPI releases.
+Package versions are pinned in [`src/agent/sandbox/sbx/requirements-sdk.txt`](../src/agent/sandbox/sbx/requirements-sdk.txt). Changing that file invalidates the wheel cache.
 
 ```bash
 # .env
@@ -109,8 +109,6 @@ DEEPSEEK_API_KEY=sk-...
 
 Confirm with `sbx secret ls`. Global secrets apply when a sandbox is created; recreate the sandbox after changing secrets.
 
-NIKA also allows `api.deepseek.com` in the sbx network policy for API-key runs.
-
 #### Outbound proxy (Clash / TUN)
 
 Optional. Off by default.
@@ -124,9 +122,7 @@ point sbx at Clash's HTTP mixed port:
 NIKA_SANDBOX_UPSTREAM_PROXY=http://127.0.0.1:7890
 ```
 
-Or pass `--sandbox-proxy http://127.0.0.1:7890`. NIKA reloads the sbx daemon
-with `DOCKER_SANDBOXES_PROXY` as the current user (once per proxy URL).
-DeepSeek often works with neither TUN nor this setting.
+Or pass `--sandbox-proxy http://127.0.0.1:7890`.
 
 ## Configuration
 
@@ -154,9 +150,7 @@ uv run pytest tests/agent/test_sandbox_isolation.py -v
 # E2E — five sandbox agents (Codex needs OPENAI_API_KEY; Claude/SADE need DEEPSEEK_API_KEY)
 uv run pytest tests/agent/test_sandbox_agents.py -v
 
-# Benchmark uses the same sandbox path as `nika agent run`
-# (includes Claude + Codex parallel --batch-size 2 cases)
 uv run pytest tests/benchmark/test_sandbox_benchmark.py -v
 ```
 
-Proxy settings come from repo-root `.env` or `--sandbox-proxy` (off by default). For sandbox test commands and verification status, see [tests/README.md](../tests/README.md).
+For the full test matrix and prerequisites, see [tests/README.md](../tests/README.md).

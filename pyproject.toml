@@ -15,7 +15,6 @@ dependencies = [
     "pydantic>=2.11,<2.14",
     "openai",
     "instructor",
-    "kathara",
     "python-dotenv",
     "langchain-deepseek",
     "langgraph",
@@ -30,10 +29,15 @@ dependencies = [
     "autogen-agentchat>=0.7.5",
     "autogen-ext[mcp,openai]>=0.7.5",
     "ruff>=0.15.20",
-    "kubernetes>=31.0.0",
 ]
 
 [project.optional-dependencies]
+# Local Kathara labs (also covers Kubernetes scenarios under net_env/kathara/kubernetes).
+kathara = ["kathara", "kubernetes>=31.0.0", "docker"]
+# Containerlab labs (requires the external `clab` binary; SRL scenarios also need `gnmic`).
+containerlab = ["docker"]
+# Both lab backends.
+labs = ["kathara", "kubernetes>=31.0.0", "docker"]
 # SADE community agent (src/agent/community/sade) drives Claude Code via the SDK.
 sade = ["claude-agent-sdk"]
 # SDK agents (src/agent/sdk/claude_sdk, src/agent/sdk/codex_sdk).

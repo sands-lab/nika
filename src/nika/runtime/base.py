@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
-
-from docker.models.containers import Container
+from typing import TYPE_CHECKING, Any
 
 from nika.runtime.ops_mixin import ExecSemanticOpsMixin
+
+if TYPE_CHECKING:
+    from docker.models.containers import Container
 
 
 class RuntimeCapabilityError(RuntimeError):

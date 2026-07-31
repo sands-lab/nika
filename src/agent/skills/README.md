@@ -8,4 +8,4 @@ skills/                 # canonical skill sources
 .agents/skills/         # → skills/ (Codex)
 ```
 
-Override the root with `NIKA_SKILLS_DIR`. See [docs/agent-skills.md](../../docs/agent-skills.md).
+Override the root with `NIKA_SKILLS_DIR`. See [docs/agent-skills.md](../../../docs/agent-skills.md).

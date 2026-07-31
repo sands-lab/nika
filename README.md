@@ -66,7 +66,9 @@ NIKA supports Kathará and Containerlab backends, multiple agent frameworks, nat
 
 ## 📦 Installation
 
-NIKA requires Linux, Python 3.12+, Docker, and at least one lab backend: [Kathará](https://www.kathara.org/) or [Containerlab](https://containerlab.dev/). Dependency management uses [uv](https://docs.astral.sh/uv/).
+NIKA requires Linux and Python 3.12+. Dependency management uses [uv](https://docs.astral.sh/uv/).
+
+Core install (agent CLI and evaluation; no local lab backends):
 
 ```shell
 git clone https://github.com/sands-lab/nika
@@ -76,7 +78,23 @@ source .venv/bin/activate
 cp .env.example .env
 ```
 
+Local lab deployment needs Docker plus at least one backend extra:
+
+| Extra | Provides | Also requires |
+|-------|----------|---------------|
+| `kathara` | [Kathará](https://www.kathara.org/) Python API, Docker SDK, Kubernetes client | Docker |
+| `containerlab` | Docker SDK for [Containerlab](https://containerlab.dev/) labs | Docker, `clab` on `PATH` (`gnmic` for SRL) |
+| `labs` | Both of the above | Same as each backend |
+
+```shell
+uv sync --extra labs          # local Kathara + Containerlab
+# or: uv sync --extra kathara
+# or: uv sync --extra containerlab
+```
+
 Add the model credentials and agent settings you need to `.env`. CLI flags override `.env` values. Sandbox-backed agents also require `sbx login`, KVM, and the appropriate optional dependency group; see the [agent sandbox guide](docs/agent-sandbox.md).
+
+To run labs on a separate machine, see [NIKA Remote](docs/remote.md).
 
 ## 🚀 Quick start
 

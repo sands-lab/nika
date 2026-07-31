@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from nika.runtime.base import LabRuntime
-from nika.runtime.containerlab.runtime import ContainerlabRuntime
-from nika.runtime.kathara.runtime import KatharaRuntime
+from nika.runtime.extras import raise_missing_extra, require_backend_extra
 from nika.runtime.meta import meta_get, meta_lab_name, meta_path
 
 if TYPE_CHECKING:
@@ -38,6 +37,33 @@ def resolve_backend(meta: dict[str, Any] | Any) -> str:
     return "kathara"
 
 
+def _containerlab_runtime(
+    *,
+    lab_name: str,
+    topology_file: Any,
+    runtime_workdir: Any = None,
+) -> LabRuntime:
+    require_backend_extra("containerlab")
+    try:
+        from nika.runtime.containerlab.runtime import ContainerlabRuntime
+    except ImportError as exc:
+        raise_missing_extra("containerlab", cause=exc)
+    return ContainerlabRuntime(
+        lab_name=lab_name,
+        topology_file=topology_file,
+        runtime_workdir=runtime_workdir,
+    )
+
+
+def _kathara_runtime(net_env: "NetworkEnvBase") -> LabRuntime:
+    require_backend_extra("kathara")
+    try:
+        from nika.runtime.kathara.runtime import KatharaRuntime
+    except ImportError as exc:
+        raise_missing_extra("kathara", cause=exc)
+    return KatharaRuntime(net_env)
+
+
 def runtime_for_session(meta: dict[str, Any] | Any) -> LabRuntime:
     """Build a runtime from persisted session metadata."""
     backend = resolve_backend(meta)
@@ -46,7 +72,7 @@ def runtime_for_session(meta: dict[str, Any] | Any) -> LabRuntime:
         topology_file = meta_path(meta, "topology_file", scenario_params=True)
         if topology_file is None:
             raise ValueError(f"Containerlab session {lab_name!r} has no topology_file.")
-        return ContainerlabRuntime(
+        return _containerlab_runtime(
             lab_name=lab_name,
             topology_file=topology_file,
             runtime_workdir=meta_path(meta, "runtime_workdir", scenario_params=True),
@@ -64,7 +90,7 @@ def runtime_for_session(meta: dict[str, Any] | Any) -> LabRuntime:
     kwargs.update(scenario_params)
     if scenario_name:
         net_env = get_net_env_instance(str(scenario_name), **kwargs)
-        return KatharaRuntime(net_env)
+        return _kathara_runtime(net_env)
     raise ValueError("Kathara runtime requires scenario_name in session metadata.")
 
 
@@ -73,9 +99,9 @@ def runtime_for_net_env(net_env: "NetworkEnvBase") -> LabRuntime:
     if net_env.backend == "containerlab":
         if net_env.topology_file is None:
             raise ValueError(f"Containerlab env {net_env.name!r} has no topology_file.")
-        return ContainerlabRuntime(
+        return _containerlab_runtime(
             lab_name=net_env.name,
             topology_file=net_env.topology_file,
             runtime_workdir=net_env.runtime_workdir,
         )
-    return KatharaRuntime(net_env)
+    return _kathara_runtime(net_env)

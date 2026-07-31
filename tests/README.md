@@ -24,6 +24,8 @@ Test layout mirrors product surfaces:
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
 | `tests/support/` | — | Shared bases, prerequisites, and pipeline helpers |
 
+Local lab integration tests expect lab extras installed (`uv sync --extra labs --group dev`). Core/agent unit tests should run without Kathara/Containerlab packages.
+
 ## Shared support (`tests/support/`)
 
 | Module | Purpose |
@@ -119,24 +121,6 @@ uv run pytest tests/leaderboard/test_e2e_release_pack.py -v
 uv run pytest tests/leaderboard/test_e2e_release_submit.py -v
 NIKA_LEADERBOARD_E2E=1 uv run pytest tests/leaderboard/test_e2e_submit_github.py -v
 ```
-
-## Sandbox verified status (local E2E, 2026-07-24)
-
-| Area | Status | Notes |
-|------|--------|-------|
-| `test_sbx.py` / `test_sandbox.py` | **Passed** | Credentials, proxy, auth helpers |
-| `test_sandbox_security.py` | **Passed** | microVM policy + MCP gateway isolation |
-| `test_sandbox_isolation.py` | **Passed** | Distinct ports/names + unallowed peer gateway port blocked |
-| Codex CLI / SDK (`test_sandbox_agents.py`, `OPENAI_API_KEY`, `gpt-5-mini`) | **Passed** | MCP tools → submission → eval |
-| Claude CLI / SDK / SADE (`test_sandbox_agents.py`, DeepSeek, `deepseek-v4-flash`) | **Passed** | Anthropic-compatible DeepSeek |
-| Benchmark single case (`test_sandbox_benchmark.py`, Claude/DeepSeek) | **Passed** | Same sandbox path as `nika agent run` |
-| Benchmark Claude parallel (`--batch-size 2`) | **Passed** | Concurrent `link_down` + `link_flap` |
-| Benchmark Codex parallel (`--batch-size 2`, `gpt-5-mini`) | **Passed** | Concurrent isolated sessions |
-| Live OAuth / subscription E2E | **Not tested** | Unit coverage in `test_sbx.py` only |
-| Official Anthropic API (non-DeepSeek) sandbox E2E | **Not tested** | Current E2E uses DeepSeek |
-| Default Codex model `gpt-5.4-mini` | **Not verified** on restricted OpenAI projects | E2E uses `gpt-5-mini` when needed |
-
-Prerequisites: `sbx login`, KVM, Docker/Kathara. Optional `NIKA_SANDBOX_UPSTREAM_PROXY` when Clash/TUN blocks LLM websockets. See [docs/agent-sandbox.md](../docs/agent-sandbox.md).
 
 ## Integration pipeline (`tests/nika/workflows/integration/`)
 

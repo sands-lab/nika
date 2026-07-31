@@ -24,6 +24,7 @@ CLI_COMMAND_MODULES = [
     "nika.cli.commands.evaluation",
     "nika.cli.commands.exec",
     "nika.cli.commands.failure",
+    "nika.cli.commands.remote",
     "nika.cli.commands.session",
     "nika.cli.commands.traffic",
 ]
@@ -69,6 +70,9 @@ CLI_HELP_ARGS = [
     ["session", "containers", "--help"],
     ["session", "close", "--help"],
     ["session", "wipe", "--help"],
+    ["remote", "--help"],
+    ["remote", "serve", "--help"],
+    ["remote", "health", "--help"],
     ["traffic", "--help"],
     ["traffic", "list", "--help"],
     ["traffic", "run", "--help"],

@@ -7,7 +7,6 @@ from typing import Any
 
 from nika.config import RESULTS_DIR
 from nika.runtime.factory import resolve_backend
-from nika.service.containerlab import ContainerlabSRLAPI, create_host_api
 from nika.service.mcp_gateway.context import get_bound_session_id
 from nika.utils.session_store import SessionStore
 
@@ -54,6 +53,8 @@ def get_session_dir() -> str:
 
 def get_lab_api():
     """Return KatharaBaseAPI or ContainerlabBaseAPI for the current session backend."""
+    from nika.service.lab.host_api import create_host_api
+
     meta = get_session_meta()
     return create_host_api(
         lab_name=get_lab_name(),
@@ -62,8 +63,11 @@ def get_lab_api():
     )
 
 
-def get_srl_api() -> ContainerlabSRLAPI:
+def get_srl_api():
     """Return ContainerlabSRLAPI for the current containerlab session."""
+    from nika.service.containerlab import ContainerlabSRLAPI
+    from nika.service.lab.host_api import create_host_api
+
     meta = get_session_meta()
     backend = resolve_backend(meta)
     if backend != "containerlab":
