@@ -24,6 +24,8 @@ Test layout mirrors product surfaces:
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
 | `tests/support/` | — | Shared bases, prerequisites, and pipeline helpers |
 
+Local lab integration tests expect lab extras installed (`uv sync --extra labs --group dev`). Core/agent unit tests should run without Kathara/Containerlab packages.
+
 ## Shared support (`tests/support/`)
 
 | Module | Purpose |

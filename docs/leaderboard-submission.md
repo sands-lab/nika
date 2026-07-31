@@ -68,12 +68,18 @@ agent:
   framework: ""       # required
   tools: []
   skills: []
+  # Harness optimizations (not model fine-tunes). Examples: GEPA, skills, Multi-agent
   optimization_methods: []
   tags: []
   os_model: false
   os_system: false
   extra: {}
 ```
+
+Field notes:
+
+- `agent.optimization_methods`: free-form strings describing **harness optimizations** applied around the model (prompting, skills, multi-agent orchestration, GEPA-style search, etc.). Prefer short labels such as `GEPA`, `skills`, or `Multi-agent`. This is not limited to weight fine-tuning.
+- `agent.os_model` / `agent.os_system`: optional openness flags kept for package metadata; the public leaderboard UI filters primarily by model name and harness optimizations.
 
 ## `README.md`
 

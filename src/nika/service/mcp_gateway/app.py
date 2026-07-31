@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
+from nika.runtime.extras import raise_missing_extra
 from nika.service.mcp_gateway.constants import PHASES
 from nika.service.mcp_gateway.middleware import (
     PhaseGateMiddleware,
@@ -57,12 +58,31 @@ def _load_mcp(name: str) -> FastMCP:
     return mcp
 
 
-def reset_gateway_mcp_state() -> None:
-    """Allow a fresh gateway process to attach new HTTP session managers."""
+def _iter_mountable_mcp_names(*, backend: str | None = None):
+    """Yield MCP server names for *backend* (common + matching backend; remotes always)."""
     for name, spec in MCP_SERVER_SPECS.items():
         if spec.remote:
+            yield name
             continue
-        _load_mcp(name)._session_manager = None  # type: ignore[attr-defined]
+        if name not in _MCP_MODULE_ATTRS:
+            continue
+        if spec.backend is None:
+            yield name
+            continue
+        if backend is not None and spec.backend == backend:
+            yield name
+
+
+def reset_gateway_mcp_state(*, backend: str | None = None) -> None:
+    """Allow a fresh gateway process to attach new HTTP session managers."""
+    for name in _iter_mountable_mcp_names(backend=backend):
+        spec = MCP_SERVER_SPECS[name]
+        if spec.remote:
+            continue
+        try:
+            _load_mcp(name)._session_manager = None  # type: ignore[attr-defined]
+        except ImportError:
+            continue
     _empty_mcp._session_manager = None  # type: ignore[attr-defined]
 
 
@@ -103,9 +123,13 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "phase": phase})
 
 
-def create_gateway_app() -> Starlette:
-    """Return a Starlette app exposing all registered MCP servers over HTTP."""
-    reset_gateway_mcp_state()
+def create_gateway_app(*, backend: str | None = None) -> Starlette:
+    """Return a Starlette app exposing MCP servers for *backend* over HTTP.
+
+    When *backend* is ``None``, only common (backend-neutral) servers and remote
+    proxies are mounted — never default to Kathara.
+    """
+    reset_gateway_mcp_state(backend=backend)
     routes: list = [
         Route("/gateway/health", gateway_health),
         Route(
@@ -119,7 +143,8 @@ def create_gateway_app() -> Starlette:
     blocked_app = _empty_mcp.streamable_http_app()
     session_managers.append(_empty_mcp.session_manager)
 
-    for name, spec in MCP_SERVER_SPECS.items():
+    for name in _iter_mountable_mcp_names(backend=backend):
+        spec = MCP_SERVER_SPECS[name]
         if spec.remote:
             # After Mount(/mcp/{name}), remaining path is ``/mcp`` (client URL
             # ends with ``/mcp/{name}/mcp``). Forward that path to the in-node
@@ -132,7 +157,12 @@ def create_gateway_app() -> Starlette:
             routes.append(Mount(f"/mcp/{name}", app=inner))
             continue
 
-        mcp = _load_mcp(name)
+        try:
+            mcp = _load_mcp(name)
+        except ImportError as exc:
+            if spec.backend is None:
+                raise
+            raise_missing_extra(spec.backend, cause=exc)
         starlette_app = mcp.streamable_http_app()
         session_managers.append(mcp.session_manager)
         inner = PhaseGateMiddleware(

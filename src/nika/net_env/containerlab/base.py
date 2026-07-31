@@ -8,7 +8,8 @@ from typing import ClassVar
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
-from nika.runtime.containerlab import parse_clab_topology, render_topology
+from nika.runtime.containerlab.parse import parse_clab_topology
+from nika.runtime.containerlab.render import render_topology
 from nika.runtime.spec import LabSpec
 
 
