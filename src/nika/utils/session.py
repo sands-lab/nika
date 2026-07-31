@@ -32,6 +32,7 @@ class Session:
         backend: str = "kathara",
         topology_file: str | Path | None = None,
         runtime_workdir: str | Path | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         self.session_id = session_id
         self.scenario_name = scenario_name
@@ -43,6 +44,7 @@ class Session:
         self.runtime_workdir = (
             str(runtime_workdir) if runtime_workdir is not None else None
         )
+        self.metadata = dict(metadata) if metadata else {}
         self.scenario_params.setdefault("backend", backend)
         if self.topology_file:
             self.scenario_params.setdefault("topology_file", self.topology_file)
@@ -66,6 +68,7 @@ class Session:
                 "backend": self.backend,
                 "topology_file": self.topology_file,
                 "runtime_workdir": self.runtime_workdir,
+                "metadata": self.metadata,
             }
         )
         self._write_run_json({k: v for k, v in self.__dict__.items() if k != "store"})

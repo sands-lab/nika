@@ -5,11 +5,14 @@ The lab includes FRR routers for BGP routing and k3s nodes for Kubernetes.
 """
 
 import os
+import tempfile
 
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
+from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
+from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -17,7 +20,8 @@ _FRR_IMAGE = "kathara/frr"
 _K3S_IMAGE = "rancher/k3s"
 _BASE_IMAGE = "kathara/base"
 
-# K3s node ulimits required by k3s
+_KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
+
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 
 
@@ -128,8 +132,6 @@ class K8sFatTreeBGP(NetworkEnvBase):
             m = self.lab.new_machine(name, **{"image": _FRR_IMAGE})
             if name in _bridged:
                 m.add_meta("bridged", True)
-                # Add port mapping to expose kubectl on the host
-                m.add_meta("port", "6443:6443/tcp")
             if name in _sysctl_machines:
                 m.add_meta("sysctl", _sysctl_multipath)
             if name in _ipv6_machines:
@@ -153,6 +155,11 @@ class K8sFatTreeBGP(NetworkEnvBase):
                     "args",
                     "server --disable servicelb --disable traefik --write-kubeconfig-mode 644",
                 )
+                # Expose kubectl (6443) on a host port unique to this lab instance,
+                # so concurrent sessions don't collide on a fixed port mapping.
+                controller_kubectl_port = pick_free_port()
+                m.add_meta("port", f"{controller_kubectl_port}:6443/tcp")
+                self.metadata["k8s_controller_port"] = controller_kubectl_port
             else:
                 m.add_meta("env", "K3S_URL=https://controller:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
@@ -181,6 +188,13 @@ class K8sFatTreeBGP(NetworkEnvBase):
 
         self.load_machines()
 
+    def _prepare_runtime_files(self) -> None:
+        lab_name = self.name
+        if not lab_name:
+            raise ValueError("Lab name is required before deploy.")
+        self.runtime_workdir = RUNTIME_DIR / "kathara" / lab_name
+        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+
     def load_machines(self):
         super().load_machines()
         self.kubernetes_nodes = sorted(
@@ -191,3 +205,21 @@ class K8sFatTreeBGP(NetworkEnvBase):
         from nika.net_env.kathara.kubernetes.k8s_lab.verify import verify_k8s_lab
 
         return verify_k8s_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
+
+    def post_deploy(self):
+        port = self.metadata.get("k8s_controller_port")
+        if port is None:
+            return
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.instance.retrieve_files(
+                self.lab.machines["controller"], _KUBECONFIG_REMOTE_PATH, tmp_dir
+            )
+            raw_path = os.path.join(
+                tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH)
+            )
+            with open(raw_path, encoding="utf-8") as f:
+                raw = f.read()
+        patched = raw.replace("127.0.0.1:6443", f"localhost:{port}")
+        kubeconfig_path = self.runtime_workdir / "kubeconfig.yaml"
+        with open(kubeconfig_path, "w", encoding="utf-8") as f:
+            f.write(patched)

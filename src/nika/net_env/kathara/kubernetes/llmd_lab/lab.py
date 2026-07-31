@@ -17,11 +17,14 @@ from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
+from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
 _K3S_IMAGE = "rancher/k3s"
 _BASE_IMAGE = "kathara/base"
+
+_KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 _HELM_VERSION = "v3.21.3"
@@ -117,7 +120,11 @@ class LLMDInferenceCluster(NetworkEnvBase):
                     "args",
                     "server --disable servicelb --disable traefik --write-kubeconfig-mode 644",
                 )
-                m.add_meta("port", "6443:6443/tcp")
+                # Expose kubectl (6443) on a host port unique to this lab instance,
+                # so concurrent sessions don't collide on a fixed port mapping.
+                controller_kubectl_port = pick_free_port()
+                m.add_meta("port", f"{controller_kubectl_port}:6443/tcp")
+                self.metadata["k8s_controller_port"] = controller_kubectl_port
             else:
                 m.add_meta("env", "K3S_URL=https://controller:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
@@ -150,6 +157,13 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         self.load_machines()
 
+    def _prepare_runtime_files(self) -> None:
+        lab_name = self.name
+        if not lab_name:
+            raise ValueError("Lab name is required before deploy.")
+        self.runtime_workdir = RUNTIME_DIR / "kathara" / lab_name
+        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+
     def load_machines(self):
         super().load_machines()
         self.kubernetes_nodes = sorted(name for name, m in self.lab.machines.items() if "k3s" in m.get_image())
@@ -158,3 +172,21 @@ class LLMDInferenceCluster(NetworkEnvBase):
         from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab
 
         return verify_llmd_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
+
+    def post_deploy(self):
+        port = self.metadata.get("k8s_controller_port")
+        if port is None:
+            return
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.instance.retrieve_files(
+                self.lab.machines["controller"], _KUBECONFIG_REMOTE_PATH, tmp_dir
+            )
+            raw_path = os.path.join(
+                tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH)
+            )
+            with open(raw_path, encoding="utf-8") as f:
+                raw = f.read()
+        patched = raw.replace("127.0.0.1:6443", f"localhost:{port}")
+        kubeconfig_path = self.runtime_workdir / "kubeconfig.yaml"
+        with open(kubeconfig_path, "w", encoding="utf-8") as f:
+            f.write(patched)

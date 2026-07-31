@@ -92,6 +92,7 @@ def start_net_env(
         scenario_params["topo_size"] = size
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
+    metadata = getattr(net_env, "metadata", None)
     session.init_session(
         session_id=resolved_session_id,
         scenario_name=scenario,
@@ -103,6 +104,7 @@ def start_net_env(
         backend=backend,
         topology_file=topology_file,
         runtime_workdir=runtime_workdir,
+        metadata=metadata,
     )
     bind_session_dir(session.session_dir)
 
@@ -121,6 +123,18 @@ def start_net_env(
                 scenario=scenario,
                 lab_name=net_env.name,
                 checks=verify_result.get("checks"),
+            )
+
+        try:
+            net_env.post_deploy()
+        except Exception as post_deploy_exc:  # noqa: BLE001 - must not fail an otherwise-verified deploy
+            log_error_event(
+                "env_post_deploy_failed",
+                f"Post-deploy step failed for {scenario} ({resolved_session_id}): {post_deploy_exc}",
+                scenario=scenario,
+                session_id=resolved_session_id,
+                error=str(post_deploy_exc),
+                error_type=type(post_deploy_exc).__name__,
             )
     except Exception as exc:
         event_type = "env_verify_failed" if net_env.lab_exists() else "env_start_failed"
@@ -155,5 +169,6 @@ def start_net_env(
         topo_size=size,
         session_id=resolved_session_id,
         lab_name=net_env.name,
+        metadata=metadata,
     )
     return resolved_session_id

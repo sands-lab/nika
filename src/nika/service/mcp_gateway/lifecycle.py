@@ -18,6 +18,7 @@ from nika.service.mcp_gateway.session_registry import (
     register_session,
     unregister_session,
 )
+from nika.utils.net import pick_free_port
 
 ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
@@ -31,12 +32,6 @@ PolicyMode = Literal["two_phase", "unified"]
 
 _manager_lock = threading.Lock()
 _active_manager: "McpGatewayManager | None" = None
-
-
-def _pick_ephemeral_port(host: str) -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind((host, 0))
-        return int(sock.getsockname()[1])
 
 
 @dataclass
@@ -105,9 +100,7 @@ def start_gateway(
     global _active_manager
     bind_host = host or os.environ.get(ENV_GATEWAY_HOST, "127.0.0.1")
     port_raw = port if port is not None else os.environ.get(ENV_GATEWAY_PORT, "0")
-    bind_port = (
-        _pick_ephemeral_port(bind_host) if str(port_raw) == "0" else int(port_raw)
-    )
+    bind_port = pick_free_port(bind_host) if str(port_raw) == "0" else int(port_raw)
 
     manager = McpGatewayManager(host=bind_host, port=bind_port, backend=backend)
     manager.start()
