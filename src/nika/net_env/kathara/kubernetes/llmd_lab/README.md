@@ -95,8 +95,8 @@ All nodes share link `A` on `200.0.0.0/24`.
 | `ping -c 3 200.0.0.2` | Replies from worker1 |
 
 ```shell
-nika exec client ping -c 3 200.0.0.1 --timeout 30
-nika exec client ping -c 3 200.0.0.2 --timeout 30
+nika exec --timeout 30 client ping -c 3 200.0.0.1
+nika exec --timeout 30 client ping -c 3 200.0.0.2
 ```
 
 ### 2. k3s cluster — device `controller` (k3s server)
@@ -109,15 +109,15 @@ nika exec client ping -c 3 200.0.0.2 --timeout 30
 | `kubectl get gateway -n llm-d` | `llm-d-gateway` has an address assigned |
 
 ```shell
-nika exec controller kubectl get nodes --timeout 30
-nika exec controller kubectl get pods -n llm-d --timeout 30
-nika exec controller kubectl get gateway -n llm-d --timeout 30
+nika exec --timeout 30 controller kubectl get nodes
+nika exec --timeout 30 controller kubectl get pods -n llm-d
+nika exec --timeout 30 controller kubectl get gateway -n llm-d
 ```
 
 Gateway LoadBalancer IP should fall in `200.0.0.240–250` (preconfigured as `llmd` in `client/etc/hosts`):
 
 ```shell
-nika exec controller kubectl get svc -A --field-selector spec.type=LoadBalancer --timeout 30
+nika exec --timeout 30 controller kubectl get svc -A --field-selector spec.type=LoadBalancer
 ```
 
 ### 3. End-to-end inference — device `client`
@@ -131,10 +131,8 @@ nika exec controller kubectl get svc -A --field-selector spec.type=LoadBalancer 
 | `curl -s -X POST http://llmd/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"llm-d-sim","messages":[{"role":"user","content":"Hello"}]}'` | JSON completion response |
 
 ```shell
-nika exec client ping -c 3 llmd --timeout 30
-nika exec client curl -s http://llmd/v1/models --timeout 30
-nika exec client curl -s -X POST http://llmd/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"llm-d-sim","messages":[{"role":"user","content":"Hello"}]}' \
-  --timeout 120
+nika exec --timeout 30 client ping -c 3 llmd
+nika exec --timeout 30 client curl -s http://llmd/v1/models
+nika exec --timeout 120 client \
+  "curl -s -X POST http://llmd/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"llm-d-sim\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}'"
 ```

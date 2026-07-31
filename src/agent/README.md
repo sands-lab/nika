@@ -32,16 +32,16 @@ src/agent/
 
 ## Agent Types
 
-| CLI name | Orchestration | LLM access | Status |
-|----------|---------------|------------|--------|
-| `byo.langgraph` | LangGraph `StateGraph` | LangChain ReAct + `load_model()` | Implemented |
-| `cli.codex` | Native two-phase (no LangGraph) | `codex exec` subprocess + shared `.agents/skills/` | Implemented |
-| `cli.claude` | Native two-phase (no LangGraph) | `claude -p` subprocess + shared `.claude/skills/` | Implemented |
-| `byo.mcp_agent` | mcp-agent `Workflow` | mcp-agent + OpenAI | Implemented |
-| `byo.autogen` | AutoGen `GraphFlow` | AutoGen AgentChat + OpenAI | Implemented |
-| `community.sade` | Single Claude Code session + 15-skill library | `claude-agent-sdk` (optional extra `sade`) | Implemented |
-| `sdk.claude_sdk` | Native two-phase `ClaudeSDKClient` sessions | `claude-agent-sdk` + shared skills (optional extra `sdk`) | Implemented |
-| `sdk.codex_sdk` | Native two-phase `AsyncCodex` threads | `openai-codex` + shared skills (optional extra `sdk`) | Implemented |
+| CLI name | Orchestration | LLM access |
+|----------|---------------|------------|
+| `byo.langgraph` | LangGraph `StateGraph` | LangChain ReAct + `load_model()` |
+| `cli.codex` | Native two-phase | `codex exec` subprocess + shared `.agents/skills/` |
+| `cli.claude` | Native two-phase | `claude -p` subprocess + shared `.claude/skills/` |
+| `byo.mcp_agent` | mcp-agent `Workflow` | mcp-agent + OpenAI |
+| `byo.autogen` | AutoGen `GraphFlow` | AutoGen AgentChat + OpenAI |
+| `community.sade` | Single Claude Code session + 15-skill library | `claude-agent-sdk` (optional extra `sade`) |
+| `sdk.claude_sdk` | Native two-phase `ClaudeSDKClient` sessions | `claude-agent-sdk` + shared skills (optional extra `sdk`) |
+| `sdk.codex_sdk` | Native two-phase `AsyncCodex` threads | `openai-codex` + shared skills (optional extra `sdk`) |
 
 ## Community Agents
 
@@ -251,8 +251,6 @@ OPENAI_API_KEY=sk-...
 nika agent run -a byo.mcp_agent -m gpt-4.1-mini -n 20
 ```
 
-No Langfuse integration in this path (observability deferred).
-
 ---
 
 ## byo.autogen
@@ -276,8 +274,6 @@ OPENAI_API_KEY=sk-...
 
 nika agent run -a byo.autogen -m gpt-4.1-mini -n 20
 ```
-
-No Langfuse integration in this path (observability deferred).
 
 ---
 
@@ -332,18 +328,6 @@ nika agent run -a sdk.codex_sdk -m gpt-5.4-mini -e medium
 ```
 
 ---
-
-## Example Workflow
-
-```bash
-nika env run simple_bgp
-nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
-nika agent run -a cli.codex -m gpt-5.4-mini
-nika session close -y
-nika eval metrics
-```
-
-See the root [README.md](../../README.md#troubleshooting-agents) for a longer walkthrough.
 
 ## Adding a New Agent
 
