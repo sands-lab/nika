@@ -82,6 +82,10 @@ docker ps --format '{{.Names}}\t{{.Label "name"}}' | grep k8s_lab
 
 `kubectl get nodes` shows lab device names (`controller`, `worker1`, …): Kathara sets each container's hostname to the device name, and k3s uses the hostname as the node name. Run `kubectl` on the k3s server device **`controller`** — workers ship the binary but have no kubeconfig.
 
+The controller's API server (6443) is also mapped to a host port picked at deploy time (unique per session, to avoid collisions across concurrent labs). 
+Find it via `nika session inspect` under `metadata.k8s_controller_port`. 
+Once the lab is verified, NIKA also fetches the controller's kubeconfig, rewrites its server address from `127.0.0.1:6443` to `localhost:<port>`, and saves it as `kubeconfig.yaml` in the lab's runtime directory.
+
 ### 1. BGP fabric — device `leaf_1_1`
 
 | Command | Expected |

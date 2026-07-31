@@ -23,6 +23,7 @@ class NetworkEnvBase:
         self.runtime: LabRuntime | None = None
         self.topology_file: Path | None = None
         self.runtime_workdir: Path | None = None
+        self.metadata: dict = {}
         self.name = None
         self.desc = None
         self.instance = None
@@ -184,6 +185,10 @@ class NetworkEnvBase:
     def verify_lab(self) -> dict | None:
         """Return post-deploy verification result, or ``None`` when not implemented."""
         return None
+
+    def post_deploy(self):
+        """Run once the lab is deployed and verified."""
+        return
 
     def undeploy(self):
         """Undeploy the lab"""
