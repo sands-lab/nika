@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from contextlib import AsyncExitStack, asynccontextmanager
 from importlib import import_module
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -123,6 +125,23 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "phase": phase})
 
 
+def _should_relax_host_checks() -> bool:
+    """Allow non-localhost Host headers (NIKA Remote / cross-host MCP clients)."""
+    from nika.remote.config import ENV_REMOTE_SERVER
+
+    return os.environ.get(ENV_REMOTE_SERVER, "").strip() in {"1", "true", "yes", "on"}
+
+
+def _apply_transport_security(mcp: FastMCP, *, relax_host_checks: bool) -> None:
+    if not relax_host_checks:
+        return
+    # FastMCP defaults host=127.0.0.1 which auto-enables DNS-rebinding protection
+    # limited to localhost. Remote agents send Host: <lab-ip>:<port> and get 421.
+    mcp.settings.transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    )
+
+
 def create_gateway_app(*, backend: str | None = None) -> Starlette:
     """Return a Starlette app exposing MCP servers for *backend* over HTTP.
 
@@ -130,6 +149,7 @@ def create_gateway_app(*, backend: str | None = None) -> Starlette:
     proxies are mounted — never default to Kathara.
     """
     reset_gateway_mcp_state(backend=backend)
+    relax_host_checks = _should_relax_host_checks()
     routes: list = [
         Route("/gateway/health", gateway_health),
         Route(
@@ -140,6 +160,7 @@ def create_gateway_app(*, backend: str | None = None) -> Starlette:
     ]
     session_managers = []
 
+    _apply_transport_security(_empty_mcp, relax_host_checks=relax_host_checks)
     blocked_app = _empty_mcp.streamable_http_app()
     session_managers.append(_empty_mcp.session_manager)
 
@@ -163,6 +184,7 @@ def create_gateway_app(*, backend: str | None = None) -> Starlette:
             if spec.backend is None:
                 raise
             raise_missing_extra(spec.backend, cause=exc)
+        _apply_transport_security(mcp, relax_host_checks=relax_host_checks)
         starlette_app = mcp.streamable_http_app()
         session_managers.append(mcp.session_manager)
         inner = PhaseGateMiddleware(

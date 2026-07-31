@@ -94,6 +94,8 @@ uv sync --extra labs          # local Kathara + Containerlab
 
 Add the model credentials and agent settings you need to `.env`. CLI flags override `.env` values. Sandbox-backed agents also require `sbx login`, KVM, and the appropriate optional dependency group; see the [agent sandbox guide](docs/agent-sandbox.md).
 
+To run labs on a separate machine, see [NIKA Remote](docs/remote.md).
+
 ## 🚀 Quick start
 
 The following commands run one incident from deployment through evaluation:

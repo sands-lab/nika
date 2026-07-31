@@ -41,6 +41,22 @@ def start_net_env(
     session_dir: str | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
+    from nika.remote.config import is_remote_enabled
+
+    if is_remote_enabled():
+        from nika.remote.workflows import remote_start_net_env
+
+        return remote_start_net_env(
+            scenario,
+            topo_size,
+            redeploy=redeploy,
+            instance_tag=instance_tag,
+            session_tag=session_tag,
+            result_dir=result_dir,
+            session_id=session_id,
+            session_dir=session_dir,
+        )
+
     size = _normalize_topo_size(topo_size)
     if scenario_requires_topo_size(scenario) and size is None:
         raise ValueError(

@@ -6,7 +6,13 @@ from datetime import datetime
 from pathlib import Path
 
 import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
-from nika.config import RESULTS_DIR, RUNTIME_DIR, SESSIONS_DB, SESSIONS_DIR, resolve_results_root
+from nika.config import (
+    RESULTS_DIR,
+    RUNTIME_DIR,
+    SESSIONS_DB,
+    SESSIONS_DIR,
+    resolve_results_root,
+)
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.runtime.meta import meta_get, meta_path
@@ -99,6 +105,7 @@ def wipe_kathara_labs() -> None:
     """Remove all Kathara devices and collision domains for the current user."""
     try:
         from Kathara.manager.Kathara import Kathara
+
         Kathara.get_instance().wipe()
     except ModuleNotFoundError:
         # Kathara is not installed; nothing to clean up
@@ -140,7 +147,9 @@ def _stop_session_record(session_meta: dict, *, undeploy: bool = True) -> None:
         net_env_kwargs["lab_name"] = session.lab_name
     if backend == "containerlab":
         topology_file = meta_path(session_meta, "topology_file", scenario_params=True)
-        runtime_workdir = meta_path(session_meta, "runtime_workdir", scenario_params=True)
+        runtime_workdir = meta_path(
+            session_meta, "runtime_workdir", scenario_params=True
+        )
         if topology_file is not None:
             net_env_kwargs["topology_file"] = topology_file
         if runtime_workdir is not None:
@@ -223,6 +232,16 @@ def close_session(
     stop_all: bool = False,
 ) -> None:
     """Close one or all running sessions and clear runtime state."""
+    from nika.remote.config import is_remote_enabled
+
+    if is_remote_enabled():
+        from nika.remote.workflows import remote_close_session
+
+        remote_close_session(
+            session_id=session_id, undeploy=undeploy, stop_all=stop_all
+        )
+        return
+
     store = SessionStore()
     running = store.list_running_sessions()
 

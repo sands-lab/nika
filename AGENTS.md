@@ -12,6 +12,7 @@
 - Local labs: `uv sync --extra labs` (or `--extra kathara` / `--extra containerlab`)
 - Install SDK-agent extras: `uv sync --extra sdk --prerelease=allow`
 - List available scenarios/problems/agents: `uv run nika env list`, `uv run nika failure list`, `uv run nika agent list`
+- Optional remote lab host: `nika remote serve` on the lab machine; set `NIKA_REMOTE_*` locally (see `docs/remote.md`)
 - Regenerate benchmark YAML: `uv run python benchmark/generate_benchmark.py`
 - Leaderboard pack/validate: `uv run nika leaderboard --help` (see `docs/leaderboard-submission.md`)
 
@@ -46,8 +47,8 @@
 - Python code must be formatted with Ruff using `uv run ruff format .`.
 - Run `uv run ruff check .` before submitting changes when practical.
 - Prefer Ruff auto-fixes only for mechanical cleanup; avoid unrelated style churn outside the task scope.
-- Keep documentation concise and point detailed usage to `README.md`, `src/nika/cli/README.md`, `docs/custom-agents.md`, `docs/agent-skills.md`, `docs/creating-benchmark-tasks.md`, and `docs/leaderboard-submission.md`.
-
+- Keep documentation concise and point detailed usage to `README.md`, `src/nika/cli/README.md`, `docs/custom-agents.md`, `docs/agent-skills.md`, `docs/creating-benchmark-tasks.md`, `docs/leaderboard-submission.md`, and `docs/remote.md`.
+- Optional remote lab control plane belongs under `src/nika/remote/`; do not reuse MCP `remote_proxy` or leaderboard `remote.py` for that purpose.
 ## Testing Guidance
 
 - For pure Python changes, use targeted `pytest` commands before broader suites.

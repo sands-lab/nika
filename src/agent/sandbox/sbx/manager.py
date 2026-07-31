@@ -248,7 +248,11 @@ class SbxSandboxManager:
                     workspace_dir=workspace.workspace_dir,
                     offline=self.config.offline_sdk_wheels,
                 )
-            allow_mcp_gateway(sandbox_name=sandbox_name, port=gateway_port)
+            allow_mcp_gateway(
+                sandbox_name=sandbox_name,
+                port=gateway_port,
+                gateway_url=mcp_gateway_agent_url,
+            )
             os.environ[ENV_SBX_SANDBOX_NAME] = sandbox_name
             os.environ[ENV_SESSION_DIR] = str(workspace.workspace_dir)
             # Force credential placeholders over host .env API keys so the
@@ -285,7 +289,11 @@ class SbxSandboxManager:
                 else:
                     os.environ[key] = prior_value
 
-            deny_mcp_gateway(sandbox_name=sandbox_name, port=gateway_port)
+            deny_mcp_gateway(
+                sandbox_name=sandbox_name,
+                port=gateway_port,
+                gateway_url=mcp_gateway_agent_url,
+            )
             if not self.config.keep_container:
                 run_sbx_optional(["rm", "--force", sandbox_name])
             collect_artifacts(workspace)

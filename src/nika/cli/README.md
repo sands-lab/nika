@@ -18,6 +18,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
 | `nika leaderboard` | Pack, validate, and submit leaderboard entries (GitHub PR) from official release runs |
+| `nika remote` | Optional lab-host control plane (`serve` / `health`); see [`docs/remote.md`](../../../docs/remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`) against the running lab |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
@@ -185,7 +186,7 @@ Each finished session directory should contain at least `run.json`, `ground_trut
 
 ## `nika leaderboard`
 
-Pack, validate, and open a GitHub PR for a leaderboard submission from an official release run. See [`docs/leaderboard-submission.md`](../../docs/leaderboard-submission.md).
+Pack, validate, and open a GitHub PR for a leaderboard submission from an official release run. See [`docs/leaderboard-submission.md`](../../../docs/leaderboard-submission.md).
 
 ```shell
 nika leaderboard template -o results/my-run/submission
@@ -268,6 +269,17 @@ nika eval summary --result_dir results/
 - **`-s` / `--size`**: required only when `SCENARIO` is scalable.
 - Each benchmark case gets its own lab; the lab is torn down when the session closes (before metrics).
 - LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
+
+---
+
+## `nika remote`
+
+Optional control plane for splitting the agent host from the lab host. See [`docs/remote.md`](../../../docs/remote.md).
+
+- **`nika remote serve [--host 0.0.0.0] [-p 8700] [--token …]`**: run the lab-host daemon.
+- **`nika remote health [--url URL]`**: probe `/health` (uses `NIKA_REMOTE_URL` when `--url` is omitted).
+
+When `NIKA_REMOTE_ENABLED=true` and `NIKA_REMOTE_URL` is set on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
 
 ---
 
