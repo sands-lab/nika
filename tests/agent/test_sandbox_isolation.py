@@ -8,10 +8,8 @@ import urllib.request
 import pytest
 
 from agent.sandbox.sbx.policy import sanitize_sandbox_name
-from nika.service.mcp_gateway.lifecycle import (
-    McpGatewayManager,
-    _pick_ephemeral_port,
-)
+from nika.service.mcp_gateway.lifecycle import McpGatewayManager
+from nika.utils.net import pick_free_port
 from tests.agent.sandbox_support import (
     run_cross_sandbox_isolation_probe,
     sandbox_runtime_available,
@@ -28,8 +26,8 @@ def test_sandbox_names_are_unique_per_session() -> None:
 
 def test_concurrent_gateways_bind_distinct_ephemeral_ports() -> None:
     """Host gateways for parallel agent runs must not share a listen port."""
-    port_a = _pick_ephemeral_port("127.0.0.1")
-    port_b = _pick_ephemeral_port("127.0.0.1")
+    port_a = pick_free_port("127.0.0.1")
+    port_b = pick_free_port("127.0.0.1")
     assert port_a != port_b
 
     managers = [

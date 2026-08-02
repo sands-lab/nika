@@ -88,6 +88,7 @@ FULL_ONLY_PROBLEMS: set[str] = {
     "k8s_clusterip_routing_broken",
     "k8s_coredns_isolated",
     "k8s_worker_apiserver_partition",
+    "k8s_networkpolicy_deny",
 }
 
 
