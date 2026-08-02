@@ -32,7 +32,7 @@ It helps different users answer questions like:
 - 💬 **Network SRE** "I respond to network incidents every day. I want an AI agent to help, but I'm not sure it will understand my topology or make things worse."
 - 💬 **AI Researcher** "I'm designing a new harness for long-horizon network tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."
 - 💬 **Applied ML Engineer** "I want to fine-tune an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."
-- 💬 **Open-Source Contributor** "I want to contribute a new network scenario or fault type to the community and have it evaluated systematically."
+- 💬 **Contributor** "I want to contribute a new network scenario or fault type to the community and have it evaluated systematically."
 
 ## 🤖 Overview
 
@@ -43,11 +43,9 @@ NIKA combines two components:
 1. **NIKA Benchmark** — a suite of reproducible incidents defined by a network scenario and an injectable root cause. The full working matrix contains 15 scenarios, 59 fault types, and 702 cases.
 2. **NIKA Orchestrator** — a modular platform that deploys live labs, injects faults, connects agents to interactive MCP tools, and evaluates their submissions.
 
-NIKA supports Kathará and Containerlab backends, multiple agent frameworks, native CLI agents, sandboxed execution, and MCP-based network diagnostics. The implementation and configuration details are linked in [Learn more](#-learn-more).
+### Network incidents
 
-### Failure types
-
-NIKA's problem registry defines the injectable root causes available in the benchmark. Each problem has been reproduced across multiple network topologies and traffic scenarios, for a total of 702 unique cases.
+Network incidents in the NIKA's benchmark is constructed starting from recurring root cause failures, drawn from the following categories: 
 
 | Category | Fault types | # Cases |
 | --- | :---: | :---: |
@@ -59,12 +57,11 @@ NIKA's problem registry defines the injectable root causes available in the benc
 | Resource contention | 8 | 119 |
 | **Total** | **59** | **702** |
 
-#### Failure details
-
-NIKA's problem registry defines the injectable root causes available in the benchmark. Each problem has been reproduced in multiple network topologies and traffic scenarios, resulting in a total of 702 unique cases. The table below lists the problem categories, IDs, descriptions, and the number of cases for each problem.
-
 <details>
-<summary>Show all failure types</summary>
+<summary>🔍 <strong>Show all 59 failure types</strong></summary>
+
+NIKA's benchmark is constructed from a set of common the injectable root causes available in the benchmark. Each problem has been reproduced in multiple network topologies and traffic scenarios, resulting in a total of 702 unique cases. The table below lists the problem categories, IDs, descriptions, and the number of cases for each problem.
+
 
 | Category | Problem ID | Description | # Cases |
 | -------- | ---------- | ----------- | ------- |
@@ -130,6 +127,7 @@ NIKA's problem registry defines the injectable root causes available in the benc
 | **Total** | - | - | **702** |
 
 </details>
+
 
 ## ✨ Features
 
