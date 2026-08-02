@@ -41,6 +41,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
         "coredns",
         "kube_proxy",
         "k8s_storage",
+        "network_policy",
         "fat-tree",
         "bgp",
         "frr",
@@ -214,9 +215,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
             self.instance.retrieve_files(
                 self.lab.machines["controller"], _KUBECONFIG_REMOTE_PATH, tmp_dir
             )
-            raw_path = os.path.join(
-                tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH)
-            )
+            raw_path = os.path.join(tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH))
             with open(raw_path, encoding="utf-8") as f:
                 raw = f.read()
         patched = raw.replace("127.0.0.1:6443", f"localhost:{port}")

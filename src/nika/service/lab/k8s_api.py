@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shlex
 from collections.abc import Iterable
@@ -119,6 +120,33 @@ class K8sAPIMixin:
     ) -> str:
         args = f"get {target}{_ns(namespace)} -o jsonpath='{jsonpath}'"
         return self.kubectl(node, args, timeout=timeout).stdout
+
+    def k8s_write_manifest(
+        self: SupportsExec, node: str, content: str, *, suffix: str = "yaml"
+    ) -> str:
+        digest = hashlib.sha1(content.encode()).hexdigest()[:10]
+        path = f"/tmp/nika-k8s-{digest}.{suffix}"
+        self.write_file(node, path, content)
+        return path
+
+    def kubectl_apply_manifest(
+        self: SupportsExec, node: str, manifest: str, *, timeout: float | None = None
+    ) -> KubectlResult:
+        path = self.k8s_write_manifest(node, manifest)
+        return self.kubectl(node, f"apply -f {shlex.quote(path)}", timeout=timeout)
+
+    def k8s_object_exists(
+        self: SupportsExec,
+        node: str,
+        kind: str,
+        name: str,
+        *,
+        namespace: str | None = None,
+    ) -> bool:
+        result = self.kubectl(
+            node, f"get {kind} {name}{_ns(namespace)} --no-headers", check=False
+        )
+        return result.ok
 
     def k8s_nodes(self: SupportsExec, node: str) -> list[dict[str, Any]]:
         payload = self.kubectl_json(node, "get nodes")

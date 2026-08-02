@@ -35,7 +35,9 @@ elif machine in ("aarch64", "arm64"):
     _HELM_ARCHITECTURE = "arm64"
 else:
     _HELM_ARCHITECTURE = "amd64"
-_HELM_ARCHIVE_URL = f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-{_HELM_ARCHITECTURE}.tar.gz"
+_HELM_ARCHIVE_URL = (
+    f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-{_HELM_ARCHITECTURE}.tar.gz"
+)
 
 
 def _ensure_helm_binary() -> Path:
@@ -71,6 +73,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
         "metallb",
         "coredns",
         "kube_proxy",
+        "network_policy",
         "llm",
         "inference",
         "link",
@@ -166,7 +169,9 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
     def load_machines(self):
         super().load_machines()
-        self.kubernetes_nodes = sorted(name for name, m in self.lab.machines.items() if "k3s" in m.get_image())
+        self.kubernetes_nodes = sorted(
+            name for name, m in self.lab.machines.items() if "k3s" in m.get_image()
+        )
 
     def verify_lab(self) -> dict:
         from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab
@@ -181,9 +186,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
             self.instance.retrieve_files(
                 self.lab.machines["controller"], _KUBECONFIG_REMOTE_PATH, tmp_dir
             )
-            raw_path = os.path.join(
-                tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH)
-            )
+            raw_path = os.path.join(tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH))
             with open(raw_path, encoding="utf-8") as f:
                 raw = f.read()
         patched = raw.replace("127.0.0.1:6443", f"localhost:{port}")

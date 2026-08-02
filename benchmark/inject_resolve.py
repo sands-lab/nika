@@ -21,6 +21,7 @@ _DEVICE_KEYS = (
     "attacker_device",
     "control_node",
     "node_name",
+    "symptom_host",
 )
 
 
@@ -478,6 +479,22 @@ def resolve_inject_params(
         # actually hosting CoreDNS at inject time, which is where isolating it
         # takes the whole cluster's name resolution down.
         params["control_node"] = control
+
+    elif problem == "k8s_networkpolicy_deny":
+        k8s_nodes = pools.get("k8s_nodes") or []
+        control = _first(pools.get("k8s_controllers")) or _first(k8s_nodes) or host0
+        params["control_node"] = control
+        params["symptom_host"] = _first(pools.get("hosts")) or host0
+        if scenario == "llmd_lab":
+            params["namespace"] = "llm-d"
+            params["pod_selector"] = "app=llm-d-pd"
+            params["symptom_url"] = "http://llmd/v1/models"
+            params["control_url"] = ""
+        else:
+            params["namespace"] = "word-ns"
+            params["pod_selector"] = "app=word"
+            params["symptom_url"] = "http://datacenter.com/word"
+            params["control_url"] = "http://datacenter.com/weather"
 
     elif problem == "load_balancer_overload":
         params["host_name"] = lb0
