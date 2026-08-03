@@ -132,15 +132,15 @@ NIKA's benchmark is constructed from a set of common the injectable root causes 
 ## ✨ Features
 
 - **Network emulators**: NIKA attaches to state-of-the-art network emulators as backends. Are you a [Kathará](https://www.kathara.org) or [Containerlab](https://containerlab.dev) user? You can use NIKA with both.
-- **Pre-built incident scenarios**: Running evals to benchmark AI agents has never been so simple. Start one of the pre-built network scenarios, with automatic evaluation mechanism.
-- **Bring any AI agent**: Easy integration of custom AI agents, see [Agent integration workflow](docs/custom-agents.md).
+- **Pre-built incident scenarios**: Running your evals is quite simple: start any of the pre-built network scenarios in the NIKA benchmark, with automatic incident replay and evaluation mechanisms.
+- **Bring any AI agent**: You can use our default agents (Claude Code, Codex, LangGraph), or plug your custom AI agent harness, see [Agent integration workflow](docs/custom-agents.md).
 - **Agent sandboxing**: Agents run in isolated environments, with controlled access to the network, filesystem and telemetry tools, see [Agent sandboxing](docs/agent-sandbox.md).
-- **YAML-based fault injection**: Failures can be customized declaratively: `nika failure describe`, and later `--set key=value`.
+- **YAML-based fault injection**: Failures can be customized via a declarative interface: `nika failure describe`, and later `--set key=value`.
 - **MCP network telemetry**: Pingmesh server, InfluxDB network telemetry and CLI access to routers and switches.
-- **Multi-session evals**: Session-based workflow with multi-session support (`nika session`, `--session_id`). Run isolated sessions in parallel to speed up evaluations.
-- **Remote execution**: Run agents locally while the emulated network and MCP gateways can run on a remote host with compute capacity, see [NIKA Remote](docs/remote.md).
-- **Reproducibility and leaderboard**: Frozen `nika-bench` releases, submit to the real-time leaderboard.
-- **NIKA SDK**: Extend with your own network topology and configuration, and reproduce your failure case using NIKA's modules for traffic generation and fault injection, see [Creating benchmark tasks](docs/creating-benchmark-tasks.md).
+- **Multi-session**: Run isolated sessions in parallel to speed up your evaluations.
+- **Remote execution mode**: Run the emulated network and telemetry MCP gateways on any remote server, see [NIKA Remote](docs/remote.md).
+- **Reproducibility and leaderboard**: Refer to the frozen `nika-bench` releases, and submit your results to our up-to-date leaderboard.
+- **NIKA SDK**: For users who wish to extend with new failure cases using NIKA's APIs for traffic generation and fault injection, see [Creating benchmark tasks](docs/creating-benchmark-tasks.md).
 
 
 ## 📦 Installation
@@ -234,16 +234,16 @@ Pick the path that matches what you're trying to do:
 
 NIKA is part of a growing ecosystem of network operations benchmarks. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. While the best benchmark depends on your use case, NIKA is currently the most comprehensive benchmark among those that provides a live network environment for agentic evaluations.
 
-| Benchmark | Description | Variety | Scale | Environment Realism | Online Agent? | Best for |
+| Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA]((https://sands-lab.github.io/nika))** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 59 fault types <br> 6 networks types | ⭐️⭐️ <br> ~700 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | ✅ | Agentic evals |
-| [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | ✅ | Agentic evals |
-| [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations benchmark | ⭐️ <br> 3 types<br>lab-style topologies | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | ✅ | Large-scale synthetic variants for ML |
-| [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Config exercises | ⭐️ <br> Misconfigurations only | ⭐️⭐️⭐️ <br> ~3,000 exercises | ⭐️ <br> Simple validator | ❌ | Basic LLM config-generation capability |
-| [Cornetto](https://arxiv.org/abs/2604.22513) | Config-repair with formal verification | ⭐️ <br> Misconfigurations only | ⭐️⭐️ <br> 231 problems | ⭐️ <br> Batfish | ❌ | LLM config repair |
-| [GSMA Open Telco](https://huggingface.co/datasets/GSMA/ot-full) | Q&A telecom knowledge | ⭐️⭐️ <br> Multiple telecom datasets | ⭐️⭐️⭐️ <br> 20,588 samples | ⭐️ <br> Simple validator | ❌ | Basic LLM telecom knowledge |
+| **[NIKA]((https://sands-lab.github.io/nika))** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 59 fault types <br> 6 networks types | ⭐️⭐️ <br> ~700 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
+| [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |
+| [Cornetto](https://arxiv.org/abs/2604.22513) | Config-repair with formal verification | ⭐️⭐️ <br> 50 fault types | ⭐️⭐️ <br> 231 problems | ⭐️ <br> Batfish | 🔴 Offline / Static | LLM config repair |
+| [GSMA Open Telco](https://huggingface.co/datasets/GSMA/ot-full) | Q&A telecom knowledge | ⭐️⭐️ <br> Multiple telecom datasets | ⭐️⭐️⭐️ <br> 20,588 samples | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM telecom knowledge |
 
-**Notes:** `Online` benchmarks (3rd column) let agents observe or modify a running environment. `Offline` benchmarks evaluate pre-collected or generated samples. 
+**Notes:** `Type=Online` indicates that agents can observe, modify and interact with a live network environment while running. `Offline` benchmarks evaluate pre-collected (or generated) samples. 
 
 ## 📚 Citation
 
@@ -265,7 +265,7 @@ NIKA is also described in the [NGNO '25 paper](https://doi.org/10.1145/3748496.3
 
 ## 🙏 Acknowledgement
 
-NIKA is motivated in part by [AIOpsLab](https://github.com/microsoft/AIOpsLab). We thank its authors for their work.
+We thank the authors of [AIOpsLab](https://github.com/microsoft/AIOpsLab) for their useful feedbacks.
 
 ## 📄 License
 
