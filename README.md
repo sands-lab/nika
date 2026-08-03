@@ -204,7 +204,7 @@ nika benchmark run --release 0.1.0 --result_dir results/my-run --batch-size 4
 nika eval summary --result_dir results/my-run
 ```
 
-Benchmark runs deploy the lab, inject the fault, run the selected agent, close the session, and compute rule-based metrics. LLM judging remains an explicit post-processing step.
+Benchmark runs deploy the lab, inject the fault, run the selected agent, close the session, and compute rule-based metrics. LLM judging is an optional post-processing step to analyse the rollout via an independent LLM-based critic.
 
 ## 📖 Learn more
 
@@ -232,7 +232,7 @@ Pick the path that matches what you're trying to do:
 
 ## Network management benchmarks
 
-NIKA is part of a growing ecosystem of network operations benchmarks. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. While the best benchmark depends on your use case, NIKA is currently the most comprehensive benchmark among those that provides a live network environment for agentic evaluations.
+NIKA is part of a growing ecosystem. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. While the best benchmark depends on your use case, we believe that **NIKA is currently the most comprehensive online benchmark for realistic agentic evaluations**.
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
@@ -250,18 +250,31 @@ NIKA is part of a growing ecosystem of network operations benchmarks. The table 
 If you use NIKA in your research, please cite:
 
 ```bibtex
-@misc{nika,
-  title        = {A Network Arena for Benchmarking AI Agents on Network Troubleshooting},
-  author       = {Zhihao Wang and Alessandro Cornacchia and Alessio Sacco and Franco Galante and Marco Canini and Dingde Jiang},
-  year         = {2025},
-  eprint       = {2512.16381},
-  archivePrefix = {arXiv},
-  primaryClass = {cs.NI},
-  url          = {https://arxiv.org/abs/2512.16381}
+@misc{nika25long,
+  title          = {A Network Arena for Benchmarking AI Agents on Network Troubleshooting},
+  author         = {Zhihao Wang and Alessandro Cornacchia and Alessio Sacco and Franco Galante and Marco Canini and Dingde Jiang},
+  year           = {2025},
+  eprint         = {2512.16381},
+  archivePrefix  = {arXiv},
+  primaryClass   = {cs.NI},
+  url            = {https://arxiv.org/abs/2512.16381}
 }
 ```
 
-NIKA is also described in the [NGNO '25 paper](https://doi.org/10.1145/3748496.3748990).
+Please also cite our [NGNO '25 paper](https://doi.org/10.1145/3748496.3748990):
+
+```bibtex
+@inproceedings{nika25ngno,
+  title        = {Towards a Playground to Democratize Experimentation and Benchmarking of AI Agents for Network Troubleshooting},
+  author       = {Wang, Zhihao and Cornacchia, Alessandro and Galante, Franco and Centofanti, Carlo and Sacco, Alessio and Jiang, Dingde},
+  year         = {2025},
+  publisher    = {Association for Computing Machinery},
+  url          = {https://doi.org/10.1145/3748496.3748990},
+  booktitle    = {Proceedings of the 1st Workshop on Next-Generation Network Observability},
+  location     = {Coimbra, Portugal},
+  series       = {NGNO '25}
+}
+```
 
 ## 🙏 Acknowledgement
 
