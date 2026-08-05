@@ -8,9 +8,9 @@ splits:
   test:
     cases_file: test.yaml
     case_count: 56
-    cases_sha256: c3276167f5e5e422f6b69321dac0b50bffe8b710130b666e8e2e5fd14105864b
+    cases_sha256: a7331e39980170ae2a18eebb54b93bd2d82ccc707aa76d2153b29c8c5c590616
 default_split_for_release: test
-benchmark_digest: 00175db32a23b15e8980a8da4c7aa78303ae671c19f18ad7d13e92a7370ea72c
+benchmark_digest: d7e31a631ddb566d874f7a5fff8754d04b19042ce153ab0d8ef1dbaae4535bf2
 defaults:
   case_timeout_sec: 2400
   n_trials: 3
@@ -50,9 +50,6 @@ scenario_problem_pin:
     dc_clos_service:
       path: src/nika/net_env/kathara/data_center_routing/dc_clos_bgp/lab_services.py
       sha256: e6bd7b64b25c117125bbec24ebd6bd6b6e6f79e71365b3b9eac0be48723bb3e4
-    isp:
-      path: src/nika/net_env/kathara/isp/isp/lab.py
-      sha256: aa432480d31bb435139220b3e0d7f62f0aff01137aea2102be078df86ea4dd9c
     ospf_enterprise_dhcp:
       path: src/nika/net_env/kathara/intradomain_routing/ospf_enterprise/lab_dhcp.py
       sha256: c84ac8e92c64f026ed32d462932c5afcc92fc407ba12507af5592670604a6795

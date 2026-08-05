@@ -238,21 +238,21 @@ cases:
   problem: mpls_label_limit_exceeded
   inject:
     host_name: switch_1
-- scenario: isp
-  topo_size: null
+- scenario: ospf_enterprise_static
+  topo_size: l
   problem: ospf_acl_block
   inject:
-    host_name: bialystok
-- scenario: isp
-  topo_size: null
+    host_name: switch_server_access
+- scenario: ospf_enterprise_static
+  topo_size: l
   problem: ospf_area_misconfiguration
   inject:
-    host_name: szczecin
-- scenario: isp
-  topo_size: null
+    host_name: switch_dist_1_2
+- scenario: ospf_enterprise_static
+  topo_size: l
   problem: ospf_neighbor_missing
   inject:
-    host_name: lodz
+    host_name: switch_dist_2_3
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_aggressive_detection_thresholds
