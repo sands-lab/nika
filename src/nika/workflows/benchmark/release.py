@@ -14,7 +14,9 @@ from typing import Any, Literal
 import yaml
 
 from nika.config import BENCHMARK_DIR, REPO_ROOT
-from nika.net_env.kathara.utils.docker_files.docker_images import image_exists
+from nika.net_env.kathara.utils.docker_files.docker_images import (
+    ensure_nika_docker_images,
+)
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
     list_all_net_envs,
@@ -527,6 +529,9 @@ def preflight_release(
 ) -> None:
     """Validate release integrity before any lab deploy.
 
+    When ``check_images`` is true, missing required images are built or pulled
+    via ``ensure_nika_docker_images`` (same path as ordinary lab deploy).
+
     Raises ``ReleaseError`` on the first failure.
     """
     if release.case_count != len(release.cases):
@@ -566,13 +571,12 @@ def preflight_release(
     _verify_mcp_policy(release.cases, release.tools)
 
     required = list(release.images.get("required") or [])
-    if check_images:
-        missing_images = [img for img in required if not image_exists(img)]
-        if missing_images:
-            raise ReleaseError(
-                "Required Docker images are missing (release mode does not "
-                f"auto-build): {missing_images}"
-            )
+    if check_images and required:
+        try:
+            # Same ensure/build/pull path as ordinary lab deploy.
+            ensure_nika_docker_images(required)
+        except Exception as exc:
+            raise ReleaseError(f"Required Docker images unavailable: {exc}") from exc
 
 
 def read_git_commit() -> tuple[str | None, bool]:

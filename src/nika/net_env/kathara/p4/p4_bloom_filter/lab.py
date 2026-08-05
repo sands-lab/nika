@@ -16,7 +16,7 @@ class P4BloomFilter(NetworkEnvBase):
     TAGS = ["link", "pc", "p4", "mac", "arp", "icmp", "bloom_filter"]
 
     def __init__(self, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()

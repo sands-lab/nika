@@ -55,6 +55,17 @@ def _first(items: list[str] | None) -> str | None:
     return items[0] if items else None
 
 
+def _routers_with_bgp_network(routers: list[str]) -> list[str]:
+    """Routers that originate BGP ``network`` statements in Clos-style labs.
+
+    Spines (and ``dc_clos_bgp`` super-spines) only peer and have no ``network``
+    lines, so commenting those out is a no-op. Prefer leaves; fall back to the
+    full pool when the topology does not use leaf role names (e.g. simple_bgp).
+    """
+    advertisers = [r for r in routers if "leaf" in r]
+    return advertisers or list(routers)
+
+
 def _parse_endpoint(endpoint: str) -> tuple[str, str]:
     device, _, intf = endpoint.partition(":")
     return device, intf or ""
@@ -373,10 +384,15 @@ def resolve_inject_params(
         params["host_name"] = _choice(rng, vpn_peer_pool, host0)
         params["host_name_2"] = vpn_server
 
+    elif problem == "bgp_missing_route_advertisement":
+        advertise_pool = _routers_with_bgp_network(router_pool)
+        params["host_name"] = _choice(
+            rng, advertise_pool, _first(advertise_pool) or router0
+        )
+
     elif problem in {
         "bgp_acl_block",
         "bgp_asn_misconfig",
-        "bgp_missing_route_advertisement",
         "host_static_blackhole",
         "bgp_blackhole_route_leak",
         "bgp_hijacking",
@@ -549,6 +565,17 @@ def validate_benchmark_case(
             raise ValueError(
                 f"Inject interface {intf_name!r} not on {host_name!r} in {scenario} "
                 f"(topo_size={topo_size!r}); known interfaces: {device_ifaces}"
+            )
+
+    if problem == "bgp_missing_route_advertisement" and host_name:
+        routers = net_env.routers or []
+        advertisers = _routers_with_bgp_network(routers)
+        # Enforce only when the topology distinguishes advertiser roles.
+        if advertisers != list(routers) and host_name not in advertisers:
+            raise ValueError(
+                f"bgp_missing_route_advertisement host_name={host_name!r} has no BGP "
+                f"network statement on {scenario} (topo_size={topo_size!r}); "
+                f"use a leaf router: {advertisers}"
             )
 
     host_a = inject.get("host_name")

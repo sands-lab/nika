@@ -20,7 +20,7 @@ class P4_MPLS(NetworkEnvBase):
         self.lab.connect_machine_to_link(device_b, f"{device_a}_to_{device_b}")
 
     def __init__(self, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()

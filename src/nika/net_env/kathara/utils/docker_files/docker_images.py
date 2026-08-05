@@ -1,4 +1,4 @@
-"""Build and verify local NIKA Kathara Docker images via the Docker Python API."""
+"""Build, pull, and verify local NIKA Kathara Docker images via the Docker Python API."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable, Set
 
 import docker
-from docker.errors import BuildError, ImageNotFound
+from docker.errors import APIError, BuildError, ImageNotFound
 
 NIKA_IMAGE_PREFIX = "kathara/nika-"
 DOCKER_FILES_DIR = Path(__file__).resolve().parent
@@ -51,6 +51,18 @@ def _dockerfile_for_image(image: str) -> Path:
     return dockerfile
 
 
+def _is_locally_buildable(image: str) -> bool:
+    if image in NIKA_IMAGE_DOCKERFILES:
+        return True
+    if not image.startswith(NIKA_IMAGE_PREFIX):
+        return False
+    try:
+        _dockerfile_for_image(image)
+        return True
+    except FileNotFoundError:
+        return False
+
+
 def build_nika_image(image: str) -> None:
     dockerfile = _dockerfile_for_image(image)
     print(f"Building Docker image {image} from {dockerfile.name}...")
@@ -71,37 +83,54 @@ def build_nika_image(image: str) -> None:
         raise RuntimeError(f"Failed to build Docker image {image}") from exc
 
 
+def pull_image(image: str) -> None:
+    print(f"Pulling Docker image {image}...")
+    try:
+        _get_client().images.pull(image)
+    except APIError as exc:
+        raise RuntimeError(f"Failed to pull Docker image {image}") from exc
+
+
 def ensure_nika_docker_images(
     required_images: Iterable[str], *, force_rebuild: bool = False
 ) -> None:
-    """Build kathara/nika-* images needed by a lab.
+    """Ensure required images are available locally.
 
-    By default only missing images are built. With ``force_rebuild=True``, every
-    required NIKA image is rebuilt even if it already exists locally.
+    Locally buildable ``kathara/nika-*`` (and mapped) images are built when
+    missing. Other images (e.g. upstream ``kathara/p4``) are pulled. With
+    ``force_rebuild=True``, every buildable image is rebuilt; pullable images
+    are still only fetched when missing.
     """
-    nika_images = {
-        img
-        for img in required_images
-        if img.startswith(NIKA_IMAGE_PREFIX) or img in NIKA_IMAGE_DOCKERFILES
-    }
-    if force_rebuild:
-        to_build = nika_images
-    else:
-        to_build = {img for img in nika_images if not image_exists(img)}
-    if not to_build:
+    required = {img for img in required_images if img}
+    if not required:
         return
 
-    if force_rebuild:
-        print(f"Force rebuilding Docker images: {', '.join(sorted(to_build))}")
-    else:
-        print(f"Missing Docker images: {', '.join(sorted(to_build))}")
-    for image in sorted(to_build):
-        build_nika_image(image)
+    buildable = {img for img in required if _is_locally_buildable(img)}
+    pullable = required - buildable
 
-    still_missing: Set[str] = {img for img in to_build if not image_exists(img)}
+    if force_rebuild:
+        to_build = buildable
+    else:
+        to_build = {img for img in buildable if not image_exists(img)}
+    to_pull = {img for img in pullable if not image_exists(img)}
+
+    if to_build:
+        if force_rebuild:
+            print(f"Force rebuilding Docker images: {', '.join(sorted(to_build))}")
+        else:
+            print(f"Missing Docker images (build): {', '.join(sorted(to_build))}")
+        for image in sorted(to_build):
+            build_nika_image(image)
+
+    if to_pull:
+        print(f"Missing Docker images (pull): {', '.join(sorted(to_pull))}")
+        for image in sorted(to_pull):
+            pull_image(image)
+
+    still_missing: Set[str] = {img for img in required if not image_exists(img)}
     if still_missing:
         raise RuntimeError(
-            "Failed to build required Docker images: "
+            "Failed to ensure required Docker images: "
             + ", ".join(sorted(still_missing))
         )
 

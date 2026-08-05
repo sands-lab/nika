@@ -222,7 +222,7 @@ nika benchmark run --release 0.1.0 --result_dir results/list1
 nika benchmark run --release 0.1.0 --result_dir results/list1 --batch-size 4
 ```
 
-**Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case count / `cases_sha256` / `benchmark_digest`, Dev∩Test fingerprint isolation, scenario/problem registration, source-file pins, MCP allowlist, and required Docker images (images must already exist; release mode does not auto-build).
+**Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case count / `cases_sha256` / `benchmark_digest`, Dev∩Test fingerprint isolation, scenario/problem registration, source-file pins, MCP allowlist, and required Docker images (missing images are built or pulled via the same path as ordinary lab deploy).
 
 Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) under `{result_dir}/trials/{case_key}__tNN/`. Ad-hoc `--config` uses the same layout with `n_trials=1`. Resume skips completed trials (including `agent_failed`); incomplete trials are re-run without creating extra trial indices.
 

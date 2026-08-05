@@ -14,9 +14,7 @@ LLM_TIMEOUT_SECONDS = float(os.getenv("NIKA_LLM_TIMEOUT", "300"))
 LLM_MAX_RETRIES = int(os.getenv("NIKA_LLM_RETRIES", "2"))
 
 
-def load_model(
-    llm_provider: str = "openai", model: str = "gpt-5-mini"
-) -> BaseChatModel:
+def load_model(llm_provider: str = "openai", model: str = "gpt-5-mini") -> BaseChatModel:
     if llm_provider == "ollama":
         return ChatOllama(
             model=model,

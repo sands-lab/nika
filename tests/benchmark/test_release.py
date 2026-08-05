@@ -140,7 +140,7 @@ class TestFrozenRelease010:
             with pytest.raises(ReleaseError, match="Missing problems"):
                 preflight_release(release, check_images=False)
 
-    def test_preflight_missing_image(self, tmp_path: Path) -> None:
+    def test_preflight_ensures_images(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")
         release = freeze_release(
             version="mini",
@@ -148,8 +148,24 @@ class TestFrozenRelease010:
             out_dir=tmp_path / "releases" / "mini",
         )
         with patch(
-            "nika.workflows.benchmark.release.image_exists",
-            return_value=False,
+            "nika.workflows.benchmark.release.ensure_nika_docker_images",
+        ) as ensure:
+            preflight_release(release, check_images=True)
+            ensure.assert_called_once()
+            assert ensure.call_args.args[0] == list(
+                release.images.get("required") or []
+            )
+
+    def test_preflight_image_ensure_failure(self, tmp_path: Path) -> None:
+        source = _mini_cases_yaml(tmp_path / "cases_src.yaml")
+        release = freeze_release(
+            version="mini",
+            source_cases=source,
+            out_dir=tmp_path / "releases" / "mini",
+        )
+        with patch(
+            "nika.workflows.benchmark.release.ensure_nika_docker_images",
+            side_effect=RuntimeError("boom"),
         ):
             with pytest.raises(ReleaseError, match="Required Docker images"):
                 preflight_release(release, check_images=True)

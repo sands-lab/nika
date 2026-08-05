@@ -1,0 +1,60 @@
+"""Offline inject-target resolution for benchmark YAML generation."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+_BENCHMARK_DIR = Path(__file__).resolve().parents[2] / "benchmark"
+if str(_BENCHMARK_DIR) not in sys.path:
+    sys.path.insert(0, str(_BENCHMARK_DIR))
+
+from inject_resolve import (  # noqa: E402
+    resolve_inject_params,
+    validate_benchmark_case,
+)
+
+
+@pytest.mark.parametrize("topo_size", ["s", "m", "l"])
+@pytest.mark.parametrize("scenario", ["dc_clos_bgp", "dc_clos_service"])
+def test_bgp_missing_route_advertisement_targets_advertisers(
+    scenario: str, topo_size: str
+) -> None:
+    inject = resolve_inject_params(
+        "bgp_missing_route_advertisement", scenario, topo_size, seed=43
+    )
+    host = inject["host_name"]
+    assert "leaf" in host
+    validate_benchmark_case(
+        scenario, "bgp_missing_route_advertisement", inject, topo_size
+    )
+
+
+def test_bgp_missing_route_advertisement_rejects_spine_target() -> None:
+    with pytest.raises(ValueError, match="leaf router"):
+        validate_benchmark_case(
+            "dc_clos_service",
+            "bgp_missing_route_advertisement",
+            {"host_name": "spine_router_2_2"},
+            "l",
+        )
+
+
+def test_bgp_missing_route_advertisement_rejects_dc_clos_bgp_super_spine() -> None:
+    with pytest.raises(ValueError, match="leaf router"):
+        validate_benchmark_case(
+            "dc_clos_bgp",
+            "bgp_missing_route_advertisement",
+            {"host_name": "super_spine_router_0"},
+            "s",
+        )
+
+
+def test_bgp_missing_route_advertisement_simple_bgp_unchanged() -> None:
+    inject = resolve_inject_params(
+        "bgp_missing_route_advertisement", "simple_bgp", "", seed=42
+    )
+    assert inject["host_name"] in {"router1", "router2"}
+    validate_benchmark_case("simple_bgp", "bgp_missing_route_advertisement", inject, "")
