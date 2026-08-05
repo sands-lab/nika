@@ -34,9 +34,7 @@ def build_mcp_agent_settings(
 
     return Settings(
         execution_engine="asyncio",
-        mcp=MCPSettings(
-            servers={name: _to_server_settings(srv) for name, srv in servers.items()}
-        ),
+        mcp=MCPSettings(servers={name: _to_server_settings(srv) for name, srv in servers.items()}),
         openai=OpenAISettings(default_model=model),
     )
 

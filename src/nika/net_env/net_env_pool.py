@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -275,7 +276,14 @@ def get_net_env_instance(
     lab_name = kwargs.pop("lab_name", None)
     topology_file = kwargs.pop("topology_file", None)
     runtime_workdir = kwargs.pop("runtime_workdir", None)
-    instance = cls(**kwargs)
+    # Many Kathara lab ``__init__`` signatures omit ``backend`` (and ``**kwargs``).
+    # Pass it only when accepted; always assign afterward so ``instance.backend``
+    # matches the resolved runtime backend.
+    init_params = inspect.signature(cls.__init__).parameters
+    accepts_backend = "backend" in init_params or any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in init_params.values()
+    )
+    instance = cls(backend=backend, **kwargs) if accepts_backend else cls(**kwargs)
     instance.backend = backend
     if lab_name:
         instance.name = lab_name

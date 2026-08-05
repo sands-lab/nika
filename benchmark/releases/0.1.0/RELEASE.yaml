@@ -4,13 +4,13 @@ splits:
   dev:
     cases_file: dev.yaml
     case_count: 56
-    cases_sha256: e385ace86515c56b90e3538850d98b5c22c8a7d1e2cda1c767229f3713cffbea
+    cases_sha256: e15b65355890d21bb091731f4ba70a3c11643cefd7ed90defa720b420aba6fe6
   test:
     cases_file: test.yaml
     case_count: 56
-    cases_sha256: e6731c86d82367f2f10762ea5b1bdd44fe87866791a456be6b397dbb6a663041
+    cases_sha256: c3276167f5e5e422f6b69321dac0b50bffe8b710130b666e8e2e5fd14105864b
 default_split_for_release: test
-benchmark_digest: 4482380ea507fdaafed195a1802e1bfcc70adbf4200b9a2c784aec3b42e3ad95
+benchmark_digest: 00175db32a23b15e8980a8da4c7aa78303ae671c19f18ad7d13e92a7370ea72c
 defaults:
   case_timeout_sec: 2400
   n_trials: 3
@@ -46,34 +46,37 @@ scenario_problem_pin:
   scenarios:
     dc_clos_bgp:
       path: src/nika/net_env/kathara/data_center_routing/dc_clos_bgp/lab_workers.py
-      sha256: dfcec02d9523adaa47a602e20fa6d6372b7d62f1ba004726c03d3098b0a945ae
+      sha256: fccc292fa1ce6fc8489468656c3ab6e716acced6f1822d20c57afc5a98b76796
     dc_clos_service:
       path: src/nika/net_env/kathara/data_center_routing/dc_clos_bgp/lab_services.py
-      sha256: 945ea3da1e59e4c257600edb6bb6caea24d6f912c754f0a84dc8ee5c0d9fa47b
+      sha256: e6bd7b64b25c117125bbec24ebd6bd6b6e6f79e71365b3b9eac0be48723bb3e4
+    isp:
+      path: src/nika/net_env/kathara/isp/isp/lab.py
+      sha256: aa432480d31bb435139220b3e0d7f62f0aff01137aea2102be078df86ea4dd9c
     ospf_enterprise_dhcp:
       path: src/nika/net_env/kathara/intradomain_routing/ospf_enterprise/lab_dhcp.py
-      sha256: 410874a62e8359d7c58d1a473e7111d15d73df58748c696020c0eabcd29ea7f6
+      sha256: c84ac8e92c64f026ed32d462932c5afcc92fc407ba12507af5592670604a6795
     ospf_enterprise_static:
       path: src/nika/net_env/kathara/intradomain_routing/ospf_enterprise/lab_static.py
-      sha256: 363afb444793d6e16c00a7614d36e6bc2aea204ed266529c04cb9f7416352149
+      sha256: f9436c2f3bb4b7d52535f935500e6171ae95d1596a8244e193b0bf8f0696dddc
     p4_bloom_filter:
       path: src/nika/net_env/kathara/p4/p4_bloom_filter/lab.py
-      sha256: 49b8f38b7a4ea3e35f3ef2709fdeba0946b0f6a20fad89631aba8c318a208c90
+      sha256: 81e5fad959169f639424bafacd603cff4e7f89eb4d28e905765be6f38be7a83d
     p4_counter:
       path: src/nika/net_env/kathara/p4/p4_counter/lab.py
-      sha256: bbfbc32f0c6fe6ce25753d6902fc04ec86f362fbfb355b893d63c4712941419d
+      sha256: d97d8431d69888fe77395236dd24c12f5892e1bc29ea621f6bfa0531d778170e
     p4_mpls:
       path: src/nika/net_env/kathara/p4/p4_mpls/lab.py
-      sha256: 32e2fc167b3fc6e270ed65382fe10902d36ea0639e51ea23679550d29cc4c954
+      sha256: 14a372c0e5210c877fd1bcba3262a5f5db5d781f9fbc77593b914f0f43247d70
     rip_small_internet_vpn:
       path: src/nika/net_env/kathara/intradomain_routing/rip_vpn/lab.py
-      sha256: 7c88e12590ebe88903101f023270be34e6b03b29f0d1cd84f49d54b4a4d51daf
+      sha256: ddec30480799889bc0d55f784d4a5050bc8fec0f908f207b7208721ff2dd6078
     sdn_clos:
       path: src/nika/net_env/kathara/sdn/clos_topo.py
-      sha256: dd53a4b53787fe2ffd61da50a2c081580bd38020d1bc16b44ffad42cd4e96935
+      sha256: 220634c6798bd1fc66191fe01bb740eb9f41cb015cb9fd7922e0d7d85e0e76a0
     sdn_star:
       path: src/nika/net_env/kathara/sdn/star_topo.py
-      sha256: 57998818334977af3e71b504aa0310a200390917a54fedff4c2b9bd612fe4e54
+      sha256: 50fd2ce49be856104ab1c4a2c3f69f4abef29b63a73a9c564e6e31647dd3afce
   problems:
     arp_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py

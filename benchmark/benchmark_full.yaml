@@ -941,6 +941,40 @@ cases:
   inject:
     host_name: web_server_4_3
     host_name_2: vpn_server_1
+- scenario: k8s_lab
+  topo_size: null
+  problem: k8s_worker_apiserver_partition
+  inject:
+    control_node: controller
+    node_name: worker4
+- scenario: llmd_lab
+  topo_size: null
+  problem: k8s_worker_apiserver_partition
+  inject:
+    control_node: controller
+    node_name: worker1
+- scenario: k8s_lab
+  topo_size: null
+  problem: k8s_clusterip_routing_broken
+  inject:
+    control_node: controller
+    node_name: worker4
+- scenario: llmd_lab
+  topo_size: null
+  problem: k8s_clusterip_routing_broken
+  inject:
+    control_node: controller
+    node_name: worker5
+- scenario: k8s_lab
+  topo_size: null
+  problem: k8s_coredns_isolated
+  inject:
+    control_node: controller
+- scenario: llmd_lab
+  topo_size: null
+  problem: k8s_coredns_isolated
+  inject:
+    control_node: controller
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_detach
@@ -1096,6 +1130,12 @@ cases:
   problem: link_detach
   inject:
     host_name: pc2
+    intf_name: eth0
+- scenario: isp
+  topo_size: null
+  problem: link_detach
+  inject:
+    host_name: pc_kolobrzeg
     intf_name: eth0
 - scenario: min3clos
   topo_size: null
@@ -1270,6 +1310,12 @@ cases:
   problem: link_down
   inject:
     host_name: pc2
+    intf_name: eth0
+- scenario: isp
+  topo_size: null
+  problem: link_down
+  inject:
+    host_name: pc_lodz
     intf_name: eth0
 - scenario: min3clos
   topo_size: null
@@ -1497,6 +1543,14 @@ cases:
     intf_name: eth0
     down_time: '30'
     up_time: '30'
+- scenario: isp
+  topo_size: null
+  problem: link_flap
+  inject:
+    host_name: pc_rzeszow
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
 - scenario: min3clos
   topo_size: null
   problem: link_flap
@@ -1703,6 +1757,13 @@ cases:
     host_name: pc2
     intf_name: eth0
     mtu: '100'
+- scenario: isp
+  topo_size: null
+  problem: link_fragmentation_disabled
+  inject:
+    host_name: pc_bydgoszcz
+    intf_name: eth0
+    mtu: '100'
 - scenario: min3clos
   topo_size: null
   problem: link_fragmentation_disabled
@@ -1899,6 +1960,11 @@ cases:
   problem: bgp_acl_block
   inject:
     host_name: router1
+- scenario: isp
+  topo_size: null
+  problem: bgp_acl_block
+  inject:
+    host_name: kolobrzeg
 - scenario: min3clos
   topo_size: null
   problem: bgp_acl_block
@@ -2134,6 +2200,11 @@ cases:
   problem: icmp_acl_block
   inject:
     host_name: pc1
+- scenario: isp
+  topo_size: null
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_wroclaw
 - scenario: k8s_lab
   topo_size: null
   problem: icmp_acl_block
@@ -2174,6 +2245,11 @@ cases:
   problem: ospf_acl_block
   inject:
     host_name: switch_server_access
+- scenario: isp
+  topo_size: null
+  problem: ospf_acl_block
+  inject:
+    host_name: bialystok
 - scenario: dc_clos_bgp
   topo_size: s
   problem: bgp_asn_misconfig
@@ -2209,6 +2285,11 @@ cases:
   problem: bgp_asn_misconfig
   inject:
     host_name: router1
+- scenario: isp
+  topo_size: null
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: rzeszow
 - scenario: min3clos
   topo_size: null
   problem: bgp_asn_misconfig
@@ -2254,6 +2335,11 @@ cases:
   problem: bgp_blackhole_route_leak
   inject:
     host_name: router2
+- scenario: isp
+  topo_size: null
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: bialystok
 - scenario: min3clos
   topo_size: null
   problem: bgp_blackhole_route_leak
@@ -2268,47 +2354,52 @@ cases:
   topo_size: s
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf_router_0_0
+    host_name: leaf_router_0_1
 - scenario: dc_clos_bgp
   topo_size: m
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: spine_router_0_3
+    host_name: leaf_router_1_0
 - scenario: dc_clos_bgp
   topo_size: l
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf_router_2_2
+    host_name: leaf_router_0_5
 - scenario: dc_clos_service
   topo_size: s
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: spine_router_0_0
+    host_name: leaf_router_0_1
 - scenario: dc_clos_service
   topo_size: m
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf_router_0_3
+    host_name: leaf_router_1_1
 - scenario: dc_clos_service
   topo_size: l
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: spine_router_2_2
+    host_name: leaf_router_0_1
 - scenario: simple_bgp
   topo_size: null
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: router2
+    host_name: router1
+- scenario: isp
+  topo_size: null
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: rzeszow
 - scenario: min3clos
   topo_size: null
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf2
+    host_name: leaf1
 - scenario: k8s_lab
   topo_size: null
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf_1_2
+    host_name: leaf_1_1
 - scenario: dc_clos_bgp
   topo_size: s
   problem: host_static_blackhole
@@ -2344,6 +2435,11 @@ cases:
   problem: host_static_blackhole
   inject:
     host_name: router2
+- scenario: isp
+  topo_size: null
+  problem: host_static_blackhole
+  inject:
+    host_name: gdansk
 - scenario: min3clos
   topo_size: null
   problem: host_static_blackhole
@@ -2570,6 +2666,11 @@ cases:
   problem: ospf_area_misconfiguration
   inject:
     host_name: switch_dist_1_2
+- scenario: isp
+  topo_size: null
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: szczecin
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: ospf_neighbor_missing
@@ -2600,6 +2701,11 @@ cases:
   problem: ospf_neighbor_missing
   inject:
     host_name: switch_dist_2_3
+- scenario: isp
+  topo_size: null
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: lodz
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_aggressive_detection_thresholds
@@ -2964,6 +3070,11 @@ cases:
   problem: frr_service_down
   inject:
     host_name: router1
+- scenario: isp
+  topo_size: null
+  problem: frr_service_down
+  inject:
+    host_name: lodz
 - scenario: k8s_lab
   topo_size: null
   problem: frr_service_down
@@ -3144,6 +3255,11 @@ cases:
   problem: bgp_hijacking
   inject:
     host_name: router2
+- scenario: isp
+  topo_size: null
+  problem: bgp_hijacking
+  inject:
+    host_name: bialystok
 - scenario: min3clos
   topo_size: null
   problem: bgp_hijacking
@@ -3637,6 +3753,15 @@ cases:
     rate: 30kbit
     burst: 64kb
     limit: 500kb
+- scenario: isp
+  topo_size: null
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_bydgoszcz
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
 - scenario: min3clos
   topo_size: null
   problem: link_bandwidth_throttling
@@ -3844,6 +3969,13 @@ cases:
   problem: link_high_packet_corruption
   inject:
     host_name: pc2
+    intf_name: eth0
+    corruption_percentage: '60'
+- scenario: isp
+  topo_size: null
+  problem: link_high_packet_corruption
+  inject:
+    host_name: pc_rzeszow
     intf_name: eth0
     corruption_percentage: '60'
 - scenario: min3clos

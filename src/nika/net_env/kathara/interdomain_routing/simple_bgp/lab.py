@@ -16,7 +16,7 @@ class SimpleBGP(NetworkEnvBase):
     TAGS = ["arp", "link", "mac", "bgp", "icmp", "frr", "pc"]
 
     def __init__(self, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()

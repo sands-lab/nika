@@ -11,7 +11,6 @@ from autogen_core.models import ModelFamily
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from agent.utils.loggers import MessageLogger
-
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
 
 _KATHARA_PREFIXES = MCP_SERVER_PREFIXES

@@ -72,8 +72,8 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
     TOPO_SIZE = ["s", "m", "l"]
     TAGS = ["pc", "ospf", "mac", "http", "link", "frr", "icmp", "arp"]
 
-    def __init__(self, topo_size: Literal["s", "m", "l"] = "s"):
-        super().__init__()
+    def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):
+        super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()

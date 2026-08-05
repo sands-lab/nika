@@ -34,7 +34,7 @@ cases:
   topo_size: l
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: spine_router_2_2
+    host_name: leaf_router_0_1
 - scenario: p4_counter
   topo_size: null
   problem: bmv2_switch_down
@@ -238,21 +238,21 @@ cases:
   problem: mpls_label_limit_exceeded
   inject:
     host_name: switch_1
-- scenario: ospf_enterprise_static
-  topo_size: l
+- scenario: isp
+  topo_size: null
   problem: ospf_acl_block
   inject:
-    host_name: switch_server_access
-- scenario: ospf_enterprise_static
-  topo_size: l
+    host_name: bialystok
+- scenario: isp
+  topo_size: null
   problem: ospf_area_misconfiguration
   inject:
-    host_name: switch_dist_1_2
-- scenario: ospf_enterprise_static
-  topo_size: l
+    host_name: szczecin
+- scenario: isp
+  topo_size: null
   problem: ospf_neighbor_missing
   inject:
-    host_name: switch_dist_2_3
+    host_name: lodz
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_aggressive_detection_thresholds

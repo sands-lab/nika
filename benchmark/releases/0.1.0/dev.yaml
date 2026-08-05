@@ -34,7 +34,7 @@ cases:
   topo_size: s
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf_router_0_0
+    host_name: leaf_router_0_1
 - scenario: p4_bloom_filter
   topo_size: null
   problem: bmv2_switch_down
