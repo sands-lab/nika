@@ -10,7 +10,7 @@ splits:
     case_count: 56
     cases_sha256: a7331e39980170ae2a18eebb54b93bd2d82ccc707aa76d2153b29c8c5c590616
 default_split_for_release: test
-benchmark_digest: d7e31a631ddb566d874f7a5fff8754d04b19042ce153ab0d8ef1dbaae4535bf2
+benchmark_digest: 6cb73e9b0377c32e21b31bbf3d6b18447ea19d9a2f5aa7dcd73b833768109129
 defaults:
   case_timeout_sec: 2400
   n_trials: 3
@@ -70,10 +70,10 @@ scenario_problem_pin:
       sha256: ddec30480799889bc0d55f784d4a5050bc8fec0f908f207b7208721ff2dd6078
     sdn_clos:
       path: src/nika/net_env/kathara/sdn/clos_topo.py
-      sha256: 220634c6798bd1fc66191fe01bb740eb9f41cb015cb9fd7922e0d7d85e0e76a0
+      sha256: ea806e49716c50873fcc239d53829078d03623a276bbc6324b23c2fa07203d8b
     sdn_star:
       path: src/nika/net_env/kathara/sdn/star_topo.py
-      sha256: 50fd2ce49be856104ab1c4a2c3f69f4abef29b63a73a9c564e6e31647dd3afce
+      sha256: 1013386edcda6fed784d7610892c57d113f042d315b95ba15a311943de096a02
   problems:
     arp_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py

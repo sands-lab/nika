@@ -12,7 +12,7 @@
 - Local labs: `uv sync --extra labs` (or `--extra kathara` / `--extra containerlab`)
 - Install SDK-agent extras: `uv sync --extra sdk --prerelease=allow`
 - List available scenarios/problems/agents: `uv run nika env list`, `uv run nika failure list`, `uv run nika agent list`
-- Optional remote lab host: `nika remote serve` on the lab machine; set `NIKA_REMOTE_*` locally (see `docs/remote.md`)
+- Optional remote lab host: `nika remote serve` on the lab machine; configure `nika.remote` in `config/nika.yaml` locally (see `docs/remote.md`)
 - Regenerate benchmark YAML: `uv run python benchmark/generate_benchmark.py`
 - Leaderboard pack/validate: `uv run nika leaderboard --help` (see `docs/leaderboard-submission.md`)
 
@@ -58,9 +58,9 @@
 
 ## Environment and Secrets
 
-- Use `.env.example` as the template; do not commit real API keys or local credentials.
-- CLI flags override `.env` values.
-- Common agent variables include `NIKA_AGENT_TYPE`, `NIKA_MAX_STEPS`, `NIKA_MODEL`, and agent-specific model/provider variables.
+- Use `.env.example` as the credentials template; do not commit real API keys or local credentials.
+- Precedence: CLI flags > `config/nika.yaml` > code defaults. Credentials stay in `.env` only.
+- Operational settings live in `config/nika.yaml` (`agent.type`, `agent.provider`, `agent.max_steps`, `agent.models.*`, sandbox/remote/judge). Override path with `--run-config` / `NIKA_RUN_CONFIG`. Use `nika config migrate` to convert a legacy ops `.env`.
 - Claude and Codex local CLI agents require their respective CLIs on `PATH` plus configured authentication.
 - SDK agents require the `sdk` optional dependency group.
 

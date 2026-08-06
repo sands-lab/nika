@@ -7,6 +7,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.kathara.sdn.ovs_startup import ovs_start_commands
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -76,7 +77,7 @@ class SDNClos(NetworkEnvBase):
         for i in range(SPINE_NUM):
             switch_name = f"spine_{i + 1}"
             switch = self.lab.new_machine(
-                switch_name, **{"image": "kathara/sdn", "cpus": 0.5, "mem": "256m"}
+                switch_name, **{"image": "kathara/sdn", "cpus": 0.5, "mem": "512m"}
             )
             switch_meta = SwitchMeta(
                 name=switch_name,
@@ -90,7 +91,7 @@ class SDNClos(NetworkEnvBase):
         for i in range(LEAF_NUM):
             switch_name = f"leaf_{i + 1}"
             switch = self.lab.new_machine(
-                switch_name, **{"image": "kathara/sdn", "cpus": 0.5, "mem": "256m"}
+                switch_name, **{"image": "kathara/sdn", "cpus": 0.5, "mem": "512m"}
             )
             switch_meta = SwitchMeta(
                 name=switch_name,
@@ -132,9 +133,7 @@ class SDNClos(NetworkEnvBase):
 
         # ---------- Switch initialize ----------
         for switch_meta in tot_switch_list:
-            switch_meta.cmd_list.append(
-                "/usr/share/openvswitch/scripts/ovs-ctl --system-id=random start"
-            )
+            switch_meta.cmd_list.extend(ovs_start_commands())
             switch_meta.cmd_list.append(f"ovs-vsctl add-br {switch_meta.name}")
             switch_meta.cmd_list.append(
                 f"ovs-vsctl set-fail-mode {switch_meta.name} secure"

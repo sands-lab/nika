@@ -7,7 +7,6 @@ import unittest.mock
 from pathlib import Path
 from agent.utils.skills import (
     ENV_ENABLE_SKILLS,
-    ENV_SKILLS_DIR,
     claude_skills_package_dir,
     diagnosis_prompt_with_skills,
     prepare_claude_workspace,
@@ -50,13 +49,20 @@ class SkillsConfigTest:
         root = resolve_skills_root()
         assert (root / "skills" / "nika-test-skill" / "SKILL.md").is_file()
 
-    def test_resolve_skills_root_override(self) -> None:
+    def test_resolve_skills_root_sandbox_session_copy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            override = Path(tmp)
+            session_dir = Path(tmp)
+            skills_root = session_dir / "skills"
+            skills_root.mkdir()
             with unittest.mock.patch.dict(
-                os.environ, {ENV_SKILLS_DIR: str(override)}, clear=False
+                os.environ,
+                {
+                    "NIKA_SANDBOX_EXECUTION": "1",
+                    "NIKA_SESSION_DIR": str(session_dir),
+                },
+                clear=False,
             ):
-                assert resolve_skills_root() == override.resolve()
+                assert resolve_skills_root() == skills_root.resolve()
 
     def test_skills_enabled_default(self) -> None:
         with unittest.mock.patch.dict(os.environ, {}, clear=True):

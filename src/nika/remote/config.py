@@ -1,4 +1,4 @@
-"""Environment-based configuration for NIKA Remote."""
+"""Remote lab-host configuration from run config YAML."""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ import os
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-ENV_REMOTE_ENABLED = "NIKA_REMOTE_ENABLED"
+ENV_REMOTE_ENABLED = "NIKA_REMOTE_ENABLED"  # legacy (ignored; use YAML)
 ENV_REMOTE_URL = "NIKA_REMOTE_URL"
-ENV_REMOTE_TOKEN = "NIKA_REMOTE_TOKEN"
 ENV_REMOTE_SERVER = "NIKA_REMOTE_SERVER"
 ENV_REMOTE_ARTIFACT_ROOT = "NIKA_REMOTE_ARTIFACT_ROOT"
 
@@ -25,7 +24,6 @@ class RemoteConfig:
 
     enabled: bool
     url: str
-    token: str
     artifact_root: str
 
     @property
@@ -36,7 +34,7 @@ class RemoteConfig:
     def host(self) -> str:
         parsed = urlparse(self.url)
         if not parsed.hostname:
-            raise ValueError(f"{ENV_REMOTE_URL} must include a hostname: {self.url!r}")
+            raise ValueError(f"Remote URL must include a hostname: {self.url!r}")
         return parsed.hostname
 
     def gateway_url(self, port: int) -> str:
@@ -58,24 +56,31 @@ def is_remote_enabled() -> bool:
     """
     if is_remote_server():
         return False
-    if not _env_truthy(ENV_REMOTE_ENABLED, "false"):
+    try:
+        from nika.run_config.loader import get_run_config
+
+        remote = get_run_config().nika.remote
+    except Exception:
         return False
-    url = os.environ.get(ENV_REMOTE_URL, "").strip()
-    return bool(url)
+    if not remote.enabled:
+        return False
+    return bool((remote.url or "").strip())
 
 
 def load_remote_config() -> RemoteConfig:
-    """Load remote client config from the environment."""
-    url = os.environ.get(ENV_REMOTE_URL, "").strip()
+    """Load remote client config from run config YAML."""
+    from nika.run_config.loader import get_run_config
+
+    remote = get_run_config().nika.remote
+    url = (remote.url or "").strip()
     enabled = is_remote_enabled()
     if enabled and not url:
         raise ValueError(
-            f"{ENV_REMOTE_ENABLED} is set but {ENV_REMOTE_URL} is empty. "
-            "Set NIKA_REMOTE_URL=http://<lab-host>:<port>."
+            "nika.remote.enabled is true but nika.remote.url is empty. "
+            "Set url in config/nika.yaml (e.g. http://<lab-host>:8700)."
         )
     return RemoteConfig(
         enabled=enabled,
         url=url or "http://127.0.0.1:8700",
-        token=os.environ.get(ENV_REMOTE_TOKEN, "").strip(),
-        artifact_root=os.environ.get(ENV_REMOTE_ARTIFACT_ROOT, "").strip(),
+        artifact_root=(remote.artifact_root or "").strip(),
     )

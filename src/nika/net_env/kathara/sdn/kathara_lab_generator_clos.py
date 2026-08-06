@@ -12,6 +12,8 @@ from typing import Literal
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+from nika.net_env.kathara.sdn.ovs_startup import ovs_start_commands  # noqa: E402
+
 
 @dataclass
 class SwitchMeta:
@@ -20,7 +22,7 @@ class SwitchMeta:
     cmd_list: list[str] = field(default_factory=list)
     image: str = "kathara/sdn"
     cpus: float = 0.5
-    mem: str = "256m"
+    mem: str = "512m"
     links: list[tuple[int, str]] = field(default_factory=list)
 
 
@@ -84,9 +86,7 @@ def generate_sdn_clos_topology(
     controller = ControllerMeta(name="controller")
 
     for switch_meta in tot_switch_list:
-        switch_meta.cmd_list.append(
-            "/usr/share/openvswitch/scripts/ovs-ctl --system-id=random start"
-        )
+        switch_meta.cmd_list.extend(ovs_start_commands())
         switch_meta.cmd_list.append(f"ovs-vsctl add-br {switch_meta.name}")
         switch_meta.cmd_list.append(
             f"ovs-vsctl set-fail-mode {switch_meta.name} secure"

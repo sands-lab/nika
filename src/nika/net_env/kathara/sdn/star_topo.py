@@ -7,6 +7,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.kathara.sdn.ovs_startup import ovs_start_commands
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -69,7 +70,7 @@ class SDNStar(NetworkEnvBase):
         for i in range(SWITCH_NUM + 1):
             switch_name = f"switch_{i}"
             switch = self.lab.new_machine(
-                switch_name, **{"image": "kathara/sdn", "cpus": 0.5, "mem": "256m"}
+                switch_name, **{"image": "kathara/sdn", "cpus": 0.5, "mem": "512m"}
             )
             switch_meta = SwitchMeta(
                 name=switch_name,
@@ -106,9 +107,7 @@ class SDNStar(NetworkEnvBase):
         )
 
         for switch_meta in tot_switch_list:
-            switch_meta.cmd_list.append(
-                "/usr/share/openvswitch/scripts/ovs-ctl --system-id=random start"
-            )
+            switch_meta.cmd_list.extend(ovs_start_commands())
             switch_meta.cmd_list.append(f"ovs-vsctl add-br {switch_meta.name}")
             # add fail mode
             switch_meta.cmd_list.append(
@@ -130,9 +129,11 @@ class SDNStar(NetworkEnvBase):
             )
             host_ip = str(next(host_pool))
             host_meta.cmd_list.append(f"ip addr add {host_ip}/24 dev eth0")
+            host_meta.cmd_list.append("ip link set eth0 up")
             switch_meta.cmd_list.append(
                 f"ovs-vsctl add-port {switch_meta.name} eth{switch_meta.eth_index}"
             )
+            switch_meta.cmd_list.append(f"ip link set eth{switch_meta.eth_index} up")
             switch_meta.eth_index += 1
 
         center = tot_switch_list[0]  # switch_1
@@ -163,9 +164,11 @@ class SDNStar(NetworkEnvBase):
             switch_meta.cmd_list.append(
                 f"ip addr add {switch_ip}/24 dev eth{switch_meta.eth_index}"
             )
+            switch_meta.cmd_list.append(f"ip link set eth{switch_meta.eth_index} up")
             switch_meta.cmd_list.append(
                 f"ovs-vsctl set-controller {switch_meta.name} tcp:{controller_ip}:6633"
             )
+            switch_meta.eth_index += 1
         self.lab.connect_machine_to_link(controller.name, "switch_controller")
 
         self.lab.create_file_from_list(

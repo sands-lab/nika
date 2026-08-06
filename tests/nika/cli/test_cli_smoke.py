@@ -31,6 +31,7 @@ CLI_COMMAND_MODULES = [
 CLI_HANDLER_WORKFLOWS = [
     "nika.workflows.agent.run",
     "nika.workflows.benchmark.run",
+    "nika.workflows.benchmark.task_label",
     "nika.workflows.env.start",
     "nika.workflows.eval.clean",
     "nika.workflows.eval.session",

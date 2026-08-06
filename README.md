@@ -40,27 +40,27 @@ It helps different users answer questions like:
 
 NIKA combines two components:
 
-1. **NIKA Benchmark** — a suite of reproducible incidents defined by a network scenario and an injectable root cause. The full working matrix contains 15 scenarios, 59 fault types, and 702 cases.
+1. **NIKA Benchmark** — a suite of reproducible incidents defined by a network scenario and an injectable root cause. NIKA currently registers 60 fault types; 59 are represented in the 15-scenario working matrix, which contains 708 cases.
 2. **NIKA Orchestrator** — a modular platform that deploys live labs, injects faults, connects agents to interactive MCP tools, and evaluates their submissions.
 
 ### Network incidents
 
 Network incidents in the NIKA's benchmark is constructed starting from recurring root cause failures, drawn from the following categories: 
 
-| Category | Fault types | # Cases |
+| Category | Registered fault types | # Working-matrix cases |
 | --- | :---: | :---: |
 | End-host failures | 9 | 161 |
 | Link failures | 7 | 129 |
-| Misconfigurations | 11 | 169 |
-| Network node errors | 11 | 65 |
+| Misconfigurations | 17 | 173 |
+| Network node errors | 13 | 67 |
 | Network under attack | 6 | 59 |
 | Resource contention | 8 | 119 |
-| **Total** | **59** | **702** |
+| **Total** | **60** | **708** |
 
 <details>
-<summary>🔍 <strong>Show all 59 failure types</strong></summary>
+<summary>🔍 <strong>Show all 60 registered failure types</strong></summary>
 
-NIKA's benchmark consists of troubleshooting tasks based on incidents that are recurring in production networks. Each incident is defined by its root cause `Problem ID`, and a network scenario where the root cause is injected (e.g., network topology and traffic workload). Combining the root cause + network scenario dimensions, NIKA's benchmark currently contains a total of 702 unique tasks. The table below lists the root cause problems currently injected, and the number of tasks in the benchmark where they appear.
+NIKA's benchmark consists of troubleshooting tasks based on incidents that are recurring in production networks. Each incident is defined by its root cause `Problem ID`, and a network scenario where the root cause is injected (e.g., network topology and traffic workload). The current working matrix contains 708 unique tasks. A zero means that the problem is registered but is not present in the checked-in working matrix.
 
 
 | Problem ID | Category | Description | # Tasks |
@@ -91,8 +91,9 @@ NIKA's benchmark consists of troubleshooting tasks based on incidents that are r
 | `host_static_blackhole` | `misconfiguration` | host_static_blackhole | 9 |
 | `http_acl_block` | `misconfiguration` | http_acl_block | 13 |
 | `icmp_acl_block` | `misconfiguration` | icmp_acl_block | 28 |
-| `k8s_coredns_isolated` | `misconfiguration` | Applications cannot resolve Kubernetes service names such as *.svc.cluster.local and report DNS timeouts, while communication by IP address keeps working. The CoreDNS pods are Running and Ready and the DNS Service still lists its endpoints. | 0 |
-| `k8s_worker_apiserver_partition` | `misconfiguration` | One Kubernetes worker node reports NotReady and stops receiving new pods, and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while those pods keep serving traffic and the node itself is still reachable over the network. | 0 |
+| `k8s_coredns_isolated` | `misconfiguration` | Applications cannot resolve Kubernetes service names such as *.svc.cluster.local and report DNS timeouts, while communication by IP address keeps working. The CoreDNS pods are Running and Ready and the DNS Service still lists its endpoints. | 2 |
+| `k8s_networkpolicy_deny` | `misconfiguration` | Only the pods selected by a NetworkPolicy lose inbound connectivity while sibling routes and the rest of the cluster stay healthy. | 0 |
+| `k8s_worker_apiserver_partition` | `misconfiguration` | One Kubernetes worker node reports NotReady and stops receiving new pods, and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while those pods keep serving traffic and the node itself is still reachable over the network. | 2 |
 | `mac_address_conflict` | `misconfiguration` | mac_address_conflict | 28 |
 | `ospf_acl_block` | `misconfiguration` | ospf_acl_block | 6 |
 | `ospf_area_misconfiguration` | `misconfiguration` | ospf_area_misconfiguration | 6 |
@@ -100,7 +101,7 @@ NIKA's benchmark consists of troubleshooting tasks based on incidents that are r
 | `flow_rule_loop` | `network_node_error` | flow_rule_loop | 6 |
 | `flow_rule_shadowing` | `network_node_error` | flow_rule_shadowing | 6 |
 | `frr_service_down` | `network_node_error` | Users report connectivity issues to other hosts in the network. | 17 |
-| `k8s_clusterip_routing_broken` | `network_node_error` | Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, including in-cluster DNS, while direct pod-IP traffic from the same node still works. Services, endpoints and pods all report healthy, and the node stays Ready. | 0 |
+| `k8s_clusterip_routing_broken` | `network_node_error` | Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, including in-cluster DNS, while direct pod-IP traffic from the same node still works. Services, endpoints and pods all report healthy, and the node stays Ready. | 2 |
 | `mpls_label_limit_exceeded` | `network_node_error` | mpls_label_limit_exceeded | 1 |
 | `p4_aggressive_detection_thresholds` | `network_node_error` | p4_aggressive_detection_thresholds | 1 |
 | `p4_compilation_error_parser_state` | `network_node_error` | p4_compilation_error_parser_state | 4 |
@@ -124,7 +125,7 @@ NIKA's benchmark consists of troubleshooting tasks based on incidents that are r
 | `receiver_resource_contention` | `resource_contention` | receiver_resource_contention | 13 |
 | `sender_application_delay` | `resource_contention` | sender_application_delay | 13 |
 | `sender_resource_contention` | `resource_contention` | sender_resource_contention | 13 |
-| - | **Total** | - | **702** |
+| - | **Total** | - | **708** |
 
 </details>
 
@@ -164,8 +165,38 @@ cp .env.example .env
 
 ### API keys and credentials
 
-- Add the model credentials and agent settings you need to `.env`. 
-- CLI flags override `.env` values. 
+Keys live in `.env`; agent/benchmark settings live in `config/nika.yaml` (CLI flags override YAML). Copy the templates, then edit:
+
+```shell
+cp .env.example .env
+cp config/nika.example.yaml config/nika.yaml   # or: nika config migrate
+nika config show
+```
+
+**Provider** — use a built-in provider (`openai` / `anthropic` / `deepseek`). Put the matching API key in `.env`, and set `agent.provider` in YAML:
+
+```shell
+# .env
+OPENAI_API_KEY=...          # or ANTHROPIC_API_KEY / DEEPSEEK_API_KEY
+
+# config/nika.yaml
+agent:
+  provider: openai          # or anthropic / deepseek
+```
+
+**Custom** — use any OpenAI-compatible endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `base_url` (and optional `model`) under `agent.custom` in YAML:
+
+```shell
+# .env
+NIKA_CUSTOM_API_KEY=...     # optional if the endpoint needs no auth
+
+# config/nika.yaml
+agent:
+  provider: custom
+  custom:
+    base_url: https://openrouter.ai/api/v1
+    model: null
+```
 
 ### Remote Deployments:
 
@@ -174,37 +205,25 @@ cp .env.example .env
 
 ## 🚀 Quick start
 
-The following commands run one incident from deployment through evaluation:
+Run one incident end-to-end with a task label (`{scenario}_{problem}`, or `{scenario}_{s|m|l}_{problem}` when the scenario is sized):
 
 ```shell
-# Discover and deploy a live lab. This prints a session_id.
-nika env list
-nika env run simple_bgp
-
-# Inspect the fault schema and inject a reproducible link failure.
-nika failure describe link_down
-nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
-
-# Run the native Claude Code troubleshooting agent against the live lab.
 nika agent list
-nika agent run -a cli.claude
-
-# Close the lab and score the submission.
-nika session close -y
-nika eval metrics
-nika eval judge -p openai -m gpt-5-mini
+nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
+  --problem simple_bgp_link_down
 ```
 
-When multiple sessions are active, pass `--session_id <id>` to session-scoped commands.
+That deploys the lab, injects the fault, runs the agent, closes the session, and writes evaluation results.
 
-To run the frozen benchmark release instead:
+To run a frozen benchmark release:
 
 ```shell
 nika benchmark run --release 0.1.0 --result_dir results/my-run --batch-size 4
 nika eval summary --result_dir results/my-run
 ```
 
-Benchmark runs deploy the lab, inject the fault, run the selected agent, close the session, and compute rule-based metrics. LLM judging is an optional post-processing step to analyse the rollout via an independent LLM-based critic.
+
+For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](src/nika/cli/README.md).
 
 ## 📖 Learn more
 
@@ -212,7 +231,7 @@ Pick the path that matches what you're trying to do:
 
 **🏁 I want to run the benchmark, any agent**
 
-1. [Quick start](#-quick-start) — deploy a lab, inject a fault, run an agent, evaluate.
+1. [Quick start](#-quick-start) — end-to-end task run or frozen release.
 2. [CLI reference](src/nika/cli/README.md) — `nika` commands, sessions, and result paths.
 3. [Leaderboard submission](docs/leaderboard-submission.md)
 
@@ -236,7 +255,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA]((https://sands-lab.github.io/nika))** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 59 fault types <br> 6 networks types | ⭐️⭐️ <br> ~700 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 60 registered fault types <br> 6 network types | ⭐️⭐️ <br> 708 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

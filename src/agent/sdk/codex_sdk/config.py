@@ -6,18 +6,27 @@ import os
 from pathlib import Path
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
+from nika.utils.provider_env import (
+    ENV_DEEPSEEK_API_KEY,
+    ENV_OPENAI_API_KEY,
+    has_provider_credentials,
+)
 
 
 def codex_sdk_local_auth_available() -> bool:
     """True when Codex credentials are available for sandbox or local use.
 
-    Accepts ``DEEPSEEK_API_KEY`` / ``OPENAI_API_KEY``, an existing ``openai``
-    sbx secret (API key or OAuth), or a host ``~/.codex/auth.json`` for
-    non-sandbox tooling. Host auth files are never copied into Docker Sandboxes.
+    Accepts provider credentials from ``NIKA_LLM_PROVIDER`` (openai / deepseek /
+    custom), an existing ``openai`` sbx secret (API key or OAuth), or a host
+    ``~/.codex/auth.json`` for non-sandbox tooling. Host auth files are never
+    copied into Docker Sandboxes.
     """
+    provider = (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower()
+    if provider and has_provider_credentials(provider):
+        return True
     if (
-        os.environ.get("DEEPSEEK_API_KEY", "").strip()
-        or os.environ.get("OPENAI_API_KEY", "").strip()
+        os.environ.get(ENV_DEEPSEEK_API_KEY, "").strip()
+        or os.environ.get(ENV_OPENAI_API_KEY, "").strip()
     ):
         return True
     try:

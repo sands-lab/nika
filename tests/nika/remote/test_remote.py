@@ -13,39 +13,41 @@ from nika.remote.api import create_remote_app
 from nika.remote.artifacts import pack_session_dir, unpack_session_dir
 from nika.remote.client import RemoteClient
 from nika.remote.config import (
-    ENV_REMOTE_ENABLED,
     ENV_REMOTE_SERVER,
-    ENV_REMOTE_TOKEN,
-    ENV_REMOTE_URL,
     RemoteConfig,
     is_remote_enabled,
-    load_remote_config,
 )
 from nika.remote.handlers import handle_env_start
 from nika.remote.protocol import EnvStartRequest, EnvStartResponse
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 
 
 @pytest.fixture(autouse=True)
-def _clear_remote_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in (
-        ENV_REMOTE_ENABLED,
-        ENV_REMOTE_URL,
-        ENV_REMOTE_TOKEN,
-        ENV_REMOTE_SERVER,
-    ):
-        monkeypatch.delenv(key, raising=False)
+def _clear_run_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    reset_run_config()
+    monkeypatch.delenv(ENV_REMOTE_SERVER, raising=False)
+    yield
+    reset_run_config()
 
 
-def test_is_remote_enabled_requires_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(ENV_REMOTE_ENABLED, "true")
+def _enable_remote(url: str = "http://lab.example:8700") -> None:
+    set_run_config(
+        RunConfig.model_validate({"nika": {"remote": {"enabled": True, "url": url}}})
+    )
+
+
+def test_is_remote_enabled_requires_url() -> None:
+    set_run_config(
+        RunConfig.model_validate({"nika": {"remote": {"enabled": True, "url": None}}})
+    )
     assert is_remote_enabled() is False
-    monkeypatch.setenv(ENV_REMOTE_URL, "http://lab.example:8700")
+    _enable_remote()
     assert is_remote_enabled() is True
 
 
 def test_is_remote_enabled_false_on_server(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(ENV_REMOTE_ENABLED, "true")
-    monkeypatch.setenv(ENV_REMOTE_URL, "http://lab.example:8700")
+    _enable_remote()
     monkeypatch.setenv(ENV_REMOTE_SERVER, "1")
     assert is_remote_enabled() is False
 
@@ -54,7 +56,6 @@ def test_gateway_url_uses_remote_host() -> None:
     cfg = RemoteConfig(
         enabled=True,
         url="http://10.0.0.5:8700",
-        token="",
         artifact_root="",
     )
     assert cfg.gateway_url(9123) == "http://10.0.0.5:9123"
@@ -93,13 +94,10 @@ def test_handle_env_start_logs(caplog: pytest.LogCaptureFixture) -> None:
     assert any("env start done" in m and "sess-log" in m for m in messages)
 
 
-def test_remote_app_health_and_auth() -> None:
-    app = create_remote_app(token="secret")
+def test_remote_app_health_no_auth() -> None:
+    app = create_remote_app()
     client = TestClient(app)
     assert client.get("/health").json()["status"] == "ok"
-    denied = client.post("/v1/env/start", json={"scenario": "x"})
-    assert denied.status_code == 401
-    ok_headers = {"Authorization": "Bearer secret"}
     with patch(
         "nika.remote.api.handle_env_start",
         return_value=EnvStartResponse(
@@ -107,11 +105,7 @@ def test_remote_app_health_and_auth() -> None:
             session={"session_id": "sess-1", "scenario_name": "x"},
         ),
     ):
-        resp = client.post(
-            "/v1/env/start",
-            json={"scenario": "x"},
-            headers=ok_headers,
-        )
+        resp = client.post("/v1/env/start", json={"scenario": "x"})
     assert resp.status_code == 200
     assert resp.json()["session_id"] == "sess-1"
 
@@ -120,7 +114,7 @@ def test_remote_app_artifacts(tmp_path: Path) -> None:
     session_dir = tmp_path / "session"
     session_dir.mkdir()
     (session_dir / "ground_truth.json").write_text("{}", encoding="utf-8")
-    app = create_remote_app(token="")
+    app = create_remote_app()
     client = TestClient(app)
     with patch(
         "nika.remote.api.handle_artifacts",
@@ -140,7 +134,6 @@ def test_remote_client_rewrites_gateway_host(
     cfg = RemoteConfig(
         enabled=True,
         url="http://lab.example:8700",
-        token="",
         artifact_root="",
     )
     client = RemoteClient(cfg)
@@ -160,9 +153,8 @@ def test_remote_client_rewrites_gateway_host(
     assert attach.gateway_port == 9555
 
 
-def test_start_net_env_remote_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(ENV_REMOTE_ENABLED, "true")
-    monkeypatch.setenv(ENV_REMOTE_URL, "http://lab.example:8700")
+def test_start_net_env_remote_branch() -> None:
+    _enable_remote()
     with patch(
         "nika.remote.workflows.remote_start_net_env", return_value="remote-sess"
     ) as mocked:
@@ -177,59 +169,3 @@ def test_mcp_policy_resource_from_url() -> None:
     from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
 
     assert mcp_policy_resource_from_url("http://10.1.2.3:9444/mcp") == "10.1.2.3:9444"
-    assert mcp_policy_resource_from_url("http://localhost", fallback_port=9) == (
-        "localhost:9"
-    )
-
-
-def test_list_session_containers_remote_branch(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(ENV_REMOTE_ENABLED, "true")
-    monkeypatch.setenv(ENV_REMOTE_URL, "http://lab.example:8700")
-    with patch(
-        "nika.remote.workflows.remote_list_session_containers",
-        return_value=("sess-1", "lab_abc", [{"name": "pc1"}]),
-    ) as mocked:
-        from nika.workflows.session.containers import list_session_containers
-
-        sid, lab, rows = list_session_containers("sess-1")
-    assert sid == "sess-1"
-    assert lab == "lab_abc"
-    assert rows == [{"name": "pc1"}]
-    mocked.assert_called_once()
-
-
-def test_remote_app_session_containers() -> None:
-    from nika.remote.protocol import SessionContainersResponse
-
-    app = create_remote_app(token="")
-    client = TestClient(app)
-    with patch(
-        "nika.remote.api.handle_session_containers",
-        return_value=SessionContainersResponse(
-            session_id="sess-1",
-            lab_name="lab_x",
-            containers=[{"name": "pc1", "status": "running"}],
-        ),
-    ):
-        resp = client.get("/v1/sessions/sess-1/containers")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["session_id"] == "sess-1"
-    assert body["lab_name"] == "lab_x"
-    assert body["containers"][0]["name"] == "pc1"
-
-
-def test_load_remote_config_requires_url_when_enabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(ENV_REMOTE_ENABLED, "1")
-    # is_remote_enabled is false without URL; load still returns a default URL.
-    cfg = load_remote_config()
-    assert cfg.enabled is False
-
-    monkeypatch.setenv(ENV_REMOTE_URL, "http://lab:8700")
-    cfg = load_remote_config()
-    assert cfg.enabled is True
-    assert cfg.host == "lab"

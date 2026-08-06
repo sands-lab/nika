@@ -8,7 +8,7 @@ import os
 import uvicorn
 
 from nika.remote.api import create_remote_app
-from nika.remote.config import ENV_REMOTE_SERVER, ENV_REMOTE_TOKEN
+from nika.remote.config import ENV_REMOTE_SERVER
 
 _CONSOLE_MARKER = "_nika_remote_console"
 
@@ -41,15 +41,11 @@ def serve_remote(
     *,
     host: str = "0.0.0.0",
     port: int = 8700,
-    token: str | None = None,
 ) -> None:
     """Start the remote control-plane HTTP server (blocking)."""
     os.environ[ENV_REMOTE_SERVER] = "1"
     configure_host_logging()
-    resolved_token = (
-        token if token is not None else os.environ.get(ENV_REMOTE_TOKEN, "")
-    ).strip()
-    app = create_remote_app(token=resolved_token)
+    app = create_remote_app()
     logging.getLogger("nika.remote").info(
         "daemon listening on http://%s:%s", host, port
     )

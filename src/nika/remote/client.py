@@ -44,8 +44,6 @@ class RemoteClient:
         headers: dict[str, str] = {}
         if content_type:
             headers["Content-Type"] = content_type
-        if self.config.token:
-            headers["Authorization"] = f"Bearer {self.config.token}"
         return headers
 
     def _url(self, path: str) -> str:

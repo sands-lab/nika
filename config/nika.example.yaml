@@ -1,0 +1,60 @@
+# NIKA run configuration (versioned, non-secret).
+# Copy to config/nika.yaml or run: nika config migrate
+# Precedence: CLI flags > this file > built-in defaults
+# Credentials stay in the repo-root .env
+
+version: 1
+
+nika:
+  result_dir: results
+  enable_skills: true
+  remote:
+    enabled: false
+    url: null
+    artifact_root: null
+  sandbox:
+    keep: false
+    cpus: null
+    memory: null
+    offline_sdk_wheels: false
+    upstream_proxy: null
+  observability:
+    langfuse_enabled: false
+    langfuse_host: https://cloud.langfuse.com
+  judge:
+    provider: openai
+    model: gpt-5-mini
+
+agent:
+  # byo.langgraph | byo.mcp_agent | byo.autogen | cli.codex | cli.claude |
+  # community.sade | sdk.claude_sdk | sdk.codex_sdk
+  type: byo.langgraph
+  # openai | anthropic | deepseek | custom (must match agent capabilities)
+  provider: openai
+  model: null
+  max_steps: 20
+  reasoning_effort: null
+  models:
+    langgraph: gpt-5-mini
+    mcp_agent: gpt-4.1-mini
+    autogen: gpt-4.1-mini
+    codex: gpt-5.4-mini
+    codex_sdk: null
+    claude: null
+    claude_sdk: null
+    sade: null
+  custom:
+    # Used when provider: custom (OpenRouter, Ollama, vLLM, ...)
+    base_url: null
+    model: null
+
+benchmark:
+  # Run knobs only — case lists still come from --release / --config (cases YAML)
+  release: null
+  split: null
+  batch_size: 1
+  case_timeout_sec: 0
+  continue_on_error: false
+  retry_passes: 0
+  resume: true
+  session_tag: null

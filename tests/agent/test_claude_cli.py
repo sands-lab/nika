@@ -47,8 +47,27 @@ class ClaudeConfigTest:
                 default_claude_model()
 
     def test_prepare_env_maps_auth_token_to_api_key(self) -> None:
-        env = prepare_claude_subprocess_env({"ANTHROPIC_AUTH_TOKEN": "tok"})
+        env = prepare_claude_subprocess_env(
+            {"PATH": "/bin", "HOME": "/tmp", "ANTHROPIC_AUTH_TOKEN": "tok"},
+            provider="anthropic",
+        )
         assert env["ANTHROPIC_API_KEY"] == "tok"
+
+    def test_prepare_env_maps_deepseek_provider(self) -> None:
+        env = prepare_claude_subprocess_env(
+            {
+                "PATH": "/bin",
+                "HOME": "/tmp",
+                "DEEPSEEK_API_KEY": "sk-ds",
+                "OPENAI_API_KEY": "sk-openai",
+                "LANGFUSE_SECRET_KEY": "lf",
+            },
+            provider="deepseek",
+        )
+        assert env["ANTHROPIC_API_KEY"] == "sk-ds"
+        assert env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+        assert "OPENAI_API_KEY" not in env
+        assert "LANGFUSE_SECRET_KEY" not in env
 
     def test_use_bare_mode_when_env_credentials_present(self) -> None:
         with unittest.mock.patch.dict(

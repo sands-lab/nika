@@ -9,9 +9,9 @@ Two-phase pipeline via ``claude -p`` subprocesses (no LangGraph).
   (``claude -p`` with the task MCP server; calls ``submit()`` to record
   a structured result)
 
-Authentication supports environment API keys, third-party Anthropic-compatible
-endpoints (``ANTHROPIC_BASE_URL`` + ``ANTHROPIC_AUTH_TOKEN``), and
-``claude auth login``.  See :mod:`agent.cli.claude.config` and
+Authentication uses ``NIKA_LLM_PROVIDER`` with ``ANTHROPIC_API_KEY``,
+``DEEPSEEK_API_KEY``, or ``NIKA_CUSTOM_*`` (mapped for the subprocess only),
+or ``claude auth login``.  See :mod:`agent.cli.claude.config` and
 ``src/agent/README.md``.
 
 Select with ``nika agent run -a cli.claude``.

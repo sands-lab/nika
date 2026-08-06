@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
-ENV_SANDBOX_ENV_FILE = "NIKA_SANDBOX_ENV_FILE"
-ENV_SANDBOX_KEEP = "NIKA_SANDBOX_KEEP"
+ENV_SANDBOX_KEEP = "NIKA_SANDBOX_KEEP"  # legacy name (ignored for ops; use YAML)
 ENV_SANDBOX_CPUS = "NIKA_SANDBOX_CPUS"
 ENV_SANDBOX_MEMORY = "NIKA_SANDBOX_MEMORY"
 ENV_SANDBOX_OFFLINE_SDK_WHEELS = "NIKA_SANDBOX_OFFLINE_SDK_WHEELS"
@@ -22,12 +20,13 @@ SANDBOX_GATEWAY_HOST_BRIDGE = "host.docker.internal"
 
 
 def _repo_root() -> Path:
-    from nika.config import _REPO_ROOT
+    from nika.config import REPO_ROOT
 
-    return _REPO_ROOT
+    return REPO_ROOT
 
 
-def _default_sandbox_env_file() -> Path:
+def project_credentials_env_file() -> Path:
+    """Always the repo-root ``.env`` (shared with NIKA)."""
     return _repo_root() / ".env"
 
 
@@ -58,44 +57,27 @@ def load_sandbox_env_values(*paths: Path) -> dict[str, str]:
     return merged
 
 
-def _env_bool(key: str, default: bool = False) -> bool:
-    raw = os.environ.get(key, "").strip().lower()
-    if not raw:
-        return default
-    return raw in ("1", "true", "yes", "on")
-
-
 def resolve_sandbox_config(
     *,
-    env_file: str | Path | None = None,
     keep_container: bool | None = None,
     cpus: str | None = None,
     memory: str | None = None,
     offline_sdk_wheels: bool | None = None,
 ) -> SandboxConfig:
-    """Resolve sandbox settings from CLI flags and environment."""
-    env_path_raw = env_file or os.environ.get(ENV_SANDBOX_ENV_FILE, "").strip()
-    resolved_env_file = (
-        Path(env_path_raw) if env_path_raw else _default_sandbox_env_file()
-    )
-    if not resolved_env_file.is_absolute():
-        resolved_env_file = (_repo_root() / resolved_env_file).resolve()
+    """Resolve sandbox settings from CLI flags and run config YAML."""
+    from nika.run_config.loader import get_run_config
 
-    resolved_keep = (
-        keep_container if keep_container is not None else _env_bool(ENV_SANDBOX_KEEP)
-    )
-    resolved_cpus = cpus or os.environ.get(ENV_SANDBOX_CPUS, "").strip() or None
-    resolved_memory = memory or os.environ.get(ENV_SANDBOX_MEMORY, "").strip() or None
-    resolved_offline_wheels = (
-        offline_sdk_wheels
-        if offline_sdk_wheels is not None
-        else _env_bool(ENV_SANDBOX_OFFLINE_SDK_WHEELS)
-    )
-
+    sbx = get_run_config().nika.sandbox
     return SandboxConfig(
-        env_file=resolved_env_file,
-        keep_container=resolved_keep,
-        cpus=resolved_cpus,
-        memory=resolved_memory,
-        offline_sdk_wheels=resolved_offline_wheels,
+        env_file=project_credentials_env_file(),
+        keep_container=(
+            keep_container if keep_container is not None else bool(sbx.keep)
+        ),
+        cpus=cpus if cpus is not None else sbx.cpus,
+        memory=memory if memory is not None else sbx.memory,
+        offline_sdk_wheels=(
+            offline_sdk_wheels
+            if offline_sdk_wheels is not None
+            else bool(sbx.offline_sdk_wheels)
+        ),
     )

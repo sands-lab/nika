@@ -39,7 +39,7 @@ uv run nika env run simple_bgp
 uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
 uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
 # or Claude via DeepSeek:
-# uv run nika agent run -a cli.claude -m deepseek-v4-flash -n 20
+# uv run nika agent run -a cli.claude -p deepseek -m deepseek-v4-flash -n 20
 uv run nika session close
 uv run nika eval metrics
 ```
@@ -69,10 +69,14 @@ Enable offline wheels to reuse host-cached dependencies across SDK/SADE sandbox 
 
 Package versions are pinned in [`src/agent/sandbox/sbx/requirements-sdk.txt`](../src/agent/sandbox/sbx/requirements-sdk.txt). Changing that file invalidates the wheel cache.
 
-```bash
-# .env
-NIKA_SANDBOX_OFFLINE_SDK_WHEELS=true
+```yaml
+# config/nika.yaml
+nika:
+  sandbox:
+    offline_sdk_wheels: true
+```
 
+```bash
 # or CLI
 uv run nika agent run -a sdk.claude_sdk --sandbox-offline-sdk-wheels ...
 ```
@@ -85,20 +89,28 @@ Credentials follow Docker Sandboxes [credential isolation](https://docs.docker.c
 
 Put keys in the repo-root `.env`. Before `sbx create`, NIKA syncs them into sbx secrets.
 
-```bash
-# Codex — OpenAI
+```dotenv
+# .env: credentials only
 OPENAI_API_KEY=sk-...
-
-# Claude / SADE — Anthropic-compatible (DeepSeek preferred)
 DEEPSEEK_API_KEY=sk-...
-# ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-# ANTHROPIC_AUTH_TOKEN=...   # alternative to DEEPSEEK_API_KEY for Claude
+# ANTHROPIC_API_KEY=sk-ant-...
+# NIKA_CUSTOM_API_KEY=...
+```
+
+Select the matching provider in the run config:
+
+```yaml
+# config/nika.yaml
+agent:
+  provider: openai  # anthropic, deepseek, or custom
+  custom:
+    base_url: null  # required when provider is custom
 ```
 
 | Agent | Credential path |
 |-------|-----------------|
-| Codex CLI / SDK | Built-in `openai` sbx secret from `OPENAI_API_KEY` (or OAuth below) |
-| Claude CLI / SDK / SADE | `sbx secret set-custom` for `api.deepseek.com` + Anthropic-compatible URL |
+| Codex CLI / SDK | Built-in `openai` sbx secret from active provider mapping (or OAuth below) |
+| Claude CLI / SDK / SADE | Native Anthropic secret, or `sbx secret set-custom` for DeepSeek/custom hosts |
 
 #### Subscription / OAuth (interactive, once)
 
@@ -109,31 +121,31 @@ DEEPSEEK_API_KEY=sk-...
 
 Confirm with `sbx secret ls`. Global secrets apply when a sandbox is created; recreate the sandbox after changing secrets.
 
-#### Outbound proxy (Clash / TUN)
-
-Optional. Off by default.
-
-With Clash **TUN** enabled, sandbox microVMs can often reach LLM APIs with no
-extra NIKA setting. If OpenAI (or another API) still fails inside the sandbox,
-point sbx at Clash's HTTP mixed port:
-
-```bash
-# .env
-NIKA_SANDBOX_UPSTREAM_PROXY=http://127.0.0.1:7890
-```
-
-Or pass `--sandbox-proxy http://127.0.0.1:7890`.
-
 ## Configuration
 
-| Flag / env | Description |
-|------------|-------------|
-| `--sandbox-env-file` / `NIKA_SANDBOX_ENV_FILE` | Env file for credential sync (default repo `.env`) |
-| `--sandbox-proxy` / `NIKA_SANDBOX_UPSTREAM_PROXY` | Upstream proxy for sbx daemon |
-| `--sandbox-offline-sdk-wheels` / `NIKA_SANDBOX_OFFLINE_SDK_WHEELS` | Cache & install SDK deps from host wheels (off by default; speeds up SDK/SADE deploys) |
-| `--sandbox-keep-container` / `NIKA_SANDBOX_KEEP` | Keep the sandbox after exit (debug) |
-| `--sandbox-cpus` / `NIKA_SANDBOX_CPUS` | CPU limit |
-| `--sandbox-memory` / `NIKA_SANDBOX_MEMORY` | Memory limit (e.g. `8g`) |
+| Flag / config | Description |
+|---------------|-------------|
+| `nika.sandbox.*` in `config/nika.yaml` | keep / cpus / memory / offline_sdk_wheels / upstream_proxy |
+| `--sandbox-keep-container` | Keep the sandbox after agent exit (debug) |
+| `--sandbox-cpus` / `--sandbox-memory` | Resource limits |
+| `--sandbox-offline-sdk-wheels` | Host-cached wheels for SDK/SADE |
+| `--sandbox-proxy` | Upstream proxy for sbx daemon |
+
+Credentials always come from the repo-root `.env` (no separate sandbox env file).
+
+## FAQ / corner cases
+
+### Sandbox cannot reach LLM APIs (Usually useful for Chinese users)
+
+The outbound proxy is optional and off by default. If OpenAI (or another API) fails inside the sandbox, set it in `config/nika.yaml`:
+
+```yaml
+nika:
+  sandbox:
+    upstream_proxy: http://127.0.0.1:7890
+```
+
+Or pass `--sandbox-proxy` on the CLI.
 
 ## Testing
 

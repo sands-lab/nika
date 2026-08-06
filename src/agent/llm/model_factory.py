@@ -3,8 +3,15 @@ import os
 from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
-from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
+
+from nika.utils.provider_env import (
+    DEEPSEEK_OPENAI_BASE_URL,
+    ENV_CUSTOM_BASE_URL,
+    ENV_DEEPSEEK_API_KEY,
+    resolve_custom_api_key,
+    resolve_custom_base_url,
+)
 
 load_dotenv()
 
@@ -14,15 +21,9 @@ LLM_TIMEOUT_SECONDS = float(os.getenv("NIKA_LLM_TIMEOUT", "300"))
 LLM_MAX_RETRIES = int(os.getenv("NIKA_LLM_RETRIES", "2"))
 
 
-def load_model(llm_provider: str = "openai", model: str = "gpt-5-mini") -> BaseChatModel:
-    if llm_provider == "ollama":
-        return ChatOllama(
-            model=model,
-            temperature=0,
-            validate_model_on_init=True,
-            base_url=os.getenv("OLLAMA_API_URL"),
-        )
-
+def load_model(
+    llm_provider: str = "openai", model: str = "gpt-5-mini"
+) -> BaseChatModel:
     if llm_provider == "openai":
         return ChatOpenAI(
             model_name=model,
@@ -33,19 +34,37 @@ def load_model(llm_provider: str = "openai", model: str = "gpt-5-mini") -> BaseC
     if llm_provider == "deepseek":
         return ChatDeepSeek(
             model=model,
-            base_url="https://api.deepseek.com",
+            api_key=os.getenv(ENV_DEEPSEEK_API_KEY) or None,
+            base_url=DEEPSEEK_OPENAI_BASE_URL,
             timeout=LLM_TIMEOUT_SECONDS,
             max_retries=LLM_MAX_RETRIES,
         )
 
     if llm_provider == "custom":
+        base_url = resolve_custom_base_url()
+        if not base_url:
+            raise ValueError(
+                f"Missing {ENV_CUSTOM_BASE_URL}: set it in .env for custom provider "
+                f"(deprecated alias: CUSTOM_API_BASE)."
+            )
+        # Prefer NIKA_CUSTOM_API_KEY; fall back to CUSTOM_API_KEY with warning.
+        api_key = resolve_custom_api_key() or None
+        # LangChain OpenAI client requires a non-empty key string; unauthenticated
+        # local endpoints can omit NIKA_CUSTOM_API_KEY — use a placeholder only
+        # for the client constructor (not stored as a real credential).
         return ChatOpenAI(
             model=model,
-            base_url=os.getenv("CUSTOM_API_BASE"),
-            api_key=os.getenv("CUSTOM_API_KEY", "dummy"),
+            base_url=base_url,
+            api_key=api_key or "no-key",
             temperature=0,
             timeout=LLM_TIMEOUT_SECONDS,
             max_retries=LLM_MAX_RETRIES,
+        )
+
+    if llm_provider == "anthropic":
+        raise ValueError(
+            "Provider 'anthropic' is not supported by byo.langgraph / LLM judge; "
+            "use openai, deepseek, or custom."
         )
 
     raise ValueError(f"Unsupported llm provider: {llm_provider}")

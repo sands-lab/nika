@@ -19,6 +19,7 @@ from nika.utils.agent_config import (
     resolve_reasoning_effort,
 )
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
+from nika.utils.provider_env import provider_env_context
 from nika.utils.session import Session
 
 logging.basicConfig(level=logging.INFO)
@@ -37,20 +38,24 @@ def start_agent(
     session_id: str | None = None,
     reasoning_effort: str | None = None,
     stream_output: bool = True,
-    sandbox_env_file: str | None = None,
     sandbox_keep_container: bool | None = None,
     sandbox_cpus: str | None = None,
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
 ) -> None:
     """Load the running session, run the agent on ``task_description``, then end the session."""
+    from nika.run_config.legacy import warn_legacy_operational_env
+    from nika.utils.agent_config import apply_custom_provider_env
+
+    warn_legacy_operational_env()
+    apply_custom_provider_env()
+
     agent_type = resolve_agent_type(agent_type)
     max_steps = resolve_max_steps(max_steps)
     reasoning_effort = resolve_reasoning_effort(reasoning_effort)
-    model = resolve_agent_model(agent_type, model)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
+    model = resolve_agent_model(agent_type, model, llm_provider=llm_provider)
     sandbox_config = resolve_sandbox_config(
-        env_file=sandbox_env_file,
         keep_container=sandbox_keep_container,
         cpus=sandbox_cpus,
         memory=sandbox_memory,
@@ -117,16 +122,22 @@ def start_agent(
                         stream_output=stream_output,
                     )
                 else:
-                    agent = create_agent(
-                        agent_type,
-                        session_id=session.session_id,
-                        llm_provider=llm_provider,
-                        model=model,
-                        max_steps=max_steps,
-                        reasoning_effort=reasoning_effort,
-                        stream_output=stream_output,
-                    )
-                    asyncio.run(agent.run(task_description=session.task_description))
+                    with provider_env_context(
+                        agent_type=agent_type,
+                        provider=llm_provider or "openai",
+                    ):
+                        agent = create_agent(
+                            agent_type,
+                            session_id=session.session_id,
+                            llm_provider=llm_provider,
+                            model=model,
+                            max_steps=max_steps,
+                            reasoning_effort=reasoning_effort,
+                            stream_output=stream_output,
+                        )
+                        asyncio.run(
+                            agent.run(task_description=session.task_description)
+                        )
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
             pull_session_artifacts(session.session_id, session.session_dir)
         else:
@@ -160,16 +171,22 @@ def start_agent(
                         stream_output=stream_output,
                     )
                 else:
-                    agent = create_agent(
-                        agent_type,
-                        session_id=session.session_id,
-                        llm_provider=llm_provider,
-                        model=model,
-                        max_steps=max_steps,
-                        reasoning_effort=reasoning_effort,
-                        stream_output=stream_output,
-                    )
-                    asyncio.run(agent.run(task_description=session.task_description))
+                    with provider_env_context(
+                        agent_type=agent_type,
+                        provider=llm_provider or "openai",
+                    ):
+                        agent = create_agent(
+                            agent_type,
+                            session_id=session.session_id,
+                            llm_provider=llm_provider,
+                            model=model,
+                            max_steps=max_steps,
+                            reasoning_effort=reasoning_effort,
+                            stream_output=stream_output,
+                        )
+                        asyncio.run(
+                            agent.run(task_description=session.task_description)
+                        )
     except Exception as exc:
         log_error_event(
             "agent_error",

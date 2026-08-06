@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import pytest
+import re
 import time
+
+import pytest
+
 from nika.net_env.kathara.kubernetes.k8s_lab.lab import K8sFatTreeBGP
 from nika.service.kathara.base_api import KatharaBaseAPI
 from tests.support.integration_base import SharedSessionTestCase
-from tests.support.prerequisites import docker_available, privileged_lab_supported
 from tests.support.net_env import instantiate_with_mocked_kathara, ready_node_count
+from tests.support.prerequisites import docker_available, privileged_lab_supported
 
 
 class K8sLabUnitTest:
@@ -96,8 +99,9 @@ class K8sLabIntegrationTest(SharedSessionTestCase):
     _api: KatharaBaseAPI
 
     @pytest.fixture(scope="class", autouse=True)
-    def _setup_class(cls) -> None:
-        super().setUpClass()
+    def _setup_after_shared(self, _shared_session) -> None:
+        """Wait for k3s/apps after SharedSessionMixin starts the lab."""
+        cls = type(self)
         cls._api = KatharaBaseAPI(lab_name=cls._lab_name())
         cls._wait_until_ready()
 

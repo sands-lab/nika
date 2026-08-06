@@ -27,9 +27,17 @@ def resolve_sbx_upstream_proxy(
 ) -> str | None:
     """Optional upstream proxy URL for the sbx daemon (off by default).
 
-    Set ``NIKA_SANDBOX_UPSTREAM_PROXY`` or ``nika agent run --sandbox-proxy``.
+    Prefer ``nika.sandbox.upstream_proxy`` in run config, then process env /
+    ``--sandbox-proxy`` for one-shot overrides.
     """
     upstream = os.environ.get(ENV_SANDBOX_UPSTREAM_PROXY, "").strip()
+    if not upstream:
+        try:
+            from nika.run_config.loader import get_run_config
+
+            upstream = (get_run_config().nika.sandbox.upstream_proxy or "").strip()
+        except Exception:
+            upstream = ""
     if not upstream and env_file is not None:
         upstream = (
             load_sandbox_env_values(env_file)

@@ -175,8 +175,8 @@ async def session_artifacts(request: Request) -> Response:
         return _error_response(exc, status=400)
 
 
-def create_remote_app(*, token: str = "") -> Starlette:
-    """Build the remote daemon ASGI application."""
+def create_remote_app() -> Starlette:
+    """Build the remote daemon ASGI application (no shared-token auth)."""
     routes = [
         Route("/health", health, methods=["GET"]),
         Route("/v1/env/start", env_start, methods=["POST"]),
@@ -198,9 +198,7 @@ def create_remote_app(*, token: str = "") -> Starlette:
             methods=["GET"],
         ),
     ]
-    app = Starlette(routes=routes)
-    app.add_middleware(BearerAuthMiddleware, token=token)
-    return app
+    return Starlette(routes=routes)
 
 
 def dumps_error(message: str) -> str:

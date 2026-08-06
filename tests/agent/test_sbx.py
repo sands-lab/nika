@@ -167,7 +167,7 @@ def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
 def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "DEEPSEEK_API_KEY=tok\nANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\n",
+        "DEEPSEEK_API_KEY=tok\nNIKA_LLM_PROVIDER=deepseek\n",
         encoding="utf-8",
     )
     with (
@@ -181,16 +181,19 @@ def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
             return_value={"ANTHROPIC_API_KEY": "sbx-cs-anth"},
         ),
         patch("agent.sandbox.sbx.credentials.run_sbx_checked") as run,
-        patch.dict(os.environ, {}, clear=True),
+        patch.dict(os.environ, {"NIKA_LLM_PROVIDER": "deepseek"}, clear=True),
     ):
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"anthropic"},
+            provider="deepseek",
+            agent_type="cli.claude",
         )
 
     run.assert_not_called()
     assert plan.third_party_anthropic
     assert plan.sentinel_runtime_env()["ANTHROPIC_API_KEY"] == "sbx-cs-anth"
+    assert "DEEPSEEK_API_KEY" not in plan.sentinel_runtime_env()
 
 
 def test_ensure_sbx_credentials_accepts_existing_oauth_secret(tmp_path) -> None:
@@ -424,13 +427,22 @@ def test_sdk_requirements_are_exact_pins() -> None:
     assert any(req.startswith("openai-codex==") for req in SDK_PIP_PACKAGES)
 
 
-def test_resolve_sandbox_config_offline_sdk_wheels_default_off(monkeypatch) -> None:
-    monkeypatch.delenv("NIKA_SANDBOX_OFFLINE_SDK_WHEELS", raising=False)
+def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    reset_run_config()
+    set_run_config(RunConfig())
     assert resolve_sandbox_config().offline_sdk_wheels is False
 
-    monkeypatch.setenv("NIKA_SANDBOX_OFFLINE_SDK_WHEELS", "true")
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"offline_sdk_wheels": True}}}
+        )
+    )
     assert resolve_sandbox_config().offline_sdk_wheels is True
     assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False
+    reset_run_config()
 
 
 def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:

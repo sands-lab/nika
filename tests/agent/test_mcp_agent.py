@@ -1,6 +1,5 @@
 from __future__ import annotations
 import pytest
-import os
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import assert_phase_messages, assert_submission_fields
 from tests.support.integration_base import OrderedPipelineTestCase
@@ -8,19 +7,22 @@ from tests.support.integration_pipeline import (
     ClabCommonPipelineSteps,
     CommonPipelineSteps,
     _min3clos_prerequisites,
+    deepseek_api_key_available,
     load_test_env,
-    openai_api_key_available,
 )
 
 load_test_env()
-MCP_AGENT_MODEL = os.environ.get("NIKA_MCP_AGENT_MODEL", "gpt-4.1-mini")
+MCP_AGENT_PROVIDER = "deepseek"
+MCP_AGENT_MODEL = "deepseek-chat"
+MCP_AGENT_MAX_STEPS = 20
 
 
 @pytest.mark.skipif(
-    not openai_api_key_available(), reason="OPENAI_API_KEY required for byo.mcp_agent"
+    not deepseek_api_key_available(),
+    reason="DEEPSEEK_API_KEY required for byo.mcp_agent",
 )
 class McpAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
-    """Full pipeline with the mcp-agent SDK agent using OpenAI."""
+    """Full pipeline with the mcp-agent SDK agent using DeepSeek."""
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -30,7 +32,12 @@ class McpAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_03_run_mcp_agent(self) -> None:
         assert self.session_id is not None
-        self._run_agent(agent_type="byo.mcp_agent", model=MCP_AGENT_MODEL, max_steps=20)
+        self._run_agent(
+            agent_type="byo.mcp_agent",
+            llm_provider=MCP_AGENT_PROVIDER,
+            model=MCP_AGENT_MODEL,
+            max_steps=MCP_AGENT_MAX_STEPS,
+        )
         row = SessionStore().get_session(self.session_id)
         assert row.get("agent_type") == "byo.mcp_agent"
 
@@ -50,8 +57,8 @@ class McpAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
 
 @pytest.mark.skipif(
-    not (_min3clos_prerequisites() and openai_api_key_available()),
-    reason="containerlab/gnmic/Docker or OPENAI_API_KEY not available",
+    not (_min3clos_prerequisites() and deepseek_api_key_available()),
+    reason="containerlab/gnmic/Docker or DEEPSEEK_API_KEY not available",
 )
 class McpAgentClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
     """Full containerlab pipeline with the mcp-agent SDK agent."""
@@ -64,7 +71,12 @@ class McpAgentClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase)
 
     def test_step_03_run_mcp_agent(self) -> None:
         assert self.session_id is not None
-        self._run_agent(agent_type="byo.mcp_agent", model=MCP_AGENT_MODEL, max_steps=20)
+        self._run_agent(
+            agent_type="byo.mcp_agent",
+            llm_provider=MCP_AGENT_PROVIDER,
+            model=MCP_AGENT_MODEL,
+            max_steps=MCP_AGENT_MAX_STEPS,
+        )
         row = SessionStore().get_session(self.session_id)
         assert row.get("agent_type") == "byo.mcp_agent"
 

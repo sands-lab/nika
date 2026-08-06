@@ -36,3 +36,4 @@ src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/lib/
 src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/start.sh
 src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/bundle.tar.gz
 /artifacts/nika-k8s-mcp-build/
+config/nika.yaml

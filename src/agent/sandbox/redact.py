@@ -10,6 +10,10 @@ _SENSITIVE_ENV_KEYS = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "DEEPSEEK_API_KEY",
+        "NIKA_CUSTOM_API_KEY",
+        "CUSTOM_API_KEY",
+        "LANGFUSE_SECRET_KEY",
+        "NIKA_REMOTE_TOKEN",
     }
 )
 

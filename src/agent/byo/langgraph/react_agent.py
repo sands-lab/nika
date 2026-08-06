@@ -103,7 +103,19 @@ class BasicReActAgent:
         return result
 
     def _load_langfuse_handler(self) -> Any | None:
-        if not _env_flag_enabled("NIKA_LANGFUSE_ENABLED"):
+        enabled = False
+        try:
+            from nika.run_config.loader import get_run_config
+
+            obs = get_run_config().nika.observability
+            enabled = bool(obs.langfuse_enabled)
+            if obs.langfuse_host:
+                import os
+
+                os.environ.setdefault("LANGFUSE_HOST", obs.langfuse_host)
+        except Exception:
+            enabled = _env_flag_enabled("NIKA_LANGFUSE_ENABLED")
+        if not enabled:
             return None
 
         try:
@@ -111,8 +123,8 @@ class BasicReActAgent:
             from langfuse.langchain import CallbackHandler
         except ImportError as exc:
             raise RuntimeError(
-                "NIKA_LANGFUSE_ENABLED is true, but langfuse is not installed. "
-                "Install the observability extra or disable NIKA_LANGFUSE_ENABLED."
+                "Observability langfuse is enabled, but langfuse is not installed. "
+                "Install the observability extra or set nika.observability.langfuse_enabled: false."
             ) from exc
 
         langfuse = get_client()

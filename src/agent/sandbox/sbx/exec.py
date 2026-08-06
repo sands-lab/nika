@@ -16,9 +16,11 @@ _INNER_ENV_ALLOWLIST = frozenset(
         "CODEX_HOME",
         "CLAUDE_CONFIG_DIR",
         "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "NIKA_LLM_PROVIDER",
     }
 )
 _PATH_ENV_KEYS = frozenset({"CODEX_HOME", "CLAUDE_CONFIG_DIR"})

@@ -29,12 +29,12 @@ LAZY_COMMANDS.update(
             "nika.cli.commands.evaluation", "eval_app", "Evaluate agent runs."
         ),
         "benchmark": LazyCommandSpec(
-            "nika.cli.commands.benchmark", "benchmark_app", "Batch benchmark runs."
+            "nika.cli.commands.benchmark", "benchmark_app", "Run benchmark cases."
         ),
         "leaderboard": LazyCommandSpec(
             "nika.cli.commands.leaderboard",
             "leaderboard_app",
-            "Pack and validate leaderboard submissions.",
+            "Pack, validate, and submit leaderboard entries.",
         ),
         "traffic": LazyCommandSpec(
             "nika.cli.commands.traffic",
@@ -45,6 +45,11 @@ LAZY_COMMANDS.update(
             "nika.cli.commands.remote",
             "remote_app",
             "Optional remote lab-host control plane.",
+        ),
+        "config": LazyCommandSpec(
+            "nika.cli.commands.config_cmd",
+            "config_app",
+            "Run configuration (config/nika.yaml).",
         ),
     }
 )

@@ -32,11 +32,13 @@ SADE drives Claude Code through the Anthropic Agent SDK, declared as an optional
 uv sync --extra sade          # or: pip install -e ".[sade]"
 ```
 
-Set Anthropic-compatible credentials in the repo-root `.env` (same as
-`cli.claude`; see [`.env.example`](../../../../.env.example)):
+Set provider credentials in the repo-root `.env` (same as `cli.claude`; see
+[`.env.example`](../../../../.env.example)), and select the provider under
+`agent.provider` in `config/nika.yaml`:
 
-- `ANTHROPIC_API_KEY`, or
-- `ANTHROPIC_AUTH_TOKEN` + optional `ANTHROPIC_BASE_URL` (e.g. DeepSeek)
+- `DEEPSEEK_API_KEY` + `agent.provider: deepseek`, or
+- `ANTHROPIC_API_KEY` + `agent.provider: anthropic`, or
+- optional `NIKA_CUSTOM_API_KEY` + `agent.provider: custom` and `agent.custom.base_url`
 
 ## Run
 
