@@ -35,10 +35,25 @@ from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.utils.phases import PHASES, SUBMISSION
 from agent.utils.skills import prepare_codex_workspace
+from nika.utils.provider_env import build_agent_subprocess_env
 
 REASONING_EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh")
 DEFAULT_STALL_TIMEOUT_S = 300
 RECONNECT_STALL_TIMEOUT_S = 120
+
+
+def prepare_codex_subprocess_env(
+    *,
+    codex_home: str | Path,
+    provider: str | None = None,
+    agent_type: str = "cli.codex",
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Minimal env for ``codex exec`` with provider-mapped credentials only."""
+    prov = (provider or os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+    env = build_agent_subprocess_env(agent_type=agent_type, provider=prov, base=base)
+    env["CODEX_HOME"] = str(codex_home)
+    return env
 
 
 class CodexSubprocessStallError(Exception):
@@ -245,10 +260,8 @@ class CodexWorker:
         output_file = self.workspace / f"{self.phase}_output.txt"
         output_file.unlink(missing_ok=True)
 
-        # Forward the current environment but override CODEX_HOME so that the
-        # isolated config.toml and auth symlink are picked up instead of the
-        # user's global ~/.codex/ directory.
-        env = {**os.environ, "CODEX_HOME": str(self._codex_home)}
+        # Provider-mapped credentials only; override CODEX_HOME for isolation.
+        env = prepare_codex_subprocess_env(codex_home=self._codex_home)
 
         cmd = ["codex", "exec"]
         if self.reasoning_effort is not None:

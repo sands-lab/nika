@@ -4,7 +4,7 @@ Python package: `nika.cli` (directory `src/nika/cli/`).
 
 Entry point: `nika` (see `[project.scripts]` in `pyproject.toml`). During development use `uv run nika …`.
 
-Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository root (derived from the installed `nika` package location). A `.env` file at the repo root is loaded automatically.
+Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository root (derived from the installed `nika` package location). Credentials load from repo-root `.env`; operational settings from `config/nika.yaml` (see `nika config show` / `migrate`).
 
 ## Command tree
 
@@ -14,9 +14,10 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika env` | List / deploy Kathará or Containerlab scenarios and create a session |
 | `nika failure` | List, describe, inject, and inspect faults for a running session |
 | `nika exec` | Run a shell command inside a lab host container |
-| `nika agent` | Run a troubleshooting agent on one selected session task |
+| `nika agent` | Run an end-to-end task, or run an agent on a selected session |
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
+| `nika config` | Show effective run config or migrate legacy `.env` ops into YAML |
 | `nika leaderboard` | Pack, validate, and submit leaderboard entries (GitHub PR) from official release runs |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [`docs/remote.md`](../../../docs/remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`) against the running lab |
@@ -51,9 +52,9 @@ Use separate directories to isolate experiments (different datasets, models, age
 | Source | Variable / flag | Default |
 |--------|-----------------|---------|
 | CLI | `--result_dir PATH` on `nika env run`, `nika benchmark run` | `results/` at repo root |
-| `.env` | `NIKA_RESULT_DIR` | same as default |
+| YAML | `nika.result_dir` in `config/nika.yaml` | same as default |
 
-CLI `--result_dir` overrides `NIKA_RESULT_DIR` when both are set. Relative paths resolve from the repository root (e.g. `results/list1` → `<repo>/results/list1/`).
+CLI `--result_dir` overrides YAML. Relative paths resolve from the repository root (e.g. `results/list1` → `<repo>/results/list1/`).
 
 ```shell
 nika env run simple_bgp --result_dir results/list1
@@ -62,8 +63,6 @@ nika env run simple_bgp --result_dir results/list1
 nika benchmark run --release 0.1.0 --result_dir results/my-release-run
 # → results/my-release-run/run.json
 # → results/my-release-run/trials/<case_key>__t01/ …
-
-NIKA_RESULT_DIR=results/gpt4-bgp nika benchmark run --config benchmark/benchmark_selected.yaml
 ```
 
 **Benchmark resume** (batch mode, `--resume` by default): before running, NIKA scans **only** the resolved `--result_dir` trials. Completed trials (`outcome` in `{success, agent_failed}`) are skipped; incomplete dirs are cleaned and re-run in place. Pass **`--no-resume`** to execute every trial regardless of existing artifacts.
@@ -73,7 +72,7 @@ NIKA_RESULT_DIR=results/gpt4-bgp nika benchmark run --config benchmark/benchmark
 Aligned with `nika agent run`:
 
 - **`-a` / `--agent`**: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk`.
-- **`-p` / `--provider`**: LLM provider for `byo.langgraph` only (`openai`, `ollama`, `deepseek`, `custom`).
+- **`-p` / `--provider`**: LLM provider for all agents (`openai`, `anthropic`, `deepseek`, `custom`; capabilities differ by agent).
 - **`-m` / `--model`**: model id.
 - **`-n` / `--max-steps`**: max steps per phase (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, `sdk.claude_sdk`).
 - **`-e` / `--reasoning-effort`**: Codex `model_reasoning_effort` (`cli.codex`, `sdk.codex_sdk`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`.
@@ -128,23 +127,49 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
 ## `nika agent`
 
 - **`nika agent list`**: supported agent types (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), LLM providers, and Codex reasoning-effort levels.
-- **`nika agent run`**: run the agent on one selected session.
+- **`nika agent run`**: two modes:
 
-  | Flag | Applies to | Meaning |
-  |------|------------|---------|
-  | `-a` / `--agent` | all | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk` |
-  | `-p` / `--provider` | `byo.langgraph` | `openai`, `ollama`, `deepseek`, or `custom` |
-  | `-m` / `--model` | all | model id |
-  | `-n` / `--max-steps` | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, `sdk.claude_sdk` | step cap per phase |
-  | `-e` / `--reasoning-effort` | `cli.codex`, `sdk.codex_sdk` | Codex reasoning effort level |
-  | `--session_id` | all | target session |
+  1. **Task mode (recommended):** `--problem LABEL` runs the complete task lifecycle: deploy the lab, inject the fault (using defaults from the benchmark resolver), run the agent, close the session, and write metrics.
+  2. **Session mode:** omit `--problem` and run against an already injected session (`nika env run` → `nika failure inject` → `nika agent run`).
+
+  ### Task labels
+
+  | Scenario type | Label | Example |
+  |---------------|--------|---------|
+  | Non-scalable | `{scenario}_{problem}` | `simple_bgp_link_down` |
+  | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_bgp_s_link_down` |
+
+  Discover pieces with `nika env list` and `nika failure list`.
+
+  | Flag | Mode | Meaning |
+  |------|------|---------|
+  | `-a` / `--agent` | both | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk` |
+  | `-p` / `--provider` | both | Shared: `openai`, `anthropic`, `deepseek`, or `custom` |
+  | `-m` / `--model` | both | model id |
+  | `-n` / `--max-steps` | both | step cap per phase (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, `sdk.claude_sdk`) |
+  | `-e` / `--reasoning-effort` | both | Codex reasoning effort level |
+  | `--problem` | task | task label (see above) |
+  | `--set key=value` | task | override inject parameters (repeatable) |
+  | `--result_dir` | task | results parent directory |
+  | `--session_id` | session | target session (mutually exclusive with `--problem`) |
 
   Examples:
 
   ```shell
-  nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20
+  # Task mode: env → inject → agent → close + metrics
+  nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
+    --problem simple_bgp_link_down
+  nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
+    --problem dc_clos_bgp_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
+
+  # Session mode (manual lab control)
+  nika env run simple_bgp
+  nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
   nika agent run -a cli.codex -m gpt-5.4-mini -e medium
+  nika session close -y
   ```
+
+  Manual lab/session commands are documented under **`nika env`**, **`nika failure`**, and **`nika session`** below.
 
 ---
 
@@ -172,7 +197,7 @@ All filters are optional and repeatable. Omit filters to include every finished 
 | Option | Meaning |
 |--------|---------|
 | `-o` / `--output` | Output CSV path (default: `{result_dir}/0_summary/evaluation_summary.csv`) |
-| `--result_dir` | Results parent directory to scan (default: `results/` or `NIKA_RESULT_DIR`) |
+| `--result_dir` | Results parent directory to scan (default: `results/` or `nika.result_dir`) |
 | `-p` / `--problem` | Root-cause / problem id (e.g. `link_down`) |
 | `-e` / `--env` | Scenario / net env (e.g. `simple_bgp`) |
 | `-c` / `--category` | Root-cause category (e.g. `link_failure`) |
@@ -181,6 +206,15 @@ All filters are optional and repeatable. Omit filters to include every finished 
 | `--model` | Agent model id |
 
 Each finished session directory should contain at least `run.json`, `ground_truth.json`, and `eval_metrics.json`. `llm_judge.json` is optional and merged when present.
+
+---
+
+## `nika config`
+
+- **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
+- **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
+
+The tracked template is `config/nika.example.yaml`. Normal precedence is CLI flags → YAML → built-in defaults; provider API keys remain in the repo-root `.env`.
 
 ---
 
@@ -234,11 +268,11 @@ Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) unde
 
 **`--batch-size`**: number of trials to run simultaneously per batch (default `1`). Trials are chunked into groups of this size; each parallel group runs via spawn processes (and timeouts also use spawn). Applies to batch mode only.
 
-**`--case-timeout SECONDS`** (`NIKA_CASE_TIMEOUT`, batch mode): hard per-trial time limit. When omitted, the release default is used (**2400** for `0.1.0`); ad-hoc `--config` defaults to `0` (disabled). When set, each trial runs in an isolated spawn process so a stuck case can be killed cleanly.
+**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): hard per-trial time limit. When omitted, the release default is used (**2400** for `0.1.0`); ad-hoc `--config` defaults to `0` (disabled). When set, each trial runs in an isolated spawn process so a stuck case can be killed cleanly.
 
-**`--continue-on-error`** (`NIKA_CONTINUE_ON_ERROR`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
+**`--continue-on-error`** (`benchmark.continue_on_error`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
 
-**`--retry-passes N`** (`NIKA_RETRY_PASSES`, batch mode): after the first pass, automatically re-scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). Never overwrites `agent_failed` trials. Retries stop early when a pass completes no new trial. Example for a long unattended run:
+**`--retry-passes N`** (`benchmark.retry_passes`, batch mode): after the first pass, automatically re-scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). Never overwrites `agent_failed` trials. Retries stop early when a pass completes no new trial. Example for a long unattended run:
 
 ```bash
 nika benchmark run --release 0.1.0 --batch-size 4 --retry-passes 2 --result_dir results/my-run
@@ -253,7 +287,7 @@ nika benchmark run --release 0.1.0 --batch-size 4 --retry-passes 2 --result_dir 
 | `topo_size` | Size `s`, `m`, or `l`; **null/empty** for scenarios without sizes |
 | `inject` | Map of `--set key=value` pairs passed to `nika failure inject` |
 
-Agent options use the same flags as below (including `-a cli.codex` and `-e` for Codex runs; `-n` applies to `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, and `community.sade`).
+Benchmark exposes `-a`, `-p`, `-m`, and `-n`; `-n` affects `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, and `sdk.claude_sdk`. It does not expose `-e`; configure Codex reasoning through `agent.reasoning_effort` in `config/nika.yaml` for benchmark runs.
 
 ### Single-case mode
 
@@ -276,10 +310,10 @@ nika eval summary --result_dir results/
 
 Optional control plane for splitting the agent host from the lab host. See [`docs/remote.md`](../../../docs/remote.md).
 
-- **`nika remote serve [--host 0.0.0.0] [-p 8700] [--token …]`**: run the lab-host daemon.
-- **`nika remote health [--url URL]`**: probe `/health` (uses `NIKA_REMOTE_URL` when `--url` is omitted).
+- **`nika remote serve [--host 0.0.0.0] [-p 8700]`**: run the lab-host daemon. The current control plane has no shared-token option; protect it at the network boundary.
+- **`nika remote health [--url URL]`**: probe `/health` (uses `nika.remote.url` from YAML when `--url` is omitted).
 
-When `NIKA_REMOTE_ENABLED=true` and `NIKA_REMOTE_URL` is set on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
+When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
 
 ---
 

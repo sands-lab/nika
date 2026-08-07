@@ -2,7 +2,7 @@
 
 NIKA supports reusable **agent skills** for Claude Code and Codex agents. A skill is a directory with a `SKILL.md` file that teaches the agent a structured troubleshooting workflow.
 
-Skills are optional. Enable or disable them with `NIKA_ENABLE_SKILLS` (default: `true`).
+Skills are optional. Enable or disable them with `nika.enable_skills` in `config/nika.yaml` (default: `true`).
 
 ## Supported agents
 
@@ -35,10 +35,12 @@ Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents re
 
 ## Configuration
 
-| Env | Default | Purpose |
-|-----|---------|---------|
-| `NIKA_ENABLE_SKILLS` | `true` | Set to `false` to disable skill loading |
-| `NIKA_SKILLS_DIR` | `src/agent/skills/` | Override the skill library root |
+```yaml
+nika:
+  enable_skills: true
+```
+
+`NIKA_ENABLE_SKILLS` remains an internal one-process override for sandbox workers and tests; normal runs should use the YAML setting.
 
 ## Writing a custom skill
 
@@ -88,10 +90,9 @@ Add scripts under `skills/my-link-skill/scripts/` and document how to run them. 
 Run a small scenario with skills enabled:
 
 ```shell
-export NIKA_ENABLE_SKILLS=true
 uv run nika env run simple_bgp
 uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
-uv run nika agent run -a sdk.claude_sdk -n 20
+uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash -n 20
 ```
 
 Inspect `results/{session_id}/messages.jsonl` for `Skill` tool calls (Claude) or skill-name mentions (Codex).

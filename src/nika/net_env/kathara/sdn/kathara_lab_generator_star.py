@@ -12,6 +12,8 @@ from typing import Literal
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+from nika.net_env.kathara.sdn.ovs_startup import ovs_start_commands  # noqa: E402
+
 
 @dataclass
 class SwitchMeta:
@@ -20,7 +22,7 @@ class SwitchMeta:
     cmd_list: list[str] = field(default_factory=list)
     image: str = "kathara/sdn"
     cpus: float = 0.5
-    mem: str = "256m"
+    mem: str = "512m"
     links: list[tuple[int, str]] = field(default_factory=list)
 
 
@@ -79,9 +81,7 @@ def generate_sdn_star_topology(
     controller = ControllerMeta(name="controller")
 
     for switch_meta in tot_switch_list:
-        switch_meta.cmd_list.append(
-            "/usr/share/openvswitch/scripts/ovs-ctl --system-id=random start"
-        )
+        switch_meta.cmd_list.extend(ovs_start_commands())
         switch_meta.cmd_list.append(f"ovs-vsctl add-br {switch_meta.name}")
         switch_meta.cmd_list.append(
             f"ovs-vsctl set-fail-mode {switch_meta.name} secure"
@@ -96,9 +96,11 @@ def generate_sdn_star_topology(
         switch_meta.links.append((switch_meta.eth_index, link_name))
         host_ip = str(host_pool[i])
         host_meta.cmd_list.append(f"ip addr add {host_ip}/24 dev eth0")
+        host_meta.cmd_list.append("ip link set eth0 up")
         switch_meta.cmd_list.append(
             f"ovs-vsctl add-port {switch_meta.name} eth{switch_meta.eth_index}"
         )
+        switch_meta.cmd_list.append(f"ip link set eth{switch_meta.eth_index} up")
         switch_meta.eth_index += 1
 
     center = tot_switch_list[0]
@@ -123,6 +125,7 @@ def generate_sdn_star_topology(
         switch_meta.cmd_list.append(
             f"ip addr add {switch_ip}/24 dev eth{switch_meta.eth_index}"
         )
+        switch_meta.cmd_list.append(f"ip link set eth{switch_meta.eth_index} up")
         switch_meta.cmd_list.append(
             f"ovs-vsctl set-controller {switch_meta.name} tcp:{controller_ip}:6633"
         )

@@ -19,18 +19,23 @@ RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
 MCP_SERVER_DIR = _PKG_DIR / "service" / "mcp_server"
 
-ENV_RESULT_DIR = "NIKA_RESULT_DIR"
+ENV_RESULT_DIR = "NIKA_RESULT_DIR"  # legacy; operational value lives in config/nika.yaml
 
 
 def resolve_results_root(result_dir: str | Path | None = None) -> Path:
     """Return the directory under which session folders are created.
 
-    Precedence: explicit *result_dir* (CLI) → ``NIKA_RESULT_DIR`` in ``.env`` → ``RESULTS_DIR``.
-    Relative paths resolve from the repository root.
+    Precedence: explicit *result_dir* (CLI) → ``nika.result_dir`` in run config →
+    ``results/`` at the repository root. Relative paths resolve from the repo root.
     """
-    raw = (str(result_dir).strip() if result_dir is not None else "") or os.environ.get(
-        ENV_RESULT_DIR, ""
-    ).strip()
+    raw = str(result_dir).strip() if result_dir is not None else ""
+    if not raw:
+        try:
+            from nika.run_config.loader import get_run_config
+
+            raw = (get_run_config().nika.result_dir or "").strip()
+        except Exception:
+            raw = ""
     if not raw:
         return RESULTS_DIR
     path = Path(raw)

@@ -4,14 +4,15 @@ from pathlib import Path
 
 import typer
 
-from nika.config import ENV_RESULT_DIR
 from nika.net_env.net_env_pool import scenario_requires_topo_size
-from nika.utils.agent_config import (
-    ENV_AGENT_TYPE,
-    ENV_LLM_PROVIDER,
-    ENV_MAX_STEPS,
-    ENV_MODEL,
+from nika.run_config.loader import (
+    ENV_RUN_CONFIG,
+    load_run_config,
+    merge_cli,
+    set_run_config,
 )
+from nika.run_config.legacy import warn_legacy_operational_env
+from nika.utils.agent_config import apply_custom_provider_env
 from nika.workflows.benchmark.release import (
     ReleaseError,
     list_releases,
@@ -131,45 +132,45 @@ def benchmark_run(
         None,
         "-a",
         "--agent",
-        envvar=ENV_AGENT_TYPE,
-        help="Agent implementation (required unless NIKA_AGENT_TYPE is in .env).",
+        help="Agent implementation (default: agent.type in run config).",
     ),
     llm_provider: str | None = typer.Option(
         None,
         "-p",
         "--provider",
-        envvar=ENV_LLM_PROVIDER,
-        help="LLM provider for byo.langgraph only: openai, ollama, deepseek, custom.",
+        help="LLM provider: openai, anthropic, deepseek, custom.",
     ),
     model: str | None = typer.Option(
         None,
         "-m",
         "--model",
-        envvar=ENV_MODEL,
-        help="Model id (required unless agent-specific NIKA_*_MODEL or NIKA_MODEL is in .env).",
+        help="Model id (default: agent.model / agent.models.* in run config).",
     ),
     max_steps: int | None = typer.Option(
         None,
         "-n",
         "--max-steps",
-        envvar=ENV_MAX_STEPS,
-        help="Max steps per phase (required unless NIKA_MAX_STEPS is in .env; byo.langgraph, byo.mcp_agent, byo.autogen, community.sade).",
+        help="Max steps per phase (default: agent.max_steps in run config).",
     ),
-    batch_size: int = typer.Option(
-        1,
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
+    ),
+    batch_size: int | None = typer.Option(
+        None,
         "--batch-size",
         help=(
-            "Batch mode: number of cases/trials to run simultaneously per batch. "
-            "Rows are chunked into groups of this size; each group runs fully in "
-            "parallel before the next group starts (default: 1)."
+            "Batch mode: number of cases/trials to run simultaneously per batch "
+            "(default: benchmark.batch_size in run config)."
         ),
     ),
     result_dir: str | None = typer.Option(
         None,
         "--result_dir",
-        envvar=ENV_RESULT_DIR,
         help=(
-            "Results parent directory (default: results/). "
+            "Results parent directory (default: nika.result_dir in run config). "
             "Release/batch run: this directory is one run "
             "({result_dir}/run.json + trials/). "
             "Single-case CLI: session output goes to {result_dir}/{session_id}."
@@ -180,49 +181,74 @@ def benchmark_run(
         "--session-tag",
         help="Optional tag embedded in each session id (YYYYMMDD-HHMMSS-tag-{hex}).",
     ),
-    resume: bool = typer.Option(
-        True,
+    resume: bool | None = typer.Option(
+        None,
         "--resume/--no-resume",
         help=(
             "Batch mode: scan all rows, skip completed cases/trials, "
-            "run the rest (default). Use --no-resume to re-run every case."
+            "run the rest (default from run config). Use --no-resume to re-run every case."
         ),
     ),
     case_timeout: int | None = typer.Option(
         None,
         "--case-timeout",
-        envvar="NIKA_CASE_TIMEOUT",
         help=(
             "Batch mode: hard per-case watchdog in seconds. "
-            "Release mode defaults to the release default (2400 for 0.1.0) when omitted. "
-            "Ad-hoc --config mode defaults to 0 (disabled)."
+            "Defaults from run config / release when omitted."
         ),
     ),
-    continue_on_error: bool = typer.Option(
-        False,
+    continue_on_error: bool | None = typer.Option(
+        None,
         "--continue-on-error/--abort-on-error",
-        envvar="NIKA_CONTINUE_ON_ERROR",
         help=(
             "Batch mode: keep running past failed cases and summarize them "
-            "at the end (default: abort on the first failure)."
+            "at the end (default from run config)."
         ),
     ),
-    retry_passes: int = typer.Option(
-        0,
+    retry_passes: int | None = typer.Option(
+        None,
         "--retry-passes",
-        envvar="NIKA_RETRY_PASSES",
         help=(
             "Batch mode: after the first pass, automatically re-scan and "
-            "retry failed/incomplete cases up to this many extra passes (implies "
-            "--continue-on-error). Stops early when a pass completes no new "
-            "case. Release/batch runs only retry incomplete trials; agent_failed trials are kept."
+            "retry failed/incomplete cases up to this many extra passes."
         ),
     ),
 ) -> None:
     """Run a frozen release, an ad-hoc YAML batch, or a single case.
 
-    Batch mode requires explicit ``--config`` or ``--release`` (no bare default).
+    Batch mode requires explicit ``--config`` or ``--release`` (no bare default),
+    unless ``benchmark.release`` is set in the run config.
     """
+    warn_legacy_operational_env()
+    cfg = load_run_config(run_config)
+    cfg = merge_cli(
+        cfg,
+        agent_type=agent_type,
+        llm_provider=llm_provider,
+        model=model,
+        max_steps=max_steps,
+        result_dir=result_dir,
+        batch_size=batch_size,
+        case_timeout_sec=case_timeout,
+        continue_on_error=continue_on_error,
+        retry_passes=retry_passes,
+        resume=resume,
+        session_tag=session_tag,
+        release=release,
+    )
+    set_run_config(cfg)
+    apply_custom_provider_env(cfg)
+
+    bench = cfg.benchmark
+    resolved_batch_size = bench.batch_size
+    resolved_resume = bench.resume
+    resolved_continue = bench.continue_on_error
+    resolved_retry = bench.retry_passes
+    resolved_session_tag = session_tag if session_tag is not None else bench.session_tag
+    resolved_result_dir = result_dir if result_dir is not None else cfg.nika.result_dir
+    # Prefer CLI --release; else YAML benchmark.release
+    resolved_release = release if release is not None else bench.release
+
     if scenario is not None and (config is not None or release is not None):
         raise typer.BadParameter(
             "Use either SCENARIO (single-case), --config (ad-hoc YAML), or "
@@ -234,7 +260,7 @@ def benchmark_run(
     single_mode = scenario is not None
 
     if single_mode:
-        if batch_size != 1:
+        if batch_size is not None and batch_size != 1:
             raise typer.BadParameter(
                 "--batch-size applies to batch mode only; omit it for a single case."
             )
@@ -280,8 +306,8 @@ def benchmark_run(
             model=model,
             max_steps=max_steps,
             inject_params=inject_params,
-            result_dir=result_dir,
-            session_tag=session_tag,
+            result_dir=resolved_result_dir,
+            session_tag=resolved_session_tag,
         )
         return
 
@@ -291,10 +317,10 @@ def benchmark_run(
             "--release / --config batch mode."
         )
 
-    if config is None and release is None:
+    if config is None and resolved_release is None:
         raise typer.BadParameter(
             "Pass --config PATH or --release REF "
-            "(e.g. --release 0.1.0). There is no default benchmark suite."
+            "(e.g. --release 0.1.0), or set benchmark.release in config/nika.yaml."
         )
 
     if config is not None:
@@ -304,34 +330,45 @@ def benchmark_run(
             llm_provider=llm_provider,
             model=model,
             max_steps=max_steps,
-            batch_size=batch_size,
-            result_dir=result_dir,
-            resume=resume,
-            session_tag=session_tag,
-            case_timeout=case_timeout if case_timeout is not None else 0,
-            continue_on_error=continue_on_error,
-            retry_passes=retry_passes,
+            batch_size=resolved_batch_size,
+            result_dir=resolved_result_dir,
+            resume=resolved_resume,
+            session_tag=resolved_session_tag,
+            case_timeout=(
+                case_timeout if case_timeout is not None else bench.case_timeout_sec
+            ),
+            continue_on_error=resolved_continue,
+            retry_passes=resolved_retry,
         )
         return
 
-    # Release path (split from RELEASE.yaml default_split_for_release).
+    # Release path
     try:
-        _, version = parse_release_ref(release)
-        resolved_split = _default_split_for_version(version)
+        split_override = bench.split
+        _, version = parse_release_ref(resolved_release)
+        resolved_split = (
+            normalize_split(split_override, default="test")
+            if split_override
+            else _default_split_for_version(version)
+        )
         run_benchmark_from_release(
-            release_ref=release,
+            release_ref=resolved_release,
             split=resolved_split,
             agent_type=agent_type,
             llm_provider=llm_provider,
             model=model,
             max_steps=max_steps,
-            batch_size=batch_size,
-            result_dir=result_dir,
-            resume=resume,
-            session_tag=session_tag,
-            case_timeout=case_timeout,
-            continue_on_error=continue_on_error,
-            retry_passes=retry_passes,
+            batch_size=resolved_batch_size,
+            result_dir=resolved_result_dir,
+            resume=resolved_resume,
+            session_tag=resolved_session_tag,
+            case_timeout=(
+                case_timeout
+                if case_timeout is not None
+                else (bench.case_timeout_sec or None)
+            ),
+            continue_on_error=resolved_continue,
+            retry_passes=resolved_retry,
         )
     except (ReleaseError, ValueError) as exc:
         _exit_release_error(exc)

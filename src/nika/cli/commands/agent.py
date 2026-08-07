@@ -7,19 +7,19 @@ import typer
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from agent.sandbox.config import (
     ENV_SANDBOX_CPUS,
-    ENV_SANDBOX_ENV_FILE,
     ENV_SANDBOX_KEEP,
     ENV_SANDBOX_MEMORY,
     ENV_SANDBOX_OFFLINE_SDK_WHEELS,
     ENV_SANDBOX_UPSTREAM_PROXY,
 )
-from nika.utils.agent_config import (
-    ENV_AGENT_TYPE,
-    ENV_CODEX_REASONING_EFFORT,
-    ENV_LLM_PROVIDER,
-    ENV_MAX_STEPS,
-    ENV_MODEL,
+from nika.run_config.loader import (
+    ENV_RUN_CONFIG,
+    load_run_config,
+    merge_cli,
+    set_run_config,
 )
+from nika.run_config.legacy import warn_legacy_operational_env
+from nika.utils.agent_config import apply_custom_provider_env
 
 SUPPORTED_AGENT_TYPES = (
     "byo.langgraph",
@@ -31,9 +31,57 @@ SUPPORTED_AGENT_TYPES = (
     "sdk.claude_sdk",
     "sdk.codex_sdk",
 )
-SUPPORTED_LLM_PROVIDERS = ("openai", "ollama", "deepseek", "custom")
+SUPPORTED_LLM_PROVIDERS = ("openai", "anthropic", "deepseek", "custom")
 
 agent_app = typer.Typer(help="Troubleshooting agents.")
+
+
+def _parse_set_options(raw_items: list[str] | None) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for raw in raw_items or []:
+        if "=" not in raw:
+            raise typer.BadParameter(f"Invalid --set value {raw!r}. Use key=value.")
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise typer.BadParameter(
+                f"Invalid --set value {raw!r}. Key cannot be empty."
+            )
+        overrides[key] = value.strip()
+    return overrides
+
+
+def _activate_run_config(
+    *,
+    run_config: str | None,
+    agent_type: str | None,
+    llm_provider: str | None,
+    model: str | None,
+    max_steps: int | None,
+    reasoning_effort: str | None,
+    sandbox_keep_container: bool,
+    sandbox_cpus: str | None,
+    sandbox_memory: str | None,
+    sandbox_offline_sdk_wheels: bool,
+    sandbox_upstream_proxy: str | None,
+) -> None:
+    warn_legacy_operational_env()
+    cfg = load_run_config(run_config)
+    cfg = merge_cli(
+        cfg,
+        agent_type=agent_type,
+        llm_provider=llm_provider,
+        model=model,
+        max_steps=max_steps,
+        reasoning_effort=reasoning_effort,
+        sandbox_keep=sandbox_keep_container or None,
+        sandbox_cpus=sandbox_cpus,
+        sandbox_memory=sandbox_memory,
+        sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels or None,
+        sandbox_upstream_proxy=sandbox_upstream_proxy,
+    )
+    set_run_config(cfg)
+    apply_custom_provider_env(cfg)
 
 
 @agent_app.command("list")
@@ -42,7 +90,7 @@ def agent_list() -> None:
     typer.echo("agent_types:")
     for agent_type in SUPPORTED_AGENT_TYPES:
         typer.echo(f"  {agent_type}")
-    typer.echo("llm_providers (byo.langgraph only):")
+    typer.echo("llm_providers:")
     for provider in SUPPORTED_LLM_PROVIDERS:
         typer.echo(f"  {provider}")
     typer.echo("reasoning_effort (cli.codex, sdk.codex_sdk):")
@@ -56,68 +104,78 @@ def agent_run(
         None,
         "-a",
         "--agent",
-        envvar=ENV_AGENT_TYPE,
-        help="Agent implementation (required unless NIKA_AGENT_TYPE is in .env).",
+        help="Agent implementation (default: agent.type in run config).",
     ),
     llm_provider: str | None = typer.Option(
         None,
         "-p",
         "--provider",
-        envvar=ENV_LLM_PROVIDER,
-        help="LLM provider for byo.langgraph only: openai, ollama, deepseek, custom.",
+        help="LLM provider: openai, anthropic, deepseek, custom.",
     ),
     model: str | None = typer.Option(
         None,
         "-m",
         "--model",
-        envvar=ENV_MODEL,
-        help="Model id (required unless agent-specific NIKA_*_MODEL or NIKA_MODEL is in .env).",
+        help="Model id (default: agent.model / agent.models.* in run config).",
     ),
     max_steps: int | None = typer.Option(
         None,
         "-n",
         "--max-steps",
-        envvar=ENV_MAX_STEPS,
-        help="Max steps per phase (required unless NIKA_MAX_STEPS is in .env; byo.langgraph, byo.mcp_agent, byo.autogen, community.sade, sdk.claude_sdk).",
+        help="Max steps per phase (default: agent.max_steps in run config).",
     ),
     reasoning_effort: str | None = typer.Option(
         None,
         "-e",
         "--reasoning-effort",
-        envvar=ENV_CODEX_REASONING_EFFORT,
-        help="Codex model_reasoning_effort (cli.codex, sdk.codex_sdk): none, minimal, low, medium, high, xhigh.",
+        help="Codex model_reasoning_effort: none, minimal, low, medium, high, xhigh.",
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
+    ),
+    problem: str | None = typer.Option(
+        None,
+        "--problem",
+        help=(
+            "Task label: {scenario}_{problem} or "
+            "{scenario}_{s|m|l}_{problem}. Deploys the lab, injects the fault, "
+            "runs the agent, then closes the session."
+        ),
+    ),
+    sets: list[str] | None = typer.Option(
+        None,
+        "--set",
+        help="Task mode: override inject parameters as key=value.",
+    ),
+    result_dir: str | None = typer.Option(
+        None,
+        "--result_dir",
+        help="Task mode: results parent directory (default: nika.result_dir in run config).",
     ),
     session_id: str | None = typer.Option(
-        None, "--session_id", help="Target session id."
-    ),
-    sandbox_env_file: str | None = typer.Option(
-        None,
-        "--sandbox-env-file",
-        envvar=ENV_SANDBOX_ENV_FILE,
-        help="Env file for credential resolution into the sandbox.",
+        None, "--session_id", help="Target session id (session mode only)."
     ),
     sandbox_keep_container: bool = typer.Option(
         False,
         "--sandbox-keep-container",
-        envvar=ENV_SANDBOX_KEEP,
         help="Do not remove the sbx sandbox after the agent exits (debug).",
     ),
     sandbox_cpus: str | None = typer.Option(
         None,
         "--sandbox-cpus",
-        envvar=ENV_SANDBOX_CPUS,
         help="CPU limit for the sandbox.",
     ),
     sandbox_memory: str | None = typer.Option(
         None,
         "--sandbox-memory",
-        envvar=ENV_SANDBOX_MEMORY,
         help="Memory limit for the sandbox (e.g. 8g).",
     ),
     sandbox_offline_sdk_wheels: bool = typer.Option(
         False,
         "--sandbox-offline-sdk-wheels",
-        envvar=ENV_SANDBOX_OFFLINE_SDK_WHEELS,
         help=(
             "Stage host-cached SDK wheels into the sandbox (faster SDK/SADE "
             "deploys; avoids re-downloading deps on every sbx start)."
@@ -126,20 +184,59 @@ def agent_run(
     sandbox_upstream_proxy: str | None = typer.Option(
         None,
         "--sandbox-proxy",
-        envvar=ENV_SANDBOX_UPSTREAM_PROXY,
-        help="Upstream proxy for sbx daemon (e.g. http://127.0.0.1:7890 for Clash).",
+        help="Upstream proxy for sbx daemon.",
     ),
 ) -> None:
-    """Run the agent on the current session task."""
-    from nika.workflows.agent.run import start_agent
-
+    """Run an end-to-end task, or run an agent on the current session."""
     if reasoning_effort is not None and reasoning_effort not in REASONING_EFFORT_LEVELS:
         raise typer.BadParameter(
             f"reasoning_effort must be one of {', '.join(REASONING_EFFORT_LEVELS)}"
         )
 
+    _activate_run_config(
+        run_config=run_config,
+        agent_type=agent_type,
+        llm_provider=llm_provider,
+        model=model,
+        max_steps=max_steps,
+        reasoning_effort=reasoning_effort,
+        sandbox_keep_container=sandbox_keep_container,
+        sandbox_cpus=sandbox_cpus,
+        sandbox_memory=sandbox_memory,
+        sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels,
+        sandbox_upstream_proxy=sandbox_upstream_proxy,
+    )
+
     if sandbox_upstream_proxy:
         os.environ[ENV_SANDBOX_UPSTREAM_PROXY] = sandbox_upstream_proxy
+
+    if problem is not None:
+        if session_id is not None:
+            raise typer.BadParameter(
+                "Use either --problem (task mode) or --session_id (session mode), not both."
+            )
+        _run_one_shot(
+            problem_label=problem,
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            sets=sets,
+            result_dir=result_dir,
+            reasoning_effort=reasoning_effort,
+            sandbox_keep_container=sandbox_keep_container,
+            sandbox_cpus=sandbox_cpus,
+            sandbox_memory=sandbox_memory,
+            sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels,
+        )
+        return
+
+    if sets:
+        raise typer.BadParameter("--set requires --problem.")
+    if result_dir is not None:
+        raise typer.BadParameter("--result_dir requires --problem (task mode).")
+
+    from nika.workflows.agent.run import start_agent
 
     try:
         start_agent(
@@ -149,11 +246,74 @@ def agent_run(
             max_steps,
             session_id=session_id,
             reasoning_effort=reasoning_effort,
-            sandbox_env_file=sandbox_env_file,
             sandbox_keep_container=sandbox_keep_container,
             sandbox_cpus=sandbox_cpus,
             sandbox_memory=sandbox_memory,
             sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+def _run_one_shot(
+    *,
+    problem_label: str,
+    agent_type: str | None,
+    llm_provider: str | None,
+    model: str | None,
+    max_steps: int | None,
+    sets: list[str] | None,
+    result_dir: str | None,
+    reasoning_effort: str | None,
+    sandbox_keep_container: bool,
+    sandbox_cpus: str | None,
+    sandbox_memory: str | None,
+    sandbox_offline_sdk_wheels: bool,
+) -> None:
+    from nika.workflows.benchmark.run import run_single_case, validate_inject_params
+    from nika.workflows.benchmark.task_label import (
+        parse_task_label,
+        resolve_default_inject_params,
+    )
+
+    if reasoning_effort is not None:
+        from nika.utils.agent_config import ENV_CODEX_REASONING_EFFORT
+
+        os.environ[ENV_CODEX_REASONING_EFFORT] = reasoning_effort
+
+    try:
+        scenario, topo_size, problem_name = parse_task_label(problem_label)
+        overrides = _parse_set_options(sets)
+        inject_params = resolve_default_inject_params(
+            scenario,
+            problem_name,
+            topo_size,
+            overrides=overrides or None,
+        )
+        validate_inject_params(problem_name, scenario, topo_size, inject_params)
+    except (FileNotFoundError, ValueError, ImportError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if sandbox_keep_container:
+        os.environ[ENV_SANDBOX_KEEP] = "1"
+    if sandbox_cpus is not None:
+        os.environ[ENV_SANDBOX_CPUS] = sandbox_cpus
+    if sandbox_memory is not None:
+        os.environ[ENV_SANDBOX_MEMORY] = sandbox_memory
+    if sandbox_offline_sdk_wheels:
+        os.environ[ENV_SANDBOX_OFFLINE_SDK_WHEELS] = "1"
+
+    try:
+        run_single_case(
+            problem=problem_name,
+            scenario=scenario,
+            topo_size=topo_size,
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            inject_params=inject_params,
+            result_dir=result_dir,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc

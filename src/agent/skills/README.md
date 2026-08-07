@@ -1,6 +1,6 @@
 # NIKA Shared Agent Skills
 
-Default skill library for Claude Code and Codex agents (`NIKA_ENABLE_SKILLS=true`).
+Default skill library for Claude Code and Codex agents (`nika.enable_skills: true` in `config/nika.yaml`).
 
 ```
 skills/                 # canonical skill sources
@@ -8,4 +8,4 @@ skills/                 # canonical skill sources
 .agents/skills/         # → skills/ (Codex)
 ```
 
-Override the root with `NIKA_SKILLS_DIR`. See [docs/agent-skills.md](../../../docs/agent-skills.md).
+See [docs/agent-skills.md](../../../docs/agent-skills.md).

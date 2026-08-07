@@ -3,7 +3,14 @@
 import typer
 
 from nika.config import ENV_RESULT_DIR
-from nika.utils.agent_config import ENV_JUDGE_MODEL, ENV_JUDGE_PROVIDER
+from nika.run_config.loader import (
+    ENV_RUN_CONFIG,
+    load_run_config,
+    merge_cli,
+    set_run_config,
+)
+from nika.run_config.legacy import warn_legacy_operational_env
+from nika.utils.agent_config import apply_custom_provider_env
 
 eval_app = typer.Typer(help="Evaluate a completed agent session.")
 
@@ -16,11 +23,20 @@ def eval_metrics(
     result_dir: str | None = typer.Option(
         None,
         "--result_dir",
-        envvar=ENV_RESULT_DIR,
-        help="Results parent directory (default: results/). When set without --session_id, evaluate all closed sessions under this directory.",
+        help="Results parent directory (default: nika.result_dir in run config).",
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml.",
     ),
 ) -> None:
     """Compute rule-based scores and trace stats on closed session(s); write eval_metrics.json."""
+    warn_legacy_operational_env()
+    cfg = merge_cli(load_run_config(run_config), result_dir=result_dir)
+    set_run_config(cfg)
+
     from nika.workflows.eval.session import run_eval_metrics
 
     try:
@@ -35,14 +51,12 @@ def eval_judge(
         None,
         "-p",
         "--provider",
-        envvar=ENV_JUDGE_PROVIDER,
-        help="LLM provider for the judge (openai, ollama, deepseek, custom).",
+        help="LLM provider for the judge (openai, deepseek, custom).",
     ),
     judge_model: str | None = typer.Option(
         None,
         "-m",
         "--model",
-        envvar=ENV_JUDGE_MODEL,
         help="Judge model id.",
     ),
     session_id: str | None = typer.Option(
@@ -51,16 +65,31 @@ def eval_judge(
     result_dir: str | None = typer.Option(
         None,
         "--result_dir",
-        envvar=ENV_RESULT_DIR,
-        help="Results parent directory (default: results/). When set without --session_id, judge all closed sessions under this directory.",
+        help="Results parent directory (default: nika.result_dir in run config).",
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml.",
     ),
 ) -> None:
     """Run LLM-as-judge on closed session(s); write llm_judge.json."""
+    warn_legacy_operational_env()
+    cfg = merge_cli(
+        load_run_config(run_config),
+        result_dir=result_dir,
+        judge_provider=judge_provider,
+        judge_model=judge_model,
+    )
+    set_run_config(cfg)
+    apply_custom_provider_env(cfg)
+
     from nika.utils.agent_config import resolve_judge_model, resolve_judge_provider
     from nika.workflows.eval.session import run_llm_judge
 
-    judge_provider = resolve_judge_provider(judge_provider)
-    judge_model = resolve_judge_model(judge_model)
+    judge_provider = resolve_judge_provider(judge_provider, config=cfg)
+    judge_model = resolve_judge_model(judge_model, config=cfg)
 
     try:
         run_llm_judge(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import pytest
-import os
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import assert_phase_messages, assert_submission_fields
 from tests.support.integration_base import OrderedPipelineTestCase
@@ -13,7 +12,7 @@ from tests.support.integration_pipeline import (
 )
 
 load_test_env()
-AUTOGEN_MODEL = os.environ.get("NIKA_AUTOGEN_MODEL", "deepseek-chat")
+AUTOGEN_MODEL = "deepseek-chat"
 AUTOGEN_MAX_STEPS = 20
 AUTOGEN_CLAB_MAX_STEPS = 60
 
@@ -33,7 +32,10 @@ class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
     def test_step_03_run_autogen_agent(self) -> None:
         assert self.session_id is not None
         self._run_agent(
-            agent_type="byo.autogen", model=AUTOGEN_MODEL, max_steps=AUTOGEN_MAX_STEPS
+            agent_type="byo.autogen",
+            llm_provider="deepseek",
+            model=AUTOGEN_MODEL,
+            max_steps=AUTOGEN_MAX_STEPS,
         )
         row = SessionStore().get_session(self.session_id)
         assert row.get("agent_type") == "byo.autogen"
@@ -70,6 +72,7 @@ class AutogenClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         self._run_agent(
             agent_type="byo.autogen",
+            llm_provider="deepseek",
             model=AUTOGEN_MODEL,
             max_steps=AUTOGEN_CLAB_MAX_STEPS,
         )

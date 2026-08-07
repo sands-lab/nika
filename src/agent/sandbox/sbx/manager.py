@@ -39,7 +39,6 @@ from agent.sandbox.sbx.wheels import (
     stage_sdk_wheels,
 )
 from agent.sandbox.sbx.workspace import (
-    SKILLS_DIRNAME,
     cleanup_workspace,
     collect_artifacts,
     prepare_workspace,
@@ -167,7 +166,6 @@ class SbxSandboxManager:
         sbx_agent = native_sbx_agent(agent_type)
         session_dir = Path(session.session_dir).resolve()
         workspace_path = session_dir / ".sandbox_run"
-        workspace_skills = workspace_path / SKILLS_DIRNAME
 
         upstream_proxy = resolve_sbx_upstream_proxy(env_file=self.config.env_file)
         ensure_sbx_proxy_config(upstream_proxy)
@@ -191,7 +189,6 @@ class SbxSandboxManager:
             "NIKA_AGENT_TYPE": agent_type,
             "NIKA_MODEL": model,
             "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
-            "NIKA_SKILLS_DIR": str(workspace_skills),
             "PYTHONPATH": str(workspace_path / "agent"),
         }
         backend = getattr(session, "backend", "").strip()
@@ -201,6 +198,8 @@ class SbxSandboxManager:
         cred_plan = ensure_sbx_credentials(
             env_file=self.config.env_file,
             required_services=required_services_for_agent(agent_type),
+            provider=llm_provider,
+            agent_type=agent_type,
         )
         runtime_env.update(cred_plan.sentinel_runtime_env())
         workspace = prepare_workspace(
@@ -260,9 +259,11 @@ class SbxSandboxManager:
             # placeholders are not shadowed by host dotenv values).
             _force_env_keys = {
                 "OPENAI_API_KEY",
+                "OPENAI_BASE_URL",
                 "DEEPSEEK_API_KEY",
                 "ANTHROPIC_API_KEY",
                 "ANTHROPIC_BASE_URL",
+                "NIKA_LLM_PROVIDER",
             }
             for key, value in runtime_env.items():
                 if key in _force_env_keys:

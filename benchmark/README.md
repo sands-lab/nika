@@ -8,7 +8,7 @@ Official reproducible suite with **Dev** and **Test** splits (both in-tree):
 |------|------|
 | [`releases/0.1.0/`](releases/0.1.0/) | Frozen release: `RELEASE.yaml` + `dev.yaml` + `test.yaml` |
 | Identity | `nika-bench@0.1.0` (aliases: `nika@0.1`, `nika@0.1.0`; also `@sha256:<digest>`) |
-| Dev | **56** curated incidents (one per failure type) — development / debugging |
+| Dev | **56** curated incidents (one per included release failure type) — development / debugging |
 | Test | **56** held-out instances (same failures, different scenario/inject) — held-out eval |
 
 ```shell
@@ -47,7 +47,7 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 | File | Count | Role |
 |------|------:|------|
 | `benchmark_selected.yaml` | **56** | Editable curated suite (source for freezing a release) |
-| `benchmark_full.yaml` | **702** | Full scenario × failure × size matrix |
+| `benchmark_full.yaml` | **708** | Full scenario × failure × size matrix (59 represented problem IDs) |
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
@@ -60,7 +60,7 @@ nika benchmark run --config benchmark/benchmark_full.yaml
 
 ## Tags
 
-Scenarios and failures declare capability `TAGS`. A failure may run on a scenario only when **every problem tag is present on the scenario** (`problem.TAGS ⊆ scenario.TAGS`). The full matrix is the Cartesian product of tag-compatible pairs (plus topo sizes where required). The selected/release suite picks one traditional Kathara scenario per failure.
+Scenarios and failures declare capability `TAGS`. A failure may run on a scenario only when **every problem tag is present on the scenario** (`problem.TAGS ⊆ scenario.TAGS`). The full matrix is the Cartesian product of tag-compatible pairs (plus topo sizes where required). The selected/release suite picks one traditional Kathara scenario for each included failure; Kubernetes-only failures stay full-matrix-only.
 
 ### Tag meanings
 
@@ -69,6 +69,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `arp` | ARP / L2 neighbor resolution present |
 | `bgp` | BGP routing (FRR or equivalent) |
 | `bloom_filter` | P4 bloom-filter program |
+| `coredns` | Kubernetes CoreDNS service |
 | `clos` | Clos / leaf-spine style fabric |
 | `containerlab` | Containerlab backend (not Kathara) |
 | `dhcp` | DHCP server / clients in the lab |
@@ -78,14 +79,20 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `frr` | FRRouting daemons on routers |
 | `http` | HTTP / web service endpoints |
 | `icmp` | ICMP reachability usable for diagnosis |
+| `ingress` | Kubernetes ingress path |
 | `inference` | LLM inference workload (llmd) |
 | `int` | P4 In-band Network Telemetry |
 | `k3s` | Lightweight Kubernetes (k3s) |
+| `k8s_control_plane` | Kubernetes control-plane access |
+| `k8s_storage` | Kubernetes storage workloads |
+| `k8s_workload` | Kubernetes application workloads |
+| `kube_proxy` | Kubernetes Service routing via kube-proxy |
 | `kubernetes` | Kubernetes control/data plane |
 | `link` | Controllable L2/L3 links (down, flap, QoS, …) |
 | `llm` | LLM-serving scenario features |
 | `load_balancer` | Load-balancer node/service |
 | `mac` | MAC addressing / L2 identity |
+| `metallb` | MetalLB service advertisement |
 | `mpls` | P4 MPLS label stack |
 | `ospf` | OSPF intradomain routing |
 | `p4` | BMv2 / P4 switches |
@@ -101,8 +108,8 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 |----------|------|
 | `dc_clos_bgp` | `arp`, `bgp`, `frr`, `icmp`, `link`, `mac`, `pc` |
 | `dc_clos_service` | `arp`, `bgp`, `dns`, `frr`, `http`, `icmp`, `link`, `mac`, `pc` |
-| `k8s_lab` | `arp`, `bgp`, `fat-tree`, `frr`, `icmp`, `k3s`, `kubernetes`, `link`, `mac`, `pc` |
-| `llmd_lab` | `arp`, `http`, `icmp`, `inference`, `k3s`, `kubernetes`, `link`, `llm`, `mac`, `pc` |
+| `k8s_lab` | `arp`, `bgp`, `coredns`, `fat-tree`, `frr`, `icmp`, `ingress`, `k3s`, `k8s_control_plane`, `k8s_storage`, `k8s_workload`, `kube_proxy`, `kubernetes`, `link`, `mac`, `metallb`, `pc` |
+| `llmd_lab` | `arp`, `coredns`, `http`, `icmp`, `inference`, `k3s`, `k8s_control_plane`, `kube_proxy`, `kubernetes`, `link`, `llm`, `mac`, `metallb`, `pc` |
 | `min3clos` | `bgp`, `clos`, `containerlab`, `fabric`, `link`, `srl` |
 | `ospf_enterprise_dhcp` | `arp`, `dhcp`, `dns`, `frr`, `http`, `icmp`, `link`, `load_balancer`, `mac`, `ospf`, `pc`, `web` |
 | `ospf_enterprise_static` | `arp`, `frr`, `http`, `icmp`, `link`, `mac`, `ospf`, `pc` |
@@ -119,8 +126,9 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 | Metric | Count |
 |--------|------:|
-| Failure types (root causes) | 56 |
-| Full benchmark cases | 702 |
+| Registered failure types | 60 |
+| Failure types represented in `benchmark_full.yaml` | 59 |
+| Full benchmark cases | 708 |
 | Selected / release 0.1.0 cases | 56 |
 | Scenarios in full matrix | 15 |
 
@@ -135,9 +143,9 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `dc_clos_bgp` | 69 |
 | `sdn_clos` | 57 |
 | `sdn_star` | 57 |
-| `k8s_lab` | 23 |
+| `k8s_lab` | 26 |
 | `simple_bgp` | 23 |
-| `llmd_lab` | 20 |
+| `llmd_lab` | 23 |
 | `p4_bloom_filter` | 20 |
 | `p4_mpls` | 20 |
 | `p4_counter` | 19 |
@@ -223,6 +231,9 @@ Column abbreviations:
 | `http_acl_block` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |
 | `icmp_acl_block` | ✓ | ✓ | ✓ | ✓ |  | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `incast_traffic_network_limitation` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |
+| `k8s_clusterip_routing_broken` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |
+| `k8s_coredns_isolated` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |
+| `k8s_worker_apiserver_partition` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |
 | `link_bandwidth_throttling` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `link_detach` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `link_down` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -247,6 +258,8 @@ Column abbreviations:
 | `southbound_port_block` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |
 | `southbound_port_mismatch` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |
 | `web_dos_attack` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |
+
+`k8s_networkpolicy_deny` is registered by `nika failure list` but is not represented in the checked-in working matrix because its `network_policy` capability is not present in the scenario metadata used by `net_env_pool` and the benchmark generator.
 
 ## Regeneration
 

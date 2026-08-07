@@ -1,9 +1,11 @@
 """Sync API credentials into the sbx secret store (no host auth file copies).
 
-Claude API-key mode prefers DeepSeek (``DEEPSEEK_API_KEY``) via ``sbx secret
-set-custom`` so credentials never enter the microVM. Codex uses OpenAI via the
-built-in ``openai`` service (``OPENAI_API_KEY`` or OAuth). Subscription / OAuth
-still uses built-in ``openai`` / ``anthropic`` services with interactive host login.
+Only the active agent + ``NIKA_LLM_PROVIDER`` credentials are read from ``.env``.
+Claude/DeepSeek API-key mode uses ``sbx secret set-custom`` so credentials never
+enter the microVM. Codex uses OpenAI via the built-in ``openai`` service
+(``OPENAI_API_KEY`` or OAuth), or mapped DeepSeek/custom keys. Subscription /
+OAuth still uses built-in ``openai`` / ``anthropic`` services with interactive
+host login.
 """
 
 from __future__ import annotations
@@ -22,6 +24,20 @@ from agent.sandbox.sbx.client import (
     run_sbx_checked,
     sbx_available,
 )
+from nika.utils.provider_env import (
+    DEEPSEEK_ANTHROPIC_BASE_URL,
+    DEEPSEEK_OPENAI_BASE_URL,
+    ENV_ANTHROPIC_API_KEY,
+    ENV_ANTHROPIC_AUTH_TOKEN,
+    ENV_ANTHROPIC_BASE_URL,
+    ENV_CUSTOM_API_KEY,
+    ENV_CUSTOM_BASE_URL,
+    ENV_DEEPSEEK_API_KEY,
+    ENV_OPENAI_API_KEY,
+    map_provider_credentials,
+    resolve_custom_api_key,
+    resolve_custom_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +45,6 @@ SERVICE_OPENAI = "openai"
 SERVICE_ANTHROPIC = "anthropic"
 
 DEEPSEEK_HOST = "api.deepseek.com"
-DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
 
 _AGENT_REQUIRED_SERVICES: dict[str, frozenset[str]] = {
     "cli.codex": frozenset({SERVICE_OPENAI}),
@@ -52,8 +67,11 @@ class SbxCredentialPlan:
     services: frozenset[str]
     api_key_services: frozenset[str]
     anthropic_base_url: str = ""
+    openai_base_url: str = ""
     third_party_anthropic: bool = False
+    third_party_openai: bool = False
     custom_placeholders: dict[str, str] = field(default_factory=dict)
+    provider: str = ""
 
     @property
     def openai_api_key_mode(self) -> bool:
@@ -66,8 +84,17 @@ class SbxCredentialPlan:
     def sentinel_runtime_env(self) -> dict[str, str]:
         """Env vars for the sandbox (placeholders / sentinels only)."""
         env: dict[str, str] = {}
+        if self.provider:
+            env["NIKA_LLM_PROVIDER"] = self.provider
         if self.openai_api_key_mode:
-            env["OPENAI_API_KEY"] = PROXY_MANAGED_SENTINEL
+            if self.third_party_openai:
+                env["OPENAI_API_KEY"] = self.custom_placeholders.get(
+                    "OPENAI_API_KEY", PROXY_MANAGED_SENTINEL
+                )
+                if self.openai_base_url:
+                    env["OPENAI_BASE_URL"] = self.openai_base_url
+            else:
+                env["OPENAI_API_KEY"] = PROXY_MANAGED_SENTINEL
         if self.third_party_anthropic:
             env["ANTHROPIC_API_KEY"] = self.custom_placeholders.get(
                 "ANTHROPIC_API_KEY", PROXY_MANAGED_SENTINEL
@@ -86,19 +113,50 @@ def required_services_for_agent(agent_type: str) -> frozenset[str]:
     return _AGENT_REQUIRED_SERVICES.get(agent_type, frozenset())
 
 
-def _credential_sources(env_file: Path) -> dict[str, str]:
-    merged = load_sandbox_env_values(env_file)
+def _active_provider(provider: str | None = None) -> str:
+    if provider and provider.strip():
+        return provider.strip().lower()
+    return (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower()
+
+
+def _credential_sources(
+    env_file: Path, *, provider: str, agent_type: str
+) -> dict[str, str]:
+    """Load .env then keep only keys needed for the active provider mapping."""
+    file_vals = load_sandbox_env_values(env_file)
+    # Overlay live process env for the known credential keys
+    merged = dict(file_vals)
     for key in (
-        "DEEPSEEK_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_BASE_URL",
+        ENV_DEEPSEEK_API_KEY,
+        ENV_OPENAI_API_KEY,
+        ENV_ANTHROPIC_API_KEY,
+        ENV_ANTHROPIC_AUTH_TOKEN,
+        ENV_ANTHROPIC_BASE_URL,
+        ENV_CUSTOM_BASE_URL,
+        ENV_CUSTOM_API_KEY,
+        "CUSTOM_API_BASE",
+        "CUSTOM_API_KEY",
+        "NIKA_CUSTOM_MODEL",
+        "NIKA_LLM_PROVIDER",
     ):
         value = os.environ.get(key, "").strip()
         if value:
             merged[key] = value
-    return merged
+
+    if not provider:
+        return merged
+
+    mapped = map_provider_credentials(
+        agent_type=agent_type, provider=provider, sources=merged
+    )
+    # Keep only mapped credentials + non-secret provider markers
+    allowed = set(mapped) | {
+        "NIKA_LLM_PROVIDER",
+        ENV_CUSTOM_BASE_URL,
+        ENV_CUSTOM_API_KEY,
+        "NIKA_CUSTOM_MODEL",
+    }
+    return {k: v for k, v in {**merged, **mapped}.items() if k in allowed and v}
 
 
 def is_official_anthropic_base_url(base_url: str) -> bool:
@@ -114,37 +172,52 @@ def is_official_anthropic_base_url(base_url: str) -> bool:
     )
 
 
-def _anthropic_base_url(sources: dict[str, str]) -> str:
-    raw = sources.get("ANTHROPIC_BASE_URL", "").strip()
+def _anthropic_base_url(sources: dict[str, str], provider: str) -> str:
+    raw = sources.get(ENV_ANTHROPIC_BASE_URL, "").strip()
     if raw:
         return raw
-    if (
-        sources.get("DEEPSEEK_API_KEY", "").strip()
-        or sources.get("ANTHROPIC_AUTH_TOKEN", "").strip()
-    ):
-        # Default Anthropic-compatible DeepSeek endpoint for API-key runs.
+    if provider == "deepseek" or sources.get(ENV_DEEPSEEK_API_KEY, "").strip():
         return DEEPSEEK_ANTHROPIC_BASE_URL
+    if provider == "custom":
+        return resolve_custom_base_url(sources)
+    return ""
+
+
+def _openai_base_url(sources: dict[str, str], provider: str) -> str:
+    raw = sources.get("OPENAI_BASE_URL", "").strip()
+    if raw:
+        return raw
+    if provider == "deepseek":
+        return DEEPSEEK_OPENAI_BASE_URL
+    if provider == "custom":
+        return resolve_custom_base_url(sources)
     return ""
 
 
 def _anthropic_secret_value(sources: dict[str, str]) -> str:
     return (
-        sources.get("ANTHROPIC_API_KEY", "").strip()
-        or sources.get("ANTHROPIC_AUTH_TOKEN", "").strip()
-        or sources.get("DEEPSEEK_API_KEY", "").strip()
+        sources.get(ENV_ANTHROPIC_API_KEY, "").strip()
+        or sources.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
+        or sources.get(ENV_DEEPSEEK_API_KEY, "").strip()
+        or sources.get(ENV_CUSTOM_API_KEY, "").strip()
     )
 
 
 def _openai_secret_value(sources: dict[str, str]) -> str:
-    return sources.get("OPENAI_API_KEY", "").strip()
+    return (
+        sources.get(ENV_OPENAI_API_KEY, "").strip()
+        or sources.get(ENV_DEEPSEEK_API_KEY, "").strip()
+        or resolve_custom_api_key(sources)
+    )
 
 
-def missing_credential_message(service: str) -> str:
+def missing_credential_message(service: str, *, provider: str = "") -> str:
     if service == SERVICE_OPENAI:
         return (
             "Missing Docker Sandboxes credential for Codex.\n"
-            "API key: set OPENAI_API_KEY in the repo-root .env "
-            "(synced into the built-in openai sbx secret).\n"
+            "API key: set OPENAI_API_KEY (or DEEPSEEK_API_KEY / NIKA_CUSTOM_* "
+            f"with NIKA_LLM_PROVIDER={provider or 'openai|deepseek|custom'}) "
+            "in the repo-root .env.\n"
             "ChatGPT / Codex subscription: run "
             "`sbx secret set -g openai --oauth` once on the host.\n"
             "See docs/agent-sandbox.md and "
@@ -153,8 +226,10 @@ def missing_credential_message(service: str) -> str:
     if service == SERVICE_ANTHROPIC:
         return (
             "Missing Docker Sandboxes credential for Claude.\n"
-            "API key (DeepSeek): set DEEPSEEK_API_KEY or ANTHROPIC_AUTH_TOKEN "
-            "(+ ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic) in .env.\n"
+            "Native Anthropic: set ANTHROPIC_API_KEY.\n"
+            "DeepSeek: set DEEPSEEK_API_KEY and NIKA_LLM_PROVIDER=deepseek.\n"
+            "Custom proxy: set NIKA_CUSTOM_BASE_URL (+ optional NIKA_CUSTOM_API_KEY) "
+            "and NIKA_LLM_PROVIDER=custom.\n"
             "Claude subscription: authenticate with `/login` inside Claude Code "
             "so the anthropic secret is stored on the host "
             "(see https://docs.docker.com/ai/sandboxes/agents/claude-code/).\n"
@@ -200,33 +275,48 @@ def ensure_sbx_credentials(
     *,
     env_file: Path,
     required_services: frozenset[str] | set[str] | None = None,
+    provider: str | None = None,
+    agent_type: str = "cli.claude",
 ) -> SbxCredentialPlan:
     """Import API keys from .env into sbx secrets; OAuth remains user-owned.
 
-    Claude API-key mode uses DeepSeek via ``set-custom`` (placeholder in the VM).
-    Codex uses the built-in ``openai`` service (``OPENAI_API_KEY`` or OAuth).
-    Subscription mode uses built-in ``openai`` / ``anthropic`` secrets only.
+    Only credentials for the active provider are synced.
     """
     if not sbx_available():
         raise RuntimeError("sbx is required for sandbox credential sync")
 
     required = frozenset(required_services or ())
-    sources = _credential_sources(env_file)
-    base_url = _anthropic_base_url(sources)
-    third_party = bool(base_url) and not is_official_anthropic_base_url(base_url)
+    prov = _active_provider(provider)
+    sources = _credential_sources(env_file, provider=prov, agent_type=agent_type)
+    base_url = _anthropic_base_url(sources, prov)
+    openai_base = _openai_base_url(sources, prov)
+    third_party_anth = bool(base_url) and not is_official_anthropic_base_url(base_url)
+    third_party_oai = bool(openai_base) and "api.openai.com" not in openai_base
     existing_services = list_sbx_secret_services()
     custom = list_sbx_custom_secrets()
     placeholders: dict[str, str] = {}
     api_key_services: set[str] = set()
     satisfied: set[str] = set(existing_services)
     third_party_synced = False
+    third_party_oai_synced = False
 
     need_openai = not required or SERVICE_OPENAI in required
     need_anthropic = not required or SERVICE_ANTHROPIC in required
 
-    openai_key = _openai_secret_value(sources)
+    openai_key = _openai_secret_value(sources) if need_openai else ""
     if need_openai:
-        if openai_key:
+        if openai_key and third_party_oai:
+            host = urlparse(openai_base).hostname or DEEPSEEK_HOST
+            placeholders["OPENAI_API_KEY"] = _ensure_custom_secret(
+                host=host,
+                env_name="OPENAI_API_KEY",
+                value=openai_key,
+                existing=custom,
+            )
+            third_party_oai_synced = True
+            api_key_services.add(SERVICE_OPENAI)
+            satisfied.add(SERVICE_OPENAI)
+        elif openai_key:
             if SERVICE_OPENAI not in existing_services:
                 run_sbx_checked(
                     ["secret", "set", "-g", SERVICE_OPENAI],
@@ -237,9 +327,9 @@ def ensure_sbx_credentials(
         elif SERVICE_OPENAI in existing_services:
             satisfied.add(SERVICE_OPENAI)
 
-    anthropic_key = _anthropic_secret_value(sources)
+    anthropic_key = _anthropic_secret_value(sources) if need_anthropic else ""
     if need_anthropic:
-        if anthropic_key and third_party:
+        if anthropic_key and third_party_anth:
             host = urlparse(base_url).hostname or DEEPSEEK_HOST
             placeholders["ANTHROPIC_API_KEY"] = _ensure_custom_secret(
                 host=host,
@@ -250,7 +340,7 @@ def ensure_sbx_credentials(
             third_party_synced = True
             api_key_services.add(SERVICE_ANTHROPIC)
             satisfied.add(SERVICE_ANTHROPIC)
-        elif anthropic_key and not third_party:
+        elif anthropic_key and not third_party_anth:
             if SERVICE_ANTHROPIC not in existing_services:
                 run_sbx_checked(
                     ["secret", "set", "-g", SERVICE_ANTHROPIC],
@@ -263,23 +353,37 @@ def ensure_sbx_credentials(
 
     missing = required - frozenset(satisfied)
     if missing:
-        parts = [missing_credential_message(service) for service in sorted(missing)]
+        parts = [
+            missing_credential_message(service, provider=prov)
+            for service in sorted(missing)
+        ]
         raise RuntimeError("\n\n".join(parts))
 
     return SbxCredentialPlan(
         services=frozenset(satisfied),
         api_key_services=frozenset(api_key_services),
         anthropic_base_url=base_url if need_anthropic else "",
+        openai_base_url=openai_base if need_openai else "",
         third_party_anthropic=bool(third_party_synced and need_anthropic),
+        third_party_openai=bool(third_party_oai_synced and need_openai),
         custom_placeholders=placeholders,
+        provider=prov,
     )
 
 
 def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
-    if os.environ.get("OPENAI_API_KEY", "").strip():
+    provider = _active_provider()
+    if provider in ("openai", "deepseek", "custom") and provider:
+        from nika.utils.provider_env import has_provider_credentials
+
+        if has_provider_credentials(provider):
+            return True
+    if os.environ.get(ENV_OPENAI_API_KEY, "").strip():
         return True
     if env_file is not None:
-        sources = _credential_sources(env_file)
+        sources = _credential_sources(
+            env_file, provider=provider or "openai", agent_type="cli.codex"
+        )
         if _openai_secret_value(sources):
             return True
     if not sbx_available():
@@ -293,14 +397,24 @@ def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
 
 
 def sbx_anthropic_credential_available(*, env_file: Path | None = None) -> bool:
+    provider = _active_provider()
+    if provider in ("anthropic", "deepseek", "custom"):
+        from nika.utils.provider_env import has_provider_credentials
+
+        if has_provider_credentials(provider):
+            return True
     if (
-        os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        or os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip()
-        or os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
+        or os.environ.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
+        or os.environ.get(ENV_DEEPSEEK_API_KEY, "").strip()
     ):
         return True
     if env_file is not None:
-        sources = _credential_sources(env_file)
+        sources = _credential_sources(
+            env_file,
+            provider=provider or "anthropic",
+            agent_type="cli.claude",
+        )
         if _anthropic_secret_value(sources):
             return True
     if not sbx_available():
@@ -316,13 +430,17 @@ def sbx_anthropic_credential_available(*, env_file: Path | None = None) -> bool:
 def anthropic_subscription_mode(*, env_file: Path | None = None) -> bool:
     """True when Anthropic is available via sbx secret without env API keys."""
     if (
-        os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        or os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip()
-        or os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
+        or os.environ.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
+        or os.environ.get(ENV_DEEPSEEK_API_KEY, "").strip()
+        or resolve_custom_api_key()
     ):
         return False
     if env_file is not None:
-        sources = _credential_sources(env_file)
+        provider = _active_provider() or "anthropic"
+        sources = _credential_sources(
+            env_file, provider=provider, agent_type="cli.claude"
+        )
         if _anthropic_secret_value(sources):
             return False
     if not sbx_available():

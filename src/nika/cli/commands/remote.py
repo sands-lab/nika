@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import typer
 
-from nika.remote.config import ENV_REMOTE_TOKEN, ENV_REMOTE_URL
-
 remote_app = typer.Typer(help="NIKA Remote lab-host control plane.")
 
 
@@ -22,18 +20,12 @@ def remote_serve(
         "-p",
         help="TCP port for the remote daemon.",
     ),
-    token: str | None = typer.Option(
-        None,
-        "--token",
-        envvar=ENV_REMOTE_TOKEN,
-        help="Optional bearer token (also NIKA_REMOTE_TOKEN).",
-    ),
 ) -> None:
     """Run the lab-host remote daemon (env/failure/session/MCP)."""
     from nika.remote.server import serve_remote
 
     typer.echo(f"Starting NIKA Remote on http://{host}:{port}")
-    serve_remote(host=host, port=port, token=token)
+    serve_remote(host=host, port=port)
 
 
 @remote_app.command("health")
@@ -41,24 +33,15 @@ def remote_health(
     url: str | None = typer.Option(
         None,
         "--url",
-        envvar=ENV_REMOTE_URL,
-        help="Remote daemon base URL (default: NIKA_REMOTE_URL).",
+        help="Remote daemon base URL (default: nika.remote.url in run config).",
     ),
 ) -> None:
     """Probe a remote daemon ``/health`` endpoint."""
-    import os
-
     from nika.remote.client import RemoteClient, RemoteError
     from nika.remote.config import RemoteConfig, load_remote_config
 
     if url:
-        cfg = RemoteConfig(
-            enabled=True,
-            url=url,
-            token=os.environ.get(ENV_REMOTE_TOKEN, "").strip(),
-            artifact_root="",
-        )
-        client = RemoteClient(cfg)
+        client = RemoteClient(RemoteConfig(enabled=True, url=url, artifact_root=""))
     else:
         client = RemoteClient(load_remote_config())
     try:

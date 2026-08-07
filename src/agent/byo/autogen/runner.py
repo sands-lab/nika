@@ -12,11 +12,26 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from agent.utils.loggers import MessageLogger
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
+from nika.utils.provider_env import (
+    DEEPSEEK_OPENAI_BASE_URL,
+    ENV_DEEPSEEK_API_KEY,
+    ENV_OPENAI_API_KEY,
+    ENV_OPENAI_BASE_URL,
+    resolve_custom_api_key,
+    resolve_custom_base_url,
+)
 
 _KATHARA_PREFIXES = MCP_SERVER_PREFIXES
 
-_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 _DEEPSEEK_MODEL_INFO = {
+    "vision": False,
+    "function_calling": True,
+    "json_output": False,
+    "family": ModelFamily.UNKNOWN,
+    "structured_output": False,
+}
+
+_OPENAI_COMPAT_MODEL_INFO = {
     "vision": False,
     "function_calling": True,
     "json_output": False,
@@ -34,24 +49,67 @@ def _short_tool_name(name: str) -> str:
     return name
 
 
-def _uses_deepseek(model: str) -> bool:
-    return model.lower().startswith("deepseek")
+def _resolve_provider(provider: str | None = None) -> str:
+    if provider and provider.strip():
+        return provider.strip().lower()
+    env = (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower()
+    if env:
+        return env
+    # Legacy heuristic: deepseek-* model ids
+    return ""
 
 
-def create_model_client(model: str) -> OpenAIChatCompletionClient:
-    if _uses_deepseek(model):
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+def create_model_client(
+    model: str, *, provider: str | None = None
+) -> OpenAIChatCompletionClient:
+    """Build an OpenAI-compatible AutoGen client for the active provider."""
+    prov = _resolve_provider(provider)
+    if not prov and model.lower().startswith("deepseek"):
+        prov = "deepseek"
+
+    if prov == "deepseek":
+        api_key = os.environ.get(ENV_DEEPSEEK_API_KEY) or os.environ.get(
+            ENV_OPENAI_API_KEY
+        )
         if not api_key:
             raise ValueError(
-                "DEEPSEEK_API_KEY required for DeepSeek models: set it in .env before running byo.autogen."
+                "DEEPSEEK_API_KEY required for DeepSeek models: set it in .env "
+                "and NIKA_LLM_PROVIDER=deepseek before running byo.autogen."
             )
         return OpenAIChatCompletionClient(
             model=model,
-            base_url=_DEEPSEEK_BASE_URL,
+            base_url=os.environ.get(ENV_OPENAI_BASE_URL) or DEEPSEEK_OPENAI_BASE_URL,
             api_key=api_key,
             model_info=_DEEPSEEK_MODEL_INFO,
         )
-    return OpenAIChatCompletionClient(model=model)
+
+    if prov == "custom":
+        base_url = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL, "")
+        if not base_url:
+            raise ValueError(
+                "NIKA_CUSTOM_BASE_URL required for custom provider "
+                "(or set OPENAI_BASE_URL for legacy OpenAI-compatible endpoints)."
+            )
+        api_key = (
+            resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or "no-key"
+        )
+        return OpenAIChatCompletionClient(
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            model_info=_OPENAI_COMPAT_MODEL_INFO,
+        )
+
+    # openai (default): rely on OPENAI_API_KEY / OPENAI_BASE_URL from env
+    kwargs: dict = {"model": model}
+    base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
+    key = os.environ.get(ENV_OPENAI_API_KEY, "").strip()
+    if base:
+        kwargs["base_url"] = base
+        kwargs["model_info"] = _OPENAI_COMPAT_MODEL_INFO
+    if key:
+        kwargs["api_key"] = key
+    return OpenAIChatCompletionClient(**kwargs)
 
 
 async def run_logged_agent(

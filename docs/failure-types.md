@@ -1,6 +1,6 @@
 # Failure types
 
-NIKA's problem registry defines the injectable root causes available in the benchmark. Each problem has been reproduced in multiple network topologies and traffic scenarios, resulting in a total of 702 unique cases. The table below lists the problem categories, IDs, descriptions, and the number of cases for each problem.
+NIKA's problem registry currently defines 60 injectable root causes. Of those, 59 are represented in the checked-in `benchmark/benchmark_full.yaml`, resulting in 708 cases across network topologies and sizes. The table below lists every registered problem and its current working-matrix case count; zero means the problem is registered but is not present in that YAML.
 
 
 | Category | Problem ID | Description | # Cases |
@@ -31,8 +31,9 @@ NIKA's problem registry defines the injectable root causes available in the benc
 | `misconfiguration` | `host_static_blackhole` | host_static_blackhole | 9 |
 | `misconfiguration` | `http_acl_block` | http_acl_block | 13 |
 | `misconfiguration` | `icmp_acl_block` | icmp_acl_block | 28 |
-| `misconfiguration` | `k8s_coredns_isolated` | Applications cannot resolve Kubernetes service names such as *.svc.cluster.local and report DNS timeouts, while communication by IP address keeps working. The CoreDNS pods are Running and Ready and the DNS Service still lists its endpoints. | 0 |
-| `misconfiguration` | `k8s_worker_apiserver_partition` | One Kubernetes worker node reports NotReady and stops receiving new pods, and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while those pods keep serving traffic and the node itself is still reachable over the network. | 0 |
+| `misconfiguration` | `k8s_coredns_isolated` | Applications cannot resolve Kubernetes service names such as *.svc.cluster.local and report DNS timeouts, while communication by IP address keeps working. The CoreDNS pods are Running and Ready and the DNS Service still lists its endpoints. | 2 |
+| `misconfiguration` | `k8s_networkpolicy_deny` | Only the pods selected by a NetworkPolicy lose inbound connectivity while sibling routes and the rest of the cluster stay healthy. | 0 |
+| `misconfiguration` | `k8s_worker_apiserver_partition` | One Kubernetes worker node reports NotReady and stops receiving new pods, and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while those pods keep serving traffic and the node itself is still reachable over the network. | 2 |
 | `misconfiguration` | `mac_address_conflict` | mac_address_conflict | 28 |
 | `misconfiguration` | `ospf_acl_block` | ospf_acl_block | 6 |
 | `misconfiguration` | `ospf_area_misconfiguration` | ospf_area_misconfiguration | 6 |
@@ -40,7 +41,7 @@ NIKA's problem registry defines the injectable root causes available in the benc
 | `network_node_error` | `flow_rule_loop` | flow_rule_loop | 6 |
 | `network_node_error` | `flow_rule_shadowing` | flow_rule_shadowing | 6 |
 | `network_node_error` | `frr_service_down` | Users report connectivity issues to other hosts in the network. | 17 |
-| `network_node_error` | `k8s_clusterip_routing_broken` | Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, including in-cluster DNS, while direct pod-IP traffic from the same node still works. Services, endpoints and pods all report healthy, and the node stays Ready. | 0 |
+| `network_node_error` | `k8s_clusterip_routing_broken` | Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, including in-cluster DNS, while direct pod-IP traffic from the same node still works. Services, endpoints and pods all report healthy, and the node stays Ready. | 2 |
 | `network_node_error` | `mpls_label_limit_exceeded` | mpls_label_limit_exceeded | 1 |
 | `network_node_error` | `p4_aggressive_detection_thresholds` | p4_aggressive_detection_thresholds | 1 |
 | `network_node_error` | `p4_compilation_error_parser_state` | p4_compilation_error_parser_state | 4 |
@@ -64,6 +65,6 @@ NIKA's problem registry defines the injectable root causes available in the benc
 | `resource_contention` | `receiver_resource_contention` | receiver_resource_contention | 13 |
 | `resource_contention` | `sender_application_delay` | sender_application_delay | 13 |
 | `resource_contention` | `sender_resource_contention` | sender_resource_contention | 13 |
-| **Total** | - | - | **702** |
+| **Total** | - | - | **708** |
 
 See [Creating benchmark tasks](creating-benchmark-tasks.md) to add a new failure type, and `nika failure describe <problem_id>` for the required inject parameters of any entry above.

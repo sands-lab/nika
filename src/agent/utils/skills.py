@@ -8,10 +8,11 @@ from pathlib import Path
 from agent.utils.template import SKILLS_PROMPT_SUFFIX
 
 ENV_ENABLE_SKILLS = "NIKA_ENABLE_SKILLS"
-ENV_SKILLS_DIR = "NIKA_SKILLS_DIR"
 
 # Default package: src/agent/skills/
 _DEFAULT_SKILLS_ROOT = Path(__file__).resolve().parent.parent / "skills"
+# Sandbox copies that package to $NIKA_SESSION_DIR/skills (see sbx/workspace.py).
+_SANDBOX_SKILLS_DIRNAME = "skills"
 
 CLAUDE_SETTING_SOURCES = ["project"]
 
@@ -28,16 +29,29 @@ MCP tools.
 
 def resolve_skills_root() -> Path:
     """Return the root directory of the NIKA skill library."""
-    override = os.getenv(ENV_SKILLS_DIR, "").strip()
-    if override:
-        return Path(override).expanduser().resolve()
+    if os.environ.get("NIKA_SANDBOX_EXECUTION", "").strip() == "1":
+        session_dir = os.environ.get("NIKA_SESSION_DIR", "").strip()
+        if session_dir:
+            candidate = (
+                Path(session_dir).expanduser().resolve() / _SANDBOX_SKILLS_DIRNAME
+            )
+            if candidate.is_dir():
+                return candidate
     return _DEFAULT_SKILLS_ROOT
 
 
 def skills_enabled() -> bool:
     """Whether agents should load the shared skill library."""
-    value = os.getenv(ENV_ENABLE_SKILLS, "true").strip().lower()
-    return value not in ("0", "false", "no", "off")
+    # One-shot process override (sandbox / tests) still honored.
+    raw = os.getenv(ENV_ENABLE_SKILLS, "").strip().lower()
+    if raw:
+        return raw not in ("0", "false", "no", "off")
+    try:
+        from nika.run_config.loader import get_run_config
+
+        return bool(get_run_config().nika.enable_skills)
+    except Exception:
+        return True
 
 
 def claude_skills_package_dir() -> Path | None:

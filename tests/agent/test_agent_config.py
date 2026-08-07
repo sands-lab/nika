@@ -1,22 +1,10 @@
 from __future__ import annotations
 
 import pytest
-import os
-import unittest.mock
+
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 from nika.utils.agent_config import (
-    ENV_AGENT_TYPE,
-    ENV_AUTOGEN_MODEL,
-    ENV_CLAUDE_SDK_MODEL,
-    ENV_CODEX_MODEL,
-    ENV_CODEX_SDK_MODEL,
-    ENV_JUDGE_MODEL,
-    ENV_JUDGE_PROVIDER,
-    ENV_LANGGRAPH_MODEL,
-    ENV_LLM_PROVIDER,
-    ENV_MAX_STEPS,
-    ENV_MCP_AGENT_MODEL,
-    ENV_MODEL,
-    ENV_SADE_MODEL,
     resolve_agent_model,
     resolve_agent_type,
     resolve_judge_model,
@@ -25,82 +13,125 @@ from nika.utils.agent_config import (
     resolve_max_steps,
     resolve_reasoning_effort,
 )
-from tests.support.integration_pipeline import load_test_env
 
-load_test_env()
+
+@pytest.fixture(autouse=True)
+def _clear_run_config():
+    reset_run_config()
+    yield
+    reset_run_config()
 
 
 class AgentConfigTest:
-    def test_cli_values_override_env(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ,
-            {
-                ENV_AGENT_TYPE: "mock",
-                ENV_LANGGRAPH_MODEL: "deepseek-chat",
-                ENV_LLM_PROVIDER: "deepseek",
-                ENV_MAX_STEPS: "99",
-            },
-            clear=True,
-        ):
-            assert resolve_agent_type("byo.langgraph") == "byo.langgraph"
-            assert (
-                resolve_llm_provider("openai", agent_type="byo.langgraph") == "openai"
+    def test_cli_values_override_config(self) -> None:
+        set_run_config(
+            RunConfig.model_validate(
+                {
+                    "agent": {
+                        "type": "mock",
+                        "provider": "deepseek",
+                        "max_steps": 99,
+                        "models": {"langgraph": "deepseek-chat"},
+                    }
+                }
             )
-            assert resolve_max_steps(20) == 20
-            assert resolve_agent_model("byo.langgraph", "override") == "override"
+        )
+        assert resolve_agent_type("byo.langgraph") == "byo.langgraph"
+        assert resolve_llm_provider("openai", agent_type="byo.langgraph") == "openai"
+        assert resolve_max_steps(20) == 20
+        assert resolve_agent_model("byo.langgraph", "override") == "override"
 
-    def test_required_shared_values_raise_when_missing(self) -> None:
-        with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            for resolver in (
-                resolve_agent_type,
-                resolve_max_steps,
-                resolve_judge_provider,
-            ):
-                with pytest.raises(ValueError):
-                    resolver(None)
-            with pytest.raises(ValueError):
-                resolve_llm_provider(None, agent_type="byo.langgraph")
+    def test_required_from_config(self) -> None:
+        set_run_config(
+            RunConfig.model_validate(
+                {
+                    "agent": {
+                        "type": "byo.langgraph",
+                        "provider": "openai",
+                        "max_steps": 20,
+                        "models": {"langgraph": "gpt-5-mini"},
+                    },
+                    "nika": {
+                        "judge": {"provider": "deepseek", "model": "deepseek-chat"}
+                    },
+                }
+            )
+        )
+        assert resolve_agent_type(None) == "byo.langgraph"
+        assert resolve_max_steps(None) == 20
+        assert resolve_judge_provider(None) == "deepseek"
+        assert resolve_judge_model(None) == "deepseek-chat"
 
-    def test_non_langgraph_agents_do_not_require_llm_provider(self) -> None:
-        with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            assert resolve_llm_provider(None, agent_type="mock") is None
-            assert resolve_llm_provider(None, agent_type="cli.codex") is None
+    def test_mock_agent_does_not_require_llm_provider(self) -> None:
+        set_run_config(RunConfig())
+        assert resolve_llm_provider(None, agent_type="mock") is None
 
-    def test_judge_values_from_env(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ,
-            {ENV_JUDGE_PROVIDER: "deepseek", ENV_JUDGE_MODEL: "deepseek-chat"},
-            clear=True,
-        ):
-            assert resolve_judge_provider(None) == "deepseek"
-            assert resolve_judge_model(None) == "deepseek-chat"
+    def test_provider_validated_per_agent(self) -> None:
+        with pytest.raises(ValueError, match="not supported"):
+            resolve_llm_provider("openai", agent_type="cli.claude")
+        assert resolve_llm_provider("deepseek", agent_type="cli.claude") == "deepseek"
 
-    def test_reasoning_effort_from_env(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ, {"NIKA_CODEX_REASONING_EFFORT": "medium"}, clear=True
-        ):
-            assert resolve_reasoning_effort(None) == "medium"
-            assert resolve_reasoning_effort("high") == "high"
+    def test_reasoning_effort_from_config(self) -> None:
+        set_run_config(
+            RunConfig.model_validate(
+                {
+                    "agent": {
+                        "type": "cli.codex",
+                        "provider": "openai",
+                        "reasoning_effort": "medium",
+                    }
+                }
+            )
+        )
+        assert resolve_reasoning_effort(None) == "medium"
+        assert resolve_reasoning_effort("high") == "high"
 
-    def test_agent_specific_model_envs(self) -> None:
+    def test_agent_specific_model_from_config(self) -> None:
         cases = [
-            ("mock", ENV_MODEL, "mock-v1"),
-            ("byo.langgraph", ENV_LANGGRAPH_MODEL, "deepseek-chat"),
-            ("byo.mcp_agent", ENV_MCP_AGENT_MODEL, "gpt-4.1-mini"),
-            ("byo.autogen", ENV_AUTOGEN_MODEL, "deepseek-chat"),
-            ("cli.codex", ENV_CODEX_MODEL, "gpt-5.4-mini"),
-            ("sdk.codex_sdk", ENV_CODEX_MODEL, "gpt-5.4-mini"),
-            ("sdk.codex_sdk", ENV_CODEX_SDK_MODEL, "gpt-5.4-mini"),
-            ("sdk.claude_sdk", ENV_CLAUDE_SDK_MODEL, "deepseek-v4-flash"),
-            ("community.sade", ENV_SADE_MODEL, "deepseek-v4-flash"),
+            ("byo.langgraph", {"langgraph": "deepseek-chat"}),
+            ("byo.mcp_agent", {"mcp_agent": "gpt-4.1-mini"}),
+            ("byo.autogen", {"autogen": "deepseek-chat"}),
+            ("cli.codex", {"codex": "gpt-5.4-mini"}),
+            ("sdk.codex_sdk", {"codex_sdk": "gpt-5.4-mini"}),
+            ("sdk.claude_sdk", {"claude_sdk": "deepseek-v4-flash"}),
+            ("community.sade", {"sade": "deepseek-v4-flash"}),
+            ("cli.claude", {"claude": "deepseek-v4-pro[1m]"}),
         ]
-        for agent_type, env_key, model in cases:
-            with unittest.mock.patch.dict(os.environ, {env_key: model}, clear=True):
-                assert resolve_agent_model(agent_type, None) == model
+        for agent_type, models in cases:
+            set_run_config(
+                RunConfig.model_validate(
+                    {
+                        "agent": {
+                            "type": agent_type,
+                            "provider": (
+                                "deepseek"
+                                if "claude" in agent_type
+                                or agent_type == "community.sade"
+                                else "openai"
+                            ),
+                            "models": models,
+                        }
+                    }
+                )
+            )
+            assert resolve_agent_model(agent_type, None) == next(iter(models.values()))
 
-    def test_claude_family_falls_back_to_anthropic_model(self) -> None:
-        for agent_type in ("cli.claude", "sdk.claude_sdk", "community.sade"):
-            with unittest.mock.patch.dict(
-                os.environ, {"ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"}, clear=True
-            ):
-                assert resolve_agent_model(agent_type, None) == "deepseek-v4-pro[1m]"
+    def test_custom_model_fallback(self) -> None:
+        set_run_config(
+            RunConfig.model_validate(
+                {
+                    "agent": {
+                        "type": "byo.langgraph",
+                        "provider": "custom",
+                        "custom": {
+                            "base_url": "http://localhost:11434/v1",
+                            "model": "qwen2.5:7b",
+                        },
+                    }
+                }
+            )
+        )
+        assert (
+            resolve_agent_model("byo.langgraph", None, llm_provider="custom")
+            == "qwen2.5:7b"
+        )
