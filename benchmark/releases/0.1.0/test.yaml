@@ -152,12 +152,12 @@ cases:
   topo_size: l
   problem: host_static_blackhole
   inject:
-    host_name: spine_router_3_0
+    host_name: leaf_router_2_4
 - scenario: rip_small_internet_vpn
   topo_size: l
   problem: host_vpn_membership_missing
   inject:
-    host_name: web_server_4_3
+    host_name: web_server_1_1
     host_name_2: vpn_server_1
 - scenario: dc_clos_service
   topo_size: l

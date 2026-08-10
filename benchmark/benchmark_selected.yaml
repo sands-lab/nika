@@ -24,12 +24,12 @@ cases:
   topo_size: s
   problem: bgp_blackhole_route_leak
   inject:
-    host_name: super_spine_router_0
+    host_name: leaf_router_0_0
 - scenario: dc_clos_service
   topo_size: s
   problem: bgp_hijacking
   inject:
-    host_name: super_spine_router_0
+    host_name: leaf_router_0_0
 - scenario: dc_clos_bgp
   topo_size: s
   problem: bgp_missing_route_advertisement
@@ -152,7 +152,7 @@ cases:
   topo_size: s
   problem: host_static_blackhole
   inject:
-    host_name: spine_router_0_1
+    host_name: leaf_router_0_1
 - scenario: rip_small_internet_vpn
   topo_size: s
   problem: host_vpn_membership_missing

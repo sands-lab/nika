@@ -4,13 +4,13 @@ splits:
   dev:
     cases_file: dev.yaml
     case_count: 56
-    cases_sha256: e15b65355890d21bb091731f4ba70a3c11643cefd7ed90defa720b420aba6fe6
+    cases_sha256: 1eea97e0e7ff37f0ba456d7f57b29d610e49a68d0376b7bf50e4c74d0543e766
   test:
     cases_file: test.yaml
     case_count: 56
-    cases_sha256: a7331e39980170ae2a18eebb54b93bd2d82ccc707aa76d2153b29c8c5c590616
+    cases_sha256: b1eb9cf457111313890b78f2f79a43f839cc70a04309e287c05bc4c25baeac3f
 default_split_for_release: test
-benchmark_digest: 6cb73e9b0377c32e21b31bbf3d6b18447ea19d9a2f5aa7dcd73b833768109129
+benchmark_digest: 0232d585d6ba0c0110ec615d9301e0a55d6c5f4b358b7e9f4845d5fa47fa51a6
 defaults:
   case_timeout_sec: 2400
   n_trials: 3

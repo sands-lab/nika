@@ -939,7 +939,7 @@ cases:
   topo_size: l
   problem: host_vpn_membership_missing
   inject:
-    host_name: web_server_4_3
+    host_name: web_server_1_1
     host_name_2: vpn_server_1
 - scenario: k8s_lab
   topo_size: null
@@ -2257,12 +2257,12 @@ cases:
   topo_size: s
   problem: bgp_blackhole_route_leak
   inject:
-    host_name: super_spine_router_0
+    host_name: leaf_router_0_0
 - scenario: dc_clos_bgp
   topo_size: m
   problem: bgp_blackhole_route_leak
   inject:
-    host_name: super_spine_router_1
+    host_name: leaf_router_1_3
 - scenario: dc_clos_bgp
   topo_size: l
   problem: bgp_blackhole_route_leak
@@ -2277,7 +2277,7 @@ cases:
   topo_size: m
   problem: bgp_blackhole_route_leak
   inject:
-    host_name: spine_router_0_3
+    host_name: leaf_router_1_1
 - scenario: dc_clos_service
   topo_size: l
   problem: bgp_blackhole_route_leak
@@ -2347,7 +2347,7 @@ cases:
   topo_size: s
   problem: host_static_blackhole
   inject:
-    host_name: spine_router_0_1
+    host_name: leaf_router_0_1
 - scenario: dc_clos_bgp
   topo_size: m
   problem: host_static_blackhole
@@ -2372,7 +2372,7 @@ cases:
   topo_size: l
   problem: host_static_blackhole
   inject:
-    host_name: spine_router_3_0
+    host_name: leaf_router_1_6
 - scenario: simple_bgp
   topo_size: null
   problem: host_static_blackhole
@@ -3162,7 +3162,7 @@ cases:
   topo_size: s
   problem: bgp_hijacking
   inject:
-    host_name: super_spine_router_0
+    host_name: leaf_router_0_0
 - scenario: dc_clos_service
   topo_size: m
   problem: bgp_hijacking
@@ -3172,7 +3172,7 @@ cases:
   topo_size: l
   problem: bgp_hijacking
   inject:
-    host_name: spine_router_2_1
+    host_name: leaf_router_1_4
 - scenario: simple_bgp
   topo_size: null
   problem: bgp_hijacking

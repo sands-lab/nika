@@ -66,6 +66,37 @@ def _routers_with_bgp_network(routers: list[str]) -> list[str]:
     return advertisers or list(routers)
 
 
+def _routers_with_victim_hosts(routers: list[str]) -> list[str]:
+    """Routers that have end hosts for ``resolve_victim_host()``.
+
+    Clos spines / super-spines only connect to other routers, so blackhole /
+    hijack / leak injectors that call ``resolve_victim_host`` fail on them.
+    Prefer leaf routers when the topology uses that naming.
+    """
+    return _routers_with_bgp_network(routers)
+
+
+# WireGuard peers provisioned by ``rip_small_internet_vpn`` (all topo sizes).
+# Larger topos add more Apache hosts, but only these three are VPN members
+# (see ``rip_vpn/lab.py`` / ``confs/vpn_server_1``).
+_RIP_VPN_PEER_HOSTS = ("pc1", "web_server_1_1", "web_server_1_2")
+
+
+def _vpn_peer_hosts(net_env) -> list[str]:
+    """Hosts that are WireGuard peers on the scenario VPN server."""
+    devices = _all_device_names(net_env)
+    return [name for name in _RIP_VPN_PEER_HOSTS if name in devices]
+
+
+_VICTIM_HOST_PROBLEMS = frozenset(
+    {
+        "host_static_blackhole",
+        "bgp_blackhole_route_leak",
+        "bgp_hijacking",
+    }
+)
+
+
 def _parse_endpoint(endpoint: str) -> tuple[str, str]:
     device, _, intf = endpoint.partition(":")
     return device, intf or ""
@@ -374,13 +405,9 @@ def resolve_inject_params(
 
     elif problem == "host_vpn_membership_missing":
         vpn_server = vpn0
-        vpn_peer_pool: list[str] = []
-        devices = _all_device_names(net_env)
-        if "pc1" in devices:
-            vpn_peer_pool.append("pc1")
-        vpn_peer_pool.extend(servers.get("web") or [])
-        if not vpn_peer_pool:
-            vpn_peer_pool = list(host_pool)
+        # Only hosts with a peer stanza on the VPN server; other web_* are
+        # plain Apache nodes and sed/grep on `# {host}` yields "absent".
+        vpn_peer_pool = _vpn_peer_hosts(net_env) or list(host_pool)
         params["host_name"] = _choice(rng, vpn_peer_pool, host0)
         params["host_name_2"] = vpn_server
 
@@ -390,12 +417,13 @@ def resolve_inject_params(
             rng, advertise_pool, _first(advertise_pool) or router0
         )
 
+    elif problem in _VICTIM_HOST_PROBLEMS:
+        victim_pool = _routers_with_victim_hosts(router_pool)
+        params["host_name"] = _choice(rng, victim_pool, _first(victim_pool) or router0)
+
     elif problem in {
         "bgp_acl_block",
         "bgp_asn_misconfig",
-        "host_static_blackhole",
-        "bgp_blackhole_route_leak",
-        "bgp_hijacking",
         "ospf_acl_block",
         "ospf_area_misconfiguration",
         "ospf_neighbor_missing",
@@ -576,6 +604,25 @@ def validate_benchmark_case(
                 f"bgp_missing_route_advertisement host_name={host_name!r} has no BGP "
                 f"network statement on {scenario} (topo_size={topo_size!r}); "
                 f"use a leaf router: {advertisers}"
+            )
+
+    if problem in _VICTIM_HOST_PROBLEMS and host_name:
+        routers = net_env.routers or []
+        eligible = _routers_with_victim_hosts(routers)
+        # Enforce only when the topology distinguishes leaf vs spine roles.
+        if eligible != list(routers) and host_name not in eligible:
+            raise ValueError(
+                f"{problem} host_name={host_name!r} has no attached end host on "
+                f"{scenario} (topo_size={topo_size!r}); use a leaf router: {eligible}"
+            )
+
+    if problem == "host_vpn_membership_missing" and host_name:
+        peers = _vpn_peer_hosts(net_env)
+        if peers and host_name not in peers:
+            raise ValueError(
+                f"host_vpn_membership_missing host_name={host_name!r} is not a "
+                f"WireGuard peer on {scenario} (topo_size={topo_size!r}); "
+                f"use one of: {peers}"
             )
 
     host_a = inject.get("host_name")
