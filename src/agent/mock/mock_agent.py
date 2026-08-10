@@ -4,10 +4,16 @@ The agent mirrors the two-phase architecture of BasicReActAgent:
   1. diagnosis phase  – calls lab MCP tools and emits a deterministic report
   2. submission phase – calls list_avail_problems + submit via task MCP server
 
+Uses the session's ground truth and live lab device names (not hardcoded
+``pc1``/``pc2``), so it works across release topologies.
+
 Test-only. See ``tests/README.md``.
 """
 
+from __future__ import annotations
+
 import json
+from pathlib import Path
 from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -19,17 +25,7 @@ from nika.runtime.factory import resolve_backend
 from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 
-_KATHARA_DIAGNOSIS_REPORT = (
-    "Anomaly detected: high packet loss between pc1 and pc2.  "
-    "BGP routes on r1 show an unreachable prefix (10.0.1.0/24).  "
-    "Suspected root cause: link failure on the path between r1 and pc2."
-)
-
-_CLAB_DIAGNOSIS_REPORT = (
-    "Anomaly detected: high packet loss between client1 and client2.  "
-    "BGP routes on leaf1 show an unreachable prefix (10.0.0.24/31).  "
-    "Suspected root cause: link failure on the path between leaf1 and spine."
-)
+_ROUTER_HINTS = ("router", "leaf", "spine", "super_spine")
 
 
 def _tool_text_list(result: object) -> list[str]:
@@ -51,36 +47,85 @@ def _tool_text_list(result: object) -> list[str]:
     return texts
 
 
+def _load_ground_truth(session_dir: str | None) -> dict[str, Any]:
+    if not session_dir:
+        return {}
+    path = Path(session_dir) / "ground_truth.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _session_device_names(session_id: str) -> list[str]:
+    """Best-effort list of running lab device names for this session."""
+    try:
+        from nika.workflows.session.containers import list_session_containers
+
+        _sid, _lab, rows = list_session_containers(session_id)
+    except Exception:  # noqa: BLE001 - mock falls back to ground truth only
+        return []
+    names: list[str] = []
+    for row in rows:
+        name = str(row.get("name") or "").strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _pick_pair(devices: list[str], preferred: list[str]) -> tuple[str, str] | None:
+    pool = [d for d in preferred if d in devices] or list(devices)
+    if len(pool) >= 2:
+        return pool[0], pool[1]
+    if len(pool) == 1:
+        return pool[0], pool[0]
+    return None
+
+
+def _pick_router(devices: list[str]) -> str | None:
+    for name in devices:
+        lower = name.lower()
+        if any(hint in lower for hint in _ROUTER_HINTS):
+            return name
+    return None
+
+
 def _mock_diagnosis_tool_calls(
-    backend: str, server_names: list[str]
+    *,
+    backend: str,
+    server_names: list[str],
+    devices: list[str],
+    preferred: list[str],
 ) -> list[tuple[str, dict[str, Any]]]:
     calls: list[tuple[str, dict[str, Any]]] = [("get_reachability", {})]
     if "pingmesh_mcp_server" in server_names:
         calls.append(("run_pingmesh_snapshot", {}))
+
+    pair = _pick_pair(devices, preferred)
+    if pair is not None:
+        host_a, host_b = pair
+        calls.append(("ping_pair", {"host_a": host_a, "host_b": host_b}))
+        calls.append(("exec_shell", {"host_name": host_a, "command": "hostname"}))
+
     if backend == "containerlab":
-        calls.append(("ping_pair", {"host_a": "client1", "host_b": "client2"}))
-        if "containerlab_srl_mcp_server" in server_names:
-            calls.append(("srl_show_ip_route", {"device_name": "leaf1"}))
-        else:
-            calls.append(("exec_shell", {"host_name": "leaf1", "command": "hostname"}))
+        router = _pick_router(devices) or (preferred[0] if preferred else None)
+        if router and "containerlab_srl_mcp_server" in server_names:
+            calls.append(("srl_show_ip_route", {"device_name": router}))
     else:
-        calls.append(("ping_pair", {"host_a": "pc1", "host_b": "pc2"}))
-        if "kathara_frr_mcp_server" in server_names:
-            calls.append(("frr_show_ip_route", {"router_name": "r1"}))
-        else:
-            calls.append(("exec_shell", {"host_name": "pc1", "command": "hostname"}))
+        router = _pick_router(devices) or (preferred[0] if preferred else None)
+        if router and "kathara_frr_mcp_server" in server_names:
+            calls.append(("frr_show_ip_route", {"router_name": router}))
     return calls
 
 
-def _mock_faulty_device(backend: str) -> str:
-    return "leaf1" if backend == "containerlab" else "pc1"
-
-
-def _mock_diagnosis_report(backend: str) -> str:
+def _mock_diagnosis_report(*, devices: list[str], preferred: list[str]) -> str:
+    focus = ", ".join(preferred[:3]) if preferred else ", ".join(devices[:3]) or "lab"
     return (
-        _CLAB_DIAGNOSIS_REPORT
-        if backend == "containerlab"
-        else _KATHARA_DIAGNOSIS_REPORT
+        f"Anomaly detected involving device(s): {focus}. "
+        "Mock diagnosis complete; submitting ground-truth root cause."
     )
 
 
@@ -122,13 +167,21 @@ class MockAgent:
         backend = resolve_backend(session_row)
         scenario = str(session_row.get("scenario_name") or "")
         server_names = select_diagnosis_servers(scenario, backend=backend)
+        gt = _load_ground_truth(getattr(self.session, "session_dir", None))
+        preferred = [str(d) for d in (gt.get("faulty_devices") or []) if d]
+        devices = _session_device_names(self.session_id) or list(preferred)
 
         config = load_session_mcp_config(self.session_id, scenario, backend=backend)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        tool_calls = _mock_diagnosis_tool_calls(backend, server_names)
-        diagnosis_report = _mock_diagnosis_report(backend)
+        tool_calls = _mock_diagnosis_tool_calls(
+            backend=backend,
+            server_names=server_names,
+            devices=devices,
+            preferred=preferred,
+        )
+        diagnosis_report = _mock_diagnosis_report(devices=devices, preferred=preferred)
 
         for tool_name, tool_input in tool_calls:
             if tool_name not in tools:
@@ -137,7 +190,10 @@ class MockAgent:
                 "tool_start",
                 {"tool": {"name": tool_name}, "input": json.dumps(tool_input)},
             )
-            tool_output = await tools[tool_name].ainvoke(tool_input)
+            try:
+                tool_output = await tools[tool_name].ainvoke(tool_input)
+            except Exception as exc:  # noqa: BLE001 - keep mock pipeline moving
+                tool_output = f"tool_error: {exc}"
             logger.log(
                 "tool_end",
                 {
@@ -154,8 +210,14 @@ class MockAgent:
 
         session_row = SessionStore().get_session(self.session_id)
         backend = resolve_backend(session_row)
-        faulty_device = _mock_faulty_device(backend)
         scenario = str(session_row.get("scenario_name") or "")
+        gt = _load_ground_truth(getattr(self.session, "session_dir", None))
+        faulty_devices = [str(d) for d in (gt.get("faulty_devices") or []) if d]
+        if not faulty_devices:
+            devices = _session_device_names(self.session_id)
+            faulty_devices = devices[:1] or (
+                ["leaf1"] if backend == "containerlab" else ["pc1"]
+            )
 
         logger.log(
             "llm_start",
@@ -163,7 +225,8 @@ class MockAgent:
                 "messages": {
                     "role": "user",
                     "content": (
-                        f"Based on diagnosis: {diagnosis_report}. Please call list_avail_problems and then submit."
+                        f"Based on diagnosis: {diagnosis_report}. "
+                        "Please call list_avail_problems and then submit."
                     ),
                 },
                 "model": {"name": self.model},
@@ -171,9 +234,7 @@ class MockAgent:
         )
 
         begin_submission_mcp_phase(self.session_id)
-        config = load_session_mcp_config(
-            self.session_id, scenario, backend=backend
-        )
+        config = load_session_mcp_config(self.session_id, scenario, backend=backend)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
@@ -182,10 +243,15 @@ class MockAgent:
         )
         avail_raw = await tools["list_avail_problems"].ainvoke({})
         avail = _tool_text_list(avail_raw)
+        gt_names = gt.get("root_cause_name") or []
+        if isinstance(gt_names, str):
+            gt_names = [gt_names]
         session_root_cause = getattr(self.session, "root_cause_name", None)
-        if session_root_cause in avail:
-            mock_root_cause = session_root_cause
-        else:
+        candidates = [str(n) for n in gt_names if n] + (
+            [session_root_cause] if session_root_cause else []
+        )
+        mock_root_cause = next((c for c in candidates if c in avail), None)
+        if mock_root_cause is None:
             mock_root_cause = avail[0] if avail else "link_down"
         logger.log(
             "tool_end",
@@ -194,7 +260,7 @@ class MockAgent:
 
         submission: dict[str, Any] = {
             "is_anomaly": True,
-            "faulty_devices": [faulty_device],
+            "faulty_devices": faulty_devices,
             "root_cause_name": [mock_root_cause],
         }
         logger.log(
@@ -212,7 +278,7 @@ class MockAgent:
             {
                 "text": (
                     f"Submitted: root cause = {mock_root_cause}, "
-                    f"faulty device = {faulty_device}"
+                    f"faulty devices = {faulty_devices}"
                 )
             },
         )

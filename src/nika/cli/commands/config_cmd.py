@@ -114,9 +114,14 @@ def config_migrate(
         for key in legacy:
             typer.echo(f"  - {key}")
     else:
-        typer.echo(
-            "No operational keys found in .env (will write defaults + any partial)."
+        typer.secho(
+            "No operational keys found in .env — nothing to migrate.",
+            fg=typer.colors.YELLOW,
         )
+        typer.echo(
+            "For a new setup, prefer: cp config/nika.example.yaml config/nika.yaml"
+        )
+        typer.echo("Continuing writes built-in defaults (agent.models.* stay null).")
     if removed:
         typer.echo("Removed keys (will not migrate; safe to delete from .env):")
         for key in removed:
@@ -141,8 +146,7 @@ def config_migrate(
     )
 
     if not yes:
-        answer = typer.prompt("Write this file?", default="n")
-        if answer.strip().lower() not in ("y", "yes"):
+        if not typer.confirm("Write this file?", default=False):
             typer.echo("Aborted.")
             raise typer.Exit(code=1)
 
@@ -184,10 +188,9 @@ def config_migrate(
 
     if write_env:
         if not yes:
-            answer = typer.prompt(
-                f"Rewrite {env_file} to credentials-only?", default="n"
-            )
-            if answer.strip().lower() not in ("y", "yes"):
+            if not typer.confirm(
+                f"Rewrite {env_file} to credentials-only?", default=False
+            ):
                 typer.echo("Skipped .env rewrite.")
                 return
         backup = env_file.with_suffix(env_file.suffix + ".bak")
