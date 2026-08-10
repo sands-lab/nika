@@ -169,7 +169,7 @@ Keys live in `.env`; agent/benchmark settings live in `config/nika.yaml` (CLI fl
 
 ```shell
 cp .env.example .env
-cp config/nika.example.yaml config/nika.yaml   # or: nika config migrate
+cp config/nika.example.yaml config/nika.yaml   # migrate only if you have legacy .env ops
 nika config show
 ```
 

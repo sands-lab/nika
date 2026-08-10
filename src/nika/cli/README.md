@@ -212,9 +212,9 @@ Each finished session directory should contain at least `run.json`, `ground_trut
 ## `nika config`
 
 - **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
-- **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
+- **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing; confirm with `y` (`[y/N]`, default no). If `.env` has no ops keys, it tells you to prefer `cp config/nika.example.yaml config/nika.yaml`. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
 
-The tracked template is `config/nika.example.yaml`. Normal precedence is CLI flags → YAML → built-in defaults; provider API keys remain in the repo-root `.env`.
+The tracked template is `config/nika.example.yaml` (preferred for new setups). Normal precedence is CLI flags → YAML → built-in defaults; provider API keys remain in the repo-root `.env`.
 
 ---
 
