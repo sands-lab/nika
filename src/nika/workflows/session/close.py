@@ -145,6 +145,19 @@ def _stop_session_record(session_meta: dict, *, undeploy: bool = True) -> None:
         net_env_kwargs["topo_size"] = session.scenario_topo_size
     if getattr(session, "lab_name", None):
         net_env_kwargs["lab_name"] = session.lab_name
+    scenario_params = getattr(session, "scenario_params", None) or {}
+    if not scenario_params and isinstance(session_meta.get("scenario_params"), dict):
+        scenario_params = session_meta["scenario_params"]
+    for key in (
+        "topo",
+        "igp",
+        "metric_strategy",
+        "constant_metric",
+        "bgp_mode",
+        "device_profile",
+    ):
+        if key in scenario_params and scenario_params[key] is not None:
+            net_env_kwargs[key] = scenario_params[key]
     if backend == "containerlab":
         topology_file = meta_path(session_meta, "topology_file", scenario_params=True)
         runtime_workdir = meta_path(

@@ -21,6 +21,7 @@ traffic_app = typer.Typer(help="Generate traffic in the Kathará lab.")
 _TRAFFIC_TYPE_HELP: dict[str, str] = {
     "od": "OD-matrix iperf3 between hosts (--od-json, --mesh-mbps, or --all-to-host + --mbps).",
     "web": "Synthetic web browsing (ab) for scenarios with web_urls.",
+    "sndlib": "Replay SNDlib demands/dynamic series on isp stub hosts (interval order).",
 }
 
 
@@ -76,6 +77,31 @@ def _normalize_size(raw: str | None) -> str | None:
     return raw
 
 
+@traffic_app.command("fetch")
+def traffic_fetch(
+    source: str = typer.Argument(
+        ..., metavar="SOURCE", help="sndlib — download/normalize dynamic traffic."
+    ),
+    topo: str = typer.Option(
+        ..., "--topo", help="SNDlib topology name (e.g. abilene, geant)."
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite an existing normalized cache."
+    ),
+) -> None:
+    """Fetch dynamic traffic into ``.nika_cache/sndlib/traffic/<topo>/``."""
+    from nika.net_env.isp.traffic import fetch_dynamic_traffic
+
+    src = source.strip().lower()
+    if src != "sndlib":
+        raise typer.BadParameter("Only SOURCE=sndlib is supported for fetch.")
+    try:
+        path = fetch_dynamic_traffic(topo, force=force)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"traffic_cache={path}")
+
+
 @traffic_app.command("list")
 def traffic_list() -> None:
     """List supported traffic types for `nika traffic run`."""
@@ -85,11 +111,11 @@ def traffic_list() -> None:
 
 @traffic_app.command("run")
 def traffic_run(
-    traffic_type: str = typer.Argument(..., metavar="TYPE", help="od | web"),
+    traffic_type: str = typer.Argument(..., metavar="TYPE", help="od | web | sndlib"),
     background: bool = typer.Option(
         False,
         "--background/--no-background",
-        help="Run traffic in the background where supported (od); web always blocks the CLI.",
+        help="Run traffic in the background where supported (od/sndlib); web always blocks the CLI.",
     ),
     lab: str | None = typer.Option(
         None, "--lab", help="Kathará lab name (defaults to current session scenario)."
@@ -132,6 +158,21 @@ def traffic_run(
     mbps: int | None = typer.Option(
         None, "--mbps", help="Bitrate in Mbit/s for --all-to-host (od mode)."
     ),
+    max_intervals: int | None = typer.Option(
+        None,
+        "--max-intervals",
+        help="[sndlib] Replay at most N intervals (smoke / CI).",
+    ),
+    mode: str | None = typer.Option(
+        None,
+        "--mode",
+        help="[sndlib] Traffic matrix: demands (static XML) or dynamic (cache).",
+    ),
+    scale: float | None = typer.Option(
+        None,
+        "--scale",
+        help="[sndlib] Multiply SNDlib rates before iperf -b (default: 1.0).",
+    ),
     # web-only
     request_delay_min: float = typer.Option(
         1.0, "--request-delay-min", help="[web] Min pause between page fetches."
@@ -162,6 +203,21 @@ def traffic_run(
     if unit not in ("K", "M"):
         raise typer.BadParameter('--unit must be "K" or "M".')
     unit_lit: Literal["K", "M"] = unit  # type: ignore[assignment]
+
+    if t == "sndlib":
+        _run_sndlib(
+            scenario=scenario,
+            size_resolved=size_resolved,
+            unit=unit_lit,
+            udp=udp,
+            background=background,
+            max_intervals=max_intervals,
+            mode=mode,
+            scale=scale,
+            server_args=server_args,
+            client_args=client_args,
+        )
+        return
 
     if t == "web":
         if background:
@@ -251,3 +307,86 @@ def traffic_run(
         results = asyncio.run(_run())
         typer.echo(json.dumps(results, indent=2))
         return
+
+
+def _run_sndlib(
+    *,
+    scenario: str,
+    size_resolved: str | None,
+    unit: Literal["K", "M"],
+    udp: bool,
+    background: bool,
+    max_intervals: int | None,
+    mode: str | None,
+    scale: float | None,
+    server_args: str,
+    client_args: str,
+) -> None:
+    from nika.generator.traffic.sndlib_replay import SndlibTrafficReplayer
+    from nika.net_env.isp.traffic import resolve_traffic_series
+    from nika.net_env.isp.traffic.models import DEFAULT_TRAFFIC_SCALE
+
+    if scenario != "isp":
+        raise typer.BadParameter("sndlib traffic replay requires scenario 'isp'.")
+
+    traffic_mode = (mode or "demands").strip().lower()
+    if traffic_mode not in ("demands", "dynamic"):
+        raise typer.BadParameter(f"--mode must be demands or dynamic, got {mode!r}.")
+    traffic_scale = DEFAULT_TRAFFIC_SCALE if scale is None else float(scale)
+    if traffic_scale <= 0:
+        raise typer.BadParameter("--scale must be > 0.")
+
+    resolved_id = resolve_running_session_id()
+    meta = SessionStore().get_session(resolved_id)
+    params = dict(meta.get("scenario_params") or {})
+    lab_name = meta.get("lab_name") or params.get("lab_name")
+    kwargs = {
+        k: params[k]
+        for k in (
+            "topo",
+            "igp",
+            "metric_strategy",
+            "constant_metric",
+            "bgp_mode",
+            "device_profile",
+        )
+        if k in params and params[k] is not None
+    }
+    backend = meta.get("backend") or params.get("backend")
+    if backend:
+        kwargs["backend"] = backend
+    if lab_name:
+        kwargs["lab_name"] = lab_name
+    topology_file = meta.get("topology_file") or params.get("topology_file")
+    runtime_workdir = meta.get("runtime_workdir") or params.get("runtime_workdir")
+    if topology_file:
+        kwargs["topology_file"] = topology_file
+    if runtime_workdir:
+        kwargs["runtime_workdir"] = runtime_workdir
+    if size_resolved is not None:
+        kwargs.update(_net_env_kwargs_for_scenario(scenario, size_resolved))
+
+    net_env = get_net_env_instance(scenario, **kwargs)
+    topo = params.get("topo") or getattr(net_env, "topo", None) or "polska"
+    series = resolve_traffic_series(topo, traffic_mode)
+    if series is None:
+        raise typer.BadParameter("Could not resolve SNDlib traffic series.")
+    inventory = getattr(net_env, "inventory", {}) or {}
+    if not (inventory.get("hosts") or inventory.get("traffic", {}).get("stubs")):
+        raise typer.BadParameter(
+            "isp lab has no traffic stub hosts; redeploy with a current nika build."
+        )
+
+    replayer = SndlibTrafficReplayer(runtime=runtime_for_net_env(net_env))
+    results = replayer.replay(
+        series,
+        scale=traffic_scale,
+        inventory=inventory,
+        unit=unit,
+        udp=udp,
+        background=background,
+        max_intervals=max_intervals,
+        server_args=server_args,
+        client_args=client_args,
+    )
+    typer.echo(json.dumps(results, indent=2))

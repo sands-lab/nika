@@ -82,6 +82,20 @@ uv run nika session inspect
 uv run nika session close -y
 ```
 
+The ISP scenario is parameterized by SNDlib topology (not `-s`). The same `isp`
+scenario supports Kathara (FRR) and Containerlab (Nokia SR Linux):
+
+```shell
+uv run nika env run isp --topo polska --igp isis
+uv run nika env run isp --topo polska --bgp-mode ibgp_rr
+uv run nika env run isp --topo geant --bgp-mode ebgp
+uv run nika env run isp --backend containerlab --device-profile nokia_srlinux --topo pdh
+uv run nika traffic run sndlib --mode demands --max-intervals 1 --unit K --background
+```
+
+See `src/nika/net_env/kathara/isp/isp/README.md` and
+`src/nika/net_env/containerlab/isp/README.md`.
+
 ## Add An Injectable Problem
 
 Problems live under `src/nika/problems/<category>/`. They are discovered automatically when a concrete class subclasses `ProblemBase` and sets `root_cause_name`. `prob_pool` builds `META` from the class variables at import time.

@@ -5,10 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.extras import raise_missing_extra, require_backend_extra
+
+
+@dataclass(frozen=True)
+class BackendEnvBinding:
+    """Module/class binding for one lab backend of a scenario."""
+
+    module: str
+    class_name: str
 
 
 @dataclass(frozen=True)
@@ -21,6 +29,9 @@ class NetEnvSpec:
     tags: tuple[str, ...]
     supported_backends: tuple[str, ...]
     topo_size: Any = None
+    # Optional per-backend overrides; when absent, ``module``/``class_name`` apply
+    # to every supported backend (single-binding scenarios).
+    backend_bindings: Mapping[str, BackendEnvBinding] | None = None
 
     @property
     def LAB_NAME(self) -> str:
@@ -37,6 +48,16 @@ class NetEnvSpec:
     @property
     def TOPO_SIZE(self) -> Any:
         return self.topo_size
+
+    def binding_for(self, backend: str) -> BackendEnvBinding:
+        if backend not in self.supported_backends:
+            raise ValueError(
+                f"Scenario '{self.lab_name}' does not support backend '{backend}'. "
+                f"Supported: {', '.join(self.supported_backends)}"
+            )
+        if self.backend_bindings and backend in self.backend_bindings:
+            return self.backend_bindings[backend]
+        return BackendEnvBinding(module=self.module, class_name=self.class_name)
 
 
 _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
@@ -144,6 +165,35 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         tags=("arp", "link", "mac", "bgp", "icmp", "frr", "pc"),
         supported_backends=("kathara",),
     ),
+    "isp": NetEnvSpec(
+        lab_name="isp",
+        module="nika.net_env.kathara.isp.isp.lab",
+        class_name="Isp",
+        tags=(
+            "isp",
+            "sndlib",
+            "frr",
+            "isis",
+            "ospf",
+            "bgp",
+            "igp",
+            "link",
+            "icmp",
+            "srl",
+            "containerlab",
+        ),
+        supported_backends=("kathara", "containerlab"),
+        backend_bindings={
+            "kathara": BackendEnvBinding(
+                module="nika.net_env.kathara.isp.isp.lab",
+                class_name="Isp",
+            ),
+            "containerlab": BackendEnvBinding(
+                module="nika.net_env.containerlab.isp.lab",
+                class_name="Isp",
+            ),
+        },
+    ),
     "min3clos": NetEnvSpec(
         lab_name="min3clos",
         module="nika.net_env.containerlab.min3clos.lab",
@@ -201,7 +251,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     ),
 }
 
-_CLASS_CACHE: dict[str, type[NetworkEnvBase]] = {}
+_CLASS_CACHE: dict[tuple[str, str], type[NetworkEnvBase]] = {}
 
 
 def _require_scenario(scenario_name: str) -> NetEnvSpec:
@@ -212,20 +262,19 @@ def _require_scenario(scenario_name: str) -> NetEnvSpec:
     return _NET_ENV_SPECS[scenario_name]
 
 
-def _load_net_env_class(scenario_name: str) -> type[NetworkEnvBase]:
-    if scenario_name in _CLASS_CACHE:
-        return _CLASS_CACHE[scenario_name]
+def _load_net_env_class(scenario_name: str, *, backend: str) -> type[NetworkEnvBase]:
+    cache_key = (scenario_name, backend)
+    if cache_key in _CLASS_CACHE:
+        return _CLASS_CACHE[cache_key]
     spec = _require_scenario(scenario_name)
-    backend = spec.supported_backends[0] if len(spec.supported_backends) == 1 else None
-    if backend:
-        require_backend_extra(backend)
+    binding = spec.binding_for(backend)
+    require_backend_extra(backend)
     try:
-        module = import_module(spec.module)
-        cls = getattr(module, spec.class_name)
+        module = import_module(binding.module)
+        cls = getattr(module, binding.class_name)
     except ImportError as exc:
-        extra = backend or "labs"
-        raise_missing_extra(extra, cause=exc)
-    _CLASS_CACHE[scenario_name] = cls
+        raise_missing_extra(backend, cause=exc)
+    _CLASS_CACHE[cache_key] = cls
     return cls
 
 
@@ -239,15 +288,44 @@ def scenario_supported_backends(scenario_name: str) -> list[str]:
     return list(_require_scenario(scenario_name).supported_backends)
 
 
-def scenario_backend(scenario_name: str) -> str:
-    """Return the lab backend bound to ``scenario_name``."""
+def resolve_scenario_backend(
+    scenario_name: str,
+    *,
+    backend: str | None = None,
+    default_when_ambiguous: str | None = None,
+) -> str:
+    """Resolve which lab backend to use for ``scenario_name``.
+
+    - Explicit ``backend`` must be in the scenario's supported list.
+    - Single-backend scenarios resolve without an explicit choice.
+    - Multi-backend scenarios require ``backend``, or ``default_when_ambiguous``
+      when that default is supported.
+    """
     supported = scenario_supported_backends(scenario_name)
-    if len(supported) != 1:
-        raise ValueError(
-            f"Scenario '{scenario_name}' must declare exactly one backend; "
-            f"found: {', '.join(supported)}"
-        )
-    return supported[0]
+    if backend is not None:
+        if backend not in supported:
+            raise ValueError(
+                f"Scenario '{scenario_name}' does not support backend '{backend}'. "
+                f"Supported: {', '.join(supported)}"
+            )
+        return backend
+    if len(supported) == 1:
+        return supported[0]
+    if default_when_ambiguous is not None and default_when_ambiguous in supported:
+        return default_when_ambiguous
+    raise ValueError(
+        f"Scenario '{scenario_name}' supports multiple backends "
+        f"({', '.join(supported)}); pass --backend."
+    )
+
+
+def scenario_backend(scenario_name: str) -> str:
+    """Return the sole backend for a single-backend scenario.
+
+    Multi-backend scenarios must use :func:`resolve_scenario_backend` with an
+    explicit ``backend`` (or ``default_when_ambiguous``).
+    """
+    return resolve_scenario_backend(scenario_name)
 
 
 def get_net_env_instance(
@@ -265,18 +343,13 @@ def get_net_env_instance(
     Raises:
         ValueError: If the specified network environment is not found or backend unsupported.
     """
-    spec = _require_scenario(scenario_name)
-    if backend not in spec.supported_backends:
-        raise ValueError(
-            f"Scenario '{scenario_name}' does not support backend '{backend}'. "
-            f"Supported: {', '.join(spec.supported_backends)}"
-        )
-    cls = _load_net_env_class(scenario_name)
+    resolved = resolve_scenario_backend(scenario_name, backend=backend)
+    cls = _load_net_env_class(scenario_name, backend=resolved)
     lab_name = kwargs.pop("lab_name", None)
     topology_file = kwargs.pop("topology_file", None)
     runtime_workdir = kwargs.pop("runtime_workdir", None)
-    instance = cls(**kwargs)
-    instance.backend = backend
+    instance = cls(backend=resolved, **kwargs)
+    instance.backend = resolved
     if lab_name:
         instance.name = lab_name
         if instance.lab is not None:

@@ -9,7 +9,6 @@ from collections import defaultdict
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
     list_all_net_envs,
-    scenario_backend,
 )
 from nika.problems.prob_pool import list_avail_problem_instances
 
@@ -154,7 +153,12 @@ def _get_net_env_for_benchmark(scenario: str, topo_size: str = ""):
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
-    kwargs["backend"] = scenario_backend(scenario)
+    from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
+    from nika.net_env.net_env_pool import resolve_scenario_backend
+
+    kwargs["backend"] = resolve_scenario_backend(
+        scenario, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
+    )
     return get_net_env_instance(scenario, **kwargs)
 
 
@@ -265,7 +269,12 @@ def resolve_inject_params(
     rng = _case_rng(seed, scenario, problem, topo_size)
     net_env = _get_net_env_for_benchmark(scenario, topo_size)
     _load_inventory(net_env)
-    backend = scenario_backend(scenario)
+    from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
+    from nika.net_env.net_env_pool import resolve_scenario_backend
+
+    backend = resolve_scenario_backend(
+        scenario, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
+    )
 
     hosts = net_env.hosts or []
     routers = net_env.routers or []

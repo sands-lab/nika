@@ -123,6 +123,13 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             session_tag=request.session_tag,
             result_dir=request.result_dir,
             session_id=request.session_id,
+            topo=request.topo,
+            igp=request.igp,
+            metric_strategy=request.metric_strategy,
+            constant_metric=request.constant_metric,
+            bgp_mode=request.bgp_mode,
+            backend=request.backend,
+            device_profile=request.device_profile,
         )
     except Exception:
         logger.exception("env start failed scenario=%s", request.scenario)

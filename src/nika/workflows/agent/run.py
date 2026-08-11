@@ -136,6 +136,7 @@ def start_agent(
                 policy_mode=_gateway_policy_mode(agent_type),  # type: ignore[arg-type]
                 sandbox=use_sandbox,
                 sandbox_agent_host=sandbox_gateway_agent_host(),
+                backend=getattr(session, "backend", None),
             ) as gateway_manager:
                 if use_sandbox:
                     if not sbx_available():

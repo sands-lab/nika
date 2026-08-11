@@ -136,9 +136,12 @@ def _resolve_session_backend(scenario_name: str) -> str | None:
     if not scenario_name:
         return None
     try:
-        from nika.net_env.net_env_pool import scenario_backend
+        from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
+        from nika.net_env.net_env_pool import resolve_scenario_backend
 
-        return scenario_backend(scenario_name)
+        return resolve_scenario_backend(
+            scenario_name, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
+        )
     except ValueError:
         return None
 
@@ -153,13 +156,14 @@ def mcp_gateway_for_session(
     port: int | None = None,
     sandbox: bool = False,
     sandbox_agent_host: str = SANDBOX_GATEWAY_AGENT_HOST,
+    backend: str | None = None,
 ) -> Iterator[McpGatewayManager]:
     """Start gateway, register *session_id*, expose URL via env, then clean up."""
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
-    backend = _resolve_session_backend(scenario_name)
-    manager = start_gateway(host=bind_host, port=port, backend=backend)
+    resolved_backend = backend or _resolve_session_backend(scenario_name)
+    manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
     remote_upstreams: dict[str, str] = {}

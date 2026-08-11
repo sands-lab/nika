@@ -150,6 +150,7 @@ class ODFLowGenerator:
         udp: bool = True,
         server_args: str = "",
         client_args: str = "",
+        host_ips: dict[str, str] | None = None,
     ) -> list[str]:
         client_coroutines = []
         server_coroutines = []
@@ -159,6 +160,7 @@ class ODFLowGenerator:
         start_port_id = 5201
         started_server_ports = {}
         server_port_assign = {}
+        ip_overrides = dict(host_ips or {})
 
         for src_host, dests in od_dicts.items():
             for dst_host, volume in dests.items():
@@ -196,7 +198,9 @@ class ODFLowGenerator:
 
         for src_host, dests in od_dicts.items():
             for dst_host, volume in dests.items():
-                dst_ip = self.runtime.get_host_ip(dst_host)
+                dst_ip = ip_overrides.get(
+                    dst_host
+                ) or self.runtime.get_data_plane_host_ip(dst_host)
                 if not dst_ip:
                     raise ValueError(f"Cannot resolve IP for host {dst_host!r}")
                 dst_port = server_port_assign[dst_host][src_host]
@@ -233,6 +237,7 @@ class ODFLowGenerator:
         udp: bool = True,
         server_args: str = "",
         client_args: str = "",
+        host_ips: dict[str, str] | None = None,
     ) -> list[str]:
         return self.runtime.start_background_od_traffic(
             od_dicts,
@@ -241,4 +246,5 @@ class ODFLowGenerator:
             udp=udp,
             server_args=server_args,
             client_args=client_args,
+            host_ips=host_ips,
         )
