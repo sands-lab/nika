@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import threading
 import time
 
 from agent.sandbox.config import (
@@ -59,9 +60,16 @@ def _daemon_running() -> bool:
 
 
 _applied_proxy: str | None = None
+_proxy_config_lock = threading.Lock()
 
 
 def ensure_sbx_proxy_config(upstream_proxy: str | None) -> None:
+    """Apply daemon proxy configuration once, serializing parallel trials."""
+    with _proxy_config_lock:
+        _ensure_sbx_proxy_config(upstream_proxy)
+
+
+def _ensure_sbx_proxy_config(upstream_proxy: str | None) -> None:
     """Reload the sbx daemon with ``DOCKER_SANDBOXES_PROXY`` when configured.
 
     Uses stop + background start as the current user (``sbx`` has no

@@ -27,6 +27,7 @@ def test_load_missing_uses_defaults(tmp_path: Path) -> None:
     cfg = load_run_config(tmp_path / "missing.yaml")
     assert cfg.agent.type == "byo.langgraph"
     assert cfg.agent.max_steps == 20
+    assert cfg.benchmark.case_timeout_sec == 2400
 
 
 def test_load_and_merge_cli(tmp_path: Path) -> None:

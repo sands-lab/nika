@@ -65,7 +65,7 @@ nika benchmark run --release 0.1.0 --result_dir results/my-release-run
 # → results/my-release-run/trials/<case_key>__t01/ …
 ```
 
-**Benchmark resume** (batch mode, `--resume` by default): before running, NIKA scans **only** the resolved `--result_dir` trials. Completed trials (`outcome` in `{success, agent_failed}`) are skipped; incomplete dirs are cleaned and re-run in place. Pass **`--no-resume`** to execute every trial regardless of existing artifacts.
+**Benchmark resume** (batch mode, `--resume` by default): before running, NIKA scans **only** the resolved `--result_dir` trials. Completed trials (`outcome` in `{success, agent_failed}`) are skipped; finished dirs with a submission but missing final metrics/`outcome` are **healed** (metrics rebuilt and success inferred) instead of deleted. Remaining incomplete/`running` dirs are cleaned and re-run in place. Pass **`--no-resume`** to clear trial slots and re-execute every trial.
 
 ### Agent options
 
@@ -264,11 +264,13 @@ Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) unde
 
 **`--result_dir`**: for batch `--config` / `--release` this directory **is** the run root (see [Results directory](#results-directory---result_dir)). Resume and skip logic inspect **only** this directory—not other folders under `results/` and not the SQLite index.
 
-**`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished trials, clean incomplete ones, then run the rest. Works with any `--batch-size`.
+**`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished trials (rebuilding metrics for solved trials interrupted during finalization), clean the remaining incomplete ones, then run the rest. **`--no-resume`** clears existing trial slots under the run, then executes every trial. Works with any `--batch-size`.
 
 **`--batch-size`**: number of trials to run simultaneously per batch (default `1`). Trials are chunked into groups of this size; each parallel group runs via spawn processes (and timeouts also use spawn). Applies to batch mode only.
 
-**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): hard per-trial time limit. When omitted, the release default is used (**2400** for `0.1.0`); ad-hoc `--config` defaults to `0` (disabled). When set, each trial runs in an isolated spawn process so a stuck case can be killed cleanly.
+**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): **outer** hard per-trial wall clock (default **2400**; set `0` to disable). Each trial gets this budget independently. When the watchdog fires, the worker is killed and — if ground truth exists — the trial is finalized as counted `agent_failed` with `eval_metrics` (so `--resume` keeps it).
+
+**Inner no-response timeout**: MCP clients use `NIKA_MCP_READ_TIMEOUT` (default **120s**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` only limits agent iterations, not wall time.
 
 **`--continue-on-error`** (`benchmark.continue_on_error`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
 

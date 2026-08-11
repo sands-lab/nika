@@ -1,4 +1,4 @@
-# NIKA run configuration (versioned, non-secret).
+# NIKA run configuration.
 # Copy to config/nika.yaml or run: nika config migrate
 # Precedence: CLI flags > this file > built-in defaults
 # Credentials stay in the repo-root .env
@@ -53,7 +53,7 @@ benchmark:
   release: null
   split: null
   batch_size: 1
-  case_timeout_sec: 0
+  case_timeout_sec: 2400
   continue_on_error: false
   retry_passes: 0
   resume: true

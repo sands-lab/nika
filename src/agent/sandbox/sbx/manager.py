@@ -100,13 +100,15 @@ class SbxSandboxManager:
             "mcp_gateway_agent_url": gateway_url,
             "stream_output": stream_output,
         }
-        if agent_type in SDK_AGENT_TYPES:
-            manifest["mcp_servers"] = build_sandbox_mcp_servers(
-                session_id=session.session_id,
-                scenario_name=scenario_name,
-                backend=backend,
-                gateway_agent_url=gateway_url,
-            )
+        # Bake the session-specific gateway URL into the workspace.  Parallel
+        # CLI trials share the host process environment, so resolving this URL
+        # later from NIKA_MCP_GATEWAY_* can pick up a sibling trial's value.
+        manifest["mcp_servers"] = build_sandbox_mcp_servers(
+            session_id=session.session_id,
+            scenario_name=scenario_name,
+            backend=backend,
+            gateway_agent_url=gateway_url,
+        )
         return manifest
 
     def _bundle_agent_sources(self, workspace_dir: Path) -> None:
@@ -290,26 +292,34 @@ class SbxSandboxManager:
                 else:
                     os.environ[key] = prior_value
 
-            deny_mcp_gateway(
-                sandbox_name=sandbox_name,
-                port=gateway_port,
-                gateway_url=mcp_gateway_agent_url,
-            )
-            if not self.config.keep_container:
-                run_sbx_optional(["rm", "--force", sandbox_name])
-            collect_artifacts(workspace)
-            (session_dir / MANIFEST_FILENAME).write_text(
-                __import__("json").dumps(manifest, indent=2),
-                encoding="utf-8",
-            )
-            cleanup_workspace(workspace)
-            log_event(
-                "sandbox_end",
-                f"Docker Sandbox finished for session {session.session_id}",
-                session_id=session.session_id,
-                agent_type=agent_type,
-                sandbox_name=sandbox_name,
-            )
+            try:
+                deny_mcp_gateway(
+                    sandbox_name=sandbox_name,
+                    port=gateway_port,
+                    gateway_url=mcp_gateway_agent_url,
+                )
+            finally:
+                try:
+                    if not self.config.keep_container:
+                        run_sbx_optional(["rm", "--force", sandbox_name])
+                finally:
+                    try:
+                        collect_artifacts(workspace)
+                    finally:
+                        # Keep the manifest even when artifact collection or
+                        # earlier sandbox cleanup fails.
+                        (session_dir / MANIFEST_FILENAME).write_text(
+                            __import__("json").dumps(manifest, indent=2),
+                            encoding="utf-8",
+                        )
+                        cleanup_workspace(workspace)
+                        log_event(
+                            "sandbox_end",
+                            f"Docker Sandbox finished for session {session.session_id}",
+                            session_id=session.session_id,
+                            agent_type=agent_type,
+                            sandbox_name=sandbox_name,
+                        )
 
     def _run_sdk_in_sandbox(
         self,

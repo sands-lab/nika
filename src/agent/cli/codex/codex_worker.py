@@ -106,15 +106,21 @@ def _reconnect_transport_failed(event: dict) -> bool:
 def _build_mcp_toml(servers: dict) -> str:
     """Serialise an MCP server dict (from MCPServerConfig) as TOML."""
     lines: list[str] = [
-        "experimental_use_rmcp_client = true",
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
+        "",
+        "[sandbox_workspace_write]",
+        "network_access = true",
         "",
     ]
     for name, srv in servers.items():
         lines.append(f"[mcp_servers.{name}]")
         if srv.get("transport") == "http":
             lines.append(f'url = "{srv["url"]}"')
+            # A troubleshooting run without its MCP tools can appear to finish
+            # normally while producing no submission.  Make that startup
+            # failure explicit instead of letting Codex continue tool-less.
+            lines.append("required = true")
             lines.append('default_tools_approval_mode = "approve"')
             headers: dict = srv.get("headers") or {}
             if headers:
@@ -201,7 +207,8 @@ class CodexWorker:
         self._reconnect_failure_at: float | None = None
         self._last_progress_at: float | None = None
 
-        self.workspace = Path(session_dir) / "codex_workspace"
+        self.session_dir = Path(session_dir)
+        self.workspace = self.session_dir / "codex_workspace"
         self._codex_home = self.workspace / ".codex_home"
         self._logger = MessageLogger(agent=phase, session_dir=session_dir)
         self._stream_output = stream_output
@@ -235,6 +242,7 @@ class CodexWorker:
         servers = load_session_mcp_config(
             self.session_id,
             self.scenario_name,
+            session_dir=self.session_dir,
         )
 
         self._logger.log(

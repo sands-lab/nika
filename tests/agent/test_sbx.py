@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -136,6 +137,61 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     assert (session_dir / "sandbox_manifest.json").is_file()
     assert not (session_dir / ".sandbox_run").exists()
     assert not (session_dir / "codex_sdk_workspace").exists()
+
+
+def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    session = SimpleNamespace(
+        session_id="sess-cleanup-failure",
+        session_dir=str(session_dir),
+        task_description="diagnose",
+        scenario_name="simple_bgp",
+        backend="kathara",
+    )
+    credentials = SimpleNamespace(sentinel_runtime_env=lambda: {})
+    manager = SbxSandboxManager(resolve_sandbox_config(keep_container=False))
+
+    with (
+        patch("agent.sandbox.sbx.manager.ensure_sbx_proxy_config"),
+        patch("agent.sandbox.sbx.manager.ensure_sbx_ready"),
+        patch("agent.sandbox.sbx.manager.ensure_llm_network_policy"),
+        patch(
+            "agent.sandbox.sbx.manager.ensure_sbx_credentials",
+            return_value=credentials,
+        ),
+        patch("agent.sandbox.sbx.manager.run_sbx_checked"),
+        patch("agent.sandbox.sbx.manager.run_sbx_optional"),
+        patch("agent.sandbox.sbx.manager.allow_mcp_gateway"),
+        patch(
+            "agent.sandbox.sbx.manager.deny_mcp_gateway",
+            side_effect=OSError("policy cleanup failed"),
+        ),
+        patch("agent.sandbox.sbx.manager.log_event"),
+    ):
+        with pytest.raises(OSError, match="policy cleanup failed"):
+            with manager.open_session(
+                session=session,
+                agent_type="cli.codex",
+                model="gpt-5-mini",
+                max_steps=10,
+                reasoning_effort=None,
+                llm_provider="openai",
+                mcp_gateway_agent_url="http://host.docker.internal:12345",
+                gateway_port=12345,
+                stream_output=False,
+            ) as sbx_session:
+                (sbx_session.workspace_dir / "messages.jsonl").write_text(
+                    "message\n", encoding="utf-8"
+                )
+                (sbx_session.workspace_dir / "submission.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+
+    assert (session_dir / "sandbox_manifest.json").is_file()
+    assert (session_dir / "messages.jsonl").read_text(encoding="utf-8") == "message\n"
+    assert (session_dir / "submission.json").is_file()
+    assert not (session_dir / ".sandbox_run").exists()
 
 
 def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
@@ -436,9 +492,7 @@ def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
     assert resolve_sandbox_config().offline_sdk_wheels is False
 
     set_run_config(
-        RunConfig.model_validate(
-            {"nika": {"sandbox": {"offline_sdk_wheels": True}}}
-        )
+        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": True}}})
     )
     assert resolve_sandbox_config().offline_sdk_wheels is True
     assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False

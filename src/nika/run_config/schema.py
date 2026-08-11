@@ -97,7 +97,7 @@ class BenchmarkSettings(BaseModel):
     release: str | None = None
     split: str | None = None
     batch_size: int = 1
-    case_timeout_sec: int = 0
+    case_timeout_sec: int = 2400
     continue_on_error: bool = False
     retry_passes: int = 0
     resume: bool = True

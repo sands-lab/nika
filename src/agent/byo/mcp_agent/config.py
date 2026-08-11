@@ -7,7 +7,7 @@ import os
 from mcp_agent.config import MCPServerSettings, MCPSettings, OpenAISettings, Settings
 
 from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import select_diagnosis_servers
+from agent.utils.mcp_servers import mcp_read_timeout_seconds, select_diagnosis_servers
 from nika.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
@@ -20,17 +20,23 @@ from nika.utils.provider_env import (
 
 def _to_server_settings(server: dict) -> MCPServerSettings:
     transport = server.get("transport", "stdio")
+    read_timeout = mcp_read_timeout_seconds()
+    # mcp-agent expects int | None; keep None when disabled (0 / unset path).
+    read_timeout_int = int(read_timeout) if read_timeout is not None else None
     if transport == "http":
         return MCPServerSettings(
             transport="streamable_http",
             url=server["url"],
             headers=dict(server.get("headers") or {}),
+            read_timeout_seconds=read_timeout_int,
+            http_timeout_seconds=read_timeout_int,
         )
     return MCPServerSettings(
         transport=server.get("transport", "stdio"),
         command=server["command"],
         args=server.get("args", []),
         env=server.get("env"),
+        read_timeout_seconds=read_timeout_int,
     )
 
 

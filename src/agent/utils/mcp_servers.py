@@ -67,14 +67,26 @@ MCP_READ_TIMEOUT_ENV = "NIKA_MCP_READ_TIMEOUT"
 DEFAULT_MCP_READ_TIMEOUT_SECONDS = 120.0
 
 
-@functools.lru_cache(maxsize=1)
-def _mcp_read_timeout() -> timedelta | None:
+def mcp_read_timeout_seconds() -> float | None:
+    """Return MCP client read timeout in seconds; ``None`` disables.
+
+    Used by LangGraph, Autogen, and mcp-agent clients. Independent of whether
+    ``langchain-mcp-adapters`` supports ``session_kwargs``.
+    """
     raw = os.getenv(MCP_READ_TIMEOUT_ENV, "").strip()
     try:
         seconds = float(raw) if raw else DEFAULT_MCP_READ_TIMEOUT_SECONDS
     except ValueError:
         seconds = DEFAULT_MCP_READ_TIMEOUT_SECONDS
     if seconds <= 0:
+        return None
+    return seconds
+
+
+@functools.lru_cache(maxsize=1)
+def _mcp_read_timeout() -> timedelta | None:
+    seconds = mcp_read_timeout_seconds()
+    if seconds is None:
         return None
     if not _adapter_supports_session_kwargs():
         print(

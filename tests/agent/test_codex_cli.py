@@ -45,6 +45,9 @@ class CodexMcpTomlTest:
         )
         assert 'approval_policy = "never"' in toml
         assert 'sandbox_mode = "workspace-write"' in toml
+        assert "[sandbox_workspace_write]" in toml
+        assert "network_access = true" in toml
+        assert "experimental_use_rmcp_client" not in toml
         assert 'default_tools_approval_mode = "approve"' in toml
         assert "[mcp_servers.kathara_base_mcp_server]" in toml
         assert 'NIKA_SESSION_ID = "sess-123"' in toml
@@ -60,6 +63,17 @@ class CodexMcpTomlTest:
             }
         )
         assert toml.count('default_tools_approval_mode = "approve"') == 2
+
+    def test_requires_http_servers(self) -> None:
+        toml = _build_mcp_toml(
+            {
+                "task_mcp_server": {
+                    "transport": "http",
+                    "url": "http://host.docker.internal:12345/mcp/task/mcp",
+                }
+            }
+        )
+        assert "required = true" in toml
 
 
 class CodexProgressDetectionTest:
@@ -191,9 +205,7 @@ class CodexCliAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_03_run_cli_agent(self) -> None:
         assert self.session_id is not None
-        self._run_agent(
-            agent_type="cli.codex", model=CODEX_MODEL, max_steps=20
-        )
+        self._run_agent(agent_type="cli.codex", model=CODEX_MODEL, max_steps=20)
         row = SessionStore().get_session(self.session_id)
         assert row.get("agent_type") == "cli.codex"
 
@@ -265,9 +277,7 @@ class CodexClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_03_run_cli_agent(self) -> None:
         assert self.session_id is not None
-        self._run_agent(
-            agent_type="cli.codex", model=CODEX_MODEL, max_steps=20
-        )
+        self._run_agent(agent_type="cli.codex", model=CODEX_MODEL, max_steps=20)
         row = SessionStore().get_session(self.session_id)
         assert row.get("agent_type") == "cli.codex"
 
