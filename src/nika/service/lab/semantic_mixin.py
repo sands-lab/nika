@@ -65,6 +65,27 @@ class SemanticOpsMixin:
                     return format_ip(ip, prefix)
         return None
 
+    def get_data_plane_host_ip(
+        self: SupportsExec,
+        node: str,
+        *,
+        with_prefix: bool = False,
+        prefer_ifaces: tuple[str, ...] = ("eth1", "eth0"),
+    ) -> str | None:
+        """Prefer data-plane ifaces (eth1 on Containerlab linux) over mgmt eth0."""
+        candidates: list[str] = []
+        for iface in prefer_ifaces:
+            ip = self.get_host_ip(node, iface, with_prefix=with_prefix)
+            if not ip:
+                continue
+            bare = ip.split("/", 1)[0]
+            # Containerlab mgmt bridge ranges used by NIKA labs.
+            if bare.startswith(("172.100.", "172.20.", "172.18.")):
+                candidates.append(ip)
+                continue
+            return ip
+        return candidates[0] if candidates else None
+
     def get_default_gateway(self: SupportsExec, node: str) -> str | None:
         output = self.exec_cmd(node, "ip -j route")
         try:
@@ -230,11 +251,13 @@ class SemanticOpsMixin:
         udp: bool = True,
         server_args: str = "",
         client_args: str = "",
+        host_ips: dict[str, str] | None = None,
     ) -> list[str]:
         started_server_ports: dict[str, int] = {}
         server_port_assign: dict[str, dict[str, int]] = {}
         labels: list[str] = []
         start_port_id = 5201
+        ip_overrides = dict(host_ips or {})
 
         for src_host, dests in od_dicts.items():
             for dst_host in dests:
@@ -256,7 +279,9 @@ class SemanticOpsMixin:
             for dst_host, volume in dests.items():
                 if src_host == dst_host:
                     continue
-                dst_ip = self.get_host_ip(dst_host)
+                dst_ip = ip_overrides.get(dst_host) or self.get_data_plane_host_ip(
+                    dst_host
+                )
                 if not dst_ip:
                     raise ValueError(f"Cannot resolve IP for host {dst_host!r}")
                 dst_port = server_port_assign[dst_host][src_host]

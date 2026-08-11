@@ -33,6 +33,50 @@ def env_run(
         "--size",
         help="Topology size s, m, or l (required only for scalable scenarios).",
     ),
+    topo: str | None = typer.Option(
+        None,
+        "--topo",
+        help="SNDlib topology name or network.xml path (isp only; default: polska).",
+    ),
+    igp: str | None = typer.Option(
+        None,
+        "--igp",
+        help="Interior gateway protocol: isis or ospf (isp only; default: isis).",
+    ),
+    metric_strategy: str | None = typer.Option(
+        None,
+        "--metric-strategy",
+        help=(
+            "Link metric strategy: constant, routing_cost, or inv_capacity "
+            "(isp only; default: constant)."
+        ),
+    ),
+    constant_metric: int | None = typer.Option(
+        None,
+        "--constant-metric",
+        help="Metric value for constant strategy / fallbacks (isp only; default: 10).",
+    ),
+    bgp_mode: str | None = typer.Option(
+        None,
+        "--bgp-mode",
+        help=("BGP preset: none, ibgp_rr, or ebgp (isp only; default: none)."),
+    ),
+    backend: str | None = typer.Option(
+        None,
+        "--backend",
+        help=(
+            "Lab backend: kathara or containerlab "
+            "(required when a scenario supports both; isp defaults to kathara)."
+        ),
+    ),
+    device_profile: str | None = typer.Option(
+        None,
+        "--device-profile",
+        help=(
+            "ISP device profile: frr (kathara) or nokia_srlinux (containerlab). "
+            "Defaults from --backend."
+        ),
+    ),
     no_redeploy: bool = typer.Option(
         False,
         "--no-redeploy",
@@ -59,6 +103,13 @@ def env_run(
         redeploy=not no_redeploy,
         instance_tag=instance_tag,
         result_dir=result_dir,
+        topo=topo,
+        igp=igp,
+        metric_strategy=metric_strategy,
+        constant_metric=constant_metric,
+        bgp_mode=bgp_mode,
+        backend=backend,
+        device_profile=device_profile,
     )
     typer.echo(f"session_id={session_id}")
 

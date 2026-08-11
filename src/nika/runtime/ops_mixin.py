@@ -44,6 +44,13 @@ class ExecSemanticOpsMixin:
     ) -> str | None:
         return self._delegate("ip", "get_host_ip", node, iface, with_prefix=with_prefix)
 
+    def get_data_plane_host_ip(
+        self, node: str, *, with_prefix: bool = False
+    ) -> str | None:
+        return self._delegate(
+            "ip", "get_data_plane_host_ip", node, with_prefix=with_prefix
+        )
+
     def get_default_gateway(self, node: str) -> str | None:
         return self._delegate("route", "get_default_gateway", node)
 
@@ -271,6 +278,7 @@ class ExecSemanticOpsMixin:
         udp: bool = True,
         server_args: str = "",
         client_args: str = "",
+        host_ips: dict[str, str] | None = None,
     ) -> list[str]:
         self.require_capabilities("traffic", "ip")
         return self._api().start_background_od_traffic(
@@ -280,4 +288,5 @@ class ExecSemanticOpsMixin:
             udp=udp,
             server_args=server_args,
             client_args=client_args,
+            host_ips=host_ips,
         )

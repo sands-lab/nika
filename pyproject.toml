@@ -51,6 +51,9 @@ nika = "nika.cli.main:main"
 where = ["src"]
 include = ["nika*", "agent*"]
 
+[tool.setuptools.package-data]
+"nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]
+
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 

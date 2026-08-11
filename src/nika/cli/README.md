@@ -20,7 +20,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika config` | Show effective run config or migrate legacy `.env` ops into YAML |
 | `nika leaderboard` | Pack, validate, and submit leaderboard entries (GitHub PR) from official release runs |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [`docs/remote.md`](../../../docs/remote.md) |
-| `nika traffic` | Synthetic traffic (`od`, `web`) against the running lab |
+| `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`) against the running lab |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
 
@@ -331,7 +331,13 @@ Requires a deployed lab. By default the **current session** supplies the deploye
 | TYPE | `--no-background` (default) | `--background` |
 |------|------------------------------|------------------|
 | `od` | Run iperf3 clients synchronously; print JSON summaries to stdout | Start iperf3 in the background inside the lab; print a short JSON list of flow labels |
+| `sndlib` | Replay each SNDlib interval synchronously | Start each interval in the background, wait `duration_sec`, then next |
 | `web` | Block until interrupted or finished (`--no-loop`) | **Not supported** (error): web load always blocks this CLI |
+
+### `nika traffic fetch sndlib`
+
+Normalize/download dynamic traffic into `.nika_cache/sndlib/traffic/<topo>/`.
+Requires a known adapter/URL or a hand-written normalized cache.
 
 ### `nika traffic run od`
 
@@ -349,6 +355,13 @@ Shared iperf tuning:
 - **`--unit`**: `K` or `M` (bitrate suffix for matrix values).
 - **`--udp` / `--no-udp`**
 - **`--server-args`**, **`--client-args`**: extra iperf3 arguments.
+
+### `nika traffic run sndlib`
+
+Replay SNDlib demands/dynamic series on `isp` stub hosts (`pc_<router>`).
+`env run isp` always attaches stubs; choose the matrix with **`--mode demands|dynamic`**
+(default `demands`) and optional **`--scale`**. Intervals play **in order**.
+Use **`--max-intervals N`** for smoke tests.
 
 ### `nika traffic run web`
 
