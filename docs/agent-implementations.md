@@ -1,8 +1,10 @@
-# Agent Architecture
+# Agent implementation reference
 
-`src/agent` hosts multiple troubleshooting agent implementations for NIKA. All share the same entry contract (`protocols.TroubleshootingAgent`) and produce the same session artifacts (`messages.jsonl`, `submission.json`, etc.).
+This reference is for maintainers of NIKA's built-in troubleshooting agents. Each implementation follows `protocols.TroubleshootingAgent` and produces the same session artifacts, including `messages.jsonl` and `submission.json`.
 
-## Directory Layout
+Implementation: [`protocols.py`](../src/agent/protocols.py) defines the agent contract, and [`registry.py`](../src/agent/registry.py) maps CLI names to agent classes.
+
+## Directory layout
 
 ```
 src/agent/
@@ -19,7 +21,7 @@ src/agent/
 │   └── claude/           # -a cli.claude
 ├── community/            # Community-contributed agents
 │   └── sade/             # -a community.sade
-├── mock/                 # Test-only deterministic agent (see tests/README.md)
+├── mock/                 # Test-only deterministic agent (see docs/testing.md)
 │   └── mock_agent.py
 ├── sdk/                  # SDK agents (claude-agent-sdk, openai-codex)
 │   ├── claude_sdk/       # -a sdk.claude_sdk
@@ -30,7 +32,7 @@ src/agent/
 └── utils/                # MCP config, phases, loggers, skills helpers
 ```
 
-## Agent Types
+## Agent types
 
 | CLI name | Orchestration | LLM access |
 |----------|---------------|------------|
@@ -43,31 +45,25 @@ src/agent/
 | `sdk.claude_sdk` | Native two-phase `ClaudeSDKClient` sessions | `claude-agent-sdk` + shared skills (optional extra `sdk`) |
 | `sdk.codex_sdk` | Native two-phase `AsyncCodex` threads | `openai-codex` + shared skills (optional extra `sdk`) |
 
-## Community Agents
+## Community agents
 
-Community-contributed agents live under `src/agent/community/<name>/` and implement the
-same `protocols.TroubleshootingAgent` contract.
+Community-contributed agents live under `src/agent/community/<name>/` and implement the same `protocols.TroubleshootingAgent` contract.
 
-See [`community/sade/README.md`](community/sade/README.md) for SADE setup, DeepSeek
-credentials, and the paper citation (arXiv:2605.04530).
+See the [SADE community agent reference](agents/community/sade.md) for setup, DeepSeek credentials, and the paper citation (arXiv:2605.04530).
 
-## Agent Skills
+## Agent skills
 
-Claude Code and Codex agents load the shared skill library from `src/agent/skills/` when
-`nika.enable_skills: true` in `config/nika.yaml` (the default). Helpers live in `agent.utils.skills`.
-The integration-only `nika-test-skill` is under `test_skills/` and is loaded only when tests
-pass `include_test_skill=True` to the prepare/prompt helpers.
+Claude Code and Codex agents load the shared skill library from `src/agent/skills/` when `nika.enable_skills: true` in `config/nika.yaml` (the default). Helpers live in `agent.utils.skills`. The integration-only `nika-test-skill` is under `test_skills/` and is loaded only when tests pass `include_test_skill=True` to the prepare/prompt helpers.
 
-See **[docs/agent-skills.md](../../docs/agent-skills.md)** for authoring custom skills.
-Integration tests: `tests/agent/test_skills.py`.
+See [Configure agent skills](agent-skills.md) to author a custom skill. Integration tests: `tests/agent/test_skills.py`.
 
-## Shared Pipeline
+## Shared pipeline
 
 Every agent runs **diagnosis** (Kathara MCP, `if_submit=False`) then **submission** (task MCP, `if_submit=True` → `list_avail_problems` + `submit`).
 
-## CLI & Environment
+## CLI and environment
 
-`nika agent run` resolves options from CLI flags first, then the local `config/nika.yaml` (copy the tracked [`config/nika.example.yaml`](../../config/nika.example.yaml)). Credentials stay in [`.env`](../../.env.example). See `nika config show` / `nika config migrate`.
+`nika agent run` resolves options from CLI flags first, then the local `config/nika.yaml` (copy the tracked [`config/nika.example.yaml`](../config/nika.example.yaml)). Credentials stay in [`.env`](../.env.example). See `nika config show` or `nika config migrate`.
 
 ### Shared (all agents)
 
@@ -78,15 +74,15 @@ Every agent runs **diagnosis** (Kathara MCP, `if_submit=False`) then **submissio
 | `-n` / `--max-steps` | `agent.max_steps` | Yes | |
 | `-m` / `--model` | `agent.model` / `agent.models.*` | No | |
 | `--run-config` | `NIKA_RUN_CONFIG` | No | path to YAML (default `config/nika.yaml`) |
-| `--session_id` | — | No | Target session |
+| `--session_id` | Not set | No | Target session |
 
 Provider credentials live in `.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or `NIKA_CUSTOM_API_KEY`). Custom base URL/model live under `agent.custom` in YAML.
 
 ### Sandbox (non-BYO agents)
 
-CLI, SDK, and SADE agents always run inside Docker Sandboxes (`sbx` microVMs) using official `codex` / `claude` / `shell` templates. MCP tools and the network lab stay on the host. BYO agents run on the host. See **[docs/agent-sandbox.md](../../docs/agent-sandbox.md)**.
+CLI, SDK, and SADE agents run inside Docker Sandboxes (`sbx` microVMs) using the `codex`, `claude`, or `shell` templates. MCP tools and the network lab stay on the host. BYO agents run on the host. See the [agent sandbox guide](agent-sandbox.md).
 
-Auth uses the host `sbx secret` store (credential proxy). API keys in `.env` are synced automatically; Codex subscription uses `sbx secret set -g openai --oauth`; Claude subscription uses `/login`. Host auth files are never copied into the sandbox.
+Authentication uses the host `sbx secret` store. NIKA syncs API keys from `.env`; Codex subscriptions use `sbx secret set -g openai --oauth`, and Claude subscriptions use `/login`. NIKA does not copy host authentication files into the sandbox.
 
 | Flag / config | Notes |
 |---------------|-------|
@@ -165,7 +161,6 @@ agent:
 
 nika agent run -a byo.langgraph -p custom -m qwen2.5:7b -n 20
 ```
-
 
 ---
 
@@ -332,7 +327,7 @@ nika agent run -a sdk.codex_sdk -m gpt-5-mini -e medium
 
 ---
 
-## Adding a New Agent
+## Add a new agent
 
 Place each agent in its own package under `src/agent/`:
 
@@ -343,16 +338,11 @@ src/agent/community/my_agent/
 └── (other files)
 ```
 
-Implement `agent.protocols.TroubleshootingAgent` (`session_id` +
-`async def run(task_description) -> dict`), register the id in
-`agent.registry.create_agent()`, write traces to `{session_dir}/messages.jsonl`,
-and call the task MCP `submit` tool before returning. Sandbox agents also need
-their id in `SANDBOX_AGENT_TYPES`.
+Implement `agent.protocols.TroubleshootingAgent` (`session_id` + `async def run(task_description) -> dict`), register the id in `agent.registry.create_agent()`, write traces to `{session_dir}/messages.jsonl`, and call the task MCP `submit` tool before returning. Sandbox agents also need their id in `SANDBOX_AGENT_TYPES`.
 
-Implementation example, registration, and checklist:
-[docs/custom-agents.md](../../docs/custom-agents.md).
+Implementation example, registration, and checklist: [custom agent integration guide](custom-agents.md).
 
-## CLI Reference
+## CLI reference
 
 ```bash
 nika agent list          # agent types, LLM providers, reasoning-effort levels

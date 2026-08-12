@@ -1,8 +1,10 @@
-# Creating Benchmark Tasks
+# Create benchmark tasks
 
-This guide shows how to add a new NIKA benchmark task using the existing APIs for network instantiation, failure injection, traffic generation, and benchmark execution.
+This guide is for NIKA contributors who add a network scenario, injectable failure, traffic source, or benchmark case. It follows the runtime and registry contracts used by the current implementation.
 
-## Task Model
+Core contracts: [`NetworkEnvBase`](../src/nika/net_env/base.py), [`ProblemBase`](../src/nika/problems/problem_base.py), and the [`benchmark` workflows](../src/nika/workflows/benchmark/).
+
+## Understand the task model
 
 A benchmark case combines:
 
@@ -25,14 +27,14 @@ nika eval metrics
 
 For benchmark automation, `nika benchmark run` performs env deploy, fault injection, agent run, close, and eval for each case.
 
-## Add A Network Scenario
+## Add a network scenario
 
-Network environments are backend-specific labs wrapped by `NetworkEnvBase` (`kathara`) or `ContainerlabNetworkEnv` (`containerlab`).
+Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](network-scenarios.md) before adding another scenario ID; an existing parameterized scenario may already cover the topology.
 
 1. Add the lab under `src/nika/net_env/kathara/<domain>/<scenario>/` (Kathara) or `src/nika/net_env/containerlab/<scenario>/` (Containerlab).
 2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, sets `self.name`, `self.desc`, and declares useful host lists through `load_machines()`.
 3. If the scenario has sizes, expose `TOPO_SIZE = ["s", "m", "l"]` and accept `topo_size` in `__init__`.
-4. Register the class in `src/nika/net_env/net_env_pool.py`.
+4. Add import-safe metadata and a lazy module/class binding to `src/nika/net_env/net_env_pool.py`.
 
 Minimal shape:
 
@@ -62,16 +64,20 @@ class MyScenario(NetworkEnvBase):
         self.load_machines()
 ```
 
-Registration:
+Register metadata without importing the backend package:
 
 ```python
-from nika.net_env.example.my_scenario.lab import MyScenario
-
-_NET_ENVS = {
-    # ...
-    MyScenario.LAB_NAME: MyScenario,
-}
+"my_scenario": NetEnvSpec(
+    lab_name="my_scenario",
+    module="nika.net_env.kathara.example.my_scenario.lab",
+    class_name="MyScenario",
+    tags=("link", "icmp", "pc"),
+    supported_backends=("kathara",),
+    topo_size=["s", "m", "l"],
+),
 ```
+
+For a scenario with more than one backend, set `backend_bindings` to one `BackendEnvBinding` per backend. Keep the scenario ID and backend-neutral semantics the same across bindings.
 
 Verify discovery and deployment:
 
@@ -82,8 +88,7 @@ uv run nika session inspect
 uv run nika session close -y
 ```
 
-The ISP scenario is parameterized by SNDlib topology (not `-s`). The same `isp`
-scenario supports Kathara (FRR) and Containerlab (Nokia SR Linux):
+The ISP scenario is parameterized by SNDlib topology (not `-s`). The same `isp` scenario supports Kathara (FRR) and Containerlab (Nokia SR Linux):
 
 ```shell
 uv run nika env run isp --topo polska --igp isis
@@ -93,12 +98,11 @@ uv run nika env run isp --backend containerlab --device-profile nokia_srlinux --
 uv run nika traffic run sndlib --mode demands --max-intervals 1 --unit K --background
 ```
 
-See `src/nika/net_env/kathara/isp/isp/README.md` and
-`src/nika/net_env/containerlab/isp/README.md`.
+See the [`isp` scenario reference](network-scenarios.md#sndlib-isp-scenario) for the shared compiler, backend bindings, and control knobs.
 
-## Add An Injectable Problem
+## Add an injectable failure
 
-Problems live under `src/nika/problems/<category>/`. They are discovered automatically when a concrete class subclasses `ProblemBase` and sets `root_cause_name`. `prob_pool` builds `META` from the class variables at import time.
+Failures live under `src/nika/problems/<category>/`. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`. `prob_pool` builds `META` from class variables during import.
 
 Each fault is a single `ProblemBase` subclass that implements injection, verification, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
 
@@ -161,7 +165,7 @@ uv run nika failure inject my_fault --set host_name=pc1 --set intf_name=eth0
 uv run nika failure ps
 ```
 
-## Generate Traffic
+## Generate traffic
 
 Use the built-in traffic generators when a task needs load or baseline activity.
 
@@ -201,7 +205,7 @@ nika traffic run web --pages-min 2 --pages-max 5 --no-loop
 
 For faults that create traffic as the root cause, keep that logic inside the problem class. For background or validation traffic, prefer the traffic CLI or generator APIs.
 
-## Add Benchmark Cases
+## Add benchmark cases
 
 Benchmark YAML rows use the same names and injection parameters as the CLI:
 
@@ -231,7 +235,7 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
   -a mock -m mock-v1
 ```
 
-## Validation Checklist
+## Validate the change
 
 - `uv run nika env list` shows the scenario.
 - `uv run nika env run <scenario>` deploys and creates a session.
@@ -239,3 +243,5 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
 - `uv run nika failure inject <problem> --set ...` verifies successfully.
 - `uv run nika benchmark run ... -a mock -m mock-v1` completes without external LLM credentials.
 - The session directory contains `ground_truth.json`, `run.json`, `events.jsonl`, and evaluation artifacts.
+
+Update the [failure reference](failures.md) or [network scenario reference](network-scenarios.md) in the same change when the registry or runtime behavior changes.

@@ -7,7 +7,7 @@ The agent mirrors the two-phase architecture of BasicReActAgent:
 Uses the session's ground truth and live lab device names (not hardcoded
 ``pc1``/``pc2``), so it works across release topologies.
 
-Test-only. See ``tests/README.md``.
+Test-only. See ``docs/testing.md``.
 """
 
 from __future__ import annotations

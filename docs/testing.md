@@ -1,6 +1,8 @@
-# NIKA tests
+# Testing guide
 
-Test layout mirrors product surfaces:
+This guide is for contributors who need to choose and run the smallest relevant NIKA test suite. The test layout mirrors the product packages:
+
+Source: [`tests/`](../tests/) contains the suites, and [`tests/support/`](../tests/support/) contains shared integration helpers.
 
 - `tests/agent/` → `src/agent/`
 - `tests/nika/` → `src/nika/`
@@ -22,7 +24,7 @@ Test layout mirrors product surfaces:
 | `tests/nika/service/` | `src/nika/service/` | Service-layer unit and live API smoke tests |
 | `tests/nika/runtime/` | `src/nika/runtime/` | Runtime/backend unit tests and session index |
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
-| `tests/support/` | — | Shared bases, prerequisites, and pipeline helpers |
+| `tests/support/` | Not applicable | Shared bases, prerequisites, and pipeline helpers |
 
 Local lab integration tests expect lab extras installed (`uv sync --extra labs --group dev`). Core/agent unit tests should run without Kathara/Containerlab packages.
 
@@ -39,23 +41,22 @@ Local lab integration tests expect lab extras installed (`uv sync --extra labs -
 
 ## Agent tests (`tests/agent/`)
 
-Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an **integration
-pipeline** on `simple_bgp` / `link_down`:
+Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an **integration pipeline** on `simple_bgp` / `link_down`:
 
 | Module | Agent | Unit tests | Pipeline requires |
 |--------|-------|------------|-------------------|
-| `test_agent_config.py` | shared config | agent model/env resolution, judge env | — |
+| `test_agent_config.py` | shared config | agent model/env resolution, judge env | None |
 | `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | Docker + Codex + OpenAI |
 | `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | Docker + Claude CLI |
-| `test_langgraph.py` | `byo.langgraph` | — | Docker + `DEEPSEEK_API_KEY` |
-| `test_mcp_agent.py` | `byo.mcp_agent` | — | Docker + `OPENAI_API_KEY` |
-| `test_autogen.py` | `byo.autogen` | — | Docker + `DEEPSEEK_API_KEY` |
+| `test_langgraph.py` | `byo.langgraph` | None | Docker + `DEEPSEEK_API_KEY` |
+| `test_mcp_agent.py` | `byo.mcp_agent` | None | Docker + `OPENAI_API_KEY` |
+| `test_autogen.py` | `byo.autogen` | None | Docker + `DEEPSEEK_API_KEY` |
 | `test_sade.py` | `community.sade` | SDK env + MCP adapter | Docker + `claude-agent-sdk` + Anthropic creds |
 | `test_claude_sdk.py` | `sdk.claude_sdk` | SDK env + MCP adapter | Docker + `claude-agent-sdk` + Anthropic creds |
 | `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | sbx + `openai-codex` + `OPENAI_API_KEY` |
-| `test_mcp_server_selection.py` | shared MCP | diagnosis server selection | — |
-| `test_sbx.py` | sandbox | sbx manager, credentials, proxy | — |
-| `test_sandbox.py` | sandbox | manifest, redaction, SDK context | — |
+| `test_mcp_read_timeout.py` | shared MCP | client read-timeout configuration | None |
+| `test_sbx.py` | sandbox | sbx manager, credentials, proxy | None |
+| `test_sandbox.py` | sandbox | manifest, redaction, SDK context | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
 | `test_sandbox_agents.py` | sandbox | five-agent E2E (`simple_bgp` / `link_down`) | sbx + Docker; Codex=`OPENAI_API_KEY`+`gpt-5-mini`, Claude/SADE=`DEEPSEEK_API_KEY`+`deepseek-v4-flash` |
@@ -81,8 +82,7 @@ uv run pytest tests/agent/test_sandbox_agents.py -v
 
 ## Benchmark tests (`tests/benchmark/`)
 
-Covers `nika benchmark run` / resume — not YAML inject-param generation.
-Batch mode requires explicit `--config` or `--release` (no bare default suite).
+Covers `nika benchmark run` and resume. It does not cover YAML injection-parameter generation. Batch mode requires explicit `--config` or `--release` (no bare default suite).
 
 | Module | Purpose |
 |--------|---------|
@@ -105,7 +105,7 @@ uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + API key
 
 ## Leaderboard tests (`tests/leaderboard/`)
 
-Covers `nika leaderboard template|pack|validate|submit` — no Docker for the default suite. Packs require a filled `metadata.yaml` + `README.md`. Docs: [`docs/leaderboard-submission.md`](../docs/leaderboard-submission.md).
+Covers `nika leaderboard template|pack|validate|submit`. The default suite does not require Docker. Packs require a filled `metadata.yaml` and `README.md`. See the [leaderboard submission guide](leaderboard-submission.md).
 
 | Module | Purpose |
 |--------|---------|
@@ -136,9 +136,7 @@ uv run pytest tests/nika/workflows/integration/test_pipeline_clab.py -v      # r
 
 ## Service tests (`tests/nika/service/`)
 
-MCP gateway wiring and MCP server tool delegation are **not** unit-tested in isolation;
-they are covered by the workflow integration pipelines (`test_pipeline_kathara`,
-`test_pipeline_clab`, agent pipelines) and live API smokes where applicable.
+MCP gateway wiring and MCP server tool delegation are **not** unit-tested in isolation; they are covered by the workflow integration pipelines (`test_pipeline_kathara`, `test_pipeline_clab`, agent pipelines) and live API smokes where applicable.
 
 | Directory / module | Purpose |
 |--------------------|---------|
@@ -182,12 +180,10 @@ uv run pytest tests/nika/evaluator/ -v
 
 ## Mock agent (test-only)
 
-The **mock agent** (`src/agent/mock/mock_agent.py`) is a deterministic stand-in for
-LLM-backed agents. It runs a fixed two-phase MCP tool sequence without API keys.
+The **mock agent** (`src/agent/mock/mock_agent.py`) is a deterministic stand-in for LLM-backed agents. It runs a fixed two-phase MCP tool sequence without API keys.
 
 ```shell
 nika agent run -a mock -m mock-v1 -n 5 --session_id <id>
 ```
 
-Mock runs expect perfect detection/RCA scores (`detection_score == 1.0`,
-`rca_accuracy == 1.0`) because the agent reads ground truth from the session.
+Mock runs expect perfect detection/RCA scores (`detection_score == 1.0`, `rca_accuracy == 1.0`) because the agent reads ground truth from the session.

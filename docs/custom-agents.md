@@ -1,8 +1,10 @@
-# Custom Agents
+# Integrate a custom agent
 
-This guide shows how to implement an agent that runs through `nika agent run` and participates in benchmark runs.
+This guide is for agent developers who want an implementation to run through `nika agent run` and participate in benchmark runs.
 
-## Contract
+Core contracts: [`protocols.py`](../src/agent/protocols.py) defines the interface, and [`registry.py`](../src/agent/registry.py) registers CLI names.
+
+## Implement the agent contract
 
 Every agent must satisfy `agent.protocols.TroubleshootingAgent`:
 
@@ -27,7 +29,7 @@ Expected behavior:
 - write useful trace events to `results/{session_id}/messages.jsonl`
 - leave `submission.json` in the session directory through the task MCP `submit` tool
 
-## Recommended Structure
+## Use the recommended structure
 
 Place new implementations under `src/agent/community/<name>/` unless they are project-maintained backends.
 
@@ -109,7 +111,7 @@ class MyAgent:
 
 Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/cli/`, or `src/agent/sdk/` packages as framework-specific references.
 
-## Register The Agent
+## Register the agent
 
 Add the agent id to `src/agent/registry.py`:
 
@@ -127,7 +129,7 @@ case "community.my_agent":
 
 If the agent needs custom environment variables, resolve them in `config.py` and keep registry construction small.
 
-## MCP Access
+## Configure MCP access
 
 NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helpers:
 
@@ -147,7 +149,7 @@ Common submission flow:
 2. choose one or more root-cause ids
 3. call `submit` with `is_anomaly`, `faulty_devices`, and `root_cause_name`
 
-## Logging
+## Write trace logs
 
 Use `MessageLogger` for JSONL traces:
 
@@ -162,7 +164,7 @@ logger.log("tool_end", {"output": "success"})
 
 For LangChain-based agents, use `AgentCallbackLogger` instead of manual event logging.
 
-## Run Locally
+## Run locally
 
 Use the mock agent first to validate the lab and task:
 
@@ -190,7 +192,7 @@ uv run nika benchmark run simple_bgp --problem link_down \
   -a community.my_agent -m <model> -n 20
 ```
 
-## Checklist
+## Validate the integration
 
 - Agent class has `session_id` and `async run(task_description)`.
 - Registry maps a stable CLI id to the class.
@@ -199,7 +201,7 @@ uv run nika benchmark run simple_bgp --problem link_down \
 - `messages.jsonl` and `submission.json` appear in the session result directory.
 - `uv run nika benchmark run ... -a community.my_agent` completes for a small case.
 
-## Skills
+## Add agent skills
 
 Claude Code and Codex agents can load reusable skill libraries during the **diagnosis** phase. See **[Agent Skills](agent-skills.md)** for:
 
@@ -207,4 +209,4 @@ Claude Code and Codex agents can load reusable skill libraries during the **diag
 - the `nika.enable_skills` run-config setting
 - how to author `SKILL.md` files and register them in `CLAUDE.md`
 
-SADE (`community.sade`) ships a separate 15-skill library; see [`src/agent/community/sade/README.md`](../src/agent/community/sade/README.md).
+SADE (`community.sade`) ships a separate 15-skill library. See the [SADE community agent reference](agents/community/sade.md).

@@ -1,6 +1,8 @@
 # NIKA CLI reference
 
-Python package: `nika.cli` (directory `src/nika/cli/`).
+This reference is for operators and script authors who need the complete NIKA command surface. The Python package lives in `src/nika/cli/`.
+
+Implementation: [`main.py`](../src/nika/cli/main.py) registers the command groups; [`commands/`](../src/nika/cli/commands/) contains option parsing and delegates reusable behavior to [`workflows/`](../src/nika/workflows/).
 
 Entry point: `nika` (see `[project.scripts]` in `pyproject.toml`). During development use `uv run nika …`.
 
@@ -19,7 +21,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
 | `nika config` | Show effective run config or migrate legacy `.env` ops into YAML |
 | `nika leaderboard` | Pack, validate, and submit leaderboard entries (GitHub PR) from official release runs |
-| `nika remote` | Optional lab-host control plane (`serve` / `health`); see [`docs/remote.md`](../../../docs/remote.md) |
+| `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`) against the running lab |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
@@ -30,7 +32,7 @@ Use `nika <group> --help` and `nika <group> <command> --help` for generated opti
 
 - **`nika env run`** prints `session_id=…` and writes `runtime/sessions/{session_id}.json`.
 - Most commands that operate on a lab accept **`--session_id`** to target a specific session.
-- When **`--session_id` is omitted** and exactly **one** session is running, that session is selected automatically. With zero or multiple running sessions, the CLI raises an error asking you to pass `--session_id` or reduce concurrency.
+- If you omit **`--session_id`** and one session is running, NIKA selects that session. With zero or multiple running sessions, pass `--session_id` or close extra sessions.
 - **`nika session close`** undeploys the lab and clears runtime session state (confirmation prompt skippable with `-y` / `--yes`).
 
 ### Topology size (`-s` / `--size`)
@@ -45,7 +47,7 @@ This flag is reused on **`nika benchmark run`** and **`nika traffic run`** when 
 ### Results directory (`--result_dir`)
 
 - **Ad-hoc / single-case / env**: session artifacts under **`{result_dir}/{session_id}/`** for bare single-case CLI; batch `--config` uses the same **`{result_dir}/trials/{case_key}__t01/`** trials/ layout as release runs (`n_trials=1`).
-- **Release run**: `--result_dir` **is** one run — `{result_dir}/run.json` plus `{result_dir}/trials/{case_key}__tNN/`.
+- **Release run**: `--result_dir` is one run. It contains `{result_dir}/run.json` and `{result_dir}/trials/{case_key}__tNN/`.
 
 Use separate directories to isolate experiments (different datasets, models, agents, or release runs).
 
@@ -86,7 +88,7 @@ Aligned with `nika agent run`:
 - **`nika session ps [-a]`**: list sessions. Default: running only; **`-a` / `--all`** includes finished sessions. Columns: session id, env id, status, failure count, agent summary.
 - **`nika session inspect [--session_id ID] [-c]`**: print the session document as JSON plus a table of `failure_injections`. Pass **`-c` / `--containers`** to also list running lab containers (docker-ps style). Auto-selects when only one session is running.
 - **`nika session containers [--session_id ID]`**: list containers in the session lab (CONTAINER ID, NAME, IMAGE, STATUS, NAMES). Auto-selects when only one session is running.
-- **`nika session close [--session_id ID] [-y]`**: undeploy the lab, mark failure records ended, and remove the runtime session file. When `--session_id` is omitted and only one session is running it is selected automatically; **`-y`** skips the confirmation prompt.
+- **`nika session close [--session_id ID] [-y]`**: undeploy the lab, mark failure records ended, and remove the runtime session file. If you omit `--session_id` with one running session, NIKA selects it. **`-y`** skips the confirmation prompt.
 - **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
 
 ---
@@ -220,7 +222,7 @@ The tracked template is `config/nika.example.yaml` (preferred for new setups). N
 
 ## `nika leaderboard`
 
-Pack, validate, and open a GitHub PR for a leaderboard submission from an official release run. See [`docs/leaderboard-submission.md`](../../../docs/leaderboard-submission.md).
+Pack, validate, and open a GitHub PR for a leaderboard submission from an official release run. See the [leaderboard submission guide](leaderboard-submission.md).
 
 ```shell
 nika leaderboard template -o results/my-run/submission
@@ -262,19 +264,19 @@ Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) unde
 
 **Artifacts**: release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`, and stamp each trial `run.json` with `benchmark_id` / `benchmark_version` / `benchmark_digest` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live run progress (completed/pending trials) is written to `runtime/benchmark_runs/{run_id}.json`.
 
-**`--result_dir`**: for batch `--config` / `--release` this directory **is** the run root (see [Results directory](#results-directory---result_dir)). Resume and skip logic inspect **only** this directory—not other folders under `results/` and not the SQLite index.
+**`--result_dir`**: for batch `--config` or `--release`, this directory is the run root (see [Results directory](#results-directory---resultdir)). Resume and skip logic inspect this directory. They do not inspect other folders under `results/` or the SQLite index.
 
 **`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished trials (rebuilding metrics for solved trials interrupted during finalization), clean the remaining incomplete ones, then run the rest. **`--no-resume`** clears existing trial slots under the run, then executes every trial. Works with any `--batch-size`.
 
 **`--batch-size`**: number of trials to run simultaneously per batch (default `1`). Trials are chunked into groups of this size; each parallel group runs via spawn processes (and timeouts also use spawn). Applies to batch mode only.
 
-**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): **outer** hard per-trial wall clock (default **2400**; set `0` to disable). Each trial gets this budget independently. When the watchdog fires, the worker is killed and — if ground truth exists — the trial is finalized as counted `agent_failed` with `eval_metrics` (so `--resume` keeps it).
+**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): outer hard per-trial wall clock (default **2400**; set `0` to disable). Each trial gets this budget. On timeout, NIKA kills the worker. If ground truth exists, NIKA finalizes the counted trial as `agent_failed` with `eval_metrics`, so `--resume` keeps it.
 
 **Inner no-response timeout**: MCP clients use `NIKA_MCP_READ_TIMEOUT` (default **120s**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` only limits agent iterations, not wall time.
 
 **`--continue-on-error`** (`benchmark.continue_on_error`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
 
-**`--retry-passes N`** (`benchmark.retry_passes`, batch mode): after the first pass, automatically re-scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). Never overwrites `agent_failed` trials. Retries stop early when a pass completes no new trial. Example for a long unattended run:
+**`--retry-passes N`** (`benchmark.retry_passes`, batch mode): after the first pass, scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). NIKA preserves `agent_failed` trials. Retries stop when a pass completes no new trial. Example for an unattended run:
 
 ```bash
 nika benchmark run --release 0.1.0 --batch-size 4 --retry-passes 2 --result_dir results/my-run
@@ -310,7 +312,7 @@ nika eval summary --result_dir results/
 
 ## `nika remote`
 
-Optional control plane for splitting the agent host from the lab host. See [`docs/remote.md`](../../../docs/remote.md).
+Optional control plane for splitting the agent host from the lab host. See [remote lab execution](remote.md).
 
 - **`nika remote serve [--host 0.0.0.0] [-p 8700]`**: run the lab-host daemon. The current control plane has no shared-token option; protect it at the network boundary.
 - **`nika remote health [--url URL]`**: probe `/health` (uses `nika.remote.url` from YAML when `--url` is omitted).
@@ -332,12 +334,11 @@ Requires a deployed lab. By default the **current session** supplies the deploye
 |------|------------------------------|------------------|
 | `od` | Run iperf3 clients synchronously; print JSON summaries to stdout | Start iperf3 in the background inside the lab; print a short JSON list of flow labels |
 | `sndlib` | Replay each SNDlib interval synchronously | Start each interval in the background, wait `duration_sec`, then next |
-| `web` | Block until interrupted or finished (`--no-loop`) | **Not supported** (error): web load always blocks this CLI |
+| `web` | Block until interrupted or finished (`--no-loop`) | Not supported: web load blocks this CLI |
 
 ### `nika traffic fetch sndlib`
 
-Normalize/download dynamic traffic into `.nika_cache/sndlib/traffic/<topo>/`.
-Requires a known adapter/URL or a hand-written normalized cache.
+Normalize/download dynamic traffic into `.nika_cache/sndlib/traffic/<topo>/`. Requires a known adapter/URL or a hand-written normalized cache.
 
 ### `nika traffic run od`
 
@@ -358,10 +359,7 @@ Shared iperf tuning:
 
 ### `nika traffic run sndlib`
 
-Replay SNDlib demands/dynamic series on `isp` stub hosts (`pc_<router>`).
-`env run isp` always attaches stubs; choose the matrix with **`--mode demands|dynamic`**
-(default `demands`) and optional **`--scale`**. Intervals play **in order**.
-Use **`--max-intervals N`** for smoke tests.
+Replay SNDlib demands/dynamic series on `isp` stub hosts (`pc_<router>`). `env run isp` attaches stubs; choose the matrix with **`--mode demands|dynamic`** (default `demands`) and optional **`--scale`**. Intervals play **in order**. Use **`--max-intervals N`** for smoke tests.
 
 ### `nika traffic run web`
 
