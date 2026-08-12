@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import multiprocessing
 import socket
 import time
 from pathlib import Path
@@ -96,7 +97,6 @@ def _wait_host_api(session_id: str, *, timeout_sec: float = 300.0) -> None:
             last = str(exc)
         time.sleep(5)
     raise TimeoutError(f"host k8s API not ready for {session_id}: {last}")
-
 
 
 async def _with_k8s_tools(session_id: str, scenario: str, coro_fn):
@@ -547,22 +547,144 @@ class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
         assert any("k8s_" in n for n in tool_names), tool_names
 
 
+def _prod_shape_mcp_probe(
+    session_id: str,
+    *,
+    smoke_extra_tools: bool = False,
+) -> dict[str, object]:
+    """Child-process probe matching production: one gateway per session.
+
+    Parallel agent/sandbox runs use separate processes so each
+    ``mcp_gateway_for_session`` owns an ephemeral listen port and does not
+    share the in-process FastMCP / ``NIKA_MCP_GATEWAY_URL`` singleton.
+    """
+    import urllib.error
+    import urllib.request
+
+    from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
+
+    reset_client(session_id)
+    with mcp_gateway_for_session(
+        session_id,
+        scenario_name="k8s_lab",
+        backend="kathara",
+    ) as gw:
+
+        async def _exercise() -> dict[str, object]:
+            cfg = MCPServerConfig(session_id=session_id).load_http_config(
+                [K8S_MCP_SERVER]
+            )
+            client = MultiServerMCPClient(connections=cfg)
+            tools = {t.name: t for t in await client.get_tools()}
+            assert "k8s_list_nodes" in tools and "k8s_get_node" in tools
+
+            nodes = _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
+            assert isinstance(nodes, list) and len(nodes) >= 6
+
+            ctrl = _tool_payload(
+                await tools["k8s_get_node"].ainvoke({"name": "controller"})
+            )
+            assert isinstance(ctrl, dict)
+            uid = (ctrl.get("metadata") or {}).get("uid")
+            assert uid
+
+            if smoke_extra_tools:
+                events = _tool_payload(
+                    await tools["k8s_list_events"].ainvoke(
+                        {"namespace": "kube-system", "limit": 20}
+                    )
+                )
+                assert isinstance(events, list)
+
+                netpols = _tool_payload(
+                    await tools["k8s_get_network_policies"].ainvoke(
+                        {"all_namespaces": True}
+                    )
+                )
+                assert isinstance(netpols, list)
+
+                dns_pods = _tool_payload(
+                    await tools["k8s_list_pods"].ainvoke(
+                        {
+                            "namespace": "kube-system",
+                            "selector": "k8s-app=kube-dns",
+                        }
+                    )
+                )
+                assert isinstance(dns_pods, list) and dns_pods
+                pod0 = dns_pods[0]
+                logs = _tool_payload(
+                    await tools["k8s_get_logs"].ainvoke(
+                        {
+                            "name": pod0["name"],
+                            "namespace": pod0["namespace"],
+                            "tail_lines": 20,
+                        }
+                    )
+                )
+                assert isinstance(logs, (str, dict))
+
+                app_pods = _tool_payload(
+                    await tools["k8s_list_pods"].ainvoke(
+                        {"namespace": "word-ns", "selector": "app=word"}
+                    )
+                )
+                if isinstance(app_pods, list) and app_pods:
+                    src = app_pods[0]
+                    conn = _tool_payload(
+                        await tools["k8s_check_connectivity"].ainvoke(
+                            {
+                                "pod": src["name"],
+                                "namespace": src["namespace"],
+                                "target": "kubernetes.default.svc.cluster.local",
+                                "port": 443,
+                            }
+                        )
+                    )
+                    assert isinstance(conn, dict)
+
+            return {
+                "gateway_port": gw.port,
+                "controller_uid": uid,
+                "node_count": len(nodes),
+            }
+
+        result = asyncio.run(_exercise())
+
+        # This gateway only registered *session_id* — foreign header rejected.
+        url = f"{gw.base_url}/mcp/{K8S_MCP_SERVER}/mcp"
+        bad = urllib.request.Request(
+            url,
+            method="GET",
+            headers={SESSION_HEADER: "not-a-real-session"},
+        )
+        try:
+            urllib.request.urlopen(bad, timeout=5)
+            raise AssertionError("expected rejection for unknown session")
+        except urllib.error.HTTPError as exc:
+            assert exc.code in {400, 401, 403, 404, 406}
+
+        return result
+
+
 @pytest.mark.skipif(
     not _require_live_k8s(),
     reason="Requires Docker and privileged Kathara/k3s support",
 )
 class K8sMcpParallelSessionTest:
-    """Port uniqueness across sessions + MCP session isolation (no cross-talk).
+    """Two live k8s_lab sessions with production-shaped MCP isolation.
 
-    Two full k8s_lab instances concurrently often OOM on typical developer hosts,
-    so this test:
-    1. Deploys session A and B sequentially (close A before B) and asserts distinct
-       published API ports / kubeconfig paths.
-    2. Keeps one live lab and registers a second session whose kubeconfig points at
-       a dead port — MCP calls with the two session ids must not cross-wire.
+    Production (agent run / sandbox batch / remote attach) starts one ephemeral
+    MCP gateway per session in a dedicated process. This test keeps both labs
+    up, then probes each session from a spawn child that calls
+    ``mcp_gateway_for_session`` exactly once.
+
+    Requires ``fs.inotify.max_user_instances`` >= ~512–1024 on the host.
     """
 
-    def test_parallel_ports_and_session_isolation(self) -> None:
+    def test_concurrent_labs_ports_and_mcp_isolation(self) -> None:
+        from concurrent.futures import ProcessPoolExecutor
+
         sid_a = start_net_env(
             "k8s_lab",
             None,
@@ -570,17 +692,10 @@ class K8sMcpParallelSessionTest:
             instance_tag="par-a",
         )
         sid_b = None
-        sid_bogus = None
         try:
             _wait_host_api(sid_a, timeout_sec=900)
             port_a, kube_a = _session_k8s_meta(sid_a)
-            kube_a_text = kube_a.read_text(encoding="utf-8")
-            kube_a_path = kube_a.resolve()
-            assert f"localhost:{port_a}" in kube_a_text
-
-            # Sequential second deploy — still proves pick_free_port uniqueness.
-            close_session(session_id=sid_a)
-            sid_a = None
+            assert f"localhost:{port_a}" in kube_a.read_text(encoding="utf-8")
 
             sid_b = start_net_env(
                 "k8s_lab",
@@ -591,79 +706,42 @@ class K8sMcpParallelSessionTest:
             _wait_host_api(sid_b, timeout_sec=900)
             port_b, kube_b = _session_k8s_meta(sid_b)
 
-            assert port_a != port_b, f"ports collided: {port_a}"
-            assert kube_a_path != kube_b.resolve()
+            assert port_a != port_b, f"k8s API ports collided: {port_a}"
+            assert kube_a.resolve() != kube_b.resolve()
             assert f"localhost:{port_b}" in kube_b.read_text(encoding="utf-8")
+            with socket.create_connection(("127.0.0.1", port_a), timeout=3):
+                pass
+            with socket.create_connection(("127.0.0.1", port_b), timeout=3):
+                pass
 
-            # Live isolation: second session uses a broken kubeconfig (dead port).
-            store = SessionStore()
-            row_b = store.get_session(sid_b)
-            sid_bogus = f"{sid_b}-bogus"
-            bogus_kube = kube_b.parent / "kubeconfig.bogus.yaml"
-            dead_port = port_b + 1 if port_b < 65000 else port_b - 1
-            bogus_kube.write_text(
-                kube_b.read_text(encoding="utf-8").replace(
-                    f"localhost:{port_b}", f"localhost:{dead_port}"
-                ),
-                encoding="utf-8",
+            # One gateway per session in separate processes (prod shape).
+            ctx = multiprocessing.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=2, mp_context=ctx) as pool:
+                fut_a = pool.submit(
+                    _prod_shape_mcp_probe, sid_a, smoke_extra_tools=True
+                )
+                fut_b = pool.submit(
+                    _prod_shape_mcp_probe, sid_b, smoke_extra_tools=False
+                )
+                res_a = fut_a.result(timeout=300)
+                res_b = fut_b.result(timeout=300)
+
+            assert res_a["gateway_port"] != res_b["gateway_port"], (
+                f"MCP gateway ports collided: {res_a['gateway_port']}"
             )
-            meta = dict(row_b.get("metadata") or {})
-            meta["k8s_controller_port"] = dead_port
-            meta["kubeconfig_path"] = str(bogus_kube)
-            store.create_session(
-                {
-                    "session_id": sid_bogus,
-                    "lab_name": row_b["lab_name"],
-                    "scenario_name": "k8s_lab",
-                    "scenario_topo_size": None,
-                    "scenario_params": dict(row_b.get("scenario_params") or {}),
-                    "session_dir": row_b["session_dir"],
-                    "status": "running",
-                    "backend": "kathara",
-                    "topology_file": None,
-                    "runtime_workdir": row_b.get("runtime_workdir"),
-                    "metadata": meta,
-                }
+            assert res_a["gateway_port"] not in {port_a, port_b}
+            assert res_b["gateway_port"] not in {port_a, port_b}
+            assert res_a["controller_uid"] != res_b["controller_uid"], (
+                "MCP sessions cross-wired to the same cluster"
             )
-
-            async def _nodes(session_id: str):
-                async def _check(tools):
-                    return _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
-
-                return await _with_k8s_tools(session_id, "k8s_lab", _check)
-
-            nodes_live = asyncio.run(_nodes(sid_b))
-            assert isinstance(nodes_live, list) and len(nodes_live) >= 6
-
-            bogus_exc: Exception | None = None
-            nodes_bogus: object = None
-            try:
-                nodes_bogus = asyncio.run(_nodes(sid_bogus))
-            except Exception as exc:  # noqa: BLE001 - connection errors prove isolation
-                bogus_exc = exc
-
-            if bogus_exc is not None:
-                assert "Connection refused" in str(bogus_exc) or "Max retries" in str(
-                    bogus_exc
-                ) or "error" in str(bogus_exc).lower()
-            else:
-                # Broken session must not return the live cluster's node list.
-                assert not (
-                    isinstance(nodes_bogus, list)
-                    and len(nodes_bogus) >= 6
-                    and all(isinstance(n, dict) and n.get("name") for n in nodes_bogus)
-                ), f"bogus session leaked live cluster data: {nodes_bogus}"
-
-            _ = None  # ports captured above before closing A
+            assert int(res_a["node_count"]) >= 6
+            assert int(res_b["node_count"]) >= 6
         finally:
-            for sid in (sid_a, sid_b, sid_bogus):
+            for sid in (sid_a, sid_b):
                 if not sid:
                     continue
                 try:
-                    if sid.endswith("-bogus"):
-                        SessionStore().delete_session(sid)
-                    else:
-                        close_session(session_id=sid)
+                    close_session(session_id=sid)
                 except Exception:  # noqa: BLE001
                     pass
             reset_client()
