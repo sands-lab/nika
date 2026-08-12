@@ -22,7 +22,8 @@ The shared library lives at [`src/agent/skills/`](../src/agent/skills/):
 
 ```
 src/agent/skills/
-├── skills/                 # canonical skill sources
+├── skills/                 # canonical skill sources (loaded by default)
+├── test_skills/            # integration-only skills (not loaded by default)
 │   └── nika-test-skill/
 ├── .claude/
 │   ├── CLAUDE.md           # skill index for Claude Code
@@ -32,6 +33,8 @@ src/agent/skills/
 ```
 
 Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace.
+
+`nika-test-skill` lives under `test_skills/` and is **not** loaded into agents by default. Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
 
 ## Configuration
 
@@ -126,4 +129,4 @@ Use SADE as a reference for large skill libraries; use `src/agent/skills/` for s
 ## Code reference
 
 - Shared helpers: [`src/agent/utils/skills.py`](../src/agent/utils/skills.py)
-- Test skill: [`src/agent/skills/skills/nika-test-skill/SKILL.md`](../src/agent/skills/skills/nika-test-skill/SKILL.md)
+- Test skill (opt-in): [`src/agent/skills/test_skills/nika-test-skill/SKILL.md`](../src/agent/skills/test_skills/nika-test-skill/SKILL.md)

@@ -15,6 +15,12 @@ Basic requirements:
 SKILLS_PROMPT_SUFFIX = dedent("""\
     ## Skills
     Project skills are available for structured troubleshooting workflows.
+    Discover and invoke a skill when its description matches the symptoms you observe.\
+""").strip()
+
+TEST_SKILLS_PROMPT_SUFFIX = dedent("""\
+    ## Skills
+    Project skills are available for structured troubleshooting workflows.
     - Claude Code agents: read `CLAUDE.md`, then invoke `Skill(skill="nika-test-skill")` at the start of every session and follow its marker-first workflow.
     - Codex agents: invoke `$nika-test-skill` at the start of every session and follow its marker-first workflow.
     Always invoke this skill first; do not skip it.\

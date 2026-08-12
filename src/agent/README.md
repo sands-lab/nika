@@ -55,6 +55,8 @@ credentials, and the paper citation (arXiv:2605.04530).
 
 Claude Code and Codex agents load the shared skill library from `src/agent/skills/` when
 `nika.enable_skills: true` in `config/nika.yaml` (the default). Helpers live in `agent.utils.skills`.
+The integration-only `nika-test-skill` is under `test_skills/` and is loaded only when tests
+pass `include_test_skill=True` to the prepare/prompt helpers.
 
 See **[docs/agent-skills.md](../../docs/agent-skills.md)** for authoring custom skills.
 Integration tests: `tests/agent/test_skills.py`.

@@ -4,16 +4,23 @@ import os
 import tempfile
 import unittest.mock
 from pathlib import Path
+
 from agent.utils.skills import (
     ENV_ENABLE_SKILLS,
+    TEST_SKILL_NAME,
     claude_skills_package_dir,
     diagnosis_prompt_with_skills,
     prepare_claude_workspace,
     prepare_codex_workspace,
     resolve_skills_root,
+    resolve_test_skill_dir,
     skills_enabled,
 )
-from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT, SKILLS_PROMPT_SUFFIX
+from agent.utils.template import (
+    OVERALL_DIAGNOSIS_PROMPT,
+    SKILLS_PROMPT_SUFFIX,
+    TEST_SKILLS_PROMPT_SUFFIX,
+)
 from tests.agent._assertions import marker_before_first_mcp_tool, skill_invoked
 from tests.support.integration_pipeline import load_test_env
 
@@ -23,7 +30,9 @@ load_test_env()
 class SkillsConfigTest:
     def test_resolve_skills_root_default(self) -> None:
         root = resolve_skills_root()
-        assert (root / "skills" / "nika-test-skill" / "SKILL.md").is_file()
+        assert (root / "test_skills" / TEST_SKILL_NAME / "SKILL.md").is_file()
+        assert not (root / "skills" / TEST_SKILL_NAME).exists()
+        assert resolve_test_skill_dir() is not None
 
     def test_resolve_skills_root_sandbox_session_copy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,6 +72,9 @@ class SkillsConfigTest:
             package = claude_skills_package_dir()
             assert package is not None
             assert (package / ".claude" / "CLAUDE.md").is_file()
+            assert not (
+                package / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
 
     def test_diagnosis_prompt_with_skills(self) -> None:
         with unittest.mock.patch.dict(
@@ -70,6 +82,11 @@ class SkillsConfigTest:
         ):
             prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
             assert SKILLS_PROMPT_SUFFIX in prompt
+            assert TEST_SKILL_NAME not in prompt
+            test_prompt = diagnosis_prompt_with_skills(
+                OVERALL_DIAGNOSIS_PROMPT, include_test_skill=True
+            )
+            assert TEST_SKILLS_PROMPT_SUFFIX in test_prompt
         with unittest.mock.patch.dict(
             os.environ, {ENV_ENABLE_SKILLS: "false"}, clear=True
         ):
@@ -80,7 +97,7 @@ class SkillsConfigTest:
 
 
 class SkillsWorkspaceTest:
-    def test_prepare_claude_workspace_links_dot_claude(self) -> None:
+    def test_prepare_claude_workspace_excludes_test_skill_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             with unittest.mock.patch.dict(
@@ -89,19 +106,45 @@ class SkillsWorkspaceTest:
                 prepare_claude_workspace(workspace)
             link = workspace / ".claude"
             assert link.exists()
-            assert (link / "skills" / "nika-test-skill" / "SKILL.md").exists()
+            assert not (link / "skills" / TEST_SKILL_NAME).exists()
 
-    def test_prepare_codex_workspace_links_agents_skills(self) -> None:
+    def test_prepare_claude_workspace_includes_test_skill_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            with unittest.mock.patch.dict(
+                os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
+            ):
+                prepare_claude_workspace(workspace, include_test_skill=True)
+            assert (
+                workspace / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+
+    def test_prepare_codex_workspace_excludes_test_skill_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             with unittest.mock.patch.dict(
                 os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
             ):
                 prepare_codex_workspace(workspace)
-            assert (
-                workspace / ".agents" / "skills" / "nika-test-skill" / "SKILL.md"
-            ).exists()
+            assert not (workspace / ".agents" / "skills" / TEST_SKILL_NAME).exists()
             assert (workspace / "AGENTS.md").is_file()
+            assert TEST_SKILL_NAME not in (workspace / "AGENTS.md").read_text(
+                encoding="utf-8"
+            )
+
+    def test_prepare_codex_workspace_includes_test_skill_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            with unittest.mock.patch.dict(
+                os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
+            ):
+                prepare_codex_workspace(workspace, include_test_skill=True)
+            assert (
+                workspace / ".agents" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+            assert TEST_SKILL_NAME in (workspace / "AGENTS.md").read_text(
+                encoding="utf-8"
+            )
 
 
 class SkillAssertionTest:
