@@ -1,10 +1,10 @@
-"""Live k8s_lab tests for the in-node Kubernetes MCP + gateway proxy."""
+"""Live host-side Kubernetes MCP + gateway tests (k8s_lab / llmd_lab)."""
 
 from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
+import socket
 import time
 from pathlib import Path
 
@@ -12,10 +12,13 @@ import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.mcp_servers import MCPServerConfig, SESSION_HEADER
+from nika.service.k8s_mcp_server.client import reset_client
 from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
 from nika.service.mcp_server.registry import K8S_MCP_SERVER
 from nika.utils.session_store import SessionStore
+from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
+from nika.workflows.session.close import close_session
 from tests.agent._assertions import _extract_tool_names
 from tests.agent.sandbox_support import (
     sandbox_anthropic_credential_available,
@@ -27,27 +30,11 @@ from tests.support.integration_pipeline import (
     tool_text_list,
 )
 from tests.support.prerequisites import docker_available, privileged_lab_supported
+from nika.utils.session_id import resolve_session_tag
 
 load_test_env()
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-BUNDLE_START = (
-    REPO_ROOT
-    / "src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/bundle.tar.gz"
-)
 CLAUDE_MODEL = "deepseek-v4-flash"
-
-
-def _stage_k8s_mcp_bundle() -> None:
-    if BUNDLE_START.is_file():
-        return
-    script = REPO_ROOT / "scripts" / "stage_k8s_mcp_bundle.py"
-    subprocess.run(
-        ["uv", "run", "python", str(script)],
-        cwd=REPO_ROOT,
-        check=True,
-    )
-    assert BUNDLE_START.is_file(), f"staging did not produce {BUNDLE_START}"
 
 
 def _tool_payload(result: object) -> object:
@@ -63,9 +50,64 @@ def _require_live_k8s() -> bool:
     return docker_available() and privileged_lab_supported()
 
 
-# Stage only when live k8s tests can run (avoid heavy work on skip).
-if _require_live_k8s():
-    _stage_k8s_mcp_bundle()
+def _session_k8s_meta(session_id: str) -> tuple[int, Path]:
+    row = SessionStore().get_session(session_id)
+    metadata = row.get("metadata") or {}
+    port = metadata.get("k8s_controller_port")
+    path_raw = metadata.get("kubeconfig_path")
+    if path_raw is None:
+        workdir = row.get("runtime_workdir") or (row.get("scenario_params") or {}).get(
+            "runtime_workdir"
+        )
+        if workdir:
+            path_raw = str(Path(workdir) / "kubeconfig.yaml")
+    if port is None or not path_raw:
+        raise AssertionError(
+            f"session {session_id} missing k8s port/kubeconfig: {metadata}"
+        )
+    path = Path(path_raw)
+    assert path.is_file(), f"missing kubeconfig {path}"
+    text = path.read_text(encoding="utf-8")
+    assert f"localhost:{port}" in text, f"kubeconfig server mismatch for port {port}"
+    return int(port), path
+
+
+def _wait_host_api(session_id: str, *, timeout_sec: float = 300.0) -> None:
+    """Wait until the published API port accepts TCP and kubeconfig exists."""
+    deadline = time.time() + timeout_sec
+    last = ""
+    while time.time() < deadline:
+        try:
+            port, kube = _session_k8s_meta(session_id)
+            with socket.create_connection(("127.0.0.1", port), timeout=3):
+                pass
+            # Also require a successful API handshake when possible.
+            from kubernetes import client, config
+
+            configuration = client.Configuration()
+            config.load_kube_config(
+                config_file=str(kube), client_configuration=configuration
+            )
+            configuration.verify_ssl = False
+            api = client.CoreV1Api(client.ApiClient(configuration))
+            api.list_node(_request_timeout=5)
+            return
+        except Exception as exc:  # noqa: BLE001
+            last = str(exc)
+        time.sleep(5)
+    raise TimeoutError(f"host k8s API not ready for {session_id}: {last}")
+
+
+
+async def _with_k8s_tools(session_id: str, scenario: str, coro_fn):
+    reset_client(session_id)
+    with mcp_gateway_for_session(session_id, scenario_name=scenario):
+        cfg = MCPServerConfig(session_id=session_id).load_http_config([K8S_MCP_SERVER])
+        assert K8S_MCP_SERVER in cfg
+        client = MultiServerMCPClient(connections=cfg)
+        tools = {t.name: t for t in await client.get_tools()}
+        assert "k8s_list_nodes" in tools
+        return await coro_fn(tools)
 
 
 @pytest.mark.skipif(
@@ -73,48 +115,18 @@ if _require_live_k8s():
     reason="Requires Docker and privileged Kathara/k3s support",
 )
 class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
-    """Deploy k8s_lab once; exercise gateway→in-node MCP and the three k8s faults."""
+    """Deploy k8s_lab once; exercise host-side MCP and k8s faults."""
 
     SCENARIO = "k8s_lab"
     _READY_TIMEOUT_SEC = 900
 
-    @classmethod
-    def _wait_mcp_via_controller(cls) -> None:
-        from nika.service.kathara.base_api import KatharaBaseAPI
-
-        lab_name = SessionStore().get_session(cls.session_id)["lab_name"]
-        api = KatharaBaseAPI(lab_name=lab_name)
-        deadline = time.time() + cls._READY_TIMEOUT_SEC
-        last = ""
-        while time.time() < deadline:
-            try:
-                last = api.exec_cmd(
-                    "controller",
-                    "/opt/nika-k8s-mcp/healthcheck.sh",
-                    timeout=30,
-                )
-                if '"status": "ok"' in last or '"status":"ok"' in last:
-                    return
-            except Exception as exc:  # noqa: BLE001
-                last = str(exc)
-            time.sleep(10)
-        raise TimeoutError(f"k8s MCP not healthy: {last}")
-
     @pytest.fixture(scope="class", autouse=True)
-    def _wait_for_mcp(self, _shared_session) -> None:
-        type(self)._wait_mcp_via_controller()
-
-    async def _with_k8s_tools(self, coro_fn):
+    def _wait_for_host_api(self, _shared_session) -> None:
         assert self.session_id is not None
-        with mcp_gateway_for_session(self.session_id, scenario_name=self.SCENARIO):
-            cfg = MCPServerConfig(session_id=self.session_id).load_http_config(
-                [K8S_MCP_SERVER]
-            )
-            assert K8S_MCP_SERVER in cfg
-            client = MultiServerMCPClient(connections=cfg)
-            tools = {t.name: t for t in await client.get_tools()}
-            assert "k8s_list_nodes" in tools
-            return await coro_fn(tools)
+        _wait_host_api(self.session_id, timeout_sec=self._READY_TIMEOUT_SEC)
+        port, kube = _session_k8s_meta(self.session_id)
+        assert port > 0
+        assert kube.is_file()
 
     def test_01_gateway_lists_nodes_and_services(self) -> None:
         async def _check(tools):
@@ -124,7 +136,9 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
             )
             return nodes, services
 
-        nodes, services = asyncio.run(self._with_k8s_tools(_check))
+        nodes, services = asyncio.run(
+            _with_k8s_tools(self.session_id, self.SCENARIO, _check)
+        )
         assert isinstance(nodes, list) and len(nodes) >= 6
         assert any(n.get("ready") for n in nodes if isinstance(n, dict))
         assert isinstance(services, list)
@@ -155,8 +169,6 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
             )
             try:
                 urllib.request.urlopen(bad, timeout=5)
-                # Phase gate may return empty MCP rather than HTTP error for
-                # unknown sessions; either way tools must not succeed.
             except urllib.error.HTTPError:
                 pass
 
@@ -170,13 +182,11 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
         self._assert_failure_injected("k8s_worker_apiserver_partition")
 
         async def _check(tools):
-            # Node NotReady can take ~40s+; poll via MCP.
             deadline = time.time() + 240
             last = None
             while time.time() < deadline:
                 last = _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
                 if isinstance(last, list):
-                    # Kathara device worker1 maps to a k3s node hostname.
                     not_ready = [
                         n for n in last if isinstance(n, dict) and not n.get("ready")
                     ]
@@ -185,10 +195,11 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
                 await asyncio.sleep(10)
             return last, []
 
-        nodes, not_ready = asyncio.run(self._with_k8s_tools(_check))
+        nodes, not_ready = asyncio.run(
+            _with_k8s_tools(self.session_id, self.SCENARIO, _check)
+        )
         assert not_ready, f"expected a NotReady node after partition; nodes={nodes}"
 
-        # Heal for subsequent tests: close/reopen is heavy; clear iptables on worker.
         from nika.service.kathara.base_api import KatharaBaseAPI
 
         lab_name = SessionStore().get_session(self.session_id)["lab_name"]
@@ -220,7 +231,6 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
                     }
                 )
             )
-            # Find an app pod to run DNS from.
             app_pods = _tool_payload(
                 await tools["k8s_list_pods"].ainvoke(
                     {"namespace": "word-ns", "selector": "app=word"}
@@ -240,12 +250,13 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
                 )
             return endpoints, pods, dns_result
 
-        endpoints, pods, dns_result = asyncio.run(self._with_k8s_tools(_check))
+        endpoints, pods, dns_result = asyncio.run(
+            _with_k8s_tools(self.session_id, self.SCENARIO, _check)
+        )
         assert isinstance(endpoints, dict)
         assert endpoints.get("cluster_ip")
         assert isinstance(pods, list) and pods
         assert all(p.get("ready") for p in pods if isinstance(p, dict))
-        # DNS should fail or return an error/timeout from the app pod.
         if isinstance(dns_result, dict):
             stdout = (dns_result.get("stdout") or "").lower()
             stderr = (dns_result.get("stderr") or "").lower()
@@ -294,9 +305,10 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
             )
             return nodes, endpoints
 
-        nodes, endpoints = asyncio.run(self._with_k8s_tools(_check))
+        nodes, endpoints = asyncio.run(
+            _with_k8s_tools(self.session_id, self.SCENARIO, _check)
+        )
         assert isinstance(nodes, list)
-        # Node stays Ready for this fault.
         ready = [n for n in nodes if isinstance(n, dict) and n.get("ready")]
         assert len(ready) >= 5
         assert isinstance(endpoints, dict)
@@ -321,13 +333,17 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
     reason="Claude CLI + DeepSeek/Anthropic credentials required",
 )
 class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
-    """cli.claude + DeepSeek against k8s_lab with a real k8s fault.
-    """
+    """cli.claude against k8s_lab with a real k8s fault."""
 
     SCENARIO = "k8s_lab"
     INJECT_PROBLEM = "k8s_coredns_isolated"
     INJECT_PARAMS: dict[str, str] | None = None
     _READY_TIMEOUT_SEC = 900
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _wait_for_host_api(self, _shared_session) -> None:
+        assert self.session_id is not None
+        _wait_host_api(self.session_id, timeout_sec=self._READY_TIMEOUT_SEC)
 
     def test_agent_uses_k8s_mcp_tools(self) -> None:
         from agent.utils.phases import DIAGNOSIS, SUBMISSION
@@ -337,7 +353,6 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
         row = SessionStore().get_session(self.session_id)
         type(self).session_dir = Path(row["session_dir"])
 
-        # Steer diagnosis toward Kubernetes MCP tools (default prompt is FRR-heavy).
         gt_path = type(self).session_dir / "ground_truth.json"
         symptom = ""
         if gt_path.is_file():
@@ -358,12 +373,11 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
         session.load_running_session(session_id=self.session_id)
         session.update_session("task_description", steered)
 
-        run_kwargs = {
-            "agent_type": "cli.claude",
-            "model": CLAUDE_MODEL,
-            "max_steps": 25,
-        }
-        self._run_agent(**run_kwargs)
+        self._run_agent(
+            agent_type="cli.claude",
+            model=CLAUDE_MODEL,
+            max_steps=25,
+        )
 
         messages = [
             json.loads(line)
@@ -397,3 +411,259 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
             tool_names.extend(_extract_tool_names(entry))
         k8s_tools = [n for n in tool_names if "k8s_" in n]
         assert k8s_tools, f"expected k8s_* MCP tool use, got {tool_names}"
+
+
+@pytest.mark.skipif(
+    not _require_live_k8s(),
+    reason="Requires Docker and privileged Kathara/k3s support",
+)
+class LlmdMcpGatewayIntegrationTest(SharedSessionTestCase):
+    """Deploy llmd_lab; host MCP + one real k8s failure."""
+
+    SCENARIO = "llmd_lab"
+    _READY_TIMEOUT_SEC = 1800
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _wait_for_host_api(self, _shared_session) -> None:
+        assert self.session_id is not None
+        _wait_host_api(self.session_id, timeout_sec=self._READY_TIMEOUT_SEC)
+        _session_k8s_meta(self.session_id)
+
+    def test_01_gateway_lists_nodes(self) -> None:
+        async def _check(tools):
+            return _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
+
+        nodes = asyncio.run(_with_k8s_tools(self.session_id, self.SCENARIO, _check))
+        assert isinstance(nodes, list) and len(nodes) >= 6
+
+    def test_02_coredns_isolated_via_mcp(self) -> None:
+        assert self.session_id is not None
+        inject_failure(
+            ["k8s_coredns_isolated"],
+            session_id=self.session_id,
+        )
+        self._assert_failure_injected("k8s_coredns_isolated")
+
+        async def _check(tools):
+            endpoints = _tool_payload(
+                await tools["k8s_get_endpoints"].ainvoke(
+                    {"service": "kube-dns", "namespace": "kube-system"}
+                )
+            )
+            pods = _tool_payload(
+                await tools["k8s_list_pods"].ainvoke(
+                    {
+                        "namespace": "kube-system",
+                        "selector": "k8s-app=kube-dns",
+                    }
+                )
+            )
+            return endpoints, pods
+
+        endpoints, pods = asyncio.run(
+            _with_k8s_tools(self.session_id, self.SCENARIO, _check)
+        )
+        assert isinstance(endpoints, dict)
+        assert endpoints.get("cluster_ip")
+        assert isinstance(pods, list) and pods
+
+        from nika.service.kathara.base_api import KatharaBaseAPI
+
+        lab_name = SessionStore().get_session(self.session_id)["lab_name"]
+        api = KatharaBaseAPI(lab_name=lab_name)
+        for node in (
+            "controller",
+            "worker1",
+            "worker2",
+            "worker3",
+            "worker4",
+            "worker5",
+        ):
+            api.exec_cmd(
+                node,
+                "iptables -F OUTPUT 2>/dev/null; iptables -F INPUT 2>/dev/null; true",
+                timeout=30,
+            )
+
+
+@pytest.mark.skipif(
+    not _require_live_k8s(),
+    reason="Requires Docker and privileged Kathara/k3s support",
+)
+@pytest.mark.skipif(
+    not (claude_cli_available() and sandbox_anthropic_credential_available()),
+    reason="Claude CLI + DeepSeek/Anthropic credentials required",
+)
+class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
+    """cli.claude against llmd_lab with a real k8s fault."""
+
+    SCENARIO = "llmd_lab"
+    INJECT_PROBLEM = "k8s_coredns_isolated"
+    INJECT_PARAMS: dict[str, str] | None = None
+    _READY_TIMEOUT_SEC = 1800
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _wait_for_host_api(self, _shared_session) -> None:
+        assert self.session_id is not None
+        _wait_host_api(self.session_id, timeout_sec=self._READY_TIMEOUT_SEC)
+
+    def test_agent_uses_k8s_mcp_tools(self) -> None:
+        from agent.utils.phases import DIAGNOSIS
+        from nika.utils.session import Session
+
+        assert self.session_id is not None
+        row = SessionStore().get_session(self.session_id)
+        type(self).session_dir = Path(row["session_dir"])
+
+        steered = (
+            f"{row.get('task_description') or ''}\n\n"
+            "IMPORTANT: Prefer Kubernetes MCP tools from k8s_mcp_server "
+            "(k8s_list_nodes, k8s_list_pods, k8s_list_events) to diagnose the fault."
+        )
+        session = Session()
+        session.load_running_session(session_id=self.session_id)
+        session.update_session("task_description", steered)
+
+        self._run_agent(
+            agent_type="cli.claude",
+            model=CLAUDE_MODEL,
+            max_steps=25,
+        )
+
+        messages = [
+            json.loads(line)
+            for line in (type(self).session_dir / "messages.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        mcp_cfgs = [e for e in messages if e.get("event") == "mcp_config"]
+        diag_mcp = next((e for e in mcp_cfgs if e.get("agent") == DIAGNOSIS), None)
+        assert diag_mcp is not None
+        assert K8S_MCP_SERVER in (diag_mcp.get("servers") or [])
+        tool_names: list[str] = []
+        for entry in messages:
+            tool_names.extend(_extract_tool_names(entry))
+        assert any("k8s_" in n for n in tool_names), tool_names
+
+
+@pytest.mark.skipif(
+    not _require_live_k8s(),
+    reason="Requires Docker and privileged Kathara/k3s support",
+)
+class K8sMcpParallelSessionTest:
+    """Port uniqueness across sessions + MCP session isolation (no cross-talk).
+
+    Two full k8s_lab instances concurrently often OOM on typical developer hosts,
+    so this test:
+    1. Deploys session A and B sequentially (close A before B) and asserts distinct
+       published API ports / kubeconfig paths.
+    2. Keeps one live lab and registers a second session whose kubeconfig points at
+       a dead port — MCP calls with the two session ids must not cross-wire.
+    """
+
+    def test_parallel_ports_and_session_isolation(self) -> None:
+        sid_a = start_net_env(
+            "k8s_lab",
+            None,
+            session_tag=resolve_session_tag(context="test"),
+            instance_tag="par-a",
+        )
+        sid_b = None
+        sid_bogus = None
+        try:
+            _wait_host_api(sid_a, timeout_sec=900)
+            port_a, kube_a = _session_k8s_meta(sid_a)
+            kube_a_text = kube_a.read_text(encoding="utf-8")
+            kube_a_path = kube_a.resolve()
+            assert f"localhost:{port_a}" in kube_a_text
+
+            # Sequential second deploy — still proves pick_free_port uniqueness.
+            close_session(session_id=sid_a)
+            sid_a = None
+
+            sid_b = start_net_env(
+                "k8s_lab",
+                None,
+                session_tag=resolve_session_tag(context="test"),
+                instance_tag="par-b",
+            )
+            _wait_host_api(sid_b, timeout_sec=900)
+            port_b, kube_b = _session_k8s_meta(sid_b)
+
+            assert port_a != port_b, f"ports collided: {port_a}"
+            assert kube_a_path != kube_b.resolve()
+            assert f"localhost:{port_b}" in kube_b.read_text(encoding="utf-8")
+
+            # Live isolation: second session uses a broken kubeconfig (dead port).
+            store = SessionStore()
+            row_b = store.get_session(sid_b)
+            sid_bogus = f"{sid_b}-bogus"
+            bogus_kube = kube_b.parent / "kubeconfig.bogus.yaml"
+            dead_port = port_b + 1 if port_b < 65000 else port_b - 1
+            bogus_kube.write_text(
+                kube_b.read_text(encoding="utf-8").replace(
+                    f"localhost:{port_b}", f"localhost:{dead_port}"
+                ),
+                encoding="utf-8",
+            )
+            meta = dict(row_b.get("metadata") or {})
+            meta["k8s_controller_port"] = dead_port
+            meta["kubeconfig_path"] = str(bogus_kube)
+            store.create_session(
+                {
+                    "session_id": sid_bogus,
+                    "lab_name": row_b["lab_name"],
+                    "scenario_name": "k8s_lab",
+                    "scenario_topo_size": None,
+                    "scenario_params": dict(row_b.get("scenario_params") or {}),
+                    "session_dir": row_b["session_dir"],
+                    "status": "running",
+                    "backend": "kathara",
+                    "topology_file": None,
+                    "runtime_workdir": row_b.get("runtime_workdir"),
+                    "metadata": meta,
+                }
+            )
+
+            async def _nodes(session_id: str):
+                async def _check(tools):
+                    return _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
+
+                return await _with_k8s_tools(session_id, "k8s_lab", _check)
+
+            nodes_live = asyncio.run(_nodes(sid_b))
+            assert isinstance(nodes_live, list) and len(nodes_live) >= 6
+
+            bogus_exc: Exception | None = None
+            nodes_bogus: object = None
+            try:
+                nodes_bogus = asyncio.run(_nodes(sid_bogus))
+            except Exception as exc:  # noqa: BLE001 - connection errors prove isolation
+                bogus_exc = exc
+
+            if bogus_exc is not None:
+                assert "Connection refused" in str(bogus_exc) or "Max retries" in str(
+                    bogus_exc
+                ) or "error" in str(bogus_exc).lower()
+            else:
+                # Broken session must not return the live cluster's node list.
+                assert not (
+                    isinstance(nodes_bogus, list)
+                    and len(nodes_bogus) >= 6
+                    and all(isinstance(n, dict) and n.get("name") for n in nodes_bogus)
+                ), f"bogus session leaked live cluster data: {nodes_bogus}"
+
+            _ = None  # ports captured above before closing A
+        finally:
+            for sid in (sid_a, sid_b, sid_bogus):
+                if not sid:
+                    continue
+                try:
+                    if sid.endswith("-bogus"):
+                        SessionStore().delete_session(sid)
+                    else:
+                        close_session(session_id=sid)
+                except Exception:  # noqa: BLE001
+                    pass
+            reset_client()

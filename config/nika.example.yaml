@@ -24,6 +24,10 @@ nika:
   judge:
     provider: openai
     model: gpt-5-mini
+  k8s:
+    # auto|mcp: agents use host-side k8s_mcp_server (session kubeconfig)
+    # kubectl_only: skip k8s MCP; use runtime/.../kubeconfig.yaml with kubectl
+    access: auto
 
 agent:
   # byo.langgraph | byo.mcp_agent | byo.autogen | cli.codex | cli.claude |

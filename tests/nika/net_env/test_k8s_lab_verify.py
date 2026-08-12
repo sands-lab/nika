@@ -71,7 +71,7 @@ class K8sLabUnitTest:
         assert inst.lab.machines["as2r1"].is_bridged()
 
     def test_controller_is_bridged(self) -> None:
-        """controller must be bridged so k3s has a default route at boot."""
+        """controller is bridged so Docker can publish the API port to the host."""
         inst = self._inst()
 
         assert inst.lab.machines["controller"].is_bridged()

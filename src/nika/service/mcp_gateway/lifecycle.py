@@ -159,21 +159,10 @@ def mcp_gateway_for_session(
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
-    remote_upstreams: dict[str, str] = {}
-    if scenario_name:
-        from nika.service.mcp_gateway.k8s_upstream import (
-            K8S_MCP_SERVER_NAME,
-            resolve_k8s_mcp_upstream,
-            scenario_needs_k8s_mcp,
-        )
-
-        if scenario_needs_k8s_mcp(scenario_name):
-            remote_upstreams[K8S_MCP_SERVER_NAME] = resolve_k8s_mcp_upstream(session_id)
     register_session(
         session_id,
         scenario_name=scenario_name,
         policy_mode=policy_mode,
-        remote_upstreams=remote_upstreams,
     )
     try:
         yield manager

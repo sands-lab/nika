@@ -143,8 +143,6 @@ class FakeRuntime:
             return "agentgateway Running"
         if command == "kubectl get gateway -A --no-headers":
             return "default pd-gateway"
-        if "18765/health" in command or command == "/opt/nika-k8s-mcp/healthcheck.sh":
-            return '{"status": "ok", "server": "k8s_mcp_server", "ready_nodes": 6}'
         return ""
 
 

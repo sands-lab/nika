@@ -2,6 +2,7 @@
 ip address add 201.1.1.2/24 dev eth0
 
 # Prefer the lab default route (bridged eth1 may already have a Docker default).
+# Bridging is required for host port publish of the API; this restores fabric egress.
 ip route replace default via 201.1.1.1 dev eth0
 
 # Wait Kubernetes control plane startup
@@ -25,8 +26,8 @@ kubectl wait -n metallb-system --for condition=ready pod --selector component=sp
 kubectl apply -f /k8s/ingress-nginx.yaml
 
 # Wait NGINX Ingress Controller startup
-kubectl wait -n ingress-nginx --for condition=ready pod --selector app.kubernetes.io/component=controller --timeout 24h &> /dev/null
-while [[ $? != 0 ]]; do sleep 1; kubectl wait -n ingress-nginx --for condition=ready pod --selector app.kubernetes.io/component=controller --timeout 24h &> /dev/null; done
+kubectl wait -n ingress-nginx --for=condition=ready pod --selector app.kubernetes.io/component=controller --timeout 24h &> /dev/null
+while [[ $? != 0 ]]; do sleep 1; kubectl wait -n ingress-nginx --for=condition=ready pod --selector app.kubernetes.io/component=controller --timeout 24h &> /dev/null; done
 
 # Apply PVs
 kubectl apply -f /k8s/pv.yaml
@@ -42,30 +43,3 @@ kubectl wait -n weather-ns --for=condition=ready pod -l app=weatherdb --timeout 
 kubectl apply -f /shared/deploy_app.yaml
 kubectl apply -f /shared/svc.yaml
 kubectl apply -f /shared/ing.yaml
-
-# Start NIKA Kubernetes MCP server (host gateway reverse-proxies to this process).
-# Kathara file copies often drop the executable bit — restore it before launch.
-chmod +x /opt/nika-k8s-mcp/*.sh 2>/dev/null || true
-if [ -f /opt/nika-k8s-mcp/bundle.tar.gz ]; then
-  mkdir -p /var/log
-  # Extract synchronously so healthcheck does not race with tar.
-  if [ ! -x /opt/nika-k8s-mcp/start.sh ] || [ ! -d /opt/nika-k8s-mcp/runtime ]; then
-    tar -xzf /opt/nika-k8s-mcp/bundle.tar.gz -C /opt/nika-k8s-mcp
-    chmod +x /opt/nika-k8s-mcp/start.sh /opt/nika-k8s-mcp/healthcheck.sh 2>/dev/null || true
-  fi
-  /opt/nika-k8s-mcp/start.sh >/var/log/nika-k8s-mcp.log 2>&1 &
-  echo $! >/var/run/nika-k8s-mcp.pid
-  MCP_READY=0
-  for _ in $(seq 1 180); do
-    if /opt/nika-k8s-mcp/healthcheck.sh >/dev/null 2>&1; then
-      MCP_READY=1
-      break
-    fi
-    sleep 1
-  done
-  if [ "$MCP_READY" != "1" ]; then
-    echo "WARNING: nika-k8s-mcp failed to become healthy; see /var/log/nika-k8s-mcp.log" >&2
-  fi
-else
-  echo "WARNING: /opt/nika-k8s-mcp/bundle.tar.gz missing; stage with scripts/stage_k8s_mcp_bundle.py" >&2
-fi

@@ -261,6 +261,8 @@ def start_net_env(
 
         try:
             net_env.post_deploy()
+            # post_deploy may enrich metadata (e.g. kubeconfig_path); persist it.
+            session.update_session("metadata", dict(net_env.metadata or {}))
         except Exception as post_deploy_exc:  # noqa: BLE001 - must not fail an otherwise-verified deploy
             log_error_event(
                 "env_post_deploy_failed",
@@ -300,6 +302,6 @@ def start_net_env(
         topo_size=size,
         session_id=resolved_session_id,
         lab_name=net_env.name,
-        metadata=metadata,
+        metadata=getattr(net_env, "metadata", None) or metadata,
     )
     return resolved_session_id

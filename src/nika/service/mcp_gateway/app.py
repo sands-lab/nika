@@ -50,6 +50,7 @@ _MCP_MODULE_ATTRS: dict[str, tuple[str, str]] = {
         "nika.service.mcp_server.containerlab.srl_server",
         "mcp",
     ),
+    "k8s_mcp_server": ("nika.service.k8s_mcp_server.server", "mcp"),
 }
 
 

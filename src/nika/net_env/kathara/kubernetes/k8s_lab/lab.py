@@ -5,7 +5,6 @@ The lab includes FRR routers for BGP routing and k3s nodes for Kubernetes.
 """
 
 import os
-import tempfile
 
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
@@ -93,7 +92,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
         }
 
         # as2r1 is bridged for internet connectivity; controller is bridged so
-        # k3s has a default route before Kathara startup configures eth0.
+        # Docker can publish the API port to the host (host-side kubectl/MCP).
         _bridged = {"as2r1", "controller"}
 
         # Multipath sysctl for core and spine switches
@@ -211,14 +210,17 @@ class K8sFatTreeBGP(NetworkEnvBase):
         port = self.metadata.get("k8s_controller_port")
         if port is None:
             return
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            self.instance.retrieve_files(
-                self.lab.machines["controller"], _KUBECONFIG_REMOTE_PATH, tmp_dir
-            )
-            raw_path = os.path.join(tmp_dir, os.path.basename(_KUBECONFIG_REMOTE_PATH))
-            with open(raw_path, encoding="utf-8") as f:
-                raw = f.read()
-        patched = raw.replace("127.0.0.1:6443", f"localhost:{port}")
-        kubeconfig_path = self.runtime_workdir / "kubeconfig.yaml"
-        with open(kubeconfig_path, "w", encoding="utf-8") as f:
-            f.write(patched)
+        from nika.net_env.kathara.kubernetes.kubeconfig_export import (
+            write_host_kubeconfig,
+        )
+
+        if self.runtime_workdir is None:
+            self._prepare_runtime_files()
+        write_host_kubeconfig(
+            instance=self.instance,
+            controller_machine=self.lab.machines["controller"],
+            remote_kubeconfig_path=_KUBECONFIG_REMOTE_PATH,
+            runtime_workdir=self.runtime_workdir,
+            port=int(port),
+            metadata=self.metadata,
+        )

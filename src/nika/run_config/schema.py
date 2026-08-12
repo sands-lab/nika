@@ -41,6 +41,25 @@ class JudgeSettings(BaseModel):
     model: str = "gpt-5-mini"
 
 
+class K8sSettings(BaseModel):
+    """How agents reach Kubernetes labs (host kubeconfig / MCP)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # auto|mcp: register k8s_mcp_server for agents
+    # kubectl_only: power-user host kubectl; skip k8s MCP registration
+    access: str = "auto"
+
+    @field_validator("access")
+    @classmethod
+    def _access_mode(cls, value: str) -> str:
+        normalized = (value or "auto").strip().lower()
+        allowed = {"auto", "mcp", "kubectl_only"}
+        if normalized not in allowed:
+            raise ValueError(f"nika.k8s.access must be one of {sorted(allowed)}")
+        return normalized
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -50,6 +69,7 @@ class NikaSettings(BaseModel):
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)
+    k8s: K8sSettings = Field(default_factory=K8sSettings)
 
 
 class AgentModels(BaseModel):
