@@ -24,7 +24,7 @@ import subprocess
 import warnings
 from typing import Any
 
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_AUTH_TOKEN,
     ENV_ANTHROPIC_BASE_URL,
@@ -149,8 +149,15 @@ def prepare_claude_subprocess_env(
     Uses provider-aware credential mapping and does **not** forward the full
     host environment (judge / Langfuse / remote / unused provider keys stay out).
     """
+    from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
+    from agent.sandbox.sbx.exec import sandbox_name_from_env
+
     prov = _resolve_provider(provider)
     host = dict(base if base is not None else os.environ)
+
+    def _is_placeholder(value: str) -> bool:
+        text = value.strip()
+        return text == PROXY_MANAGED_SENTINEL or text.startswith("sbx-cs-")
 
     # Compat: if user still has manual ANTHROPIC_AUTH_TOKEN + BASE_URL without
     # NIKA_LLM_PROVIDER=deepseek, treat as anthropic-compat with a warning.
@@ -168,19 +175,48 @@ def prepare_claude_subprocess_env(
         )
 
     if prov in ("anthropic", "deepseek", "custom"):
-        return build_agent_subprocess_env(
+        env = build_agent_subprocess_env(
             agent_type=agent_type, provider=prov, base=host
         )
+    else:
+        # Fallback: map whatever Anthropic/DeepSeek keys exist (legacy)
+        env = build_agent_subprocess_env(
+            agent_type=agent_type, provider="anthropic", base=host
+        )
+        mapped = map_provider_credentials(
+            agent_type=agent_type, provider="deepseek", sources=host
+        )
+        if mapped.get(ENV_ANTHROPIC_API_KEY) and not env.get(ENV_ANTHROPIC_API_KEY):
+            env.update(mapped)
 
-    # Fallback: map whatever Anthropic/DeepSeek keys exist (legacy)
-    env = build_agent_subprocess_env(
-        agent_type=agent_type, provider="anthropic", base=host
-    )
-    mapped = map_provider_credentials(
-        agent_type=agent_type, provider="deepseek", sources=host
-    )
-    if mapped.get(ENV_ANTHROPIC_API_KEY) and not env.get(ENV_ANTHROPIC_API_KEY):
-        env.update(mapped)
+    # Sandbox sessions already injected sbx-cs-* / proxy-managed placeholders on
+    # the host env. Never remap real DEEPSEEK/custom keys over them — sbx exec
+    # would then omit the real secrets and leave the microVM without credentials.
+    in_sbx_session = bool(sandbox_name_from_env())
+    for key in (ENV_ANTHROPIC_API_KEY, ENV_ANTHROPIC_AUTH_TOKEN):
+        host_val = host.get(key, "").strip()
+        if _is_placeholder(host_val):
+            env[key] = host_val
+        elif in_sbx_session and _is_placeholder(os.environ.get(key, "").strip()):
+            env[key] = os.environ[key].strip()
+    if in_sbx_session or any(
+        _is_placeholder(host.get(k, ""))
+        for k in (ENV_ANTHROPIC_API_KEY, ENV_ANTHROPIC_AUTH_TOKEN)
+    ):
+        base_url = (
+            host.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+            or os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+        )
+        if base_url:
+            env[ENV_ANTHROPIC_BASE_URL] = base_url
+        env.pop(ENV_DEEPSEEK_API_KEY, None)
+        # Prefer AUTH_TOKEN alias when API_KEY placeholder is present (DeepSeek docs).
+        api_key = env.get(ENV_ANTHROPIC_API_KEY, "").strip()
+        if (
+            _is_placeholder(api_key)
+            and not env.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
+        ):
+            env[ENV_ANTHROPIC_AUTH_TOKEN] = api_key
     return env
 
 

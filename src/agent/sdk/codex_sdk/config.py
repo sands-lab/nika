@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,
     has_provider_credentials,

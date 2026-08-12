@@ -7,6 +7,7 @@ import os
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 from agent.sandbox.config import (
     ENV_SANDBOX_UPSTREAM_PROXY,
@@ -49,14 +50,53 @@ def resolve_sbx_upstream_proxy(
 
 
 def _daemon_running() -> bool:
-    proc = subprocess.run(
-        ["sbx", "daemon", "status"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=10,
-    )
+    try:
+        proc = subprocess.run(
+            ["sbx", "daemon", "status"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return False
     return "Status: running" in (proc.stdout or "")
+
+
+def _daemon_proxy_matches(upstream_proxy: str) -> bool:
+    """True when the running sandboxd already has the requested proxy env."""
+    sock = os.path.expanduser(
+        "~/.local/state/sandboxes/sandboxes/sandboxd/sandboxd.sock"
+    )
+    try:
+        proc = subprocess.run(
+            ["fuser", sock],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    # fuser may report multiple pids; take the first contiguous pid token.
+    pid = ""
+    for part in ((proc.stdout or "") + " " + (proc.stderr or "")).replace(":", " ").split():
+        if part.isdigit():
+            pid = part
+            break
+    if not pid:
+        return False
+    try:
+        raw = Path(f"/proc/{pid}/environ").read_bytes()
+    except OSError:
+        return False
+    env = {
+        key: value
+        for item in raw.split(b"\0")
+        if b"=" in item
+        for key, value in [item.decode("utf-8", "replace").split("=", 1)]
+    }
+    return env.get(ENV_DOCKER_SANDBOXES_PROXY, "").strip() == upstream_proxy
 
 
 _applied_proxy: str | None = None
@@ -82,19 +122,33 @@ def _ensure_sbx_proxy_config(upstream_proxy: str | None) -> None:
         return
     if _applied_proxy == upstream_proxy and _daemon_running():
         return
+    if _daemon_running() and _daemon_proxy_matches(upstream_proxy):
+        _applied_proxy = upstream_proxy
+        os.environ[ENV_DOCKER_SANDBOXES_PROXY] = upstream_proxy
+        os.environ[ENV_DOCKER_SANDBOXES_NO_PROXY] = _SBX_NO_PROXY
+        return
 
     env = os.environ.copy()
     env[ENV_DOCKER_SANDBOXES_PROXY] = upstream_proxy
     env[ENV_DOCKER_SANDBOXES_NO_PROXY] = _SBX_NO_PROXY
+    os.environ[ENV_DOCKER_SANDBOXES_PROXY] = upstream_proxy
+    os.environ[ENV_DOCKER_SANDBOXES_NO_PROXY] = _SBX_NO_PROXY
 
-    subprocess.run(
-        ["sbx", "daemon", "stop"],
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=30,
-    )
+    try:
+        subprocess.run(
+            ["sbx", "daemon", "stop"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "sbx daemon stop timed out while applying %s; forcing start",
+            ENV_DOCKER_SANDBOXES_PROXY,
+        )
+
     subprocess.Popen(
         ["sbx", "daemon", "start"],
         env=env,
@@ -102,8 +156,8 @@ def _ensure_sbx_proxy_config(upstream_proxy: str | None) -> None:
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    for _ in range(40):
-        time.sleep(0.25)
+    for _ in range(60):
+        time.sleep(0.5)
         if _daemon_running():
             _applied_proxy = upstream_proxy
             return

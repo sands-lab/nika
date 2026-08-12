@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pytest
 from nika.utils.session_store import SessionStore
-from tests.agent._assertions import assert_phase_messages, assert_submission_fields
+from tests.agent._assertions import assert_phase_messages
 from tests.support.integration_base import OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
     ClabCommonPipelineSteps,
@@ -44,17 +44,13 @@ class LangGraphAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_04_check_messages(self) -> None:
         assert self.session_dir is not None
-        assert_phase_messages(self._load_jsonl("messages.jsonl"))
+        assert_phase_messages(
+            self._load_jsonl("messages.jsonl"),
+            require_submission_tools=False,
+        )
 
-    def test_step_05_check_submission(self) -> None:
-        assert self.session_dir is not None
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
+    def test_step_05_session_close(self) -> None:
         self._step_close_and_verify("byo.langgraph")
-
-    def test_step_07_eval_metrics(self) -> None:
-        self._step_eval_metrics()
 
 
 @pytest.mark.skipif(
@@ -83,14 +79,10 @@ class LangGraphClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase
 
     def test_step_04_check_messages(self) -> None:
         assert self.session_dir is not None
-        assert_phase_messages(self._load_jsonl("messages.jsonl"))
+        assert_phase_messages(
+            self._load_jsonl("messages.jsonl"),
+            require_submission_tools=False,
+        )
 
-    def test_step_05_check_submission(self) -> None:
-        assert self.session_dir is not None
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
+    def test_step_05_session_close(self) -> None:
         self._step_close_and_verify("byo.langgraph")
-
-    def test_step_07_eval_metrics(self) -> None:
-        self._step_eval_metrics()

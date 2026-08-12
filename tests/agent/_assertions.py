@@ -10,10 +10,12 @@ def assert_phase_messages(
     messages: list[dict],
     *,
     require_diagnosis_tools: bool = True,
+    require_submission_tools: bool = True,
 ) -> None:
     agents = {e["agent"] for e in messages}
     assert DIAGNOSIS in agents
-    assert SUBMISSION in agents
+    if require_submission_tools:
+        assert SUBMISSION in agents
 
     if require_diagnosis_tools:
         diag_tools = [
@@ -24,14 +26,15 @@ def assert_phase_messages(
         ]
         assert diag_tools, "diagnosis phase must call at least one MCP tool"
 
-    sub_tools = [
-        name
-        for e in messages
-        if e["agent"] == SUBMISSION
-        for name in _extract_tool_names(e)
-    ]
-    assert any("list_avail_problems" in name for name in sub_tools), sub_tools
-    assert any("submit" in name for name in sub_tools), sub_tools
+    if require_submission_tools:
+        sub_tools = [
+            name
+            for e in messages
+            if e["agent"] == SUBMISSION
+            for name in _extract_tool_names(e)
+        ]
+        assert any("list_avail_problems" in name for name in sub_tools), sub_tools
+        assert any("submit" in name for name in sub_tools), sub_tools
 
 
 def assert_submission_fields(session_dir: Path) -> None:

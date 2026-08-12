@@ -9,11 +9,6 @@ from datetime import timedelta
 from langchain_core.tools import ToolException
 
 from agent.sandbox.config import ENV_GATEWAY_AGENT_URL, ENV_GATEWAY_URL
-from nika.service.mcp_server.registry import (
-    MCP_SERVER_SPECS,
-    SUBMISSION_SERVER,
-    select_diagnosis_servers,
-)
 
 __all__ = [
     "MCPServerConfig",
@@ -25,6 +20,19 @@ __all__ = [
 ]
 
 SESSION_HEADER = "NIKA-Session-Id"
+
+
+def select_diagnosis_servers(
+    scenario_name: str,
+    *,
+    backend: str | None = None,
+) -> list[str]:
+    """Lazy re-export so SDK sandboxes can import this module without ``nika``."""
+    from nika.service.mcp_server.registry import (
+        select_diagnosis_servers as _select,
+    )
+
+    return _select(scenario_name, backend=backend)
 
 
 def session_http_headers(session_id: str) -> dict[str, str]:
@@ -50,6 +58,8 @@ def select_session_servers(
     backend: str | None = None,
 ) -> list[str]:
     """Return all MCP server names for a troubleshooting session."""
+    from nika.service.mcp_server.registry import SUBMISSION_SERVER
+
     servers = select_diagnosis_servers(
         scenario_name,
         backend=backend,
@@ -166,6 +176,8 @@ class MCPServerConfig:
         self.session_id = session_id
 
     def _build_http_entry(self, name: str) -> dict:
+        from nika.service.mcp_server.registry import MCP_SERVER_SPECS
+
         if name not in MCP_SERVER_SPECS:
             raise KeyError(f"Unknown MCP server: {name!r}")
         base = _gateway_base_url()
@@ -183,6 +195,8 @@ class MCPServerConfig:
 
     def load_http_config(self, server_names: list[str]) -> dict:
         """Return HTTP MCP client config for *server_names*."""
+        from nika.service.mcp_server.registry import MCP_SERVER_SPECS
+
         return {
             name: self._build_http_entry(name)
             for name in server_names
@@ -204,6 +218,8 @@ class MCPServerConfig:
 
     # Backward-compatible aliases used in tests and docs during migration.
     def load_config(self, if_submit: bool = False) -> dict:
+        from nika.service.mcp_server.registry import MCP_SERVER_SPECS, SUBMISSION_SERVER
+
         if if_submit:
             return self.load_http_config([SUBMISSION_SERVER])
         names = [n for n, spec in MCP_SERVER_SPECS.items() if spec.role != "task"]

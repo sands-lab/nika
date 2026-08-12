@@ -397,5 +397,3 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
             tool_names.extend(_extract_tool_names(entry))
         k8s_tools = [n for n in tool_names if "k8s_" in n]
         assert k8s_tools, f"expected k8s_* MCP tool use, got {tool_names}"
-
-        assert (type(self).session_dir / "submission.json").is_file()

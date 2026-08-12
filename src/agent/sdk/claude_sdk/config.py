@@ -40,10 +40,17 @@ def prepare_claude_sdk_env(*, session_id: str) -> dict[str, str]:
             os.environ.get("ANTHROPIC_API_KEY", "").strip() or PROXY_MANAGED_SENTINEL
         )
         env["ANTHROPIC_API_KEY"] = api_key
+        auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip()
+        if auth_token == PROXY_MANAGED_SENTINEL or auth_token.startswith("sbx-cs-"):
+            env["ANTHROPIC_AUTH_TOKEN"] = auth_token
+        elif api_key == PROXY_MANAGED_SENTINEL or api_key.startswith("sbx-cs-"):
+            # DeepSeek Claude Code docs prefer AUTH_TOKEN; alias the placeholder.
+            env["ANTHROPIC_AUTH_TOKEN"] = api_key
+        else:
+            env.pop("ANTHROPIC_AUTH_TOKEN", None)
         base = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
         if base:
             env["ANTHROPIC_BASE_URL"] = base
-        env.pop("ANTHROPIC_AUTH_TOKEN", None)
         env.pop("DEEPSEEK_API_KEY", None)
         env.pop("NIKA_CUSTOM_API_KEY", None)
         env.pop("OPENAI_API_KEY", None)

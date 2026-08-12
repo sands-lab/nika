@@ -107,6 +107,99 @@ def test_exec_command_forwards_custom_placeholder() -> None:
     assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
 
 
+def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
+    monkeypatch,
+) -> None:
+    """DeepSeek remap must not overwrite sbx-cs placeholders before sbx exec."""
+    from agent.cli.claude.config import prepare_claude_subprocess_env
+    from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+
+    monkeypatch.setenv(ENV_SBX_SANDBOX_NAME, "nika-test-sbx")
+    monkeypatch.setenv("NIKA_LLM_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-real-deepseek")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sbx-cs-placeholder")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "sbx-cs-placeholder")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.deepseek.com/anthropic")
+
+    env = prepare_claude_subprocess_env(provider="deepseek")
+    assert env["ANTHROPIC_API_KEY"] == "sbx-cs-placeholder"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "sbx-cs-placeholder"
+    assert env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+    assert (
+        "DEEPSEEK_API_KEY" not in env
+        or env.get("DEEPSEEK_API_KEY") != "sk-real-deepseek"
+    )
+
+    command = build_sbx_exec_command(
+        "nika-test",
+        ["claude", "-p", "hi"],
+        env=env,
+    )
+    inner = command[-1]
+    assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
+    assert "ANTHROPIC_AUTH_TOKEN=sbx-cs-placeholder" in inner
+    assert "sk-real-deepseek" not in inner
+
+
+def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
+    manager = SbxSandboxManager(
+        SandboxConfig(
+            env_file=tmp_path / ".env",
+            keep_container=False,
+            cpus=None,
+            memory=None,
+            offline_sdk_wheels=False,
+        )
+    )
+
+    manager._bundle_agent_sources(tmp_path)
+
+    assert (tmp_path / "agent").is_dir()
+    assert not (tmp_path / "nika").exists()
+    assert not any((tmp_path / "agent").rglob("nika"))
+
+
+def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
+    """Bundled agent tree must import SDK entrypoints without installing nika."""
+    import subprocess
+    import sys
+
+    manager = SbxSandboxManager(
+        SandboxConfig(
+            env_file=tmp_path / ".env",
+            keep_container=False,
+            cpus=None,
+            memory=None,
+            offline_sdk_wheels=False,
+        )
+    )
+    manager._bundle_agent_sources(tmp_path)
+    workspace = tmp_path
+    # Simulate microVM: only workspace on path (agent package), no src/nika.
+    script = (
+        "import os, sys\n"
+        f"sys.path.insert(0, {str(workspace)!r})\n"
+        "os.environ['NIKA_SANDBOX_EXECUTION']='1'\n"
+        # Block accidental nika imports from the host install.
+        "sys.modules['nika'] = None\n"
+        "from agent.registry import create_agent\n"
+        "from agent.cli.claude import config as claude_config\n"
+        "from agent.sdk.codex_sdk import config as codex_config\n"
+        "assert hasattr(claude_config, 'prepare_claude_subprocess_env')\n"
+        "assert hasattr(codex_config, 'codex_sdk_local_auth_available')\n"
+        "print('ok')\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(workspace),
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "ok" in proc.stdout
+
+
 def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     from agent.sandbox.sbx.workspace import cleanup_workspace
 
@@ -389,10 +482,20 @@ def test_explicit_proxy_is_forwarded_to_sbx() -> None:
 
 
 def test_proxy_from_main_env_file(tmp_path) -> None:
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
     env_file = tmp_path / ".env"
     env_file.write_text("NIKA_SANDBOX_UPSTREAM_PROXY=http://proxy.test:8080\n")
-    with patch.dict(os.environ, {}, clear=True):
-        assert resolve_sbx_upstream_proxy(env_file=env_file) == "http://proxy.test:8080"
+    set_run_config(RunConfig())
+    try:
+        with patch.dict(os.environ, {}, clear=True):
+            assert (
+                resolve_sbx_upstream_proxy(env_file=env_file)
+                == "http://proxy.test:8080"
+            )
+    finally:
+        reset_run_config()
 
 
 def test_ensure_sbx_proxy_config_no_op_without_upstream() -> None:
@@ -497,21 +600,3 @@ def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
     assert resolve_sandbox_config().offline_sdk_wheels is True
     assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False
     reset_run_config()
-
-
-def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
-    manager = SbxSandboxManager(
-        SandboxConfig(
-            env_file=tmp_path / ".env",
-            keep_container=False,
-            cpus=None,
-            memory=None,
-            offline_sdk_wheels=False,
-        )
-    )
-
-    manager._bundle_agent_sources(tmp_path)
-
-    assert (tmp_path / "agent").is_dir()
-    assert not (tmp_path / "nika").exists()
-    assert not any((tmp_path / "agent").rglob("nika"))

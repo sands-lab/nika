@@ -24,7 +24,7 @@ from agent.sandbox.sbx.client import (
     run_sbx_checked,
     sbx_available,
 )
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
@@ -96,9 +96,14 @@ class SbxCredentialPlan:
             else:
                 env["OPENAI_API_KEY"] = PROXY_MANAGED_SENTINEL
         if self.third_party_anthropic:
-            env["ANTHROPIC_API_KEY"] = self.custom_placeholders.get(
+            placeholder = self.custom_placeholders.get(
                 "ANTHROPIC_API_KEY", PROXY_MANAGED_SENTINEL
             )
+            # DeepSeek Claude Code docs use ANTHROPIC_AUTH_TOKEN; sbx set-custom
+            # is registered for ANTHROPIC_API_KEY. Export the same placeholder
+            # under both names so Claude CLI/SDK can auth either way.
+            env["ANTHROPIC_API_KEY"] = placeholder
+            env["ANTHROPIC_AUTH_TOKEN"] = placeholder
             env["ANTHROPIC_BASE_URL"] = (
                 self.anthropic_base_url or DEEPSEEK_ANTHROPIC_BASE_URL
             )
@@ -374,7 +379,7 @@ def ensure_sbx_credentials(
 def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
     provider = _active_provider()
     if provider in ("openai", "deepseek", "custom") and provider:
-        from nika.utils.provider_env import has_provider_credentials
+        from agent.utils.provider_env import has_provider_credentials
 
         if has_provider_credentials(provider):
             return True
@@ -399,7 +404,7 @@ def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
 def sbx_anthropic_credential_available(*, env_file: Path | None = None) -> bool:
     provider = _active_provider()
     if provider in ("anthropic", "deepseek", "custom"):
-        from nika.utils.provider_env import has_provider_credentials
+        from agent.utils.provider_env import has_provider_credentials
 
         if has_provider_credentials(provider):
             return True

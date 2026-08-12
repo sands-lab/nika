@@ -9,17 +9,7 @@ from agent.sdk.claude_sdk.config import (
     resolve_claude_sdk_model,
 )
 from agent.sdk.mcp import to_sdk_mcp_servers
-from nika.utils.session_store import SessionStore
-from tests.agent._assertions import assert_phase_messages, assert_submission_fields
-from tests.agent.sandbox_support import SANDBOX_E2E_SUPERSEDED
-from tests.support.integration_base import OrderedPipelineTestCase
-from tests.support.integration_pipeline import (
-    ClabCommonPipelineSteps,
-    CommonPipelineSteps,
-    _min3clos_prerequisites,
-    claude_sdk_available,
-    load_test_env,
-)
+from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
 
@@ -82,75 +72,3 @@ class ClaudeSdkMcpTest:
             os.environ, {"ANTHROPIC_AUTH_TOKEN": "tok"}, clear=True
         ):
             assert claude_sdk_credentials_available()
-
-
-@SANDBOX_E2E_SUPERSEDED
-@pytest.mark.skipif(
-    not claude_sdk_available(),
-    reason="claude-agent-sdk + ANTHROPIC credentials required",
-)
-class ClaudeSdkAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
-    """Full pipeline with the sdk.claude_sdk agent."""
-
-    def test_step_01_start_env(self) -> None:
-        self._step_start_env()
-
-    def test_step_02_inject_failure(self) -> None:
-        self._step_inject_failure()
-
-    def test_step_03_run_claude_sdk_agent(self) -> None:
-        assert self.session_id is not None
-        self._run_agent(agent_type="sdk.claude_sdk", max_steps=20)
-        row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "sdk.claude_sdk"
-
-    def test_step_04_check_messages(self) -> None:
-        assert self.session_dir is not None
-        assert_phase_messages(self._load_jsonl("messages.jsonl"))
-
-    def test_step_05_check_submission(self) -> None:
-        assert self.session_dir is not None
-        assert (self.session_dir / "submission.json").exists()
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("sdk.claude_sdk")
-
-    def test_step_07_eval_metrics(self) -> None:
-        self._step_eval_metrics()
-
-
-@SANDBOX_E2E_SUPERSEDED
-@pytest.mark.skipif(
-    not (_min3clos_prerequisites() and claude_sdk_available()),
-    reason="containerlab/gnmic/Docker or claude-agent-sdk credentials not available",
-)
-class ClaudeSdkClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
-    """Full containerlab pipeline with the sdk.claude_sdk agent."""
-
-    def test_step_01_start_env(self) -> None:
-        self._step_start_env()
-
-    def test_step_02_inject_failure(self) -> None:
-        self._step_inject_failure()
-
-    def test_step_03_run_claude_sdk_agent(self) -> None:
-        assert self.session_id is not None
-        self._run_agent(agent_type="sdk.claude_sdk", max_steps=20)
-        row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "sdk.claude_sdk"
-
-    def test_step_04_check_messages(self) -> None:
-        assert self.session_dir is not None
-        assert_phase_messages(self._load_jsonl("messages.jsonl"))
-
-    def test_step_05_check_submission(self) -> None:
-        assert self.session_dir is not None
-        assert (self.session_dir / "submission.json").exists()
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("sdk.claude_sdk")
-
-    def test_step_07_eval_metrics(self) -> None:
-        self._step_eval_metrics()
