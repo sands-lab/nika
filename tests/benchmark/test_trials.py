@@ -192,6 +192,16 @@ class TestTrialHelpers:
             json.dumps(
                 {
                     "is_anomaly": True,
+                    "root_causes": [
+                        {
+                            "resource": {
+                                "kind": "interface",
+                                "node": "pc1",
+                                "name": "eth0",
+                            },
+                            "fault_type": "link_down",
+                        }
+                    ],
                     "faulty_devices": ["pc1"],
                     "root_cause_name": ["link_down"],
                 }
@@ -202,8 +212,12 @@ class TestTrialHelpers:
             json.dumps(
                 {
                     "is_anomaly": True,
-                    "faulty_devices": ["pc1"],
-                    "root_cause_name": ["link_down"],
+                    "root_causes": [
+                        {
+                            "resource_id": "interface/pc1/eth0",
+                            "fault_type": "link_down",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",

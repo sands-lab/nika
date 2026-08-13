@@ -11,6 +11,7 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
+from agent.utils.usage import normalize_usage
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +24,6 @@ def _normalize_tool_name(name: str) -> str:
         if "__" in remainder:
             return remainder.split("__", 1)[1]
     return name
-
-
-def _usage_metadata(usage: dict[str, Any] | None) -> dict[str, int]:
-    u = usage or {}
-    return {
-        "input_tokens": (
-            u.get("input_tokens", 0)
-            + u.get("cache_creation_input_tokens", 0)
-            + u.get("cache_read_input_tokens", 0)
-        ),
-        "output_tokens": u.get("output_tokens", 0),
-    }
 
 
 class ClaudeSdkWorker:
@@ -185,7 +174,7 @@ class ClaudeSdkWorker:
                     elif isinstance(message, ResultMessage):
                         _flush_turn()
                         result_text = message.result or ""
-                        md = _usage_metadata(message.usage)
+                        md = normalize_usage(message.usage)
                         self._logger.log(
                             "llm_end", {"text": result_text, "usage_metadata": md}
                         )

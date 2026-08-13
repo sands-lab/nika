@@ -14,7 +14,6 @@ from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.prob_pool import get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
-from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
 from nika.workflows.benchmark.trials import (
     Trial,
@@ -51,7 +50,7 @@ from nika.workflows.benchmark.resume import (
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import eval_results, run_eval_metrics
 from nika.workflows.failure.inject import inject_failure
-from nika.workflows.session.close import close_session
+from nika.workflows.session.close import close_session, load_session_meta_for_close
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
 
@@ -192,7 +191,7 @@ def _finalize_agent_failed_trial(
 ) -> None:
     """Mark a post-inject failure as a counted ``agent_failed`` trial."""
     try:
-        close_session(session_id=session_id, undeploy=True)
+        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
     except Exception as cleanup_error:  # noqa: BLE001 - best effort
         print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
 
@@ -259,8 +258,7 @@ def _close_and_eval_success(
 ) -> None:
     """Close, stamp ``outcome=success`` ASAP, then write eval metrics."""
     try:
-        Session().load_running_session(session_id=session_id)
-        close_session(session_id=session_id, undeploy=True)
+        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
     except FileNotFoundError:
         # Already closed by another path; still stamp + evaluate.
         pass
@@ -353,10 +351,12 @@ def run_single_case(
         session_id=trial_id,
         session_dir=predetermined_dir,
     )
-    session_dir = Path(SessionStore().get_session(session_id)["session_dir"])
+    session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
 
     try:
+        if session_dir is None:
+            session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
         inject_failure(
             problem_names=[problem],
             session_id=session_id,
@@ -430,7 +430,7 @@ def run_single_case(
             return session_id, session_dir
 
         try:
-            close_session(session_id=session_id, undeploy=True)
+            close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
             print(f"cleaned up failed session {session_id} (lab undeployed)")
         except Exception as cleanup_error:  # noqa: BLE001 - best effort
             print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")

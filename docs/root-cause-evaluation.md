@@ -89,7 +89,7 @@ Scoring compares the predicted and expected sets of `(resource_id, fault_type)` 
 | Localization | `resource_id` | `localization_precision`, `localization_recall`, `localization_f1` |
 | Fault type | `fault_type` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
 
-`rca_accuracy` and `localization_accuracy` copy their corresponding recall values for schema compatibility. Detection and trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, and `tool_errors`) remain separate fields in `eval_metrics.json`.
+`rca_accuracy` and `localization_accuracy` copy their corresponding recall values for schema compatibility. Detection and trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, and `tool_errors`) remain separate fields in `eval_metrics.json`. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. All agent traces go through `agent.utils.usage.normalize_usage`.
 
 ```shell
 nika eval metrics

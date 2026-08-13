@@ -9,6 +9,7 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
+from agent.utils.usage import normalize_usage
 
 if TYPE_CHECKING:
     from agent.utils.loggers import MessageLogger
@@ -88,3 +89,17 @@ class NikaOpenAIAugmentedLLM(OpenAIAugmentedLLM):
         return await super().post_tool_call(
             tool_call_id=tool_call_id, request=request, result=result
         )
+
+    def _annotate_span_for_completion_response(self, span, response, turn):
+        """Log one ``llm_end`` per ChatCompletion, then keep mcp-agent tracing."""
+        if self._nika_logger is not None:
+            choices = getattr(response, "choices", None) or []
+            message = getattr(choices[0], "message", None) if choices else None
+            self._nika_logger.log(
+                "llm_end",
+                {
+                    "text": getattr(message, "content", None) or "",
+                    "usage_metadata": normalize_usage(getattr(response, "usage", None)),
+                },
+            )
+        return super()._annotate_span_for_completion_response(span, response, turn)

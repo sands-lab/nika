@@ -16,9 +16,14 @@ from agent.sandbox.sbx.credentials import (
     missing_credential_message,
     required_services_for_agent,
 )
-from agent.sandbox.sbx.exec import build_sbx_exec_command
+from agent.sandbox.sbx.client import ensure_sbx_daemon, run_sbx, run_sbx_checked
+from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
 from agent.sandbox.sbx.manager import SbxSandboxManager
-from agent.sandbox.sbx.proxy import ensure_sbx_proxy_config, resolve_sbx_upstream_proxy
+from agent.sandbox.sbx.proxy import (
+    ensure_sbx_proxy_config,
+    resolve_sbx_upstream_proxy,
+    sbx_process_env,
+)
 from agent.sandbox.sbx.wheels import (
     SDK_WHEEL_DIRNAME,
     install_sdk_wheels_in_sandbox,
@@ -115,7 +120,6 @@ def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
     from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
 
     monkeypatch.setenv(ENV_SBX_SANDBOX_NAME, "nika-test-sbx")
-    monkeypatch.setenv("NIKA_LLM_PROVIDER", "deepseek")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-real-deepseek")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sbx-cs-placeholder")
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "sbx-cs-placeholder")
@@ -316,7 +320,7 @@ def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
 def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "DEEPSEEK_API_KEY=tok\nNIKA_LLM_PROVIDER=deepseek\n",
+        "DEEPSEEK_API_KEY=tok\n",
         encoding="utf-8",
     )
     with (
@@ -330,7 +334,7 @@ def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
             return_value={"ANTHROPIC_API_KEY": "sbx-cs-anth"},
         ),
         patch("agent.sandbox.sbx.credentials.run_sbx_checked") as run,
-        patch.dict(os.environ, {"NIKA_LLM_PROVIDER": "deepseek"}, clear=True),
+        patch.dict(os.environ, {}, clear=True),
     ):
         plan = ensure_sbx_credentials(
             env_file=env_file,
@@ -515,7 +519,7 @@ def test_ensure_sbx_proxy_config_warns_when_daemon_stays_down() -> None:
         patch("agent.sandbox.sbx.proxy.subprocess.run") as run,
         patch("agent.sandbox.sbx.proxy.subprocess.Popen") as popen,
         patch("agent.sandbox.sbx.proxy.time.sleep"),
-        patch("agent.sandbox.sbx.proxy._daemon_running", return_value=False),
+        patch("agent.sandbox.sbx.proxy.sbx_daemon_running", return_value=False),
         patch("agent.sandbox.sbx.proxy.logger.warning") as warning,
     ):
         run.return_value = type(
@@ -524,6 +528,140 @@ def test_ensure_sbx_proxy_config_warns_when_daemon_stays_down() -> None:
         ensure_sbx_proxy_config("http://proxy.test:8080")
     popen.assert_called_once()
     warning.assert_called_once()
+    stop_cmds = [
+        call.args[0]
+        for call in run.call_args_list
+        if call.args and call.args[0][:3] == ["sbx", "daemon", "stop"]
+    ]
+    assert stop_cmds == []
+
+
+def test_ensure_sbx_proxy_config_does_not_stop_running_daemon(
+    tmp_path, monkeypatch
+) -> None:
+    import agent.sandbox.sbx.proxy as proxy_mod
+
+    monkeypatch.setattr(proxy_mod, "_proxy_lock_path", lambda: tmp_path / "lock")
+    monkeypatch.setattr(proxy_mod, "_applied_proxy", None)
+    with (
+        patch("agent.sandbox.sbx.proxy.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.proxy.sbx_daemon_running", return_value=True),
+        patch("agent.sandbox.sbx.proxy._daemon_proxy_matches", return_value=False),
+        patch("agent.sandbox.sbx.proxy.subprocess.run") as run,
+        patch("agent.sandbox.sbx.proxy.subprocess.Popen") as popen,
+        patch("agent.sandbox.sbx.proxy.logger.warning") as warning,
+    ):
+        ensure_sbx_proxy_config("http://proxy.test:8080")
+    popen.assert_not_called()
+    assert not any(
+        call.args and call.args[0][:3] == ["sbx", "daemon", "stop"]
+        for call in run.call_args_list
+    )
+    warning.assert_called()
+
+
+def test_sbx_process_env_sets_https_proxy_when_unset() -> None:
+    with patch.dict(
+        os.environ,
+        {"NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080"},
+        clear=True,
+    ):
+        env = sbx_process_env()
+    assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+    assert env["HTTP_PROXY"] == "http://proxy.test:8080"
+    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    assert "host.docker.internal" in env["NO_PROXY"]
+
+
+def test_sbx_process_env_keeps_existing_https_proxy() -> None:
+    with patch.dict(
+        os.environ,
+        {
+            "NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080",
+            "HTTPS_PROXY": "http://already:9",
+        },
+        clear=True,
+    ):
+        env = sbx_process_env()
+    assert env["HTTPS_PROXY"] == "http://already:9"
+    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    assert "HTTP_PROXY" not in env or env.get("HTTP_PROXY") != "http://proxy.test:8080"
+
+
+def test_run_sbx_passes_host_proxy_env() -> None:
+    with (
+        patch.dict(
+            os.environ,
+            {"NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080"},
+            clear=True,
+        ),
+        patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.client.subprocess.run") as run,
+    ):
+        run.return_value = SimpleNamespace(returncode=0, stdout="", stderr="")
+        run_sbx(["ls"], check=False)
+    env = run.call_args.kwargs["env"]
+    assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+
+
+def test_exec_in_sandbox_passes_host_proxy_env() -> None:
+    import asyncio
+
+    async def _run() -> dict[str, str]:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080",
+                    "NIKA_SBX_SANDBOX_NAME": "nika-test",
+                },
+                clear=True,
+            ),
+            patch("agent.sandbox.sbx.exec.asyncio.create_subprocess_exec") as create,
+        ):
+            create.return_value = SimpleNamespace()
+            await exec_in_sandbox(["claude", "-p", "hi"], sandbox_name="nika-test")
+        return create.call_args.kwargs["env"]
+
+    env = asyncio.run(_run())
+    assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+
+
+def test_ensure_sbx_daemon_uses_status_not_ls() -> None:
+    with (
+        patch(
+            "agent.sandbox.sbx.proxy.sbx_daemon_running", return_value=True
+        ) as status,
+        patch("agent.sandbox.sbx.client.subprocess.run") as run,
+    ):
+        ensure_sbx_daemon()
+    status.assert_called()
+    run.assert_not_called()
+
+
+def test_run_sbx_checked_retries_hub_token_error() -> None:
+    fail = SimpleNamespace(
+        returncode=1,
+        stdout="",
+        stderr=(
+            "ERROR: token is unverifiable: error while executing keyfunc: "
+            'Get "https://login.docker.com/.well-known/jwks.json": '
+            "context deadline exceeded\n"
+        ),
+    )
+    ok = SimpleNamespace(returncode=0, stdout="created", stderr="")
+    with (
+        patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.client.subprocess.run", side_effect=[fail, ok]) as run,
+        patch("agent.sandbox.sbx.client.time.sleep") as sleep,
+        patch.dict(os.environ, {}, clear=True),
+    ):
+        result = run_sbx_checked(["create", "--name", "nika-test", "claude", "/tmp"])
+    assert result.returncode == 0
+    assert run.call_count == 2
+    sleep.assert_called_once_with(2.0)
 
 
 def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:

@@ -11,7 +11,6 @@ from typing import Any
 from nika.config import SESSIONS_DIR, resolve_results_root
 from nika.utils.session_artifacts import RUN_FILENAME, iter_session_dirs
 from nika.utils.session_index import SessionIndex
-from nika.utils.session_store import SessionStore
 from nika.workflows.session.close import close_session
 
 
@@ -75,10 +74,12 @@ def cleanup_benchmark_session(
     """Remove a partial or failed benchmark session and any runtime state."""
     if session_id:
         try:
-            meta = SessionStore().get_session(session_id)
-            if meta.get("status") == "running":
-                close_session(session_id=session_id, undeploy=True)
-        except FileNotFoundError:
+            close_session(
+                session_id=session_id,
+                undeploy=True,
+                session_dir=session_dir,
+            )
+        except (FileNotFoundError, ValueError):
             pass
         SessionIndex().purge(session_id)
         runtime_path = Path(SESSIONS_DIR) / f"{session_id}.json"

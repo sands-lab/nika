@@ -1,5 +1,6 @@
 """Close running sessions: undeploy lab, end failures, clear runtime state."""
 
+import json
 import shutil
 import subprocess
 from datetime import datetime
@@ -18,6 +19,7 @@ from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.runtime.meta import meta_get, meta_path
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
 from nika.utils.session import Session
+from nika.utils.session_artifacts import RUN_FILENAME
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_store import SessionStore
 
@@ -48,6 +50,11 @@ def _is_safe_runtime_removal(path: Path, session_meta: dict) -> bool:
     resolved = path.resolve()
     runtime_root = Path(RUNTIME_DIR).resolve()
     if not resolved.is_relative_to(runtime_root):
+        return False
+    if resolved == runtime_root:
+        return False
+    sessions_root = Path(SESSIONS_DIR).resolve()
+    if resolved == sessions_root or resolved.is_relative_to(sessions_root):
         return False
     session_dir = session_meta.get("session_dir")
     if session_dir and resolved == Path(str(session_dir)).resolve():
@@ -112,6 +119,62 @@ def wipe_kathara_labs() -> None:
         pass
 
 
+def _load_run_json(session_dir: Path | None) -> dict | None:
+    if session_dir is None:
+        return None
+    path = Path(session_dir) / RUN_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def load_session_meta_for_close(
+    session_id: str,
+    *,
+    session_dir: str | Path | None = None,
+    store: SessionStore | None = None,
+) -> dict:
+    """Return session meta for undeploy even after the runtime JSON is gone."""
+    session_store = store or SessionStore()
+    try:
+        return session_store.get_session(session_id)
+    except FileNotFoundError:
+        pass
+
+    row = session_store.index.get_row(session_id)
+    candidates: list[Path] = []
+    if session_dir:
+        candidates.append(Path(session_dir))
+    if row and row.get("session_dir"):
+        candidates.append(Path(str(row["session_dir"])))
+    candidates.append(resolve_results_root() / session_id)
+
+    run_meta: dict | None = None
+    seen: set[Path] = set()
+    for candidate in candidates:
+        key = candidate.resolve() if candidate.exists() else candidate
+        if key in seen:
+            continue
+        seen.add(key)
+        run_meta = _load_run_json(candidate)
+        if run_meta:
+            run_meta.setdefault("session_id", session_id)
+            run_meta.setdefault("session_dir", str(candidate))
+            return run_meta
+
+    if row:
+        meta = dict(row)
+        meta.setdefault("session_id", session_id)
+        return meta
+    raise FileNotFoundError(
+        f"Session '{session_id}' not found (no runtime document or run.json)."
+    )
+
+
 def wipe_all_containerlab_labs() -> None:
     """Remove all Containerlab labs for the current user."""
     try:
@@ -129,11 +192,17 @@ def wipe_all_containerlab_labs() -> None:
         return
 
 
-def _stop_session_record(session_meta: dict, *, undeploy: bool = True) -> None:
+def _stop_session_record(
+    session_meta: dict,
+    *,
+    undeploy: bool = True,
+    session_id: str | None = None,
+) -> None:
     session = Session()
-    for key, value in session_meta.items():
-        setattr(session, key, value)
-    scenario = session.scenario_name
+    session._apply_session_meta(session_meta)
+    if session_id:
+        session.session_id = session_id
+    scenario = getattr(session, "scenario_name", None)
     if not scenario:
         raise ValueError(
             "Session has no scenario_name; cannot determine which lab to stop."
@@ -210,9 +279,12 @@ def _stop_session_record(session_meta: dict, *, undeploy: bool = True) -> None:
             backend=backend,
         )
 
-    ended_cnt = SessionStore().mark_session_failures_ended(
-        session.session_id, end_time=datetime.now().timestamp()
-    )
+    try:
+        ended_cnt = SessionStore().mark_session_failures_ended(
+            session.session_id, end_time=datetime.now().timestamp()
+        )
+    except FileNotFoundError:
+        ended_cnt = 0
     if ended_cnt:
         log_event(
             "failures_ended",
@@ -243,8 +315,14 @@ def close_session(
     *,
     undeploy: bool = True,
     stop_all: bool = False,
+    session_dir: str | Path | None = None,
 ) -> None:
-    """Close one or all running sessions and clear runtime state."""
+    """Close one or all running sessions and clear runtime state.
+
+    When ``session_id`` is given, undeploy even if the runtime JSON is already
+    gone, using ``run.json`` / the session index so leftover labs are not left
+    behind after a crashed worker.
+    """
     from nika.remote.config import is_remote_enabled
 
     if is_remote_enabled():
@@ -261,8 +339,12 @@ def close_session(
     if stop_all:
         try:
             for session_meta in running:
-                full_meta = store.get_session(session_meta["session_id"])
-                _stop_session_record(full_meta, undeploy=undeploy)
+                sid = session_meta["session_id"]
+                try:
+                    full_meta = load_session_meta_for_close(sid, store=store)
+                except FileNotFoundError:
+                    continue
+                _stop_session_record(full_meta, undeploy=undeploy, session_id=sid)
         finally:
             if undeploy:
                 wipe_kathara_labs()
@@ -277,10 +359,21 @@ def close_session(
                     )
         return
 
+    if session_id is not None:
+        meta = load_session_meta_for_close(
+            session_id, session_dir=session_dir, store=store
+        )
+        _stop_session_record(meta, undeploy=undeploy, session_id=session_id)
+        return
+
     if not running:
         raise FileNotFoundError(
             "No running session found. Run `nika env run <scenario>` first."
         )
 
     resolved_id = resolve_running_session_id(session_id, store=store)
-    _stop_session_record(store.get_session(resolved_id), undeploy=undeploy)
+    _stop_session_record(
+        store.get_session(resolved_id),
+        undeploy=undeploy,
+        session_id=resolved_id,
+    )

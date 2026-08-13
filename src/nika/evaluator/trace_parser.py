@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 
 from agent.protocols import DIAGNOSIS
+from agent.utils.usage import normalize_usage
 
 
 class AgentTraceParser:
@@ -22,6 +23,11 @@ class AgentTraceParser:
         self.tool_errors = 0
         self.time_taken = 0
 
+    def _add_usage(self, usage: dict | None) -> None:
+        tokens = normalize_usage(usage)
+        self.in_tokens += tokens["input_tokens"]
+        self.out_tokens += tokens["output_tokens"]
+
     def _record_event(self, entry: dict) -> None:
         event = entry.get("event")
         if event == "tool_start":
@@ -30,9 +36,7 @@ class AgentTraceParser:
             self.tool_errors += 1
         elif event == "llm_end":
             self.steps += 1
-            usage_metadata = entry.get("usage_metadata") or {}
-            self.in_tokens += usage_metadata.get("input_tokens", 0)
-            self.out_tokens += usage_metadata.get("output_tokens", 0)
+            self._add_usage(entry.get("usage_metadata"))
         elif event == "item.started":
             codex_item = (entry.get("codex_event") or {}).get("item") or {}
             if codex_item.get("type") == "mcp_tool_call":
@@ -46,9 +50,7 @@ class AgentTraceParser:
                 self.tool_errors += 1
         elif event == "turn.completed":
             self.steps += 1
-            usage = (entry.get("codex_event") or {}).get("usage") or {}
-            self.in_tokens += usage.get("input_tokens", 0)
-            self.out_tokens += usage.get("output_tokens", 0)
+            self._add_usage((entry.get("codex_event") or {}).get("usage"))
         elif event == "assistant":
             # Claude Code stream-json: tool calls appear in message content blocks.
             content = ((entry.get("claude_event") or {}).get("message") or {}).get(
@@ -60,13 +62,13 @@ class AgentTraceParser:
                 if isinstance(b, dict) and b.get("type") == "tool_use"
             )
         elif event == "result":
-            # Claude Code stream-json: final result event carries usage and step count.
+            # Claude Code stream-json: one result event per phase. ``num_turns``
+            # is the agent loop count (same unit as ``max_steps`` / ``llm_end``).
             claude_event = entry.get("claude_event") or {}
             if not claude_event.get("is_error"):
-                self.steps += 1
-                usage = claude_event.get("usage") or {}
-                self.in_tokens += usage.get("input_tokens", 0)
-                self.out_tokens += usage.get("output_tokens", 0)
+                num_turns = claude_event.get("num_turns")
+                self.steps += int(num_turns) if num_turns is not None else 1
+                self._add_usage(claude_event.get("usage"))
 
     def parse_trace(self) -> dict:
         time_start: datetime | None = None

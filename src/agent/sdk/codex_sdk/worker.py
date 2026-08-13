@@ -16,6 +16,7 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_codex_workspace
+from agent.utils.usage import normalize_usage
 
 
 def _unwrap_thread_item(item: Any) -> Any:
@@ -214,12 +215,7 @@ class CodexSdkWorker:
             agent_text
         )
         if final_response:
-            usage_md: dict[str, int] = {}
-            if usage is not None:
-                usage_md = {
-                    "input_tokens": getattr(usage, "input_tokens", 0) or 0,
-                    "output_tokens": getattr(usage, "output_tokens", 0) or 0,
-                }
+            usage_md = normalize_usage(usage) if usage is not None else {}
             self._logger.log(
                 "llm_end", {"text": final_response, "usage_metadata": usage_md}
             )

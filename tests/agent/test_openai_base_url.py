@@ -11,7 +11,6 @@ from agent.byo.mcp_agent.config import _openai_settings_for_provider
 def test_mcp_agent_openai_settings_reads_openai_base_url(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-or-test")
-    monkeypatch.setenv("NIKA_LLM_PROVIDER", "openai")
 
     settings = _openai_settings_for_provider("openai/gpt-4o-mini", "openai")
 

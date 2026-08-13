@@ -7,12 +7,19 @@ from pathlib import Path
 import pytest
 import yaml
 
+from typer.testing import CliRunner
+
+from nika.cli.main import app
 from nika.run_config.legacy import (
     detect_legacy_operational_env,
-    legacy_env_to_partial_dict,
     warn_legacy_operational_env,
 )
-from nika.run_config.loader import load_run_config, merge_cli
+from nika.run_config.loader import (
+    load_run_config,
+    merge_cli,
+    reset_run_config,
+    set_run_config,
+)
 from nika.run_config.schema import RunConfig
 from nika.utils.agent_config import (
     resolve_agent_model,
@@ -20,7 +27,8 @@ from nika.utils.agent_config import (
     resolve_llm_provider,
     resolve_max_steps,
 )
-from nika.run_config.loader import set_run_config, reset_run_config
+
+_RUNNER = CliRunner()
 
 
 def test_load_missing_uses_defaults(tmp_path: Path) -> None:
@@ -82,22 +90,42 @@ def test_provider_validation_via_schema() -> None:
         )
 
 
-def test_legacy_env_mapping() -> None:
-    partial = legacy_env_to_partial_dict(
-        {
-            "NIKA_AGENT_TYPE": "cli.claude",
-            "NIKA_LLM_PROVIDER": "deepseek",
-            "NIKA_MAX_STEPS": "12",
-            "NIKA_CLAUDE_MODEL": "deepseek-v4-pro[1m]",
-            "NIKA_CUSTOM_BASE_URL": "https://openrouter.ai/api/v1",
-            "DEEPSEEK_API_KEY": "sk-ds",
-        }
+def test_config_migrate_writes_yaml(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "NIKA_AGENT_TYPE=cli.claude",
+                "NIKA_LLM_PROVIDER=deepseek",
+                "NIKA_MAX_STEPS=12",
+                "NIKA_CLAUDE_MODEL=deepseek-v4-pro[1m]",
+                "NIKA_CUSTOM_BASE_URL=https://openrouter.ai/api/v1",
+                "DEEPSEEK_API_KEY=sk-ds",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
     )
-    assert partial["agent"]["type"] == "cli.claude"
-    assert partial["agent"]["provider"] == "deepseek"
-    assert partial["agent"]["max_steps"] == 12
-    assert partial["agent"]["models"]["claude"] == "deepseek-v4-pro[1m]"
-    assert partial["agent"]["custom"]["base_url"] == "https://openrouter.ai/api/v1"
+    out_path = tmp_path / "nika.yaml"
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "migrate",
+            "--env-file",
+            str(env_file),
+            "-o",
+            str(out_path),
+            "-y",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = yaml.safe_load(out_path.read_text(encoding="utf-8"))
+    assert data["agent"]["type"] == "cli.claude"
+    assert data["agent"]["provider"] == "deepseek"
+    assert data["agent"]["max_steps"] == 12
+    assert data["agent"]["models"]["claude"] == "deepseek-v4-pro[1m]"
+    assert data["agent"]["custom"]["base_url"] == "https://openrouter.ai/api/v1"
 
 
 def test_legacy_warn_does_not_apply_values(monkeypatch, capsys) -> None:

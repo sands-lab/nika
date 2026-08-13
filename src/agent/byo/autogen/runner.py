@@ -11,6 +11,7 @@ from autogen_core.models import ModelFamily
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from agent.utils.loggers import MessageLogger
+from agent.utils.usage import normalize_usage
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
 from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
@@ -112,6 +113,20 @@ def create_model_client(
     return OpenAIChatCompletionClient(**kwargs)
 
 
+def _log_event_usage(logger: MessageLogger, event: object) -> None:
+    usage = getattr(event, "models_usage", None)
+    if usage is None:
+        return
+    content = getattr(event, "content", None)
+    logger.log(
+        "llm_end",
+        {
+            "text": content if isinstance(content, str) else "",
+            "usage_metadata": normalize_usage(usage),
+        },
+    )
+
+
 async def run_logged_agent(
     *,
     agent: AssistantAgent,
@@ -132,6 +147,7 @@ async def run_logged_agent(
                     final_text = content
             continue
 
+        _log_event_usage(logger, event)
         if isinstance(event, ToolCallRequestEvent):
             tool_rounds += 1
             for call in event.content:

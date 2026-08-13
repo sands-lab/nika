@@ -15,6 +15,8 @@ from nika.service.k8s_mcp_server.client import (
     reset_client,
     resolve_kubeconfig_path,
 )
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 from nika.service.mcp_server.registry import (
     K8S_MCP_SERVER,
     select_diagnosis_servers,
@@ -37,9 +39,16 @@ class TestK8sMcpSelection:
         assert K8S_MCP_SERVER not in servers
 
     def test_kubectl_only_skips_k8s_mcp(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("NIKA_K8S_ACCESS", "kubectl_only")
-        servers = select_diagnosis_servers("k8s_lab", backend="kathara")
-        assert K8S_MCP_SERVER not in servers
+        monkeypatch.delenv("NIKA_K8S_ACCESS", raising=False)
+        reset_run_config()
+        set_run_config(
+            RunConfig.model_validate({"nika": {"k8s": {"access": "kubectl_only"}}})
+        )
+        try:
+            servers = select_diagnosis_servers("k8s_lab", backend="kathara")
+            assert K8S_MCP_SERVER not in servers
+        finally:
+            reset_run_config()
 
 
 class TestResolveKubeconfig:

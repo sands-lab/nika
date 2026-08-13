@@ -5,8 +5,9 @@ import tempfile
 import unittest.mock
 from pathlib import Path
 
+import pytest
+
 from agent.utils.skills import (
-    ENV_ENABLE_SKILLS,
     TEST_SKILL_NAME,
     claude_skills_package_dir,
     diagnosis_prompt_with_skills,
@@ -21,10 +22,25 @@ from agent.utils.template import (
     SKILLS_PROMPT_SUFFIX,
     TEST_SKILLS_PROMPT_SUFFIX,
 )
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 from tests.agent._assertions import marker_before_first_mcp_tool, skill_invoked
 from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_skills_config(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("NIKA_ENABLE_SKILLS", raising=False)
+    reset_run_config()
+    set_run_config(RunConfig())
+    yield
+    reset_run_config()
+
+
+def _set_skills_enabled(enabled: bool) -> None:
+    set_run_config(RunConfig.model_validate({"nika": {"enable_skills": enabled}}))
 
 
 class SkillsConfigTest:
@@ -50,60 +66,44 @@ class SkillsConfigTest:
                 assert resolve_skills_root() == skills_root.resolve()
 
     def test_skills_enabled_default(self) -> None:
-        with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            assert skills_enabled()
+        assert skills_enabled()
 
     def test_skills_enabled_false(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ, {ENV_ENABLE_SKILLS: "false"}, clear=True
-        ):
-            assert not skills_enabled()
+        _set_skills_enabled(False)
+        assert not skills_enabled()
 
     def test_claude_skills_package_dir_when_disabled(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ, {ENV_ENABLE_SKILLS: "false"}, clear=True
-        ):
-            assert claude_skills_package_dir() is None
+        _set_skills_enabled(False)
+        assert claude_skills_package_dir() is None
 
     def test_claude_skills_package_dir_when_enabled(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
-        ):
-            package = claude_skills_package_dir()
-            assert package is not None
-            assert (package / ".claude" / "CLAUDE.md").is_file()
-            assert not (
-                package / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
-            ).exists()
+        package = claude_skills_package_dir()
+        assert package is not None
+        assert (package / ".claude" / "CLAUDE.md").is_file()
+        assert not (
+            package / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+        ).exists()
 
     def test_diagnosis_prompt_with_skills(self) -> None:
-        with unittest.mock.patch.dict(
-            os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
-        ):
-            prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
-            assert SKILLS_PROMPT_SUFFIX in prompt
-            assert TEST_SKILL_NAME not in prompt
-            test_prompt = diagnosis_prompt_with_skills(
-                OVERALL_DIAGNOSIS_PROMPT, include_test_skill=True
-            )
-            assert TEST_SKILLS_PROMPT_SUFFIX in test_prompt
-        with unittest.mock.patch.dict(
-            os.environ, {ENV_ENABLE_SKILLS: "false"}, clear=True
-        ):
-            assert (
-                diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
-                == OVERALL_DIAGNOSIS_PROMPT
-            )
+        prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
+        assert SKILLS_PROMPT_SUFFIX in prompt
+        assert TEST_SKILL_NAME not in prompt
+        test_prompt = diagnosis_prompt_with_skills(
+            OVERALL_DIAGNOSIS_PROMPT, include_test_skill=True
+        )
+        assert TEST_SKILLS_PROMPT_SUFFIX in test_prompt
+        _set_skills_enabled(False)
+        assert (
+            diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
+            == OVERALL_DIAGNOSIS_PROMPT
+        )
 
 
 class SkillsWorkspaceTest:
     def test_prepare_claude_workspace_excludes_test_skill_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
-            with unittest.mock.patch.dict(
-                os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
-            ):
-                prepare_claude_workspace(workspace)
+            prepare_claude_workspace(workspace)
             link = workspace / ".claude"
             assert link.exists()
             assert not (link / "skills" / TEST_SKILL_NAME).exists()
@@ -111,10 +111,7 @@ class SkillsWorkspaceTest:
     def test_prepare_claude_workspace_includes_test_skill_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
-            with unittest.mock.patch.dict(
-                os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
-            ):
-                prepare_claude_workspace(workspace, include_test_skill=True)
+            prepare_claude_workspace(workspace, include_test_skill=True)
             assert (
                 workspace / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
             ).exists()
@@ -122,10 +119,7 @@ class SkillsWorkspaceTest:
     def test_prepare_codex_workspace_excludes_test_skill_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
-            with unittest.mock.patch.dict(
-                os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
-            ):
-                prepare_codex_workspace(workspace)
+            prepare_codex_workspace(workspace)
             assert not (workspace / ".agents" / "skills" / TEST_SKILL_NAME).exists()
             assert (workspace / "AGENTS.md").is_file()
             assert TEST_SKILL_NAME not in (workspace / "AGENTS.md").read_text(
@@ -135,10 +129,7 @@ class SkillsWorkspaceTest:
     def test_prepare_codex_workspace_includes_test_skill_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
-            with unittest.mock.patch.dict(
-                os.environ, {ENV_ENABLE_SKILLS: "true"}, clear=True
-            ):
-                prepare_codex_workspace(workspace, include_test_skill=True)
+            prepare_codex_workspace(workspace, include_test_skill=True)
             assert (
                 workspace / ".agents" / "skills" / TEST_SKILL_NAME / "SKILL.md"
             ).exists()

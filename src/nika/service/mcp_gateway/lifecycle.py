@@ -116,13 +116,33 @@ def stop_gateway() -> None:
     with _manager_lock:
         manager = _active_manager
         _active_manager = None
-    backend = manager.backend if manager is not None else None
-    if manager is not None:
-        manager.stop()
-    reset_gateway_mcp_state(backend=backend)
-    os.environ.pop(ENV_GATEWAY_URL, None)
-    os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
-    clear_sessions()
+    _shutdown_manager(manager, clear_registry=True)
+
+
+def _shutdown_manager(
+    manager: McpGatewayManager | None,
+    *,
+    clear_registry: bool = False,
+) -> None:
+    """Stop *manager* without clobbering a sibling gateway in this process."""
+    global _active_manager
+    if manager is None:
+        if clear_registry:
+            reset_gateway_mcp_state()
+            os.environ.pop(ENV_GATEWAY_URL, None)
+            os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
+            clear_sessions()
+        return
+    with _manager_lock:
+        if _active_manager is manager:
+            _active_manager = None
+    manager.stop()
+    if os.environ.get(ENV_GATEWAY_URL) == manager.base_url:
+        os.environ.pop(ENV_GATEWAY_URL, None)
+        os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
+    reset_gateway_mcp_state(backend=manager.backend)
+    if clear_registry:
+        clear_sessions()
 
 
 def _resolve_session_backend(scenario_name: str) -> str | None:
@@ -168,4 +188,4 @@ def mcp_gateway_for_session(
         yield manager
     finally:
         unregister_session(session_id)
-        stop_gateway()
+        _shutdown_manager(manager)

@@ -59,7 +59,7 @@ Host (NIKA orchestration)          sbx microVM (agent-only)
 
 Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (manifest and skills). `ground_truth.json` stays on the host and does not mount into the microVM. After the run, NIKA copies the standard session artifacts (`messages.jsonl`, `submission.json`, and `sandbox_manifest.json`) back and discards `.sandbox_run` plus the agent workspaces.
 
-**Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark batches (`--batch-size N`) run one subprocess per case, so gateways do not share a process.
+**Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark batches (`--batch-size N`) run one subprocess per case, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
 
 **Sandbox boundary:** SDK sandboxes do **not** bundle `nika/` source. The host writes MCP HTTP endpoints into `sandbox_manifest.json` (`mcp_servers`); the in-sandbox runner loads agent code, prompts/skills, and (when enabled) SDK wheels only.
 
@@ -131,7 +131,7 @@ Confirm with `sbx secret ls`. Global secrets apply when a sandbox is created; re
 | `--sandbox-keep-container` | Keep the sandbox after agent exit (debug) |
 | `--sandbox-cpus` / `--sandbox-memory` | Resource limits |
 | `--sandbox-offline-sdk-wheels` | Host-cached wheels for SDK/SADE |
-| `--sandbox-proxy` | Upstream proxy for sbx daemon |
+| `--sandbox-proxy` | Upstream proxy for the sbx daemon and host `sbx` CLI (Docker Hub auth) |
 
 Credentials come from the repository-root `.env`; NIKA has no separate sandbox environment file.
 
@@ -148,6 +148,8 @@ nika:
 ```
 
 Or pass `--sandbox-proxy` on the CLI.
+
+NIKA also sets `HTTPS_PROXY` on host `sbx` subprocesses from that URL when `HTTPS_PROXY` is unset, so `sbx create` / `sbx exec` can fetch `https://login.docker.com/.well-known/jwks.json`. If Docker Hub token refresh still times out, confirm the proxy can reach `login.docker.com`, then run `sbx login`.
 
 ## Testing
 

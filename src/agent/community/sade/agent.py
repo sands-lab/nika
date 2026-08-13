@@ -40,6 +40,7 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.protocols import DIAGNOSIS
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, skills_enabled
+from agent.utils.usage import normalize_usage
 
 from .config import prepare_sade_sdk_env
 from .prompts.sade_prompt import SADE_PROMPT
@@ -70,22 +71,6 @@ SADE_REMINDER = (
     "only if that sweep finds nothing. Check the submit() signature in CLAUDE.md "
     "before calling — wrong types end the session."
 )
-
-
-def _usage_metadata(usage: dict[str, Any] | None) -> dict[str, int]:
-    """Map an Anthropic per-turn usage dict to the langchain-style fields the
-    NIKA trace parser reads from ``llm_end`` (``usage_metadata.input_tokens`` /
-    ``output_tokens``). Input counts cached + uncached prompt tokens.
-    """
-    u = usage or {}
-    return {
-        "input_tokens": (
-            u.get("input_tokens", 0)
-            + u.get("cache_creation_input_tokens", 0)
-            + u.get("cache_read_input_tokens", 0)
-        ),
-        "output_tokens": u.get("output_tokens", 0),
-    }
 
 
 class SadeAgent:
@@ -237,7 +222,7 @@ class SadeAgent:
                 elif isinstance(message, ResultMessage):
                     _flush_turn()  # flush any trailing assistant text
                     result_text = message.result or ""
-                    md = _usage_metadata(message.usage)
+                    md = normalize_usage(message.usage)
                     in_tokens = md["input_tokens"]
                     out_tokens = md["output_tokens"]
                     # Final `llm_end`: the agent's result text + the authoritative

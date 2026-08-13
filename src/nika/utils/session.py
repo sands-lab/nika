@@ -80,8 +80,7 @@ class Session:
         if not run_path.is_file():
             raise FileNotFoundError(f"Missing session run metadata: {run_path}")
         run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-        for key, value in run_meta.items():
-            setattr(self, key, value)
+        self._apply_session_meta(run_meta)
         self.session_dir = str(session_path.resolve())
         return self
 
@@ -92,10 +91,18 @@ class Session:
                 run_path = Path(session_dir) / RUN_FILENAME
                 if run_path.is_file():
                     return self.load_from_run_json(session_dir)
-        resolved_id = resolve_running_session_id(session_id, store=self.store)
-        session_meta = self.store.get_session(resolved_id)
-        for key, value in session_meta.items():
-            setattr(self, key, value)
+        try:
+            resolved_id = resolve_running_session_id(session_id, store=self.store)
+            session_meta = self.store.get_session(resolved_id)
+        except FileNotFoundError:
+            if not session_id:
+                raise
+            from nika.workflows.session.close import load_session_meta_for_close
+
+            session_meta = load_session_meta_for_close(session_id)
+            if session_meta.get("status") not in (None, "running"):
+                raise
+        self._apply_session_meta(session_meta)
         return self
 
     def load_closed_session(
@@ -183,11 +190,16 @@ class Session:
                 return indexed
         return direct
 
+    def _apply_session_meta(self, session_meta: dict) -> None:
+        for key, value in session_meta.items():
+            if key == "store":
+                continue
+            setattr(self, key, value)
+
     def _apply_closed_session_meta(
         self, run_meta: dict, *, session_dir: Path | None = None
     ):
-        for key, value in run_meta.items():
-            setattr(self, key, value)
+        self._apply_session_meta(run_meta)
         resolved_dir = session_dir or Path(RESULTS_DIR) / (
             run_meta.get("session_id") or ""
         )

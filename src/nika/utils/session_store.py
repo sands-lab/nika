@@ -66,6 +66,8 @@ class SessionStore:
         for k, v in values.items():
             if k != "failure_injections":
                 data[k] = v
+        # Keep the document on the lookup path even if *values* carries another id.
+        data["session_id"] = session_id
         data["updated_at"] = _now_iso()
         self._write(data)
         self.index.upsert_from_doc(data)
