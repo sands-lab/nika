@@ -5,71 +5,136 @@ cases:
   problem: arp_acl_block
   inject:
     host_name: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_2_1_1_1
+    fault_type: arp_acl_block
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: arp_cache_poisoning
   inject:
     host_name: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_2_1_1_1
+    fault_type: arp_cache_poisoning
 - scenario: dc_clos_bgp
   topo_size: s
   problem: bgp_acl_block
   inject:
     host_name: leaf_router_0_1
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_router_0_1
+    fault_type: bgp_acl_block
 - scenario: dc_clos_bgp
   topo_size: s
   problem: bgp_asn_misconfig
   inject:
     host_name: leaf_router_0_0
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_router_0_0
+    fault_type: bgp_asn_misconfig
 - scenario: dc_clos_bgp
   topo_size: s
   problem: bgp_blackhole_route_leak
   inject:
     host_name: leaf_router_0_0
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_router_0_0
+    fault_type: bgp_blackhole_route_leak
 - scenario: dc_clos_service
   topo_size: s
   problem: bgp_hijacking
   inject:
     host_name: leaf_router_0_0
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_router_0_0
+    fault_type: bgp_hijacking
 - scenario: dc_clos_bgp
   topo_size: s
   problem: bgp_missing_route_advertisement
   inject:
     host_name: leaf_router_0_1
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_router_0_1
+    fault_type: bgp_missing_route_advertisement
 - scenario: p4_bloom_filter
   topo_size: null
   problem: bmv2_switch_down
   inject:
     host_name: switch_1
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_1
+    fault_type: bmv2_switch_down
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dhcp_missing_subnet
   inject:
     host_name: dhcp_server
     host_name_2: pc_1_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: dhcp_server
+    fault_type: dhcp_missing_subnet
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dhcp_service_down
   inject:
     host_name: dhcp_server
     host_name_2: pc_1_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: dhcp_server
+    fault_type: dhcp_service_down
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dhcp_spoofed_dns
   inject:
     host_name: dhcp_server
     host_name_2: pc_1_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: dhcp_server
+    fault_type: dhcp_spoofed_dns
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dhcp_spoofed_gateway
   inject:
     host_name: dhcp_server
     host_name_2: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: dhcp_server
+    fault_type: dhcp_spoofed_gateway
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dhcp_spoofed_subnet
   inject:
     host_name: dhcp_server
     host_name_2: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: dhcp_server
+    fault_type: dhcp_spoofed_subnet
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dns_lookup_latency
@@ -77,11 +142,22 @@ cases:
     host_name: dns_server
     intf_name: eth0
     delay_ms: '1000'
+  root_causes:
+  - resource:
+      kind: interface
+      node: dns_server
+      name: eth0
+    fault_type: dns_lookup_latency
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dns_port_blocked
   inject:
     host_name: dns_server
+  root_causes:
+  - resource:
+      kind: node
+      node: dns_server
+    fault_type: dns_port_blocked
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dns_record_error
@@ -89,86 +165,170 @@ cases:
     host_name: dns_server
     target_website: web3
     target_domain: local
+  root_causes:
+  - resource:
+      kind: node
+      node: dns_server
+    fault_type: dns_record_error
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: dns_service_down
   inject:
     host_name: dns_server
+  root_causes:
+  - resource:
+      kind: node
+      node: dns_server
+    fault_type: dns_service_down
 - scenario: sdn_clos
   topo_size: s
   problem: flow_rule_loop
   inject:
     host_name: spine_1
     host_name_2: leaf_2
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: flow_rule_loop
 - scenario: sdn_clos
   topo_size: s
   problem: flow_rule_shadowing
   inject:
     host_name: leaf_2
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: flow_rule_shadowing
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: frr_service_down
   inject:
     host_name: router_core_1
+  root_causes:
+  - resource:
+      kind: node
+      node: router_core_1
+    fault_type: frr_service_down
 - scenario: dc_clos_bgp
   topo_size: s
   problem: host_crash
   inject:
     host_name: pc_0_0
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_0_0
+    fault_type: host_crash
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: host_incorrect_dns
   inject:
     host_name: pc_1_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_1_1_1_1
+    fault_type: host_incorrect_dns
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: host_incorrect_gateway
   inject:
     host_name: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_2_1_1_1
+    fault_type: host_incorrect_gateway
 - scenario: ospf_enterprise_static
   topo_size: s
   problem: host_incorrect_ip
   inject:
     host_name: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_2_1_1_1
+      name: eth0
+    fault_type: host_incorrect_ip
 - scenario: ospf_enterprise_static
   topo_size: s
   problem: host_incorrect_netmask
   inject:
     host_name: pc_2_1_1_1
     netmask_prefix: '8'
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_2_1_1_1
+      name: eth0
+    fault_type: host_incorrect_netmask
 - scenario: dc_clos_bgp
   topo_size: s
   problem: host_ip_conflict
   inject:
     host_name: pc_0_1
     host_name_2: pc_0_0
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_0
+      name: eth0
+    fault_type: host_ip_conflict
 - scenario: ospf_enterprise_static
   topo_size: s
   problem: host_missing_ip
   inject:
     host_name: pc_2_1_1_1
     intf_name: eth0
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_2_1_1_1
+      name: eth0
+    fault_type: host_missing_ip
 - scenario: dc_clos_bgp
   topo_size: s
   problem: host_static_blackhole
   inject:
     host_name: leaf_router_0_1
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_router_0_1
+    fault_type: host_static_blackhole
 - scenario: rip_small_internet_vpn
   topo_size: s
   problem: host_vpn_membership_missing
   inject:
     host_name: web_server_1_1
     host_name_2: vpn_server_1
+  root_causes:
+  - resource:
+      kind: node
+      node: vpn_server_1
+    fault_type: host_vpn_membership_missing
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: http_acl_block
   inject:
     host_name: pc_1_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_1_1_1_1
+    fault_type: http_acl_block
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: icmp_acl_block
   inject:
     host_name: pc_2_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_2_1_1_1
+    fault_type: icmp_acl_block
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: incast_traffic_network_limitation
@@ -178,6 +338,12 @@ cases:
     burst: 500kb
     limit: 500kb
     delay_ms: '20'
+  root_causes:
+  - resource:
+      kind: interface
+      node: web_server_1
+      name: eth0
+    fault_type: incast_traffic_network_limitation
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_bandwidth_throttling
@@ -187,18 +353,36 @@ cases:
     rate: 30kbit
     burst: 64kb
     limit: 500kb
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_1
+      name: eth0
+    fault_type: link_bandwidth_throttling
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_detach
   inject:
     host_name: pc_0_1
     intf_name: eth0
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_1
+      name: eth0
+    fault_type: link_detach
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_down
   inject:
     host_name: pc_0_1
     intf_name: eth0
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_1
+      name: eth0
+    fault_type: link_down
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_flap
@@ -207,6 +391,12 @@ cases:
     intf_name: eth0
     down_time: '30'
     up_time: '30'
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_0
+      name: eth0
+    fault_type: link_flap
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_fragmentation_disabled
@@ -214,6 +404,12 @@ cases:
     host_name: pc_0_0
     intf_name: eth0
     mtu: '100'
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_0
+      name: eth0
+    fault_type: link_fragmentation_disabled
 - scenario: dc_clos_bgp
   topo_size: s
   problem: link_high_packet_corruption
@@ -221,91 +417,178 @@ cases:
     host_name: pc_0_0
     intf_name: eth0
     corruption_percentage: '60'
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_0
+      name: eth0
+    fault_type: link_high_packet_corruption
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: load_balancer_overload
   inject:
     host_name: load_balancer
     duration: '300'
+  root_causes:
+  - resource:
+      kind: node
+      node: load_balancer
+    fault_type: load_balancer_overload
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: mac_address_conflict
   inject:
     host_name: web_server_1
     host_name_2: server_access_router
+  root_causes:
+  - resource:
+      kind: interface
+      node: web_server_1
+      name: eth0
+    fault_type: mac_address_conflict
 - scenario: p4_mpls
   topo_size: null
   problem: mpls_label_limit_exceeded
   inject:
     host_name: switch_7
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_7
+    fault_type: mpls_label_limit_exceeded
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: ospf_acl_block
   inject:
     host_name: router_core_2
+  root_causes:
+  - resource:
+      kind: node
+      node: router_core_2
+    fault_type: ospf_acl_block
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: ospf_area_misconfiguration
   inject:
     host_name: server_access_router
+  root_causes:
+  - resource:
+      kind: node
+      node: server_access_router
+    fault_type: ospf_area_misconfiguration
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: ospf_neighbor_missing
   inject:
     host_name: server_access_router
+  root_causes:
+  - resource:
+      kind: node
+      node: server_access_router
+    fault_type: ospf_neighbor_missing
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_aggressive_detection_thresholds
   inject:
     host_name: switch_1
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_1
+    fault_type: p4_aggressive_detection_thresholds
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_compilation_error_parser_state
   inject:
     host_name: switch_1
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_1
+    fault_type: p4_compilation_error_parser_state
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_header_definition_error
   inject:
     host_name: switch_1
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_1
+    fault_type: p4_header_definition_error
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_table_entry_misconfig
   inject:
     host_name: switch_1
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_1
+    fault_type: p4_table_entry_misconfig
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_table_entry_missing
   inject:
     host_name: switch_1
+  root_causes:
+  - resource:
+      kind: node
+      node: switch_1
+    fault_type: p4_table_entry_missing
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: receiver_resource_contention
   inject:
     host_name: pc_1_1_1_1
     duration: '600'
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_1_1_1_1
+    fault_type: receiver_resource_contention
 - scenario: sdn_clos
   topo_size: s
   problem: sdn_controller_crash
   inject:
     host_name: controller
+  root_causes:
+  - resource:
+      kind: node
+      node: controller
+    fault_type: sdn_controller_crash
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: sender_application_delay
   inject:
     host_name: web_server_1
+  root_causes:
+  - resource:
+      kind: node
+      node: web_server_1
+    fault_type: sender_application_delay
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: sender_resource_contention
   inject:
     host_name: web_server_3
     duration: '600'
+  root_causes:
+  - resource:
+      kind: node
+      node: web_server_3
+    fault_type: sender_resource_contention
 - scenario: sdn_clos
   topo_size: s
   problem: southbound_port_block
   inject:
     host_name: controller
     southbound_port: '6633'
+  root_causes:
+  - resource:
+      kind: node
+      node: controller
+    fault_type: southbound_port_block
 - scenario: sdn_clos
   topo_size: s
   problem: southbound_port_mismatch
@@ -313,9 +596,19 @@ cases:
     host_name: controller
     mismatched_port: '6653'
     original_port: '6633'
+  root_causes:
+  - resource:
+      kind: node
+      node: controller
+    fault_type: southbound_port_mismatch
 - scenario: ospf_enterprise_dhcp
   topo_size: s
   problem: web_dos_attack
   inject:
     host_name: web_server_0
     attacker_device: pc_1_1_1_1
+  root_causes:
+  - resource:
+      kind: node
+      node: web_server_0
+    fault_type: web_dos_attack

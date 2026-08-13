@@ -8,7 +8,7 @@ from mcp_agent.config import MCPServerSettings, MCPSettings, OpenAISettings, Set
 
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import mcp_read_timeout_seconds, select_diagnosis_servers
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,

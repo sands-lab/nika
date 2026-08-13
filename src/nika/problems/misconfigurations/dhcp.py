@@ -2,6 +2,7 @@ import ipaddress
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -32,10 +33,12 @@ class DHCPMissingSubnet(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: DHCPMissingSubnetParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DHCPMissingSubnetParams):
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        self.set_faulty_devices([dhcp_server, client_host])
         system_logger.info(
             f"Injecting DHCP missing subnet fault: DHCP server {dhcp_server}, affected host {client_host}"
         )
@@ -52,7 +55,6 @@ class DHCPMissingSubnet(ProblemBase):
         """Verify the deleted subnet is absent from dhcpd.conf."""
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        self.set_faulty_devices([dhcp_server, client_host])
         subnet = getattr(self, "_injected_subnet", None)
         if subnet is None:
             subnet = str(

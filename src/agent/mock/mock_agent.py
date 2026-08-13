@@ -20,12 +20,46 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.utils.mcp_servers import select_diagnosis_servers
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
+from nika.problems.root_cause import RootCause
 from nika.runtime.factory import resolve_backend
 from nika.utils.session import Session
-from nika.utils.session_store import SessionStore
 
 _ROUTER_HINTS = ("router", "leaf", "spine", "super_spine")
+
+
+def _catalog_ids_from_tool(result: object) -> list[str]:
+    payload: object = result
+    if isinstance(result, str):
+        try:
+            payload = json.loads(result)
+        except json.JSONDecodeError:
+            payload = [result]
+    ids: list[str] = []
+
+    def _take(item: object) -> None:
+        if isinstance(item, dict) and "text" in item:
+            try:
+                inner = json.loads(str(item["text"]))
+            except json.JSONDecodeError:
+                return
+            if isinstance(inner, list):
+                for entry in inner:
+                    _take(entry)
+            else:
+                _take(inner)
+            return
+        if isinstance(item, dict) and item.get("id"):
+            resource_id = str(item["id"])
+            if "/" in resource_id:
+                ids.append(resource_id)
+
+    if isinstance(payload, list):
+        for item in payload:
+            _take(item)
+    else:
+        _take(payload)
+    return ids
 
 
 def _tool_text_list(result: object) -> list[str]:
@@ -163,9 +197,8 @@ class MockAgent:
             },
         )
 
-        session_row = SessionStore().get_session(self.session_id)
-        backend = resolve_backend(session_row)
-        scenario = str(session_row.get("scenario_name") or "")
+        backend = resolve_backend(self.session)
+        scenario = str(getattr(self.session, "scenario_name", "") or "")
         server_names = select_diagnosis_servers(scenario, backend=backend)
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
         preferred = [str(d) for d in (gt.get("faulty_devices") or []) if d]
@@ -207,17 +240,9 @@ class MockAgent:
 
     async def _run_submission(self, diagnosis_report: str) -> None:
         logger = self._make_logger(SUBMISSION)
-
-        session_row = SessionStore().get_session(self.session_id)
-        backend = resolve_backend(session_row)
-        scenario = str(session_row.get("scenario_name") or "")
+        backend = resolve_backend(self.session)
+        scenario = str(getattr(self.session, "scenario_name", "") or "")
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
-        faulty_devices = [str(d) for d in (gt.get("faulty_devices") or []) if d]
-        if not faulty_devices:
-            devices = _session_device_names(self.session_id)
-            faulty_devices = devices[:1] or (
-                ["leaf1"] if backend == "containerlab" else ["pc1"]
-            )
 
         logger.log(
             "llm_start",
@@ -226,7 +251,8 @@ class MockAgent:
                     "role": "user",
                     "content": (
                         f"Based on diagnosis: {diagnosis_report}. "
-                        "Please call list_avail_problems and then submit."
+                        "Call list_resources, list_avail_problems, then submit "
+                        "resource_id and fault_type pairs."
                     ),
                 },
                 "model": {"name": self.model},
@@ -237,6 +263,18 @@ class MockAgent:
         config = load_session_mcp_config(self.session_id, scenario, backend=backend)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
+
+        logger.log("tool_start", {"tool": {"name": "list_resources"}, "input": "{}"})
+        resources_raw = await tools["list_resources"].ainvoke({})
+        catalog_ids = _catalog_ids_from_tool(resources_raw)
+        catalog_set = set(catalog_ids)
+        logger.log(
+            "tool_end",
+            {
+                "output": json.dumps(catalog_ids[:8]) + " ...",
+                "output_type": "list",
+            },
+        )
 
         logger.log(
             "tool_start", {"tool": {"name": "list_avail_problems"}, "input": "{}"}
@@ -258,10 +296,24 @@ class MockAgent:
             {"output": json.dumps(avail[:5]) + " ...", "output_type": "list"},
         )
 
+        chosen: list[dict[str, str]] = []
+        for item in gt.get("root_causes") or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                cause = RootCause.model_validate(item)
+            except (TypeError, ValueError):
+                continue
+            resource_id = str(cause.resource_id or "")
+            fault_type = str(cause.fault_type or mock_root_cause)
+            if resource_id in catalog_set:
+                chosen.append({"resource_id": resource_id, "fault_type": fault_type})
+        if not chosen and catalog_ids:
+            chosen = [{"resource_id": catalog_ids[0], "fault_type": mock_root_cause}]
+
         submission: dict[str, Any] = {
             "is_anomaly": True,
-            "faulty_devices": faulty_devices,
-            "root_cause_name": [mock_root_cause],
+            "root_causes": chosen,
         }
         logger.log(
             "tool_start",
@@ -275,12 +327,7 @@ class MockAgent:
 
         logger.log(
             "llm_end",
-            {
-                "text": (
-                    f"Submitted: root cause = {mock_root_cause}, "
-                    f"faulty devices = {faulty_devices}"
-                )
-            },
+            {"text": (f"Submitted: root_causes = {chosen}")},
         )
 
     def _make_logger(self, agent_name: str):

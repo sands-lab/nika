@@ -77,6 +77,7 @@ def inject_failure(
     *,
     session_id: str | None = None,
     param_overrides: dict[str, str] | None = None,
+    expected_root_causes: list | None = None,
 ) -> None:
     """Inject faults for ``problem_names`` into the lab for the running session."""
     from nika.remote.config import is_remote_enabled
@@ -289,7 +290,12 @@ def inject_failure(
     task_description = inject_problem.get_task_description()
     session.update_session("task_description", task_description)
 
-    session.write_gt(inject_problem.get_ground_truth().model_dump())
+    gt = inject_problem.get_ground_truth()
+    if expected_root_causes:
+        from nika.problems.ground_truth import assert_root_causes_match
+
+        assert_root_causes_match(gt, expected_root_causes)
+    session.write_gt(gt.model_dump(mode="json", exclude_none=True))
     log_event(
         "ground_truth_saved",
         f"Ground truth saved for session {session.session_id}.",

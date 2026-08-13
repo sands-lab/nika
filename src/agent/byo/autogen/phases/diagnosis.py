@@ -11,7 +11,7 @@ from autogen_ext.tools.mcp import create_mcp_server_session, mcp_server_tools
 from agent.byo.autogen.config import session_server_configs, to_mcp_params
 from agent.byo.autogen.runner import create_model_client, run_logged_agent
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 
 
@@ -48,9 +48,7 @@ class AutogenDiagnosisPhase:
         self._session_dir = session_dir
         self._model = model
         self._max_steps = max_steps
-        self._server_configs = session_server_configs(
-            session_id, scenario_name
-        )
+        self._server_configs = session_server_configs(session_id, scenario_name)
 
     async def run(self, task_description: str) -> tuple[str, bool]:
         """Return ``(diagnosis_report, is_max_steps_reached)``."""

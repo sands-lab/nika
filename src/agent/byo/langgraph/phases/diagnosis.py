@@ -7,7 +7,7 @@ from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import harden_mcp_tools
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 load_dotenv()
 

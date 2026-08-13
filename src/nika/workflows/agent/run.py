@@ -19,7 +19,7 @@ from nika.utils.agent_config import (
     resolve_reasoning_effort,
 )
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
-from nika.utils.provider_env import provider_env_context
+from agent.utils.provider_env import provider_env_context
 from nika.utils.session import Session
 
 logging.basicConfig(level=logging.INFO)

@@ -179,7 +179,7 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
 
 Eval commands operate on **closed** sessions only. After a benchmark run (or a manual `nika session close`), use eval for post-hoc scoring:
 
-- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: rule-based metrics → `eval_metrics.json` (records eval completion in `events.jsonl`). With `--result_dir` and no `--session_id`, runs on every closed session under that directory. Benchmark already writes metrics when each case closes; re-run this to recompute.
+- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json` and record completion in `events.jsonl`. Scoring compares `(resource_id, fault_type)` pairs. With `--result_dir` and no `--session_id`, the command processes every closed session under that directory. Benchmark writes metrics when each case closes.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
 - **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions and write one CSV.
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.
@@ -253,6 +253,7 @@ nika benchmark run --release 0.1.0              # frozen release
 nika benchmark run --release 0.1.0 --result_dir results/my-run
 nika benchmark releases                         # list + verify each release
 nika benchmark run --config benchmark/benchmark_selected.yaml
+nika benchmark migrate --input benchmark/benchmark_full.yaml --output /tmp/full_labeled.yaml --report /tmp/migrate_report.yaml
 nika benchmark run --release 0.1.0 --batch-size 4
 nika benchmark run --release 0.1.0 --result_dir results/list1
 nika benchmark run --release 0.1.0 --result_dir results/list1 --batch-size 4
@@ -282,6 +283,8 @@ Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) unde
 nika benchmark run --release 0.1.0 --batch-size 4 --retry-passes 2 --result_dir results/my-run
 ```
 
+**`nika benchmark migrate`**: read a YAML case matrix with a top-level `cases` field, derive `root_causes` from injection parameters and topology, then write a report. The command writes unresolved rows and exits with status 1 unless `--allow-unresolved` is set. Do not pass a release `RELEASE.yaml` manifest. Working-matrix and release generation already materialize these labels. See [root-cause ground truth and scoring](root-cause-evaluation.md).
+
 **YAML case fields**:
 
 | Field | Meaning |
@@ -290,6 +293,7 @@ nika benchmark run --release 0.1.0 --batch-size 4 --retry-passes 2 --result_dir 
 | `scenario` | Scenario id (same as `nika env run`) |
 | `topo_size` | Size `s`, `m`, or `l`; **null/empty** for scenarios without sizes |
 | `inject` | Map of `--set key=value` pairs passed to `nika failure inject` |
+| `root_causes` | Materialized diagnoses (`resource` + `fault_type`); `resource_id` is derived on submit and scoring; see [root-cause ground truth and scoring](root-cause-evaluation.md) |
 
 Benchmark exposes `-a`, `-p`, `-m`, and `-n`; `-n` affects `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, and `sdk.claude_sdk`. It does not expose `-e`; configure Codex reasoning through `agent.reasoning_effort` in `config/nika.yaml` for benchmark runs.
 

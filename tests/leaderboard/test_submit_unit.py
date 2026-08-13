@@ -59,7 +59,7 @@ def _write_minimal_package(root: Path, *, version: str = "0.1.0") -> Path:
                     "cases_sha256": "c" * 64,
                     "case_count": 1,
                     "n_trials": 1,
-                    "scoring_id": "rule-based-v1",
+                    "scoring_id": "rule-based-v2",
                     "leaderboard_primary": "rca_f1",
                 },
                 "run": {

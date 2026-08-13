@@ -80,7 +80,9 @@ def _daemon_proxy_matches(upstream_proxy: str) -> bool:
         return False
     # fuser may report multiple pids; take the first contiguous pid token.
     pid = ""
-    for part in ((proc.stdout or "") + " " + (proc.stderr or "")).replace(":", " ").split():
+    for part in (
+        ((proc.stdout or "") + " " + (proc.stderr or "")).replace(":", " ").split()
+    ):
         if part.isdigit():
             pid = part
             break

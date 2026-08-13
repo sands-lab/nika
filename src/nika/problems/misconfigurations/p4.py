@@ -2,6 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -10,7 +11,6 @@ from nika.problems.problem_base import (
 from nika.utils.logger import system_logger
 
 logger = system_logger
-
 
 # ==================================================================
 # Problem: P4 aggressive detection thresholds of Bloom filter
@@ -37,8 +37,10 @@ class P4AggressiveDetectionThresholds(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: P4AggressiveDetectionThresholdsParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: P4AggressiveDetectionThresholdsParams):
-        self.set_faulty_devices([params.host_name])
         p4_name = (
             params.p4_name
             if params.p4_name is not None
@@ -59,7 +61,6 @@ class P4AggressiveDetectionThresholds(ProblemBase):
 
     def verify_fault(self, params: P4AggressiveDetectionThresholdsParams) -> dict:
         """Verify PACKET_THRESHOLD was changed to 100 in the P4 source."""
-        self.set_faulty_devices([params.host_name])
         p4_name = (
             params.p4_name
             if params.p4_name is not None

@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from nika.runtime.extras import raise_missing_extra
-from nika.service.mcp_gateway.constants import PHASES
+from agent.protocols import PHASES
 from nika.service.mcp_gateway.middleware import (
     PhaseGateMiddleware,
     _empty_mcp,

@@ -8,7 +8,7 @@ async ``run()`` that returns a free-text diagnosis report.
 from agent.cli.codex.codex_worker import CodexWorker
 from agent.utils.skills import diagnosis_prompt_with_skills
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 
 class CodexCliDiagnosisPhase:

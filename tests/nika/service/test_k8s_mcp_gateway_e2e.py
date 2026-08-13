@@ -323,6 +323,30 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
             timeout=30,
         )
 
+    def test_06_networkpolicy_deny(self) -> None:
+        assert self.session_id is not None
+        inject_failure(
+            ["k8s_networkpolicy_deny"],
+            session_id=self.session_id,
+            param_overrides={
+                "control_node": "controller",
+                "symptom_host": "client",
+                "namespace": "word-ns",
+                "pod_selector": "app=word",
+                "symptom_url": "http://datacenter.com/word",
+                "control_url": "http://datacenter.com/weather",
+            },
+        )
+        self._assert_failure_injected("k8s_networkpolicy_deny")
+        lab_name = SessionStore().get_session(self.session_id)["lab_name"]
+        from nika.service.kathara.base_api import KatharaBaseAPI
+
+        KatharaBaseAPI(lab_name=lab_name).exec_cmd(
+            "controller",
+            "kubectl delete networkpolicy nika-deny-ingress -n word-ns --ignore-not-found",
+            timeout=60,
+        )
+
 
 @pytest.mark.skipif(
     not _require_live_k8s(),
@@ -346,7 +370,7 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
         _wait_host_api(self.session_id, timeout_sec=self._READY_TIMEOUT_SEC)
 
     def test_agent_uses_k8s_mcp_tools(self) -> None:
-        from agent.utils.phases import DIAGNOSIS, SUBMISSION
+        from agent.protocols import DIAGNOSIS, SUBMISSION
         from nika.utils.session import Session
 
         assert self.session_id is not None
@@ -508,7 +532,7 @@ class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
         _wait_host_api(self.session_id, timeout_sec=self._READY_TIMEOUT_SEC)
 
     def test_agent_uses_k8s_mcp_tools(self) -> None:
-        from agent.utils.phases import DIAGNOSIS
+        from agent.protocols import DIAGNOSIS
         from nika.utils.session import Session
 
         assert self.session_id is not None

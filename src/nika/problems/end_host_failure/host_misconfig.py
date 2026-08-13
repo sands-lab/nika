@@ -6,6 +6,8 @@ from nika.problems.inject_resolve import (
     derive_incorrect_ip,
     derive_wrong_gateway,
 )
+from nika.problems.root_cause import node_resource
+from nika.problems.topology_inventory import interface_on
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -57,8 +59,10 @@ class HostMissingIP(ProblemBase):
         self.logger = system_logger
         self.intf_name = "eth0"
 
+    def root_cause_resources(self, params: HostMissingIPParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+
     def inject_fault(self, params: HostMissingIPParams):
-        self.set_faulty_devices([params.host_name])
         real_ip = self.runtime.get_host_ip(
             params.host_name, params.intf_name, with_prefix=True
         )
@@ -114,10 +118,12 @@ class HostIPConflict(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: HostIPConflictParams):
+        return [interface_on(self.net_env, params.host_name_2, "eth0")]
+
     def inject_fault(self, params: HostIPConflictParams):
         src_host = params.host_name
         dst_host = params.host_name_2
-        self.set_faulty_devices([src_host, dst_host])
         _inject_ip_change(
             self.runtime,
             host_name=dst_host,
@@ -173,8 +179,10 @@ class HostIncorrectIP(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self._original_ip: str | None = None
 
+    def root_cause_resources(self, params: HostIncorrectIPParams):
+        return [interface_on(self.net_env, params.host_name, "eth0")]
+
     def inject_fault(self, params: HostIncorrectIPParams):
-        self.set_faulty_devices([params.host_name])
         old_ip = self.runtime.get_host_ip(params.host_name, "eth0", with_prefix=True)
         self._original_ip = old_ip
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
@@ -243,8 +251,10 @@ class HostIncorrectGateway(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self._injected_gateway: str | None = None
 
+    def root_cause_resources(self, params: HostIncorrectGatewayParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: HostIncorrectGatewayParams):
-        self.set_faulty_devices([params.host_name])
         new_gateway = params.new_gateway or derive_wrong_gateway(
             self.runtime, params.host_name
         )
@@ -302,8 +312,10 @@ class HostIncorrectNetmask(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.netmask_prefix = 8
 
+    def root_cause_resources(self, params: HostIncorrectNetmaskParams):
+        return [interface_on(self.net_env, params.host_name, "eth0")]
+
     def inject_fault(self, params: HostIncorrectNetmaskParams):
-        self.set_faulty_devices([params.host_name])
         old_ip = self.runtime.get_host_ip(params.host_name, "eth0", with_prefix=True)
         ip_part = old_ip.split("/")[0]
         new_ip = f"{ip_part}/{params.netmask_prefix}"
@@ -365,8 +377,10 @@ class HostIncorrectDNS(ProblemBase):
 
     symptom_desc = "Some hosts are unable to access web services."
 
+    def root_cause_resources(self, params: HostIncorrectDNSParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: HostIncorrectDNSParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(
             params.host_name,
             f"echo 'nameserver {params.fake_dns_ip}' > /etc/resolv.conf",

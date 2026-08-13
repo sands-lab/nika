@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     build_agent_subprocess_env,

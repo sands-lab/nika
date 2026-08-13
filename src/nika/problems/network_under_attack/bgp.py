@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -69,8 +70,10 @@ class BGPHijacking(ProblemBase):
             return str(net.supernet(new_prefix=24))
         return str(next(net.subnets(new_prefix=25)))
 
+    def root_cause_resources(self, params: BGPHijackingParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: BGPHijackingParams):
-        self.set_faulty_devices([params.host_name])
         target_network = (
             params.target_network
             if params.target_network is not None

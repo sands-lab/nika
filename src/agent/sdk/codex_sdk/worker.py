@@ -14,7 +14,7 @@ from agent.cli.codex.codex_worker import _build_mcp_toml
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_codex_workspace
 
 

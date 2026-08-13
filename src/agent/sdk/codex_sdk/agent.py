@@ -12,7 +12,7 @@ from typing import Any
 from agent.sdk.codex_sdk.phases.diagnosis import CodexSdkDiagnosisPhase
 from agent.sdk.codex_sdk.phases.submission import CodexSdkSubmissionPhase
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 
 class CodexSdkAgent:

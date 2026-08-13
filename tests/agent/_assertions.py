@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 
 def assert_phase_messages(
@@ -33,14 +33,18 @@ def assert_phase_messages(
             if e["agent"] == SUBMISSION
             for name in _extract_tool_names(e)
         ]
+        assert any("list_resources" in name for name in sub_tools), sub_tools
         assert any("list_avail_problems" in name for name in sub_tools), sub_tools
         assert any("submit" in name for name in sub_tools), sub_tools
 
 
 def assert_submission_fields(session_dir: Path) -> None:
     submission = json.loads((session_dir / "submission.json").read_text())
-    for field in ("is_anomaly", "faulty_devices", "root_cause_name"):
-        assert field in submission
+    assert "is_anomaly" in submission
+    assert isinstance(submission.get("root_causes"), list)
+    for item in submission["root_causes"]:
+        assert item.get("resource_id") or (item.get("resource") or {}).get("id")
+        assert item.get("fault_type")
 
 
 def _extract_tool_names(entry: dict) -> list[str]:

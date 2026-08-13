@@ -1,3 +1,4 @@
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -18,7 +19,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 CHUNK = b"x" * 1024
 DELAY = 0.1
 
-
 class SlowSenderHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -29,11 +29,9 @@ class SlowSenderHandler(BaseHTTPRequestHandler):
             time.sleep(DELAY)
             self.wfile.write(CHUNK)
 
-
 server = HTTPServer(("", 80), SlowSenderHandler)
 server.serve_forever()
 """
-
 
 # ==================================================================
 # Problem: sender resource contention. Ref. Dapper: Data Plane Performance Diagnosis of TCP
@@ -57,8 +55,10 @@ class SenderResourceContention(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: SenderResourceContentionParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: SenderResourceContentionParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(
             params.host_name, _STRESS_CMD.format(duration=params.duration)
         )
@@ -98,12 +98,12 @@ class SenderApplicationDelay(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: SenderApplicationDelayParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: SenderApplicationDelayParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(params.host_name, "cp web_server.py web_server.py.bak")
-        self.runtime.write_file(
-            params.host_name, "/web_server.py", _SLOW_SENDER_SERVER
-        )
+        self.runtime.write_file(params.host_name, "/web_server.py", _SLOW_SENDER_SERVER)
         self.runtime.systemctl(params.host_name, "web_server.service", "restart")
         system_logger.info(
             f"Injected TCP sender application delay issue on params.host_name {params.host_name}"
@@ -144,8 +144,10 @@ class ReceiverResourceContention(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: ReceiverResourceContentionParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: ReceiverResourceContentionParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(
             params.host_name, _STRESS_CMD.format(duration=params.duration)
         )

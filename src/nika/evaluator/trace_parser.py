@@ -8,7 +8,7 @@ from the diagnosis phase by default (``agent_filter=DIAGNOSIS``).
 import json
 from datetime import datetime
 
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 
 class AgentTraceParser:

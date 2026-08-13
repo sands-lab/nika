@@ -12,7 +12,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from agent.utils.loggers import MessageLogger
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,

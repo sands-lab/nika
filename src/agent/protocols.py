@@ -1,6 +1,10 @@
-"""Shared agent interfaces."""
+"""Shared agent interfaces and pipeline phase identifiers."""
 
 from typing import Any, Protocol, runtime_checkable
+
+DIAGNOSIS = "diagnosis"
+SUBMISSION = "submission"
+PHASES = (DIAGNOSIS, SUBMISSION)
 
 
 @runtime_checkable

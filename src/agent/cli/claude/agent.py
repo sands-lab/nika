@@ -26,7 +26,7 @@ from agent.cli.claude.config import resolve_claude_model
 from agent.cli.claude.phases.diagnosis import ClaudeDiagnosisPhase
 from agent.cli.claude.phases.submission import ClaudeSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
 

@@ -9,7 +9,7 @@ from agent.sdk.claude_sdk.config import prepare_claude_sdk_env
 from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
 
 logger = logging.getLogger(__name__)

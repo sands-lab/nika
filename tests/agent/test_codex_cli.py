@@ -13,7 +13,7 @@ from agent.cli.codex.codex_worker import (
     _is_productive_codex_event,
     _reconnect_transport_failed,
 )
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 from tests.support.integration_pipeline import load_test_env
 
 load_test_env()

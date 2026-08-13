@@ -5,9 +5,15 @@ from enum import StrEnum
 from functools import wraps
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from nika.problems.context import init_problem
+from nika.problems.root_cause import (
+    FaultResource,
+    ProblemGroundTruth,
+    RootCause,
+    UnresolvedRootCauseError,
+)
 from nika.runtime.base import RuntimeCapabilityError
 
 if TYPE_CHECKING:
@@ -53,18 +59,6 @@ class ProblemMeta(BaseModel):
     root_cause_category: RootCauseCategory
     root_cause_name: str
     description: str
-
-
-class ProblemGroundTruth(BaseModel):
-    is_anomaly: bool = Field(
-        description="Whether an anomaly is present in the network."
-    )
-    faulty_devices: list[str] = Field(description="Faulty device or component names.")
-    root_cause_category: str = Field(description="Root cause category identifier.")
-    root_cause_name: list[str] = Field(description="Root cause name(s).")
-    detailed_cause: str = Field(
-        default="", description="Detailed description of the root cause."
-    )
 
 
 class ProblemBase:
@@ -120,7 +114,7 @@ class ProblemBase:
             pass
         self.results = getattr(self, "results", {})
         self.scenario_name = scenario_name
-        self.faulty_devices: list[str] = []
+        self._resolved_params: BaseModel | dict[str, Any] | None = None
         if scenario_name is not None or kwargs:
             self.init_runtime(scenario_name, **kwargs)
 
@@ -155,12 +149,14 @@ class ProblemBase:
                 )
             return None
         try:
-            return params_class.model_validate(data)
+            parsed = params_class.model_validate(data)
         except ValidationError as exc:
             raise ValueError(
                 f"Invalid or missing parameters for '{self.root_cause_name}': {exc}. "
                 f"Run `nika failure describe {self.root_cause_name}` for required fields."
             ) from exc
+        self._resolved_params = parsed
+        return parsed
 
     def resolve_params(
         self, params: BaseModel | dict[str, Any] | None = None, **overrides: Any
@@ -168,33 +164,73 @@ class ProblemBase:
         """Resolve injection parameters; subclasses may fill derived defaults."""
         return self.parse_params(params, **overrides)
 
-    def set_faulty_devices(self, devices: list[str | None]) -> None:
-        """Replace the faulty-device set while preserving order."""
-        self.faulty_devices = []
-        for device in devices:
-            if device and device not in self.faulty_devices:
-                self.faulty_devices.append(device)
+    def _nodes_from_resources(self, params: Any = None) -> list[str]:
+        """Lab node names implied by ``root_cause_resources`` (legacy localization)."""
+        resolved = self._resolved_params if params is None else params
+        devices: list[str] = []
+        for resource in self.root_cause_resources(resolved):
+            node = resource.node
+            if node and node not in devices:
+                devices.append(node)
+        return devices
+
+    @property
+    def faulty_devices(self) -> list[str]:
+        """Projection of catalog resources onto lab node names.
+
+        Authors implement ``root_cause_resources`` only. Verify logs and legacy
+        localization read this list; do not set it in ``inject_fault``.
+        """
+        try:
+            return self._nodes_from_resources()
+        except (UnresolvedRootCauseError, TypeError, ValueError, AttributeError):
+            return []
 
     @property
     def lab_backend(self) -> str:
         return self.runtime.backend
 
+    def root_cause_resources(self, params: Any = None) -> list[FaultResource]:
+        """Return the mutated catalog resources for this injected fault.
+
+        Every concrete failure must override this. Default raises so a missing
+        mapping cannot silently fall back.
+        """
+        raise UnresolvedRootCauseError(
+            f"{type(self).__name__} must implement root_cause_resources()."
+        )
+
     def get_ground_truth(self) -> ProblemGroundTruth:
         """Return unified detection, localization, and RCA ground truth."""
-        root_cause_name = self.root_cause_name
-        if isinstance(root_cause_name, str):
-            root_names = [root_cause_name] if root_cause_name else []
+        params = self._resolved_params
+        resources = self.root_cause_resources(params)
+        if not resources:
+            raise UnresolvedRootCauseError(
+                f"{type(self).__name__}.root_cause_resources() returned no objects."
+            )
+        name = self.root_cause_name
+        if isinstance(name, str):
+            fault_type = name
+            names = [name]
         else:
-            root_names = list(root_cause_name)
-        assert self.faulty_devices, (
-            "Faulty devices not set before building ground truth."
-        )
+            names = list(name or [])
+            if len(names) != 1:
+                raise UnresolvedRootCauseError(
+                    f"Expected a single fault_type on {type(self).__name__}, got {names!r}."
+                )
+            fault_type = names[0]
+        root_causes = [
+            RootCause(resource=resource, fault_type=fault_type)
+            for resource in resources
+        ]
         return ProblemGroundTruth(
+            schema_version=2,
             is_anomaly=True,
-            faulty_devices=list(self.faulty_devices),
-            root_cause_category=str(self.root_cause_category),
-            root_cause_name=root_names,
-            detailed_cause=getattr(self, "symptom_desc", "") or "",
+            root_causes=root_causes,
+            root_cause_category=str(self.root_cause_category or ""),
+            detailed_cause=self.symptom_desc or "",
+            faulty_devices=self._nodes_from_resources(params),
+            root_cause_name=names,
         )
 
     def get_task_description(self) -> str:

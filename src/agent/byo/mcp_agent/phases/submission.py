@@ -8,7 +8,7 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from agent.byo.mcp_agent.llm import NikaOpenAIAugmentedLLM
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 
 

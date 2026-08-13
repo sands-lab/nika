@@ -6,6 +6,11 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from nika.problems.root_cause import (
+    UnresolvedRootCauseError,
+    k8s_resource,
+    node_resource,
+)
 from nika.problems.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.kubernetes.node_filter import DropSpec, NodeFilter, NodeFilterError
 from nika.problems.problem_base import RootCauseCategory
@@ -107,7 +112,6 @@ class CoreDNSIsolation(K8sProblemBase):
         "Service still lists its endpoints."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "coredns"]
-    FAULTY_DEVICE_POLICY: ClassVar[str] = "affected_nodes"
 
     Params = CoreDNSIsolationParams
 
@@ -147,9 +151,13 @@ class CoreDNSIsolation(K8sProblemBase):
             self.target_devices = sorted(devices)
         return self.target_devices
 
-    def _dns_destinations(self, params: CoreDNSIsolationParams, k8s: Any) -> dict[str, Any]:
+    def _dns_destinations(
+        self, params: CoreDNSIsolationParams, k8s: Any
+    ) -> dict[str, Any]:
         control = self.control_node(params)
-        cluster_ip = k8s.k8s_service_cluster_ip(control, params.dns_service, namespace=params.dns_namespace)
+        cluster_ip = k8s.k8s_service_cluster_ip(
+            control, params.dns_service, namespace=params.dns_namespace
+        )
         if not cluster_ip:
             raise ValueError(
                 f"Service {params.dns_namespace}/{params.dns_service} has no "
@@ -163,7 +171,9 @@ class CoreDNSIsolation(K8sProblemBase):
         return {"cluster_ip": cluster_ip, "pod_ips": pod_ips}
 
     @staticmethod
-    def _drop_specs(params: CoreDNSIsolationParams, destinations: dict[str, Any]) -> list[DropSpec]:
+    def _drop_specs(
+        params: CoreDNSIsolationParams, destinations: dict[str, Any]
+    ) -> list[DropSpec]:
         addresses = [destinations["cluster_ip"], *destinations["pod_ips"]]
         return [
             DropSpec(address, protocol=protocol, port=params.dns_port)
@@ -178,13 +188,17 @@ class CoreDNSIsolation(K8sProblemBase):
                 return node
         return self.target_devices[0]
 
+    def root_cause_resources(self, params: CoreDNSIsolationParams):
+        ns = params.dns_namespace or DNS_NAMESPACE
+        name = params.dns_service or DNS_SERVICE
+        return [k8s_resource("Service", name, namespace=ns)]
+
     def inject_fault(self, params: CoreDNSIsolationParams) -> None:
         k8s = self.runtime.lab_api
         devices = self._target_devices(params, k8s)
         destinations = self._dns_destinations(params, k8s)
         specs = self._drop_specs(params, destinations)
 
-        self.set_faulty_devices(self.faulty_devices_for(params, affected=devices))
         self.k8s_namespace = params.dns_namespace
         self.record_k8s_object(
             "Service", params.dns_service, namespace=params.dns_namespace
@@ -233,8 +247,12 @@ class CoreDNSIsolation(K8sProblemBase):
             probe_device = self._probe_device()
             probe = NodeFilter(self.runtime, probe_device)
             pod_ips = destinations["pod_ips"]
-            dns_reachable = probe.tcp_reachable(destinations["cluster_ip"], params.dns_port)
-            metrics_reachable = probe.tcp_reachable(pod_ips[0], DNS_METRICS_PORT) if pod_ips else None
+            dns_reachable = probe.tcp_reachable(
+                destinations["cluster_ip"], params.dns_port
+            )
+            metrics_reachable = (
+                probe.tcp_reachable(pod_ips[0], DNS_METRICS_PORT) if pod_ips else None
+            )
 
             # CoreDNS must look healthy: the fault is isolation, not a crash.
             dns_pods = k8s.k8s_pods(
@@ -279,7 +297,6 @@ class ClusterIPRoutingBroken(K8sProblemBase):
         "stays Ready."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "kube_proxy"]
-    FAULTY_DEVICE_POLICY: ClassVar[str] = "affected_nodes"
 
     Params = ClusterIPRoutingBrokenParams
 
@@ -321,7 +338,9 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             return cluster_ip
         return params.service_cidr or k8s.k8s_service_cidr(control)
 
-    def _probe_plan(self, params: ClusterIPRoutingBrokenParams, k8s: Any) -> dict[str, Any]:
+    def _probe_plan(
+        self, params: ClusterIPRoutingBrokenParams, k8s: Any
+    ) -> dict[str, Any]:
         control = self.control_node(params)
         if params.service_name:
             service = params.service_name
@@ -356,13 +375,20 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             plan["backend_address"] = addresses[0]
         return plan
 
+    def root_cause_resources(self, params: ClusterIPRoutingBrokenParams):
+        node = (params.node_name or "").strip()
+        if not node:
+            raise UnresolvedRootCauseError(
+                "k8s_clusterip_routing_broken needs node_name for a unique resource."
+            )
+        return [node_resource(node)]
+
     def inject_fault(self, params: ClusterIPRoutingBrokenParams) -> None:
         k8s = self.runtime.lab_api
         device = self._target_device(params)
         target = self._block_target(params, k8s)
         self.blocked_target = target
 
-        self.set_faulty_devices(self.faulty_devices_for(params, affected=[device]))
         if params.service_name:
             namespace = params.namespace or DEFAULT_PROBE_NAMESPACE
             self.k8s_namespace = namespace
@@ -405,9 +431,13 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             clusterip_reachable: bool | None = None
             backend_reachable: bool | None = None
             if cluster_ip and service_port:
-                clusterip_reachable = node_filter.tcp_reachable(cluster_ip, service_port)
+                clusterip_reachable = node_filter.tcp_reachable(
+                    cluster_ip, service_port
+                )
             if backend_address and backend_port:
-                backend_reachable = node_filter.tcp_reachable(backend_address, backend_port)
+                backend_reachable = node_filter.tcp_reachable(
+                    backend_address, backend_port
+                )
 
             # The Service object must still look healthy: a dataplane-only fault
             # is the whole diagnostic signature here.

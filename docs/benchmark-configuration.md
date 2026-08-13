@@ -55,12 +55,15 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
-Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Use the [network scenario reference](network-scenarios.md) and `nika failure describe <failure_id>` to select valid targets and parameters. NIKA derives IP and netmask values from the live lab at injection time.
+Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices and frozen releases also carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. The `scenario`, `problem`, `topo_size`, and `inject` fields continue to define case identity. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 
 ```shell
 nika benchmark run --config benchmark/benchmark_selected.yaml
 nika benchmark run --config benchmark/benchmark_full.yaml
+nika benchmark migrate --input path/to/legacy.yaml --output path/to/labeled.yaml --report path/to/report.yaml
 ```
+
+The migration command accepts a case matrix with a top-level `cases` field, not a release `RELEASE.yaml` manifest. It writes unresolved rows and exits with status 1 unless you pass `--allow-unresolved`.
 
 ## Tags
 
@@ -270,16 +273,16 @@ Column abbreviations:
 
 ## Regeneration
 
-Regenerate working YAML files (not frozen releases):
+Regenerate working YAML files:
 
 ```shell
 uv run python benchmark/generate_benchmark.py
 ```
 
-Refresh the frozen Dev+Test release (updates `dev.yaml`, `test.yaml`, `RELEASE.yaml`):
+Freeze a new Dev+Test release from the current working YAML (re-selects Test instances from `benchmark_full.yaml`):
 
 ```shell
-uv run python benchmark/generate_heldout.py
+uv run python benchmark/generate_benchmark.py --release 0.2.0
 ```
 
-Prefer bumping the version directory when publishing a new official suite.
+Do not pass `--release 0.1.0`. That overwrites the published suite with a newly selected Test split. Bump the version directory for a new official suite.

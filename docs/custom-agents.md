@@ -24,8 +24,8 @@ await agent.run(task_description=session.task_description)
 Expected behavior:
 
 - run diagnosis using the Kathara MCP tools
-- run submission using the task MCP tools
-- call `submit` before returning
+- call `list_resources` and `list_avail_problems` during the task MCP submission phase
+- call `submit` with catalog-backed `resource_id` and `fault_type` pairs before returning
 - write useful trace events to `results/{session_id}/messages.jsonl`
 - leave `submission.json` in the session directory through the task MCP `submit` tool
 
@@ -50,7 +50,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
 
@@ -97,12 +97,21 @@ class MyAgent:
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        await tools["list_avail_problems"].ainvoke({})
+        resources = await tools["list_resources"].ainvoke({})
+        fault_types = await tools["list_avail_problems"].ainvoke({})
+
+        # Your model or framework must select values returned by these tools.
+        assert resources
+        assert fault_types
 
         submission = {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": ["link_down"],
+            "root_causes": [
+                {
+                    "resource_id": "interface/pc1/eth0",
+                    "fault_type": "link_down",
+                }
+            ],
         }
         logger.log("tool_start", {"tool": {"name": "submit"}, "input": submission})
         output = await tools["submit"].ainvoke(submission)
@@ -145,9 +154,11 @@ begin_submission_mcp_phase(session_id)
 
 Common submission flow:
 
-1. call `list_avail_problems`
-2. choose one or more root-cause ids
-3. call `submit` with `is_anomaly`, `faulty_devices`, and `root_cause_name`
+1. Call `list_resources` and select one or more localization IDs.
+2. Call `list_avail_problems` and select the matching fault type for each resource.
+3. Call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
+
+The task server rejects IDs that are absent from either list. See the [root-cause ground truth and scoring reference](root-cause-evaluation.md) for the submit and scoring contract.
 
 ## Write trace logs
 
@@ -155,7 +166,7 @@ Use `MessageLogger` for JSONL traces:
 
 ```python
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 logger = MessageLogger(agent=DIAGNOSIS, session_dir=session.session_dir)
 logger.log("tool_start", {"tool": {"name": "ping_pair"}, "input": {"host_a": "pc1", "host_b": "pc2"}})
@@ -197,7 +208,7 @@ uv run nika benchmark run simple_bgp --problem link_down \
 - Agent class has `session_id` and `async run(task_description)`.
 - Registry maps a stable CLI id to the class.
 - Diagnosis uses MCP tools instead of direct Docker/Kathara duplication.
-- Submission uses the task MCP `submit` tool.
+- Submission selects IDs from `list_resources` and `list_avail_problems`, then uses the task MCP `submit` tool.
 - `messages.jsonl` and `submission.json` appear in the session result directory.
 - `uv run nika benchmark run ... -a community.my_agent` completes for a small case.
 

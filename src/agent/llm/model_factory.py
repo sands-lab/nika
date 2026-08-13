@@ -5,7 +5,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_CUSTOM_BASE_URL,
     ENV_DEEPSEEK_API_KEY,

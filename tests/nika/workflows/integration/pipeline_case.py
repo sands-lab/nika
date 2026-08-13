@@ -11,7 +11,7 @@ import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.mcp_servers import MCPServerConfig
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.cli.utils import env_id_from_lab
 from nika.utils.session_store import SessionStore
 from nika.workflows.eval.session import run_eval_metrics
@@ -35,6 +35,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         super().__init_subclass__(**kwargs)
         if cls is not PipelineCaseBase:
             cls.__test__ = True
+
     SCENARIO: ClassVar[str]
     BACKEND: ClassVar[str] = "kathara"
     ENV_RUN_ARGS: ClassVar[list[str]] = []
@@ -127,6 +128,8 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         assert self.PROBLEM in ground_truth["root_cause_name"]
 
         assert ground_truth["root_cause_category"] == self.ROOT_CAUSE_CATEGORY
+        assert ground_truth.get("schema_version") == 2
+        assert ground_truth.get("root_causes")
         for device in self.SUBMIT_FAULTY_DEVICES:
             assert device in ground_truth["faulty_devices"]
 
@@ -190,7 +193,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         assert self.session_dir is not None
         from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
         from nika.service.mcp_gateway.phase import advance_mcp_phase
-        from agent.utils.phases import SUBMISSION
+        from agent.protocols import SUBMISSION
 
         with mcp_gateway_for_session(self.session_id, scenario_name=self.SCENARIO):
             advance_mcp_phase(self.session_id, SUBMISSION)
@@ -201,11 +204,24 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
             async def _run() -> str:
                 client = MultiServerMCPClient(connections=config)
                 tools = {t.name: t for t in await client.get_tools()}
+                listed = await tools["list_resources"].ainvoke({})
+                assert listed, "list_resources must return catalog ids"
+                gt = self._load_json("ground_truth.json")
+                causes = []
+                for item in gt.get("root_causes") or []:
+                    resource_id = item.get("resource_id") or (
+                        item.get("resource") or {}
+                    ).get("id")
+                    causes.append(
+                        {
+                            "resource_id": resource_id,
+                            "fault_type": item.get("fault_type") or self.PROBLEM,
+                        }
+                    )
                 submit_result = await tools["submit"].ainvoke(
                     {
                         "is_anomaly": True,
-                        "faulty_devices": self.SUBMIT_FAULTY_DEVICES,
-                        "root_cause_name": [self.PROBLEM],
+                        "root_causes": causes,
                     }
                 )
                 return str(submit_result)
@@ -216,8 +232,10 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         submission = self._load_json("submission.json")
 
         assert submission["is_anomaly"]
-        for device in self.SUBMIT_FAULTY_DEVICES:
-            assert device in submission["faulty_devices"]
+        assert submission.get("root_causes")
+        assert submission["root_causes"][0].get("resource_id") or (
+            submission["root_causes"][0].get("resource") or {}
+        ).get("id")
 
     def test_step_07_run_mock_agent(self) -> None:
         assert self.session_id is not None

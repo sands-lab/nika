@@ -2,7 +2,7 @@
 
 This reference organizes every single-fault implementation registered by NIKA into six failure categories. It is for benchmark authors who need to choose a compatible scenario, supply injection parameters, and understand the evidence used to confirm an active fault.
 
-NIKA discovers concrete `ProblemBase` subclasses under [`src/nika/problems/`](../src/nika/problems/) and keys them by `root_cause_name`. [`prob_pool.py`](../src/nika/problems/prob_pool.py) implements the registry. Inspect the installed checkout and an exact parameter schema with:
+NIKA discovers concrete `ProblemBase` subclasses under [`src/nika/problems/`](../src/nika/problems/) and keys them by `root_cause_name`. [`prob_pool.py`](../src/nika/problems/prob_pool.py) implements the registry. Each failure's `root_cause_resources()` method maps injection parameters to structured RCA labels. See [Root-cause ground truth and scoring](root-cause-evaluation.md). Inspect the installed checkout and an exact parameter schema with:
 
 ```shell
 uv run nika failure list

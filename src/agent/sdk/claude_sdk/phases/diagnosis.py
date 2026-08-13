@@ -3,7 +3,7 @@
 from agent.sdk.claude_sdk.worker import ClaudeSdkWorker
 from agent.utils.skills import diagnosis_prompt_with_skills
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 
 class ClaudeSdkDiagnosisPhase:

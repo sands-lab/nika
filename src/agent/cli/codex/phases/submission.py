@@ -7,7 +7,7 @@ a structured result based on the diagnosis report.
 
 from agent.cli.codex.codex_worker import CodexWorker
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 
 
 class CodexCliSubmissionPhase:

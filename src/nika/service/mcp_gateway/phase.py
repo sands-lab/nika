@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from nika.service.mcp_gateway.constants import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from nika.service.mcp_gateway.session_registry import advance_phase as _advance_phase
 
 

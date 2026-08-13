@@ -5,6 +5,7 @@
 <br />
 
 [🤖 Overview](#-overview) ·
+[📰 News](#-news) ·
 [✨ Features](#-features) ·
 [📦 Installation](#-installation) ·
 [🚀 Quick start](#-quick-start) ·
@@ -17,6 +18,10 @@
 [![Open Telco AI](https://img.shields.io/badge/-Open%20Telco%20AI-00AEEF?logo=gsma&logoColor=white&labelColor=24292f)](https://www.open-telco.ai/resources/nika/)
 
 </div>
+
+## 📰 News
+
+- **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
 
 ## ❓ What is NIKA?
 

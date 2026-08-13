@@ -7,7 +7,7 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
 from agent.byo.mcp_agent.llm import NikaOpenAIAugmentedLLM
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 
 

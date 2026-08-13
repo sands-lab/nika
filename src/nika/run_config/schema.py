@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from nika.utils.provider_env import AGENT_PROVIDERS, validate_provider_for_agent
+from agent.utils.provider_env import AGENT_PROVIDERS, validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):

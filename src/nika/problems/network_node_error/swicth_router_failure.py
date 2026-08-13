@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -30,8 +31,10 @@ class Bmv2SwitchDown(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: Bmv2SwitchDownParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: Bmv2SwitchDownParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(params.host_name, "pkill simple_switch")
 
     def verify_fault(self, params: Bmv2SwitchDownParams) -> dict:
@@ -74,8 +77,10 @@ class FrrDown(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: FrrDownParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: FrrDownParams):
-        self.set_faulty_devices([params.host_name])
         # systemctl is a no-op in Kathara; kill FRR daemons directly with pkill.
         # watchfrr must be killed first so it does not restart the routing daemons.
         for daemon in (

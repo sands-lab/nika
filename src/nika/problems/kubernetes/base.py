@@ -61,10 +61,6 @@ class K8sProblemBase(ProblemBase):
     required_capabilities: ClassVar[tuple[str, ...]] = ("exec", "k8s")
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
 
-    #: Which lab devices are reported as faulty: the control plane (for faults
-    #: that change API-server desired state), the affected cluster nodes, or both.
-    FAULTY_DEVICE_POLICY: ClassVar[str] = "control_plane"
-
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)
         self.k8s_control_node: str | None = None
@@ -99,46 +95,36 @@ class K8sProblemBase(ProblemBase):
         return [control] if control else []
 
     def resolve_params(
-            self, params: BaseModel | dict[str, Any] | None = None, **overrides: Any
+        self, params: BaseModel | dict[str, Any] | None = None, **overrides: Any
     ) -> BaseModel | None:
         resolved = super().resolve_params(params, **overrides)
         if isinstance(resolved, K8sParams) and not resolved.control_node:
             resolved = resolved.model_copy(update={"control_node": self.control_node()})
         return resolved
 
-    def record_k8s_object(self, kind: str, name: str, *, namespace: str | None = None) -> None:
+    def record_k8s_object(
+        self, kind: str, name: str, *, namespace: str | None = None
+    ) -> None:
         ref = f"{namespace}/{kind}/{name}" if namespace else f"{kind}/{name}"
         if ref not in self.k8s_objects:
             self.k8s_objects.append(ref)
 
-    def faulty_devices_for(
-            self, params: BaseModel | None = None, *, affected: list[str | None] | None = None
-    ) -> list[str | None]:
-        control = [self.control_node(params)]
-        nodes = [device for device in (affected or []) if device]
-        match self.FAULTY_DEVICE_POLICY:
-            case "affected_nodes":
-                return nodes or control
-            case "both":
-                return control + [device for device in nodes if device not in control]
-            case _:
-                return control
-
     def get_ground_truth(self) -> ProblemGroundTruth:
         ground_truth = super().get_ground_truth()
-        if self.k8s_objects:
-            objects = ", ".join(self.k8s_objects)
+        objects = getattr(self, "k8s_objects", None) or []
+        if objects:
+            listed = ", ".join(objects)
             detail = (ground_truth.detailed_cause or "").strip()
             ground_truth.detailed_cause = (
-                f"{detail} Affected Kubernetes object(s): {objects}.".strip()
+                f"{detail} Affected Kubernetes object(s): {listed}.".strip()
             )
         return ground_truth
 
     def poll_verify(
-            self,
-            check: Callable[[], tuple[bool, dict[str, Any]]],
-            *,
-            timeout: float | None = None,
+        self,
+        check: Callable[[], tuple[bool, dict[str, Any]]],
+        *,
+        timeout: float | None = None,
     ) -> dict:
         deadline = time.monotonic() + (timeout or K8S_VERIFY_TIMEOUT_SEC)
         started = time.monotonic()

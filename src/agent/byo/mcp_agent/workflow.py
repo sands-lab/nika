@@ -11,7 +11,7 @@ from agent.byo.mcp_agent.config import session_server_names
 from agent.byo.mcp_agent.phases.diagnosis import McpDiagnosisPhase
 from agent.byo.mcp_agent.phases.submission import McpSubmissionPhase
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 
 class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):

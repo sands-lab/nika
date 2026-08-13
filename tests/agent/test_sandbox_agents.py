@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 import json
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import assert_phase_messages
 from tests.agent.sandbox_support import (

@@ -52,6 +52,16 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
                 "problem": str(row["problem"]),
                 "topo_size": "" if topo in ("-", "", None) else str(topo),
                 "inject": {str(k): str(v) for k, v in inject.items()},
+                **(
+                    {"root_causes": row["root_causes"]}
+                    if row.get("root_causes")
+                    else {}
+                ),
+                **(
+                    {"root_causes_status": row["root_causes_status"]}
+                    if row.get("root_causes_status")
+                    else {}
+                ),
             }
         )
     return normalized

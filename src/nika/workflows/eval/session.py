@@ -11,8 +11,7 @@ from nika.evaluator.result_log import EVAL_METRICS_FILENAME, MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.evaluator.scoring import (
     score_detection,
-    score_localization,
-    score_rca,
+    score_rca_v2,
 )
 from nika.utils.logger import bind_session_dir, log_event, system_logger
 from nika.utils.session import Session
@@ -25,6 +24,24 @@ from nika.utils.session_store import SessionStore
 from nika.workflows.session.close import close_session
 
 logger = system_logger
+
+
+def _format_judge_ground_truth(gt: dict) -> str:
+    causes = gt.get("root_causes") or []
+    if causes:
+        lines = ["Structured root causes (resource + fault_type):"]
+        for item in causes:
+            resource = item.get("resource") or {}
+            lines.append(
+                f"- {resource.get('id') or resource} type={item.get('fault_type')}"
+            )
+        return "\n".join(lines)
+    return textwrap.dedent(
+        f"""\
+            The root cause is {gt.get("root_cause_name")}.
+            The faulty devices are: {", ".join(gt.get("faulty_devices") or [])}.
+        """
+    )
 
 
 def _session_is_still_running(session_id: str) -> bool:
@@ -67,22 +84,12 @@ def _iter_eval_session_ids(
 
 
 def generic_eval(gt, submission):
-    """Score detection, localization, and RCA from structured ``gt`` and ``submission``."""
+    """Score detection and pair-based RCA from structured ``gt`` and ``submission``."""
     detection_score = score_detection(submission, gt)
-    loc_acc, loc_prec, loc_rec, loc_f1 = score_localization(submission, gt)
-    rca_acc, rca_prec, rca_rec, rca_f1 = score_rca(submission, gt)
-
-    return (
-        detection_score,
-        loc_acc,
-        loc_prec,
-        loc_rec,
-        loc_f1,
-        rca_acc,
-        rca_prec,
-        rca_rec,
-        rca_f1,
-    )
+    return {
+        "detection_score": detection_score,
+        **score_rca_v2(submission, gt),
+    }
 
 
 def build_eval_metrics_payload(
@@ -93,32 +100,25 @@ def build_eval_metrics_payload(
 ) -> dict:
     """Build the persisted rule-based metrics payload from session artifacts."""
     if submission is not None:
-        (
-            detection_score,
-            loc_acc,
-            loc_prec,
-            loc_rec,
-            loc_f1,
-            rca_acc,
-            rca_prec,
-            rca_rec,
-            rca_f1,
-        ) = generic_eval(gt, submission)
+        scores = generic_eval(gt, submission)
     else:
-        detection_score = -1.0
-        loc_acc = loc_prec = loc_rec = loc_f1 = -1.0
-        rca_acc = rca_prec = rca_rec = rca_f1 = -1.0
+        scores = {
+            "detection_score": -1.0,
+            "localization_accuracy": -1.0,
+            "localization_precision": -1.0,
+            "localization_recall": -1.0,
+            "localization_f1": -1.0,
+            "rca_accuracy": -1.0,
+            "rca_precision": -1.0,
+            "rca_recall": -1.0,
+            "rca_f1": -1.0,
+            "fault_type_precision": -1.0,
+            "fault_type_recall": -1.0,
+            "fault_type_f1": -1.0,
+        }
 
     return {
-        "detection_score": detection_score,
-        "localization_accuracy": loc_acc,
-        "localization_precision": loc_prec,
-        "localization_recall": loc_rec,
-        "localization_f1": loc_f1,
-        "rca_accuracy": rca_acc,
-        "rca_precision": rca_prec,
-        "rca_recall": rca_rec,
-        "rca_f1": rca_f1,
+        **scores,
         "in_tokens": trace_metrics.get("in_tokens"),
         "out_tokens": trace_metrics.get("out_tokens"),
         "steps": trace_metrics.get("steps"),
@@ -138,7 +138,9 @@ def run_eval_metrics(
 
 
 def _run_eval_metrics_one(
-    *, session_id: str, result_dir: str | Path | None = None
+    *,
+    session_id: str,
+    result_dir: str | Path | None = None,
 ) -> None:
     session = Session()
     session.load_closed_session(session_id=session_id, result_dir=result_dir)
@@ -213,12 +215,7 @@ def _run_llm_judge_one(
 
     llm_judge = LLMJudge(judge_llm_provider=judge_llm_provider, judge_model=judge_model)
     llm_judge.evaluate_agent(
-        ground_truth=textwrap.dedent(
-            f"""\
-                The root cause is {gt["root_cause_name"]}.
-                The faulty devices are: {", ".join(gt["faulty_devices"])}.
-            """
-        ),
+        ground_truth=_format_judge_ground_truth(gt),
         trace_path=trace_path,
         save_path=f"{session.session_dir}/llm_judge.json",
     )

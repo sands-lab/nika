@@ -12,7 +12,7 @@ import yaml
 
 from nika.workflows.benchmark.release import (
     RESOURCES_V1,
-    SCORING_V1,
+    SCORING_V2,
     TOOLS_V1,
     freeze_release,
     load_release_from_dir,
@@ -75,7 +75,7 @@ def _freeze_mini(
         version=version,
         splits=release.splits,
         defaults=defaults,
-        scoring=dict(SCORING_V1),
+        scoring=dict(SCORING_V2),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=release.images,

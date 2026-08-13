@@ -16,7 +16,7 @@ from agent.sandbox.config import (
 )
 from agent.sandbox.manifest import manifest_mcp_servers
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 
 SESSION_HEADER = "NIKA-Session-Id"
 

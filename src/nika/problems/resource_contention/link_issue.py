@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.topology_inventory import interface_on, select_host_interface
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -30,8 +31,11 @@ class LinkHighPacketCorruption(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: LinkHighPacketCorruptionParams):
+        intf = select_host_interface(self.net_env, params.host_name, last=True)
+        return [interface_on(self.net_env, params.host_name, intf)]
+
     def inject_fault(self, params: LinkHighPacketCorruptionParams):
-        self.set_faulty_devices([params.host_name])
         intf_name = self._target_intf(params.host_name, last=True)
         self.runtime.tc_set_netem(
             params.host_name,
@@ -89,8 +93,11 @@ class LinkBandwidthThrottling(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.scenario_name = scenario_name
 
+    def root_cause_resources(self, params: LinkBandwidthThrottlingParams):
+        intf = select_host_interface(self.net_env, params.host_name, last=False)
+        return [interface_on(self.net_env, params.host_name, intf)]
+
     def inject_fault(self, params: LinkBandwidthThrottlingParams):
-        self.set_faulty_devices([params.host_name])
         intf_name = self._target_intf(params.host_name, last=False)
         self.runtime.tc_set_tbf(
             params.host_name,
@@ -169,8 +176,10 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.scenario_name = scenario_name
 
+    def root_cause_resources(self, params: IncastTrafficNetworkLimitationParams):
+        return [interface_on(self.net_env, params.host_name, "eth0")]
+
     def inject_fault(self, params: IncastTrafficNetworkLimitationParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.tc_set_netem(
             host_name=params.host_name,
             intf_name="eth0",

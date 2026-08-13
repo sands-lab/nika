@@ -4,7 +4,7 @@ This how-to is for benchmark operators who submit an official release run to [`s
 
 Implementation: [`workflows/leaderboard/`](../src/nika/workflows/leaderboard/) builds, validates, and submits packages.
 
-**Prerequisites:** finished `nika benchmark run --release …`, and authenticated [`gh`](https://cli.github.com/) (`gh auth login` or `GH_TOKEN`, `repo` scope). No manual fork/clone/commit.
+**Prerequisites:** a finished `nika benchmark run --release …` and authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope).
 
 ## Submit a release run
 
@@ -25,6 +25,8 @@ nika leaderboard submit results/my-run/YYYYMMDD_slug
 ```
 
 `pack` writes `{result_dir}/{YYYYMMDD}_{slug}/` (slug from `metadata.info.name`; override with `--out`). `submit` validates (unless `--skip-validate`), pushes to `submissions/<release_version>/{YYYYMMDD}_{slug}/`, and opens a PR. CI re-validates packages under `submissions/`.
+
+Agents submit `(resource_id, fault_type)` pairs. Scoring is `rule-based-v2` (set metrics on those pairs). The package field `identity.yaml` `schema_version: "2"` is the leaderboard pack format.
 
 ## Package layout
 

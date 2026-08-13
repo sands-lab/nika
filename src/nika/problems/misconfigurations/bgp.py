@@ -6,6 +6,7 @@ from nika.problems.inject_resolve import (
     resolve_victim_host,
     resolve_victim_host_ip,
 )
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -38,8 +39,10 @@ class BGPAsnMisconfig(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: BGPAsnMisconfigParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: BGPAsnMisconfigParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "containerlab":
                 self._inject_asn_misconfig_containerlab(params)
@@ -76,7 +79,6 @@ class BGPAsnMisconfig(ProblemBase):
 
     def verify_fault(self, params: BGPAsnMisconfigParams) -> dict:
         """Verify the ASN in frr.conf or SRL running config was changed."""
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "containerlab":
                 return self._verify_asn_misconfig_containerlab(params)
@@ -159,8 +161,10 @@ class BGPMissingAdvertise(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: BGPMissingAdvertiseParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: BGPMissingAdvertiseParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "containerlab":
                 self._inject_missing_adv_containerlab(params)
@@ -171,7 +175,9 @@ class BGPMissingAdvertise(ProblemBase):
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
                 )
 
-    def _inject_missing_adv_containerlab(self, params: BGPMissingAdvertiseParams) -> None:
+    def _inject_missing_adv_containerlab(
+        self, params: BGPMissingAdvertiseParams
+    ) -> None:
         prefix = str(
             ipaddress.ip_network(
                 resolve_victim_host_ip(self.runtime, params.host_name),
@@ -194,7 +200,6 @@ class BGPMissingAdvertise(ProblemBase):
 
     def verify_fault(self, params: BGPMissingAdvertiseParams) -> dict:
         """Verify route withdrawal in frr.conf or SRL BGP export-policy."""
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "containerlab":
                 return self._verify_missing_adv_containerlab(params)
@@ -205,7 +210,9 @@ class BGPMissingAdvertise(ProblemBase):
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
 
-    def _verify_missing_adv_containerlab(self, params: BGPMissingAdvertiseParams) -> dict:
+    def _verify_missing_adv_containerlab(
+        self, params: BGPMissingAdvertiseParams
+    ) -> dict:
         prefix = getattr(
             self,
             "_withdrawn_prefix",
@@ -276,8 +283,10 @@ class StaticBlackHole(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: StaticBlackHoleParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: StaticBlackHoleParams):
-        self.set_faulty_devices([params.host_name])
         self.victim_device = resolve_victim_host(self.runtime, params.host_name)
         host_network = ipaddress.ip_network(
             resolve_victim_host_ip(self.runtime, params.host_name),
@@ -303,7 +312,6 @@ class StaticBlackHole(ProblemBase):
 
     def verify_fault(self, params: StaticBlackHoleParams) -> dict:
         """Verify a blackhole route for the victim's network exists."""
-        self.set_faulty_devices([params.host_name])
         host_network = str(
             ipaddress.ip_network(
                 resolve_victim_host_ip(self.runtime, params.host_name),
@@ -367,8 +375,10 @@ class BGPBlackholeRouteLeak(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: BGPBlackholeRouteLeakParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: BGPBlackholeRouteLeakParams):
-        self.set_faulty_devices([params.host_name])
         self.victim_device = resolve_victim_host(self.runtime, params.host_name)
         victim_ip = resolve_victim_host_ip(
             self.runtime, params.host_name, with_prefix=False
@@ -405,7 +415,6 @@ class BGPBlackholeRouteLeak(ProblemBase):
 
     def verify_fault(self, params: BGPBlackholeRouteLeakParams) -> dict:
         """Verify blackhole route leak in running config."""
-        self.set_faulty_devices([params.host_name])
         victim_ip = resolve_victim_host_ip(
             self.runtime, params.host_name, with_prefix=False
         )

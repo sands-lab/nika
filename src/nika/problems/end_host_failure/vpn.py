@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -30,10 +31,12 @@ class VPNMembershipMissing(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: VPNMembershipMissingParams):
+        return [node_resource(params.host_name_2)]
+
     def inject_fault(self, params: VPNMembershipMissingParams):
         target_host = params.host_name
         vpn_server = params.host_name_2
-        self.set_faulty_devices([target_host, vpn_server])
 
         self.runtime.exec(
             vpn_server,

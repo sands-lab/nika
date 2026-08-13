@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     ProblemBase,
     RootCauseCategory,
@@ -8,7 +9,6 @@ from nika.problems.problem_base import (
 from nika.utils.logger import system_logger
 
 logger = system_logger
-
 
 # ==================================================================
 # Problem: SDN controller crash
@@ -31,8 +31,10 @@ class SDNControllerCrash(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: SDNControllerCrashParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: SDNControllerCrashParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(params.host_name, "pkill -f pox.py")
 
     def verify_fault(self, params: SDNControllerCrashParams) -> dict:
@@ -72,8 +74,10 @@ class SouthboundPortBlock(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: SouthboundPortBlockParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: SouthboundPortBlockParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.add_nft_drop_rule(
             params.host_name, f"tcp dport {params.southbound_port} drop"
         )
@@ -119,8 +123,10 @@ class SouthboundPortMismatch(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: SouthboundPortMismatchParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: SouthboundPortMismatchParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(params.host_name, "pkill -f pox.py")
         self.runtime.exec(
             params.host_name,
@@ -165,8 +171,10 @@ class FlowRuleShadowing(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: FlowRuleShadowingParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: FlowRuleShadowingParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(
             params.host_name,
             f"ovs-ofctl add-flow {params.host_name} 'priority=100,actions=drop'",
@@ -208,10 +216,13 @@ class FlowRuleLoop(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: FlowRuleLoopParams):
+        left, _right = sorted((params.host_name, params.host_name_2))
+        return [node_resource(left)]
+
     def inject_fault(self, params: FlowRuleLoopParams):
         host0 = params.host_name
         host1 = params.host_name_2
-        self.set_faulty_devices([host0, host1])
         self.runtime.exec(
             host0, f"ovs-ofctl add-flow {host0} 'in_port=eth0,actions=output:eth0'"
         )

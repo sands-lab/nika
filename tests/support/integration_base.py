@@ -229,6 +229,17 @@ class IntegrationMixin:
         matching = [row for row in failures if row.get("problem_name") == problem]
         assert matching, f"No failure record for {problem}"
         assert matching[-1].get("status") == "injected"
+        session_row = SessionStore().get_session(sid)
+        gt_path = Path(session_row["session_dir"]) / "ground_truth.json"
+        gt = json.loads(gt_path.read_text(encoding="utf-8"))
+        assert gt.get("schema_version") == 2
+        assert gt.get("root_causes"), f"missing root_causes for {problem}"
+        assert problem in (gt.get("root_cause_name") or [])
+        for item in gt["root_causes"]:
+            resource_id = item.get("resource_id") or (item.get("resource") or {}).get(
+                "id", ""
+            )
+            assert resource_id.startswith(("node/", "interface/", "k8s/")), resource_id
 
 
 IntegrationTestCase = IntegrationMixin

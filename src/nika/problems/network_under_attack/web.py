@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -31,10 +32,12 @@ class WebDoS(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: WebDoSParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: WebDoSParams):
         web_server = params.host_name
         attacker = params.attacker_device
-        self.set_faulty_devices([web_server])
         target_ip = self.runtime.get_host_ip(web_server, with_prefix=False)
         cmd = (
             f"nohup bash -c 'while true; do ab -n 200000000 -c 1000 -k http://{target_ip}/; done'"

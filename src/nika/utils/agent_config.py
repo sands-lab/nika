@@ -11,7 +11,7 @@ import os
 from agent.cli.claude.config import resolve_claude_model
 from nika.run_config.loader import get_run_config
 from nika.run_config.schema import RunConfig
-from nika.utils.provider_env import validate_provider_for_agent
+from agent.utils.provider_env import validate_provider_for_agent
 
 logger = logging.getLogger(__name__)
 

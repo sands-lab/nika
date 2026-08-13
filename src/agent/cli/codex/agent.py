@@ -24,7 +24,7 @@ from typing import Any
 from agent.cli.codex.phases.diagnosis import CodexCliDiagnosisPhase
 from agent.cli.codex.phases.submission import CodexCliSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
 

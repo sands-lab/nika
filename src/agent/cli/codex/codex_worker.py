@@ -33,7 +33,7 @@ from agent.utils.loggers import MessageLogger
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_codex_workspace
 from agent.utils.provider_env import build_agent_subprocess_env
 
@@ -157,7 +157,7 @@ class CodexWorker:
     session_dir:
         Absolute path to the session results directory.
     phase:
-        One of :data:`~agent.utils.phases.PHASES` (``diagnosis`` or ``submission``).
+        One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
         Codex model name forwarded to ``codex exec -m``.
     reasoning_effort:

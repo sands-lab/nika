@@ -5,10 +5,10 @@ from nika.problems.problem_base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.root_cause import node_resource
 from nika.utils.logger import system_logger
 
 logger = system_logger
-
 
 # ==================================================================
 # Problem: DNS service down
@@ -34,8 +34,10 @@ class DNSServiceDown(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.service_name = "named"
 
+    def root_cause_resources(self, params: DNSServiceDownParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DNSServiceDownParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.kill_process(params.host_name, "named")
 
     def verify_fault(self, params: DNSServiceDownParams) -> dict:
@@ -73,8 +75,10 @@ class DHCPServiceDown(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.service_name = "isc-dhcp-server"
 
+    def root_cause_resources(self, params: DHCPServiceDownParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DHCPServiceDownParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.kill_process(params.host_name, "dhcpd")
 
     def verify_fault(self, params: DHCPServiceDownParams) -> dict:

@@ -38,7 +38,7 @@ from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, skills_enabled
 
 from .config import prepare_sade_sdk_env
@@ -205,7 +205,9 @@ class SadeAgent:
                     for block in content:
                         if isinstance(block, ToolResultBlock):
                             if block.is_error:
-                                msg_logger.log("tool_error", {"output": str(block.content)})
+                                msg_logger.log(
+                                    "tool_error", {"output": str(block.content)}
+                                )
                             else:
                                 msg_logger.log(
                                     "tool_end",
@@ -240,7 +242,9 @@ class SadeAgent:
                     out_tokens = md["output_tokens"]
                     # Final `llm_end`: the agent's result text + the authoritative
                     # cumulative token usage (the parser sums usage_metadata).
-                    msg_logger.log("llm_end", {"text": result_text, "usage_metadata": md})
+                    msg_logger.log(
+                        "llm_end", {"text": result_text, "usage_metadata": md}
+                    )
                     logger.info(
                         "sade: session complete - stop_reason=%s, submitted=%s, "
                         "api_turns=%s, sdk_turns=%s, in_tokens=%s, out_tokens=%s",

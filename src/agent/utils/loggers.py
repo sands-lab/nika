@@ -34,7 +34,7 @@ class MessageLogger:
     Parameters
     ----------
     agent:
-        Name tag written to every entry (e.g. :data:`~agent.utils.phases.DIAGNOSIS`).
+        Name tag written to every entry (e.g. :data:`~agent.protocols.DIAGNOSIS`).
     session_dir:
         Path to the session results directory (must already exist or be
         creatable).

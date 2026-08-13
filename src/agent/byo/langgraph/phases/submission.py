@@ -7,7 +7,7 @@ from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import harden_mcp_tools
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 from nika.utils.session import Session
 
 load_dotenv()

@@ -13,7 +13,7 @@ from agent.sdk.claude_sdk.config import resolve_claude_sdk_model
 from agent.sdk.claude_sdk.phases.diagnosis import ClaudeSdkDiagnosisPhase
 from agent.sdk.claude_sdk.phases.submission import ClaudeSdkSubmissionPhase
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 
 class ClaudeSdkAgent:

@@ -4,6 +4,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from nika.problems.root_cause import UnresolvedRootCauseError, node_resource
 from nika.problems.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.kubernetes.node_filter import DropSpec, NodeFilter, NodeFilterError
 from nika.problems.problem_base import RootCauseCategory
@@ -56,7 +57,6 @@ class WorkerApiServerPartition(K8sProblemBase):
         "the network."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "k8s_control_plane"]
-    FAULTY_DEVICE_POLICY: ClassVar[str] = "affected_nodes"
 
     Params = WorkerApiServerPartitionParams
 
@@ -78,7 +78,9 @@ class WorkerApiServerPartition(K8sProblemBase):
             self.target_device = workers[0]
         return self.target_device
 
-    def _apiserver_address(self, params: WorkerApiServerPartitionParams, k8s: Any) -> str:
+    def _apiserver_address(
+        self, params: WorkerApiServerPartitionParams, k8s: Any
+    ) -> str:
         if params.apiserver_address:
             return params.apiserver_address
 
@@ -99,7 +101,9 @@ class WorkerApiServerPartition(K8sProblemBase):
             )
         return address
 
-    def _drop_specs(self, params: WorkerApiServerPartitionParams, k8s: Any) -> list[DropSpec]:
+    def _drop_specs(
+        self, params: WorkerApiServerPartitionParams, k8s: Any
+    ) -> list[DropSpec]:
         return [
             DropSpec(
                 self._apiserver_address(params, k8s),
@@ -107,6 +111,14 @@ class WorkerApiServerPartition(K8sProblemBase):
                 port=params.apiserver_port,
             )
         ]
+
+    def root_cause_resources(self, params: WorkerApiServerPartitionParams):
+        node = (params.node_name or "").strip()
+        if not node:
+            raise UnresolvedRootCauseError(
+                "k8s_worker_apiserver_partition needs node_name for a unique resource."
+            )
+        return [node_resource(node)]
 
     def inject_fault(self, params: WorkerApiServerPartitionParams) -> None:
         k8s = self.runtime.lab_api
@@ -121,7 +133,6 @@ class WorkerApiServerPartition(K8sProblemBase):
 
         specs = self._drop_specs(params, k8s)
         self.blocked_specs = [spec.describe() for spec in specs]
-        self.set_faulty_devices(self.faulty_devices_for(params, affected=[device]))
         self.record_k8s_object(
             "Node",
             k8s.k8s_node_for_device(control, device, devices=self.cluster_nodes()),
@@ -141,7 +152,9 @@ class WorkerApiServerPartition(K8sProblemBase):
         k8s = self.runtime.lab_api
         control = self.control_node(params)
         device = self._target_device(params)
-        node_name = k8s.k8s_node_for_device(control, device, devices=self.cluster_nodes())
+        node_name = k8s.k8s_node_for_device(
+            control, device, devices=self.cluster_nodes()
+        )
         specs = self._drop_specs(params, k8s)
         node_filter = NodeFilter(self.runtime, device)
         apiserver_address = specs[0].destination

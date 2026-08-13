@@ -372,3 +372,40 @@ def benchmark_run(
         )
     except (ReleaseError, ValueError) as exc:
         _exit_release_error(exc)
+
+
+@benchmark_app.command("migrate")
+def benchmark_migrate(
+    input_path: Path = typer.Option(
+        ..., "--input", help="Legacy or working benchmark YAML."
+    ),
+    output_path: Path = typer.Option(
+        ..., "--output", help="Destination YAML with materialized root_causes."
+    ),
+    report_path: Path = typer.Option(
+        ..., "--report", help="YAML report of unresolved cases."
+    ),
+    allow_unresolved: bool = typer.Option(
+        False,
+        "--allow-unresolved",
+        help="Write output even when some cases cannot be mapped.",
+    ),
+) -> None:
+    """Materialize structured root-cause ground truth for every case."""
+    from nika.problems.root_cause import UnresolvedRootCauseError
+    from nika.workflows.benchmark.migrate import migrate_benchmark_yaml
+
+    try:
+        report = migrate_benchmark_yaml(
+            input_path=input_path,
+            output_path=output_path,
+            report_path=report_path,
+            allow_unresolved=allow_unresolved,
+        )
+    except UnresolvedRootCauseError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        f"Migrated {report['resolved']}/{report['case_count']} cases to {output_path}. "
+        f"Unresolved: {report['unresolved_count']} (see {report_path})."
+    )

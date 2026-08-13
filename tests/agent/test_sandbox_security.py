@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from tests.agent.sandbox_support import run_security_probe_with_gateway, sandbox_runtime_available
+from tests.agent.sandbox_support import (
+    run_security_probe_with_gateway,
+    sandbox_runtime_available,
+)
 
 
 @pytest.mark.skipif(not sandbox_runtime_available(), reason="sbx not available")

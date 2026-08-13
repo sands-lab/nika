@@ -15,7 +15,7 @@ from agent.byo.langgraph.phases.diagnosis import DiagnosisPhase
 from agent.byo.langgraph.phases.submission import SubmissionPhase
 from agent.utils.loggers import AgentCallbackLogger, MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.logger import system_logger
 from nika.utils.session import Session
 

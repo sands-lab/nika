@@ -15,7 +15,7 @@ from autogen_core import CancellationToken
 from agent.byo.autogen.phases.diagnosis import AutogenDiagnosisPhase
 from agent.byo.autogen.phases.submission import AutogenSubmissionPhase
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 _MAX_STEPS_MARKER = "ERROR_MAX_STEPS_REACHED"
 

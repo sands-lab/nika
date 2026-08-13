@@ -299,6 +299,7 @@ def run_single_case(
     trial_id: str | None = None,
     trial_index: int | None = None,
     case_key: str | None = None,
+    expected_root_causes: list | None = None,
 ) -> tuple[str, Path]:
     """Run one benchmark case (env → inject → agent → close + metrics).
 
@@ -357,7 +358,10 @@ def run_single_case(
 
     try:
         inject_failure(
-            problem_names=[problem], session_id=session_id, param_overrides=params
+            problem_names=[problem],
+            session_id=session_id,
+            param_overrides=params,
+            expected_root_causes=expected_root_causes,
         )
         gt_written = (session_dir / "ground_truth.json").is_file()
 
@@ -503,6 +507,11 @@ def _run_trial(
         scenario=row["scenario"],
         topo_size=row.get("topo_size") or "",
         inject_params=row["inject"],
+        expected_root_causes=(
+            None
+            if row.get("root_causes_status") == "unresolved"
+            else row.get("root_causes")
+        ),
         release_meta=release_meta,
         agent_type=agent_type,
         llm_provider=llm_provider,

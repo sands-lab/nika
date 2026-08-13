@@ -2,6 +2,7 @@ import re
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -32,8 +33,10 @@ class OSPFAreaMisconfig(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: OSPFAreaMisconfigParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: OSPFAreaMisconfigParams):
-        self.set_faulty_devices([params.host_name])
         running_cfg = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config'"
         )
@@ -53,7 +56,6 @@ class OSPFAreaMisconfig(ProblemBase):
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
         """Verify the OSPF area in frr.conf and in the running daemon was changed."""
-        self.set_faulty_devices([params.host_name])
         file_areas_raw = self.runtime.exec(
             params.host_name,
             "grep -E '^[[:space:]]*network .* area ' /etc/frr/frr.conf 2>/dev/null | awk '{print $NF}' | sort -u",
@@ -112,8 +114,10 @@ class OSPFNeighborMissing(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: OSPFNeighborMissingParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: OSPFNeighborMissingParams):
-        self.set_faulty_devices([params.host_name])
         cmd = (
             "sed -i.bak -E "
             "'s|^([[:space:]]*)network([[:space:]])|\\1# network\\2|' "
@@ -125,7 +129,6 @@ class OSPFNeighborMissing(ProblemBase):
 
     def verify_fault(self, params: OSPFNeighborMissingParams) -> dict:
         """Verify network lines are commented in frr.conf and removed from the running daemon."""
-        self.set_faulty_devices([params.host_name])
         commented_count_raw = self.runtime.exec(
             params.host_name,
             "grep -c '^[[:space:]]*# network' /etc/frr/frr.conf 2>/dev/null || echo 0",

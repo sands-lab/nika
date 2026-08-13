@@ -8,7 +8,7 @@ Implementation: [`protocols.py`](../src/agent/protocols.py) defines the agent co
 
 ```
 src/agent/
-├── protocols.py          # Shared Protocol interface
+├── protocols.py          # Agent contract and diagnosis/submission phase ids
 ├── registry.py           # Type registry and factory for `nika agent run`
 ├── byo/                  # Bring-your-own LLM / agent framework backends
 │   ├── langgraph/        # -a byo.langgraph (LangChain ReAct workers)
@@ -29,7 +29,7 @@ src/agent/
 ├── sandbox/              # Docker Sandboxes (sbx) runner / manager / credentials
 ├── skills/               # Shared skill library (.claude/ + .agents/)
 ├── llm/                  # LangChain model factory (langgraph path)
-└── utils/                # MCP config, phases, loggers, skills helpers
+└── utils/                # MCP config, loggers, skills helpers
 ```
 
 ## Agent types

@@ -59,5 +59,5 @@ src/agent/community/sade/
 ## How it works
 
 - **Diagnosis** runs inside one Claude Code session against NIKA's Kathara MCP servers. The system prompt enforces five phases: blind start, branch, symptom-first diagnosis, broad-search escalation, and submission. The skill library and `CLAUDE.md` index select a fault family after observed evidence implicates it.
-- **Submission** calls the task MCP server's `submit` tool with the canonical `root_cause_name` / `faulty_devices`.
+- **Submission** currently calls the task MCP server with `root_cause_name` and `faulty_devices`. The pair-based scorer reads `root_causes`, so the current SADE prompt cannot receive a non-zero RCA score until it submits pairs selected from `list_resources()` and `list_avail_problems()`. See the [root-cause ground truth and scoring reference](../../root-cause-evaluation.md).
 - `h.py` runs read-only skill helpers such as `infra_sweep`, `ospf_snapshot`, and `bgp_snapshot` with the project interpreter. It supplies the active lab name from the running NIKA session.

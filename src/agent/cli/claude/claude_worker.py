@@ -39,7 +39,7 @@ from agent.cli.claude.config import (
 from agent.utils.loggers import MessageLogger
 from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 
 # k8s MCP tool results can emit stream-json lines well above asyncio's 64KiB default.
@@ -80,7 +80,7 @@ class ClaudeWorker:
     session_dir:
         Absolute path to the session results directory.
     phase:
-        One of :data:`~agent.utils.phases.PHASES` (``diagnosis`` or ``submission``).
+        One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
         reads from ``ANTHROPIC_MODEL`` and related env vars (see

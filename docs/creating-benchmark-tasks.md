@@ -114,6 +114,7 @@ from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
 )
+from nika.problems.topology_inventory import interface_on
 
 
 class MyFaultParams(BaseModel):
@@ -133,8 +134,10 @@ class MyFault(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def inject_fault(self, params: MyFaultParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.set_interface_state(params.host_name, params.intf_name, "down")
+
+    def root_cause_resources(self, params: MyFaultParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
 
     def verify_fault(self, params: MyFaultParams) -> dict:
         operstate = self.runtime.get_interface_operstate(params.host_name, params.intf_name)
@@ -149,10 +152,10 @@ class MyFault(ProblemBase):
 Notes:
 
 - Set `root_cause_category`, `root_cause_name`, and `Params` on the class. `META` is auto-generated; you do not define it by hand.
-- `symptom_desc` is optional. When set, it becomes the problem description and the ground-truth `detailed_cause`. When omitted, `root_cause_name` is used as the description.
+- `symptom_desc` is optional. When set, it becomes the registry description and ground-truth `detailed_cause`. When omitted, the registry description falls back to `root_cause_name`, while `detailed_cause` remains empty.
 - `inject_fault()` should mutate only the selected lab instance.
 - `verify_fault()` must prove the fault is active. Failed verification marks the injection as failed and stops the run.
-- Set `faulty_devices` during injection via `set_faulty_devices()`; `get_ground_truth()` reads them for localization, detection, and RCA targets.
+- Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. NIKA projects resource node names into `faulty_devices`. Do not call `set_faulty_devices` or maintain `root_causes` in a separate table. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
 
 Verify the problem:

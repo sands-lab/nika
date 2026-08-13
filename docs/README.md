@@ -27,6 +27,7 @@ Use this index to find the shortest path for your task. The root [`README.md`](.
 | Goal | Document |
 | --- | --- |
 | Understand the checked-in benchmark matrices | [Benchmark configuration reference](benchmark-configuration.md) |
+| Implement or evaluate root-cause labels | [Root-cause ground truth and scoring](root-cause-evaluation.md) |
 | Package a leaderboard result | [Leaderboard submission](leaderboard-submission.md) |
 | Run the test suites | [Testing guide](testing.md) |
 
@@ -41,7 +42,7 @@ Use these links when a reference page does not expose enough implementation deta
 | CLI commands | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/) |
 | Scenario registry and contracts | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
 | SNDlib topology import | [`topology/sndlib/`](../src/nika/topology/sndlib/), [`net_env/isp/`](../src/nika/net_env/isp/) |
-| Failure registry and contracts | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py) |
+| Failure registry and contracts | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py), [`root_cause.py`](../src/nika/problems/root_cause.py) |
 | Failure implementations | [`problems/`](../src/nika/problems/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/agent/registry.py) |
 | Built-in agent implementations | [`byo/`](../src/agent/byo/), [`cli/`](../src/agent/cli/), [`sdk/`](../src/agent/sdk/) |
