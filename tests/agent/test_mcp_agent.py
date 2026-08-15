@@ -7,22 +7,22 @@ from tests.support.integration_pipeline import (
     ClabCommonPipelineSteps,
     CommonPipelineSteps,
     _min3clos_prerequisites,
-    deepseek_api_key_available,
+    anthropic_api_key_available,
     load_test_env,
 )
 
 load_test_env()
-MCP_AGENT_PROVIDER = "deepseek"
-MCP_AGENT_MODEL = "deepseek-chat"
+MCP_AGENT_PROVIDER = "anthropic"
+MCP_AGENT_MODEL = "deepseek-v4-flash"
 MCP_AGENT_MAX_STEPS = 20
 
 
 @pytest.mark.skipif(
-    not deepseek_api_key_available(),
-    reason="DEEPSEEK_API_KEY required for byo.mcp_agent",
+    not anthropic_api_key_available(),
+    reason="ANTHROPIC_API_KEY required for byo.mcp_agent anthropic e2e",
 )
 class McpAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
-    """Full pipeline with the mcp-agent SDK agent using DeepSeek."""
+    """Full pipeline with mcp-agent via Anthropic-compatible API."""
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -53,8 +53,8 @@ class McpAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
 
 @pytest.mark.skipif(
-    not (_min3clos_prerequisites() and deepseek_api_key_available()),
-    reason="containerlab/gnmic/Docker or DEEPSEEK_API_KEY not available",
+    not (_min3clos_prerequisites() and anthropic_api_key_available()),
+    reason="containerlab/gnmic/Docker or ANTHROPIC_API_KEY not available",
 )
 class McpAgentClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
     """Full containerlab pipeline with the mcp-agent SDK agent."""

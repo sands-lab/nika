@@ -41,9 +41,9 @@ SUPPORTED_PROVIDERS = ("openai", "anthropic", "deepseek", "custom")
 
 # Which providers each agent accepts
 AGENT_PROVIDERS: dict[str, frozenset[str]] = {
-    "byo.langgraph": frozenset({"openai", "deepseek", "custom"}),
-    "byo.mcp_agent": frozenset({"openai", "deepseek", "custom"}),
-    "byo.autogen": frozenset({"openai", "deepseek", "custom"}),
+    "byo.langgraph": frozenset({"openai", "anthropic", "deepseek", "custom"}),
+    "byo.mcp_agent": frozenset({"openai", "anthropic", "deepseek", "custom"}),
+    "byo.autogen": frozenset({"openai", "anthropic", "deepseek", "custom"}),
     "cli.codex": frozenset({"openai", "deepseek", "custom"}),
     "sdk.codex_sdk": frozenset({"openai", "deepseek", "custom"}),
     "cli.claude": frozenset({"anthropic", "deepseek", "custom"}),
@@ -386,11 +386,14 @@ def provider_env_context(
     ]
     previous: dict[str, str | None] = {key: os.environ.get(key) for key in clear_keys}
     previous.update({key: os.environ.get(key) for key in mapped})
+    previous["NIKA_LLM_PROVIDER"] = os.environ.get("NIKA_LLM_PROVIDER")
 
     try:
         for key in clear_keys:
             os.environ.pop(key, None)
         os.environ.update(mapped)
+        # BYO agents (mcp/autogen) select OpenAI vs Anthropic clients from this.
+        os.environ["NIKA_LLM_PROVIDER"] = provider
         yield mapped
     finally:
         for key, value in previous.items():

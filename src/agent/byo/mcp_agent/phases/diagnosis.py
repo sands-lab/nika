@@ -5,14 +5,14 @@ from __future__ import annotations
 from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
-from agent.byo.mcp_agent.llm import NikaOpenAIAugmentedLLM
+from agent.byo.mcp_agent.llm import create_nika_augmented_llm
 from agent.utils.loggers import MessageLogger
 from agent.protocols import DIAGNOSIS
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 
 
 class McpDiagnosisPhase:
-    """Run network fault diagnosis via mcp-agent Agent + OpenAI."""
+    """Run network fault diagnosis via mcp-agent Agent + configured provider."""
 
     def __init__(
         self,
@@ -42,7 +42,7 @@ class McpDiagnosisPhase:
             server_names=self._server_names,
         )
         async with agent:
-            llm = NikaOpenAIAugmentedLLM(
+            llm = create_nika_augmented_llm(
                 agent=agent,
                 nika_logger=logger,
                 default_request_params=request_params,

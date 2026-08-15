@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import os
 
-from mcp_agent.config import MCPServerSettings, MCPSettings, OpenAISettings, Settings
+from mcp_agent.config import (
+    AnthropicSettings,
+    MCPServerSettings,
+    MCPSettings,
+    OpenAISettings,
+    Settings,
+)
 
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import mcp_read_timeout_seconds, select_diagnosis_servers
 from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
+    ENV_ANTHROPIC_API_KEY,
+    ENV_ANTHROPIC_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,
     ENV_OPENAI_BASE_URL,
@@ -40,8 +48,12 @@ def _to_server_settings(server: dict) -> MCPServerSettings:
     )
 
 
+def _resolve_provider(provider: str | None) -> str:
+    return (provider or os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+
+
 def _openai_settings_for_provider(model: str, provider: str | None) -> OpenAISettings:
-    prov = (provider or os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+    prov = _resolve_provider(provider)
     if prov == "deepseek":
         api_key = os.environ.get(ENV_DEEPSEEK_API_KEY) or os.environ.get(
             ENV_OPENAI_API_KEY
@@ -66,6 +78,15 @@ def _openai_settings_for_provider(model: str, provider: str | None) -> OpenAISet
     )
 
 
+def _anthropic_settings_for_provider(model: str) -> AnthropicSettings:
+    """Build Anthropic settings (honors optional ANTHROPIC_BASE_URL)."""
+    return AnthropicSettings(
+        default_model=model,
+        api_key=os.environ.get(ENV_ANTHROPIC_API_KEY) or None,
+        base_url=os.environ.get(ENV_ANTHROPIC_BASE_URL) or None,
+    )
+
+
 def build_mcp_agent_settings(
     session_id: str,
     scenario_name: str,
@@ -75,12 +96,20 @@ def build_mcp_agent_settings(
 ) -> Settings:
     """Build mcp-agent Settings for a NIKA troubleshooting session."""
     servers = load_session_mcp_config(session_id, scenario_name)
-
-    return Settings(
+    prov = _resolve_provider(provider)
+    common = dict(
         execution_engine="asyncio",
         mcp=MCPSettings(
             servers={name: _to_server_settings(srv) for name, srv in servers.items()}
         ),
+    )
+    if prov == "anthropic":
+        return Settings(
+            **common,
+            anthropic=_anthropic_settings_for_provider(model),
+        )
+    return Settings(
+        **common,
         openai=_openai_settings_for_provider(model, provider),
     )
 

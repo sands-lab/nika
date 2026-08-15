@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
-from agent.byo.mcp_agent.llm import NikaOpenAIAugmentedLLM
+from agent.byo.mcp_agent.llm import create_nika_augmented_llm
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
 from agent.protocols import SUBMISSION
@@ -50,7 +50,7 @@ class McpSubmissionPhase:
             server_names=self._server_names,
         )
         async with agent:
-            llm = NikaOpenAIAugmentedLLM(
+            llm = create_nika_augmented_llm(
                 agent=agent,
                 nika_logger=logger,
                 default_request_params=request_params,

@@ -7,21 +7,23 @@ from tests.support.integration_pipeline import (
     ClabCommonPipelineSteps,
     CommonPipelineSteps,
     _min3clos_prerequisites,
-    deepseek_api_key_available,
+    anthropic_api_key_available,
     load_test_env,
 )
 
 load_test_env()
-AUTOGEN_MODEL = "deepseek-chat"
+AUTOGEN_PROVIDER = "anthropic"
+AUTOGEN_MODEL = "deepseek-v4-flash"
 AUTOGEN_MAX_STEPS = 20
 AUTOGEN_CLAB_MAX_STEPS = 60
 
 
 @pytest.mark.skipif(
-    not deepseek_api_key_available(), reason="DEEPSEEK_API_KEY required for byo.autogen"
+    not anthropic_api_key_available(),
+    reason="ANTHROPIC_API_KEY required for byo.autogen anthropic e2e",
 )
 class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
-    """Full pipeline with the AutoGen AgentChat agent using DeepSeek."""
+    """Full pipeline with AutoGen via Anthropic-compatible API."""
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -33,7 +35,7 @@ class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         self._run_agent(
             agent_type="byo.autogen",
-            llm_provider="deepseek",
+            llm_provider=AUTOGEN_PROVIDER,
             model=AUTOGEN_MODEL,
             max_steps=AUTOGEN_MAX_STEPS,
         )
@@ -52,8 +54,8 @@ class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
 
 
 @pytest.mark.skipif(
-    not (_min3clos_prerequisites() and deepseek_api_key_available()),
-    reason="containerlab/gnmic/Docker or DEEPSEEK_API_KEY not available",
+    not (_min3clos_prerequisites() and anthropic_api_key_available()),
+    reason="containerlab/gnmic/Docker or ANTHROPIC_API_KEY not available",
 )
 class AutogenClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
     """Full containerlab pipeline with the AutoGen agent."""
@@ -68,7 +70,7 @@ class AutogenClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         self._run_agent(
             agent_type="byo.autogen",
-            llm_provider="deepseek",
+            llm_provider=AUTOGEN_PROVIDER,
             model=AUTOGEN_MODEL,
             max_steps=AUTOGEN_CLAB_MAX_STEPS,
         )

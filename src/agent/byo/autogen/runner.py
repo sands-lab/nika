@@ -7,7 +7,8 @@ import os
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.base import TaskResult
 from autogen_agentchat.messages import ToolCallExecutionEvent, ToolCallRequestEvent
-from autogen_core.models import ModelFamily
+from autogen_core.models import ChatCompletionClient, ModelFamily
+from autogen_ext.models.anthropic import AnthropicChatCompletionClient
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from agent.utils.loggers import MessageLogger
@@ -15,6 +16,8 @@ from agent.utils.usage import normalize_usage
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
 from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
+    ENV_ANTHROPIC_API_KEY,
+    ENV_ANTHROPIC_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,
     ENV_OPENAI_BASE_URL,
@@ -33,6 +36,15 @@ _DEEPSEEK_MODEL_INFO = {
 }
 
 _OPENAI_COMPAT_MODEL_INFO = {
+    "vision": False,
+    "function_calling": True,
+    "json_output": False,
+    "family": ModelFamily.UNKNOWN,
+    "structured_output": False,
+}
+
+# Explicit info so Anthropic-compatible / non-catalog models keep tool calling.
+_ANTHROPIC_COMPAT_MODEL_INFO = {
     "vision": False,
     "function_calling": True,
     "json_output": False,
@@ -62,11 +74,29 @@ def _resolve_provider(provider: str | None = None) -> str:
 
 def create_model_client(
     model: str, *, provider: str | None = None
-) -> OpenAIChatCompletionClient:
-    """Build an OpenAI-compatible AutoGen client for the active provider."""
+) -> ChatCompletionClient:
+    """Build an AutoGen chat client for the active provider."""
     prov = _resolve_provider(provider)
     if not prov and model.lower().startswith("deepseek"):
         prov = "deepseek"
+
+    if prov == "anthropic":
+        api_key = os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
+        if not api_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY required for Anthropic models: set it in .env "
+                "and use -p anthropic (optional ANTHROPIC_BASE_URL for compatible "
+                "endpoints such as https://api.deepseek.com/anthropic)."
+            )
+        kwargs: dict = {
+            "model": model,
+            "api_key": api_key,
+            "model_info": _ANTHROPIC_COMPAT_MODEL_INFO,
+        }
+        base = os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+        if base:
+            kwargs["base_url"] = base
+        return AnthropicChatCompletionClient(**kwargs)
 
     if prov == "deepseek":
         api_key = os.environ.get(ENV_DEEPSEEK_API_KEY) or os.environ.get(
@@ -102,7 +132,7 @@ def create_model_client(
         )
 
     # openai (default): rely on OPENAI_API_KEY / OPENAI_BASE_URL from env
-    kwargs: dict = {"model": model}
+    kwargs = {"model": model}
     base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
     key = os.environ.get(ENV_OPENAI_API_KEY, "").strip()
     if base:

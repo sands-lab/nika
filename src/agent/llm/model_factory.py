@@ -1,12 +1,15 @@
 import os
 
 from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
 from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
+    ENV_ANTHROPIC_API_KEY,
+    ENV_ANTHROPIC_BASE_URL,
     ENV_CUSTOM_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
     resolve_custom_api_key,
@@ -62,9 +65,14 @@ def load_model(
         )
 
     if llm_provider == "anthropic":
-        raise ValueError(
-            "Provider 'anthropic' is not supported by byo.langgraph / LLM judge; "
-            "use openai, deepseek, or custom."
+        # Optional ANTHROPIC_BASE_URL supports Anthropic-compatible endpoints
+        # (e.g. https://api.deepseek.com/anthropic).
+        return ChatAnthropic(
+            model=model,
+            api_key=os.getenv(ENV_ANTHROPIC_API_KEY) or None,
+            base_url=os.getenv(ENV_ANTHROPIC_BASE_URL) or None,
+            default_request_timeout=LLM_TIMEOUT_SECONDS,
+            max_retries=LLM_MAX_RETRIES,
         )
 
     raise ValueError(f"Unsupported llm provider: {llm_provider}")

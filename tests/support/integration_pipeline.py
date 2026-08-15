@@ -51,6 +51,10 @@ def deepseek_api_key_available() -> bool:
     return bool(os.environ.get("DEEPSEEK_API_KEY"))
 
 
+def anthropic_api_key_available() -> bool:
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
 def sade_available() -> bool:
     try:
         import claude_agent_sdk

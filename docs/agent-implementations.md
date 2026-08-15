@@ -39,8 +39,8 @@ src/agent/
 | `byo.langgraph` | LangGraph `StateGraph` | LangChain ReAct + `load_model()` |
 | `cli.codex` | Native two-phase | `codex exec` subprocess + shared `.agents/skills/` |
 | `cli.claude` | Native two-phase | `claude -p` subprocess + shared `.claude/skills/` |
-| `byo.mcp_agent` | mcp-agent `Workflow` | mcp-agent + OpenAI |
-| `byo.autogen` | AutoGen `GraphFlow` | AutoGen AgentChat + OpenAI |
+| `byo.mcp_agent` | mcp-agent `Workflow` | mcp-agent + OpenAI / Anthropic |
+| `byo.autogen` | AutoGen `GraphFlow` | AutoGen AgentChat + OpenAI / Anthropic |
 | `community.sade` | Single Claude Code session + 15-skill library | `claude-agent-sdk` (optional extra `sade`) |
 | `sdk.claude_sdk` | Native two-phase `ClaudeSDKClient` sessions | `claude-agent-sdk` + shared skills (optional extra `sdk`) |
 | `sdk.codex_sdk` | Native two-phase `AsyncCodex` threads | `openai-codex` + shared skills (optional extra `sdk`) |
@@ -120,6 +120,7 @@ LangGraph orchestration + LangChain ReAct workers per phase.
 | Provider | Credentials / URL |
 |----------|-------------------|
 | `openai` | `OPENAI_API_KEY` in `.env` |
+| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `ANTHROPIC_BASE_URL` for Anthropic-compatible endpoints |
 | `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
@@ -136,6 +137,7 @@ agent:
 ```bash
 nika agent run                              # from config/nika.yaml + .env
 nika agent run -a byo.langgraph -p deepseek -m deepseek-chat -n 20
+nika agent run -a byo.langgraph -p anthropic -m claude-haiku-4-5 -n 20
 ```
 
 ### Local / OpenAI-compatible endpoints (`custom`)
@@ -237,7 +239,14 @@ mcp-agent ``Workflow`` orchestration + [mcp-agent SDK](https://docs.mcp-agent.co
 
 **Entry**: `agent.byo.mcp_agent.agent.McpAgent`
 
-**Requires**: provider credentials in `.env` matching `agent.provider`.
+**Requires**: API key for the chosen provider.
+
+| Provider | Credentials / URL |
+|----------|-------------------|
+| `openai` | `OPENAI_API_KEY` in `.env` |
+| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `ANTHROPIC_BASE_URL` for Anthropic-compatible endpoints |
+| `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
+| `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
 ```yaml
 agent:
@@ -250,6 +259,7 @@ agent:
 
 ```bash
 nika agent run -a byo.mcp_agent -m gpt-4.1-mini -n 20
+nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -n 20
 ```
 
 ---
@@ -260,7 +270,14 @@ AutoGen ``GraphFlow`` orchestration + [AutoGen AgentChat](https://microsoft.gith
 
 **Entry**: `agent.byo.autogen.agent.AutogenAgent`
 
-**Requires**: provider credentials in `.env` matching `agent.provider`.
+**Requires**: API key for the chosen provider.
+
+| Provider | Credentials / URL |
+|----------|-------------------|
+| `openai` | `OPENAI_API_KEY` in `.env` |
+| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `ANTHROPIC_BASE_URL` for Anthropic-compatible endpoints |
+| `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
+| `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
 ```yaml
 agent:
@@ -273,6 +290,7 @@ agent:
 
 ```bash
 nika agent run -a byo.autogen -m gpt-4.1-mini -n 20
+nika agent run -a byo.autogen -p anthropic -m claude-haiku-4-5 -n 20
 ```
 
 ---
