@@ -49,6 +49,7 @@ def create_agent(
                 llm_provider=llm_provider,
                 model=model,
                 max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
             )
         case "mock":
             from agent.mock.mock_agent import MockAgent
@@ -100,6 +101,7 @@ def create_agent(
                 session_id=session_id,
                 model=model,
                 max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
         case "byo.autogen":
@@ -109,6 +111,7 @@ def create_agent(
                 session_id=session_id,
                 model=model,
                 max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
         case "community.sade":

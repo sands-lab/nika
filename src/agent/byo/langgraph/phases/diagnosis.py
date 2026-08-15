@@ -21,6 +21,7 @@ class DiagnosisPhase:
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
         scenario_name: str = "",
+        reasoning_effort: str | None = None,
     ):
         mcp_server_config = load_session_mcp_config(
             session_id,
@@ -28,7 +29,11 @@ class DiagnosisPhase:
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
-        self.llm = load_model(llm_provider=llm_provider, model=model)
+        self.llm = load_model(
+            llm_provider=llm_provider,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
 
     async def load_tools(self):
         self.tools: list[StructuredTool] = await self.client.get_tools()

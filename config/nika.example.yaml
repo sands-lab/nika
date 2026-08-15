@@ -37,6 +37,9 @@ agent:
   provider: openai
   model: null
   max_steps: 20
+  # none | minimal | low | medium | high | xhigh
+  # byo.langgraph / byo.autogen / cli.codex / sdk.codex_sdk
+  # byo.mcp_agent: none | low | medium | high only
   reasoning_effort: null
   models:
     langgraph: gpt-5-mini

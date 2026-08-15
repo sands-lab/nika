@@ -50,11 +50,13 @@ class BasicReActAgent:
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
         max_steps: int = 20,
+        reasoning_effort: str | None = None,
     ):
         self.session_id = session_id
         self.max_steps = max_steps
         self.llm_provider = llm_provider
         self.model = model
+        self.reasoning_effort = reasoning_effort
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
         self.session_dir = self.session.session_dir
@@ -66,6 +68,7 @@ class BasicReActAgent:
             llm_provider=llm_provider,
             model=model,
             scenario_name=self.session.scenario_name,
+            reasoning_effort=reasoning_effort,
         )
         asyncio.run(diagnosis_phase.load_tools())
         self._diagnosis_runner = diagnosis_phase.get_agent()
@@ -184,6 +187,7 @@ class BasicReActAgent:
             llm_provider=self.llm_provider,
             model=self.model,
             scenario_name=self.session.scenario_name,
+            reasoning_effort=self.reasoning_effort,
         )
         await submission_phase.load_tools()
         submission_runner = submission_phase.get_agent()
