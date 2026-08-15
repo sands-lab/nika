@@ -1,9 +1,19 @@
 # Configure Reachable IP Address
 ip address add 201.1.1.2/24 dev eth0
 
+# Wait for a default route (bridged eth1 may still be attaching).
+for _ in $(seq 1 60); do
+  ip route show default 2>/dev/null | grep -q . && break
+  sleep 1
+done
+
 # Prefer the lab default route (bridged eth1 may already have a Docker default).
 # Bridging is required for host port publish of the API; this restores fabric egress.
 ip route replace default via 201.1.1.1 dev eth0
+
+# Signal the container entrypoint to exec k3s as PID1 (see issue #38).
+mkdir -p /var/run
+touch /var/run/nika-net-ready
 
 # Wait Kubernetes control plane startup
 kubectl api-versions &> /dev/null

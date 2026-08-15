@@ -76,6 +76,21 @@ class K8sLabUnitTest:
 
         assert inst.lab.machines["controller"].is_bridged()
 
+    def test_k3s_nodes_defer_k3s_until_net_ready(self) -> None:
+        """Entrypoint waits for startup net-ready flag, then execs k3s as PID1."""
+        inst = self._inst()
+        for node_name in inst.kubernetes_nodes:
+            machine = inst.lab.machines[node_name]
+            args = str(machine.meta.get("args") or "")
+            assert machine.meta.get("entrypoint") == "/bin/sh"
+            assert "/var/run/nika-net-ready" in args
+            assert "exec /bin/k3s" in args
+            assert machine.get_image() == "rancher/k3s:v1.34.1-k3s1"
+            if node_name == "controller":
+                assert "server --disable" in args
+            else:
+                assert args.rstrip('"').endswith("agent") or "k3s agent" in args
+
     def test_k3s_nodes_are_privileged(self) -> None:
         """k3s nodes must run in privileged mode."""
         inst = self._inst()
