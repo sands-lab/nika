@@ -10,7 +10,7 @@ from typing import Any
 
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.cli.codex.codex_display import format_codex_event
-from agent.cli.codex.codex_worker import _build_mcp_toml
+from agent.cli.codex.codex_worker import _build_mcp_toml, prepare_codex_subprocess_env
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
@@ -54,6 +54,7 @@ class CodexSdkWorker:
         reasoning_effort: str | None = None,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         system_prompt: str,
         stream_output: bool = True,
     ) -> None:
@@ -64,6 +65,7 @@ class CodexSdkWorker:
         self.session_dir = session_dir
         self.phase = phase
         self.model = model
+        self.llm_provider = llm_provider
         self.reasoning_effort = validate_reasoning_effort(reasoning_effort)
         self.scenario_name = scenario_name
         self.system_prompt = system_prompt
@@ -254,8 +256,13 @@ class CodexSdkWorker:
         if self.reasoning_effort is not None:
             thread_config["model_reasoning_effort"] = self.reasoning_effort
 
+        sdk_env = prepare_codex_subprocess_env(
+            codex_home=self._codex_home,
+            provider=self.llm_provider,
+            agent_type="sdk.codex_sdk",
+        )
         codex_config = CodexConfig(
-            env={"CODEX_HOME": str(self._codex_home)},
+            env=sdk_env,
             cwd=str(self.workspace),
         )
 

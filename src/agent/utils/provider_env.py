@@ -1,8 +1,8 @@
-"""Model-provider credentials, deprecation compat, and agent env mapping.
+"""Map model-provider credentials into agent process environments.
 
 Maps provider credentials into the env shape each agent/subprocess expects.
 Mappings apply only to the returned dict (or a temporary ``os.environ`` patch
-for in-process BYO agents) — never to the global process env permanently.
+for in-process BYO agents). The context manager restores the process environment.
 """
 
 from __future__ import annotations
@@ -246,13 +246,22 @@ def map_provider_credentials(
         key = _env_get(ENV_OPENAI_API_KEY, sources)
         if key:
             out[ENV_OPENAI_API_KEY] = key
+        # agent.custom.base_url can redirect the OpenAI provider to a compatible gateway.
+        base = _env_get(ENV_OPENAI_BASE_URL, sources) or resolve_custom_base_url(
+            sources
+        )
+        if base:
+            out[ENV_OPENAI_BASE_URL] = base
         return out
 
     if provider == "anthropic":
         key = _compat_anthropic_token(sources)
         if key:
             out[ENV_ANTHROPIC_API_KEY] = key
-        base = _env_get(ENV_ANTHROPIC_BASE_URL, sources)
+        # Official Anthropic needs no base URL. agent.custom.base_url selects a gateway.
+        base = _env_get(ENV_ANTHROPIC_BASE_URL, sources) or resolve_custom_base_url(
+            sources
+        )
         if base:
             out[ENV_ANTHROPIC_BASE_URL] = base
         return out
@@ -386,14 +395,11 @@ def provider_env_context(
     ]
     previous: dict[str, str | None] = {key: os.environ.get(key) for key in clear_keys}
     previous.update({key: os.environ.get(key) for key in mapped})
-    previous["NIKA_LLM_PROVIDER"] = os.environ.get("NIKA_LLM_PROVIDER")
 
     try:
         for key in clear_keys:
             os.environ.pop(key, None)
         os.environ.update(mapped)
-        # BYO agents (mcp/autogen) select OpenAI vs Anthropic clients from this.
-        os.environ["NIKA_LLM_PROVIDER"] = provider
         yield mapped
     finally:
         for key, value in previous.items():

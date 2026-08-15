@@ -1,18 +1,18 @@
 """Claude Code CLI configuration: model defaults and authentication.
 
-NIKA drives ``claude -p`` as a subprocess.  Authentication supports:
+NIKA drives ``claude -p`` as a subprocess. Authentication supports:
 
-1. **Environment API key** — ``ANTHROPIC_API_KEY`` (native Anthropic).
-2. **DeepSeek** — user sets ``DEEPSEEK_API_KEY`` + ``NIKA_LLM_PROVIDER=deepseek``;
-   NIKA maps it to Anthropic-compatible env for the subprocess only.
-3. **Custom OpenAI-/Anthropic-compatible proxy** — ``NIKA_CUSTOM_*``.
-4. **Claude subscription / OAuth** — authenticate with ``/login`` so the host
+1. **Environment API key**: ``ANTHROPIC_API_KEY`` for native Anthropic.
+2. **DeepSeek**: the user sets ``DEEPSEEK_API_KEY`` and ``agent.provider: deepseek``
+   (config/nika.yaml or ``-p``); NIKA maps it to Anthropic-compatible env for
+   the subprocess only.
+3. **Custom Anthropic-compatible proxy**: ``NIKA_CUSTOM_*`` with
+   ``agent.provider: custom``.
+4. **Claude subscription or OAuth**: authenticate with ``/login`` so the host
    ``anthropic`` sbx secret is stored (never copy ``~/.claude`` into the sandbox).
 
-Model selection when ``-m`` / ``--model`` is not passed:
-
-``NIKA_CLAUDE_MODEL`` → ``ANTHROPIC_MODEL`` → ``CLAUDE_CODE_SUBAGENT_MODEL`` →
-``ANTHROPIC_DEFAULT_SONNET_MODEL``. If none are set, pass ``-m/--model``.
+Model selection: pass ``-m`` / ``--model``, or set ``agent.models.claude``
+(or ``agent.model``) in config/nika.yaml.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ from agent.utils.provider_env import (
     map_provider_credentials,
 )
 
+# Anthropic CLI and sandbox compatibility. Host model resolution does not read these.
 _CLAUDE_MODEL_ENV_KEYS = (
-    "NIKA_CLAUDE_MODEL",
     "ANTHROPIC_MODEL",
     "CLAUDE_CODE_SUBAGENT_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -43,36 +43,46 @@ _CLAUDE_MODEL_ENV_KEYS = (
 
 
 def default_claude_model() -> str:
-    """Return the Claude model id from environment variables."""
+    """Return the model advertised by the Anthropic CLI environment.
+
+    Host model resolution uses ``agent.models.claude`` or ``-m`` through
+    :func:`resolve_claude_model`.
+    """
     for key in _CLAUDE_MODEL_ENV_KEYS:
         if value := os.environ.get(key, "").strip():
             return value
     raise ValueError(
-        "Missing Claude model: set NIKA_CLAUDE_MODEL (or ANTHROPIC_MODEL / "
-        "CLAUDE_CODE_SUBAGENT_MODEL / ANTHROPIC_DEFAULT_SONNET_MODEL) in .env "
-        "or pass -m/--model."
+        "Missing Claude model: set agent.models.claude (or agent.model) in "
+        "config/nika.yaml or pass -m/--model."
     )
 
 
 def resolve_claude_model(model: str | None) -> str:
-    """Use *model* when set; otherwise fall back to :func:`default_claude_model`."""
+    """Use *model* when set; otherwise raise (YAML / ``-m`` required)."""
     if model and model.strip():
         return model.strip()
-    return default_claude_model()
+    raise ValueError(
+        "Missing Claude model: set agent.models.claude (or agent.model) in "
+        "config/nika.yaml or pass -m/--model."
+    )
 
 
-def _resolve_provider(provider: str | None = None) -> str:
-    if provider and provider.strip():
-        return provider.strip().lower()
-    return (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower() or "anthropic"
+def _resolve_provider(provider: str | None) -> str:
+    if provider and str(provider).strip():
+        return str(provider).strip().lower()
+    raise ValueError(
+        "Missing LLM provider: set agent.provider in config/nika.yaml "
+        "or pass -p/--provider."
+    )
 
 
 def has_env_claude_credentials(*, provider: str | None = None) -> bool:
     """True when API credentials are supplied via environment variables."""
-    prov = _resolve_provider(provider)
-    if prov in ("anthropic", "deepseek", "custom"):
-        if has_provider_credentials(prov):
-            return True
+    if provider and str(provider).strip():
+        prov = str(provider).strip().lower()
+        if prov in ("anthropic", "deepseek", "custom"):
+            if has_provider_credentials(prov):
+                return True
     # Compat: legacy manual DeepSeek Anthropic mapping still counts
     return bool(
         os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
@@ -141,7 +151,7 @@ def use_bare_claude_mode(*, provider: str | None = None) -> bool:
 def prepare_claude_subprocess_env(
     base: dict[str, str] | None = None,
     *,
-    provider: str | None = None,
+    provider: str,
     agent_type: str = "cli.claude",
 ) -> dict[str, str]:
     """Build the subprocess environment for ``claude -p``.
@@ -159,8 +169,7 @@ def prepare_claude_subprocess_env(
         text = value.strip()
         return text == PROXY_MANAGED_SENTINEL or text.startswith("sbx-cs-")
 
-    # Compat: if user still has manual ANTHROPIC_AUTH_TOKEN + BASE_URL without
-    # NIKA_LLM_PROVIDER=deepseek, treat as anthropic-compat with a warning.
+    # Support a legacy manual token and base URL long enough to emit a migration warning.
     if (
         prov == "anthropic"
         and not host.get(ENV_ANTHROPIC_API_KEY, "").strip()
@@ -169,7 +178,7 @@ def prepare_claude_subprocess_env(
         warnings.warn(
             "ANTHROPIC_AUTH_TOKEN is deprecated for user config; prefer "
             "ANTHROPIC_API_KEY (native) or DEEPSEEK_API_KEY with "
-            "NIKA_LLM_PROVIDER=deepseek.",
+            "agent.provider: deepseek (config/nika.yaml or -p).",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -220,9 +229,13 @@ def prepare_claude_subprocess_env(
     return env
 
 
-def describe_claude_auth(*, provider: str | None = None) -> dict[str, Any]:
+def describe_claude_auth(*, provider: str) -> dict[str, Any]:
     """Summarize detected auth mode (for logging and documentation)."""
     prov = _resolve_provider(provider)
+    try:
+        model_default: str | None = default_claude_model()
+    except ValueError:
+        model_default = None
     if has_env_claude_credentials(provider=prov):
         mode = "env_api_key"
         if prov == "deepseek":
@@ -239,7 +252,7 @@ def describe_claude_auth(*, provider: str | None = None) -> dict[str, Any]:
             "provider": prov,
             "bare": use_bare_claude_mode(provider=prov),
             "base_url": os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip() or None,
-            "model_default": default_claude_model(),
+            "model_default": model_default,
         }
     if claude_subscription_mode():
         return {
@@ -247,7 +260,7 @@ def describe_claude_auth(*, provider: str | None = None) -> dict[str, Any]:
             "provider": prov,
             "bare": False,
             "base_url": None,
-            "model_default": default_claude_model(),
+            "model_default": model_default,
         }
     if claude_cli_logged_in():
         return {
@@ -255,7 +268,7 @@ def describe_claude_auth(*, provider: str | None = None) -> dict[str, Any]:
             "provider": prov,
             "bare": False,
             "base_url": None,
-            "model_default": default_claude_model(),
+            "model_default": model_default,
         }
     return {
         "mode": "none",

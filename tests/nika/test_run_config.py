@@ -164,3 +164,74 @@ def test_legacy_warn_ignores_yaml_bridge_keys(monkeypatch, capsys) -> None:
     )
     captured = capsys.readouterr()
     assert "WARNING" not in captured.out
+
+
+def test_legacy_env_maps_lab_mcp_llm_knobs() -> None:
+    from nika.run_config.legacy import legacy_env_to_partial_dict
+
+    partial = legacy_env_to_partial_dict(
+        {
+            "NIKA_LLM_TIMEOUT": "120",
+            "NIKA_LLM_RETRIES": "4",
+            "NIKA_MCP_READ_TIMEOUT": "90",
+            "NIKA_MCP_GATEWAY_HOST": "0.0.0.0",
+            "NIKA_MCP_GATEWAY_PORT": "8080",
+            "NIKA_K8S_ACCESS": "kubectl_only",
+            "NIKA_K8S_APISERVER": "https://127.0.0.1:6443",
+            "NIKA_DEPLOY_ATTEMPTS": "5",
+            "NIKA_LAB_VERIFY_MAX_WAIT": "240",
+            "NIKA_VERIFY_MAX_ATTEMPTS": "7",
+        }
+    )
+    assert partial["agent"]["llm"]["timeout_sec"] == 120.0
+    assert partial["agent"]["llm"]["max_retries"] == 4
+    assert partial["nika"]["mcp"]["read_timeout_sec"] == 90.0
+    assert partial["nika"]["mcp"]["gateway_host"] == "0.0.0.0"
+    assert partial["nika"]["mcp"]["gateway_port"] == 8080
+    assert partial["nika"]["k8s"]["access"] == "kubectl_only"
+    assert partial["nika"]["k8s"]["apiserver"] == "https://127.0.0.1:6443"
+    assert partial["nika"]["lab"]["deploy_attempts"] == 5
+    assert partial["nika"]["lab"]["ready_max_wait_sec"] == 240.0
+    assert partial["nika"]["lab"]["failure_verify_max_attempts"] == 7
+    cfg = RunConfig.model_validate(partial)
+    assert cfg.agent.llm.timeout_sec == 120.0
+    assert cfg.nika.lab.deploy_attempts == 5
+
+
+def test_config_migrate_write_env_keeps_credentials_only(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "NIKA_AGENT_TYPE=byo.langgraph",
+                "NIKA_LLM_PROVIDER=openai",
+                "OPENAI_API_KEY=sk-test",
+                "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic",
+                "LANGFUSE_PUBLIC_KEY=pk-lf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "nika.yaml"
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "migrate",
+            "--env-file",
+            str(env_file),
+            "-o",
+            str(out_path),
+            "--write-env",
+            "-y",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    rewritten = env_file.read_text(encoding="utf-8")
+    assert "OPENAI_API_KEY=sk-test" in rewritten
+    assert "LANGFUSE_PUBLIC_KEY=pk-lf" in rewritten
+    assert "ANTHROPIC_BASE_URL" not in rewritten
+    assert "NIKA_AGENT_TYPE" not in rewritten
+    assert "NIKA_LLM_PROVIDER" not in rewritten
+    assert (tmp_path / ".env.bak").is_file()

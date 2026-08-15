@@ -25,9 +25,11 @@ class ClaudeSdkAgent:
         model: str | None = None,
         max_steps: int = 20,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
+        self.llm_provider = llm_provider
         self.model = resolve_claude_sdk_model(model)
         self.max_steps = max_steps
         self._stream_output = stream_output
@@ -38,6 +40,7 @@ class ClaudeSdkAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=self.model,
+            llm_provider=llm_provider,
             max_steps=max_steps,
             scenario_name=scenario_name,
         )
@@ -45,6 +48,7 @@ class ClaudeSdkAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=self.model,
+            llm_provider=llm_provider,
             max_steps=max_steps,
         )
 

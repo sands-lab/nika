@@ -310,6 +310,8 @@ def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"openai"},
+            provider="openai",
+            agent_type="cli.codex",
         )
 
     run.assert_called_once()
@@ -368,6 +370,8 @@ def test_ensure_sbx_credentials_accepts_existing_oauth_secret(tmp_path) -> None:
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"openai"},
+            provider="openai",
+            agent_type="cli.codex",
         )
 
     run.assert_not_called()
@@ -396,6 +400,8 @@ def test_ensure_sbx_credentials_accepts_existing_anthropic_oauth_secret(
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"anthropic"},
+            provider="anthropic",
+            agent_type="cli.claude",
         )
 
     run.assert_not_called()
@@ -443,6 +449,8 @@ def test_ensure_sbx_credentials_missing_raises_guidance(tmp_path) -> None:
         ensure_sbx_credentials(
             env_file=env_file,
             required_services={"openai"},
+            provider="openai",
+            agent_type="cli.codex",
         )
     assert "OPENAI_API_KEY" in missing_credential_message("openai")
     assert "/login" in missing_credential_message("anthropic")
@@ -477,27 +485,31 @@ def test_apply_codex_auth_sandbox_subscription_skips_auth_file(tmp_path) -> None
 
 
 def test_explicit_proxy_is_forwarded_to_sbx() -> None:
-    with patch.dict(
-        os.environ,
-        {"NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080"},
-        clear=True,
-    ):
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
+    try:
         assert resolve_sbx_upstream_proxy() == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
 
 
 def test_proxy_from_main_env_file(tmp_path) -> None:
     from nika.run_config.loader import reset_run_config, set_run_config
     from nika.run_config.schema import RunConfig
 
-    env_file = tmp_path / ".env"
-    env_file.write_text("NIKA_SANDBOX_UPSTREAM_PROXY=http://proxy.test:8080\n")
-    set_run_config(RunConfig())
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
     try:
-        with patch.dict(os.environ, {}, clear=True):
-            assert (
-                resolve_sbx_upstream_proxy(env_file=env_file)
-                == "http://proxy.test:8080"
-            )
+        assert resolve_sbx_upstream_proxy() == "http://proxy.test:8080"
     finally:
         reset_run_config()
 
@@ -561,12 +573,7 @@ def test_ensure_sbx_proxy_config_does_not_stop_running_daemon(
 
 
 def test_sbx_process_env_sets_https_proxy_when_unset() -> None:
-    with patch.dict(
-        os.environ,
-        {"NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080"},
-        clear=True,
-    ):
-        env = sbx_process_env()
+    env = sbx_process_env(upstream_proxy="http://proxy.test:8080")
     assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
     assert env["HTTP_PROXY"] == "http://proxy.test:8080"
     assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
@@ -577,43 +584,57 @@ def test_sbx_process_env_keeps_existing_https_proxy() -> None:
     with patch.dict(
         os.environ,
         {
-            "NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080",
             "HTTPS_PROXY": "http://already:9",
         },
         clear=True,
     ):
-        env = sbx_process_env()
+        env = sbx_process_env(upstream_proxy="http://proxy.test:8080")
     assert env["HTTPS_PROXY"] == "http://already:9"
     assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
     assert "HTTP_PROXY" not in env or env.get("HTTP_PROXY") != "http://proxy.test:8080"
 
 
 def test_run_sbx_passes_host_proxy_env() -> None:
-    with (
-        patch.dict(
-            os.environ,
-            {"NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080"},
-            clear=True,
-        ),
-        patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
-        patch("agent.sandbox.sbx.client.subprocess.run") as run,
-    ):
-        run.return_value = SimpleNamespace(returncode=0, stdout="", stderr="")
-        run_sbx(["ls"], check=False)
-    env = run.call_args.kwargs["env"]
-    assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
-    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
+    try:
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
+            patch("agent.sandbox.sbx.client.subprocess.run") as run,
+        ):
+            run.return_value = SimpleNamespace(returncode=0, stdout="", stderr="")
+            run_sbx(["ls"], check=False)
+        env = run.call_args.kwargs["env"]
+        assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+        assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
 
 
 def test_exec_in_sandbox_passes_host_proxy_env() -> None:
     import asyncio
+
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
 
     async def _run() -> dict[str, str]:
         with (
             patch.dict(
                 os.environ,
                 {
-                    "NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080",
                     "NIKA_SBX_SANDBOX_NAME": "nika-test",
                 },
                 clear=True,
@@ -624,9 +645,12 @@ def test_exec_in_sandbox_passes_host_proxy_env() -> None:
             await exec_in_sandbox(["claude", "-p", "hi"], sandbox_name="nika-test")
         return create.call_args.kwargs["env"]
 
-    env = asyncio.run(_run())
-    assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
-    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    try:
+        env = asyncio.run(_run())
+        assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+        assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
 
 
 def test_ensure_sbx_daemon_uses_status_not_ls() -> None:

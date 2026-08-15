@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
@@ -11,11 +10,16 @@ if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-# Env-overridable: on a loaded host (parallel cases, container churn) labs —
-# especially DHCP-based ones — can legitimately need longer than 180s to
-# converge, and a too-short wait fails the whole case before the agent runs.
-LAB_VERIFY_MAX_WAIT_SEC = int(os.getenv("NIKA_LAB_VERIFY_MAX_WAIT", "180"))
-LAB_VERIFY_RETRY_DELAY_SEC = float(os.getenv("NIKA_LAB_VERIFY_RETRY_DELAY", "5"))
+
+def _lab_ready_defaults() -> tuple[float, float]:
+    """Return the configured startup-verification window and retry delay."""
+    try:
+        from nika.run_config.loader import get_run_config
+
+        lab = get_run_config().nika.lab
+        return float(lab.ready_max_wait_sec), float(lab.ready_retry_delay_sec)
+    except Exception:  # noqa: BLE001
+        return 180.0, 5.0
 
 
 def build_lab_verify_result(
@@ -119,10 +123,9 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     if result is None:
         return None
 
-    max_wait_sec = getattr(net_env, "VERIFY_MAX_WAIT_SEC", LAB_VERIFY_MAX_WAIT_SEC)
-    retry_delay_sec = getattr(
-        net_env, "VERIFY_RETRY_DELAY_SEC", LAB_VERIFY_RETRY_DELAY_SEC
-    )
+    default_wait, default_delay = _lab_ready_defaults()
+    max_wait_sec = getattr(net_env, "VERIFY_MAX_WAIT_SEC", default_wait)
+    retry_delay_sec = getattr(net_env, "VERIFY_RETRY_DELAY_SEC", default_delay)
     deadline = time.time() + max_wait_sec
     last_result = result
     while time.time() < deadline:

@@ -6,6 +6,7 @@ Use this index to find the shortest path for your task. The root [`README.md`](.
 
 | Goal | Document |
 | --- | --- |
+| Configure agents, labs, MCP, and benchmark runs | [Run configuration reference](configuration.md) |
 | Choose and deploy a lab | [Network scenario reference](network-scenarios.md) |
 | Select and inject a fault | [Failure reference](failures.md) |
 | Use every CLI command and option | [CLI reference](cli-reference.md) |
@@ -40,6 +41,7 @@ Use these links when a reference page does not expose enough implementation deta
 | Topic | Primary implementation files |
 | --- | --- |
 | CLI commands | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/) |
+| Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml) |
 | Scenario registry and contracts | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
 | SNDlib topology import | [`topology/sndlib/`](../src/nika/topology/sndlib/), [`net_env/isp/`](../src/nika/net_env/isp/) |
 | Failure registry and contracts | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py), [`root_cause.py`](../src/nika/problems/root_cause.py) |

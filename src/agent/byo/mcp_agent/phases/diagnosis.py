@@ -21,12 +21,14 @@ class McpDiagnosisPhase:
         max_steps: int,
         server_names: list[str],
         *,
+        llm_provider: str,
         reasoning_effort: str | None = None,
     ) -> None:
         self._session_dir = session_dir
         self._model = model
         self._max_steps = max_steps
         self._server_names = server_names
+        self._llm_provider = llm_provider
         self._reasoning_effort = _mcp_reasoning_effort(reasoning_effort)
 
     async def run(self, task_description: str) -> tuple[str, bool]:
@@ -36,6 +38,7 @@ class McpDiagnosisPhase:
             model=self._model,
             max_steps=self._max_steps,
             reasoning_effort=self._reasoning_effort,
+            provider=self._llm_provider,
         )
 
         agent = Agent(
@@ -48,6 +51,7 @@ class McpDiagnosisPhase:
                 agent=agent,
                 nika_logger=logger,
                 default_request_params=request_params,
+                provider=self._llm_provider,
             )
             await agent.attach_llm(llm=llm)
             report = await llm.generate_str(

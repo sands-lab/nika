@@ -22,6 +22,8 @@ class ClaudeDiagnosisPhase:
         Absolute path to the session results directory.
     model:
         Claude/DeepSeek model name (e.g. ``"deepseek-v4-flash"``).
+    llm_provider:
+        Active LLM provider forwarded to the Claude worker.
     timeout:
         Hard timeout in seconds for the subprocess.
     scenario_name:
@@ -36,6 +38,7 @@ class ClaudeDiagnosisPhase:
         timeout: int = 600,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self._worker = ClaudeWorker(
@@ -45,6 +48,7 @@ class ClaudeDiagnosisPhase:
             model=model,
             timeout=timeout,
             scenario_name=scenario_name,
+            llm_provider=llm_provider,
             stream_output=stream_output,
         )
         self._diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)

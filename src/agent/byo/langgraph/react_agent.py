@@ -25,10 +25,6 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 
-def _env_flag_enabled(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
-
-
 class AgentState(TypedDict):
     """The state of the agent."""
 
@@ -113,11 +109,9 @@ class BasicReActAgent:
             obs = get_run_config().nika.observability
             enabled = bool(obs.langfuse_enabled)
             if obs.langfuse_host:
-                import os
-
                 os.environ.setdefault("LANGFUSE_HOST", obs.langfuse_host)
         except Exception:
-            enabled = _env_flag_enabled("NIKA_LANGFUSE_ENABLED")
+            enabled = False
         if not enabled:
             return None
 

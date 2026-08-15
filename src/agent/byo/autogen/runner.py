@@ -64,14 +64,13 @@ def _short_tool_name(name: str) -> str:
     return name
 
 
-def _resolve_provider(provider: str | None = None) -> str:
-    if provider and provider.strip():
-        return provider.strip().lower()
-    env = (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower()
-    if env:
-        return env
-    # Legacy heuristic: deepseek-* model ids
-    return ""
+def _resolve_provider(provider: str) -> str:
+    if not provider or not str(provider).strip():
+        raise ValueError(
+            "Missing LLM provider: set agent.provider in config/nika.yaml "
+            "or pass -p/--provider."
+        )
+    return str(provider).strip().lower()
 
 
 def _inject_anthropic_output_config(
@@ -108,28 +107,31 @@ def _inject_anthropic_output_config(
 def create_model_client(
     model: str,
     *,
-    provider: str | None = None,
+    provider: str,
     reasoning_effort: str | None = None,
 ) -> ChatCompletionClient:
     """Build an AutoGen chat client for the active provider."""
     prov = _resolve_provider(provider)
-    if not prov and model.lower().startswith("deepseek"):
-        prov = "deepseek"
 
     if prov == "anthropic":
         api_key = os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
         if not api_key:
             raise ValueError(
                 "ANTHROPIC_API_KEY required for Anthropic models: set it in .env "
-                "and use -p anthropic (optional ANTHROPIC_BASE_URL for compatible "
-                "endpoints such as https://api.deepseek.com/anthropic)."
+                "and set agent.provider to anthropic in config/nika.yaml. "
+                "For DeepSeek Anthropic-compat (Claude agents), use "
+                "agent.provider: deepseek. For other Anthropic-compatible "
+                "gateways, set agent.custom.base_url (same field as custom)."
             )
         kwargs: dict = {
             "model": model,
             "api_key": api_key,
             "model_info": _ANTHROPIC_COMPAT_MODEL_INFO,
         }
-        base = os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+        base = (
+            os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+            or resolve_custom_base_url()
+        )
         if base:
             kwargs["base_url"] = base
         client = AnthropicChatCompletionClient(**kwargs)
@@ -142,7 +144,7 @@ def create_model_client(
         if not api_key:
             raise ValueError(
                 "DEEPSEEK_API_KEY required for DeepSeek models: set it in .env "
-                "and NIKA_LLM_PROVIDER=deepseek before running byo.autogen."
+                "and set agent.provider to deepseek in config/nika.yaml."
             )
         return OpenAIChatCompletionClient(
             model=model,
@@ -154,9 +156,16 @@ def create_model_client(
     if prov == "custom":
         base_url = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL, "")
         if not base_url:
+            try:
+                from nika.run_config.loader import get_run_config
+
+                base_url = (get_run_config().agent.custom.base_url or "").strip()
+            except Exception:  # noqa: BLE001
+                base_url = ""
+        if not base_url:
             raise ValueError(
-                "NIKA_CUSTOM_BASE_URL required for custom provider "
-                "(or set OPENAI_BASE_URL for legacy OpenAI-compatible endpoints)."
+                "agent.custom.base_url required for custom provider "
+                "in config/nika.yaml."
             )
         api_key = (
             resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or "no-key"
@@ -171,7 +180,7 @@ def create_model_client(
             kwargs["reasoning_effort"] = reasoning_effort
         return OpenAIChatCompletionClient(**kwargs)
 
-    # openai (default): rely on OPENAI_API_KEY / OPENAI_BASE_URL from env
+    # openai: rely on OPENAI_API_KEY / OPENAI_BASE_URL from env
     kwargs = {"model": model}
     base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
     key = os.environ.get(ENV_OPENAI_API_KEY, "").strip()

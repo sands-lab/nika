@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from mcp.types import CallToolRequest, CallToolResult
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm_anthropic import AnthropicAugmentedLLM
@@ -24,10 +22,13 @@ def _short_tool_name(name: str) -> str:
     return name
 
 
-def _resolve_provider(provider: str | None = None) -> str:
-    if provider and provider.strip():
-        return provider.strip().lower()
-    return (os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+def _resolve_provider(provider: str) -> str:
+    if not provider or not str(provider).strip():
+        raise ValueError(
+            "Missing LLM provider: set agent.provider in config/nika.yaml "
+            "or pass -p/--provider."
+        )
+    return str(provider).strip().lower()
 
 
 def create_nika_augmented_llm(
@@ -35,7 +36,7 @@ def create_nika_augmented_llm(
     agent,
     nika_logger: MessageLogger | None,
     default_request_params: RequestParams,
-    provider: str | None = None,
+    provider: str,
 ):
     """Return the OpenAI or Anthropic AugmentedLLM for the active provider."""
     if _resolve_provider(provider) == "anthropic":

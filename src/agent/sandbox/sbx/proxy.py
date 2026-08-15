@@ -12,10 +12,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from agent.sandbox.config import (
-    ENV_SANDBOX_UPSTREAM_PROXY,
-    load_sandbox_env_values,
-)
 from agent.sandbox.sbx.client import sbx_available
 
 logger = logging.getLogger(__name__)
@@ -32,23 +28,16 @@ def resolve_sbx_upstream_proxy(
 ) -> str | None:
     """Optional upstream proxy URL for the sbx daemon (off by default).
 
-    Prefer ``nika.sandbox.upstream_proxy`` in run config, then process env /
-    ``--sandbox-proxy`` for one-shot overrides.
+    Reads ``nika.sandbox.upstream_proxy`` from run config (CLI flags merge into
+    that field via ``merge_cli``).
     """
-    upstream = os.environ.get(ENV_SANDBOX_UPSTREAM_PROXY, "").strip()
-    if not upstream:
-        try:
-            from nika.run_config.loader import get_run_config
+    upstream = ""
+    try:
+        from nika.run_config.loader import get_run_config
 
-            upstream = (get_run_config().nika.sandbox.upstream_proxy or "").strip()
-        except Exception:
-            upstream = ""
-    if not upstream and env_file is not None:
-        upstream = (
-            load_sandbox_env_values(env_file)
-            .get(ENV_SANDBOX_UPSTREAM_PROXY, "")
-            .strip()
-        )
+        upstream = (get_run_config().nika.sandbox.upstream_proxy or "").strip()
+    except Exception:
+        upstream = ""
     return upstream or None
 
 

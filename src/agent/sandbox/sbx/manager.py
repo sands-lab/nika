@@ -188,8 +188,6 @@ class SbxSandboxManager:
         runtime_env = {
             "NIKA_SANDBOX_EXECUTION": "1",
             "NIKA_SESSION_ID": session.session_id,
-            "NIKA_AGENT_TYPE": agent_type,
-            "NIKA_MODEL": model,
             "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
             "PYTHONPATH": str(workspace_path / "agent"),
         }
@@ -265,7 +263,6 @@ class SbxSandboxManager:
                 "DEEPSEEK_API_KEY",
                 "ANTHROPIC_API_KEY",
                 "ANTHROPIC_BASE_URL",
-                "NIKA_LLM_PROVIDER",
             }
             for key, value in runtime_env.items():
                 if key in _force_env_keys:

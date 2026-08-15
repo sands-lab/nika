@@ -11,7 +11,6 @@ from agent.utils.template import (
 )
 
 
-ENV_ENABLE_SKILLS = "NIKA_ENABLE_SKILLS"
 TEST_SKILL_NAME = "nika-test-skill"
 
 # Default package: src/agent/skills/
@@ -71,10 +70,6 @@ def resolve_skills_root() -> Path:
 
 def skills_enabled() -> bool:
     """Whether agents should load the shared skill library."""
-    # One-shot process override (sandbox / tests) still honored.
-    raw = os.getenv(ENV_ENABLE_SKILLS, "").strip().lower()
-    if raw:
-        return raw not in ("0", "false", "no", "off")
     try:
         from nika.run_config.loader import get_run_config
 

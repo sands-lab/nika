@@ -13,18 +13,18 @@ from agent.utils.provider_env import (
 )
 
 
-def codex_sdk_local_auth_available() -> bool:
+def codex_sdk_local_auth_available(provider: str | None = None) -> bool:
     """True when Codex credentials are available for sandbox or local use.
 
-    Accepts provider credentials from ``NIKA_LLM_PROVIDER`` (openai / deepseek /
-    custom), an existing ``openai`` sbx secret (API key or OAuth), or a host
-    ``~/.codex/auth.json`` for non-sandbox tooling. Host auth files are never
-    copied into Docker Sandboxes.
+    When *provider* is set, check that provider's credentials. Without a
+    provider, any OpenAI or DeepSeek API key, an ``openai`` sbx secret, or a host
+    ``~/.codex/auth.json`` still counts. Host auth files are never copied into
+    Docker Sandboxes.
     """
-    provider = (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower()
-    if provider and has_provider_credentials(provider):
-        return True
-    if (
+    if provider and str(provider).strip():
+        if has_provider_credentials(str(provider).strip().lower()):
+            return True
+    elif (
         os.environ.get(ENV_DEEPSEEK_API_KEY, "").strip()
         or os.environ.get(ENV_OPENAI_API_KEY, "").strip()
     ):

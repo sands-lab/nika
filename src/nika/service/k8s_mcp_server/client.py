@@ -74,7 +74,15 @@ class K8sClient:
             if kubeconfig is not None
             else os.environ.get("KUBECONFIG", DEFAULT_KUBECONFIG)
         )
-        self.apiserver = apiserver or os.environ.get("NIKA_K8S_APISERVER")
+        if apiserver is not None:
+            self.apiserver = apiserver
+        else:
+            try:
+                from nika.run_config.loader import get_run_config
+
+                self.apiserver = get_run_config().nika.k8s.apiserver
+            except Exception:  # noqa: BLE001
+                self.apiserver = None
         self._loaded = False
 
     def _ensure_loaded(self) -> None:

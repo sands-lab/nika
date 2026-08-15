@@ -31,6 +31,7 @@ class DiagnosisPhaseAgent(BaseChatAgent):
         model: str,
         max_steps: int,
         scenario_name: str,
+        llm_provider: str,
         reasoning_effort: str | None = None,
         print_phase: Callable[[str, str], None],
     ) -> None:
@@ -44,6 +45,7 @@ class DiagnosisPhaseAgent(BaseChatAgent):
             model=model,
             max_steps=max_steps,
             scenario_name=scenario_name,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
         )
         self._session_dir = session_dir
@@ -123,6 +125,7 @@ class SubmissionPhaseAgent(BaseChatAgent):
         model: str,
         max_steps: int,
         scenario_name: str,
+        llm_provider: str,
         reasoning_effort: str | None = None,
         print_phase: Callable[[str, str], None],
     ) -> None:
@@ -136,6 +139,7 @@ class SubmissionPhaseAgent(BaseChatAgent):
             model=model,
             max_steps=max_steps,
             scenario_name=scenario_name,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
         )
         self._session_dir = session_dir
@@ -189,6 +193,7 @@ async def run_troubleshooting_flow(
     max_steps: int,
     scenario_name: str,
     stream_output: bool,
+    llm_provider: str,
     reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Execute diagnosis → submission via AutoGen ``GraphFlow``."""
@@ -200,6 +205,7 @@ async def run_troubleshooting_flow(
         model=model,
         max_steps=max_steps,
         scenario_name=scenario_name,
+        llm_provider=llm_provider,
         reasoning_effort=reasoning_effort,
         print_phase=print_phase,
     )
@@ -209,6 +215,7 @@ async def run_troubleshooting_flow(
         model=model,
         max_steps=max_steps,
         scenario_name=scenario_name,
+        llm_provider=llm_provider,
         reasoning_effort=reasoning_effort,
         print_phase=print_phase,
     )

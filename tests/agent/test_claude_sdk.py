@@ -26,7 +26,7 @@ class ClaudeSdkConfigTest:
             },
             clear=True,
         ):
-            env = prepare_claude_sdk_env(session_id="sess-abc")
+            env = prepare_claude_sdk_env(session_id="sess-abc", provider="anthropic")
         assert env["ANTHROPIC_API_KEY"] == "tok"
         assert env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
         assert env["NIKA_SESSION_ID"] == "sess-abc"
@@ -40,7 +40,7 @@ class ClaudeSdkConfigTest:
             ),
             pytest.raises(RuntimeError),
         ):
-            prepare_claude_sdk_env(session_id="sess-abc")
+            prepare_claude_sdk_env(session_id="sess-abc", provider="anthropic")
 
     def test_resolve_claude_sdk_model_explicit(self) -> None:
         with unittest.mock.patch.dict(os.environ, {}, clear=True):

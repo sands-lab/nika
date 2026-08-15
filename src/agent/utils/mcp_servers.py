@@ -69,24 +69,22 @@ def select_session_servers(
     return servers
 
 
-# Read timeout for MCP client requests (seconds; 0 disables).
-# Without it the mcp ClientSession waits FOREVER on a lost response — the
-# observed failure mode: a benchmark run frozen for days with the server's
-# "Processing request of type ListToolsRequest" as the last log line.
-MCP_READ_TIMEOUT_ENV = "NIKA_MCP_READ_TIMEOUT"
+# A read timeout prevents a lost MCP response from blocking the full benchmark case.
+# A value of 0 disables the timeout.
 DEFAULT_MCP_READ_TIMEOUT_SECONDS = 120.0
 
 
 def mcp_read_timeout_seconds() -> float | None:
-    """Return MCP client read timeout in seconds; ``None`` disables.
+    """Return the MCP read timeout in seconds, or ``None`` when disabled.
 
-    Used by LangGraph, Autogen, and mcp-agent clients. Independent of whether
-    ``langchain-mcp-adapters`` supports ``session_kwargs``.
+    LangGraph, AutoGen, and mcp-agent share this value. Older
+    ``langchain-mcp-adapters`` releases may not support ``session_kwargs``.
     """
-    raw = os.getenv(MCP_READ_TIMEOUT_ENV, "").strip()
     try:
-        seconds = float(raw) if raw else DEFAULT_MCP_READ_TIMEOUT_SECONDS
-    except ValueError:
+        from nika.run_config.loader import get_run_config
+
+        seconds = float(get_run_config().nika.mcp.read_timeout_sec)
+    except Exception:  # noqa: BLE001 - sandbox / early import
         seconds = DEFAULT_MCP_READ_TIMEOUT_SECONDS
     if seconds <= 0:
         return None
@@ -109,8 +107,7 @@ def _mcp_read_timeout() -> timedelta | None:
 
 
 def _adapter_supports_session_kwargs() -> bool:
-    """Feature-detect session_kwargs so an older adapter lib does not choke
-    on an unknown connection key."""
+    """Return whether the installed adapter accepts ``session_kwargs``."""
     for module_name in (
         "langchain_mcp_adapters.sessions",
         "langchain_mcp_adapters.client",

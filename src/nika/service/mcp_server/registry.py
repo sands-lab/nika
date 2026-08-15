@@ -136,14 +136,12 @@ def _resolve_diagnosis_backend(
 
 def _k8s_mcp_enabled() -> bool:
     """Return whether Kubernetes MCP should be registered for agents."""
-    access = os.environ.get("NIKA_K8S_ACCESS", "").strip().lower()
-    if not access:
-        try:
-            from nika.run_config.loader import get_run_config
+    try:
+        from nika.run_config.loader import get_run_config
 
-            access = (get_run_config().nika.k8s.access or "auto").strip().lower()
-        except Exception:  # noqa: BLE001 - config may be unavailable in sandbox
-            access = "auto"
+        access = (get_run_config().nika.k8s.access or "auto").strip().lower()
+    except Exception:  # noqa: BLE001 - config may be unavailable in sandbox
+        access = "auto"
     if access == "kubectl_only":
         return False
     if access in {"auto", "mcp", ""}:

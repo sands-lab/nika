@@ -21,6 +21,8 @@ class ClaudeSubmissionPhase:
         Absolute path to the session results directory.
     model:
         Claude/DeepSeek model name (e.g. ``"deepseek-v4-flash"``).
+    llm_provider:
+        Active LLM provider forwarded to the Claude worker.
     timeout:
         Hard timeout in seconds for the subprocess.
     """
@@ -32,6 +34,7 @@ class ClaudeSubmissionPhase:
         model: str | None = None,
         timeout: int = 300,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self._worker = ClaudeWorker(
@@ -40,6 +43,7 @@ class ClaudeSubmissionPhase:
             phase=SUBMISSION,
             model=model,
             timeout=timeout,
+            llm_provider=llm_provider,
             stream_output=stream_output,
         )
 

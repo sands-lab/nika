@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,7 +18,8 @@ RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
 MCP_SERVER_DIR = _PKG_DIR / "service" / "mcp_server"
 
-ENV_RESULT_DIR = "NIKA_RESULT_DIR"  # legacy; operational value lives in config/nika.yaml
+# Migration recognizes this legacy name. Runtime result paths come from YAML or CLI.
+ENV_RESULT_DIR = "NIKA_RESULT_DIR"
 
 
 def resolve_results_root(result_dir: str | Path | None = None) -> Path:

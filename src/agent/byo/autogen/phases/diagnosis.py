@@ -44,12 +44,14 @@ class AutogenDiagnosisPhase:
         max_steps: int,
         scenario_name: str,
         *,
+        llm_provider: str,
         reasoning_effort: str | None = None,
     ) -> None:
         self._session_id = session_id
         self._session_dir = session_dir
         self._model = model
         self._max_steps = max_steps
+        self._llm_provider = llm_provider
         self._reasoning_effort = reasoning_effort
         self._server_configs = session_server_configs(session_id, scenario_name)
 
@@ -57,7 +59,9 @@ class AutogenDiagnosisPhase:
         """Return ``(diagnosis_report, is_max_steps_reached)``."""
         logger = MessageLogger(agent=DIAGNOSIS, session_dir=self._session_dir)
         model_client = create_model_client(
-            self._model, reasoning_effort=self._reasoning_effort
+            self._model,
+            provider=self._llm_provider,
+            reasoning_effort=self._reasoning_effort,
         )
 
         async with _open_mcp_tools(self._server_configs) as tools:

@@ -65,12 +65,17 @@ def _mcp_reasoning_effort(reasoning_effort: str | None) -> str | None:
 
 
 def _resolve_provider(provider: str | None) -> str:
-    return (provider or os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+    if not provider or not str(provider).strip():
+        raise ValueError(
+            "Missing LLM provider: set agent.provider in config/nika.yaml "
+            "or pass -p/--provider."
+        )
+    return str(provider).strip().lower()
 
 
 def _openai_settings_for_provider(
     model: str,
-    provider: str | None,
+    provider: str,
     *,
     reasoning_effort: str | None = None,
 ) -> OpenAISettings:
@@ -109,11 +114,12 @@ def _openai_settings_for_provider(
 
 
 def _anthropic_settings_for_provider(model: str) -> AnthropicSettings:
-    """Build Anthropic settings (honors optional ANTHROPIC_BASE_URL)."""
+    """Build Anthropic settings with an optional compatible gateway URL."""
+    base = os.environ.get(ENV_ANTHROPIC_BASE_URL) or resolve_custom_base_url() or None
     return AnthropicSettings(
         default_model=model,
         api_key=os.environ.get(ENV_ANTHROPIC_API_KEY) or None,
-        base_url=os.environ.get(ENV_ANTHROPIC_BASE_URL) or None,
+        base_url=base,
     )
 
 
@@ -122,7 +128,7 @@ def build_mcp_request_params(
     model: str,
     max_steps: int,
     reasoning_effort: str | None = None,
-    provider: str | None = None,
+    provider: str,
 ):
     """Build mcp-agent ``RequestParams`` with provider-appropriate effort wiring.
 
@@ -155,7 +161,7 @@ def build_mcp_agent_settings(
     scenario_name: str,
     model: str,
     *,
-    provider: str | None = None,
+    provider: str,
     reasoning_effort: str | None = None,
 ) -> Settings:
     """Build mcp-agent Settings for a NIKA troubleshooting session."""

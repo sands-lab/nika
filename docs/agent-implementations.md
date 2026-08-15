@@ -61,22 +61,28 @@ See [Configure agent skills](agent-skills.md) to author a custom skill. Integrat
 
 Every agent runs **diagnosis** (Kathara MCP, `if_submit=False`) then **submission** (task MCP, `if_submit=True` → `list_avail_problems` + `submit`).
 
-## CLI and environment
+## CLI and configuration
 
-`nika agent run` resolves options from CLI flags first, then the local `config/nika.yaml` (copy the tracked [`config/nika.example.yaml`](../config/nika.example.yaml)). Credentials stay in [`.env`](../.env.example). See `nika config show` or `nika config migrate`.
+`nika agent run` resolves options from CLI flags first, then the selected run configuration, then schema defaults. Copy the tracked [`config/nika.example.yaml`](../config/nika.example.yaml) to `config/nika.yaml` for usable model choices. Credentials stay in [`.env`](../.env.example). See the [run configuration reference](configuration.md) for every setting and validation rule.
 
 ### Shared (all agents)
 
-| Flag | Config / Env | Required | Notes |
-|------|--------------|----------|-------|
-| `-a` / `--agent` | `agent.type` | Yes | via YAML or flag |
-| `-p` / `--provider` | `agent.provider` | Yes | `openai`, `anthropic`, `deepseek`, `custom` |
-| `-n` / `--max-steps` | `agent.max_steps` | Yes | |
-| `-m` / `--model` | `agent.model` / `agent.models.*` | No | |
-| `--run-config` | `NIKA_RUN_CONFIG` | No | path to YAML (default `config/nika.yaml`) |
-| `--session_id` | Not set | No | Target session |
+| Flag | Config | Schema default | Notes |
+|------|--------|----------------|-------|
+| `-a` / `--agent` | `agent.type` | `byo.langgraph` | Agent registry name |
+| `-p` / `--provider` | `agent.provider` | `openai` | Must be supported by the selected agent |
+| `-n` / `--max-steps` | `agent.max_steps` | `20` | Step or turn limit for agents that support it |
+| `-m` / `--model` | `agent.model` / `agent.models.*` | None | The example config supplies per-agent models |
+| `--run-config` | `NIKA_RUN_CONFIG` | `config/nika.yaml` | Path selector; not an operational setting |
+| `--session_id` | None | Auto-select | Selects the sole running session when omitted |
 
 Provider credentials live in `.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or `NIKA_CUSTOM_API_KEY`). Custom base URL/model live under `agent.custom` in YAML.
+
+| Agent family | Supported providers |
+| --- | --- |
+| `byo.langgraph`, `byo.mcp_agent`, `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `cli.codex`, `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
+| `cli.claude`, `sdk.claude_sdk`, `community.sade` | `anthropic`, `deepseek`, `custom` |
 
 ### Sandbox (non-BYO agents)
 
@@ -115,13 +121,13 @@ LangGraph orchestration + LangChain ReAct workers per phase.
 
 **Entry**: `agent.byo.langgraph.react_agent.BasicReActAgent`
 
-**Requires**: API key for the chosen provider.
+**Requires**: credentials for the chosen provider, unless a custom endpoint accepts unauthenticated requests.
 
 | Provider | Credentials / URL |
 |----------|-------------------|
-| `openai` | `OPENAI_API_KEY` in `.env` |
-| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `ANTHROPIC_BASE_URL` for Anthropic-compatible endpoints |
-| `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
+| `openai` | `OPENAI_API_KEY` in `.env`; optional `agent.custom.base_url` for OpenAI-compatible gateways |
+| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `agent.custom.base_url` for Anthropic-compatible gateways |
+| `deepseek` | `DEEPSEEK_API_KEY` in `.env`; NIKA supplies the DeepSeek endpoint |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
 | Flag | YAML | Notes |
@@ -178,11 +184,11 @@ Native two-phase orchestration + `codex exec` via `sbx exec` (native `codex` tem
 
 **Entry**: `agent.cli.codex.agent.CodexCliAgent`
 
-**Requires**: [Codex CLI](https://github.com/openai/codex) available in the sbx `codex` template. Auth: `OPENAI_API_KEY` in `.env` (synced to `sbx secret`) or `sbx secret set -g openai --oauth`.
+**Requires**: [Codex CLI](https://github.com/openai/codex) available in the sbx `codex` template. Use `OPENAI_API_KEY` or `sbx secret set -g openai --oauth` for OpenAI, `DEEPSEEK_API_KEY` for DeepSeek, or `agent.custom.base_url` with optional `NIKA_CUSTOM_API_KEY` for a custom endpoint.
 
 | Flag | YAML | Notes |
 |------|------|-------|
-| `-m` / `--model` | `agent.models.codex` | Default `gpt-5.4-mini` |
+| `-m` / `--model` | `agent.models.codex` | The example config uses `gpt-5-mini` |
 | `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional |
 
 ```yaml
@@ -216,12 +222,12 @@ Native two-phase orchestration + `claude -p` via `sbx exec` (native `claude` tem
 |------|-------|
 | DeepSeek (preferred) | `DEEPSEEK_API_KEY` in `.env` + `agent.provider: deepseek` |
 | Native Anthropic API | `ANTHROPIC_API_KEY` in `.env` + `agent.provider: anthropic` |
-| Custom proxy | `agent.custom.base_url` (+ optional `NIKA_CUSTOM_API_KEY`) + `agent.provider: custom` |
+| Custom / Anthropic-compatible gateway | `agent.custom.base_url` (+ optional `NIKA_CUSTOM_API_KEY`) with `agent.provider: custom`, or `provider: anthropic` plus `agent.custom.base_url` |
 | Claude subscription | `/login` so the host stores the `anthropic` sbx secret |
 
 When credentials come from env vars, NIKA runs `claude` with `--bare`. Subscription / OAuth mode does not use `--bare`.
 
-**Model** (when `-m` omitted): `agent.models.claude`, then Anthropic/Claude Code default model env vars if present.
+**Model** (when `-m` is omitted): `agent.model`, then `agent.models.claude`. NIKA raises an error when neither field is set.
 
 ```yaml
 agent:
@@ -245,12 +251,12 @@ mcp-agent ``Workflow`` orchestration + [mcp-agent SDK](https://docs.mcp-agent.co
 
 **Entry**: `agent.byo.mcp_agent.agent.McpAgent`
 
-**Requires**: API key for the chosen provider.
+**Requires**: credentials for the chosen provider, unless a custom endpoint accepts unauthenticated requests.
 
 | Provider | Credentials / URL |
 |----------|-------------------|
-| `openai` | `OPENAI_API_KEY` in `.env` |
-| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `ANTHROPIC_BASE_URL` for Anthropic-compatible endpoints |
+| `openai` | `OPENAI_API_KEY` in `.env`; optional `agent.custom.base_url` for OpenAI-compatible gateways |
+| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `agent.custom.base_url` for Anthropic-compatible gateways |
 | `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
@@ -281,12 +287,12 @@ AutoGen ``GraphFlow`` orchestration + [AutoGen AgentChat](https://microsoft.gith
 
 **Entry**: `agent.byo.autogen.agent.AutogenAgent`
 
-**Requires**: API key for the chosen provider.
+**Requires**: credentials for the chosen provider, unless a custom endpoint accepts unauthenticated requests.
 
 | Provider | Credentials / URL |
 |----------|-------------------|
-| `openai` | `OPENAI_API_KEY` in `.env` |
-| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `ANTHROPIC_BASE_URL` for Anthropic-compatible endpoints |
+| `openai` | `OPENAI_API_KEY` in `.env`; optional `agent.custom.base_url` for OpenAI-compatible gateways |
+| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `agent.custom.base_url` for Anthropic-compatible gateways |
 | `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
@@ -348,11 +354,11 @@ Native two-phase pipeline via ``openai-codex`` ``AsyncCodex`` threads (no LangGr
 
 **Requires**: `uv sync --extra sdk --prerelease=allow`
 
-**Auth**: `OPENAI_API_KEY` in `.env` (auto-synced to `sbx secret`) or Codex subscription via `sbx secret set -g openai --oauth`.
+**Auth**: Same provider and credential choices as `cli.codex`.
 
 | Flag | YAML | Notes |
 |------|------|-------|
-| `-m` / `--model` | `agent.models.codex_sdk` / `codex` | Default `gpt-5.4-mini` |
+| `-m` / `--model` | `agent.models.codex_sdk` / `codex` | The example config uses `gpt-5-mini` |
 | `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 
 ```bash

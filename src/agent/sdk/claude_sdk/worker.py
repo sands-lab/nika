@@ -38,6 +38,7 @@ class ClaudeSdkWorker:
         max_steps: int = 20,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         system_prompt: str,
     ) -> None:
         if phase not in PHASES:
@@ -47,6 +48,7 @@ class ClaudeSdkWorker:
         self.session_dir = session_dir
         self.phase = phase
         self.model = model
+        self.llm_provider = llm_provider
         self.max_steps = max_steps
         self.scenario_name = scenario_name
         self.system_prompt = system_prompt
@@ -81,7 +83,9 @@ class ClaudeSdkWorker:
             ) from exc
 
         mcp_servers = self._load_mcp_servers()
-        sdk_env = prepare_claude_sdk_env(session_id=self.session_id)
+        sdk_env = prepare_claude_sdk_env(
+            session_id=self.session_id, provider=self.llm_provider
+        )
 
         self._logger.log(
             "mcp_config",

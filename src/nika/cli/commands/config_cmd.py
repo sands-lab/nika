@@ -165,7 +165,7 @@ def config_migrate(
         "# LANGFUSE_PUBLIC_KEY=",
         "",
     ]
-    # Preserve actual credential values
+    # Keep credentials in .env. Provider and endpoint selection belongs in YAML.
     for key in CREDENTIAL_ENV_KEYS:
         if key in values:
             # replace commented placeholder

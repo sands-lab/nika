@@ -23,6 +23,7 @@ class McpSubmissionPhase:
         max_steps: int,
         server_names: list[str],
         *,
+        llm_provider: str,
         reasoning_effort: str | None = None,
     ) -> None:
         self._session_id = session_id
@@ -30,6 +31,7 @@ class McpSubmissionPhase:
         self._model = model
         self._max_steps = max_steps
         self._server_names = server_names
+        self._llm_provider = llm_provider
         self._reasoning_effort = _mcp_reasoning_effort(reasoning_effort)
 
     async def run(self, diagnosis_report: str) -> str:
@@ -39,6 +41,7 @@ class McpSubmissionPhase:
             model=self._model,
             max_steps=self._max_steps,
             reasoning_effort=self._reasoning_effort,
+            provider=self._llm_provider,
         )
         prompt = (
             f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
@@ -56,6 +59,7 @@ class McpSubmissionPhase:
                 agent=agent,
                 nika_logger=logger,
                 default_request_params=request_params,
+                provider=self._llm_provider,
             )
             await agent.attach_llm(llm=llm)
             return await llm.generate_str(prompt, request_params=request_params)

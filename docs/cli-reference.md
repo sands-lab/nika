@@ -6,7 +6,7 @@ Implementation: [`main.py`](../src/nika/cli/main.py) registers the command group
 
 Entry point: `nika` (see `[project.scripts]` in `pyproject.toml`). During development use `uv run nika …`.
 
-Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository root (derived from the installed `nika` package location). Credentials load from repo-root `.env`; operational settings from `config/nika.yaml` (see `nika config show` / `migrate`).
+Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository root (derived from the installed `nika` package location). Credentials load from the repository-root `.env`; operational settings load from `config/nika.yaml`. See the [run configuration reference](configuration.md).
 
 ## Command tree
 
@@ -167,7 +167,7 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
   # Session mode (manual lab control)
   nika env run simple_bgp
   nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
-  nika agent run -a cli.codex -m gpt-5.4-mini -e medium
+  nika agent run -a cli.codex -m gpt-5-mini -e medium
   nika session close -y
   ```
 
@@ -216,7 +216,9 @@ Each finished session directory should contain at least `run.json`, `ground_trut
 - **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
 - **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing; confirm with `y` (`[y/N]`, default no). If `.env` has no ops keys, it tells you to prefer `cp config/nika.example.yaml config/nika.yaml`. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
 
-The tracked template is `config/nika.example.yaml` (preferred for new setups). Normal precedence is CLI flags → YAML → built-in defaults; provider API keys remain in the repo-root `.env`.
+The tracked template is `config/nika.example.yaml` (preferred for new setups). Precedence is CLI flags → YAML → built-in defaults. Provider API keys stay in the repo-root `.env`. Leftover operational keys in `.env` are ignored at runtime (NIKA prints a one-shot warning); migrate them instead of relying on env.
+
+Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
 
 ---
 
@@ -265,7 +267,7 @@ Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) unde
 
 **Artifacts**: release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`, and stamp each trial `run.json` with `benchmark_id` / `benchmark_version` / `benchmark_digest` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live run progress (completed/pending trials) is written to `runtime/benchmark_runs/{run_id}.json`.
 
-**`--result_dir`**: for batch `--config` or `--release`, this directory is the run root (see [Results directory](#results-directory---resultdir)). Resume and skip logic inspect this directory. They do not inspect other folders under `results/` or the SQLite index.
+**`--result_dir`**: for batch `--config` or `--release`, this directory is the run root (see [Results directory](#results-directory---result_dir)). Resume and skip logic inspect this directory. They do not inspect other folders under `results/` or the SQLite index.
 
 **`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished trials (rebuilding metrics for solved trials interrupted during finalization), clean the remaining incomplete ones, then run the rest. **`--no-resume`** clears existing trial slots under the run, then executes every trial. Works with any `--batch-size`.
 
@@ -273,7 +275,7 @@ Release runs expand each case to `defaults.n_trials` trials (3 for `0.1.0`) unde
 
 **`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): outer hard per-trial wall clock (default **2400**; set `0` to disable). Each trial gets this budget. On timeout, NIKA kills the worker. If ground truth exists, NIKA finalizes the counted trial as `agent_failed` with `eval_metrics`, so `--resume` keeps it.
 
-**Inner no-response timeout**: MCP clients use `NIKA_MCP_READ_TIMEOUT` (default **120s**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` only limits agent iterations, not wall time.
+**Inner no-response timeout**: MCP clients use `nika.mcp.read_timeout_sec` in `config/nika.yaml` (default **120**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` only limits agent iterations, not wall time.
 
 **`--continue-on-error`** (`benchmark.continue_on_error`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
 

@@ -28,7 +28,7 @@ class KatharaAPIALL(
     NFTableMixin,
     TCMixin,
     TelemetryAPIMixin,
-    K8sAPIMixin
+    K8sAPIMixin,
 ):
     """
     Combined API for all Kathara functionalities.

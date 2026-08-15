@@ -22,6 +22,8 @@ class CodexCliDiagnosisPhase:
         Absolute path to the session results directory.
     model:
         Codex model name (e.g. ``"gpt-5.4-mini"``).
+    llm_provider:
+        Active LLM provider forwarded to the Codex worker.
     reasoning_effort:
         Optional Codex ``model_reasoning_effort`` override.
     timeout:
@@ -39,6 +41,7 @@ class CodexCliDiagnosisPhase:
         timeout: int = 600,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self._worker = CodexWorker(
@@ -49,6 +52,7 @@ class CodexCliDiagnosisPhase:
             reasoning_effort=reasoning_effort,
             timeout=timeout,
             scenario_name=scenario_name,
+            llm_provider=llm_provider,
             stream_output=stream_output,
         )
         self._diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)

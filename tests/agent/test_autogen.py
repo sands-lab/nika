@@ -8,22 +8,20 @@ from tests.support.integration_pipeline import (
     CommonPipelineSteps,
     _min3clos_prerequisites,
     anthropic_api_key_available,
+    deepseek_api_key_available,
     load_test_env,
 )
 
 load_test_env()
-AUTOGEN_PROVIDER = "anthropic"
-AUTOGEN_MODEL = "deepseek-v4-flash"
 AUTOGEN_MAX_STEPS = 20
 AUTOGEN_CLAB_MAX_STEPS = 60
 
 
-@pytest.mark.skipif(
-    not anthropic_api_key_available(),
-    reason="ANTHROPIC_API_KEY required for byo.autogen anthropic e2e",
-)
-class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
-    """Full pipeline with AutoGen via Anthropic-compatible API."""
+class _AutogenPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
+    """Shared Kathara pipeline for byo.autogen."""
+
+    llm_provider: str = ""
+    model: str = ""
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -35,8 +33,8 @@ class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         self._run_agent(
             agent_type="byo.autogen",
-            llm_provider=AUTOGEN_PROVIDER,
-            model=AUTOGEN_MODEL,
+            llm_provider=self.llm_provider,
+            model=self.model,
             max_steps=AUTOGEN_MAX_STEPS,
         )
         row = SessionStore().get_session(self.session_id)
@@ -53,12 +51,11 @@ class AutogenAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
         self._step_close_and_verify("byo.autogen")
 
 
-@pytest.mark.skipif(
-    not (_min3clos_prerequisites() and anthropic_api_key_available()),
-    reason="containerlab/gnmic/Docker or ANTHROPIC_API_KEY not available",
-)
-class AutogenClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
-    """Full containerlab pipeline with the AutoGen agent."""
+class _AutogenClabPipelineBase(ClabCommonPipelineSteps, OrderedPipelineTestCase):
+    """Shared Containerlab pipeline for byo.autogen."""
+
+    llm_provider: str = ""
+    model: str = ""
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -70,8 +67,8 @@ class AutogenClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         self._run_agent(
             agent_type="byo.autogen",
-            llm_provider=AUTOGEN_PROVIDER,
-            model=AUTOGEN_MODEL,
+            llm_provider=self.llm_provider,
+            model=self.model,
             max_steps=AUTOGEN_CLAB_MAX_STEPS,
         )
         row = SessionStore().get_session(self.session_id)
@@ -86,3 +83,43 @@ class AutogenClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
 
     def test_step_05_session_close(self) -> None:
         self._step_close_and_verify("byo.autogen")
+
+
+@pytest.mark.skipif(
+    not deepseek_api_key_available(),
+    reason="DEEPSEEK_API_KEY required for byo.autogen deepseek e2e",
+)
+class AutogenDeepseekPipelineTest(_AutogenPipelineBase):
+    """AutoGen via DeepSeek OpenAI-compatible API."""
+
+    llm_provider = "deepseek"
+    model = "deepseek-chat"
+
+
+@pytest.mark.skipif(
+    not anthropic_api_key_available(),
+    reason="ANTHROPIC_API_KEY required for byo.autogen anthropic e2e",
+)
+class AutogenAnthropicPipelineTest(_AutogenPipelineBase):
+    """AutoGen via official Anthropic API."""
+
+    llm_provider = "anthropic"
+    model = "claude-haiku-4-5"
+
+
+@pytest.mark.skipif(
+    not (_min3clos_prerequisites() and deepseek_api_key_available()),
+    reason="containerlab/gnmic/Docker or DEEPSEEK_API_KEY not available",
+)
+class AutogenDeepseekClabPipelineTest(_AutogenClabPipelineBase):
+    llm_provider = "deepseek"
+    model = "deepseek-chat"
+
+
+@pytest.mark.skipif(
+    not (_min3clos_prerequisites() and anthropic_api_key_available()),
+    reason="containerlab/gnmic/Docker or ANTHROPIC_API_KEY not available",
+)
+class AutogenAnthropicClabPipelineTest(_AutogenClabPipelineBase):
+    llm_provider = "anthropic"
+    model = "claude-haiku-4-5"

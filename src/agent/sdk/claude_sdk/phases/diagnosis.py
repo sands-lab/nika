@@ -14,6 +14,8 @@ class ClaudeSdkDiagnosisPhase:
         model: str,
         max_steps: int = 20,
         scenario_name: str = "",
+        *,
+        llm_provider: str,
     ) -> None:
         diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
         self._diagnosis_prompt = diagnosis_prompt
@@ -22,6 +24,7 @@ class ClaudeSdkDiagnosisPhase:
             session_dir=session_dir,
             phase=DIAGNOSIS,
             model=model,
+            llm_provider=llm_provider,
             max_steps=max_steps,
             scenario_name=scenario_name,
             system_prompt=diagnosis_prompt,

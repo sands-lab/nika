@@ -98,6 +98,7 @@ class CodexProgressDetectionTest:
             session_id="sess-123",
             session_dir="/tmp/sess-123",
             phase="diagnosis",
+            llm_provider="openai",
         )
         loop = asyncio.new_event_loop()
         now = loop.time()
@@ -121,6 +122,7 @@ class CodexWorkerConfigTest:
                 session_dir="/tmp/sess-123",
                 phase=DIAGNOSIS,
                 reasoning_effort="turbo",
+                llm_provider="openai",
             )
 
 

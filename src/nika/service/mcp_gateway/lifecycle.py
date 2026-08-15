@@ -22,8 +22,6 @@ from nika.utils.net import pick_free_port
 
 ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
-ENV_GATEWAY_HOST = "NIKA_MCP_GATEWAY_HOST"
-ENV_GATEWAY_PORT = "NIKA_MCP_GATEWAY_PORT"
 
 SANDBOX_GATEWAY_BIND_HOST = "0.0.0.0"
 SANDBOX_GATEWAY_AGENT_HOST = "host.docker.internal"
@@ -98,9 +96,22 @@ def start_gateway(
 ) -> McpGatewayManager:
     """Start the MCP gateway and return its manager."""
     global _active_manager
-    bind_host = host or os.environ.get(ENV_GATEWAY_HOST, "127.0.0.1")
-    port_raw = port if port is not None else os.environ.get(ENV_GATEWAY_PORT, "0")
-    bind_port = pick_free_port(bind_host) if str(port_raw) == "0" else int(port_raw)
+    if host is None or port is None:
+        try:
+            from nika.run_config.loader import get_run_config
+
+            mcp = get_run_config().nika.mcp
+            if host is None:
+                host = mcp.gateway_host
+            if port is None:
+                port = int(mcp.gateway_port)
+        except Exception:  # noqa: BLE001
+            if host is None:
+                host = "127.0.0.1"
+            if port is None:
+                port = 0
+    bind_host = host
+    bind_port = pick_free_port(bind_host) if int(port) == 0 else int(port)
 
     manager = McpGatewayManager(host=bind_host, port=bind_port, backend=backend)
     manager.start()

@@ -83,8 +83,10 @@ class ClaudeWorker:
         One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
-        reads from ``ANTHROPIC_MODEL`` and related env vars (see
-        :func:`~agent.cli.claude.config.default_claude_model`).
+        requires ``agent.models.claude`` / ``-m`` (see
+        :func:`~agent.cli.claude.config.resolve_claude_model`).
+    llm_provider:
+        Active LLM provider for credential mapping.
     timeout:
         Hard timeout in seconds for the subprocess (default 600 s).
     scenario_name:
@@ -101,6 +103,7 @@ class ClaudeWorker:
         timeout: int = 600,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         if phase not in PHASES:
@@ -108,6 +111,7 @@ class ClaudeWorker:
 
         self.session_id = session_id
         self.phase = phase
+        self.llm_provider = llm_provider
         self.model = resolve_claude_model(model)
         self.timeout = timeout
         self.scenario_name = scenario_name
@@ -157,11 +161,11 @@ class ClaudeWorker:
         """
         self._setup_workspace()
 
-        env = prepare_claude_subprocess_env()
+        env = prepare_claude_subprocess_env(provider=self.llm_provider)
         # API-key / token mode needs --bare so Claude uses env credentials
         # (including set-custom placeholders) instead of prompting for /login.
         # Subscription / OAuth mode must not use --bare.
-        bare = use_bare_claude_mode()
+        bare = use_bare_claude_mode(provider=self.llm_provider)
 
         assert self._mcp_config_path is not None
         cmd = [

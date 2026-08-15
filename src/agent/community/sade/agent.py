@@ -87,11 +87,13 @@ class SadeAgent:
         session_id: str,
         model: str = "claude-sonnet-4-6",
         max_steps: int = 20,
-        **_: Any,
+        *,
+        llm_provider: str,
     ) -> None:
         self.session_id = session_id
         self.model = model
         self.max_steps = max_steps
+        self.llm_provider = llm_provider
         self.session_dir, scenario_name = resolve_sdk_session_fields(session_id)
 
         self.mcp_servers = to_sdk_mcp_servers(
@@ -102,7 +104,9 @@ class SadeAgent:
         )
 
     async def run(self, task_description: str) -> dict[str, Any]:
-        sdk_env = prepare_sade_sdk_env(session_id=self.session_id)
+        sdk_env = prepare_sade_sdk_env(
+            session_id=self.session_id, provider=self.llm_provider
+        )
         msg_logger = MessageLogger(agent=AGENT_TAG, session_dir=self.session_dir)
         logger.info("sade: starting session %s", self.session_id)
 

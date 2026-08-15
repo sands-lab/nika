@@ -45,7 +45,7 @@ nika:
   enable_skills: true
 ```
 
-`NIKA_ENABLE_SKILLS` remains an internal one-process override for sandbox workers and tests; normal runs should use the YAML setting.
+Set `nika.enable_skills` in `config/nika.yaml`. Agents read that setting at runtime and do not accept a separate skills environment-variable override.
 
 ## Writing a custom skill
 

@@ -23,7 +23,6 @@ isolated, per-session workspace.  It handles:
 
 import asyncio
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,12 +44,17 @@ RECONNECT_STALL_TIMEOUT_S = 120
 def prepare_codex_subprocess_env(
     *,
     codex_home: str | Path,
-    provider: str | None = None,
+    provider: str,
     agent_type: str = "cli.codex",
     base: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Minimal env for ``codex exec`` with provider-mapped credentials only."""
-    prov = (provider or os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+    if not provider or not str(provider).strip():
+        raise ValueError(
+            "Missing LLM provider: set agent.provider in config/nika.yaml "
+            "or pass -p/--provider."
+        )
+    prov = str(provider).strip().lower()
     env = build_agent_subprocess_env(agent_type=agent_type, provider=prov, base=base)
     env["CODEX_HOME"] = str(codex_home)
     return env
@@ -169,6 +173,8 @@ class CodexWorker:
         Kill the subprocess when no productive Codex events arrive for this
         many seconds (default 300 s).  After reconnect exhaustion the limit
         drops to :data:`RECONNECT_STALL_TIMEOUT_S`.
+    llm_provider:
+        Active LLM provider for credential mapping.
     scenario_name:
         Used by :func:`~agent.utils.mcp_servers.select_diagnosis_servers` to pick relevant servers.
         Ignored for the submission phase (which always uses the task server).
@@ -185,6 +191,7 @@ class CodexWorker:
         stall_timeout: int = DEFAULT_STALL_TIMEOUT_S,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         if phase not in PHASES:
@@ -200,6 +207,7 @@ class CodexWorker:
         self.session_id = session_id
         self.phase = phase
         self.model = model
+        self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
         self.timeout = timeout
         self.stall_timeout = stall_timeout
@@ -269,7 +277,10 @@ class CodexWorker:
         output_file.unlink(missing_ok=True)
 
         # Provider-mapped credentials only; override CODEX_HOME for isolation.
-        env = prepare_codex_subprocess_env(codex_home=self._codex_home)
+        env = prepare_codex_subprocess_env(
+            codex_home=self._codex_home,
+            provider=self.llm_provider,
+        )
 
         cmd = ["codex", "exec"]
         if self.reasoning_effort is not None:

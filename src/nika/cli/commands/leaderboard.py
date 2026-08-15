@@ -59,7 +59,9 @@ def leaderboard_pack(
     )
 
     if not result_dir:
-        raise typer.BadParameter("--result_dir is required (or set NIKA_RESULT_DIR)")
+        raise typer.BadParameter(
+            "--result_dir is required (or set nika.result_dir in config/nika.yaml)"
+        )
 
     try:
         package = pack_leaderboard_submission(

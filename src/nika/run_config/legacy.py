@@ -50,6 +50,21 @@ LEGACY_OPERATIONAL_ENV_KEYS: tuple[str, ...] = (
     "NIKA_CASE_TIMEOUT",
     "NIKA_CONTINUE_ON_ERROR",
     "NIKA_RETRY_PASSES",
+    "NIKA_LLM_TIMEOUT",
+    "NIKA_LLM_RETRIES",
+    "NIKA_MCP_READ_TIMEOUT",
+    "NIKA_MCP_GATEWAY_HOST",
+    "NIKA_MCP_GATEWAY_PORT",
+    "NIKA_K8S_ACCESS",
+    "NIKA_K8S_APISERVER",
+    "NIKA_DEPLOY_ATTEMPTS",
+    "NIKA_DEPLOY_READY_TIMEOUT",
+    "NIKA_DEPLOY_SETTLE",
+    "NIKA_UNDEPLOY_VERIFY_TIMEOUT",
+    "NIKA_LAB_VERIFY_MAX_WAIT",
+    "NIKA_LAB_VERIFY_RETRY_DELAY",
+    "NIKA_VERIFY_MAX_ATTEMPTS",
+    "NIKA_VERIFY_RETRY_DELAY_SEC",
 )
 
 # Removed entirely — do not migrate values
@@ -142,14 +157,24 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
             return None
         return int(raw)
 
+    def g_float(key: str) -> float | None:
+        raw = g(key)
+        if raw is None:
+            return None
+        return float(raw)
+
     agent: dict[str, Any] = {}
     models: dict[str, Any] = {}
     custom: dict[str, Any] = {}
+    llm: dict[str, Any] = {}
     nika: dict[str, Any] = {}
     remote: dict[str, Any] = {}
     sandbox: dict[str, Any] = {}
     observability: dict[str, Any] = {}
     judge: dict[str, Any] = {}
+    k8s: dict[str, Any] = {}
+    lab: dict[str, Any] = {}
+    mcp: dict[str, Any] = {}
     benchmark: dict[str, Any] = {}
 
     if v := g("NIKA_AGENT_TYPE"):
@@ -182,6 +207,11 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
         custom["base_url"] = v
     if v := g("NIKA_CUSTOM_MODEL"):
         custom["model"] = v
+
+    if (f := g_float("NIKA_LLM_TIMEOUT")) is not None:
+        llm["timeout_sec"] = f
+    if (i := g_int("NIKA_LLM_RETRIES")) is not None:
+        llm["max_retries"] = i
 
     if v := g("NIKA_RESULT_DIR"):
         nika["result_dir"] = v
@@ -216,6 +246,35 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
     if v := g("NIKA_REMOTE_ARTIFACT_ROOT"):
         remote["artifact_root"] = v
 
+    if v := g("NIKA_K8S_ACCESS"):
+        k8s["access"] = v
+    if v := g("NIKA_K8S_APISERVER"):
+        k8s["apiserver"] = v
+
+    if (i := g_int("NIKA_DEPLOY_ATTEMPTS")) is not None:
+        lab["deploy_attempts"] = i
+    if (f := g_float("NIKA_DEPLOY_READY_TIMEOUT")) is not None:
+        lab["deploy_ready_timeout_sec"] = f
+    if (f := g_float("NIKA_DEPLOY_SETTLE")) is not None:
+        lab["deploy_settle_sec"] = f
+    if (f := g_float("NIKA_UNDEPLOY_VERIFY_TIMEOUT")) is not None:
+        lab["undeploy_verify_timeout_sec"] = f
+    if (f := g_float("NIKA_LAB_VERIFY_MAX_WAIT")) is not None:
+        lab["ready_max_wait_sec"] = f
+    if (f := g_float("NIKA_LAB_VERIFY_RETRY_DELAY")) is not None:
+        lab["ready_retry_delay_sec"] = f
+    if (i := g_int("NIKA_VERIFY_MAX_ATTEMPTS")) is not None:
+        lab["failure_verify_max_attempts"] = i
+    if (f := g_float("NIKA_VERIFY_RETRY_DELAY_SEC")) is not None:
+        lab["failure_verify_retry_delay_sec"] = f
+
+    if (f := g_float("NIKA_MCP_READ_TIMEOUT")) is not None:
+        mcp["read_timeout_sec"] = f
+    if v := g("NIKA_MCP_GATEWAY_HOST"):
+        mcp["gateway_host"] = v
+    if (i := g_int("NIKA_MCP_GATEWAY_PORT")) is not None:
+        mcp["gateway_port"] = i
+
     if v := g_int("NIKA_CASE_TIMEOUT"):
         benchmark["case_timeout_sec"] = v
     if (b := g_bool("NIKA_CONTINUE_ON_ERROR")) is not None:
@@ -227,8 +286,8 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
         agent["models"] = models
     if custom:
         agent["custom"] = custom
-    if agent:
-        pass  # keep
+    if llm:
+        agent["llm"] = llm
     if remote:
         nika["remote"] = remote
     if sandbox:
@@ -237,6 +296,12 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
         nika["observability"] = observability
     if judge:
         nika["judge"] = judge
+    if k8s:
+        nika["k8s"] = k8s
+    if lab:
+        nika["lab"] = lab
+    if mcp:
+        nika["mcp"] = mcp
 
     out: dict[str, Any] = {"version": 1}
     if agent:

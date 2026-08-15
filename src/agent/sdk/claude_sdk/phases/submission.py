@@ -12,12 +12,15 @@ class ClaudeSdkSubmissionPhase:
         session_dir: str,
         model: str,
         max_steps: int = 20,
+        *,
+        llm_provider: str,
     ) -> None:
         self._worker = ClaudeSdkWorker(
             session_id=session_id,
             session_dir=session_dir,
             phase=SUBMISSION,
             model=model,
+            llm_provider=llm_provider,
             max_steps=max_steps,
             system_prompt=SUBMIT_PROMPT_TEMPLATE,
         )

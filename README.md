@@ -5,7 +5,6 @@
 <br />
 
 [🤖 Overview](#-overview) ·
-[📰 News](#-news) ·
 [✨ Features](#-features) ·
 [📦 Installation](#-installation) ·
 [🚀 Quick start](#-quick-start) ·
@@ -21,6 +20,7 @@
 
 ## 📰 News
 
+- **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`; existing installations with operational `.env` keys can run [`nika config migrate`](docs/cli-reference.md#nika-config).
 - **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
 
 ## ❓ What is NIKA?
@@ -173,9 +173,11 @@ Keys live in `.env`; agent/benchmark settings live in `config/nika.yaml` (CLI fl
 
 ```shell
 cp .env.example .env
-cp config/nika.example.yaml config/nika.yaml   # migrate only if you have legacy .env ops
+cp config/nika.example.yaml config/nika.yaml
 nika config show
 ```
+
+If an existing `.env` contains operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/configuration.md) for precedence, defaults, and validation rules.
 
 **Provider** — use a built-in provider (`openai` / `anthropic` / `deepseek`). Put the matching API key in `.env`, and set `agent.provider` in YAML:
 
@@ -236,8 +238,9 @@ Pick the path that matches what you're trying to do:
 **🏁 I want to run the benchmark, any agent**
 
 1. [Quick start](#-quick-start) — end-to-end task run or frozen release.
-2. [CLI reference](docs/cli-reference.md) — `nika` commands, sessions, and result paths.
-3. [Leaderboard submission](docs/leaderboard-submission.md)
+2. [Run configuration](docs/configuration.md): YAML settings, credentials, defaults, and migration.
+3. [CLI reference](docs/cli-reference.md): `nika` commands, sessions, and result paths.
+4. [Leaderboard submission](docs/leaderboard-submission.md)
 
 **🔌 I want to connect my own agent**
 

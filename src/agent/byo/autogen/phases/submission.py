@@ -45,6 +45,7 @@ class AutogenSubmissionPhase:
         max_steps: int,
         scenario_name: str,
         *,
+        llm_provider: str,
         reasoning_effort: str | None = None,
     ) -> None:
         self._session_id = session_id
@@ -52,6 +53,7 @@ class AutogenSubmissionPhase:
         self._model = model
         self._max_steps = max_steps
         self._scenario_name = scenario_name
+        self._llm_provider = llm_provider
         self._reasoning_effort = reasoning_effort
 
     async def run(self, diagnosis_report: str) -> str:
@@ -62,7 +64,9 @@ class AutogenSubmissionPhase:
         )
         logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
         model_client = create_model_client(
-            self._model, reasoning_effort=self._reasoning_effort
+            self._model,
+            provider=self._llm_provider,
+            reasoning_effort=self._reasoning_effort,
         )
         prompt = (
             f"Based on the diagnosis report: {diagnosis_report}, "

@@ -22,7 +22,7 @@ class SadeConfigTest:
             },
             clear=True,
         ):
-            env = prepare_sade_sdk_env(session_id="sess-abc")
+            env = prepare_sade_sdk_env(session_id="sess-abc", provider="anthropic")
         assert env["ANTHROPIC_API_KEY"] == "tok"
         assert env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
         assert env["NIKA_SESSION_ID"] == "sess-abc"
@@ -30,7 +30,7 @@ class SadeConfigTest:
     def test_prepare_env_requires_credentials(self) -> None:
         with unittest.mock.patch.dict(os.environ, {}, clear=True):
             with pytest.raises(RuntimeError):
-                prepare_sade_sdk_env(session_id="sess-abc")
+                prepare_sade_sdk_env(session_id="sess-abc", provider="anthropic")
 
     def test_sade_credentials_available_with_auth_token(self) -> None:
         with unittest.mock.patch.dict(

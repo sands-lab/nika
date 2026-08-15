@@ -12,23 +12,25 @@ from agent.cli.claude.config import (
 
 
 def sade_credentials_available() -> bool:
-    """True when Anthropic credentials are configured (env or sbx secret)."""
+    """Return whether Claude-compatible credentials or an sbx secret exist."""
     return has_env_claude_credentials() or claude_sbx_secret_available()
 
 
-def prepare_sade_sdk_env(*, session_id: str) -> dict[str, str]:
-    """Build SDK env with Anthropic credentials and session context."""
+def prepare_sade_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
+    """Build the SADE SDK environment for the selected provider and session."""
     if not sade_credentials_available():
         raise RuntimeError(
             "Model provider credentials are not set. Configure ANTHROPIC_API_KEY "
-            "(native), or DEEPSEEK_API_KEY with NIKA_LLM_PROVIDER=deepseek, or "
-            "NIKA_CUSTOM_* with NIKA_LLM_PROVIDER=custom in the repo-root .env, "
-            "or authenticate with Claude `/login` so the host `anthropic` "
-            "sbx secret is stored before running `nika agent run -a community.sade`."
+            "(native), DEEPSEEK_API_KEY with agent.provider=deepseek, or "
+            "agent.custom.base_url with agent.provider=custom and optional "
+            "NIKA_CUSTOM_API_KEY. Store keys in the repository-root .env and "
+            "operational settings in config/nika.yaml. You can also authenticate "
+            "with Claude `/login` "
+            "so the host `anthropic` sbx secret is stored before running "
+            "`nika agent run -a community.sade`."
         )
     from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL, in_sandbox
 
-    provider = (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower() or None
     env = prepare_claude_subprocess_env(provider=provider, agent_type="community.sade")
     env["NIKA_SESSION_ID"] = session_id
     if in_sandbox():

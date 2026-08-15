@@ -142,6 +142,7 @@ class ClaudeWorkerConfigTest:
                 session_id="sess-123",
                 session_dir="/tmp/sess-123",
                 phase="invalid_phase",
+                llm_provider="anthropic",
             )
 
 
