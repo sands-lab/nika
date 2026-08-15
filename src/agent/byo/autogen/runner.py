@@ -24,6 +24,8 @@ from agent.utils.provider_env import (
     resolve_custom_api_key,
     resolve_custom_base_url,
 )
+from agent.utils.reasoning_effort import map_anthropic_effort
+
 
 _KATHARA_PREFIXES = MCP_SERVER_PREFIXES
 
@@ -72,6 +74,37 @@ def _resolve_provider(provider: str | None = None) -> str:
     return ""
 
 
+def _inject_anthropic_output_config(
+    client: AnthropicChatCompletionClient, reasoning_effort: str | None
+) -> AnthropicChatCompletionClient:
+    """Wrap the underlying Anthropic SDK so create/stream send output_config.effort.
+
+    Autogen's AnthropicChatCompletionClient does not forward ``output_config``;
+    inject it on the low-level Messages API instead.
+    """
+    effort = map_anthropic_effort(reasoning_effort)
+    if effort is None:
+        return client
+    messages_api = client._client.messages
+    orig_create = messages_api.create
+    orig_stream = messages_api.stream
+
+    def _with_effort(kwargs: dict) -> dict:
+        out = dict(kwargs)
+        out.setdefault("output_config", {"effort": effort})
+        return out
+
+    def create(*args, **kwargs):
+        return orig_create(*args, **_with_effort(kwargs))
+
+    def stream(*args, **kwargs):
+        return orig_stream(*args, **_with_effort(kwargs))
+
+    messages_api.create = create  # type: ignore[method-assign]
+    messages_api.stream = stream  # type: ignore[method-assign]
+    return client
+
+
 def create_model_client(
     model: str,
     *,
@@ -99,7 +132,8 @@ def create_model_client(
         base = os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
         if base:
             kwargs["base_url"] = base
-        return AnthropicChatCompletionClient(**kwargs)
+        client = AnthropicChatCompletionClient(**kwargs)
+        return _inject_anthropic_output_config(client, reasoning_effort)
 
     if prov == "deepseek":
         api_key = os.environ.get(ENV_DEEPSEEK_API_KEY) or os.environ.get(

@@ -256,7 +256,7 @@ mcp-agent ``Workflow`` orchestration + [mcp-agent SDK](https://docs.mcp-agent.co
 
 | Flag | YAML | Notes |
 |------|------|-------|
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `low`, `medium`, `high` (mcp-agent does not accept `minimal` / `xhigh`). OpenAI/custom only; ignored for DeepSeek and Anthropic. |
+| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `low`, `medium`, `high` (mcp-agent does not accept `minimal` / `xhigh`). OpenAI/custom via `reasoning_effort`; Anthropic via `output_config.effort` (`none` omitted). Ignored for DeepSeek. |
 
 ```yaml
 agent:
@@ -270,7 +270,7 @@ agent:
 
 ```bash
 nika agent run -a byo.mcp_agent -m gpt-5-mini -e medium -n 20
-nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -n 20
+nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -e low -n 20
 ```
 
 ---
@@ -292,7 +292,7 @@ AutoGen ``GraphFlow`` orchestration + [AutoGen AgentChat](https://microsoft.gith
 
 | Flag | YAML | Notes |
 |------|------|-------|
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional. Passed to OpenAI/custom AutoGen clients (ignored for DeepSeek and Anthropic). |
+| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional. OpenAI/custom via client `reasoning_effort`; Anthropic via `output_config.effort` (`minimal`→`low`, `none` omitted). Ignored for DeepSeek. |
 
 ```yaml
 agent:
@@ -306,7 +306,7 @@ agent:
 
 ```bash
 nika agent run -a byo.autogen -m gpt-5-mini -e medium -n 20
-nika agent run -a byo.autogen -p anthropic -m claude-haiku-4-5 -n 20
+nika agent run -a byo.autogen -p anthropic -m claude-haiku-4-5 -e low -n 20
 ```
 
 ---

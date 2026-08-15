@@ -24,6 +24,7 @@ from agent.utils.provider_env import (
     resolve_custom_api_key,
     resolve_custom_base_url,
 )
+from agent.utils.reasoning_effort import anthropic_output_config
 
 
 def _to_server_settings(server: dict) -> MCPServerSettings:
@@ -114,6 +115,39 @@ def _anthropic_settings_for_provider(model: str) -> AnthropicSettings:
         api_key=os.environ.get(ENV_ANTHROPIC_API_KEY) or None,
         base_url=os.environ.get(ENV_ANTHROPIC_BASE_URL) or None,
     )
+
+
+def build_mcp_request_params(
+    *,
+    model: str,
+    max_steps: int,
+    reasoning_effort: str | None = None,
+    provider: str | None = None,
+):
+    """Build mcp-agent ``RequestParams`` with provider-appropriate effort wiring.
+
+    OpenAI/custom: ``reasoning_effort`` field.
+    Anthropic: ``metadata.output_config.effort`` (merged into messages.create).
+    DeepSeek: omit.
+    """
+    from mcp_agent.workflows.llm.augmented_llm import RequestParams
+
+    effort = _mcp_reasoning_effort(reasoning_effort)
+    kwargs: dict = {
+        "model": model,
+        "max_iterations": max_steps,
+        "temperature": 0,
+        "use_history": False,
+    }
+    prov = _resolve_provider(provider)
+    if effort is not None and prov == "anthropic":
+        # Anthropic rejects "none"; omit output_config in that case.
+        meta = anthropic_output_config(effort)
+        if meta is not None:
+            kwargs["metadata"] = meta
+    elif effort is not None and prov != "deepseek":
+        kwargs["reasoning_effort"] = effort
+    return RequestParams(**kwargs)
 
 
 def build_mcp_agent_settings(

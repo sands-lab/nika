@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from mcp_agent.agents.agent import Agent
-from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
-from agent.byo.mcp_agent.config import _mcp_reasoning_effort
+from agent.byo.mcp_agent.config import _mcp_reasoning_effort, build_mcp_request_params
 from agent.byo.mcp_agent.llm import create_nika_augmented_llm
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
@@ -36,15 +35,11 @@ class McpSubmissionPhase:
     async def run(self, diagnosis_report: str) -> str:
         begin_submission_mcp_phase(self._session_id)
         logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
-        request_kwargs: dict = {
-            "model": self._model,
-            "max_iterations": self._max_steps,
-            "temperature": 0,
-            "use_history": False,
-        }
-        if self._reasoning_effort is not None:
-            request_kwargs["reasoning_effort"] = self._reasoning_effort
-        request_params = RequestParams(**request_kwargs)
+        request_params = build_mcp_request_params(
+            model=self._model,
+            max_steps=self._max_steps,
+            reasoning_effort=self._reasoning_effort,
+        )
         prompt = (
             f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
             f"Based on the diagnosis report: {diagnosis_report}\n"

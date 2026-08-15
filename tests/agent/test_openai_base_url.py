@@ -186,14 +186,56 @@ def test_autogen_deepseek_ignores_reasoning_effort(monkeypatch) -> None:
     assert "reasoning_effort" not in ctor.call_args.kwargs
 
 
-def test_autogen_anthropic_ignores_reasoning_effort(monkeypatch) -> None:
+def test_autogen_anthropic_injects_output_config(monkeypatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
     fake = MagicMock(name="client")
+    messages = MagicMock(name="messages")
+    fake._client.messages = messages
+    orig_create = MagicMock(name="orig_create")
+    orig_stream = MagicMock(name="orig_stream")
+    messages.create = orig_create
+    messages.stream = orig_stream
     with patch(
         "agent.byo.autogen.runner.AnthropicChatCompletionClient", return_value=fake
-    ) as ctor:
-        create_model_client(
-            "claude-haiku-4-5", provider="anthropic", reasoning_effort="medium"
+    ):
+        client = create_model_client(
+            "deepseek-v4-flash", provider="anthropic", reasoning_effort="low"
         )
 
-    assert "reasoning_effort" not in ctor.call_args.kwargs
+    assert client is fake
+    messages.create(model="deepseek-v4-flash", messages=[])
+    assert orig_create.call_args.kwargs["output_config"] == {"effort": "low"}
+
+
+def test_autogen_anthropic_omits_effort_for_none(monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+    fake = MagicMock(name="client")
+    messages = MagicMock(name="messages")
+    fake._client.messages = messages
+    orig_create = MagicMock(name="orig_create")
+    messages.create = orig_create
+    messages.stream = MagicMock(name="orig_stream")
+    with patch(
+        "agent.byo.autogen.runner.AnthropicChatCompletionClient", return_value=fake
+    ):
+        create_model_client(
+            "deepseek-v4-flash", provider="anthropic", reasoning_effort="none"
+        )
+
+    # none → no wrap; create remains the original mock.
+    messages.create(model="x", messages=[])
+    assert "output_config" not in orig_create.call_args.kwargs
+
+
+def test_mcp_agent_anthropic_request_params_use_output_config(monkeypatch) -> None:
+    from agent.byo.mcp_agent.config import build_mcp_request_params
+
+    monkeypatch.setenv("NIKA_LLM_PROVIDER", "anthropic")
+    params = build_mcp_request_params(
+        model="deepseek-v4-flash",
+        max_steps=10,
+        reasoning_effort="low",
+        provider="anthropic",
+    )
+    assert params.metadata == {"output_config": {"effort": "low"}}
+    assert params.reasoning_effort is None
