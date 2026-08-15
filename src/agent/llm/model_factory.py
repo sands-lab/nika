@@ -25,14 +25,20 @@ LLM_MAX_RETRIES = int(os.getenv("NIKA_LLM_RETRIES", "2"))
 
 
 def load_model(
-    llm_provider: str = "openai", model: str = "gpt-5-mini"
+    llm_provider: str = "openai",
+    model: str = "gpt-5-mini",
+    *,
+    reasoning_effort: str | None = None,
 ) -> BaseChatModel:
     if llm_provider == "openai":
-        return ChatOpenAI(
-            model_name=model,
-            timeout=LLM_TIMEOUT_SECONDS,
-            max_retries=LLM_MAX_RETRIES,
-        )
+        kwargs: dict = {
+            "model_name": model,
+            "timeout": LLM_TIMEOUT_SECONDS,
+            "max_retries": LLM_MAX_RETRIES,
+        }
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+        return ChatOpenAI(**kwargs)
 
     if llm_provider == "deepseek":
         return ChatDeepSeek(
@@ -55,24 +61,30 @@ def load_model(
         # LangChain OpenAI client requires a non-empty key string; unauthenticated
         # local endpoints can omit NIKA_CUSTOM_API_KEY — use a placeholder only
         # for the client constructor (not stored as a real credential).
-        return ChatOpenAI(
-            model=model,
-            base_url=base_url,
-            api_key=api_key or "no-key",
-            temperature=0,
-            timeout=LLM_TIMEOUT_SECONDS,
-            max_retries=LLM_MAX_RETRIES,
-        )
+        kwargs = {
+            "model": model,
+            "base_url": base_url,
+            "api_key": api_key or "no-key",
+            "temperature": 0,
+            "timeout": LLM_TIMEOUT_SECONDS,
+            "max_retries": LLM_MAX_RETRIES,
+        }
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+        return ChatOpenAI(**kwargs)
 
     if llm_provider == "anthropic":
         # Optional ANTHROPIC_BASE_URL supports Anthropic-compatible endpoints
         # (e.g. https://api.deepseek.com/anthropic).
-        return ChatAnthropic(
-            model=model,
-            api_key=os.getenv(ENV_ANTHROPIC_API_KEY) or None,
-            base_url=os.getenv(ENV_ANTHROPIC_BASE_URL) or None,
-            default_request_timeout=LLM_TIMEOUT_SECONDS,
-            max_retries=LLM_MAX_RETRIES,
-        )
+        kwargs = {
+            "model": model,
+            "api_key": os.getenv(ENV_ANTHROPIC_API_KEY) or None,
+            "base_url": os.getenv(ENV_ANTHROPIC_BASE_URL) or None,
+            "default_request_timeout": LLM_TIMEOUT_SECONDS,
+            "max_retries": LLM_MAX_RETRIES,
+        }
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+        return ChatAnthropic(**kwargs)
 
     raise ValueError(f"Unsupported llm provider: {llm_provider}")

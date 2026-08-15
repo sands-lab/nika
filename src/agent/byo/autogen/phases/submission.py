@@ -44,12 +44,15 @@ class AutogenSubmissionPhase:
         model: str,
         max_steps: int,
         scenario_name: str,
+        *,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._session_id = session_id
         self._session_dir = session_dir
         self._model = model
         self._max_steps = max_steps
         self._scenario_name = scenario_name
+        self._reasoning_effort = reasoning_effort
 
     async def run(self, diagnosis_report: str) -> str:
         begin_submission_mcp_phase(self._session_id)
@@ -58,7 +61,9 @@ class AutogenSubmissionPhase:
             self._scenario_name,
         )
         logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
-        model_client = create_model_client(self._model)
+        model_client = create_model_client(
+            self._model, reasoning_effort=self._reasoning_effort
+        )
         prompt = (
             f"Based on the diagnosis report: {diagnosis_report}, "
             "please provide the submission. Do not submit if no report available."

@@ -124,12 +124,17 @@ LangGraph orchestration + LangChain ReAct workers per phase.
 | `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
+| Flag | YAML | Notes |
+|------|------|-------|
+| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional. Passed to OpenAI, Anthropic, and custom LangChain clients (ignored for DeepSeek). Required by some GPT-5.x models. |
+
 ```yaml
 # config/nika.yaml
 agent:
   type: byo.langgraph
   provider: openai
   max_steps: 20
+  reasoning_effort: medium
   models:
     langgraph: gpt-5-mini
 ```
@@ -138,6 +143,7 @@ agent:
 nika agent run                              # from config/nika.yaml + .env
 nika agent run -a byo.langgraph -p deepseek -m deepseek-chat -n 20
 nika agent run -a byo.langgraph -p anthropic -m claude-haiku-4-5 -n 20
+nika agent run -a byo.langgraph -p openai -m gpt-5-mini -e medium -n 20
 ```
 
 ### Local / OpenAI-compatible endpoints (`custom`)
@@ -248,17 +254,22 @@ mcp-agent ``Workflow`` orchestration + [mcp-agent SDK](https://docs.mcp-agent.co
 | `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
+| Flag | YAML | Notes |
+|------|------|-------|
+| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `low`, `medium`, `high` (mcp-agent does not accept `minimal` / `xhigh`). OpenAI/custom only; ignored for DeepSeek and Anthropic. |
+
 ```yaml
 agent:
   type: byo.mcp_agent
   provider: openai
   max_steps: 20
+  reasoning_effort: medium
   models:
-    mcp_agent: gpt-4.1-mini
+    mcp_agent: gpt-5-mini
 ```
 
 ```bash
-nika agent run -a byo.mcp_agent -m gpt-4.1-mini -n 20
+nika agent run -a byo.mcp_agent -m gpt-5-mini -e medium -n 20
 nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -n 20
 ```
 
@@ -279,17 +290,22 @@ AutoGen ``GraphFlow`` orchestration + [AutoGen AgentChat](https://microsoft.gith
 | `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
 | `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
 
+| Flag | YAML | Notes |
+|------|------|-------|
+| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional. Passed to OpenAI/custom AutoGen clients (ignored for DeepSeek and Anthropic). |
+
 ```yaml
 agent:
   type: byo.autogen
   provider: openai
   max_steps: 20
+  reasoning_effort: medium
   models:
-    autogen: gpt-4.1-mini
+    autogen: gpt-5-mini
 ```
 
 ```bash
-nika agent run -a byo.autogen -m gpt-4.1-mini -n 20
+nika agent run -a byo.autogen -m gpt-5-mini -e medium -n 20
 nika agent run -a byo.autogen -p anthropic -m claude-haiku-4-5 -n 20
 ```
 

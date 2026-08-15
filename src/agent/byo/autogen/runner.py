@@ -73,7 +73,10 @@ def _resolve_provider(provider: str | None = None) -> str:
 
 
 def create_model_client(
-    model: str, *, provider: str | None = None
+    model: str,
+    *,
+    provider: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> ChatCompletionClient:
     """Build an AutoGen chat client for the active provider."""
     prov = _resolve_provider(provider)
@@ -124,12 +127,15 @@ def create_model_client(
         api_key = (
             resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or "no-key"
         )
-        return OpenAIChatCompletionClient(
-            model=model,
-            base_url=base_url,
-            api_key=api_key,
-            model_info=_OPENAI_COMPAT_MODEL_INFO,
-        )
+        kwargs = {
+            "model": model,
+            "base_url": base_url,
+            "api_key": api_key,
+            "model_info": _OPENAI_COMPAT_MODEL_INFO,
+        }
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+        return OpenAIChatCompletionClient(**kwargs)
 
     # openai (default): rely on OPENAI_API_KEY / OPENAI_BASE_URL from env
     kwargs = {"model": model}
@@ -140,6 +146,8 @@ def create_model_client(
         kwargs["model_info"] = _OPENAI_COMPAT_MODEL_INFO
     if key:
         kwargs["api_key"] = key
+    if reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
     return OpenAIChatCompletionClient(**kwargs)
 
 

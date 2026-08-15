@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from agent.byo.autogen.runner import create_model_client
 from agent.byo.mcp_agent.config import _openai_settings_for_provider
 
@@ -136,3 +138,62 @@ def test_mcp_agent_anthropic_settings(monkeypatch) -> None:
         "https://api.deepseek.com/anthropic"
     )
     assert settings.anthropic.default_model == "deepseek-v4-flash"
+
+
+def test_mcp_agent_openai_settings_passes_reasoning_effort(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    settings = _openai_settings_for_provider(
+        "gpt-5-mini", "openai", reasoning_effort="low"
+    )
+    assert settings.reasoning_effort == "low"
+
+
+def test_mcp_agent_rejects_unsupported_reasoning_effort() -> None:
+    with pytest.raises(ValueError, match="byo.mcp_agent reasoning_effort"):
+        _openai_settings_for_provider("gpt-5-mini", "openai", reasoning_effort="xhigh")
+
+
+def test_mcp_agent_deepseek_ignores_reasoning_effort(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
+    settings = _openai_settings_for_provider(
+        "deepseek-chat", "deepseek", reasoning_effort="medium"
+    )
+    # OpenAISettings still has its library default; we simply omit the override.
+    assert settings.default_model == "deepseek-chat"
+
+
+def test_autogen_passes_reasoning_effort(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    fake = MagicMock(name="client")
+    with patch(
+        "agent.byo.autogen.runner.OpenAIChatCompletionClient", return_value=fake
+    ) as ctor:
+        create_model_client("gpt-5-mini", provider="openai", reasoning_effort="medium")
+
+    assert ctor.call_args.kwargs["reasoning_effort"] == "medium"
+
+
+def test_autogen_deepseek_ignores_reasoning_effort(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
+    fake = MagicMock(name="client")
+    with patch(
+        "agent.byo.autogen.runner.OpenAIChatCompletionClient", return_value=fake
+    ) as ctor:
+        create_model_client(
+            "deepseek-chat", provider="deepseek", reasoning_effort="medium"
+        )
+
+    assert "reasoning_effort" not in ctor.call_args.kwargs
+
+
+def test_autogen_anthropic_ignores_reasoning_effort(monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+    fake = MagicMock(name="client")
+    with patch(
+        "agent.byo.autogen.runner.AnthropicChatCompletionClient", return_value=fake
+    ) as ctor:
+        create_model_client(
+            "claude-haiku-4-5", provider="anthropic", reasoning_effort="medium"
+        )
+
+    assert "reasoning_effort" not in ctor.call_args.kwargs

@@ -5,6 +5,7 @@ from __future__ import annotations
 from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
+from agent.byo.mcp_agent.config import _mcp_reasoning_effort
 from agent.byo.mcp_agent.llm import create_nika_augmented_llm
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
@@ -22,22 +23,28 @@ class McpSubmissionPhase:
         model: str,
         max_steps: int,
         server_names: list[str],
+        *,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._session_id = session_id
         self._session_dir = session_dir
         self._model = model
         self._max_steps = max_steps
         self._server_names = server_names
+        self._reasoning_effort = _mcp_reasoning_effort(reasoning_effort)
 
     async def run(self, diagnosis_report: str) -> str:
         begin_submission_mcp_phase(self._session_id)
         logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
-        request_params = RequestParams(
-            model=self._model,
-            max_iterations=self._max_steps,
-            temperature=0,
-            use_history=False,
-        )
+        request_kwargs: dict = {
+            "model": self._model,
+            "max_iterations": self._max_steps,
+            "temperature": 0,
+            "use_history": False,
+        }
+        if self._reasoning_effort is not None:
+            request_kwargs["reasoning_effort"] = self._reasoning_effort
+        request_params = RequestParams(**request_kwargs)
         prompt = (
             f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
             f"Based on the diagnosis report: {diagnosis_report}\n"
