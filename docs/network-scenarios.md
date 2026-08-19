@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 15 scenario IDs. Fourteen use one backend; `isp` supports both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 14 scenario IDs. Thirteen use one backend; `isp` supports both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -8,18 +8,11 @@ The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines th
 uv run nika env list
 ```
 
-## Install a lab backend
+## Backend requirements
 
-Kathara scenarios need Docker and the Kathara dependency group. Containerlab scenarios need Docker, `clab`, and the Containerlab dependency group.
+Kathará scenarios need Docker and the Kathará dependency group. Containerlab scenarios need Docker, `clab`, and the Containerlab dependency group.
 
-```shell
-# Install both backends
-uv sync --extra labs
-
-# Install one backend
-uv sync --extra kathara
-uv sync --extra containerlab
-```
+Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../README.md#install-nika) covers the full installation flow.
 
 `min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `kathara/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment.
 

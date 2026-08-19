@@ -214,10 +214,4 @@ uv run nika benchmark run simple_bgp --problem link_down \
 
 ## Add agent skills
 
-Claude Code and Codex agents can load reusable skill libraries during the **diagnosis** phase. See **[Agent Skills](agent-skills.md)** for:
-
-- default library layout under `src/agent/skills/`
-- the `nika.enable_skills` run-config setting
-- how to author `SKILL.md` files and register them in `CLAUDE.md`
-
-SADE (`community.sade`) ships a separate 15-skill library. See the [SADE community agent reference](agents/community/sade.md).
+Claude Code and Codex agents can load reusable instructions during diagnosis. [Configure agent skills](agent-skills.md) covers the library layout, `SKILL.md` format, registration, and tests. SADE keeps its separate library under `src/agent/community/sade/.claude/`.

@@ -2,8 +2,6 @@
 
 This guide is for operators who run NIKA's CLI, SDK, or SADE agents in **[Docker Sandboxes](https://docs.docker.com/ai/sandboxes/)** (`sbx` microVMs). The network lab, MCP gateway, and orchestration stay on the host. The LLM agent process runs in the microVM. `byo.*` agents run on the host.
 
-Implementation: [`sandbox/runner.py`](../src/agent/sandbox/runner.py) executes agents, and [`sandbox/manifest.py`](../src/agent/sandbox/manifest.py) defines the staged workspace manifest.
-
 ## How it works
 
 NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docker Sandboxes.
@@ -151,22 +149,4 @@ Or pass `--sandbox-proxy` on the CLI.
 
 NIKA also sets `HTTPS_PROXY` on host `sbx` subprocesses from that URL when `HTTPS_PROXY` is unset, so `sbx create` / `sbx exec` can fetch `https://login.docker.com/.well-known/jwks.json`. If Docker Hub token refresh still times out, confirm the proxy can reach `login.docker.com`, then run `sbx login`.
 
-## Testing
-
-```bash
-# Unit (no sbx / lab)
-uv run pytest tests/agent/test_sbx.py tests/agent/test_sandbox.py -v
-
-# Security probe (sbx + MCP gateway)
-uv run pytest tests/agent/test_sandbox_security.py -v
-
-# Cross-sandbox MCP port isolation (unit + sbx peer-gateway probe)
-uv run pytest tests/agent/test_sandbox_isolation.py -v
-
-# E2E: five sandbox agents (Codex needs OPENAI_API_KEY; Claude/SADE need DEEPSEEK_API_KEY)
-uv run pytest tests/agent/test_sandbox_agents.py -v
-
-uv run pytest tests/benchmark/test_sandbox_benchmark.py -v
-```
-
-For the full test matrix and prerequisites, see the [testing guide](testing.md).
+The [agent test matrix](testing.md#agent-tests-testsagent) lists sandbox unit, security, isolation, and end-to-end commands with their prerequisites.

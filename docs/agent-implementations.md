@@ -1,141 +1,59 @@
 # Agent implementation reference
 
-This reference is for maintainers of NIKA's built-in troubleshooting agents. Each implementation follows `protocols.TroubleshootingAgent` and produces the same session artifacts, including `messages.jsonl` and `submission.json`.
+This reference helps operators choose a registered troubleshooting agent and configure its provider, model, and execution environment. Use [Custom agent integration](custom-agents.md) to implement a new agent.
 
-Implementation: [`protocols.py`](../src/agent/protocols.py) defines the agent contract, and [`registry.py`](../src/agent/registry.py) maps CLI names to agent classes.
+[`protocols.py`](../src/agent/protocols.py) defines the shared contract. [`registry.py`](../src/agent/registry.py) maps the CLI names below to their implementations. Confirm the installed checkout with `uv run nika agent list`.
 
-## Directory layout
+## Agent catalog
 
-```
-src/agent/
-├── protocols.py          # Agent contract and diagnosis/submission phase ids
-├── registry.py           # Type registry and factory for `nika agent run`
-├── byo/                  # Bring-your-own LLM / agent framework backends
-│   ├── langgraph/        # -a byo.langgraph (LangChain ReAct workers)
-│   │   ├── react_agent.py
-│   │   └── phases/
-│   ├── mcp_agent/        # -a byo.mcp_agent
-│   └── autogen/          # -a byo.autogen
-├── cli/                  # Official Codex / Claude CLI agents (sbx)
-│   ├── codex/            # -a cli.codex
-│   └── claude/           # -a cli.claude
-├── community/            # Community-contributed agents
-│   └── sade/             # -a community.sade
-├── mock/                 # Test-only deterministic agent (see docs/testing.md)
-│   └── mock_agent.py
-├── sdk/                  # SDK agents (claude-agent-sdk, openai-codex)
-│   ├── claude_sdk/       # -a sdk.claude_sdk
-│   └── codex_sdk/        # -a sdk.codex_sdk
-├── sandbox/              # Docker Sandboxes (sbx) runner / manager / credentials
-├── skills/               # Shared skill library (.claude/ + .agents/)
-├── llm/                  # LangChain model factory (langgraph path)
-└── utils/                # MCP config, loggers, skills helpers
-```
+| CLI name | Orchestration | Execution | Skill support |
+| --- | --- | --- | --- |
+| `byo.langgraph` | LangGraph ReAct workers | Host | No |
+| `byo.mcp_agent` | mcp-agent `Workflow` | Host | No |
+| `byo.autogen` | AutoGen `GraphFlow` | Host | No |
+| `cli.codex` | Codex CLI, two phases | Docker Sandbox `codex` template | Shared Codex skills |
+| `cli.claude` | Claude Code CLI, two phases | Docker Sandbox `claude` template | Shared Claude skills |
+| `sdk.codex_sdk` | `openai-codex`, two threads | Docker Sandbox `shell` template | Shared Codex skills |
+| `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Docker Sandbox `shell` template | Shared Claude skills |
+| `community.sade` | Claude Agent SDK with a 15-skill library | Docker Sandbox `shell` template | SADE library |
 
-## Agent types
+The deterministic `mock` agent supports tests and pipeline checks. Do not use it for benchmark comparisons.
 
-| CLI name | Orchestration | LLM access |
-|----------|---------------|------------|
-| `byo.langgraph` | LangGraph `StateGraph` | LangChain ReAct + `load_model()` |
-| `cli.codex` | Native two-phase | `codex exec` subprocess + shared `.agents/skills/` |
-| `cli.claude` | Native two-phase | `claude -p` subprocess + shared `.claude/skills/` |
-| `byo.mcp_agent` | mcp-agent `Workflow` | mcp-agent + OpenAI / Anthropic |
-| `byo.autogen` | AutoGen `GraphFlow` | AutoGen AgentChat + OpenAI / Anthropic |
-| `community.sade` | Single Claude Code session + 15-skill library | `claude-agent-sdk` (optional extra `sade`) |
-| `sdk.claude_sdk` | Native two-phase `ClaudeSDKClient` sessions | `claude-agent-sdk` + shared skills (optional extra `sdk`) |
-| `sdk.codex_sdk` | Native two-phase `AsyncCodex` threads | `openai-codex` + shared skills (optional extra `sdk`) |
+## Shared run contract
 
-## Community agents
+Each agent diagnoses the live lab through MCP tools, advances to the submission phase, and calls the task MCP `submit` tool. A completed run writes `messages.jsonl` and `submission.json` under the session result directory. The [root-cause scoring reference](root-cause-evaluation.md) defines the submission schema.
 
-Community-contributed agents live under `src/agent/community/<name>/` and implement the same `protocols.TroubleshootingAgent` contract.
+Configure shared values in `config/nika.yaml` or override them on `nika agent run`:
 
-See the [SADE community agent reference](agents/community/sade.md) for setup, DeepSeek credentials, and the paper citation (arXiv:2605.04530).
+| CLI flag | Configuration key | Schema default |
+| --- | --- | --- |
+| `-a`, `--agent` | `agent.type` | `byo.langgraph` |
+| `-p`, `--provider` | `agent.provider` | `openai` |
+| `-m`, `--model` | `agent.model`, then `agent.models.*` | None |
+| `-n`, `--max-steps` | `agent.max_steps` | `20`; used by BYO agents, Claude SDK, SADE, and `mock` |
+| `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
 
-## Agent skills
+See [Run configuration](configuration.md) for precedence, defaults, and validation rules. Store provider keys in `.env`. Store custom endpoint URLs and model choices in YAML.
 
-Claude Code and Codex agents load the shared skill library from `src/agent/skills/` when `nika.enable_skills: true` in `config/nika.yaml` (the default). Helpers live in `agent.utils.skills`. The integration-only `nika-test-skill` is under `test_skills/` and is loaded only when tests pass `include_test_skill=True` to the prepare/prompt helpers.
-
-See [Configure agent skills](agent-skills.md) to author a custom skill. Integration tests: `tests/agent/test_skills.py`.
-
-## Shared pipeline
-
-Every agent runs **diagnosis** (Kathara MCP, `if_submit=False`) then **submission** (task MCP, `if_submit=True` → `list_avail_problems` + `submit`).
-
-## CLI and configuration
-
-`nika agent run` resolves options from CLI flags first, then the selected run configuration, then schema defaults. Copy the tracked [`config/nika.example.yaml`](../config/nika.example.yaml) to `config/nika.yaml` for usable model choices. Credentials stay in [`.env`](../.env.example). See the [run configuration reference](configuration.md) for every setting and validation rule.
-
-### Shared (all agents)
-
-| Flag | Config | Schema default | Notes |
-|------|--------|----------------|-------|
-| `-a` / `--agent` | `agent.type` | `byo.langgraph` | Agent registry name |
-| `-p` / `--provider` | `agent.provider` | `openai` | Must be supported by the selected agent |
-| `-n` / `--max-steps` | `agent.max_steps` | `20` | Step or turn limit for agents that support it |
-| `-m` / `--model` | `agent.model` / `agent.models.*` | None | The example config supplies per-agent models |
-| `--run-config` | `NIKA_RUN_CONFIG` | `config/nika.yaml` | Path selector; not an operational setting |
-| `--session_id` | None | Auto-select | Selects the sole running session when omitted |
-
-Provider credentials live in `.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or `NIKA_CUSTOM_API_KEY`). Custom base URL/model live under `agent.custom` in YAML.
-
-| Agent family | Supported providers |
+| Agent family | Providers |
 | --- | --- |
 | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
 | `cli.codex`, `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
 | `cli.claude`, `sdk.claude_sdk`, `community.sade` | `anthropic`, `deepseek`, `custom` |
 
-### Sandbox (non-BYO agents)
+CLI, SDK, and SADE agents run in Docker Sandboxes. The lab and MCP gateway remain on the host. See [Docker Sandbox execution](agent-sandbox.md) for installation, credentials, isolation, proxy settings, and troubleshooting.
 
-CLI, SDK, and SADE agents run inside Docker Sandboxes (`sbx` microVMs) using the `codex`, `claude`, or `shell` templates. MCP tools and the network lab stay on the host. BYO agents run on the host. See the [agent sandbox guide](agent-sandbox.md).
+## BYO framework agents
 
-Authentication uses the host `sbx secret` store. NIKA syncs API keys from `.env`; Codex subscriptions use `sbx secret set -g openai --oauth`, and Claude subscriptions use `/login`. NIKA does not copy host authentication files into the sandbox.
+BYO agents run on the host and use one framework-specific worker per diagnosis or submission phase.
 
-| Flag / config | Notes |
-|---------------|-------|
-| `--sandbox-keep-container` | Keep the sandbox after agent exit (debug) |
-| `--sandbox-cpus` / `--sandbox-memory` | sbx resource limits |
-| `--sandbox-offline-sdk-wheels` | Optional; host-cached wheels |
-| `--sandbox-proxy` | Optional upstream proxy |
-| `nika.sandbox.*` | Defaults in `config/nika.yaml` |
-
-Outbound proxy and offline SDK wheels are **off by default**. Enable in `config/nika.yaml` when needed.
-
-```bash
-uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
-uv run nika agent run -a cli.claude -p deepseek -m deepseek-v4-flash -n 20
-```
-
-Model resolution order: `-m` → `agent.model` → `agent.models.<agent>` → `agent.custom.model` when provider is `custom`.
-
-### Observability (byo.langgraph)
-
-Langfuse is optional and imported only when `nika.observability.langfuse_enabled` is true in YAML.
-
-Install with `uv sync --extra observability`, then set `LANGFUSE_SECRET_KEY` / `LANGFUSE_PUBLIC_KEY` in `.env` (host optional via `nika.observability.langfuse_host`).
-
----
-
-## byo.langgraph
-
-LangGraph orchestration + LangChain ReAct workers per phase.
-
-**Entry**: `agent.byo.langgraph.react_agent.BasicReActAgent`
-
-**Requires**: credentials for the chosen provider, unless a custom endpoint accepts unauthenticated requests.
-
-| Provider | Credentials / URL |
-|----------|-------------------|
-| `openai` | `OPENAI_API_KEY` in `.env`; optional `agent.custom.base_url` for OpenAI-compatible gateways |
-| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `agent.custom.base_url` for Anthropic-compatible gateways |
-| `deepseek` | `DEEPSEEK_API_KEY` in `.env`; NIKA supplies the DeepSeek endpoint |
-| `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
-
-| Flag | YAML | Notes |
-|------|------|-------|
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional. Passed to OpenAI, Anthropic, and custom LangChain clients (ignored for DeepSeek). Required by some GPT-5.x models. |
+| Agent | Entry point | Reasoning effort |
+| --- | --- | --- |
+| `byo.langgraph` | `agent.byo.langgraph.react_agent.BasicReActAgent` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `byo.mcp_agent` | `agent.byo.mcp_agent.agent.McpAgent` | `none`, `low`, `medium`, `high` |
+| `byo.autogen` | `agent.byo.autogen.agent.AutogenAgent` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 
 ```yaml
-# config/nika.yaml
 agent:
   type: byo.langgraph
   provider: openai
@@ -145,246 +63,75 @@ agent:
     langgraph: gpt-5-mini
 ```
 
-```bash
-nika agent run                              # from config/nika.yaml + .env
-nika agent run -a byo.langgraph -p deepseek -m deepseek-chat -n 20
-nika agent run -a byo.langgraph -p anthropic -m claude-haiku-4-5 -n 20
-nika agent run -a byo.langgraph -p openai -m gpt-5-mini -e medium -n 20
+```shell
+uv run nika agent run
+uv run nika agent run -a byo.langgraph -p deepseek -m deepseek-chat -n 20
+uv run nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -e low
 ```
 
-### Local / OpenAI-compatible endpoints (`custom`)
+### OpenAI-compatible endpoints
 
-Use `-p custom` for any OpenAI-compatible server (Ollama, vLLM, etc.).
+Use the `custom` provider for Ollama, vLLM, OpenRouter, or another OpenAI-compatible server:
 
 ```yaml
-# config/nika.yaml
 agent:
   type: byo.langgraph
   provider: custom
-  max_steps: 20
   models:
     langgraph: qwen2.5:7b
   custom:
     base_url: http://localhost:11434/v1
-    # model: optional default when -m / models.* omitted
 ```
 
-```bash
-# Optional key in .env when the server requires auth:
-# NIKA_CUSTOM_API_KEY=...
+Set `NIKA_CUSTOM_API_KEY` in `.env` only when the endpoint requires authentication.
 
-nika agent run -a byo.langgraph -p custom -m qwen2.5:7b -n 20
+## CLI agents
+
+| Agent | Sandbox command | Model key | Authentication |
+| --- | --- | --- | --- |
+| `cli.codex` | `codex exec` | `agent.models.codex` | OpenAI API key, Codex OAuth, DeepSeek key, or custom endpoint |
+| `cli.claude` | `claude -p` | `agent.models.claude` | Anthropic API key, Claude login, DeepSeek key, or custom endpoint |
+
+```shell
+uv run nika agent run -a cli.codex -m gpt-5-mini -e medium
+uv run nika agent run -a cli.claude -p deepseek -m deepseek-v4-flash
 ```
 
----
+Codex accepts `none`, `minimal`, `low`, `medium`, `high`, or `xhigh` reasoning effort. Claude agents ignore the shared `-e` option. Claude runs with `--bare` when it uses environment credentials and uses its stored login in subscription mode.
 
-## cli.codex
+## SDK agents
 
-Native two-phase orchestration + `codex exec` via `sbx exec` (native `codex` template). Ephemeral workspace under `.sandbox_run/` (discarded after the run). MCP config written to an isolated `CODEX_HOME`.
+Install SDK agents with:
 
-**Entry**: `agent.cli.codex.agent.CodexCliAgent`
-
-**Requires**: [Codex CLI](https://github.com/openai/codex) available in the sbx `codex` template. Use `OPENAI_API_KEY` or `sbx secret set -g openai --oauth` for OpenAI, `DEEPSEEK_API_KEY` for DeepSeek, or `agent.custom.base_url` with optional `NIKA_CUSTOM_API_KEY` for a custom endpoint.
-
-| Flag | YAML | Notes |
-|------|------|-------|
-| `-m` / `--model` | `agent.models.codex` | The example config uses `gpt-5-mini` |
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional |
-
-```yaml
-# config/nika.yaml
-agent:
-  type: cli.codex
-  provider: openai
-  max_steps: 20
-  models:
-    codex: gpt-5-mini
+```shell
+uv sync --extra sdk --prerelease=allow
 ```
 
-```bash
-# OPENAI_API_KEY in .env, or: sbx secret set -g openai --oauth
-nika agent run -a cli.codex -m gpt-5-mini -e medium
+| Agent | SDK | Model lookup | Step limit |
+| --- | --- | --- | --- |
+| `sdk.codex_sdk` | `openai-codex` | `agent.models.codex_sdk`, then `agent.models.codex` | `max_steps` is unused |
+| `sdk.claude_sdk` | `claude-agent-sdk` | `agent.models.claude_sdk`, then `agent.models.claude` | `max_turns` per phase |
+
+```shell
+uv run nika agent run -a sdk.codex_sdk -m gpt-5-mini -e medium
+uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash -n 20
 ```
 
----
+SDK sandboxes install dependencies from PyPI unless you enable `nika.sandbox.offline_sdk_wheels`. See [SDK offline wheels](agent-sandbox.md#sdk-agents-optional-offline-wheels).
 
-## cli.claude
+## Community agents
 
-Native two-phase orchestration + `claude -p` via `sbx exec` (native `claude` template). Ephemeral workspace under `.sandbox_run/` (discarded after the run). MCP config: `{phase}_mcp_config.json`.
+Community implementations live under `src/agent/community/<name>/` and implement the shared agent contract. NIKA registers `community.sade`; its [reference](agents/community/sade.md) covers dependencies, models, credentials, and skills.
 
-**Entry**: `agent.cli.claude.agent.ClaudeAgent`
+## LangGraph observability
 
-**Requires**: Claude Code available in the sbx `claude` template.
+`byo.langgraph` can send traces to Langfuse. Install `uv sync --extra observability`, set `nika.observability.langfuse_enabled: true`, and put `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` in `.env`. Set a non-default host with `nika.observability.langfuse_host`.
 
-**Auth** (pick one):
+## Inspect the active interface
 
-| Mode | Setup |
-|------|-------|
-| DeepSeek (preferred) | `DEEPSEEK_API_KEY` in `.env` + `agent.provider: deepseek` |
-| Native Anthropic API | `ANTHROPIC_API_KEY` in `.env` + `agent.provider: anthropic` |
-| Custom / Anthropic-compatible gateway | `agent.custom.base_url` (+ optional `NIKA_CUSTOM_API_KEY`) with `agent.provider: custom`, or `provider: anthropic` plus `agent.custom.base_url` |
-| Claude subscription | `/login` so the host stores the `anthropic` sbx secret |
-
-When credentials come from env vars, NIKA runs `claude` with `--bare`. Subscription / OAuth mode does not use `--bare`.
-
-**Model** (when `-m` is omitted): `agent.model`, then `agent.models.claude`. NIKA raises an error when neither field is set.
-
-```yaml
-agent:
-  type: cli.claude
-  provider: deepseek
-  max_steps: 20
-  models:
-    claude: deepseek-v4-pro[1m]
+```shell
+uv run nika agent list
+uv run nika agent run --help
 ```
 
-```bash
-nika agent run -a cli.claude
-nika agent run -a cli.claude -m deepseek-v4-flash
-```
-
----
-
-## byo.mcp_agent
-
-mcp-agent ``Workflow`` orchestration + [mcp-agent SDK](https://docs.mcp-agent.com/mcp-agent-sdk/overview) workers per phase.
-
-**Entry**: `agent.byo.mcp_agent.agent.McpAgent`
-
-**Requires**: credentials for the chosen provider, unless a custom endpoint accepts unauthenticated requests.
-
-| Provider | Credentials / URL |
-|----------|-------------------|
-| `openai` | `OPENAI_API_KEY` in `.env`; optional `agent.custom.base_url` for OpenAI-compatible gateways |
-| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `agent.custom.base_url` for Anthropic-compatible gateways |
-| `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
-| `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
-
-| Flag | YAML | Notes |
-|------|------|-------|
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `low`, `medium`, `high` (mcp-agent does not accept `minimal` / `xhigh`). OpenAI/custom via `reasoning_effort`; Anthropic via `output_config.effort` (`none` omitted). Ignored for DeepSeek. |
-
-```yaml
-agent:
-  type: byo.mcp_agent
-  provider: openai
-  max_steps: 20
-  reasoning_effort: medium
-  models:
-    mcp_agent: gpt-5-mini
-```
-
-```bash
-nika agent run -a byo.mcp_agent -m gpt-5-mini -e medium -n 20
-nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -e low -n 20
-```
-
----
-
-## byo.autogen
-
-AutoGen ``GraphFlow`` orchestration + [AutoGen AgentChat](https://microsoft.github.io/autogen/stable/) workers per phase.
-
-**Entry**: `agent.byo.autogen.agent.AutogenAgent`
-
-**Requires**: credentials for the chosen provider, unless a custom endpoint accepts unauthenticated requests.
-
-| Provider | Credentials / URL |
-|----------|-------------------|
-| `openai` | `OPENAI_API_KEY` in `.env`; optional `agent.custom.base_url` for OpenAI-compatible gateways |
-| `anthropic` | `ANTHROPIC_API_KEY` in `.env`; optional `agent.custom.base_url` for Anthropic-compatible gateways |
-| `deepseek` | `DEEPSEEK_API_KEY` in `.env` |
-| `custom` | `agent.custom.base_url` (+ optional model) in YAML; `NIKA_CUSTOM_API_KEY` in `.env` if needed |
-
-| Flag | YAML | Notes |
-|------|------|-------|
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; optional. OpenAI/custom via client `reasoning_effort`; Anthropic via `output_config.effort` (`minimal`→`low`, `none` omitted). Ignored for DeepSeek. |
-
-```yaml
-agent:
-  type: byo.autogen
-  provider: openai
-  max_steps: 20
-  reasoning_effort: medium
-  models:
-    autogen: gpt-5-mini
-```
-
-```bash
-nika agent run -a byo.autogen -m gpt-5-mini -e medium -n 20
-nika agent run -a byo.autogen -p anthropic -m claude-haiku-4-5 -e low -n 20
-```
-
----
-
-## sdk.claude_sdk
-
-Native two-phase pipeline via ``claude-agent-sdk`` ``ClaudeSDKClient`` (no LangGraph). Each phase starts a separate SDK session with phase-specific MCP servers.
-
-**Entry**: `agent.sdk.claude_sdk.agent.ClaudeSdkAgent`
-
-**Requires**: `uv sync --extra sdk --prerelease=allow`
-
-**Auth**: Same as `cli.claude`.
-
-```yaml
-agent:
-  provider: deepseek
-  models:
-    claude: deepseek-v4-pro[1m]
-```
-
-| Flag | YAML | Notes |
-|------|------|-------|
-| `-n` / `--max-steps` | `agent.max_steps` | Passed to SDK `max_turns` per phase |
-| `-m` / `--model` | `agent.models.claude_sdk` / `claude` | |
-
-```bash
-nika agent run -a sdk.claude_sdk -n 20
-nika agent run -a sdk.claude_sdk -m deepseek-v4-flash
-```
-
----
-
-## sdk.codex_sdk
-
-Native two-phase pipeline via ``openai-codex`` ``AsyncCodex`` threads (no LangGraph). MCP config is written to an isolated `CODEX_HOME` per phase.
-
-**Entry**: `agent.sdk.codex_sdk.agent.CodexSdkAgent`
-
-**Requires**: `uv sync --extra sdk --prerelease=allow`
-
-**Auth**: Same provider and credential choices as `cli.codex`.
-
-| Flag | YAML | Notes |
-|------|------|-------|
-| `-m` / `--model` | `agent.models.codex_sdk` / `codex` | The example config uses `gpt-5-mini` |
-| `-e` / `--reasoning-effort` | `agent.reasoning_effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
-
-```bash
-nika agent run -a sdk.codex_sdk -m gpt-5-mini -e medium
-```
-
----
-
-## Add a new agent
-
-Place each agent in its own package under `src/agent/`:
-
-```text
-src/agent/community/my_agent/
-├── __init__.py
-├── agent.py
-└── (other files)
-```
-
-Implement `agent.protocols.TroubleshootingAgent` (`session_id` + `async def run(task_description) -> dict`), register the id in `agent.registry.create_agent()`, write traces to `{session_dir}/messages.jsonl`, and call the task MCP `submit` tool before returning. Sandbox agents also need their id in `SANDBOX_AGENT_TYPES`.
-
-Implementation example, registration, and checklist: [custom agent integration guide](custom-agents.md).
-
-## CLI reference
-
-```bash
-nika agent list          # agent types, LLM providers, reasoning-effort levels
-nika agent run [options] # dispatch via nika/workflows/agent/run.py → registry.create_agent()
-```
+Use [Run configuration](configuration.md) for every setting, [CLI](cli-reference.md#nika-agent) for command behavior, and [Testing](testing.md#agent-tests-testsagent) for the agent test matrix.
