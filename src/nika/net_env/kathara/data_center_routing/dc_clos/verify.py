@@ -1,8 +1,8 @@
-"""Startup verification signals for DC Clos BGP scenarios."""
+"""Startup verification signals for the unified DC Clos scenario."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from nika.net_env.verify import (
     build_lab_verify_result,
@@ -16,9 +16,32 @@ from nika.net_env.verify import (
 from nika.runtime.base import LabRuntime
 
 
+def verify_dc_clos_lab(
+    runtime: LabRuntime,
+    *,
+    scenario_name: str,
+    workload: Literal["host", "service"] = "host",
+) -> dict[str, Any]:
+    if workload == "service":
+        return _verify_service(runtime, scenario_name=scenario_name)
+    return _verify_host(runtime, scenario_name=scenario_name)
+
+
 def verify_dc_clos_bgp_lab(
     runtime: LabRuntime, *, scenario_name: str
 ) -> dict[str, Any]:
+    """Backward-compatible alias for host-workload verification."""
+    return verify_dc_clos_lab(runtime, scenario_name=scenario_name, workload="host")
+
+
+def verify_dc_clos_service_lab(
+    runtime: LabRuntime, *, scenario_name: str
+) -> dict[str, Any]:
+    """Backward-compatible alias for service-workload verification."""
+    return verify_dc_clos_lab(runtime, scenario_name=scenario_name, workload="service")
+
+
+def _verify_host(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
     expected = (
         "super_spine_router_0",
         "spine_router_0_0",
@@ -46,9 +69,7 @@ def verify_dc_clos_bgp_lab(
     )
 
 
-def verify_dc_clos_service_lab(
-    runtime: LabRuntime, *, scenario_name: str
-) -> dict[str, Any]:
+def _verify_service(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
     expected = (
         "super_spine_router_0",
         "spine_router_0_0",

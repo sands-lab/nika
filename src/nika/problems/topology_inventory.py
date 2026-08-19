@@ -164,11 +164,18 @@ def catalog_resources(
     return items
 
 
-def load_offline_net_env(scenario: str, topo_size: str = ""):
+def load_offline_net_env(
+    scenario: str,
+    topo_size: str = "",
+    *,
+    workload: str | None = None,
+):
     """Instantiate a scenario without deploying, for GT generation and migration."""
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
+    if workload is not None:
+        kwargs["workload"] = workload
     kwargs["backend"] = resolve_scenario_backend(
         scenario, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
     )

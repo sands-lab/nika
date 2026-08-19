@@ -96,7 +96,7 @@ Aligned with `nika agent run`:
 ## `nika env`
 
 - **`nika env list`**: print registered scenario ids.
-- **`nika env run NAME [-s s|m|l] [--no-redeploy] [--instance-tag TAG]`**: deploy one instance, create a session, and print `session_id=…`.
+- **`nika env run NAME [-s s|m|l] [--workload VALUE] [--no-redeploy] [--instance-tag TAG]`**: deploy one instance, create a session, and print `session_id=…`. `--workload` applies to `dc_clos` (`host` default, or `service`) and `campus_lan` (`static` default, or `dhcp`).
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
@@ -139,7 +139,7 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
   | Scenario type | Label | Example |
   |---------------|--------|---------|
   | Non-scalable | `{scenario}_{problem}` | `simple_bgp_link_down` |
-  | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_bgp_s_link_down` |
+  | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_s_link_down` |
 
   Discover pieces with `nika env list` and `nika failure list`.
 
@@ -162,7 +162,7 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
     --problem simple_bgp_link_down
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
-    --problem dc_clos_bgp_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
+    --problem dc_clos_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
 
   # Session mode (manual lab control)
   nika env run simple_bgp
@@ -304,7 +304,7 @@ Benchmark exposes `-a`, `-p`, `-m`, and `-n`; `-n` affects `byo.langgraph`, `byo
 Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`), plus **`--problem`**:
 
 ```shell
-nika benchmark run dc_clos_bgp --problem bgp_asn_misconfig -s s \
+nika benchmark run dc_clos --problem bgp_asn_misconfig -s s \
   -a byo.langgraph -p openai -m gpt-5-mini -n 20
 nika eval judge -p openai -m gpt-5-mini --result_dir results/
 nika eval summary --result_dir results/

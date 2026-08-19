@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 16 scenario IDs. Fifteen use one backend; `isp` supports both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 15 scenario IDs. Fourteen use one backend; `isp` supports both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -25,36 +25,34 @@ uv sync --extra containerlab
 
 ## Scenario catalog
 
-| Scenario ID | Backend | Scale control | Network and workload |
-| --- | --- | --- | --- |
-| `dc_clos_bgp` | Kathara | `-s s\|m\|l` | FRR eBGP Clos with one host per leaf |
-| `dc_clos_service` | Kathara | `-s s\|m\|l` | FRR eBGP Clos with DNS, HTTP, and clients |
-| `ospf_enterprise_static` | Kathara | `-s s\|m\|l` | Hierarchical OSPF enterprise with static hosts |
-| `ospf_enterprise_dhcp` | Kathara | `-s s\|m\|l` | OSPF enterprise with DHCP, DNS, HTTP, and NGINX |
-| `rip_small_internet_vpn` | Kathara | `-s s\|m\|l` | RIP mini-Internet with a WireGuard overlay |
-| `simple_bgp` | Kathara | Fixed | Two FRR ASes with one host in each AS |
-| `sdn_star` | Kathara | `-s s\|m\|l` | POX and Open vSwitch star |
-| `sdn_clos` | Kathara | `-s s\|m\|l` | POX and Open vSwitch leaf-spine Clos |
-| `p4_bloom_filter` | Kathara | Fixed | BMv2 flow-counting Bloom filter pipeline |
-| `p4_counter` | Kathara | Fixed | BMv2 L2 forwarding and port counters |
-| `p4_int` | Kathara | Fixed | BMv2 in-band telemetry and collector |
-| `p4_mpls` | Kathara | Fixed | BMv2 MPLS classification and label switching |
-| `isp` | Kathara or Containerlab | `--topo` and protocol options | SNDlib topology compiled to FRR or SR Linux |
-| `min3clos` | Containerlab | Fixed | Five-node SR Linux eBGP Clos |
-| `k8s_lab` | Kathara | Fixed | FRR fat-tree with a six-node k3s cluster |
-| `llmd_lab` | Kathara | Fixed | L2 k3s cluster with simulated llm-d inference |
+| Scenario ID | Backend | Scale control | Options | Network and workload |
+| --- | --- | --- | --- | --- |
+| `dc_clos` | Kathara | `-s s\|m\|l` | `--workload host\|service` (default `host`) | FRR eBGP Clos; host or DNS/HTTP leaf workload |
+| `campus_lan` | Kathara | `-s s\|m\|l` | `--workload static\|dhcp` (default `static`) | Hierarchical campus LAN; static hosts or DHCP/DNS/LB farm |
+| `rip_small_internet_vpn` | Kathara | `-s s\|m\|l` |  | RIP mini-Internet with a WireGuard overlay |
+| `simple_bgp` | Kathara | Fixed |  | Two FRR ASes with one host in each AS |
+| `sdn_star` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch star |
+| `sdn_clos` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch leaf-spine Clos |
+| `p4_bloom_filter` | Kathara | Fixed |  | BMv2 flow-counting Bloom filter pipeline |
+| `p4_counter` | Kathara | Fixed |  | BMv2 L2 forwarding and port counters |
+| `p4_int` | Kathara | Fixed |  | BMv2 in-band telemetry and collector |
+| `p4_mpls` | Kathara | Fixed |  | BMv2 MPLS classification and label switching |
+| `isp` | Kathara or Containerlab |  | `--topo` and protocol options | SNDlib topology compiled to FRR or SR Linux |
+| `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
+| `k8s_lab` | Kathara | Fixed |  | FRR fat-tree with a six-node k3s cluster |
+| `llmd_lab` | Kathara | Fixed |  | L2 k3s cluster with simulated llm-d inference |
 
-Seven scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
+Six scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
 
 ```shell
-uv run nika env run dc_clos_bgp -s s
+uv run nika env run dc_clos -s s
 ```
 
 Fixed scenarios reject a size. The `isp` scenario uses its own topology and protocol controls instead of `-s`.
 
-## Data-center Clos scenarios
+## Data-center Clos scenario
 
-NIKA generates both Clos variants from code. Each router runs FRR eBGP. Inter-router links use `/31` networks from `172.16.0.0/16`, and leaf service networks use `10.<pod>.<leaf>.0/24`.
+NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router links use `/31` networks from `172.16.0.0/16`, and leaf access networks use `10.<pod>.<leaf>.0/24`. Choose the leaf workload with `--workload` (`host` is the default).
 
 ```text
                     super-spine(s)
@@ -66,44 +64,46 @@ NIKA generates both Clos variants from code. Each router runs FRR eBGP. Inter-ro
              +------ host or service endpoints
 ```
 
-### `dc_clos_bgp`
+| Size | Super-spines and pods | Spines per pod | Leaves per pod |
+| --- | ---: | ---: | ---: |
+| `s` | 1 | 2 | 2 |
+| `m` | 2 | 4 | 4 |
+| `l` | 4 | 8 | 8 |
 
-`dc_clos_bgp` attaches one host to each leaf. Super-spines use AS 65000, spines use AS 651xx, and leaves use AS 652xx. Every leaf advertises its host subnet.
+Super-spines use AS 65000, spines use AS 651xx, and leaves use AS 652xx. Workload does not change spine or leaf counts.
 
-| Size | Super-spines and pods | Spines per pod | Leaves per pod | Hosts |
-| --- | ---: | ---: | ---: | ---: |
-| `s` | 1 | 2 | 2 | 2 |
-| `m` | 2 | 4 | 4 | 8 |
-| `l` | 4 | 8 | 8 | 32 |
+### `host` workload (default)
 
-Use this scenario for BGP convergence, route propagation, node, link, and host addressing failures without application-layer services. The verifier checks FRR, BGP sessions, routing tables, and host reachability.
+Attaches one `pc_*` host to each leaf. Use this for BGP, link, MTU, congestion, and host addressing failures. The verifier checks FRR, BGP sessions, and host reachability.
 
-### `dc_clos_service`
+```shell
+uv run nika env run dc_clos -s s --workload host
+```
 
-`dc_clos_service` keeps the eBGP fabric and replaces leaf hosts with services. Each pod contains one authoritative BIND server, HTTP servers, and an external client. Clients resolve names such as `web0.pod0` before reaching a service.
+### `service` workload
 
-| Size | Pods | Spines per pod | Leaves per pod | DNS servers | HTTP servers | Clients |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `s` | 1 | 2 | 2 | 1 | 1 | 1 |
-| `m` | 2 | 4 | 4 | 2 | 6 | 2 |
-| `l` | 4 | 4 | 8 | 4 | 28 | 4 |
+Keeps the same fabric and replaces leaf hosts with DNS/HTTP endpoints. Each pod has one authoritative BIND server, HTTP servers on the remaining leaves, and an external client on the super-spine (`192.168.<pod>.0/24`). Clients resolve names such as `web0.pod0`. Use this when the failure needs DNS or HTTP observability.
 
-Choose this variant for DNS and HTTP failures on a BGP fabric. The verifier adds name resolution and HTTP access checks to the routing checks.
+```shell
+uv run nika env run dc_clos -s s --workload service
+```
 
-## Enterprise OSPF scenarios
+Legacy benchmark YAML may still name `dc_clos_bgp` or `dc_clos_service`. Loaders map those ids to `dc_clos` with `host` or `service` workload. They are not listed by `nika env list`.
 
-NIKA generates both enterprise variants around a three-router core triangle, distribution routers, bridged access switches, user LANs, and a server farm. FRR advertises the routed links and services through OSPF. Routed uplinks use `/31` networks from `172.16.0.0/16`; user LANs use `10.<core>.<distribution>.0/24`.
+## Campus LAN scenario
+
+NIKA builds one campus LAN fabric: a three-router core triangle, distribution and access tiers, user LANs, and a server farm on core3. FRR advertises routed links and services through OSPF. Routed uplinks use `/31` networks from `172.16.0.0/16`; user LANs use `10.<core>.<distribution>.0/24`. Choose the host and farm workload with `--workload` (`static` is the default). Workload does not change core, distribution, or access counts. Device names stay workload-specific so frozen release inject targets remain valid.
 
 ```text
 user PCs -- access switches -- distribution routers
                                       \       /
                                   core triangle
                                         |
-                              server-access router
+                              server-access device
                                /    |     |    \
                              DNS  HTTP  DHCP*  load balancer*
 
-* Present in ospf_enterprise_dhcp.
+* Present with --workload dhcp.
 ```
 
 | Size | Distribution routers | Access switches | User hosts |
@@ -112,13 +112,23 @@ user PCs -- access switches -- distribution routers
 | `m` | 4 | 8 | 16 |
 | `l` | 8 | 32 | 128 |
 
-### `ospf_enterprise_static`
+### `static` workload (default)
 
-Hosts use static addresses and default routes. The server farm contains one BIND server and four Apache sites named `web0.local` through `web3.local`. Choose this variant for OSPF, static host configuration, DNS, and HTTP checks without DHCP behavior.
+Hosts use static addresses and default routes. Dist/access names stay `switch_dist_*` / `switch_server_access`. The farm has one BIND server and four Apache sites (`web0.local` through `web3.local`). Use this for sticky host-address faults such as `host_incorrect_ip`.
 
-### `ospf_enterprise_dhcp`
+```shell
+uv run nika env run campus_lan -s s --workload static
+```
 
-Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP requests. This variant adds an NGINX load balancer at `web99.local` and three backend web servers on `20.200.0.0/24`. Choose it for DHCP and load-balancer failures. Both variants verify OSPF adjacency, cross-branch reachability, DNS, and HTTP.
+### `dhcp` workload
+
+Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Use this for DHCP, DNS, and load-balancer failures. Both workloads verify OSPF adjacency, cross-branch reachability, DNS, and HTTP.
+
+```shell
+uv run nika env run campus_lan -s s --workload dhcp
+```
+
+Legacy benchmark YAML may still name `ospf_enterprise_static` or `ospf_enterprise_dhcp`. Loaders map those ids to `campus_lan` with `static` or `dhcp` workload. They are not listed by `nika env list`.
 
 ## RIP and WireGuard scenario
 

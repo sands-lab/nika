@@ -18,7 +18,12 @@ from pathlib import Path
 import yaml
 
 from nika.config import BENCHMARK_DIR
-from nika.net_env.net_env_pool import list_all_net_envs, scenario_requires_topo_size
+from nika.net_env.net_env_pool import (
+    is_dc_clos_scenario,
+    is_campus_lan_scenario,
+    list_all_net_envs,
+    scenario_requires_topo_size,
+)
 from nika.problems.ground_truth import ground_truth_for_case
 from nika.problems.prob_pool import list_avail_problem_instances
 from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
@@ -48,63 +53,94 @@ from inject_resolve import (  # noqa: E402
 
 # One best-matching traditional Kathara scenario per failure (k8s/llmd appear in full only).
 SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
-    "arp_acl_block": "ospf_enterprise_dhcp",
-    "arp_cache_poisoning": "ospf_enterprise_dhcp",
-    "bgp_acl_block": "dc_clos_bgp",
-    "bgp_asn_misconfig": "dc_clos_bgp",
-    "bgp_blackhole_route_leak": "dc_clos_bgp",
-    "bgp_hijacking": "dc_clos_service",
-    "bgp_missing_route_advertisement": "dc_clos_bgp",
+    "arp_acl_block": "campus_lan",
+    "arp_cache_poisoning": "campus_lan",
+    "bgp_acl_block": "dc_clos",
+    "bgp_asn_misconfig": "dc_clos",
+    "bgp_blackhole_route_leak": "dc_clos",
+    "bgp_hijacking": "dc_clos",
+    "bgp_missing_route_advertisement": "dc_clos",
     "bmv2_switch_down": "p4_bloom_filter",
-    "dhcp_missing_subnet": "ospf_enterprise_dhcp",
-    "dhcp_service_down": "ospf_enterprise_dhcp",
-    "dhcp_spoofed_dns": "ospf_enterprise_dhcp",
-    "dhcp_spoofed_gateway": "ospf_enterprise_dhcp",
-    "dhcp_spoofed_subnet": "ospf_enterprise_dhcp",
-    "dns_lookup_latency": "ospf_enterprise_dhcp",
-    "dns_port_blocked": "ospf_enterprise_dhcp",
-    "dns_record_error": "ospf_enterprise_dhcp",
-    "dns_service_down": "ospf_enterprise_dhcp",
+    "dhcp_missing_subnet": "campus_lan",
+    "dhcp_service_down": "campus_lan",
+    "dhcp_spoofed_dns": "campus_lan",
+    "dhcp_spoofed_gateway": "campus_lan",
+    "dhcp_spoofed_subnet": "campus_lan",
+    "dns_lookup_latency": "campus_lan",
+    "dns_port_blocked": "campus_lan",
+    "dns_record_error": "campus_lan",
+    "dns_service_down": "campus_lan",
     "flow_rule_loop": "sdn_clos",
     "flow_rule_shadowing": "sdn_clos",
-    "frr_service_down": "ospf_enterprise_dhcp",
-    "host_crash": "dc_clos_bgp",
-    "host_incorrect_dns": "ospf_enterprise_dhcp",
-    "host_incorrect_gateway": "ospf_enterprise_dhcp",
-    "host_incorrect_ip": "ospf_enterprise_static",
-    "host_incorrect_netmask": "ospf_enterprise_static",
-    "host_ip_conflict": "dc_clos_bgp",
-    "host_missing_ip": "ospf_enterprise_static",
-    "host_static_blackhole": "dc_clos_bgp",
+    "frr_service_down": "campus_lan",
+    "host_crash": "dc_clos",
+    "host_incorrect_dns": "campus_lan",
+    "host_incorrect_gateway": "campus_lan",
+    "host_incorrect_ip": "campus_lan",
+    "host_incorrect_netmask": "campus_lan",
+    "host_ip_conflict": "dc_clos",
+    "host_missing_ip": "campus_lan",
+    "host_static_blackhole": "dc_clos",
     "host_vpn_membership_missing": "rip_small_internet_vpn",
-    "http_acl_block": "ospf_enterprise_dhcp",
-    "icmp_acl_block": "ospf_enterprise_dhcp",
-    "incast_traffic_network_limitation": "ospf_enterprise_dhcp",
-    "link_bandwidth_throttling": "dc_clos_bgp",
-    "link_detach": "dc_clos_bgp",
-    "link_down": "dc_clos_bgp",
-    "link_flap": "dc_clos_bgp",
-    "link_fragmentation_disabled": "dc_clos_bgp",
-    "link_high_packet_corruption": "dc_clos_bgp",
-    "load_balancer_overload": "ospf_enterprise_dhcp",
-    "mac_address_conflict": "ospf_enterprise_dhcp",
+    "http_acl_block": "campus_lan",
+    "icmp_acl_block": "campus_lan",
+    "incast_traffic_network_limitation": "campus_lan",
+    "link_bandwidth_throttling": "dc_clos",
+    "link_detach": "dc_clos",
+    "link_down": "dc_clos",
+    "link_flap": "dc_clos",
+    "link_fragmentation_disabled": "dc_clos",
+    "link_high_packet_corruption": "dc_clos",
+    "load_balancer_overload": "campus_lan",
+    "mac_address_conflict": "campus_lan",
     "mpls_label_limit_exceeded": "p4_mpls",
-    "ospf_acl_block": "ospf_enterprise_dhcp",
-    "ospf_area_misconfiguration": "ospf_enterprise_dhcp",
-    "ospf_neighbor_missing": "ospf_enterprise_dhcp",
+    "ospf_acl_block": "campus_lan",
+    "ospf_area_misconfiguration": "campus_lan",
+    "ospf_neighbor_missing": "campus_lan",
     "p4_aggressive_detection_thresholds": "p4_bloom_filter",
     "p4_compilation_error_parser_state": "p4_bloom_filter",
     "p4_header_definition_error": "p4_bloom_filter",
     "p4_table_entry_misconfig": "p4_bloom_filter",
     "p4_table_entry_missing": "p4_bloom_filter",
-    "receiver_resource_contention": "ospf_enterprise_dhcp",
+    "receiver_resource_contention": "campus_lan",
     "sdn_controller_crash": "sdn_clos",
-    "sender_application_delay": "ospf_enterprise_dhcp",
-    "sender_resource_contention": "ospf_enterprise_dhcp",
+    "sender_application_delay": "campus_lan",
+    "sender_resource_contention": "campus_lan",
     "southbound_port_block": "sdn_clos",
     "southbound_port_mismatch": "sdn_clos",
-    "web_dos_attack": "ospf_enterprise_dhcp",
+    "web_dos_attack": "campus_lan",
 }
+
+# Failures that are tag-compatible with host Clos but prefer service endpoints.
+DC_CLOS_SERVICE_WORKLOAD_OVERRIDES: frozenset[str] = frozenset({"bgp_hijacking"})
+
+# Host-address faults that need sticky static IPs on the enterprise lab.
+OSPF_STATIC_WORKLOAD_OVERRIDES: frozenset[str] = frozenset(
+    {
+        "host_incorrect_ip",
+        "host_incorrect_netmask",
+        "host_missing_ip",
+    }
+)
+
+
+def workload_for_dc_clos(problem: str, problem_tags: set[str]) -> str:
+    """Pick Clos workload from failure observation needs (not a cartesian product)."""
+    if problem in DC_CLOS_SERVICE_WORKLOAD_OVERRIDES:
+        return "service"
+    if problem_tags & {"dns", "http"}:
+        return "service"
+    return "host"
+
+
+def workload_for_campus_lan(problem: str, problem_tags: set[str]) -> str:
+    """Pick campus_lan workload from failure needs (not a cartesian product)."""
+    if problem in OSPF_STATIC_WORKLOAD_OVERRIDES:
+        return "static"
+    if problem_tags & {"dhcp", "dns", "load_balancer", "web"}:
+        return "dhcp"
+    return "dhcp"
+
 
 # Problems whose only compatible scenarios are the Kubernetes labs. Those labs
 # are full-matrix only (a single case costs a full k3s cluster bring-up), so they
@@ -123,22 +159,33 @@ def _topo_sizes_for_scenario(scenario: str) -> list[str]:
     return [""]
 
 
-def _make_row(scenario: str, problem: str, topo_size: str, *, seed: int) -> dict:
-    inject = resolve_inject_params(problem, scenario, topo_size, seed=seed)
-    validate_benchmark_case(scenario, problem, inject, topo_size)
+def _make_row(
+    scenario: str,
+    problem: str,
+    topo_size: str,
+    *,
+    seed: int,
+    workload: str | None = None,
+) -> dict:
+    inject = resolve_inject_params(
+        problem, scenario, topo_size, seed=seed, workload=workload
+    )
+    validate_benchmark_case(scenario, problem, inject, topo_size, workload=workload)
     row: dict = {
         "scenario": scenario,
         "topo_size": topo_size or None,
         "problem": problem,
         "inject": inject,
     }
+    if workload is not None:
+        row["workload"] = workload
     try:
         gt = ground_truth_for_case(
             problem=problem,
             params=inject,
             scenario=scenario,
             topo_size=topo_size,
-            net_env=load_offline_net_env(scenario, topo_size),
+            net_env=load_offline_net_env(scenario, topo_size, workload=workload),
         )
         row["root_causes"] = canonical_root_causes(gt.root_causes)
     except UnresolvedRootCauseError as exc:
@@ -154,11 +201,25 @@ def iter_full_cases(*, seed: int) -> list[dict]:
 
     for prob_name, problem_class in problem_instances.items():
         problem_instance = problem_class
+        problem_tags = set(problem_instance.TAGS)
         for net_env_name, net_env_cls in net_envs.items():
-            if not set(problem_instance.TAGS).issubset(set(net_env_cls.TAGS)):
+            if not problem_tags.issubset(set(net_env_cls.TAGS)):
                 continue
+            workload = None
+            if is_dc_clos_scenario(net_env_name):
+                workload = workload_for_dc_clos(prob_name, problem_tags)
+            elif is_campus_lan_scenario(net_env_name):
+                workload = workload_for_campus_lan(prob_name, problem_tags)
             for topo_size in _topo_sizes_for_scenario(net_env_name):
-                rows.append(_make_row(net_env_name, prob_name, topo_size, seed=seed))
+                rows.append(
+                    _make_row(
+                        net_env_name,
+                        prob_name,
+                        topo_size,
+                        seed=seed,
+                        workload=workload,
+                    )
+                )
     return rows
 
 
@@ -175,13 +236,27 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
             raise ValueError(f"No selected scenario mapping for problem {prob_name!r}")
         net_env_cls = net_envs[scenario]
         problem_instance = problem_instances[prob_name]
-        if not set(problem_instance.TAGS).issubset(set(net_env_cls.TAGS)):
+        problem_tags = set(problem_instance.TAGS)
+        if not problem_tags.issubset(set(net_env_cls.TAGS)):
             raise ValueError(
                 f"Selected scenario {scenario} not tag-compatible with {prob_name} "
                 f"(problem={problem_instance.TAGS}, scenario={net_env_cls.TAGS})"
             )
         topo_size = "s" if scenario_requires_topo_size(scenario) else ""
-        rows.append(_make_row(scenario, prob_name, topo_size, seed=seed))
+        workload = None
+        if is_dc_clos_scenario(scenario):
+            workload = workload_for_dc_clos(prob_name, problem_tags)
+        elif is_campus_lan_scenario(scenario):
+            workload = workload_for_campus_lan(prob_name, problem_tags)
+        rows.append(
+            _make_row(
+                scenario,
+                prob_name,
+                topo_size,
+                seed=seed,
+                workload=workload,
+            )
+        )
     return rows
 
 

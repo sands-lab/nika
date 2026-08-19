@@ -19,6 +19,7 @@ def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
         "scenario": row["scenario"],
         "problem": row["problem"],
         "topo_size": row.get("topo_size") or "",
+        "workload": row.get("workload") or "",
         "inject": {
             str(k): str(v) for k, v in sorted((row.get("inject") or {}).items())
         },
@@ -33,13 +34,17 @@ def benchmark_row_from_case(
     problem: str,
     topo_size: str,
     inject_params: dict[str, str],
+    workload: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    row: dict[str, Any] = {
         "scenario": scenario,
         "problem": problem,
         "topo_size": topo_size or "",
-        "inject": inject_params,
+        "inject": dict(inject_params),
     }
+    if workload:
+        row["workload"] = workload
+    return row
 
 
 def _read_run_meta(session_dir: Path) -> dict[str, Any] | None:

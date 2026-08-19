@@ -77,6 +77,14 @@ def env_run(
             "Defaults from --backend."
         ),
     ),
+    workload: str | None = typer.Option(
+        None,
+        "--workload",
+        help=(
+            "Scenario workload: dc_clos host|service (default host); "
+            "campus_lan static|dhcp (default static)."
+        ),
+    ),
     no_redeploy: bool = typer.Option(
         False,
         "--no-redeploy",
@@ -110,6 +118,7 @@ def env_run(
         bgp_mode=bgp_mode,
         backend=backend,
         device_profile=device_profile,
+        workload=workload,
     )
     typer.echo(f"session_id={session_id}")
 

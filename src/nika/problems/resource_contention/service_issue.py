@@ -29,7 +29,7 @@ class DNSLookupLatency(ProblemBase):
 
     Params = DNSLookupLatencyParams
 
-    def __init__(self, scenario_name: str = "dc_clos_service", **kwargs):
+    def __init__(self, scenario_name: str = "dc_clos", **kwargs):
         super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: DNSLookupLatencyParams):

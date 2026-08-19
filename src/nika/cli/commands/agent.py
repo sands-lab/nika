@@ -272,13 +272,14 @@ def _run_one_shot(
     )
 
     try:
-        scenario, topo_size, problem_name = parse_task_label(problem_label)
+        scenario, topo_size, problem_name, workload = parse_task_label(problem_label)
         overrides = _parse_set_options(sets)
         inject_params = resolve_default_inject_params(
             scenario,
             problem_name,
             topo_size,
             overrides=overrides or None,
+            workload=workload,
         )
         validate_inject_params(problem_name, scenario, topo_size, inject_params)
     except (FileNotFoundError, ValueError, ImportError) as exc:
@@ -295,6 +296,7 @@ def _run_one_shot(
             max_steps=max_steps,
             inject_params=inject_params,
             result_dir=result_dir,
+            workload=workload,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc

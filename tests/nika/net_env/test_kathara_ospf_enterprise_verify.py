@@ -3,13 +3,13 @@ from __future__ import annotations
 import pytest
 from typing import ClassVar
 from unittest.mock import MagicMock
-from nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_dhcp import (
+from nika.net_env.kathara.intradomain_routing.campus_lan.lab_dhcp import (
     OSPFEnterpriseDHCP,
 )
-from nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_static import (
+from nika.net_env.kathara.intradomain_routing.campus_lan.lab_static import (
     OSPFEnterpriseStatic,
 )
-from nika.net_env.kathara.intradomain_routing.ospf_enterprise.verify import (
+from nika.net_env.kathara.intradomain_routing.campus_lan.verify import (
     DIST_ROUTER_STATIC,
     HOST_GATEWAY,
     HOST_PEER_STATIC_IP,
@@ -20,7 +20,7 @@ from nika.net_env.kathara.intradomain_routing.ospf_enterprise.verify import (
     WEB0_URL,
     WEB3_URL,
     WEB99_URL,
-    verify_ospf_enterprise_lab,
+    verify_campus_lan_lab,
 )
 from nika.runtime.factory import resolve_backend
 from tests.support.integration_base import SharedSessionTestCase
@@ -28,7 +28,7 @@ from tests.support.prerequisites import docker_available
 from tests.support.net_env import instantiate_with_mocked_kathara
 
 
-class _OSPFEnterpriseVerifyBase(SharedSessionTestCase):
+class _CampusLanVerifyBase(SharedSessionTestCase):
     """Deploy once via ``start_net_env`` (which runs ``verify_lab``); assert topology."""
 
     __test__ = False
@@ -36,7 +36,7 @@ class _OSPFEnterpriseVerifyBase(SharedSessionTestCase):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        if cls is not _OSPFEnterpriseVerifyBase:
+        if cls is not _CampusLanVerifyBase:
             cls.__test__ = True
 
     CORE_ROUTERS = ("router_core_1", "router_core_2", "router_core_3")
@@ -45,7 +45,7 @@ class _OSPFEnterpriseVerifyBase(SharedSessionTestCase):
 
     @pytest.fixture(scope="class", autouse=True)
     def _setup_class(cls) -> None:
-        if cls is _OSPFEnterpriseVerifyBase:
+        if cls is _CampusLanVerifyBase:
             pytest.skip("base test class")
 
     def _runtime(self):
@@ -74,7 +74,7 @@ class _OSPFEnterpriseVerifyBase(SharedSessionTestCase):
         self._assert_common_key_nodes_deployed()
 
 
-class OSPFEnterpriseLabVerifyUnitTest:
+class CampusLanLabVerifyUnitTest:
     def _runtime(self, responses: dict[tuple[str, str], str]) -> MagicMock:
         runtime = MagicMock()
 
@@ -146,8 +146,8 @@ class OSPFEnterpriseLabVerifyUnitTest:
 
     def test_static_verify_passes_when_all_checks_ok(self) -> None:
         runtime = self._runtime(self._static_responses())
-        result = verify_ospf_enterprise_lab(
-            runtime, scenario_name="ospf_enterprise_static", mode="static"
+        result = verify_campus_lan_lab(
+            runtime, scenario_name="campus_lan", workload="static"
         )
 
         assert result["verified"]
@@ -156,8 +156,8 @@ class OSPFEnterpriseLabVerifyUnitTest:
 
     def test_dhcp_verify_passes_when_all_checks_ok(self) -> None:
         runtime = self._runtime(self._dhcp_responses())
-        result = verify_ospf_enterprise_lab(
-            runtime, scenario_name="ospf_enterprise_dhcp", mode="dhcp"
+        result = verify_campus_lan_lab(
+            runtime, scenario_name="campus_lan", workload="dhcp"
         )
 
         assert result["verified"]
@@ -169,8 +169,8 @@ class OSPFEnterpriseLabVerifyUnitTest:
         responses[PROBE_HOST, "ip -4 -o addr show dev eth0"] = (
             f"inet {HOST_STATIC_IP}/24"
         )
-        result = verify_ospf_enterprise_lab(
-            self._runtime(responses), scenario_name="ospf_enterprise_dhcp", mode="dhcp"
+        result = verify_campus_lan_lab(
+            self._runtime(responses), scenario_name="campus_lan", workload="dhcp"
         )
 
         assert not result["verified"]
@@ -183,10 +183,10 @@ class OSPFEnterpriseLabVerifyUnitTest:
             PROBE_HOST,
             f"curl -s -o /dev/null -w '%{{http_code}}' --connect-timeout 5 {WEB0_URL}",
         ] = "000"
-        result = verify_ospf_enterprise_lab(
+        result = verify_campus_lan_lab(
             self._runtime(responses),
-            scenario_name="ospf_enterprise_static",
-            mode="static",
+            scenario_name="campus_lan",
+            workload="static",
         )
 
         assert not result["verified"]
@@ -194,10 +194,10 @@ class OSPFEnterpriseLabVerifyUnitTest:
         assert not result["checks"]["web_http_web0"]
 
 
-class OSPFEnterpriseStaticUnitTest:
+class CampusLanStaticUnitTest:
     def _inst(self) -> OSPFEnterpriseStatic:
         return instantiate_with_mocked_kathara(
-            "nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_static.Kathara.get_instance",
+            "nika.net_env.kathara.intradomain_routing.campus_lan.lab_static.Kathara.get_instance",
             lambda: OSPFEnterpriseStatic(topo_size="s"),
         )
 
@@ -225,10 +225,10 @@ class OSPFEnterpriseStaticUnitTest:
         assert inst.web_urls == [f"http://web{idx}.local" for idx in range(4)]
 
 
-class OSPFEnterpriseDHCPUnitTest:
+class CampusLanDHCPUnitTest:
     def _inst(self) -> OSPFEnterpriseDHCP:
         return instantiate_with_mocked_kathara(
-            "nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_dhcp.Kathara.get_instance",
+            "nika.net_env.kathara.intradomain_routing.campus_lan.lab_dhcp.Kathara.get_instance",
             lambda: OSPFEnterpriseDHCP(topo_size="s"),
         )
 
@@ -257,8 +257,9 @@ class OSPFEnterpriseDHCPUnitTest:
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
-class OSPFEnterpriseStaticVerifyTest(_OSPFEnterpriseVerifyBase):
-    SCENARIO = OSPFEnterpriseStatic.LAB_NAME
+class CampusLanStaticVerifyTest(_CampusLanVerifyBase):
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s", "--workload", "static"]
 
     def test_static_key_nodes_deployed(self) -> None:
         self._assert_common_key_nodes_deployed()
@@ -273,8 +274,9 @@ class OSPFEnterpriseStaticVerifyTest(_OSPFEnterpriseVerifyBase):
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
-class OSPFEnterpriseDHCPVerifyTest(_OSPFEnterpriseVerifyBase):
-    SCENARIO = OSPFEnterpriseDHCP.LAB_NAME
+class CampusLanDHCPVerifyTest(_CampusLanVerifyBase):
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s", "--workload", "dhcp"]
 
     def test_dhcp_key_nodes_deployed(self) -> None:
         self._assert_common_key_nodes_deployed()

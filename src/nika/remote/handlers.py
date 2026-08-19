@@ -130,6 +130,7 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             bgp_mode=request.bgp_mode,
             backend=request.backend,
             device_profile=request.device_profile,
+            workload=request.workload,
         )
     except Exception:
         logger.exception("env start failed scenario=%s", request.scenario)

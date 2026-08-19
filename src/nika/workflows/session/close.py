@@ -224,6 +224,7 @@ def _stop_session_record(
         "constant_metric",
         "bgp_mode",
         "device_profile",
+        "workload",
     ):
         if key in scenario_params and scenario_params[key] is not None:
             net_env_kwargs[key] = scenario_params[key]

@@ -18,37 +18,50 @@ from inject_resolve import (  # noqa: E402
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
-@pytest.mark.parametrize("scenario", ["dc_clos_bgp", "dc_clos_service"])
+@pytest.mark.parametrize(
+    "scenario,workload",
+    [("dc_clos", "host"), ("dc_clos", "service"), ("dc_clos_bgp", None)],
+)
 def test_bgp_missing_route_advertisement_targets_advertisers(
-    scenario: str, topo_size: str
+    scenario: str, topo_size: str, workload: str | None
 ) -> None:
     inject = resolve_inject_params(
-        "bgp_missing_route_advertisement", scenario, topo_size, seed=43
+        "bgp_missing_route_advertisement",
+        scenario,
+        topo_size,
+        seed=43,
+        workload=workload,
     )
     host = inject["host_name"]
     assert "leaf" in host
     validate_benchmark_case(
-        scenario, "bgp_missing_route_advertisement", inject, topo_size
+        scenario,
+        "bgp_missing_route_advertisement",
+        inject,
+        topo_size,
+        workload=workload,
     )
 
 
 def test_bgp_missing_route_advertisement_rejects_spine_target() -> None:
     with pytest.raises(ValueError, match="leaf router"):
         validate_benchmark_case(
-            "dc_clos_service",
+            "dc_clos",
             "bgp_missing_route_advertisement",
             {"host_name": "spine_router_2_2"},
             "l",
+            workload="service",
         )
 
 
-def test_bgp_missing_route_advertisement_rejects_dc_clos_bgp_super_spine() -> None:
+def test_bgp_missing_route_advertisement_rejects_dc_clos_super_spine() -> None:
     with pytest.raises(ValueError, match="leaf router"):
         validate_benchmark_case(
-            "dc_clos_bgp",
+            "dc_clos",
             "bgp_missing_route_advertisement",
             {"host_name": "super_spine_router_0"},
             "s",
+            workload="host",
         )
 
 
@@ -61,26 +74,32 @@ def test_bgp_missing_route_advertisement_simple_bgp_unchanged() -> None:
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
-@pytest.mark.parametrize("scenario", ["dc_clos_bgp", "dc_clos_service"])
+@pytest.mark.parametrize(
+    "scenario,workload",
+    [("dc_clos", "host"), ("dc_clos_service", None)],
+)
 @pytest.mark.parametrize(
     "problem",
     ["host_static_blackhole", "bgp_blackhole_route_leak", "bgp_hijacking"],
 )
 def test_victim_host_problems_target_leaf_routers(
-    scenario: str, topo_size: str, problem: str
+    scenario: str, topo_size: str, problem: str, workload: str | None
 ) -> None:
-    inject = resolve_inject_params(problem, scenario, topo_size, seed=43)
+    inject = resolve_inject_params(
+        problem, scenario, topo_size, seed=43, workload=workload
+    )
     assert "leaf" in inject["host_name"], inject
-    validate_benchmark_case(scenario, problem, inject, topo_size)
+    validate_benchmark_case(scenario, problem, inject, topo_size, workload=workload)
 
 
 def test_host_static_blackhole_rejects_spine_target() -> None:
     with pytest.raises(ValueError, match="leaf router"):
         validate_benchmark_case(
-            "dc_clos_service",
+            "dc_clos",
             "host_static_blackhole",
             {"host_name": "spine_router_3_0"},
             "l",
+            workload="service",
         )
 
 
@@ -121,17 +140,14 @@ def test_host_vpn_membership_missing_rejects_non_peer_web_server() -> None:
     ],
 )
 def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
-    import yaml
+    from nika.workflows.benchmark.load_config import load_benchmark_yaml
 
     path = _BENCHMARK_DIR / yaml_name
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    for row in data.get("cases") or []:
-        topo = row.get("topo_size") or ""
-        if topo is None:
-            topo = ""
+    for row in load_benchmark_yaml(path):
         validate_benchmark_case(
             row["scenario"],
             row["problem"],
             dict(row.get("inject") or {}),
-            str(topo),
+            str(row.get("topo_size") or ""),
+            workload=row.get("workload"),
         )

@@ -1,11 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import random
 from typing import Iterable, Optional
 
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_static import (
-    OSPFEnterpriseStatic,
-)
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.service.kathara import KatharaAPIALL
 
@@ -13,13 +12,20 @@ from nika.service.kathara import KatharaAPIALL
 class WebBrowsingTrafficGenerator:
     def __init__(
         self,
-        scenario_name: NetworkEnvBase = OSPFEnterpriseStatic(),
+        scenario_name: NetworkEnvBase | str | None = None,
         request_delay_range: tuple[float, float] = (1.0, 5.0),
         pages_per_session_range: tuple[int, int] = (3, 10),
         loop_forever: bool = True,
         **kwargs,
     ):
-        self.net_env = get_net_env_instance(scenario_name, **kwargs)
+        if scenario_name is None:
+            self.net_env = get_net_env_instance(
+                "campus_lan", workload="static", **kwargs
+            )
+        elif isinstance(scenario_name, str):
+            self.net_env = get_net_env_instance(scenario_name, **kwargs)
+        else:
+            self.net_env = scenario_name
         self.kathara_api = KatharaAPIALL(lab_name=self.net_env.lab.name)
         self.clients: list[str] = self.net_env.hosts
         self.web_servers: list[str] = self.net_env.servers["web"]

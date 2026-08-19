@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from nika.net_env.kathara.data_center_routing.dc_clos_bgp.verify import (
+from nika.net_env.kathara.data_center_routing.dc_clos.verify import (
     verify_dc_clos_bgp_lab,
     verify_dc_clos_service_lab,
 )
@@ -225,8 +225,8 @@ class KatharaVerifyUnitTest:
 SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
     ("simple_bgp", [], ("router1", "router2", "pc1", "pc2")),
     (
-        "dc_clos_bgp",
-        ["-s", "s"],
+        "dc_clos",
+        ["-s", "s", "--workload", "host"],
         (
             "super_spine_router_0",
             "spine_router_0_0",
@@ -236,8 +236,8 @@ SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "dc_clos_service",
-        ["-s", "s"],
+        "dc_clos",
+        ["-s", "s", "--workload", "service"],
         (
             "super_spine_router_0",
             "spine_router_0_0",

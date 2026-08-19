@@ -54,8 +54,8 @@ class HostMisconfigVerifyTest(PerTestEnvTestCase):
 
 
 class HostIncorrectDNSVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_host_incorrect_dns(self) -> None:
         self._inject_failure("host_incorrect_dns")
@@ -67,8 +67,8 @@ class HostIncorrectDNSVerifyTest(PerTestEnvTestCase):
 
 
 class OSPFMisconfigVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_static"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "static"]
 
     def test_ospf_area_misconfiguration(self) -> None:
         self._inject_failure("ospf_area_misconfiguration")
@@ -104,8 +104,8 @@ class BGPMisconfigVerifyTest(PerTestEnvTestCase):
 
 
 class MacMisconfigVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_static"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "static"]
 
     def test_mac_address_conflict(self) -> None:
         self._inject_failure("mac_address_conflict")
@@ -113,8 +113,8 @@ class MacMisconfigVerifyTest(PerTestEnvTestCase):
 
 
 class DHCPMisconfigVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_dhcp_missing_subnet(self) -> None:
         self._inject_failure("dhcp_missing_subnet")
@@ -138,8 +138,8 @@ class ACLBlockVerifyTest(PerTestEnvTestCase):
 
 
 class HttpACLBlockVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_http_acl_block(self) -> None:
         self._inject_failure("http_acl_block")
@@ -220,8 +220,8 @@ class SDNControllerVerifyTest(PerTestEnvTestCase):
 
 
 class WebDoSVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "dc_clos_service"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "dc_clos"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
 
     def test_web_dos_attack(self) -> None:
         self._inject_failure("web_dos_attack")
@@ -229,8 +229,8 @@ class WebDoSVerifyTest(PerTestEnvTestCase):
 
 
 class DHCPAttackVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_dhcp_spoofed_gateway(self) -> None:
         self._inject_failure("dhcp_spoofed_gateway")
@@ -258,8 +258,8 @@ class BGPHijackingVerifyTest(PerTestEnvTestCase):
 
 
 class StressVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_sender_resource_contention(self) -> None:
         self._inject_failure("sender_resource_contention")
@@ -279,8 +279,8 @@ class StressVerifyTest(PerTestEnvTestCase):
 
 
 class DNSLookupLatencyVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "dc_clos_service"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "dc_clos"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
 
     def test_dns_lookup_latency(self) -> None:
         self._inject_failure("dns_lookup_latency")
@@ -300,8 +300,8 @@ class LinkIssueVerifyTest(PerTestEnvTestCase):
 
 
 class IncastTrafficLimitationVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "dc_clos_service"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "dc_clos"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
 
     def test_incast_traffic_network_limitation(self) -> None:
         self._inject_failure("incast_traffic_network_limitation")
@@ -309,8 +309,8 @@ class IncastTrafficLimitationVerifyTest(PerTestEnvTestCase):
 
 
 class DNSRecordErrorVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_dns_record_error(self) -> None:
         self._inject_failure("dns_record_error")
@@ -335,8 +335,8 @@ class VPNMembershipMissingVerifyTest(PerTestEnvTestCase):
 
 
 class ServiceDownVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "ospf_enterprise_dhcp"
-    ENV_RUN_ARGS = ["-s", "s"]
+    SCENARIO = "campus_lan"
+    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
 
     def test_dns_service_down(self) -> None:
         self._inject_failure("dns_service_down")

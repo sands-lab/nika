@@ -145,6 +145,7 @@ def remote_start_net_env(
     bgp_mode: str | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    workload: str | None = None,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -168,6 +169,7 @@ def remote_start_net_env(
             bgp_mode=bgp_mode,
             backend=backend,
             device_profile=device_profile,
+            workload=workload,
         )
     )
     session = _mirror_session_locally(

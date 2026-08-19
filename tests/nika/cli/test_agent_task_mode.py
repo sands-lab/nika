@@ -113,11 +113,12 @@ class TestAgentRunTaskMode:
             )
 
         assert result.exit_code == 0, result.output
-        assert resolve_mock.call_args.args[:3] == ("dc_clos_bgp", "link_down", "s")
+        assert resolve_mock.call_args.args[:3] == ("dc_clos", "link_down", "s")
         assert resolve_mock.call_args.kwargs["overrides"] == {"host_name": "pc_0_1"}
-        assert run_mock.call_args.kwargs["scenario"] == "dc_clos_bgp"
+        assert run_mock.call_args.kwargs["scenario"] == "dc_clos"
         assert run_mock.call_args.kwargs["topo_size"] == "s"
         assert run_mock.call_args.kwargs["problem"] == "link_down"
+        assert run_mock.call_args.kwargs["workload"] == "host"
 
     def test_session_mode_still_calls_start_agent(self) -> None:
         with patch(

@@ -349,6 +349,7 @@ def _run_sndlib(
             "constant_metric",
             "bgp_mode",
             "device_profile",
+            "workload",
         )
         if k in params and params[k] is not None
     }

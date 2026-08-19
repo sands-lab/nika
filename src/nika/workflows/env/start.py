@@ -21,8 +21,13 @@ from nika.net_env.isp.profiles import (
     validate_backend_profile,
 )
 from nika.net_env.net_env_pool import (
+    DC_CLOS_SCENARIO,
+    CAMPUS_LAN_SCENARIO,
     get_net_env_instance,
+    is_dc_clos_scenario,
+    is_campus_lan_scenario,
     resolve_scenario_backend,
+    resolve_scenario_ref,
     scenario_requires_topo_size,
 )
 from nika.net_env.verify import verify_lab_with_retry
@@ -36,6 +41,10 @@ from nika.utils.session import Session
 from nika.utils.session_id import make_session_id
 
 ISP_SCENARIO = "isp"
+SUPPORTED_DC_CLOS_WORKLOADS = ("host", "service")
+DEFAULT_DC_CLOS_WORKLOAD = "host"
+SUPPORTED_CAMPUS_LAN_WORKLOADS = ("static", "dhcp")
+DEFAULT_CAMPUS_LAN_WORKLOAD = "static"
 
 
 def _normalize_topo_size(raw: str | None) -> Literal["s", "m", "l"] | None:
@@ -45,6 +54,41 @@ def _normalize_topo_size(raw: str | None) -> Literal["s", "m", "l"] | None:
     if raw not in ("s", "m", "l"):
         raise ValueError("Topology size must be one of: s, m, l.")
     return raw  # type: ignore[return-value]
+
+
+def _resolve_workload_kwargs(
+    scenario: str,
+    *,
+    workload: str | None,
+) -> dict:
+    """Validate ``--workload`` for Clos / OSPF campus_lan; return instance kwargs."""
+    canonical, alias_workload = resolve_scenario_ref(scenario)
+    if is_dc_clos_scenario(canonical):
+        allowed = SUPPORTED_DC_CLOS_WORKLOADS
+        default = alias_workload or DEFAULT_DC_CLOS_WORKLOAD
+        label = DC_CLOS_SCENARIO
+    elif is_campus_lan_scenario(canonical):
+        allowed = SUPPORTED_CAMPUS_LAN_WORKLOADS
+        default = alias_workload or DEFAULT_CAMPUS_LAN_WORKLOAD
+        label = CAMPUS_LAN_SCENARIO
+    else:
+        if workload is not None:
+            raise ValueError(
+                f"Scenario '{scenario}' does not accept --workload; "
+                f"that flag is only valid for '{DC_CLOS_SCENARIO}' or "
+                f"'{CAMPUS_LAN_SCENARIO}' (and their legacy aliases)."
+            )
+        return {}
+    if workload is None:
+        resolved = default
+    else:
+        if workload not in allowed:
+            raise ValueError(
+                f"Unsupported workload {workload!r} for '{label}'; "
+                f"expected one of {allowed}."
+            )
+        resolved = workload
+    return {"workload": resolved}
 
 
 def _resolve_isp_kwargs(
@@ -148,9 +192,12 @@ def start_net_env(
     bgp_mode: str | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    workload: str | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     from nika.remote.config import is_remote_enabled
+
+    canonical, _alias_workload = resolve_scenario_ref(scenario)
 
     if is_remote_enabled():
         from nika.remote.workflows import remote_start_net_env
@@ -171,20 +218,21 @@ def start_net_env(
             bgp_mode=bgp_mode,
             backend=backend,
             device_profile=device_profile,
+            workload=workload,
         )
 
     size = _normalize_topo_size(topo_size)
-    if scenario_requires_topo_size(scenario) and size is None:
+    if scenario_requires_topo_size(canonical) and size is None:
         raise ValueError(
             f"Scenario '{scenario}' requires an explicit topology size (-s s|m|l)."
         )
-    if not scenario_requires_topo_size(scenario) and size is not None:
+    if not scenario_requires_topo_size(canonical) and size is not None:
         raise ValueError(
             f"Scenario '{scenario}' does not use topology sizes; omit -s/--size."
         )
 
     isp_kwargs = _resolve_isp_kwargs(
-        scenario,
+        canonical,
         topo=topo,
         igp=igp,
         metric_strategy=metric_strategy,
@@ -193,10 +241,11 @@ def start_net_env(
         device_profile=device_profile,
         backend=backend,
     )
+    clos_kwargs = _resolve_workload_kwargs(scenario, workload=workload)
 
-    default_backend = DEFAULT_BACKEND_FOR_ISP if scenario == ISP_SCENARIO else None
+    default_backend = DEFAULT_BACKEND_FOR_ISP if canonical == ISP_SCENARIO else None
     resolved_backend = resolve_scenario_backend(
-        scenario,
+        canonical,
         backend=backend,
         default_when_ambiguous=default_backend,
     )
@@ -208,14 +257,16 @@ def start_net_env(
         if instance_tag
         else f"{datetime.now().strftime('%m%d%H%M%S')}-{suffix}"
     )
-    lab_name = f"{scenario}__{tag}"
+    lab_name = f"{canonical}__{tag}"
     resolved_session_id = session_id or make_session_id(
         session_tag=session_tag, suffix=suffix
     )
-    net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
+    net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs, **clos_kwargs}
     if size is not None:
         net_env_kwargs["topo_size"] = size
-    net_env = get_net_env_instance(scenario, backend=resolved_backend, **net_env_kwargs)
+    net_env = get_net_env_instance(
+        canonical, backend=resolved_backend, **net_env_kwargs
+    )
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
 
@@ -224,12 +275,13 @@ def start_net_env(
     if size is not None:
         scenario_params["topo_size"] = size
     scenario_params.update(isp_kwargs)
+    scenario_params.update(clos_kwargs)
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
     session.init_session(
         session_id=resolved_session_id,
-        scenario_name=scenario,
+        scenario_name=canonical,
         lab_name=net_env.name,
         scenario_topo_size=size,
         scenario_params=scenario_params,
@@ -272,26 +324,53 @@ def start_net_env(
                 error=str(post_deploy_exc),
                 error_type=type(post_deploy_exc).__name__,
             )
-    except Exception as exc:
-        event_type = "env_verify_failed" if net_env.lab_exists() else "env_start_failed"
-        log_error_event(
-            event_type,
-            f"Failed to start network environment: {scenario} ({resolved_session_id}): {exc}",
-            scenario=scenario,
-            backend=resolved_backend,
-            topo_size=size,
-            session_id=resolved_session_id,
-            lab_name=net_env.name,
-            error=str(exc),
-            error_type=type(exc).__name__,
-        )
+    except BaseException as exc:
+        # Session is registered before deploy; clean up so interrupted starts
+        # do not leave a running lab (KeyboardInterrupt is not Exception).
+        if isinstance(exc, Exception):
+            event_type = (
+                "env_verify_failed" if net_env.lab_exists() else "env_start_failed"
+            )
+            log_error_event(
+                event_type,
+                f"Failed to start network environment: {scenario} ({resolved_session_id}): {exc}",
+                scenario=scenario,
+                backend=resolved_backend,
+                topo_size=size,
+                session_id=resolved_session_id,
+                lab_name=net_env.name,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+        else:
+            log_error_event(
+                "env_start_interrupted",
+                f"Interrupted while starting network environment: {scenario} ({resolved_session_id}): {type(exc).__name__}",
+                scenario=scenario,
+                backend=resolved_backend,
+                topo_size=size,
+                session_id=resolved_session_id,
+                lab_name=net_env.name,
+                error=str(exc) or type(exc).__name__,
+                error_type=type(exc).__name__,
+            )
         try:
-            net_env.undeploy()
+            from nika.workflows.session.close import close_session
+
+            close_session(session_id=resolved_session_id, undeploy=True)
         except Exception as cleanup_exc:  # noqa: BLE001 - best effort
             print(
-                f"WARNING: could not undeploy lab {net_env.name} after "
+                f"WARNING: could not close session {resolved_session_id} after "
                 f"failed start: {cleanup_exc}"
             )
+            try:
+                if net_env.lab_exists():
+                    net_env.undeploy()
+            except Exception as undeploy_exc:  # noqa: BLE001 - best effort
+                print(
+                    f"WARNING: could not undeploy lab {net_env.name} after "
+                    f"failed start: {undeploy_exc}"
+                )
         raise
 
     log_event(

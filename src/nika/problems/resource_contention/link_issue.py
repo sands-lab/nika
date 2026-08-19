@@ -172,7 +172,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
 
     Params = IncastTrafficNetworkLimitationParams
 
-    def __init__(self, scenario_name: str = "dc_clos_service", **kwargs):
+    def __init__(self, scenario_name: str = "dc_clos", **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.scenario_name = scenario_name
 

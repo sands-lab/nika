@@ -29,7 +29,7 @@ def _topo_size(row: dict[str, Any]) -> str:
 def materialize_case(
     row: dict[str, Any],
     *,
-    env_cache: dict[tuple[str, str], Any] | None = None,
+    env_cache: dict[tuple[str, str, str], Any] | None = None,
 ) -> dict[str, Any]:
     """Copy identity fields and attach ``root_causes`` from the failure class."""
     if not isinstance(row, dict):
@@ -37,11 +37,16 @@ def materialize_case(
     scenario = str(row["scenario"])
     problem = str(row["problem"])
     topo = _topo_size(row)
+    workload = row.get("workload")
+    if workload in ("-", "", None):
+        workload = None
+    else:
+        workload = str(workload)
     inject = {str(k): str(v) for k, v in dict(row.get("inject") or {}).items()}
     cache = env_cache if env_cache is not None else {}
-    cache_key = (scenario, topo)
+    cache_key = (scenario, topo, workload or "")
     if cache_key not in cache:
-        cache[cache_key] = load_offline_net_env(scenario, topo)
+        cache[cache_key] = load_offline_net_env(scenario, topo, workload=workload)
     gt = ground_truth_for_case(
         problem=problem,
         params=inject,
@@ -49,17 +54,20 @@ def materialize_case(
         topo_size=topo,
         net_env=cache[cache_key],
     )
-    return {
+    out: dict[str, Any] = {
         "scenario": scenario,
         "topo_size": topo or None,
         "problem": problem,
         "inject": inject,
         "root_causes": canonical_root_causes(gt.root_causes),
     }
+    if workload is not None:
+        out["workload"] = workload
+    return out
 
 
 def materialize_cases(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    env_cache: dict[tuple[str, str], Any] = {}
+    env_cache: dict[tuple[str, str, str], Any] = {}
     return [materialize_case(row, env_cache=env_cache) for row in rows]
 
 

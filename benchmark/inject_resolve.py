@@ -24,8 +24,14 @@ _DEVICE_KEYS = (
 )
 
 
-def _case_rng(seed: int, scenario: str, problem: str, topo_size: str) -> random.Random:
-    key = f"{seed}|{scenario}|{problem}|{topo_size}".encode()
+def _case_rng(
+    seed: int,
+    scenario: str,
+    problem: str,
+    topo_size: str,
+    workload: str = "",
+) -> random.Random:
+    key = f"{seed}|{scenario}|{problem}|{topo_size}|{workload}".encode()
     digest = int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "big")
     return random.Random(digest)
 
@@ -57,9 +63,10 @@ def _first(items: list[str] | None) -> str | None:
 def _routers_with_bgp_network(routers: list[str]) -> list[str]:
     """Routers that originate BGP ``network`` statements in Clos-style labs.
 
-    Spines (and ``dc_clos_bgp`` super-spines) only peer and have no ``network``
-    lines, so commenting those out is a no-op. Prefer leaves; fall back to the
-    full pool when the topology does not use leaf role names (e.g. simple_bgp).
+    Spines (and ``dc_clos`` super-spines without a client subnet) only peer and
+    have no ``network`` lines, so commenting those out is a no-op. Prefer leaves;
+    fall back to the full pool when the topology does not use leaf role names
+    (e.g. simple_bgp).
     """
     advertisers = [r for r in routers if "leaf" in r]
     return advertisers or list(routers)
@@ -192,10 +199,14 @@ def _all_device_names(net_env) -> set[str]:
     return names
 
 
-def _get_net_env_for_benchmark(scenario: str, topo_size: str = ""):
+def _get_net_env_for_benchmark(
+    scenario: str, topo_size: str = "", *, workload: str | None = None
+):
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
+    if workload is not None:
+        kwargs["workload"] = workload
     from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
     from nika.net_env.net_env_pool import resolve_scenario_backend
 
@@ -307,10 +318,11 @@ def resolve_inject_params(
     topo_size: str = "",
     *,
     seed: int = DEFAULT_SEED,
+    workload: str | None = None,
 ) -> dict[str, str]:
     """Return inject params for one benchmark row."""
-    rng = _case_rng(seed, scenario, problem, topo_size)
-    net_env = _get_net_env_for_benchmark(scenario, topo_size)
+    rng = _case_rng(seed, scenario, problem, topo_size, workload or "")
+    net_env = _get_net_env_for_benchmark(scenario, topo_size, workload=workload)
     _load_inventory(net_env)
     from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
     from nika.net_env.net_env_pool import resolve_scenario_backend
@@ -564,24 +576,31 @@ def validate_benchmark_case(
     problem: str,
     inject: dict[str, str],
     topo_size: str = "",
+    *,
+    workload: str | None = None,
 ) -> None:
     """Raise ValueError if a benchmark row is inconsistent with tags or topology."""
+    from nika.net_env.net_env_pool import resolve_scenario_ref
+
     net_envs = list_all_net_envs()
     problems = list_avail_problem_instances()
-    if scenario not in net_envs:
+    canonical, alias_workload = resolve_scenario_ref(scenario)
+    if workload is None:
+        workload = alias_workload
+    if canonical not in net_envs:
         raise ValueError(f"Unknown scenario {scenario!r}")
     if problem not in problems:
         raise ValueError(f"Unknown problem {problem!r}")
 
     problem_tags = set(problems[problem].TAGS)
-    scenario_tags = set(net_envs[scenario].TAGS)
+    scenario_tags = set(net_envs[canonical].TAGS)
     if not problem_tags.issubset(scenario_tags):
         raise ValueError(
             f"Tag mismatch for {problem} on {scenario}: "
             f"problem tags {sorted(problem_tags)} not subset of scenario tags {sorted(scenario_tags)}"
         )
 
-    net_env = _get_net_env_for_benchmark(scenario, topo_size)
+    net_env = _get_net_env_for_benchmark(canonical, topo_size, workload=workload)
     _load_inventory(net_env)
     devices = _all_device_names(net_env)
     ifaces_by_device = _device_interfaces(net_env)

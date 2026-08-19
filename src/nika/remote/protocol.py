@@ -29,6 +29,7 @@ class EnvStartRequest(BaseModel):
     bgp_mode: str | None = None
     backend: str | None = None
     device_profile: str | None = None
+    workload: str | None = None
 
 
 class EnvStartResponse(BaseModel):

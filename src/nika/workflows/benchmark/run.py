@@ -298,6 +298,7 @@ def run_single_case(
     trial_index: int | None = None,
     case_key: str | None = None,
     expected_root_causes: list | None = None,
+    workload: str | None = None,
 ) -> tuple[str, Path]:
     """Run one benchmark case (env → inject → agent → close + metrics).
 
@@ -309,6 +310,7 @@ def run_single_case(
     """
     print(
         f"Running benchmark for Problem: {problem}, Scenario: {scenario}, Topo Size: {topo_size}"
+        + (f", Workload: {workload}" if workload else "")
         + (f", Trial: {trial_id}" if trial_id else "")
     )
 
@@ -350,6 +352,7 @@ def run_single_case(
         session_tag=session_tag,
         session_id=trial_id,
         session_dir=predetermined_dir,
+        workload=workload,
     )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
@@ -370,6 +373,7 @@ def run_single_case(
             problem=problem,
             topo_size=topo_size,
             inject_params=params,
+            workload=workload,
         )
         session = Session().load_running_session(session_id=session_id)
         session.update_session(
@@ -522,6 +526,7 @@ def _run_trial(
         trial_id=trial.trial_id,
         trial_index=trial.trial_index,
         case_key=trial.case_key,
+        workload=row.get("workload"),
     )
 
 

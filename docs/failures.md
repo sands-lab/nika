@@ -11,17 +11,17 @@ uv run nika failure describe <failure_id>
 
 ## Failure categories and counts
 
-NIKA currently registers 60 code-level failure IDs. The checked-in working matrix contains 727 cases for all 60 IDs. The totals below come from the current failure registry and [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml).
+NIKA currently registers 60 code-level failure IDs. The checked-in working matrix contains 580 cases for all 60 IDs. The totals below come from the current failure registry and [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml).
 
 | Category | Registered failure IDs | Working-matrix cases |
 | --- | ---: | ---: |
-| Link failures | 6 | 178 |
-| End-host failures | 10 | 164 |
-| Network node errors | 9 | 51 |
-| Misconfigurations (routing, ACL, and related configuration) | 18 | 167 |
-| Resource contention | 6 | 85 |
-| Network under attack | 11 | 82 |
-| **Total** | **60** | **727** |
+| Link failures | 6 | 142 |
+| End-host failures | 10 | 128 |
+| Network node errors | 9 | 45 |
+| Misconfigurations (routing, ACL, and related configuration) | 18 | 128 |
+| Resource contention | 6 | 67 |
+| Network under attack | 11 | 70 |
+| **Total** | **60** | **580** |
 
 The registry and working matrix are the sources of truth for failure IDs and case counts. The headings provide the six-category organization used by this reference.
 
@@ -31,15 +31,15 @@ The **Scenarios and parameters** column names a compatibility set from the table
 
 | Set | Scenario IDs |
 | --- | --- |
-| **All** | All 16 registered scenarios |
-| **Host L2** | `dc_clos_bgp`, `dc_clos_service`, `ospf_enterprise_dhcp`, `ospf_enterprise_static`, `rip_small_internet_vpn`, `sdn_star`, `sdn_clos`, `p4_bloom_filter`, `p4_counter`, `p4_int`, `p4_mpls`, `simple_bgp`, `k8s_lab`, `llmd_lab` |
-| **Routed host** | `dc_clos_bgp`, `dc_clos_service`, `ospf_enterprise_dhcp`, `ospf_enterprise_static`, `rip_small_internet_vpn`, `simple_bgp`, `k8s_lab` |
-| **FRR** | `dc_clos_bgp`, `dc_clos_service`, `ospf_enterprise_dhcp`, `ospf_enterprise_static`, `rip_small_internet_vpn`, `simple_bgp`, `isp`, `k8s_lab` |
-| **BGP** | `dc_clos_bgp`, `dc_clos_service`, `simple_bgp`, `isp`, `min3clos`, `k8s_lab` |
-| **OSPF** | `ospf_enterprise_dhcp`, `ospf_enterprise_static`, `isp` |
-| **DNS** | `dc_clos_service`, `ospf_enterprise_dhcp` |
-| **HTTP** | `dc_clos_service`, `ospf_enterprise_dhcp`, `ospf_enterprise_static`, `rip_small_internet_vpn`, `llmd_lab` |
-| **DHCP** | `ospf_enterprise_dhcp` |
+| **All** | All 14 registered scenarios |
+| **Host L2** | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `sdn_star`, `sdn_clos`, `p4_bloom_filter`, `p4_counter`, `p4_int`, `p4_mpls`, `simple_bgp`, `k8s_lab`, `llmd_lab` |
+| **Routed host** | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `simple_bgp`, `k8s_lab` |
+| **FRR** | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `simple_bgp`, `isp`, `k8s_lab` |
+| **BGP** | `dc_clos`, `simple_bgp`, `isp`, `min3clos`, `k8s_lab` |
+| **OSPF** | `campus_lan`, `isp` |
+| **DNS** | `dc_clos` (service workload), `campus_lan` (dhcp workload) |
+| **HTTP** | `dc_clos` (service workload), `campus_lan`, `rip_small_internet_vpn`, `llmd_lab` |
+| **DHCP** | `campus_lan` (dhcp workload) |
 | **SDN** | `sdn_star`, `sdn_clos` |
 | **P4** | `p4_bloom_filter`, `p4_counter`, `p4_int`, `p4_mpls` |
 | **Kubernetes** | `k8s_lab`, `llmd_lab` |
@@ -184,7 +184,7 @@ The **Trigger and signal** column describes the traffic or state that exposes th
 | Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
 | --- | --- | --- | --- | --- | --- |
 | ARP ACL block | `arp_acl_block` | **Host L2**. `host_name` | Adds an nftables ARP drop and flushes the neighbor cache. | New ARP resolution fails; cached entries are removed so local-subnet traffic stops. | An ARP drop appears in nftables. |
-| ICMP ACL block | `icmp_acl_block` | `dc_clos_bgp`, `dc_clos_service`, `ospf_enterprise_dhcp`, `ospf_enterprise_static`, `rip_small_internet_vpn`, `sdn_star`, `sdn_clos`, **P4**, `simple_bgp`, `isp`, **Kubernetes**. `host_name` | Adds an nftables ICMP drop. | Ping and ICMP-based health checks fail while TCP or UDP services can remain reachable. | The ruleset contains an ICMP drop. |
+| ICMP ACL block | `icmp_acl_block` | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `sdn_star`, `sdn_clos`, **P4**, `simple_bgp`, `isp`, **Kubernetes**. `host_name` | Adds an nftables ICMP drop. | Ping and ICMP-based health checks fail while TCP or UDP services can remain reachable. | The ruleset contains an ICMP drop. |
 | Routing control-plane ACL block | `bgp_acl_block` | **BGP**. `host_name` | Kathara adds nftables drops for TCP source and destination port 179; Containerlab installs the SR Linux ACL equivalent. | BGP sessions reset or cannot establish; routes learned through those sessions disappear. | The port-179 drop exists in nftables or the SR Linux ACL. |
 | Routing control-plane ACL block | `ospf_acl_block` | **OSPF**. `host_name` | Adds an nftables rule that drops IP protocol 89. | OSPF neighbors time out and learned routes withdraw while unrelated protocols can pass. | The nftables ruleset contains the OSPF drop. |
 | HTTP ACL block | `http_acl_block` | **HTTP**. `host_name` | Adds nftables drops for TCP port 80. | HTTP requests to or from the target time out while non-HTTP traffic can pass. | The ruleset contains the port-80 drop. |
@@ -279,4 +279,4 @@ uv run nika failure ps
 
 Parameters identify device names inside the running scenario, not Docker container names. Use `uv run nika session inspect` and `uv run nika session containers` to resolve the active inventory.
 
-The checked-in [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml) contains 727 cases for all 60 registered failures. Its scenario rows reflect the file's generation date; run `uv run python benchmark/generate_benchmark.py` after intentional registry changes. See [Create benchmark tasks](creating-benchmark-tasks.md) for the implementation contract and [Network scenario reference](network-scenarios.md) for topology details.
+The checked-in [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml) contains 580 cases for all 60 registered failures. Its scenario rows reflect the file's generation date; run `uv run python benchmark/generate_benchmark.py` after intentional registry changes. See [Create benchmark tasks](creating-benchmark-tasks.md) for the implementation contract and [Network scenario reference](network-scenarios.md) for topology details.

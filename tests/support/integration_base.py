@@ -56,6 +56,9 @@ def _parse_env_run_args(extra_args: list[str] | None) -> dict[str, Any]:
         elif arg == "--device-profile" and i + 1 < len(args):
             kwargs["device_profile"] = args[i + 1]
             i += 2
+        elif arg == "--workload" and i + 1 < len(args):
+            kwargs["workload"] = args[i + 1]
+            i += 2
         elif arg == "--no-redeploy":
             kwargs["redeploy"] = False
             i += 1
@@ -114,10 +117,7 @@ class IntegrationMixin:
 
     @classmethod
     def _close_session_class(cls, session_id: str) -> None:
-        try:
-            close_session(session_id=session_id)
-        except Exception:
-            pass
+        close_session(session_id=session_id)
 
     def _inject_failure(
         self,
@@ -290,14 +290,17 @@ class PerTestEnvMixin(IntegrationMixin):
         self.session_id = self._start_env(self.SCENARIO, self.ENV_RUN_ARGS)
         self._prev_nika_session_id = os.environ.get(SESSION_ID_ENV)
         os.environ[SESSION_ID_ENV] = self.session_id
-        self._assert_session_ready(self.session_id, self.SCENARIO)
-        yield
-        if getattr(self, "session_id", None):
-            self._close_session(self.session_id)
-        if getattr(self, "_prev_nika_session_id", None) is None:
-            os.environ.pop(SESSION_ID_ENV, None)
-        else:
-            os.environ[SESSION_ID_ENV] = self._prev_nika_session_id
+        try:
+            self._assert_session_ready(self.session_id, self.SCENARIO)
+            yield
+        finally:
+            # Close even when setup asserts fail (pytest skips post-yield teardown).
+            if getattr(self, "session_id", None):
+                self._close_session(self.session_id)
+            if getattr(self, "_prev_nika_session_id", None) is None:
+                os.environ.pop(SESSION_ID_ENV, None)
+            else:
+                os.environ[SESSION_ID_ENV] = self._prev_nika_session_id
 
     def _scenario_kwargs(self, session_id: str | None = None) -> dict:
         return super()._scenario_kwargs(session_id or self.session_id)
@@ -328,23 +331,23 @@ class SharedSessionMixin(IntegrationMixin):
     def _shared_session(self):
         cls = type(self)
         cls.session_id = cls._start_env_class(cls.SCENARIO, cls.ENV_RUN_ARGS)
-        if cls.INJECT_PROBLEM is not None:
-            params = (
-                dict(cls.INJECT_PARAMS)
-                if cls.INJECT_PARAMS
-                else _parse_inject_args(cls.INJECT_ARGS)
-            )
-            try:
+        try:
+            if cls.INJECT_PROBLEM is not None:
+                params = (
+                    dict(cls.INJECT_PARAMS)
+                    if cls.INJECT_PARAMS
+                    else _parse_inject_args(cls.INJECT_ARGS)
+                )
                 inject_failure_workflow(
                     [cls.INJECT_PROBLEM],
                     session_id=cls.session_id,
                     param_overrides=params or None,
                 )
-            except Exception as exc:
+            yield
+        finally:
+            # Close on inject failure, test errors, and KeyboardInterrupt.
+            if getattr(cls, "session_id", None):
                 cls._close_session_class(cls.session_id)
-                raise exc
-        yield
-        cls._close_session_class(cls.session_id)
 
 
 SharedSessionTestCase = SharedSessionMixin
@@ -359,10 +362,14 @@ class OrderedPipelineMixin(IntegrationMixin):
 
     @pytest.fixture(scope="class", autouse=True)
     def _ordered_pipeline_teardown(self):
-        yield
         cls = type(self)
-        if cls.session_id and not cls.env_destroyed:
-            cls._close_session_class(cls.session_id)
+        try:
+            yield
+        finally:
+            # Close when step_05 was skipped/failed, or the run was interrupted.
+            if cls.session_id and not cls.env_destroyed:
+                cls._close_session_class(cls.session_id)
+                cls.env_destroyed = True
 
     def _load_json(self, filename: str) -> dict:
         assert self.session_dir is not None

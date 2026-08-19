@@ -114,14 +114,12 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 | Scenario | Tags |
 |----------|------|
-| `dc_clos_bgp` | `arp`, `bgp`, `frr`, `icmp`, `link`, `mac`, `pc` |
-| `dc_clos_service` | `arp`, `bgp`, `dns`, `frr`, `http`, `icmp`, `link`, `mac`, `pc` |
+| `dc_clos` | `arp`, `bgp`, `dns`, `frr`, `http`, `icmp`, `link`, `mac`, `pc` |
 | `isp` | `bgp`, `containerlab`, `frr`, `icmp`, `igp`, `isis`, `isp`, `link`, `ospf`, `sndlib`, `srl` |
 | `k8s_lab` | `arp`, `bgp`, `coredns`, `fat-tree`, `frr`, `icmp`, `ingress`, `k3s`, `k8s_control_plane`, `k8s_storage`, `k8s_workload`, `kube_proxy`, `kubernetes`, `link`, `mac`, `metallb`, `network_policy`, `pc` |
 | `llmd_lab` | `arp`, `coredns`, `http`, `icmp`, `inference`, `k3s`, `k8s_control_plane`, `kube_proxy`, `kubernetes`, `link`, `llm`, `mac`, `metallb`, `network_policy`, `pc` |
 | `min3clos` | `bgp`, `clos`, `containerlab`, `fabric`, `link`, `srl` |
-| `ospf_enterprise_dhcp` | `arp`, `dhcp`, `dns`, `frr`, `http`, `icmp`, `link`, `load_balancer`, `mac`, `ospf`, `pc`, `web` |
-| `ospf_enterprise_static` | `arp`, `frr`, `http`, `icmp`, `link`, `mac`, `ospf`, `pc` |
+| `campus_lan` | `arp`, `dhcp`, `dns`, `frr`, `http`, `icmp`, `link`, `load_balancer`, `mac`, `ospf`, `pc`, `web` |
 | `p4_bloom_filter` | `arp`, `bloom_filter`, `icmp`, `link`, `mac`, `p4`, `pc` |
 | `p4_counter` | `arp`, `icmp`, `link`, `mac`, `p4`, `pc` |
 | `p4_int` | `arp`, `icmp`, `int`, `link`, `mac`, `p4`, `pc` |
@@ -137,19 +135,17 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 |--------|------:|
 | Registered failure types | 60 |
 | Failure types represented in `benchmark_full.yaml` | 60 |
-| Full benchmark cases | 727 |
+| Full benchmark cases | 580 |
 | Selected / release 0.1.0 cases | 56 |
-| Scenarios in full matrix | 16 |
+| Scenarios in full matrix | 14 |
 
 ### Full matrix by scenario
 
 | Scenario | Cases |
 |----------|------:|
-| `ospf_enterprise_dhcp` | 111 |
-| `dc_clos_service` | 102 |
-| `ospf_enterprise_static` | 78 |
+| `campus_lan` | 111 |
+| `dc_clos` | 102 |
 | `rip_small_internet_vpn` | 72 |
-| `dc_clos_bgp` | 69 |
 | `sdn_clos` | 57 |
 | `sdn_star` | 57 |
 | `k8s_lab` | 27 |
@@ -166,12 +162,10 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 | Scenario | Cases |
 |----------|------:|
-| `ospf_enterprise_dhcp` | 26 |
-| `dc_clos_bgp` | 13 |
+| `campus_lan` | 29 |
+| `dc_clos` | 14 |
 | `p4_bloom_filter` | 6 |
 | `sdn_clos` | 5 |
-| `ospf_enterprise_static` | 3 |
-| `dc_clos_service` | 1 |
 | `p4_mpls` | 1 |
 | `rip_small_internet_vpn` | 1 |
 
@@ -179,97 +173,18 @@ Kubernetes scenarios (`k8s_lab`, `llmd_lab`) and Containerlab `min3clos` appear 
 
 ## Coverage matrix (scenario × failure)
 
-Compatibility from `benchmark_full.yaml` (tag match). Cells ignore topo size: a `✓` means the pair appears at least once in the full matrix.
+Compatibility from `benchmark_full.yaml` (tag match). Cells ignore topo size: a colored cell means the pair appears at least once in the full matrix. For `dc_clos` and `campus_lan`, the matrix marks compatibility when the failure appears with the chosen workload (generation does not expand size × workload × failure). Legacy YAML may still say `dc_clos_bgp` / `dc_clos_service` or `ospf_enterprise_static` / `ospf_enterprise_dhcp`; loaders rewrite those to the canonical ids.
 
 | Symbol | Meaning |
 |--------|---------|
-| ★ | Included in selected / release `0.1.0` |
-| ✓ | Present in full matrix only |
-| (blank) | Not tag-compatible |
+| Orange | Included in selected / release `0.1.0` |
+| Blue | Present in full matrix only |
+| Gray | Not tag-compatible |
 
-Column abbreviations:
+Open the image and zoom to read full scenario and failure names.
 
-| Abbr | Scenario |
-|------|----------|
-| `dc_bgp` | `dc_clos_bgp` |
-| `dc_svc` | `dc_clos_service` |
-| `k8s` | `k8s_lab` |
-| `llmd` | `llmd_lab` |
-| `min3` | `min3clos` |
-| `ospf_d` | `ospf_enterprise_dhcp` |
-| `ospf_s` | `ospf_enterprise_static` |
-| `p4_bf` | `p4_bloom_filter` |
-| `p4_ct` | `p4_counter` |
-| `p4_int` | `p4_int` |
-| `p4_mp` | `p4_mpls` |
-| `rip_vpn` | `rip_small_internet_vpn` |
-| `sdn_c` | `sdn_clos` |
-| `sdn_s` | `sdn_star` |
-| `s_bgp` | `simple_bgp` |
-| `isp` | `isp` |
+![Scenario × failure coverage matrix](../assets/images/benchmark_coverage_matrix.png)
 
-| Failure | `dc_bgp` | `dc_svc` | `k8s` | `llmd` | `min3` | `ospf_d` | `ospf_s` | `p4_bf` | `p4_ct` | `p4_int` | `p4_mp` | `rip_vpn` | `sdn_c` | `sdn_s` | `s_bgp` | `isp` |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| `arp_acl_block` | ✓ | ✓ | ✓ | ✓ |  | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `arp_cache_poisoning` | ✓ | ✓ | ✓ | ✓ |  | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `bgp_acl_block` | ★ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  | ✓ | ✓ |
-| `bgp_asn_misconfig` | ★ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  | ✓ | ✓ |
-| `bgp_blackhole_route_leak` | ★ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  | ✓ | ✓ |
-| `bgp_hijacking` | ✓ | ★ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  | ✓ | ✓ |
-| `bgp_missing_route_advertisement` | ★ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  | ✓ | ✓ |
-| `bmv2_switch_down` |  |  |  |  |  |  |  | ★ | ✓ | ✓ | ✓ |  |  |  |  |  |
-| `dhcp_missing_subnet` |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dhcp_service_down` |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dhcp_spoofed_dns` |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dhcp_spoofed_gateway` |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dhcp_spoofed_subnet` |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dns_lookup_latency` |  | ✓ |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dns_port_blocked` |  | ✓ |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dns_record_error` |  | ✓ |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `dns_service_down` |  | ✓ |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `flow_rule_loop` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |  |
-| `flow_rule_shadowing` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |  |
-| `frr_service_down` | ✓ | ✓ | ✓ |  |  | ★ | ✓ |  |  |  |  | ✓ |  |  | ✓ | ✓ |
-| `host_crash` | ★ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `host_incorrect_dns` |  | ✓ |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `host_incorrect_gateway` | ✓ | ✓ | ✓ |  |  | ★ | ✓ |  |  |  |  | ✓ |  |  | ✓ |  |
-| `host_incorrect_ip` | ✓ | ✓ | ✓ | ✓ |  | ✓ | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `host_incorrect_netmask` | ✓ | ✓ | ✓ |  |  | ✓ | ★ |  |  |  |  | ✓ |  |  | ✓ |  |
-| `host_ip_conflict` | ★ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `host_missing_ip` | ✓ | ✓ | ✓ | ✓ |  | ✓ | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `host_static_blackhole` | ★ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  | ✓ | ✓ |
-| `host_vpn_membership_missing` |  |  |  |  |  |  |  |  |  |  |  | ★ |  |  |  |  |
-| `http_acl_block` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |  |
-| `icmp_acl_block` | ✓ | ✓ | ✓ | ✓ |  | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `incast_traffic_network_limitation` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |  |
-| `k8s_clusterip_routing_broken` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |
-| `k8s_coredns_isolated` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |
-| `k8s_networkpolicy_deny` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |
-| `k8s_worker_apiserver_partition` |  |  | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |
-| `link_bandwidth_throttling` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `link_detach` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `link_down` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `link_flap` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `link_fragmentation_disabled` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `link_high_packet_corruption` | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `load_balancer_overload` |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |  |  |
-| `mac_address_conflict` | ✓ | ✓ | ✓ | ✓ |  | ★ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
-| `mpls_label_limit_exceeded` |  |  |  |  |  |  |  |  |  |  | ★ |  |  |  |  |  |
-| `ospf_acl_block` |  |  |  |  |  | ★ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `ospf_area_misconfiguration` |  |  |  |  |  | ★ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `ospf_neighbor_missing` |  |  |  |  |  | ★ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `p4_aggressive_detection_thresholds` |  |  |  |  |  |  |  | ★ |  |  |  |  |  |  |  |  |
-| `p4_compilation_error_parser_state` |  |  |  |  |  |  |  | ★ | ✓ | ✓ | ✓ |  |  |  |  |  |
-| `p4_header_definition_error` |  |  |  |  |  |  |  | ★ | ✓ | ✓ | ✓ |  |  |  |  |  |
-| `p4_table_entry_misconfig` |  |  |  |  |  |  |  | ★ | ✓ | ✓ | ✓ |  |  |  |  |  |
-| `p4_table_entry_missing` |  |  |  |  |  |  |  | ★ | ✓ | ✓ | ✓ |  |  |  |  |  |
-| `receiver_resource_contention` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |  |
-| `sdn_controller_crash` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |  |
-| `sender_application_delay` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |  |
-| `sender_resource_contention` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |  |
-| `southbound_port_block` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |  |
-| `southbound_port_mismatch` |  |  |  |  |  |  |  |  |  |  |  |  | ★ | ✓ |  |  |
-| `web_dos_attack` |  | ✓ |  | ✓ |  | ★ | ✓ |  |  |  |  | ✓ |  |  |  |  |
 
 ## Regeneration
 
@@ -277,6 +192,12 @@ Regenerate working YAML files:
 
 ```shell
 uv run python benchmark/generate_benchmark.py
+```
+
+Refresh the coverage matrix image after the working YAML changes:
+
+```shell
+uv run --group dev python scripts/plot_coverage_matrix.py
 ```
 
 Freeze a new Dev+Test release from the current working YAML (re-selects Test instances from `benchmark_full.yaml`):

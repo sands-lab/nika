@@ -61,27 +61,32 @@ class NetEnvSpec:
         return BackendEnvBinding(module=self.module, class_name=self.class_name)
 
 
+# Legacy scenario IDs map to a unified scenario + default workload.
+# Aliases are not enumerated by list_all_net_envs(); resolve via resolve_scenario_ref().
+DC_CLOS_SCENARIO = "dc_clos"
+_DC_CLOS_ALIASES: dict[str, str] = {
+    "dc_clos_bgp": "host",
+    "dc_clos_service": "service",
+}
+CAMPUS_LAN_SCENARIO = "campus_lan"
+_CAMPUS_LAN_ALIASES: dict[str, str] = {
+    "ospf_enterprise_static": "static",
+    "ospf_enterprise_dhcp": "dhcp",
+}
+
 _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
-    "dc_clos_bgp": NetEnvSpec(
-        lab_name="dc_clos_bgp",
-        module="nika.net_env.kathara.data_center_routing.dc_clos_bgp.lab_workers",
-        class_name="DCClosBGP",
-        tags=("arp", "link", "mac", "bgp", "icmp", "frr", "pc"),
+    "dc_clos": NetEnvSpec(
+        lab_name="dc_clos",
+        module="nika.net_env.kathara.data_center_routing.dc_clos.lab",
+        class_name="DCClos",
+        tags=("arp", "link", "mac", "bgp", "icmp", "frr", "pc", "dns", "http"),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
-    "dc_clos_service": NetEnvSpec(
-        lab_name="dc_clos_service",
-        module="nika.net_env.kathara.data_center_routing.dc_clos_bgp.lab_services",
-        class_name="DCClosService",
-        tags=("arp", "link", "mac", "bgp", "icmp", "frr", "dns", "pc", "http"),
-        supported_backends=("kathara",),
-        topo_size=["s", "m", "l"],
-    ),
-    "ospf_enterprise_dhcp": NetEnvSpec(
-        lab_name="ospf_enterprise_dhcp",
-        module="nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_dhcp",
-        class_name="OSPFEnterpriseDHCP",
+    "campus_lan": NetEnvSpec(
+        lab_name="campus_lan",
+        module="nika.net_env.kathara.intradomain_routing.campus_lan.lab",
+        class_name="CampusLan",
         tags=(
             "arp",
             "link",
@@ -96,14 +101,6 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
             "http",
             "load_balancer",
         ),
-        supported_backends=("kathara",),
-        topo_size=["s", "m", "l"],
-    ),
-    "ospf_enterprise_static": NetEnvSpec(
-        lab_name="ospf_enterprise_static",
-        module="nika.net_env.kathara.intradomain_routing.ospf_enterprise.lab_static",
-        class_name="OSPFEnterpriseStatic",
-        tags=("pc", "ospf", "mac", "http", "link", "frr", "icmp", "arp"),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
@@ -257,19 +254,49 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
 _CLASS_CACHE: dict[tuple[str, str], type[NetworkEnvBase]] = {}
 
 
+def resolve_scenario_ref(scenario_name: str) -> tuple[str, str | None]:
+    """Map a scenario id (including legacy aliases) to ``(canonical, default_workload)``.
+
+    ``default_workload`` is set for legacy Clos / campus_lan LAN aliases; callers
+    may still override ``workload`` explicitly when instantiating.
+    """
+    if scenario_name in _DC_CLOS_ALIASES:
+        return DC_CLOS_SCENARIO, _DC_CLOS_ALIASES[scenario_name]
+    if scenario_name in _CAMPUS_LAN_ALIASES:
+        return CAMPUS_LAN_SCENARIO, _CAMPUS_LAN_ALIASES[scenario_name]
+    if scenario_name in _NET_ENV_SPECS:
+        return scenario_name, None
+    raise ValueError(f"Network environment '{scenario_name}' not found in the pool.")
+
+
+def is_dc_clos_scenario(scenario_name: str) -> bool:
+    """Return True for ``dc_clos`` or a legacy Clos alias."""
+    canonical, _ = resolve_scenario_ref(scenario_name)
+    return canonical == DC_CLOS_SCENARIO
+
+
+def is_campus_lan_scenario(scenario_name: str) -> bool:
+    """Return True for ``campus_lan`` or a legacy enterprise static/dhcp alias."""
+    canonical, _ = resolve_scenario_ref(scenario_name)
+    return canonical == CAMPUS_LAN_SCENARIO
+
+
+def scenario_accepts_workload(scenario_name: str) -> bool:
+    """Return True when ``scenario_name`` supports a ``workload`` constructor option."""
+    return is_dc_clos_scenario(scenario_name) or is_campus_lan_scenario(scenario_name)
+
+
 def _require_scenario(scenario_name: str) -> NetEnvSpec:
-    if scenario_name not in _NET_ENV_SPECS:
-        raise ValueError(
-            f"Network environment '{scenario_name}' not found in the pool."
-        )
-    return _NET_ENV_SPECS[scenario_name]
+    canonical, _ = resolve_scenario_ref(scenario_name)
+    return _NET_ENV_SPECS[canonical]
 
 
 def _load_net_env_class(scenario_name: str, *, backend: str) -> type[NetworkEnvBase]:
-    cache_key = (scenario_name, backend)
+    canonical, _ = resolve_scenario_ref(scenario_name)
+    cache_key = (canonical, backend)
     if cache_key in _CLASS_CACHE:
         return _CLASS_CACHE[cache_key]
-    spec = _require_scenario(scenario_name)
+    spec = _require_scenario(canonical)
     binding = spec.binding_for(backend)
     require_backend_extra(backend)
     try:
@@ -337,7 +364,7 @@ def get_net_env_instance(
     """Get an instance of the specified network environment.
 
     Args:
-        scenario_name: The name of the network environment.
+        scenario_name: The name of the network environment (aliases accepted).
         backend: Lab runtime backend (``kathara`` or ``containerlab``).
 
     Returns:
@@ -346,8 +373,14 @@ def get_net_env_instance(
     Raises:
         ValueError: If the specified network environment is not found or backend unsupported.
     """
-    resolved = resolve_scenario_backend(scenario_name, backend=backend)
-    cls = _load_net_env_class(scenario_name, backend=resolved)
+    canonical, alias_workload = resolve_scenario_ref(scenario_name)
+    if "workload" not in kwargs:
+        if is_dc_clos_scenario(canonical):
+            kwargs["workload"] = alias_workload or "host"
+        elif is_campus_lan_scenario(canonical):
+            kwargs["workload"] = alias_workload or "static"
+    resolved = resolve_scenario_backend(canonical, backend=backend)
+    cls = _load_net_env_class(canonical, backend=resolved)
     lab_name = kwargs.pop("lab_name", None)
     topology_file = kwargs.pop("topology_file", None)
     runtime_workdir = kwargs.pop("runtime_workdir", None)

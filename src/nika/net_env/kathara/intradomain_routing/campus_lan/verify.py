@@ -1,4 +1,4 @@
-"""Startup verification signals for ospf_enterprise scenarios."""
+"""Startup verification signals for campus_lan scenarios."""
 
 from __future__ import annotations
 
@@ -162,17 +162,21 @@ def _shared_checks(runtime: LabRuntime, dist_router: str) -> dict[str, bool]:
     return checks
 
 
-def verify_ospf_enterprise_lab(
+def verify_campus_lan_lab(
     runtime: LabRuntime,
     *,
     scenario_name: str,
-    mode: Literal["static", "dhcp"],
+    mode: Literal["static", "dhcp"] | None = None,
+    workload: Literal["static", "dhcp"] | None = None,
 ) -> dict:
     """Check routing convergence, L3 connectivity, and service accessibility after deploy."""
-    dist_router = DIST_ROUTER_STATIC if mode == "static" else DIST_ROUTER_DHCP
+    resolved = workload or mode
+    if resolved not in ("static", "dhcp"):
+        raise ValueError("workload/mode must be 'static' or 'dhcp'.")
+    dist_router = DIST_ROUTER_STATIC if resolved == "static" else DIST_ROUTER_DHCP
     checks = _shared_checks(runtime, dist_router)
 
-    if mode == "static":
+    if resolved == "static":
         checks["host_static_ip"] = _host_static_ip_ok(runtime)
         checks["web_service_active"] = _service_active(runtime, WEB_SERVER, "apache2")
         checks["peer_host_reachable"] = _peer_host_reachable(
@@ -207,6 +211,11 @@ def verify_ospf_enterprise_lab(
             "peer_host": PEER_HOST,
             "core_router": CORE_ROUTER,
             "dist_router": dist_router,
-            "mode": mode,
+            "mode": resolved,
+            "workload": resolved,
         },
     )
+
+
+# Back-compat names used by older callers / tests.
+verify_ospf_enterprise_lab = verify_campus_lan_lab
