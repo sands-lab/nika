@@ -22,7 +22,7 @@ LINK_ICMP_FRR = (
     "link_down",
     "link_flap",
     "link_detach",
-    "link_fragmentation_disabled",
+    "mtu_mismatch",
     "link_bandwidth_throttling",
     "link_high_packet_corruption",
     "icmp_acl_block",

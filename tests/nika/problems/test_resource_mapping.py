@@ -104,6 +104,19 @@ class ResourceMappingTest:
         )
         assert resource.id == "interface/br1_edge/wg_hq"
 
+    def test_wireguard_allowed_ips_is_wg_interface(self) -> None:
+        env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
+        resource = _resources(
+            "wireguard_allowed_ips_misconfiguration",
+            {
+                "host_name": "br1_edge",
+                "intf_name": "wg_hq",
+                "target_prefix": "10.0.20.0/24",
+            },
+            env,
+        )
+        assert resource.id == "interface/br1_edge/wg_hq"
+
     def test_faulty_devices_follows_resources_not_inject_side_effects(self) -> None:
         env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
         from nika.problems.prob_pool import get_problem_class

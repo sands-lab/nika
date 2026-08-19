@@ -29,7 +29,7 @@ uv sync --extra containerlab
 | --- | --- | --- | --- | --- |
 | `dc_clos` | Kathara | `-s s\|m\|l` | `--workload host\|service` (default `host`) | FRR eBGP Clos; host or DNS/HTTP leaf workload |
 | `campus_lan` | Kathara | `-s s\|m\|l` | `--workload static\|dhcp` (default `static`) | Hierarchical campus LAN; static hosts or DHCP/DNS/LB farm |
-| `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay |
+| `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
 | `simple_bgp` | Kathara | Fixed |  | Two FRR ASes with one host in each AS |
 | `sdn_star` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch star |
 | `sdn_clos` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch leaf-spine Clos |
@@ -134,29 +134,35 @@ Legacy benchmark YAML may still name `ospf_enterprise_static` or `ospf_enterpris
 
 ### `enterprise_branch`
 
-NIKA builds a multi-site enterprise WAN: HQ (and on large, a secondary DC hub), branch sites, and one or more provider underlay networks. Each site has business LANs and a WAN Edge router. Sites do not mesh over physical links. Edges attach to providers for IP underlay reachability between tunnel endpoints only.
+NIKA builds a multi-site enterprise WAN from one production template: HQ and a secondary DC hub, branch sites, and dual provider underlays. Every size keeps the same dual providers, dual hubs, WAN redundancy, and WireGuard+eBGP overlay. Size scales branch count and hosts per LAN; `m` and `l` also add an IOT VRF so complexity grows with business domains, not only replicated VLANs.
 
-Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). Guest LANs stay local (NAT toward the provider) and are not advertised in overlay BGP. Cross-site traffic follows `LAN → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN`. Branch-to-branch traffic hairpins the hub.
+Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
+
+Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). FRR imports those overlay prefixes into the matching business VRFs. SERVER is a shared-services domain: CORP and SERVER exchange prefixes through explicit route leaking only. GUEST and IOT stay local (default route via the provider with NAT) and are not advertised in overlay BGP. Cross-site traffic follows `LAN VRF → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN VRF`. Branch-to-branch traffic hairpins a hub. HQ and DC2 also peer directly over dual-provider WireGuard+eBGP.
 
 ```text
-  HQ CORP/SERVER[/GUEST] -- hq_edge ==WG+eBGP== brN_edge -- Branch CORP[/GUEST]
+  HQ CORP/SERVER/GUEST[/IOT] -- hq_edge ==WG+eBGP== brN_edge -- Branch CORP/GUEST[/IOT]
+  DC2 CORP/SERVER/GUEST[/IOT] -- dc2_edge ==WG+eBGP== brN_edge
                                |                    |
-                            isp*_core (underlay PE reachability only)
+                            isp1_core            isp2_core
+  hq_edge ==WG+eBGP== dc2_edge   (hub interconnect, dual provider)
 ```
 
-| Size | Hubs | Branches | Providers | Dual WAN / backup tunnels | Business domains |
-| --- | ---: | ---: | ---: | --- | --- |
-| `s` | 1 HQ | 2 | 1 | none | HQ CORP+SERVER; branch CORP |
-| `m` | 1 HQ | 4 | 2 | HQ and BR1–BR2 dual-homed | + HQ/BR1 GUEST |
-| `l` | HQ + DC2 hub | 7 | 2 | hubs dual-homed; BR1–BR3 dual-hub | more CORP/SERVER; GUEST on HQ and BR1–BR2 |
+| Size | Hubs | Branches | Providers | VRFs (hub / branch) | Hosts per LAN | Overlay per branch |
+| --- | ---: | ---: | ---: | --- | ---: | --- |
+| `s` | HQ + DC2 | 2 | 2 | corp,server,guest / corp,guest | 1 | primary HQ (isp1) + backup HQ (isp2) + backup DC2 (isp1) |
+| `m` | HQ + DC2 | 4 | 2 | + iot on all sites | 2 | same |
+| `l` | HQ + DC2 | 8 | 2 | + iot on all sites | 4 | same |
 
-Enterprise LANs use `10.<site_id>.<role>.0/24` (role `10` CORP, `20` SERVER, `40` GUEST). Provider PE links use `100.64.0.0/16`. Tunnel addressing uses `172.30.0.0/16`. HQ ASN is `65000`; branches use `65001+`; DC2 uses `65010`.
+Every Site Edge is dual-homed to both providers. SERVER stays one host per hub (HTTP anchor). Enterprise LANs use `10.<site_id>.<role>.0/24` (role octet `10` CORP, `20` SERVER, `30` IOT, `40` GUEST). Provider PE links use `100.64.0.0/16`. Tunnel addressing uses `172.30.0.0/16`. HQ ASN is `65000`; branches use `65001+`; DC2 uses `65010`.
 
-Use this scenario for underlay vs overlay diagnosis, hub-and-spoke VPN reachability, and eBGP path preference with backup sessions on medium/large. Verification covers every designed tunnel (underlay reachability, WireGuard, BGP both sides), every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the overlay, every provider without enterprise prefixes, every Guest isolated from remote CORP, and every backup BGP session with primary-path preference on dual-homed spokes.
+Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class with a deep FIFO; CS0/BE is hard-capped with a deep byte-FIFO so competing bulk builds ~500ms standing delay. Per-size overlay egress capacity is `s` 8 mbit (EF 2), `m` 16 mbit (EF 3), `l` 32 mbit (EF 4). The lab does not start resident CORP QoS traffic; benchmark failures that need competition start ephemeral workloads during inject/verify.
+
+Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, and overlay-egress DSCP/QoS faults. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
 Legacy id `rip_small_internet_vpn` (and the short-lived `enterprise_branch_vpn`) resolve to this scenario. They are not listed by `nika env list`. Frozen release `0.1.0` still records the old RIP mini-Internet lab hash and host-VPN selected case; regenerate a release when you publish the new lab.
 
-Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp` is carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay.
+Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp` is carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay and per-role VRFs.
 
 ```shell
 uv run nika env run enterprise_branch -s s

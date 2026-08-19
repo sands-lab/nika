@@ -74,12 +74,20 @@ ALL_NODES = {
     "client",
     "hq_corp_pc",
     "hq_srv",
+    "hq_guest_pc",
     "hq_edge",
+    "dc2_corp_pc",
+    "dc2_srv",
+    "dc2_guest_pc",
+    "dc2_edge",
     "br1_corp_pc",
+    "br1_guest_pc",
     "br1_edge",
     "br2_corp_pc",
+    "br2_guest_pc",
     "br2_edge",
     "isp1_core",
+    "isp2_core",
     "leaf_1_1",
 }
 HOST_ADDRS = {
@@ -96,8 +104,14 @@ HOST_ADDRS = {
     "client": ("3.0.0.2", "200.0.0.7"),
     "hq_corp_pc": ("10.0.10.2",),
     "hq_srv": ("10.0.20.2",),
+    "hq_guest_pc": ("10.0.40.2",),
+    "dc2_corp_pc": ("10.10.10.2",),
+    "dc2_srv": ("10.10.20.2",),
+    "dc2_guest_pc": ("10.10.40.2",),
     "br1_corp_pc": ("10.1.10.2",),
+    "br1_guest_pc": ("10.1.40.2",),
     "br2_corp_pc": ("10.2.10.2",),
+    "br2_guest_pc": ("10.2.40.2",),
 }
 
 
@@ -117,6 +131,9 @@ class FakeRuntime:
     def exec(self, host: str, command: str, timeout: float = 10.0) -> str:
         if (host, command) in self.overrides:
             return self.overrides[host, command]
+        # Guest/IOT: isolation checks use count=1 and must fail.
+        if command.startswith("ping -c") and ("guest" in host or "iot" in host):
+            return "0 packets received"
         if command.startswith("ping -c 3"):
             return "3 packets received"
         if command.startswith("ping -c 1"):
@@ -127,6 +144,13 @@ class FakeRuntime:
             return "\n".join((f"inet {addr}/24" for addr in HOST_ADDRS.get(host, ())))
         if command == "ip route show default":
             return "default via 195.11.14.1 via 10.0.0.1"
+        if command == "ip -d link show type vrf":
+            return (
+                "10: vrf_corp: <NOARP,MASTER,UP> ...\n"
+                "11: vrf_server: <NOARP,MASTER,UP> ...\n"
+                "12: vrf_guest: <NOARP,MASTER,UP> ...\n"
+                "13: vrf_iot: <NOARP,MASTER,UP> ...\n"
+            )
         if command == "systemctl is-active frr":
             return "active"
         if command in {"systemctl is-active named", "systemctl is-active apache2"}:
@@ -139,25 +163,60 @@ class FakeRuntime:
             return "Bridge br0"
         if command == "vtysh -c 'show bgp summary'":
             # Legacy short lines for frr_bgp_established(); modern lines for
-            # enterprise_branch peer checks.
+            # enterprise_branch peer checks (cover scaled /30 tunnel peers).
+            peers = "\n".join(
+                f"172.30.0.{i} 4 65000 25 9 6 0 0 00:00:30 5 1 N/A"
+                for i in range(1, 40)
+            )
             return (
                 "eth0 4 65000 1\n"
                 "eth1 4 65001 2\n"
                 "Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down "
                 "State/PfxRcd PfxSnt Desc\n"
-                "172.30.0.1 4 65000 25 9 6 0 0 00:00:30 5 1 N/A\n"
-                "172.30.0.2 4 65001 10 28 6 0 0 00:00:29 1 6 N/A\n"
-                "172.30.0.5 4 65000 25 9 6 0 0 00:00:30 5 1 N/A\n"
-                "172.30.0.6 4 65002 9 22 6 0 0 00:00:29 1 6 N/A\n"
+                f"{peers}\n"
             )
         if command == "vtysh -c 'show ip bgp'":
-            return "*> 10.0.10.0/24\n*> 10.0.20.0/24\n*> 10.1.10.0/24\n"
+            return (
+                "*> 10.0.10.0/24\n*> 10.0.20.0/24\n"
+                "*> 10.10.10.0/24\n*> 10.10.20.0/24\n"
+                "*> 10.1.10.0/24\n*> 10.2.10.0/24\n"
+            )
+        if "show ip route vrf vrf_corp" in command:
+            return (
+                "C>* 10.1.10.0/24 is directly connected\n"
+                "B>* 10.0.10.0/24 [20/0] via 172.30.0.1\n"
+                "B>* 10.0.20.0/24 [20/0] via 172.30.0.1\n"
+                "B>* 10.10.10.0/24 [20/0] via 172.30.0.1\n"
+                "B>* 10.10.20.0/24 [20/0] via 172.30.0.1\n"
+                "B>* 10.2.10.0/24 [20/0] via 172.30.0.1\n"
+            )
+        if command.startswith("ip route show vrf vrf_guest") or command.startswith(
+            "ip route show vrf vrf_iot"
+        ):
+            return "default via 100.64.0.2\n"
         if command == "vtysh -c 'show ip route'":
             return "C>* 100.64.0.0/30 is directly connected\n"
-        if command == "vtysh -c 'show ip bgp 10.0.10.0/24'":
-            return "*  172.30.0.1\n*> 172.30.0.1 from 172.30.0.1\n"
+        if command.startswith("vtysh -c 'show ip bgp 10."):
+            # Include several /30 hub tunnel IPs so primary-path checks pass.
+            return (
+                "*  172.30.0.1\n*> 172.30.0.1 from 172.30.0.1\n"
+                "*  172.30.0.9\n*> 172.30.0.9 from 172.30.0.9\n"
+                "*  172.30.0.21\n*> 172.30.0.21 from 172.30.0.21\n"
+            )
         if command.startswith("wg show"):
             return "interface: wg0\n  listening port: 51820\n"
+        if command.startswith("tc qdisc show dev"):
+            return (
+                "qdisc htb 1: root refcnt 2 r2q 10 default 0x20\n"
+                "qdisc pfifo 10: parent 1:10\n"
+                "qdisc bfifo 20: parent 1:20\n"
+            )
+        if command.startswith("tc class show dev"):
+            return (
+                "class htb 1:1 root rate 8Mbit ceil 8Mbit\n"
+                "class htb 1:10 parent 1:1 prio 1 rate 2Mbit ceil 8Mbit\n"
+                "class htb 1:20 parent 1:1 prio 2 rate 6Mbit ceil 6Mbit\n"
+            )
         if command.startswith("ip route get"):
             return "10.2.10.2 via 172.30.0.1 dev wg_hq src 10.1.10.1"
         if command == "ip route":
@@ -199,46 +258,47 @@ class KatharaVerifyUnitTest:
     def test_enterprise_branch_verify_passes(self) -> None:
         from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
             BuiltTunnel,
+            build_topo_spec,
         )
 
-        tunnels = [
-            BuiltTunnel(
-                spoke="br1",
-                hub="hq",
-                provider="isp1",
-                primary=True,
-                local_pref=200,
-                spoke_iface="wg_hq",
-                hub_iface="wg_br1",
-                spoke_tunnel_ip="172.30.0.2",
-                hub_tunnel_ip="172.30.0.1",
-                spoke_wan_ip="100.64.0.5",
-                hub_wan_ip="100.64.0.1",
-                listen_port_spoke=51820,
-                listen_port_hub=51820,
-            ),
-            BuiltTunnel(
-                spoke="br2",
-                hub="hq",
-                provider="isp1",
-                primary=True,
-                local_pref=200,
-                spoke_iface="wg_hq",
-                hub_iface="wg_br2",
-                spoke_tunnel_ip="172.30.0.6",
-                hub_tunnel_ip="172.30.0.5",
-                spoke_wan_ip="100.64.0.9",
-                hub_wan_ip="100.64.0.1",
-                listen_port_spoke=51820,
-                listen_port_hub=51821,
-            ),
-        ]
+        # Mirror the scale-s tunnel graph with sequential /30 tunnel IPs so BGP
+        # peer checks and primary-path preference line up with FakeRuntime.
+        spec = build_topo_spec("s")
+        tunnels: list[BuiltTunnel] = []
+        tun_i = 0
+        for tspec in spec.tunnels:
+            hub_ip = f"172.30.0.{tun_i * 4 + 1}"
+            spoke_ip = f"172.30.0.{tun_i * 4 + 2}"
+            tun_i += 1
+            hub_iface = (
+                f"wg_{tspec.local_site}"
+                if tspec.primary
+                else f"wg_{tspec.local_site}_b"
+            )
+            tunnels.append(
+                BuiltTunnel(
+                    spoke=tspec.local_site,
+                    hub=tspec.remote_site,
+                    provider=tspec.provider,
+                    primary=tspec.primary,
+                    local_pref=tspec.local_pref,
+                    spoke_iface=tspec.iface,
+                    hub_iface=hub_iface,
+                    spoke_tunnel_ip=spoke_ip,
+                    hub_tunnel_ip=hub_ip,
+                    spoke_wan_ip="100.64.0.5",
+                    hub_wan_ip="100.64.0.1",
+                    listen_port_spoke=tspec.listen_port,
+                    listen_port_hub=51820 + tun_i,
+                )
+            )
         assert_verify_success(
             verify_enterprise_branch_lab(
                 FakeRuntime(),
                 scenario_name="enterprise_branch",
                 topo_size="s",
                 built_tunnels=tunnels,
+                spec=spec,
             )
         )
 

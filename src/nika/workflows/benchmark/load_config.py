@@ -20,15 +20,14 @@ from nika.problems.prob_pool import resolve_problem_name
 def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:
     """Default Branch→HQ WireGuard target for remapped legacy VPN cases."""
     from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
-        single_path_hq_peer_targets,
+        primary_hq_peer_targets,
     )
 
     size = topo_size if topo_size in {"s", "m", "l"} else "s"
-    targets = single_path_hq_peer_targets(size)  # type: ignore[arg-type]
+    targets = primary_hq_peer_targets(size)  # type: ignore[arg-type]
     if not targets:
         raise ValueError(
-            f"No single-path HQ WireGuard peers for enterprise_branch "
-            f"topo_size={size!r}"
+            f"No primary HQ WireGuard peers for enterprise_branch topo_size={size!r}"
         )
     edge, iface = targets[0]
     return {"host_name": edge, "intf_name": iface}
@@ -97,6 +96,17 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
             )
         inject = {str(k): str(v) for k, v in inject.items()}
         root_causes = row.get("root_causes")
+        if root_causes and raw_problem != problem:
+            rewritten: list[Any] = []
+            for entry in root_causes:
+                if not isinstance(entry, dict):
+                    rewritten.append(entry)
+                    continue
+                updated = dict(entry)
+                if updated.get("fault_type") == raw_problem:
+                    updated["fault_type"] = problem
+                rewritten.append(updated)
+            root_causes = rewritten
 
     normalized: dict[str, Any] = {
         "scenario": canonical,
@@ -130,6 +140,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     scenario with the matching ``workload``. Legacy
     ``host_vpn_membership_missing`` rewrites to
     ``wireguard_peer_key_misconfiguration`` with a Site Edge inject target.
+    Legacy ``link_fragmentation_disabled`` rewrites to ``mtu_mismatch``.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or "cases" not in data:

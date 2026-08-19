@@ -83,17 +83,63 @@ def _routers_with_victim_hosts(routers: list[str]) -> list[str]:
 
 
 # Legacy host-level WireGuard peer names are unused; Site Edge VPN uses
-# wireguard_peer_key_misconfiguration.
+# wireguard_peer_key_misconfiguration / wireguard_allowed_ips_misconfiguration.
 
 
 def _single_path_hq_wg_targets(topo_size: str) -> list[tuple[str, str]]:
-    """Eligible (branch_edge, wg_iface) pairs for Site Edge peer-key faults."""
+    """Eligible (branch_edge, wg_iface) pairs for Site Edge peer-key faults.
+
+    Alias of primary HQ targets: every branch is multi-path; peer-key inject
+    breaks all WG ifaces on the selected edge.
+    """
+    return _primary_hq_wg_targets(topo_size)
+
+
+def _primary_hq_wg_targets(topo_size: str) -> list[tuple[str, str]]:
+    """Eligible (branch_edge, wg_iface) pairs for AllowedIPs faults."""
     from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
-        single_path_hq_peer_targets,
+        primary_hq_peer_targets,
     )
 
     size = topo_size if topo_size in {"s", "m", "l"} else "s"
-    return single_path_hq_peer_targets(size)  # type: ignore[arg-type]
+    return primary_hq_peer_targets(size)  # type: ignore[arg-type]
+
+
+def _remote_prefixes_for_spoke(topo_size: str, spoke: str) -> list[str]:
+    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+        remote_advertised_prefixes_for_spoke,
+    )
+
+    size = topo_size if topo_size in {"s", "m", "l"} else "s"
+    return remote_advertised_prefixes_for_spoke(size, spoke)  # type: ignore[arg-type]
+
+
+def _dscp_remark_targets(topo_size: str):
+    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+        dscp_remark_inject_targets,
+    )
+
+    size = topo_size if topo_size in {"s", "m", "l"} else "s"
+    return dscp_remark_inject_targets(size)  # type: ignore[arg-type]
+
+
+def _prefer_hq_server_prefix(prefixes: list[str]) -> str | None:
+    """Prefer HQ SERVER (10.0.20.0/24), then HQ CORP, else first remote prefix."""
+    if not prefixes:
+        return None
+    for preferred in ("10.0.20.0/24", "10.0.10.0/24"):
+        if preferred in prefixes:
+            return preferred
+    return prefixes[0]
+
+
+_WG_TUNNEL_IFACE_PROBLEMS = frozenset(
+    {
+        "wireguard_peer_key_misconfiguration",
+        "wireguard_allowed_ips_misconfiguration",
+        "vrf_dscp_remarking",
+    }
+)
 
 
 _VICTIM_HOST_PROBLEMS = frozenset(
@@ -356,7 +402,7 @@ def resolve_inject_params(
         "link_down",
         "link_flap",
         "link_detach",
-        "link_fragmentation_disabled",
+        "mtu_mismatch",
         "link_high_packet_corruption",
         "link_bandwidth_throttling",
         "host_missing_ip",
@@ -380,7 +426,7 @@ def resolve_inject_params(
         if problem == "link_flap":
             params["down_time"] = "30"
             params["up_time"] = "30"
-        if problem == "link_fragmentation_disabled":
+        if problem == "mtu_mismatch":
             params["mtu"] = "100"
         if problem == "host_incorrect_netmask":
             params["netmask_prefix"] = "8"
@@ -426,15 +472,50 @@ def resolve_inject_params(
         params["host_name_2"] = client
 
     elif problem == "wireguard_peer_key_misconfiguration":
-        targets = _single_path_hq_wg_targets(topo_size)
+        targets = _primary_hq_wg_targets(topo_size)
         if not targets:
             raise ValueError(
-                f"No single-path HQ WireGuard peers for enterprise_branch "
+                f"No primary HQ WireGuard peers for enterprise_branch "
                 f"topo_size={topo_size!r}"
             )
         edge, iface = rng.choice(targets)
         params["host_name"] = edge
         params["intf_name"] = iface
+
+    elif problem == "wireguard_allowed_ips_misconfiguration":
+        targets = _primary_hq_wg_targets(topo_size)
+        if not targets:
+            raise ValueError(
+                f"No primary HQ WireGuard peers for enterprise_branch "
+                f"topo_size={topo_size!r}"
+            )
+        edge, iface = rng.choice(targets)
+        spoke = edge[: -len("_edge")] if edge.endswith("_edge") else edge
+        remotes = _remote_prefixes_for_spoke(topo_size, spoke)
+        target_prefix = _prefer_hq_server_prefix(remotes)
+        if not target_prefix:
+            raise ValueError(
+                f"No remote advertised prefixes for spoke {spoke!r} "
+                f"(topo_size={topo_size!r})"
+            )
+        params["host_name"] = edge
+        params["intf_name"] = iface
+        params["target_prefix"] = target_prefix
+
+    elif problem == "vrf_dscp_remarking":
+        targets = _dscp_remark_targets(topo_size)
+        if not targets:
+            raise ValueError(
+                f"No DSCP remark inject targets for enterprise_branch "
+                f"topo_size={topo_size!r}"
+            )
+        target = rng.choice(targets)
+        params["host_name"] = target.edge
+        params["intf_name"] = target.intf_name
+        params["src_host"] = target.src_host
+        params["dst_host"] = target.dst_host
+        params["direction"] = "lan_to_overlay"
+        params["corp_prefix"] = target.corp_prefix
 
     elif problem == "bgp_missing_route_advertisement":
         advertise_pool = _routers_with_bgp_network(router_pool)
@@ -620,7 +701,7 @@ def validate_benchmark_case(
     host_name = inject.get("host_name")
     intf_name = inject.get("intf_name")
     # WireGuard tunnel ifaces are not Kathara L2 link endpoints; validate below.
-    if host_name and intf_name and problem != "wireguard_peer_key_misconfiguration":
+    if host_name and intf_name and problem not in _WG_TUNNEL_IFACE_PROBLEMS:
         device_ifaces = ifaces_by_device.get(host_name) or []
         if device_ifaces and intf_name not in device_ifaces:
             raise ValueError(
@@ -636,13 +717,68 @@ def validate_benchmark_case(
                 "wireguard_peer_key_misconfiguration requires enterprise_branch "
                 f"(got {scenario!r})"
             )
-        eligible = _single_path_hq_wg_targets(topo_size)
+        eligible = _primary_hq_wg_targets(topo_size)
         pair = (host_name or "", intf_name or "")
         if pair not in eligible:
             raise ValueError(
                 f"wireguard_peer_key_misconfiguration target {pair!r} is not a "
-                f"single-path HQ tunnel on {scenario} (topo_size={topo_size!r}); "
+                f"primary HQ tunnel on {scenario} (topo_size={topo_size!r}); "
                 f"eligible: {eligible}"
+            )
+
+    if problem == "wireguard_allowed_ips_misconfiguration":
+        from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+        if not is_enterprise_branch_scenario(scenario):
+            raise ValueError(
+                "wireguard_allowed_ips_misconfiguration requires enterprise_branch "
+                f"(got {scenario!r})"
+            )
+        eligible = _primary_hq_wg_targets(topo_size)
+        pair = (host_name or "", intf_name or "")
+        if pair not in eligible:
+            raise ValueError(
+                f"wireguard_allowed_ips_misconfiguration target {pair!r} is not a "
+                f"primary HQ tunnel on {scenario} (topo_size={topo_size!r}); "
+                f"eligible: {eligible}"
+            )
+        target_prefix = inject.get("target_prefix")
+        if target_prefix:
+            spoke = (
+                host_name[: -len("_edge")]
+                if host_name and host_name.endswith("_edge")
+                else (host_name or "")
+            )
+            remotes = _remote_prefixes_for_spoke(topo_size, spoke)
+            if target_prefix not in remotes:
+                raise ValueError(
+                    f"wireguard_allowed_ips_misconfiguration target_prefix="
+                    f"{target_prefix!r} is not a remote advertised prefix for "
+                    f"{spoke!r} (topo_size={topo_size!r}); remotes: {remotes}"
+                )
+
+    if problem == "vrf_dscp_remarking":
+        from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+        if not is_enterprise_branch_scenario(scenario):
+            raise ValueError(
+                f"vrf_dscp_remarking requires enterprise_branch (got {scenario!r})"
+            )
+        eligible = _dscp_remark_targets(topo_size)
+        eligible_keys = {
+            (t.edge, t.intf_name, t.src_host, t.dst_host) for t in eligible
+        }
+        key = (
+            host_name or "",
+            intf_name or "",
+            inject.get("src_host") or "",
+            inject.get("dst_host") or "",
+        )
+        if key not in eligible_keys:
+            raise ValueError(
+                f"vrf_dscp_remarking target {key!r} is not an eligible "
+                f"LAN→overlay CORP path on {scenario} (topo_size={topo_size!r}); "
+                f"eligible count={len(eligible_keys)}"
             )
 
     if problem == "bgp_missing_route_advertisement" and host_name:

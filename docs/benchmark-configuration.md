@@ -50,8 +50,8 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 
 | File | Count | Role |
 |------|------:|------|
-| `benchmark_selected.yaml` | **56** | Editable curated suite (source for freezing a release) |
-| `benchmark_full.yaml` | **598** | Full scenario × failure × size matrix (60 represented problem IDs) |
+| `benchmark_selected.yaml` | **58** | Editable curated suite (source for freezing a release) |
+| `benchmark_full.yaml` | **604** | Full scenario × failure × size matrix (62 represented problem IDs) |
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
@@ -133,13 +133,13 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 | Metric | Count |
 |--------|------:|
-| Registered failure types | 60 |
-| Failure types represented in `benchmark_full.yaml` | 60 |
-| Full benchmark cases | 598 |
-| Selected cases | 56 |
+| Registered failure types | 61 |
+| Failure types represented in `benchmark_full.yaml` | 61 |
+| Full benchmark cases | 604 |
+| Selected cases | 57 |
 | Scenarios in full matrix | 14 |
 
-Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target.
+Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target. The same release still lists `link_fragmentation_disabled`; loaders rewrite it to `mtu_mismatch` and update `fault_type` in `root_causes`.
 
 ### Full matrix by scenario
 
@@ -147,7 +147,7 @@ Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RI
 |----------|------:|
 | `campus_lan` | 111 |
 | `dc_clos` | 102 |
-| `enterprise_branch` | 90 |
+| `enterprise_branch` | 93 |
 | `sdn_clos` | 57 |
 | `sdn_star` | 57 |
 | `k8s_lab` | 27 |
@@ -168,7 +168,7 @@ Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RI
 | `dc_clos` | 14 |
 | `p4_bloom_filter` | 6 |
 | `sdn_clos` | 5 |
-| `enterprise_branch` | 1 |
+| `enterprise_branch` | 2 |
 | `p4_mpls` | 1 |
 
 Kubernetes scenarios (`k8s_lab`, `llmd_lab`) and Containerlab `min3clos` appear in the full matrix only; selected/release cases use traditional Kathara labs as the best-matching scenario per failure.
@@ -185,7 +185,7 @@ Each value is `compatible / release 0.1.0` failure types. An em dash marks an in
 | `campus_lan · static` | — | 3 / 3 | — | — | — | — |
 | `dc_clos · host` | 4 / 4 | 6 / 2 | 1 / 0 | 8 / 5 | 2 / 2 | 1 / 0 |
 | `dc_clos · service` | 1 / 0 | 2 / 0 | — | 2 / 0 | 5 / 0 | 2 / 1 |
-| `enterprise_branch` | 4 / 0 | 6 / 0 | 1 / 0 | 10 / 0 | 6 / 0 | 3 / 0 |
+| `enterprise_branch` | 4 / 0 | 6 / 0 | 1 / 0 | 11 / 0 | 6 / 0 | 3 / 0 |
 | `isp` | 4 / 0 | — | 1 / 0 | 9 / 0 | 2 / 0 | 1 / 0 |
 | `k8s_lab` | 4 / 0 | 6 / 0 | 2 / 0 | 11 / 0 | 2 / 0 | 2 / 0 |
 | `llmd_lab` | 4 / 0 | 4 / 0 | 1 / 0 | 7 / 0 | 6 / 0 | 2 / 0 |

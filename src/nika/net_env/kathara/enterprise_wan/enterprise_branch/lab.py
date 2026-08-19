@@ -11,18 +11,24 @@ from Kathara.model.Lab import Lab
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
 from nika.net_env.kathara.enterprise_wan.enterprise_branch.addressing import (
+    VRF_TABLE,
     edge_name_for,
     isp_name_for,
     lan_edge_ip,
     lan_host_ip,
+    vrf_name,
 )
 from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    LOCAL_ONLY_ROLES,
+    OVERLAY_ROLES,
     BuiltTunnel,
     TunnelSpec,
     TopoSpec,
     TopoSize,
     build_topo_spec,
     hub_iface_for,
+    overlay_qos_for,
+    overlay_qos_startup_cmds,
 )
 from nika.net_env.kathara.enterprise_wan.enterprise_branch.wireguard import (
     load_key_pairs,
@@ -49,32 +55,6 @@ bfdd=no
 fabricd=no
 vtysh_enable=yes
 zebra_options=" -s 90000000 --daemon -A 127.0.0.1"
-"""
-
-EDGE_BGP_TEMPLATE = """\
-!
-hostname {hostname}
-!
-log file /var/log/frr/frr.log
-!
-ip prefix-list ENTERPRISE seq 5 permit 10.0.0.0/8 le 24
-!
-{local_prefix_lists}\
-route-map RM-OUT-LOCAL permit 10
- match ip address prefix-list LOCAL-ADV
-!
-route-map RM-OUT-TRANSIT permit 10
- match ip address prefix-list ENTERPRISE
-!
-{inbound_maps}\
-router bgp {asn}
- bgp router-id {router_id}
- no bgp ebgp-requires-policy
-{networks}\
-{neighbors}\
-!
-line vty
-!
 """
 
 
@@ -113,6 +93,132 @@ class HostRuntime:
     site: str = ""
 
 
+def _render_edge_frr(
+    *,
+    hostname: str,
+    asn: int,
+    router_id: str,
+    is_hub: bool,
+    overlay_roles: tuple[str, ...],
+    local_adv_prefixes: list[str],
+    tunnels: dict[str, tuple[str, str, int, str, bool, int, str]],
+    peer_asns: dict[str, int],
+) -> str:
+    """Build FRR conf: default-VRF eBGP overlay + per-business-VRF import/export."""
+    lines: list[str] = [
+        "!",
+        f"hostname {hostname}",
+        "!",
+        "log file /var/log/frr/frr.log",
+        "!",
+        "ip prefix-list ENTERPRISE seq 5 permit 10.0.0.0/8 le 24",
+        "!",
+    ]
+    seq = 5
+    if local_adv_prefixes:
+        for prefix in local_adv_prefixes:
+            lines.append(f"ip prefix-list LOCAL-ADV seq {seq} permit {prefix}")
+            seq += 5
+    else:
+        lines.append("ip prefix-list LOCAL-ADV seq 5 deny 0.0.0.0/0 le 32")
+    lines.append("!")
+    lines.extend(
+        [
+            "route-map RM-OUT-LOCAL permit 10",
+            " match ip address prefix-list LOCAL-ADV",
+            "!",
+            "route-map RM-OUT-TRANSIT permit 10",
+            " match ip address prefix-list ENTERPRISE",
+            "!",
+        ]
+    )
+
+    out_map = "RM-OUT-TRANSIT" if is_hub else "RM-OUT-LOCAL"
+    for iface, (
+        _local_cidr,
+        _peer_tun_ip,
+        _port,
+        _remote_site,
+        _primary,
+        local_pref,
+        _rwan,
+    ) in tunnels.items():
+        lines.extend(
+            [
+                f"route-map RM-IN-{iface} permit 10",
+                " match ip address prefix-list ENTERPRISE",
+                f" set local-preference {local_pref}",
+                "!",
+            ]
+        )
+
+    for role in overlay_roles:
+        vname = vrf_name(role)
+        lines.extend([f"vrf {vname}", "exit-vrf", "!"])
+
+    lines.extend(
+        [
+            f"router bgp {asn}",
+            f" bgp router-id {router_id}",
+            " no bgp ebgp-requires-policy",
+        ]
+    )
+    for iface, (
+        local_cidr,
+        peer_tun_ip,
+        _port,
+        remote_site,
+        _primary,
+        _local_pref,
+        _rwan,
+    ) in tunnels.items():
+        remote_asn = peer_asns[remote_site]
+        local_ip = local_cidr.split("/")[0]
+        map_name = f"RM-IN-{iface}"
+        lines.append(f" neighbor {peer_tun_ip} remote-as {remote_asn}")
+        lines.append(f" neighbor {peer_tun_ip} update-source {local_ip}")
+        lines.append(f" neighbor {peer_tun_ip} route-map {out_map} out")
+        lines.append(f" neighbor {peer_tun_ip} route-map {map_name} in")
+        if is_hub:
+            lines.append(f" neighbor {peer_tun_ip} next-hop-self")
+    lines.extend([" !", " address-family ipv4 unicast"])
+    for role in overlay_roles:
+        lines.append(f"  import vrf {vrf_name(role)}")
+    for _iface, (
+        _local_cidr,
+        peer_tun_ip,
+        _port,
+        _remote_site,
+        _primary,
+        _local_pref,
+        _rwan,
+    ) in tunnels.items():
+        lines.append(f"  neighbor {peer_tun_ip} activate")
+    lines.extend([" exit-address-family", "!", "!"])
+
+    for role in overlay_roles:
+        vname = vrf_name(role)
+        lines.extend(
+            [
+                f"router bgp {asn} vrf {vname}",
+                f" bgp router-id {router_id}",
+                " no bgp ebgp-requires-policy",
+                " !",
+                " address-family ipv4 unicast",
+                "  redistribute connected",
+                # FRR 10.x accepts `import vrf default` only (no inline route-map).
+                # Guest/IOT have no BGP VRF instance, so they never import overlay.
+                "  import vrf default",
+                " exit-address-family",
+                "!",
+                "!",
+            ]
+        )
+
+    lines.extend(["line vty", "!", ""])
+    return "\n".join(lines)
+
+
 class EnterpriseBranch(NetworkEnvBase):
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
@@ -134,7 +240,9 @@ class EnterpriseBranch(NetworkEnvBase):
         self._key_pairs = load_key_pairs()
         self._wan_pool = list(IPv4Network("100.64.0.0/16").subnets(new_prefix=30))
         self._tun_pool = list(IPv4Network("172.30.0.0/16").subnets(new_prefix=30))
-        self._hub_listen_ports: dict[str, int] = {}
+        # Per-edge WG ListenPort allocator. Hubs that also terminate spoke-side
+        # interconnect tunnels (HQ) must not reuse TunnelSpec.listen_port.
+        self._edge_listen_ports: dict[str, int] = {}
 
         self._create_nodes()
         self._wire_lans()
@@ -147,8 +255,8 @@ class EnterpriseBranch(NetworkEnvBase):
         self.desc = (
             "Enterprise hub-and-spoke Branch VPN over provider IP underlay. "
             "Site Edge routers terminate WireGuard tunnels and run eBGP for "
-            "authorized business prefixes. Providers only forward tunnel "
-            "endpoint reachability."
+            "authorized business prefixes in per-role VRFs. Providers only "
+            "forward tunnel endpoint reachability."
         )
 
     def _next_wan(self) -> IPv4Network:
@@ -157,9 +265,10 @@ class EnterpriseBranch(NetworkEnvBase):
     def _next_tun(self) -> IPv4Network:
         return self._tun_pool.pop(0)
 
-    def _hub_port(self, hub_site: str) -> int:
-        port = self._hub_listen_ports.get(hub_site, 51820)
-        self._hub_listen_ports[hub_site] = port + 1
+    def _next_listen_port(self, site: str) -> int:
+        """Allocate a unique WireGuard ListenPort on ``site``'s Site Edge."""
+        port = self._edge_listen_ports.get(site, 51820)
+        self._edge_listen_ports[site] = port + 1
         return port
 
     def _create_nodes(self) -> None:
@@ -185,19 +294,21 @@ class EnterpriseBranch(NetworkEnvBase):
 
         for site in self.spec.sites.values():
             for lan in site.lans:
-                image = (
-                    "kathara/nika-base" if lan.role != "server" else "kathara/nika-base"
-                )
-                machine = self.lab.new_machine(
-                    lan.host_name,
-                    **{"image": image, "cpus": 0.5, "mem": "256m"},
-                )
-                self._hosts[lan.host_name] = HostRuntime(
-                    name=lan.host_name,
-                    machine=machine,
-                    role=lan.role,
-                    site=site.name,
-                )
+                for host_name in lan.host_names:
+                    machine = self.lab.new_machine(
+                        host_name,
+                        **{
+                            "image": "kathara/nika-base",
+                            "cpus": 0.5,
+                            "mem": "256m",
+                        },
+                    )
+                    self._hosts[host_name] = HostRuntime(
+                        name=host_name,
+                        machine=machine,
+                        role=lan.role,
+                        site=site.name,
+                    )
 
     def _connect(self, a: str, b: str, link: str) -> None:
         self.lab.connect_machine_to_link(a, link)
@@ -206,21 +317,31 @@ class EnterpriseBranch(NetworkEnvBase):
     def _wire_lans(self) -> None:
         for site in self.spec.sites.values():
             edge = self._edges[site.name]
+            # Create Linux VRFs before enslaving LAN interfaces.
             for lan in site.lans:
-                host = self._hosts[lan.host_name]
-                link = f"{edge.name}_{lan.host_name}"
-                self._connect(edge.name, lan.host_name, link)
+                table = VRF_TABLE[lan.role]
+                edge.cmd_list.append(f"ip link add {lan.vrf} type vrf table {table}")
+                edge.cmd_list.append(f"ip link set dev {lan.vrf} up")
+            for lan in site.lans:
+                link = f"{edge.name}_{site.name}_{lan.role}"
+                self.lab.connect_machine_to_link(edge.name, link)
+                eth = f"eth{edge.eth_index}"
                 e_ip = lan_edge_ip(site.site_id, lan.role)
-                h_ip = lan_host_ip(site.site_id, lan.role)
-                edge.cmd_list.append(f"ip addr add {e_ip} dev eth{edge.eth_index}")
+                edge.cmd_list.append(f"ip link set dev {eth} master {lan.vrf}")
+                edge.cmd_list.append(f"ip addr add {e_ip} dev {eth}")
+                edge.cmd_list.append(f"ip link set dev {eth} up")
                 edge.eth_index += 1
-                host.cmd_list.append(f"ip addr add {h_ip} dev eth0")
-                host.cmd_list.append(f"ip route add default via {e_ip.ip} dev eth0")
-                host.ip = str(h_ip.ip)
-                if lan.role == "server":
-                    host.cmd_list.append(
-                        "nohup python3 -m http.server 80 >/dev/null 2>&1 &"
-                    )
+                for host_index, host_name in enumerate(lan.host_names):
+                    host = self._hosts[host_name]
+                    self.lab.connect_machine_to_link(host_name, link)
+                    h_ip = lan_host_ip(site.site_id, lan.role, host_index)
+                    host.cmd_list.append(f"ip addr add {h_ip} dev eth0")
+                    host.cmd_list.append(f"ip route add default via {e_ip.ip} dev eth0")
+                    host.ip = str(h_ip.ip)
+                    if lan.role == "server":
+                        host.cmd_list.append(
+                            "nohup python3 -m http.server 80 >/dev/null 2>&1 &"
+                        )
 
     def _wire_wan(self) -> None:
         for site in self.spec.sites.values():
@@ -266,15 +387,11 @@ class EnterpriseBranch(NetworkEnvBase):
         hub_tun = IPv4Interface(f"{subnet.network_address + 1}/30")
         spoke_tun = IPv4Interface(f"{subnet.network_address + 2}/30")
         spoke_iface = tspec.iface
-        if hub_site == "dc2":
-            hub_iface = f"wg_{spoke_site}_dc2"
-        elif tspec.primary:
-            hub_iface = hub_iface_for(spoke_site, hub_site, backup=False)
-        else:
-            hub_iface = hub_iface_for(spoke_site, hub_site, backup=True)
+        hub_iface = hub_iface_for(spoke_site, hub_site, backup=not tspec.primary)
 
-        hub_port = self._hub_port(hub_site)
-        spoke_port = tspec.listen_port
+        # Unique ListenPort per iface on each edge (HQ is both spoke and hub).
+        hub_port = self._next_listen_port(hub_site)
+        spoke_port = self._next_listen_port(spoke_site)
 
         spoke.tunnels[spoke_iface] = (
             str(spoke_tun),
@@ -358,9 +475,14 @@ class EnterpriseBranch(NetworkEnvBase):
                     conf, f"/etc/wireguard/{iface}.conf"
                 )
                 edge.cmd_list.append(f"wg-quick up {iface}")
+                # Healthy overlay egress QoS: EF vs BE classes; no DSCP rewrite.
+                qos = overlay_qos_for(self.spec.size)
+                edge.cmd_list.extend(overlay_qos_startup_cmds(iface, qos))
 
-            # Guest NAT + block guest from enterprise overlay (local Internet only)
-            if any(lan.role == "guest" for lan in site.lans):
+            # Local-only VRFs: default via primary ISP PE in default VRF + NAT.
+            local_only = [lan for lan in site.lans if lan.role in LOCAL_ONLY_ROLES]
+            if local_only:
+                primary_pe = edge.wan[site.wan_providers[0]][1]
                 edge.cmd_list.extend(
                     [
                         "nft add table ip nat || true",
@@ -369,68 +491,35 @@ class EnterpriseBranch(NetworkEnvBase):
                         "nft 'add chain ip filter FORWARD { type filter hook forward priority 0 ; policy accept; }' || true",
                     ]
                 )
-                for lan in site.lans:
-                    if lan.role != "guest":
-                        continue
+                for lan in local_only:
                     edge.cmd_list.append(
-                        f"nft add rule ip nat POSTROUTING ip saddr {lan.prefix} masquerade || true"
+                        f"ip route add default via {primary_pe} "
+                        f"vrf {lan.vrf} nexthop-vrf default || true"
                     )
                     edge.cmd_list.append(
-                        f"nft add rule ip filter FORWARD ip saddr {lan.prefix} ip daddr 10.0.0.0/8 drop || true"
+                        f"nft add rule ip nat POSTROUTING ip saddr {lan.prefix} "
+                        "masquerade || true"
+                    )
+                    edge.cmd_list.append(
+                        f"nft add rule ip filter FORWARD ip saddr {lan.prefix} "
+                        "ip daddr 10.0.0.0/8 drop || true"
                     )
 
-            # FRR BGP
-            networks = ""
-            local_pl = ""
-            seq = 5
-            for lan in site.lans:
-                if not lan.advertise:
-                    continue
-                networks += f" network {lan.prefix}\n"
-                local_pl += f"ip prefix-list LOCAL-ADV seq {seq} permit {lan.prefix}\n"
-                seq += 5
-            if not local_pl:
-                local_pl = "ip prefix-list LOCAL-ADV seq 5 deny 0.0.0.0/0 le 32\n"
-
-            inbound_maps = ""
-            neighbors = ""
-            out_map = "RM-OUT-TRANSIT" if site.is_hub else "RM-OUT-LOCAL"
-            for iface, (
-                local_cidr,
-                peer_tun_ip,
-                _port,
-                remote_site,
-                _primary,
-                local_pref,
-                _rwan,
-            ) in edge.tunnels.items():
-                remote_asn = self.spec.sites[remote_site].asn
-                local_ip = local_cidr.split("/")[0]
-                map_name = f"RM-IN-{iface}"
-                inbound_maps += (
-                    f"route-map {map_name} permit 10\n"
-                    f" match ip address prefix-list ENTERPRISE\n"
-                    f" set local-preference {local_pref}\n"
-                    "!\n"
-                )
-                neighbors += (
-                    f" neighbor {peer_tun_ip} remote-as {remote_asn}\n"
-                    f" neighbor {peer_tun_ip} update-source {local_ip}\n"
-                    f" neighbor {peer_tun_ip} route-map {out_map} out\n"
-                    f" neighbor {peer_tun_ip} route-map {map_name} in\n"
-                )
-                if site.is_hub:
-                    neighbors += f" neighbor {peer_tun_ip} next-hop-self\n"
-
+            overlay_roles = tuple(
+                lan.role for lan in site.lans if lan.role in OVERLAY_ROLES
+            )
+            local_adv = [lan.prefix for lan in site.lans if lan.advertise]
+            peer_asns = {name: s.asn for name, s in self.spec.sites.items()}
             rid = next(iter(edge.wan.values()))[2]
-            frr = EDGE_BGP_TEMPLATE.format(
+            frr = _render_edge_frr(
                 hostname=edge.name,
-                local_prefix_lists=local_pl,
-                inbound_maps=inbound_maps,
                 asn=site.asn,
                 router_id=rid,
-                networks=networks,
-                neighbors=neighbors,
+                is_hub=site.is_hub,
+                overlay_roles=overlay_roles,
+                local_adv_prefixes=local_adv,
+                tunnels=edge.tunnels,
+                peer_asns=peer_asns,
             )
             edge.machine.create_file_from_path(
                 str(pkg_path("net_env/kathara/utils/bgp/daemons")), "/etc/frr/daemons"

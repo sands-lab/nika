@@ -88,7 +88,7 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "link_detach": "dc_clos",
     "link_down": "dc_clos",
     "link_flap": "dc_clos",
-    "link_fragmentation_disabled": "dc_clos",
+    "mtu_mismatch": "dc_clos",
     "link_high_packet_corruption": "dc_clos",
     "load_balancer_overload": "campus_lan",
     "mac_address_conflict": "campus_lan",
@@ -108,7 +108,9 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "southbound_port_block": "sdn_clos",
     "southbound_port_mismatch": "sdn_clos",
     "web_dos_attack": "campus_lan",
+    "wireguard_allowed_ips_misconfiguration": "enterprise_branch",
     "wireguard_peer_key_misconfiguration": "enterprise_branch",
+    "vrf_dscp_remarking": "enterprise_branch",
 }
 
 # Failures that are tag-compatible with host Clos but prefer service endpoints.

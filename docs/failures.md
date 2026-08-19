@@ -15,13 +15,13 @@ Counts come from the failure registry and [`benchmark/benchmark_full.yaml`](../b
 
 | Category | Registered failure IDs | Working-matrix cases |
 | --- | ---: | ---: |
-| Link failures | 7 | 109 |
+| Link failures | 6 | 85 |
 | End-host failures | 8 | 122 |
 | Network node errors | 13 | 62 |
-| Misconfigurations (routing, ACL, and related configuration) | 18 | 157 |
+| Misconfigurations (routing, ACL, and related configuration) | 21 | 187 |
 | Resource contention | 8 | 97 |
 | Network under attack | 6 | 51 |
-| **Total** | **60** | **598** |
+| **Total** | **62** | **604** |
 
 ## How to read the compatibility sets
 
@@ -64,7 +64,6 @@ The **Trigger and signal** column describes the traffic or state that exposes th
 | Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
 | --- | --- | --- | --- | --- | --- |
 | Faulty cable | `link_high_packet_corruption` | **All**. `host_name`, `corruption_percentage=60` | Applies `tc netem corrupt` to the target's last interface, simulating a cable that corrupts frames. | Packet streams across the interface show checksum failures, loss, and retransmissions. | `tc qdisc` reports the configured corruption rate. |
-| Link fragmentation disabled | `link_fragmentation_disabled` | **All**. `host_name`, `mtu=10` | Adds an iptables OUTPUT length-based drop rule instead of changing path MTU discovery. | Packets at or above the limit drop while smaller packets can pass, producing size-dependent loss. | The exact length/drop rule appears in iptables. |
 
 ### Layer 2 identity
 
@@ -136,13 +135,26 @@ The **Trigger and signal** column describes the traffic or state that exposes th
 
 ## Misconfigurations (routing, ACL, and related configuration)
 
+### Path MTU
+
+| Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
+| --- | --- | --- | --- | --- | --- |
+| Path MTU misconfiguration | `mtu_mismatch` | **All**. `host_name`, `mtu=100`. Legacy id `link_fragmentation_disabled` resolves to this failure. | Adds an iptables OUTPUT length-based DROP for packets with length >= `mtu` (lab stand-in for an undersized path MTU; does not rewrite interface MTU or PMTUD). | Large packets drop while smaller packets can pass, producing size-dependent loss. | The exact length/DROP rule appears in iptables. |
+
 ### Site Edge / WireGuard overlay
 
 | Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
 | --- | --- | --- | --- | --- | --- |
-| Wrong WireGuard peer public key | `wireguard_peer_key_misconfiguration` | **VPN** (`enterprise_branch` s/m/l). `host_name` (Branch Edge), `intf_name` (e.g. `wg_hq`). Targets a single-path Branch→HQ tunnel only. Legacy id `host_vpn_membership_missing` rewrites to this failure (and a Site Edge inject target) when loading old benchmark YAML. | Replaces the Hub peer `PublicKey` on the Branch Edge with a deterministic unused key and applies it with `wg syncconf` (interface stays up). Clears only that BGP neighbor session, then waits for settle. | Provider underlay and Hub WAN endpoint stay reachable; the WG interface stays up; the tunnel never completes a handshake; overlay BGP on that tunnel fails; that Branch's cross-site business fails; other Branches stay healthy. | Conf `PublicKey` matches the injected wrong key; iface is up; `wg show` lists the wrong peer with no successful handshake. |
+| Wrong WireGuard peer public key | `wireguard_peer_key_misconfiguration` | **VPN** (`enterprise_branch` s/m/l). `host_name` (Branch Edge), `intf_name` (primary HQ peer, e.g. `wg_hq`). Every branch is dual-homed / dual-hub; inject corrupts **all** WireGuard peers on that Branch Edge so backup paths cannot mask the fault. Legacy id `host_vpn_membership_missing` rewrites to this failure (and a Site Edge inject target) when loading old benchmark YAML. | Replaces the Hub peer `PublicKey` on every WireGuard interface of the Branch Edge with a deterministic unused key and applies each with `wg syncconf` (interfaces stay up). Clears BGP neighbor sessions for those tunnels, then waits for settle. | Provider underlay and Hub WAN endpoints stay reachable; WG interfaces stay up; no tunnel completes a handshake; overlay BGP on that Branch fails; that Branch's cross-site business fails; other Branches stay healthy. | Conf `PublicKey` matches the injected wrong key on every WG iface; ifaces are up; `wg show` lists the wrong peer with no successful handshake. |
+| WireGuard AllowedIPs omit of a remote business prefix | `wireguard_allowed_ips_misconfiguration` | **VPN** (`enterprise_branch` s/m/l). `host_name` (Branch Edge), `intf_name` (primary HQ peer, e.g. `wg_hq`), `target_prefix` (one remote advertised CORP/SERVER prefix, e.g. `10.0.20.0/24`). Dual-homed spokes are eligible because overlay BGP stays up and primary local-pref keeps the broken path. | Healthy labs still use catch-all `AllowedIPs = 0.0.0.0/0` with `Table = off`. Inject rewrites only the Branch→Hub peer AllowedIPs to an explicit allowlist that keeps the Hub tunnel `/32` and other remote enterprise prefixes, omitting `target_prefix`, then applies it with `wg syncconf`. Does not clear BGP or edit FRR. | Handshake continues; overlay BGP stays Established; the target prefix remains in FRR BGP/RIB and Linux routing via the WG iface; Edge can still reach the Hub tunnel address; LAN traffic to the omitted prefix fails while other business prefixes, other Branches, and underlay stay healthy. | Conf AllowedIPs omits `target_prefix` and retains Hub tunnel `/32`; latest handshake > 0; BGP neighbor Established; route to the target prefix still present via the WG iface. |
 
-Planned follow-ups (not implemented): `wireguard_endpoint_misconfiguration` (correct key, wrong `Endpoint` IP/port) and `underlay_tunnel_endpoint_route_missing` (delete the Edge `/32` host route to the remote WAN endpoint while the WG iface stays up). Each needs a distinct causal chain from peer-key authentication failure.
+### Site Edge / VRF QoS marking
+
+| Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
+| --- | --- | --- | --- | --- | --- |
+| CORP VRF DSCP mis-remarking | `vrf_dscp_remarking` | **VPN** (`enterprise_branch` s/m/l). `host_name` (Site Edge: Branch, HQ, or DC2), `intf_name` (LAN→overlay WireGuard egress), `src_host` / `dst_host` (CORP EF path that exits that iface), `direction=lan_to_overlay`, optional `corp_prefix`. | Starts an ephemeral EF+CS0 compete workload on the target egress, records a healthy baseline, then installs nftables mangle on the Site Edge that rewrites CORP EF (DSCP 46) to CS0 (0) for packets leaving `intf_name`. Does not add extra netem/TBF congestion. | Under the same bulk load, the realtime flow shares the BE class after the boundary: destination DSCP is 0 and latency/jitter/loss degrade vs baseline while WG, eBGP, VRF RIB, SERVER HTTP, and other paths stay up. | nft rule present; source still EF; destination TOS is CS0; EF metrics degraded vs inject-time baseline; smoke connectivity/BGP/RIB checks pass. |
+
+Planned follow-ups (not implemented): `wireguard_endpoint_misconfiguration` (correct key, wrong `Endpoint` IP/port) and `underlay_tunnel_endpoint_route_missing` (delete the Edge `/32` host route to the remote WAN endpoint while the WG iface stays up). Each needs a distinct causal chain from peer-key authentication failure and from AllowedIPs cryptokey misconfiguration.
 
 ### BGP routing
 

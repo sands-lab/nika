@@ -22,9 +22,17 @@ class LinkFailureVerifyTest(PerTestEnvTestCase):
         self._inject_failure("link_detach", LINK_PARAMS)
         self._assert_failure_injected("link_detach")
 
-    def test_link_fragmentation_disabled(self) -> None:
-        self._inject_failure("link_fragmentation_disabled", {"host_name": HOST})
-        self._assert_failure_injected("link_fragmentation_disabled")
+    def test_mtu_mismatch(self) -> None:
+        self._inject_failure("mtu_mismatch", {"host_name": HOST})
+        self._assert_failure_injected("mtu_mismatch")
+
+    def test_link_fragmentation_disabled_is_alias(self) -> None:
+        from nika.problems.prob_pool import get_problem_class, resolve_problem_name
+
+        assert resolve_problem_name("link_fragmentation_disabled") == "mtu_mismatch"
+        cls = get_problem_class("link_fragmentation_disabled")
+        assert cls is not None
+        assert cls.root_cause_name == "mtu_mismatch"
 
 
 class HostMisconfigVerifyTest(PerTestEnvTestCase):
@@ -340,6 +348,93 @@ class VPNMembershipMissingVerifyTest:
         assert cls.root_cause_name == "wireguard_peer_key_misconfiguration"
 
 
+class WireGuardAllowedIpsMisconfigVerifyTest(PerTestEnvTestCase):
+    """Site Edge AllowedIPs omit of one remote prefix on enterprise_branch (small)."""
+
+    SCENARIO = "enterprise_branch"
+    ENV_RUN_ARGS = ["-s", "s"]
+
+    def test_wireguard_allowed_ips_misconfiguration(self) -> None:
+        import time
+
+        from nika.net_env.verify import http_ok, ping_ok
+        from nika.problems.prob_pool import get_problem_class
+
+        params = {
+            "host_name": "br1_edge",
+            "intf_name": "wg_hq",
+            "target_prefix": "10.0.20.0/24",
+        }
+        self._inject_failure("wireguard_allowed_ips_misconfiguration", params)
+        self._assert_failure_injected("wireguard_allowed_ips_misconfiguration")
+
+        cls = get_problem_class("wireguard_allowed_ips_misconfiguration")
+        assert cls is not None
+        problem = self._problem(cls)
+        runtime = problem.runtime
+        tunnels = {(t.spoke, t.spoke_iface): t for t in problem.net_env.built_tunnels}
+        target = tunnels[("br1", "wg_hq")]
+        other = tunnels[("br2", "wg_hq")]
+
+        def _bgp_established(summary: str, peer_ip: str) -> bool:
+            for line in summary.splitlines():
+                fields = line.split()
+                if peer_ip in line and len(fields) >= 10 and fields[9].isdigit():
+                    return True
+            return False
+
+        # Underlay / WAN endpoint still reachable.
+        assert ping_ok(runtime, "br1_edge", target.hub_wan_ip)
+        assert ping_ok(runtime, "hq_edge", target.spoke_wan_ip)
+
+        # Handshake still healthy; Hub tunnel address reachable over overlay.
+        hs = runtime.exec("br1_edge", "wg show wg_hq latest-handshakes").strip()
+        assert any(int(line.split()[-1]) > 0 for line in hs.splitlines() if line)
+        assert ping_ok(runtime, "br1_edge", target.hub_tunnel_ip)
+
+        # Overlay BGP stays Established; route to omitted prefix still present.
+        br1_sum = runtime.exec("br1_edge", "vtysh -c 'show bgp summary'")
+        br2_sum = runtime.exec("br2_edge", "vtysh -c 'show bgp summary'")
+        assert _bgp_established(br1_sum, target.hub_tunnel_ip)
+        assert _bgp_established(br2_sum, other.hub_tunnel_ip)
+        rib = runtime.exec("br1_edge", "vtysh -c 'show ip route 10.0.20.0/24'")
+        assert "10.0.20.0/24" in rib
+        linux_route = runtime.exec("br1_edge", "ip route get 10.0.20.2").strip()
+        assert "wg_hq" in linux_route
+
+        conf = runtime.exec(
+            "br1_edge", "grep -E '^AllowedIPs = ' /etc/wireguard/wg_hq.conf"
+        ).strip()
+        assert "10.0.20.0/24" not in conf
+        assert f"{target.hub_tunnel_ip}/32" in conf
+        assert "10.0.10.0/24" in conf
+
+        # Target SERVER fails; CORP and other branch still succeed.
+        assert not http_ok(runtime, "br1_corp_pc", "http://10.0.20.2/")
+        assert not ping_ok(runtime, "br1_corp_pc", "10.0.20.2", count=2)
+        assert ping_ok(runtime, "br1_corp_pc", "10.0.10.2")
+        assert ping_ok(runtime, "br2_corp_pc", "10.0.10.2")
+        assert http_ok(runtime, "br2_corp_pc", "http://10.0.20.2/")
+
+        # Restore AllowedIPs → business recovers without BGP clear.
+        runtime.exec(
+            "br1_edge",
+            "cp /etc/wireguard/wg_hq.conf.bak /etc/wireguard/wg_hq.conf "
+            "&& wg-quick strip wg_hq > /tmp/wg_hq.strip "
+            "&& wg syncconf wg_hq /tmp/wg_hq.strip",
+        )
+        deadline = time.monotonic() + 60
+        recovered = False
+        while time.monotonic() < deadline:
+            if http_ok(runtime, "br1_corp_pc", "http://10.0.20.2/") and ping_ok(
+                runtime, "br1_corp_pc", "10.0.20.2", count=1
+            ):
+                recovered = True
+                break
+            time.sleep(3)
+        assert recovered, "HQ SERVER traffic did not recover after restoring AllowedIPs"
+
+
 class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
     """Site Edge wrong Hub peer PublicKey on enterprise_branch (small)."""
 
@@ -361,6 +456,8 @@ class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
         assert cls is not None
         problem = self._problem(cls)
         runtime = problem.runtime
+        br1_tunnels = [t for t in problem.net_env.built_tunnels if t.spoke == "br1"]
+        assert len(br1_tunnels) >= 3
         tunnels = {(t.spoke, t.spoke_iface): t for t in problem.net_env.built_tunnels}
         target = tunnels[("br1", "wg_hq")]
         other = tunnels[("br2", "wg_hq")]
@@ -377,22 +474,25 @@ class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
         assert ping_ok(runtime, "br1_edge", target.hub_wan_ip)
         assert ping_ok(runtime, "hq_edge", target.spoke_wan_ip)
 
-        # WG iface up; wrong peer key; no successful handshake.
-        link = runtime.exec("br1_edge", "ip -o link show wg_hq").strip()
-        assert link and "state DOWN" not in link
-        conf = runtime.exec(
-            "br1_edge", "grep -E '^PublicKey = ' /etc/wireguard/wg_hq.conf"
-        ).strip()
-        assert conf == f"PublicKey = {wrong_key}"
-        hs = runtime.exec("br1_edge", "wg show wg_hq latest-handshakes").strip()
-        assert any(
-            wrong_key in line and line.split()[-1] == "0" for line in hs.splitlines()
-        )
-
-        # Overlay BGP on the broken tunnel is down; other branch stays up.
+        # Every WG iface on the spoke is up with wrong peer key and no handshake.
         br1_sum = runtime.exec("br1_edge", "vtysh -c 'show bgp summary'")
+        for tunnel in br1_tunnels:
+            iface = tunnel.spoke_iface
+            link = runtime.exec("br1_edge", f"ip -o link show {iface}").strip()
+            assert link and "state DOWN" not in link
+            conf = runtime.exec(
+                "br1_edge", f"grep -E '^PublicKey = ' /etc/wireguard/{iface}.conf"
+            ).strip()
+            assert conf == f"PublicKey = {wrong_key}"
+            hs = runtime.exec("br1_edge", f"wg show {iface} latest-handshakes").strip()
+            assert any(
+                wrong_key in line and line.split()[-1] == "0"
+                for line in hs.splitlines()
+            )
+            assert not _bgp_established(br1_sum, tunnel.hub_tunnel_ip)
+
+        # Other branch stays up.
         br2_sum = runtime.exec("br2_edge", "vtysh -c 'show bgp summary'")
-        assert not _bgp_established(br1_sum, target.hub_tunnel_ip)
         assert _bgp_established(br2_sum, other.hub_tunnel_ip)
 
         # Target branch business fails; other branch succeeds.
@@ -405,14 +505,17 @@ class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
         for line in other_hs.splitlines():
             assert int(line.split()[-1]) > 0
 
-        # Restore correct key → handshake + BGP + business recover.
-        runtime.exec(
-            "br1_edge",
-            "cp /etc/wireguard/wg_hq.conf.bak /etc/wireguard/wg_hq.conf "
-            "&& wg-quick strip wg_hq > /tmp/wg_hq.strip "
-            "&& wg syncconf wg_hq /tmp/wg_hq.strip "
-            f"&& vtysh -c 'clear ip bgp {target.hub_tunnel_ip}' 2>/dev/null || true",
-        )
+        # Restore correct keys on every iface → handshake + BGP + business recover.
+        for tunnel in br1_tunnels:
+            iface = tunnel.spoke_iface
+            runtime.exec(
+                "br1_edge",
+                f"cp /etc/wireguard/{iface}.conf.bak /etc/wireguard/{iface}.conf "
+                f"&& wg-quick strip {iface} > /tmp/{iface}.strip "
+                f"&& wg syncconf {iface} /tmp/{iface}.strip "
+                f"&& vtysh -c 'clear ip bgp {tunnel.hub_tunnel_ip}' "
+                "2>/dev/null || true",
+            )
         deadline = time.monotonic() + 90
         recovered = False
         while time.monotonic() < deadline:
@@ -423,6 +526,88 @@ class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
                 break
             time.sleep(5)
         assert recovered, "cross-site traffic did not recover after restoring peer key"
+
+
+class VrfDscpRemarkingVerifyTest(PerTestEnvTestCase):
+    """CORP VRF DSCP EF→CS0 remarking on enterprise_branch (small)."""
+
+    SCENARIO = "enterprise_branch"
+    ENV_RUN_ARGS = ["-s", "s"]
+
+    def test_vrf_dscp_remarking(self) -> None:
+        """Require DSCP demotion and QoS regression under competing bulk load."""
+        from nika.net_env.verify import http_ok, ping_ok
+        from nika.problems.misconfigurations.vrf_dscp import VrfDscpRemarking
+        from nika.problems.prob_pool import get_problem_class
+
+        params = {
+            "host_name": "br1_edge",
+            "intf_name": "wg_hq",
+            "src_host": "br1_corp_pc",
+            "dst_host": "hq_corp_pc",
+            "direction": "lan_to_overlay",
+            "corp_prefix": "10.1.10.0/24",
+        }
+        cls = get_problem_class("vrf_dscp_remarking")
+        assert cls is VrfDscpRemarking
+        problem = self._problem(cls)
+        parsed = problem.parse_params(params)
+
+        problem.inject_fault(parsed)
+        baseline = problem._baseline
+        assert baseline is not None
+        assert baseline.error is None, baseline
+        assert baseline.jitter_ms is not None
+        assert baseline.latency_ms is not None
+
+        verify = problem.verify_fault(parsed)
+        details = verify["details"]
+        assert verify["verified"], details
+
+        # Concrete fault symptoms (not just nft presence).
+        assert details["samples_confirm"] is True
+        assert details["src_tos"] == 0xB8
+        assert details["dst_tos"] == 0
+        assert details["edge_tos"] in (0, None)
+        assert details["perf_degraded"] is True
+        current = details["current"]
+        assert current is not None
+        assert (
+            (current["jitter_ms"] or 0) >= max((baseline.jitter_ms or 0) * 5, 0.3)
+            or (current["latency_ms"] or 0) >= max((baseline.latency_ms or 0) * 5, 5.0)
+            or (current["latency_mdev_ms"] or 0)
+            >= max((baseline.latency_mdev_ms or 0) * 5, 1.0)
+            or (current["lost_percent"] or 0) >= (baseline.lost_percent or 0) + 10
+            or (
+                baseline.bits_per_second
+                and current.get("bits_per_second") is not None
+                and current["bits_per_second"] <= baseline.bits_per_second * 0.5
+            )
+        ), {"baseline": details["baseline"], "current": current}
+
+        # Prefer seeing a large latency or loss move when available.
+        if current.get("latency_ms") is not None and baseline.latency_ms is not None:
+            assert current["latency_ms"] >= baseline.latency_ms * 3 or (
+                current.get("lost_percent") or 0
+            ) >= 10, {"baseline": details["baseline"], "current": current}
+
+        runtime = problem.runtime
+        assert ping_ok(runtime, "br2_corp_pc", "10.0.10.2")
+        assert http_ok(runtime, "br2_corp_pc", "http://10.0.20.2/")
+        assert ping_ok(runtime, "br1_corp_pc", "10.0.10.2")
+        other_nft = runtime.exec(
+            "br2_edge", "nft list table ip nika_dscp 2>/dev/null || true"
+        )
+        assert "nika_dscp" not in other_nft
+
+        recovered = problem.recover_fault(parsed)
+        assert recovered["verified"], recovered
+        assert recovered["details"]["dscp_restored"]
+        assert recovered["details"]["perf_restored"]
+        assert recovered["details"]["dst_tos"] == 0xB8
+        assert recovered["details"]["edge_tos"] in (0xB8, None)
+        assert ping_ok(runtime, "br1_corp_pc", "10.0.10.2")
+        assert http_ok(runtime, "br1_corp_pc", "http://10.0.20.2/")
 
 
 class ServiceDownVerifyTest(PerTestEnvTestCase):

@@ -12,6 +12,7 @@ logger = system_logger
 # Legacy failure ids rewritten at load/inject time (no separate registry entry).
 _PROBLEM_ALIASES: dict[str, str] = {
     "host_vpn_membership_missing": "wireguard_peer_key_misconfiguration",
+    "link_fragmentation_disabled": "mtu_mismatch",
 }
 
 
@@ -90,8 +91,8 @@ def list_avail_tags() -> list[str]:
 def get_problem_class(problem_name: str) -> type[ProblemBase] | None:
     """Return the registered class for *problem_name*, or None.
 
-    Legacy aliases (e.g. ``host_vpn_membership_missing``) resolve to the
-    current Site Edge failure.
+    Legacy aliases (e.g. ``host_vpn_membership_missing``,
+    ``link_fragmentation_disabled``) resolve to the current failure id.
     """
     return _PROBLEMS.get(resolve_problem_name(problem_name))
 

@@ -83,7 +83,7 @@ Each incident pairs a root cause `Problem ID` with a network scenario (topology 
 | `link_detach` | `link_failure` | Users report connectivity issues to other hosts. | 30 |
 | `link_down` | `link_failure` | Users report connectivity issues to other hosts. | 30 |
 | `link_flap` | `link_failure` | Users report connectivity issues to other hosts. | 30 |
-| `link_fragmentation_disabled` | `link_failure` | Users report partial packet loss when communicating with other hosts. | 30 |
+| `mtu_mismatch` | `misconfiguration` | Users report size-dependent packet loss: large transfers fail while small packets (for example small pings) still succeed. | 24 |
 | `link_high_packet_corruption` | `link_failure` | link_high_packet_corruption | 30 |
 | `mac_address_conflict` | `link_failure` | mac_address_conflict | 28 |
 | `arp_acl_block` | `misconfiguration` | arp_acl_block | 28 |

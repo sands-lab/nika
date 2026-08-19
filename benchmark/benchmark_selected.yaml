@@ -420,20 +420,6 @@ cases:
     fault_type: link_flap
 - scenario: dc_clos
   topo_size: s
-  problem: link_fragmentation_disabled
-  inject:
-    host_name: pc_0_1
-    intf_name: eth0
-    mtu: '100'
-  workload: host
-  root_causes:
-  - resource:
-      kind: interface
-      node: pc_0_1
-      name: eth0
-    fault_type: link_fragmentation_disabled
-- scenario: dc_clos
-  topo_size: s
   problem: link_high_packet_corruption
   inject:
     host_name: pc_0_0
@@ -481,6 +467,19 @@ cases:
       kind: node
       node: switch_7
     fault_type: mpls_label_limit_exceeded
+- scenario: dc_clos
+  topo_size: s
+  problem: mtu_mismatch
+  inject:
+    host_name: pc_0_0
+    mtu: '100'
+  workload: host
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_0_0
+      name: eth0
+    fault_type: mtu_mismatch
 - scenario: campus_lan
   topo_size: s
   problem: ospf_acl_block
@@ -632,6 +631,22 @@ cases:
       kind: node
       node: controller
     fault_type: southbound_port_mismatch
+- scenario: enterprise_branch
+  topo_size: s
+  problem: vrf_dscp_remarking
+  inject:
+    host_name: hq_edge
+    intf_name: wg_br1
+    src_host: hq_corp_pc
+    dst_host: br1_corp_pc
+    direction: lan_to_overlay
+    corp_prefix: 10.0.10.0/24
+  root_causes:
+  - resource:
+      kind: interface
+      node: hq_edge
+      name: wg_br1
+    fault_type: vrf_dscp_remarking
 - scenario: campus_lan
   topo_size: s
   problem: web_dos_attack
@@ -644,6 +659,19 @@ cases:
       kind: node
       node: web_server_3
     fault_type: web_dos_attack
+- scenario: enterprise_branch
+  topo_size: s
+  problem: wireguard_allowed_ips_misconfiguration
+  inject:
+    host_name: br2_edge
+    intf_name: wg_hq
+    target_prefix: 10.0.20.0/24
+  root_causes:
+  - resource:
+      kind: interface
+      node: br2_edge
+      name: wg_hq
+    fault_type: wireguard_allowed_ips_misconfiguration
 - scenario: enterprise_branch
   topo_size: s
   problem: wireguard_peer_key_misconfiguration

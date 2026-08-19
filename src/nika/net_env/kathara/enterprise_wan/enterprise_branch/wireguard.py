@@ -16,9 +16,9 @@ def load_key_pairs(path: Path | None = None) -> list[tuple[str, str]]:
             continue
         priv, pub = line.split(",", 1)
         pairs.append((priv.strip(), pub.strip()))
-    if len(pairs) < 9:
+    if len(pairs) < 10:
         raise RuntimeError(
-            f"Need at least 9 WireGuard key pairs in {keys_path}, found {len(pairs)}"
+            f"Need at least 10 WireGuard key pairs in {keys_path}, found {len(pairs)}"
         )
     return pairs
 

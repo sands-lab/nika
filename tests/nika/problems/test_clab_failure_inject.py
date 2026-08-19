@@ -12,7 +12,7 @@ MIN3CLOS_FAILURES = (
     "link_down",
     "link_detach",
     "link_flap",
-    "link_fragmentation_disabled",
+    "mtu_mismatch",
     "link_bandwidth_throttling",
     "link_high_packet_corruption",
     "bgp_acl_block",
@@ -43,8 +43,8 @@ class ClabFailureInjectVerifyTest(PerTestEnvTestCase):
     def test_link_flap(self) -> None:
         self._inject_and_assert("link_flap")
 
-    def test_link_fragmentation_disabled(self) -> None:
-        self._inject_and_assert("link_fragmentation_disabled")
+    def test_mtu_mismatch(self) -> None:
+        self._inject_and_assert("mtu_mismatch")
 
     def test_link_bandwidth_throttling(self) -> None:
         self._inject_and_assert("link_bandwidth_throttling")

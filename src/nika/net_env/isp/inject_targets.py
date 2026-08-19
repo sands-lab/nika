@@ -16,7 +16,7 @@ LINK_INTF_PROBLEMS = frozenset(
 )
 LINK_HOST_ONLY_PROBLEMS = frozenset(
     {
-        "link_fragmentation_disabled",
+        "mtu_mismatch",
         "link_bandwidth_throttling",
         "link_high_packet_corruption",
         "icmp_acl_block",
