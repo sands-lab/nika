@@ -10,6 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 from nika.net_env.kathara.sdn.topology_model import (
     BASE_IMAGE,
     FABRIC_MGR_OOB_IP,
@@ -104,6 +105,11 @@ class SDNL3Clos(NetworkEnvBase):
             machine = self.lab.new_machine(
                 spine, **{"image": SWITCH_IMAGE, "cpus": 0.5, "mem": "512m"}
             )
+            self.declare_machine(
+                spine,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "ovs", "openflow"),
+            )
             spine_metas.append(
                 SwitchMeta(name=spine, machine=machine, eth_index=0, cmd_list=[])
             )
@@ -111,6 +117,11 @@ class SDNL3Clos(NetworkEnvBase):
         for leaf in self.model.leaves:
             machine = self.lab.new_machine(
                 leaf, **{"image": SWITCH_IMAGE, "cpus": 0.5, "mem": "512m"}
+            )
+            self.declare_machine(
+                leaf,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "ovs", "openflow"),
             )
             leaf_metas.append(
                 SwitchMeta(name=leaf, machine=machine, eth_index=0, cmd_list=[])
@@ -123,6 +134,21 @@ class SDNL3Clos(NetworkEnvBase):
             machine = self.lab.new_machine(
                 ep.name, **{"image": image, "cpus": 0.5, "mem": "256m"}
             )
+            if ep.role == "web":
+                self.declare_machine(
+                    ep.name,
+                    role=NodeRole.SERVICE,
+                    capabilities=("linux", "http"),
+                    service_type="web",
+                    reachability_target=True,
+                )
+            else:
+                self.declare_machine(
+                    ep.name,
+                    role=NodeRole.HOST,
+                    capabilities=("linux",),
+                    reachability_target=True,
+                )
             host_metas.append(
                 HostMeta(name=ep.name, machine=machine, eth_index=0, cmd_list=[])
             )
@@ -145,6 +171,16 @@ class SDNL3Clos(NetworkEnvBase):
         fabric_mgr = self.lab.new_machine(
             "fabric_mgr",
             **{"image": BASE_IMAGE, "cpus": 0.5, "mem": "256m"},
+        )
+        self.declare_machine(
+            onos.name,
+            role=NodeRole.CONTROLLER,
+            capabilities=("onos", "openflow"),
+        )
+        self.declare_machine(
+            fabric_mgr.name,
+            role=NodeRole.INFRASTRUCTURE,
+            capabilities=("linux", "openflow"),
         )
 
         for meta in spine_metas + leaf_metas:
@@ -283,11 +319,6 @@ class SDNL3Clos(NetworkEnvBase):
             )
 
         self.load_machines()
-        # Classify web servers for inject_resolve
-        for ep in self.model.web_endpoints():
-            if ep.name not in self.servers.get("web", []):
-                self.servers.setdefault("web", []).append(ep.name)
-        self.servers["web"] = sorted(set(self.servers.get("web", [])))
 
     def deploy(self):
         """Start containers, then program L3/ECMP OpenFlow rules on the fabric."""

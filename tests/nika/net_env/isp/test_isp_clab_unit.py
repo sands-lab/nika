@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from nika.net_env.isp.bgp import compile_bgp_plan
+from nika.net_env.isp.bgp import compile_bgp_plan, scope_igp_to_bgp_as
 from nika.net_env.isp.bgp.srl import render_bgp_srl_block
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.isp.igp.ifaces import srl_e1_name, srl_ethernet_name
@@ -34,6 +34,18 @@ def test_resolve_isp_defaults_to_kathara() -> None:
 def test_resolve_isp_requires_choice_without_default() -> None:
     with pytest.raises(ValueError, match="pass --backend"):
         resolve_scenario_backend("isp")
+
+
+def test_clab_rejects_kathara_only_rpki_mode() -> None:
+    with pytest.raises(ValueError, match="Kathara"):
+        get_net_env_instance(
+            "isp",
+            backend="containerlab",
+            topo="abilene",
+            bgp_mode="ebgp",
+            rpki=True,
+            device_profile="nokia_srlinux",
+        )
 
 
 def test_iface_mapping() -> None:
@@ -76,6 +88,23 @@ def test_srl_bgp_block() -> None:
     block = render_bgp_srl_block(bgp.nodes[0], bgp)
     assert block["autonomous-system"] == bgp.nodes[0].asn
     assert block["neighbor"]
+
+
+def test_srl_ebgp_renders_rr_clients_and_passive_as_boundaries() -> None:
+    plan = compile_isp_plan(IspConfig(topology="pdh", igp="ospf"))
+    bgp = compile_bgp_plan(plan, "ebgp")
+    assert bgp is not None
+    scoped = scope_igp_to_bgp_as(plan, bgp)
+    assert any(
+        interface.passive for node in scoped.nodes for interface in node.interfaces
+    )
+    reflector = next(
+        node
+        for node in bgp.nodes
+        if any(session.route_reflector_client for session in node.sessions)
+    )
+    block = render_bgp_srl_block(reflector, bgp)
+    assert any("route-reflector" in neighbor for neighbor in block["neighbor"])
 
 
 def test_clab_setup_script_is_serial(tmp_path) -> None:

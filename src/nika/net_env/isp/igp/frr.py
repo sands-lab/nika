@@ -37,11 +37,14 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
     net = isis_net_from_router_id(node.router_id)
     lines = [
         "!",
+        "frr version 10.5.3",
+        "frr defaults traditional",
         "! FRRouting ISP (IS-IS)",
         "!",
         f"hostname {node.device_name}",
         "!",
         "interface lo",
+        f" ip address {node.loopback}/32",
         " ip router isis NIKA",
         "!",
     ]
@@ -49,6 +52,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         lines.extend(
             [
                 f"interface {iface.name}",
+                f" ip address {iface.address}/{iface.prefixlen}",
                 " ip router isis NIKA",
                 " isis circuit-type level-2-only",
                 f" isis metric {iface.metric}",
@@ -86,9 +90,14 @@ def _render_ospf(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
     """
     lines = [
         "!",
+        "frr version 10.5.3",
+        "frr defaults traditional",
         "! FRRouting ISP (OSPF)",
         "!",
         f"hostname {node.device_name}",
+        "!",
+        "interface lo",
+        f" ip address {node.loopback}/32",
         "!",
     ]
     for iface in interfaces:
@@ -96,6 +105,7 @@ def _render_ospf(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
             lines.extend(
                 [
                     f"interface {iface.name}",
+                    f" ip address {iface.address}/{iface.prefixlen}",
                     f" ip ospf cost {iface.metric}",
                     "!",
                 ]
@@ -104,6 +114,7 @@ def _render_ospf(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
             lines.extend(
                 [
                     f"interface {iface.name}",
+                    f" ip address {iface.address}/{iface.prefixlen}",
                     " ip ospf network non-broadcast",
                     f" ip ospf cost {iface.metric}",
                     "!",

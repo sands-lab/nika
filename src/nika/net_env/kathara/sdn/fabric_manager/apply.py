@@ -299,9 +299,92 @@ print(json.dumps(out))
     return _exec(runtime, "fabric_mgr", cmd, timeout=timeout)
 
 
+def _require_onos_batch_success(result: str, *, operation: str) -> None:
+    """Reject partial ONOS REST batches instead of hiding an update failure."""
+    try:
+        responses = json.loads(result)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"ONOS {operation} returned invalid JSON: {result[:500]}"
+        ) from exc
+    failures = [
+        response
+        for response in responses
+        if not isinstance(response.get("status"), int)
+        or not 200 <= response["status"] < 300
+    ]
+    if failures:
+        raise RuntimeError(f"ONOS {operation} failed: {failures}")
+
+
+def _bucket_ids_for_output_port(
+    runtime: LabRuntime, device_id: str, cookie: str, output_port: str
+) -> list[str]:
+    groups = _onos_json(runtime, f"/onos/v1/groups/{device_id}/{cookie}").get(
+        "groups", []
+    )
+    return [
+        str(bucket["bucketId"])
+        for group in groups
+        for bucket in group.get("buckets", [])
+        if any(
+            instruction.get("type") == "OUTPUT"
+            and str(instruction.get("port")) == output_port
+            for instruction in bucket.get("treatment", {}).get("instructions", [])
+        )
+    ]
+
+
+def _wait_for_group_bucket_removal(
+    runtime: LabRuntime,
+    expected: set[tuple[str, str, str]],
+    *,
+    timeout_sec: float = 30.0,
+) -> bool:
+    """Wait until each failed-link bucket is absent and its group is ADDED."""
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        ready = True
+        for device_id, cookie, output_port in expected:
+            payload = _onos_json(runtime, f"/onos/v1/groups/{device_id}/{cookie}")
+            groups = payload.get("groups", [])
+            if len(groups) != 1 or groups[0].get("state") != "ADDED":
+                ready = False
+                break
+            if _bucket_ids_for_output_port(runtime, device_id, cookie, output_port):
+                ready = False
+                break
+        if ready:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def _group_app_cookie(group_id: int) -> str:
     # ONOS appCookie must be a hex token (0x...).
     return f"0x4e100000{int(group_id) & 0xFFFF:04x}"
+
+
+def _wait_for_rest_resources_absent(
+    runtime: LabRuntime, device_ids: list[str], *, timeout_sec: float = 30.0
+) -> bool:
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        resources_remain = False
+        for device_id in device_ids:
+            flows = _onos_json(runtime, f"/onos/v1/flows/{device_id}").get("flows", [])
+            groups = _onos_json(runtime, f"/onos/v1/groups/{device_id}").get(
+                "groups", []
+            )
+            if any(flow.get("appId") == _REST_APP for flow in flows) or any(
+                group.get("appId") == _REST_APP for group in groups
+            ):
+                resources_remain = True
+                break
+        if not resources_remain:
+            return True
+        time.sleep(0.5)
+    return False
 
 
 def _clear_rest_flows_groups(runtime: LabRuntime, device_ids: list[str]) -> None:
@@ -322,7 +405,12 @@ def _clear_rest_flows_groups(runtime: LabRuntime, device_ids: list[str]) -> None
                 continue
             ops.append(("DELETE", f"/onos/v1/groups/{device_id}/{cookie}", None))
     if ops:
-        _onos_batch(runtime, ops)
+        result = _onos_batch(runtime, ops)
+        _require_onos_batch_success(result, operation="fabric clear")
+        if not _wait_for_rest_resources_absent(runtime, device_ids):
+            raise RuntimeError(
+                "ONOS REST flows/groups did not disappear before reinstall"
+            )
 
 
 def _install_onos_group_body(
@@ -410,6 +498,7 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
             logger.warning("ONOS group build failed on %s: %s", group["switch"], exc)
     if group_ops:
         result = _onos_batch(runtime, group_ops)
+        _require_onos_batch_success(result, operation="group install")
         logger.info("ONOS group install batch: %s", result[:500])
 
     deadline = time.time() + 90
@@ -440,6 +529,7 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
             logger.warning("ONOS flow build failed on %s: %s", flow["switch"], exc)
     if flow_ops:
         result = _onos_batch(runtime, flow_ops)
+        _require_onos_batch_success(result, operation="flow install")
         logger.info("ONOS flow install batch: %s", result[:500])
     if skipped:
         logger.info(
@@ -490,23 +580,43 @@ def prune_groups_for_down_link(
         switch: _ofport_map(runtime, switch, model)
         for switch in model.leaves + model.spines
     }
-    ops: list[tuple[str, str, dict[str, Any] | None]] = []
+    delete_ops: list[tuple[str, str, dict[str, Any] | None]] = []
+    expected: set[tuple[str, str, str]] = set()
     for group in rules["groups"]:
         if group["switch"] != leaf and group.get("prefix") != failed_prefix:
             continue
-        group["buckets"] = [b for b in group["buckets"] if b.get("spine") != spine]
-        if not group["buckets"]:
+        retained_buckets = [
+            bucket for bucket in group["buckets"] if bucket.get("spine") != spine
+        ]
+        if not retained_buckets:
             continue
+        group["buckets"] = retained_buckets
         device_id = group["device_id"]
         cookie = _group_app_cookie(int(group["group_id"]))
-        ops.append(("DELETE", f"/onos/v1/groups/{device_id}/{cookie}", None))
-        try:
-            body = _install_onos_group_body(group, port_maps[group["switch"]])
-            ops.append(("POST", f"/onos/v1/groups/{device_id}", body))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("ONOS group prune failed on %s: %s", group["switch"], exc)
-    if ops:
-        _onos_batch(runtime, ops)
+        failed_port = port_maps[group["switch"]][
+            model.port_to_peer(group["switch"], spine).name
+        ]
+        bucket_ids = _bucket_ids_for_output_port(
+            runtime, device_id, cookie, failed_port
+        )
+        if not bucket_ids:
+            raise RuntimeError(
+                f"ONOS group {device_id}/{cookie} has no bucket for port {failed_port}"
+            )
+        expected.add((device_id, cookie, failed_port))
+        bucket_path = ",".join(bucket_ids)
+        delete_ops.append(
+            (
+                "DELETE",
+                f"/onos/v1/groups/{device_id}/{cookie}/buckets/{bucket_path}",
+                None,
+            )
+        )
+    if delete_ops:
+        result = _onos_batch(runtime, delete_ops)
+        _require_onos_batch_success(result, operation="group bucket delete")
+        if not _wait_for_group_bucket_removal(runtime, expected):
+            raise RuntimeError("ONOS groups did not remove the failed-link buckets")
     return rules
 
 

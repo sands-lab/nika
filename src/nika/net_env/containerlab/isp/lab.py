@@ -17,6 +17,7 @@ from nika.net_env.isp.bgp import (
     IspBgpMode,
     compile_bgp_plan,
     normalize_bgp_mode,
+    scope_igp_to_bgp_as,
 )
 from nika.net_env.isp.bgp.srl import render_bgp_srl_block
 from nika.net_env.isp.igp import (
@@ -95,6 +96,7 @@ class Isp(ContainerlabNetworkEnv):
         metric_strategy: MetricLiteral = DEFAULT_METRIC_STRATEGY,
         constant_metric: int = DEFAULT_CONSTANT_METRIC,
         bgp_mode: IspBgpMode | str = DEFAULT_BGP_MODE,
+        rpki: bool = False,
         device_profile: str | None = None,
         topo_size=None,
         **kwargs,
@@ -108,9 +110,16 @@ class Isp(ContainerlabNetworkEnv):
         self.igp = igp
         self.metric_strategy = metric_strategy
         self.constant_metric = constant_metric
+        raw_mode = bgp_mode if isinstance(bgp_mode, str) else bgp_mode
+        self.rpki = bool(rpki)
         self.bgp_mode: IspBgpMode = normalize_bgp_mode(
-            bgp_mode if isinstance(bgp_mode, str) else bgp_mode
+            raw_mode if isinstance(raw_mode, str) else raw_mode
         )
+        if self.rpki:
+            raise ValueError(
+                "RPKI capability is Kathara/FRR-only; use "
+                "`nika env run isp --bgp-mode ebgp --rpki --backend kathara`."
+            )
         profile_raw = device_profile or default_device_profile("containerlab")
         self.device_profile = normalize_device_profile(profile_raw)
         validate_backend_profile("containerlab", self.device_profile)
@@ -122,6 +131,8 @@ class Isp(ContainerlabNetworkEnv):
             constant_metric=constant_metric,
         )
         base_plan = compile_isp_plan(config)
+        self.bgp_plan: BgpPlan | None = compile_bgp_plan(base_plan, self.bgp_mode)
+        base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
         stub_series = _stub_series_all_routers(base_plan)
         attachment = attach_traffic_stubs(
             base_plan,
@@ -133,7 +144,6 @@ class Isp(ContainerlabNetworkEnv):
         )
         self.traffic: IspTrafficAttachment = remap_inventory_ifaces_to_srl(attachment)
         self.plan: IspPlan = self.traffic.plan
-        self.bgp_plan: BgpPlan | None = compile_bgp_plan(self.plan, self.bgp_mode)
         self.inventory = dict(self.plan.inventory)
         if self.bgp_plan is not None:
             self.inventory["bgp"] = self.bgp_plan.inventory

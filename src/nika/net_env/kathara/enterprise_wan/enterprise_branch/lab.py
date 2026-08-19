@@ -34,6 +34,7 @@ from nika.net_env.kathara.enterprise_wan.enterprise_branch.wireguard import (
     load_key_pairs,
     render_wg_conf,
 )
+from nika.runtime.spec import NodeRole
 
 PROVIDER_DAEMONS = """\
 zebra=yes
@@ -278,6 +279,11 @@ class EnterpriseBranch(NetworkEnvBase):
             machine = self.lab.new_machine(
                 ename, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
             )
+            self.declare_machine(
+                ename,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "bgp", "wireguard"),
+            )
             self._edges[site_name] = EdgeRuntime(
                 name=ename, site=site_name, machine=machine, key_idx=key_i
             )
@@ -287,6 +293,11 @@ class EnterpriseBranch(NetworkEnvBase):
             iname = isp_name_for(provider)
             machine = self.lab.new_machine(
                 iname, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+            )
+            self.declare_machine(
+                iname,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr"),
             )
             self._isps[provider] = IspRuntime(
                 name=iname, provider=provider, machine=machine
@@ -302,6 +313,12 @@ class EnterpriseBranch(NetworkEnvBase):
                             "cpus": 0.5,
                             "mem": "256m",
                         },
+                    )
+                    self.declare_machine(
+                        host_name,
+                        role=NodeRole.HOST,
+                        capabilities=("linux",),
+                        reachability_target=True,
                     )
                     self._hosts[host_name] = HostRuntime(
                         name=host_name,

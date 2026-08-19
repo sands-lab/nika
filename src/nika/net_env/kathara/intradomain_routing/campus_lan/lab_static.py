@@ -8,6 +8,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -97,6 +98,11 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
                 f"router_core_{core_id}",
                 **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
             )
+            self.declare_machine(
+                router_core.name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "ospf"),
+            )
             router_core_meta = RouterMeta(
                 name=f"router_core_{core_id}",
                 machine=router_core,
@@ -117,6 +123,11 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
                     dist_name,
                     **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
                 )
+                self.declare_machine(
+                    dist_name,
+                    role=NodeRole.ROUTER,
+                    capabilities=("linux", "frr", "ospf"),
+                )
                 dist_meta = RouterMeta(
                     name=dist_name,
                     machine=router_dist,
@@ -133,6 +144,11 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
                     router_access = self.lab.new_machine(
                         access_name,
                         **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                    )
+                    self.declare_machine(
+                        access_name,
+                        role=NodeRole.SWITCH,
+                        capabilities=("linux",),
                     )
                     access_meta = SwitchMeta(
                         name=access_name,
@@ -154,6 +170,12 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
                                 "cpus": 0.5,
                                 "mem": "256m",
                             },
+                        )
+                        self.declare_machine(
+                            host_name,
+                            role=NodeRole.HOST,
+                            capabilities=("linux",),
+                            reachability_target=True,
                         )
                         host_meta = HostMeta(
                             name=host_name,
@@ -177,6 +199,13 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
         host_machine = self.lab.new_machine(
             host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
         )
+        self.declare_machine(
+            host_name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux", "dns"),
+            service_type="dns",
+            reachability_target=True,
+        )
         host_meta = HostMeta(
             name=host_name,
             machine=host_machine,
@@ -191,6 +220,13 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
             host_machine = self.lab.new_machine(
                 host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
             )
+            self.declare_machine(
+                host_name,
+                role=NodeRole.SERVICE,
+                capabilities=("linux", "http"),
+                service_type="web",
+                reachability_target=True,
+            )
             host_meta = HostMeta(
                 name=host_name,
                 machine=host_machine,
@@ -204,6 +240,11 @@ class OSPFEnterpriseStatic(NetworkEnvBase):
         server_switch = self.lab.new_machine(
             "switch_server_access",
             **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+        )
+        self.declare_machine(
+            server_switch.name,
+            role=NodeRole.ROUTER,
+            capabilities=("linux", "frr", "ospf"),
         )
         server_access_meta = RouterMeta(
             name="switch_server_access",

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import heapq
+from dataclasses import dataclass, replace
 from ipaddress import IPv4Network
 from typing import Any, Literal
 
@@ -14,7 +15,8 @@ from nika.net_env.isp.bgp.config import (
     normalize_bgp_mode,
 )
 from nika.net_env.isp.bgp.errors import BgpCompileError, BgpConfigError
-from nika.net_env.isp.igp.plan import IspPlan
+from nika.net_env.isp.igp.frr import render_frr_conf
+from nika.net_env.isp.igp.plan import IspPlan, PlannedNode, build_inventory
 
 BgpSessionType = Literal["ibgp", "ebgp"]
 BgpRole = Literal["rr", "client", "member", "border", "originator"]
@@ -70,11 +72,21 @@ class BgpPlan:
 def compile_bgp_plan(
     isp_plan: IspPlan,
     mode: IspBgpMode | str | None = DEFAULT_BGP_MODE,
+    *,
+    rpki: bool = False,
 ) -> BgpPlan | None:
-    """Build a BGP plan from a NIKA preset, or None when mode is none."""
+    """Build a BGP plan from a NIKA preset, or None when mode is none.
+
+    ``rpki=True`` overlays the offline RPKI/ROV profile onto eBGP.
+    """
     resolved = normalize_bgp_mode(
         mode if isinstance(mode, str) or mode is None else mode
     )
+    if rpki and resolved != "ebgp":
+        raise BgpConfigError(
+            f"RPKI capability requires bgp_mode 'ebgp' (got {resolved!r}).",
+            topology=isp_plan.topology_name,
+        )
     if resolved == "none":
         return None
     if not isp_plan.nodes:
@@ -85,14 +97,11 @@ def compile_bgp_plan(
     if resolved == "ibgp_rr":
         return _compile_ibgp_rr(isp_plan)
     if resolved == "ebgp":
-        plan = _compile_ebgp(isp_plan)
-        from nika.net_env.isp.bgp.abilene_inter_as import (
-            apply_abilene_inter_as_profile,
-            is_abilene_ebgp_rpki,
-        )
+        plan = _compile_ebgp(isp_plan, mode=resolved)
+        if rpki:
+            from nika.net_env.isp.bgp.rpki_profile import apply_rpki_profile
 
-        if is_abilene_ebgp_rpki(plan.topology_name, plan.mode):
-            return apply_abilene_inter_as_profile(plan, isp_plan)
+            return apply_rpki_profile(plan)
         return plan
     raise BgpConfigError(f"Unsupported bgp_mode {resolved!r}.")
 
@@ -243,38 +252,90 @@ def _compile_ibgp_rr(isp_plan: IspPlan) -> BgpPlan:
     )
 
 
-def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
+def _connected_as_members(isp_plan: IspPlan, count: int) -> dict[int, list[str]]:
+    """Partition a connected topology into deterministic connected AS regions."""
+    devices = _devices(isp_plan)
+    graph: dict[str, list[str]] = {device: [] for device in devices}
+    for link in isp_plan.links:
+        graph[link.endpoint_a].append(link.endpoint_b)
+        graph[link.endpoint_b].append(link.endpoint_a)
+    for neighbors in graph.values():
+        neighbors.sort()
+
+    def distances(source: str) -> dict[str, int]:
+        result = {source: 0}
+        queue = [source]
+        for node in queue:
+            for neighbor in graph[node]:
+                if neighbor not in result:
+                    result[neighbor] = result[node] + 1
+                    queue.append(neighbor)
+        return result
+
+    first_distances = distances(devices[0])
+    if len(first_distances) != len(devices):
+        raise BgpCompileError(
+            "eBGP preset requires a connected ISP topology.",
+            topology=isp_plan.topology_name,
+        )
+
+    seeds = [devices[0]]
+    distance_cache = {devices[0]: first_distances}
+    while len(seeds) < count:
+        candidates = []
+        for device in devices:
+            if device in seeds:
+                continue
+            nearest = min(distance_cache[seed][device] for seed in seeds)
+            candidates.append((-nearest, device))
+        _, seed = min(candidates)
+        seeds.append(seed)
+        distance_cache[seed] = distances(seed)
+
+    # Multi-source expansion records a same-AS predecessor for every assigned
+    # node, so each resulting region is connected by construction.
+    frontier: list[tuple[int, int, str]] = []
+    for index, seed in enumerate(seeds):
+        heapq.heappush(frontier, (0, index, seed))
+    owner: dict[str, int] = {}
+    while frontier:
+        distance, seed_index, device = heapq.heappop(frontier)
+        if device in owner:
+            continue
+        owner[device] = seed_index
+        for neighbor in graph[device]:
+            if neighbor not in owner:
+                heapq.heappush(frontier, (distance + 1, seed_index, neighbor))
+
+    return {
+        EBGP_BASE_ASN + index: sorted(
+            device for device, assigned in owner.items() if assigned == index
+        )
+        for index in range(count)
+    }
+
+
+def _compile_ebgp(
+    isp_plan: IspPlan,
+    *,
+    mode: IspBgpMode = "ebgp",
+    members: dict[int, list[str]] | None = None,
+) -> BgpPlan:
     devices = _devices(isp_plan)
     loopbacks = _loopbacks(isp_plan)
     n = len(devices)
     k = min(3, n)
-    # Contiguous partitions of sorted devices.
-    sizes = [n // k] * k
-    for i in range(n % k):
-        sizes[i] += 1
+    members = members or _connected_as_members(isp_plan, k)
+    assigned = sorted(device for group in members.values() for device in group)
+    if assigned != devices:
+        raise BgpCompileError(
+            "eBGP AS membership must assign every device exactly once.",
+            topology=isp_plan.topology_name,
+        )
     asn_of: dict[str, int] = {}
-    members: dict[int, list[str]] = {}
-    cursor = 0
-    for i, size in enumerate(sizes):
-        asn = EBGP_BASE_ASN + i
-        block = devices[cursor : cursor + size]
-        cursor += size
-        members[asn] = block
-        for device in block:
+    for asn, group in sorted(members.items()):
+        for device in group:
             asn_of[device] = asn
-
-    # Map device -> peer link IP for each ISP neighbor.
-    # From PlannedLink: endpoint_a/b with address_a/b.
-    link_peer_ip: dict[tuple[str, str], tuple[str, str]] = {}
-    for link in isp_plan.links:
-        link_peer_ip[(link.endpoint_a, link.endpoint_b)] = (
-            link.address_a,
-            link.address_b,
-        )
-        link_peer_ip[(link.endpoint_b, link.endpoint_a)] = (
-            link.address_b,
-            link.address_a,
-        )
 
     sessions: list[BgpSession] = []
     border: set[str] = set()
@@ -309,6 +370,38 @@ def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
             )
         )
 
+    # One deterministic route reflector per AS keeps session growth linear.
+    route_reflectors: dict[int, str] = {}
+    for asn, group in sorted(members.items()):
+        ordered = sorted(group)
+        reflector = ordered[0]
+        route_reflectors[asn] = reflector
+        for client in ordered[1:]:
+            sessions.extend(
+                (
+                    BgpSession(
+                        local_device=client,
+                        remote_device=reflector,
+                        local_ip=loopbacks[client],
+                        remote_ip=loopbacks[reflector],
+                        local_asn=asn,
+                        remote_asn=asn,
+                        session_type="ibgp",
+                        update_source="lo",
+                    ),
+                    BgpSession(
+                        local_device=reflector,
+                        remote_device=client,
+                        local_ip=loopbacks[reflector],
+                        remote_ip=loopbacks[client],
+                        local_asn=asn,
+                        remote_asn=asn,
+                        session_type="ibgp",
+                        update_source="lo",
+                        route_reflector_client=True,
+                    ),
+                )
+            )
     # Originate on last border in each AS; fallback to last member.
     # One /24 per AS: 198.51.100.0/24, 198.51.101.0/24, 198.51.102.0/24.
     originated: list[BgpOriginatedPrefix] = []
@@ -336,6 +429,8 @@ def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
     nodes: list[BgpNodePlan] = []
     for device in devices:
         roles: list[str] = ["member"]
+        reflector = route_reflectors[asn_of[device]]
+        roles.append("rr" if device == reflector else "client")
         if device in border:
             roles.append("border")
         if by_dev_orig[device]:
@@ -348,23 +443,28 @@ def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
                 router_id=loopbacks[device],
                 sessions=tuple(by_dev_sessions[device]),
                 originated=tuple(by_dev_orig[device]),
+                cluster_id=loopbacks[device] if device == reflector else None,
             )
         )
 
-    # Observer must be a direct eBGP peer of the originator (no iBGP in this preset).
+    # A direct eBGP peer provides a deterministic cross-AS baseline target.
     expect: list[tuple[str, str]] = []
     sessions_by_local: dict[str, list[BgpSession]] = {d: [] for d in devices}
     for sess in sessions_t:
         sessions_by_local[sess.local_device].append(sess)
     for pref in originated_t:
         peers = sorted(
-            sessions_by_local.get(pref.device, []),
+            (
+                session
+                for session in sessions_by_local.get(pref.device, [])
+                if session.session_type == "ebgp"
+            ),
             key=lambda s: s.remote_device,
         )
         if peers:
             expect.append((peers[0].remote_device, pref.prefix))
 
-    if k > 1 and not sessions_t:
+    if k > 1 and not border:
         raise BgpCompileError(
             "eBGP preset found no cross-AS ISP links for this partition; "
             "cannot build eBGP sessions.",
@@ -372,7 +472,7 @@ def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
         )
 
     inventory = _inventory(
-        mode="ebgp",
+        mode=mode,
         topology_name=isp_plan.topology_name,
         nodes=nodes,
         sessions=sessions_t,
@@ -381,7 +481,7 @@ def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
         deny_prefixes=("10.0.0.0/8", "10.255.0.0/16"),
     )
     return BgpPlan(
-        mode="ebgp",
+        mode=mode,
         topology_name=isp_plan.topology_name,
         nodes=tuple(nodes),
         sessions=sessions_t,
@@ -390,6 +490,44 @@ def _compile_ebgp(isp_plan: IspPlan) -> BgpPlan:
         deny_prefixes=("10.0.0.0/8", "10.255.0.0/16"),
         inventory=inventory,
     )
+
+
+def scope_igp_to_bgp_as(isp_plan: IspPlan, bgp_plan: BgpPlan | None) -> IspPlan:
+    """Make AS-boundary links passive in the IGP and re-render its config."""
+    if bgp_plan is None or bgp_plan.mode != "ebgp":
+        return isp_plan
+    asn_of = {node.device_name: node.asn for node in bgp_plan.nodes}
+    scoped_nodes: list[PlannedNode] = []
+    boundary_links: set[str] = set()
+    for node in isp_plan.nodes:
+        interfaces = []
+        for interface in node.interfaces:
+            boundary = asn_of[node.device_name] != asn_of[interface.peer_device]
+            if boundary:
+                boundary_links.add(interface.link_id)
+            interfaces.append(replace(interface, passive=interface.passive or boundary))
+        interfaces_t = tuple(interfaces)
+        draft = replace(node, interfaces=interfaces_t, frr_conf="")
+        scoped_nodes.append(
+            replace(
+                draft,
+                frr_conf=render_frr_conf(
+                    draft, igp=isp_plan.igp, interfaces=interfaces_t
+                ),
+            )
+        )
+    nodes_t = tuple(scoped_nodes)
+    inventory = build_inventory(
+        topology_name=isp_plan.topology_name,
+        igp=isp_plan.igp,
+        metric_strategy=isp_plan.metric_strategy,
+        constant_metric=isp_plan.constant_metric,
+        nodes=nodes_t,
+        links=isp_plan.links,
+    )
+    inventory["igp_scope"] = "per_as"
+    inventory["igp_passive_boundary_links"] = sorted(boundary_links)
+    return replace(isp_plan, nodes=nodes_t, inventory=inventory)
 
 
 def _inventory(

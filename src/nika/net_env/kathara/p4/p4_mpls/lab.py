@@ -5,6 +5,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -29,12 +30,24 @@ class P4_MPLS(NetworkEnvBase):
         pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
         pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
         pc3 = self.lab.new_machine("pc3", **{"image": "kathara/base"})
+        for host in (pc1, pc2, pc3):
+            self.declare_machine(
+                host.name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
 
         switches = {}
         for i in range(1, 8):
             switch = self.lab.new_machine(
                 f"switch_{i}",
                 **{"image": "kathara/p4", "cpus": 0.5, "mem": "256m"},
+            )
+            self.declare_machine(
+                switch.name,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "bmv2", "p4"),
             )
             switches[f"switch_{i}"] = switch
 

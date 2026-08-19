@@ -125,6 +125,12 @@ def _rpki_stanza(cache: tuple[str, int] | None) -> list[str]:
 
 def _render_ibgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     lines = ["!", "! ISP BGP (iBGP RR)", "!"]
+    if node.originated:
+        lines.extend(["interface lo"])
+        for prefix in sorted(node.originated, key=lambda item: item.prefix):
+            prefixlen = prefix.prefix.rsplit("/", 1)[1]
+            lines.append(f" ip address {prefix.ping_address}/{prefixlen}")
+        lines.append("!")
     lines.extend(_common_prefix_lists())
     lines.extend(_route_maps(rov_reject_invalid=False, export_deny_prefixes=()))
     lines.extend(
@@ -160,8 +166,14 @@ def _render_ibgp(node: BgpNodePlan, plan: BgpPlan) -> str:
 
 def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     rpki_profile = bool(plan.inventory.get("rpki"))
-    title = "eBGP + Abilene RPKI" if rpki_profile else "eBGP"
+    title = "eBGP + RPKI" if rpki_profile else "eBGP"
     lines = ["!", f"! ISP BGP ({title})", "!"]
+    if node.originated:
+        lines.extend(["interface lo"])
+        for prefix in sorted(node.originated, key=lambda item: item.prefix):
+            prefixlen = prefix.prefix.rsplit("/", 1)[1]
+            lines.append(f" ip address {prefix.ping_address}/{prefixlen}")
+        lines.append("!")
     lines.extend(_rpki_stanza(node.rpki_cache))
     extra = tuple(plan.inventory.get("leak_prefixes") or ())
     lines.extend(_common_prefix_lists(extra_business=extra))
@@ -201,6 +213,8 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             # Intra-AS iBGP: flood without LEAK export deny so borders can
             # re-advertise once eBGP BGP-OUT permits the leak prefixes.
             lines.append(f"  neighbor {sess.remote_ip} next-hop-self")
+            if sess.route_reflector_client:
+                lines.append(f"  neighbor {sess.remote_ip} route-reflector-client")
             lines.append(f"  neighbor {sess.remote_ip} route-map BGP-IN in")
     lines.append(" exit-address-family")
     lines.append("!")

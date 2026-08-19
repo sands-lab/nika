@@ -13,6 +13,7 @@ from nika.runtime.docker_ops import pause_container, unpause_container
 from nika.runtime.exec_utils import exec_with_timeout
 from nika.service.shell import ShellResolver
 from nika.service.kathara.docker_utils import get_machine_container, list_lab_containers
+from nika.runtime.spec import MachineInventory
 
 if TYPE_CHECKING:
     from docker.models.containers import Container
@@ -229,12 +230,8 @@ class KatharaRuntime(LabRuntime):
         return results
 
     def list_dhcp_client_nodes(self) -> list[str]:
-        """Return lab nodes that typically receive DHCP leases."""
-        nodes: list[str] = []
-        if not self._net_env.lab or not self._net_env.lab.machines:
-            return self.list_nodes()
-        for name, machine in self._net_env.lab.machines.items():
-            image = machine.get_image()
-            if "base" in image and any(key in name for key in ("pc", "client")):
-                nodes.append(name)
-        return nodes
+        """Return nodes explicitly declared as DHCP clients."""
+        inventory = MachineInventory(self._net_env.machine_identities)
+        if self._net_env.lab and self._net_env.lab.machines:
+            inventory.validate(set(self._net_env.lab.machines))
+        return inventory.names_for_capability("dhcp_client")

@@ -234,6 +234,7 @@ def test_selected_scenario_mapping_includes_wireguard() -> None:
     assert SELECTED_SCENARIO_FOR_PROBLEM["p4_table_resource_exhaustion"] == (
         "p4_dc_fabric"
     )
+    assert SELECTED_SCENARIO_FOR_PROBLEM["bgp_rpki_invalid_route_leak"] == "isp"
 
 
 def test_p4_dc_fabric_runtime_failures_target_a_leaf() -> None:

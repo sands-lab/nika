@@ -5,6 +5,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,9 +25,22 @@ class P4BloomFilter(NetworkEnvBase):
 
         pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
         pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
+        for host in (pc1, pc2):
+            self.declare_machine(
+                host.name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
 
         switch_1 = self.lab.new_machine("switch_1", **{"image": "kathara/p4"})
         switch_2 = self.lab.new_machine("switch_2", **{"image": "kathara/p4"})
+        for switch in (switch_1, switch_2):
+            self.declare_machine(
+                switch.name,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "bmv2", "p4"),
+            )
 
         self.lab.connect_machine_to_link(pc1.name, "A", 0)
         self.lab.connect_machine_to_link(switch_1.name, "A", 0)

@@ -36,6 +36,18 @@ from nika.workflows.benchmark.isp_options import (
     ISP_SCENARIO,
     isp_config_for_problem,
 )
+
+# RPKI capability: representative SNDlib topologies (not a full cartesian product).
+RPKI_SELECTED_TOPOS: tuple[str, ...] = ("abilene", "geant")
+
+
+def _rpki_isp_options(topo: str) -> dict:
+    return {
+        "topo": topo,
+        "igp": "ospf",
+        "bgp_mode": "ebgp",
+        "rpki": True,
+    }
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.migrate import materialize_cases, write_cases_yaml
 from nika.workflows.benchmark.release import (
@@ -259,6 +271,20 @@ def iter_full_cases(*, seed: int) -> list[dict]:
             elif is_campus_lan_scenario(net_env_name):
                 workload = workload_for_campus_lan(prob_name, problem_tags)
             elif net_env_name == ISP_SCENARIO:
+                if prob_name == "bgp_rpki_invalid_route_leak":
+                    for topo in RPKI_SELECTED_TOPOS:
+                        for topo_size in _topo_sizes_for_scenario(net_env_name):
+                            rows.append(
+                                _make_row(
+                                    net_env_name,
+                                    prob_name,
+                                    topo_size,
+                                    seed=seed,
+                                    workload=None,
+                                    isp_options=_rpki_isp_options(topo),
+                                )
+                            )
+                    continue
                 isp_options = isp_config_for_problem(prob_name, problem_tags)
             for topo_size in _topo_sizes_for_scenario(net_env_name):
                 rows.append(
@@ -303,6 +329,19 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
         elif is_campus_lan_scenario(scenario):
             workload = workload_for_campus_lan(prob_name, problem_tags)
         elif scenario == ISP_SCENARIO:
+            if prob_name == "bgp_rpki_invalid_route_leak":
+                for topo in RPKI_SELECTED_TOPOS:
+                    rows.append(
+                        _make_row(
+                            scenario,
+                            prob_name,
+                            topo_size,
+                            seed=seed,
+                            workload=None,
+                            isp_options=_rpki_isp_options(topo),
+                        )
+                    )
+                continue
             isp_options = isp_config_for_problem(prob_name, problem_tags)
         rows.append(
             _make_row(

@@ -18,6 +18,7 @@ from nika.net_env.isp.bgp import (
     merge_frr_conf,
     normalize_bgp_mode,
     render_bgp_frr_fragment,
+    scope_igp_to_bgp_as,
 )
 from nika.net_env.isp.igp import (
     DEFAULT_CONSTANT_METRIC,
@@ -34,6 +35,11 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
+from nika.net_env.isp.contract import (
+    IspValidationPolicy,
+    build_isp_validation_contract,
+)
+from nika.runtime.spec import NodeRole
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
@@ -75,6 +81,7 @@ class Isp(NetworkEnvBase):
         metric_strategy: MetricLiteral = DEFAULT_METRIC_STRATEGY,
         constant_metric: int = DEFAULT_CONSTANT_METRIC,
         bgp_mode: IspBgpMode | str = DEFAULT_BGP_MODE,
+        rpki: bool = False,
         device_profile: str | None = None,
         topo_size=None,  # accepted and ignored (scenario is not s/m/l)
         **kwargs,
@@ -89,9 +96,15 @@ class Isp(NetworkEnvBase):
         self.igp = igp
         self.metric_strategy = metric_strategy
         self.constant_metric = constant_metric
+        raw_mode = bgp_mode if isinstance(bgp_mode, str) else bgp_mode
+        self.rpki = bool(rpki)
         self.bgp_mode: IspBgpMode = normalize_bgp_mode(
-            bgp_mode if isinstance(bgp_mode, str) else bgp_mode
+            raw_mode if isinstance(raw_mode, str) else raw_mode
         )
+        if self.rpki and self.bgp_mode != "ebgp":
+            raise ValueError(
+                f"RPKI capability requires bgp_mode 'ebgp' (got {self.bgp_mode!r})."
+            )
         from nika.net_env.isp.profiles import (
             default_device_profile,
             normalize_device_profile,
@@ -109,6 +122,10 @@ class Isp(NetworkEnvBase):
             constant_metric=constant_metric,
         )
         base_plan = compile_isp_plan(config)
+        self.bgp_plan: BgpPlan | None = compile_bgp_plan(
+            base_plan, self.bgp_mode, rpki=self.rpki
+        )
+        base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
         # Always attach edge stub hosts so traffic CLI can choose demands/dynamic later.
         stub_series = _stub_series_all_routers(base_plan)
         self.traffic: IspTrafficAttachment = attach_traffic_stubs(
@@ -119,7 +136,13 @@ class Isp(NetworkEnvBase):
         )
         self.plan: IspPlan = self.traffic.plan
 
-        self.bgp_plan: BgpPlan | None = compile_bgp_plan(self.plan, self.bgp_mode)
+        self.validation_policy = IspValidationPolicy()
+        self.validation_contract = build_isp_validation_contract(
+            self.plan,
+            traffic=self.traffic,
+            bgp_plan=self.bgp_plan,
+            policy=self.validation_policy,
+        )
         self.inventory = dict(self.plan.inventory)
         if self.bgp_plan is not None:
             self.inventory["bgp"] = self.bgp_plan.inventory
@@ -186,8 +209,23 @@ class Isp(NetworkEnvBase):
             "mem": "512m" if large else "256m",
         }
         machines = {}
+        self.deployment_configs: dict[str, str] = {}
         for node in self.plan.nodes:
             machine = self.lab.new_machine(node.device_name, **machine_opts)
+            capabilities = ["linux", "frr", self.plan.igp]
+            if self.bgp_plan is not None:
+                capabilities.append("bgp")
+            if (
+                self.bgp_plan is not None
+                and self.bgp_plan.inventory.get("rpki")
+                and node.device_name == self.bgp_plan.inventory.get("rov_observer")
+            ):
+                capabilities.append("rov")
+            self.declare_machine(
+                node.device_name,
+                role=NodeRole.ROUTER,
+                capabilities=tuple(capabilities),
+            )
             machines[node.device_name] = machine
 
         for link in self.plan.links:
@@ -197,6 +235,12 @@ class Isp(NetworkEnvBase):
         host_opts = {"image": "nika/base", "cpus": 0.5, "mem": "256m"}
         for host in self.traffic.hosts:
             self.lab.new_machine(host.host_name, **host_opts)
+            self.declare_machine(
+                host.host_name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
             self.lab.create_file_from_list(
                 list(host.startup_commands),
                 f"{host.host_name}.startup",
@@ -252,6 +296,7 @@ class Isp(NetworkEnvBase):
                     if bgp_node is not None and bgp_node.rpki_cache is not None:
                         startup.append("vtysh -c 'rpki start'")
             machine.create_file_from_string(frr_conf, "/etc/frr/frr.conf")
+            self.deployment_configs[node.device_name] = frr_conf
             self.lab.create_file_from_list(
                 startup,
                 f"{node.device_name}.startup",
@@ -271,19 +316,23 @@ class Isp(NetworkEnvBase):
 
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""
-        from nika.net_env.isp.bgp.abilene_inter_as import (
+        import json
+
+        from nika.net_env.isp.bgp.rpki_profile import (
             RPKI_COLLISION_DOMAIN,
             RPKI_PREFIXLEN,
             RPKI_ROUTER_ADDRESS,
             RPKI_ROUTINATOR_ADDRESS,
             RPKI_RTR_PORT,
             ROUTINATOR_MACHINE,
-            ROV_OBSERVER,
+            slurm_document,
         )
 
         assert self.bgp_plan is not None
         rtr = self.bgp_plan.inventory.get("rpki_rtr") or {}
-        router = str(rtr.get("router") or ROV_OBSERVER)
+        router = str(rtr.get("router") or "")
+        if not router:
+            raise RuntimeError("RPKI inventory missing rpki_rtr.router")
         node = next(n for n in self.plan.nodes if n.device_name == router)
         router_iface = f"eth{len(node.interfaces)}"
         collision = str(rtr.get("collision_domain") or RPKI_COLLISION_DOMAIN)
@@ -305,11 +354,16 @@ class Isp(NetworkEnvBase):
                 "mem": "256m",
             },
         )
+        self.declare_machine(
+            machine_name,
+            role=NodeRole.INFRASTRUCTURE,
+            capabilities=("linux", "rpki", "rtr"),
+        )
         self.lab.connect_machine_to_link(router, collision)
         self.lab.connect_machine_to_link(machine_name, collision)
 
-        slurm_src = pkg_path("net_env/kathara/utils/isp/rpki/slurm.json")
-        routinator.create_file_from_path(str(slurm_src), "/tmp/slurm.json")
+        slurm_body = json.dumps(slurm_document(), indent=2) + "\n"
+        routinator.create_file_from_string(slurm_body, "/tmp/slurm.json")
         startup = [
             "mkdir -p /tmp/rpki-cache",
             f"ip addr add {routinator_address}/{prefixlen} dev eth0",
@@ -353,5 +407,6 @@ class Isp(NetworkEnvBase):
             plan=self.plan,
             bgp_plan=self.bgp_plan,
             traffic=self.traffic,
+            contract=self.validation_contract,
             scenario_name=self.LAB_NAME,
         )

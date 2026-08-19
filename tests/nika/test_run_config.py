@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from typer.testing import CliRunner
 
@@ -36,6 +37,15 @@ def test_load_missing_uses_defaults(tmp_path: Path) -> None:
     assert cfg.agent.type == "byo.langgraph"
     assert cfg.agent.max_steps == 20
     assert cfg.benchmark.case_timeout_sec == 2400
+
+
+def test_static_validation_yaml_has_only_enabled_flag() -> None:
+    cfg = RunConfig.model_validate({"nika": {"static_validation": {"enabled": True}}})
+    assert cfg.nika.static_validation.enabled is True
+    with pytest.raises(ValidationError, match="verifiers"):
+        RunConfig.model_validate(
+            {"nika": {"static_validation": {"verifiers": ["batfish"]}}}
+        )
 
 
 def test_load_and_merge_cli(tmp_path: Path) -> None:

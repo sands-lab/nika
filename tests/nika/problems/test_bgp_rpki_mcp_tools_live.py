@@ -46,16 +46,29 @@ class TestBGPRPKIMCPToolsLive(IntegrationTestCase):
     """Call new tools through the real MCP gateway (not FRR API shortcuts)."""
 
     def test_mcp_bgp_rpki_tools_return_usable_output(self) -> None:
-        isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="isis"))
-        bgp = compile_bgp_plan(isp_plan, "ebgp")
+        isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+        bgp = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
         assert bgp is not None
+        inv = bgp.inventory
+        leaker = str(inv["leaker_device"])
+        rov = str(inv["rov_observer"])
+        non_rov = str(inv["non_rov_observer"])
+        leaker_asn = str(inv["leaker_asn"])
         params = isp_inject_params(
-            "bgp_rpki_invalid_route_leak", isp_plan.inventory, bgp.inventory
+            "bgp_rpki_invalid_route_leak", isp_plan.inventory, inv
         )
 
         session_id = self._start_env(
             "isp",
-            ["--topo", "abilene", "--igp", "isis", "--bgp-mode", "ebgp"],
+            [
+                "--topo",
+                "abilene",
+                "--igp",
+                "ospf",
+                "--bgp-mode",
+                "ebgp",
+                "--rpki",
+            ],
         )
         try:
             self._assert_session_ready(session_id, "isp")
@@ -88,34 +101,30 @@ class TestBGPRPKIMCPToolsLive(IntegrationTestCase):
 
                     out: dict[str, str] = {}
                     out["frr_get_routing_state_summary"] = _text(
-                        await tools["frr_get_routing_state"].ainvoke(
-                            {"device": "losang"}
-                        )
+                        await tools["frr_get_routing_state"].ainvoke({"device": leaker})
                     )
                     out["frr_get_routing_state_routes"] = _text(
                         await tools["frr_get_routing_state"].ainvoke(
                             {
-                                "device": "atlang",
+                                "device": non_rov,
                                 "prefix": "203.0.113.0/24",
                             }
                         )
                     )
                     out["frr_get_routing_state_neighbors"] = _text(
-                        await tools["frr_get_routing_state"].ainvoke(
-                            {"device": "losang"}
-                        )
+                        await tools["frr_get_routing_state"].ainvoke({"device": leaker})
                     )
                     out["frr_get_rpki_status"] = _text(
                         await tools["frr_get_rpki_status"].ainvoke(
                             {
-                                "device": "snvang",
+                                "device": rov,
                                 "prefix": "203.0.113.0/24",
                             }
                         )
                     )
                     out["traceroute"] = _text(
                         await tools["traceroute"].ainvoke(
-                            {"host_name": "atlang", "dst_ip": "203.0.113.1"}
+                            {"host_name": non_rov, "dst_ip": "203.0.113.1"}
                         )
                     )
                     return out
@@ -130,7 +139,7 @@ class TestBGPRPKIMCPToolsLive(IntegrationTestCase):
             _assert_tool_ok(
                 "frr_get_routing_state_routes",
                 results["frr_get_routing_state_routes"],
-                must_contain=("203.0.113", "65002"),
+                must_contain=("203.0.113", leaker_asn),
             )
             _assert_tool_ok(
                 "frr_get_routing_state_neighbors",

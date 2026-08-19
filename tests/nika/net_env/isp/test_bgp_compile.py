@@ -2,12 +2,28 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.isp.bgp import (
+    BgpConfigError,
     compile_bgp_plan,
     merge_frr_conf,
     render_bgp_frr_fragment,
+    scope_igp_to_bgp_as,
 )
-from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+from nika.net_env.isp.contract import build_isp_validation_contract
+from nika.net_env.isp.igp import (
+    IspConfig,
+    active_igp_links,
+    compile_isp_plan,
+    igp_components,
+)
+from nika.net_env.isp.traffic import (
+    TrafficInterval,
+    TrafficMatrixSeries,
+    attach_traffic_stubs,
+)
+from nika.topology import list_sndlib_topologies
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
 
@@ -58,18 +74,20 @@ def test_ibgp_rr_stable_and_roles() -> None:
     assert plan.inventory == plan2.inventory
 
 
-def test_ebgp_partition_and_cross_only() -> None:
+def test_ebgp_partition_and_session_structure() -> None:
     u = _isp_plan()
     plan = compile_bgp_plan(u, "ebgp")
     assert plan is not None
     asns = {n.asn for n in plan.nodes}
     assert asns == {65001, 65002, 65003}
-    # No intra-AS sessions
     asn_of = {n.device_name: n.asn for n in plan.nodes}
     for sess in plan.sessions:
-        assert sess.session_type == "ebgp"
-        assert asn_of[sess.local_device] != asn_of[sess.remote_device]
-        assert sess.update_source is None
+        if sess.session_type == "ebgp":
+            assert asn_of[sess.local_device] != asn_of[sess.remote_device]
+            assert sess.update_source is None
+        else:
+            assert asn_of[sess.local_device] == asn_of[sess.remote_device]
+            assert sess.update_source == "lo"
     assert plan.originated
     # Observers are direct eBGP peers (no iBGP to flood within an AS).
     peer_of = {(s.local_device, s.remote_device) for s in plan.sessions}
@@ -99,31 +117,65 @@ def test_frr_merge_only_when_bgp() -> None:
 
 def test_abilene_ebgp_rpki_profile() -> None:
     isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
-    plan = compile_bgp_plan(isp_plan, "ebgp")
+    plan = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
     assert plan is not None
+    assert plan.mode == "ebgp"
     inv = plan.inventory
     assert inv.get("rpki") is True
-    assert inv.get("leaker_device") == "losang"
-    assert inv.get("rov_observer") == "snvang"
-    assert inv.get("non_rov_observer") == "atlang"
+    leaker = inv.get("leaker_device")
+    rov = inv.get("rov_observer")
+    non_rov = inv.get("non_rov_observer")
+    assert leaker and rov and non_rov
+    assert leaker != rov and leaker != non_rov
     assert inv.get("legitimate_origin_asn") == 65001
     assert inv.get("leaker_asn") == 65002
     assert "203.0.113.0/24" in inv.get("leak_prefixes")
-    # Intra-AS iBGP present alongside cross-AS eBGP.
     assert any(s.session_type == "ibgp" for s in plan.sessions)
     assert any(s.session_type == "ebgp" for s in plan.sessions)
-    losang = next(n for n in plan.nodes if n.device_name == "losang")
-    assert "leaker" in losang.roles
-    assert losang.export_deny_prefixes
-    snvang = next(n for n in plan.nodes if n.device_name == "snvang")
-    assert snvang.rov_reject_invalid
-    assert snvang.rpki_cache is not None
-    frag = render_bgp_frr_fragment(snvang, plan)
+    leaker_node = next(n for n in plan.nodes if n.device_name == leaker)
+    assert "leaker" in leaker_node.roles
+    assert leaker_node.export_deny_prefixes
+    rov_node = next(n for n in plan.nodes if n.device_name == rov)
+    assert rov_node.rov_reject_invalid
+    assert rov_node.rpki_cache is not None
+    frag = render_bgp_frr_fragment(rov_node, plan)
     assert "rpki cache tcp" in frag
     assert "match rpki invalid" in frag
-    leak_frag = render_bgp_frr_fragment(losang, plan)
+    leak_frag = render_bgp_frr_fragment(leaker_node, plan)
     assert "prefix-list LEAK" in leak_frag
     assert "route-map BGP-OUT deny 5" in leak_frag
+
+
+def test_geant_ebgp_rpki_profile() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="geant", igp="ospf"))
+    plan = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
+    assert plan is not None
+    inv = plan.inventory
+    assert inv.get("rpki") is True
+    assert inv.get("leaker_device")
+    assert inv.get("rov_observer")
+    assert inv.get("non_rov_observer")
+    assert inv.get("leaker_device") != inv.get("rov_observer")
+    asn_of = {n.device_name: n.asn for n in plan.nodes}
+    assert asn_of[inv["leaker_device"]] == 65002
+    assert asn_of[inv["rov_observer"]] == 65003
+    assert asn_of[inv["non_rov_observer"]] == 65001
+
+
+def test_rpki_flag_enables_profile() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
+    with_rpki = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
+    without = compile_bgp_plan(isp_plan, "ebgp", rpki=False)
+    assert with_rpki is not None and without is not None
+    assert with_rpki.inventory.get("rpki") is True
+    assert not without.inventory.get("rpki")
+    assert with_rpki.inventory["leaker_device"]
+    assert with_rpki.inventory["rov_observer"]
+
+
+def test_rpki_requires_ebgp_mode() -> None:
+    with pytest.raises(BgpConfigError, match="requires bgp_mode 'ebgp'"):
+        compile_bgp_plan(_isp_plan(), "ibgp_rr", rpki=True)
 
 
 def test_non_abilene_ebgp_unchanged() -> None:
@@ -131,7 +183,50 @@ def test_non_abilene_ebgp_unchanged() -> None:
     plan = compile_bgp_plan(u, "ebgp")
     assert plan is not None
     assert not plan.inventory.get("rpki")
-    assert all(s.session_type == "ebgp" for s in plan.sessions)
+    assert any(s.session_type == "ebgp" for s in plan.sessions)
+    assert any(s.session_type == "ibgp" for s in plan.sessions)
+
+
+def test_ebgp_as_regions_are_connected_and_boundaries_are_igp_passive() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp")
+    assert bgp is not None
+    assert compile_bgp_plan(isp_plan, "ebgp").inventory == bgp.inventory
+    asn_of = {node.device_name: node.asn for node in bgp.nodes}
+    graph = {node.device_name: set() for node in isp_plan.nodes}
+    for link in isp_plan.links:
+        graph[link.endpoint_a].add(link.endpoint_b)
+        graph[link.endpoint_b].add(link.endpoint_a)
+    for asn in sorted(set(asn_of.values())):
+        members = {device for device, value in asn_of.items() if value == asn}
+        reached = {min(members)}
+        queue = list(reached)
+        for device in queue:
+            for peer in graph[device] & members:
+                if peer not in reached:
+                    reached.add(peer)
+                    queue.append(peer)
+        assert reached == members
+
+    scoped = scope_igp_to_bgp_as(isp_plan, bgp)
+    for node in scoped.nodes:
+        for interface in node.interfaces:
+            crosses_as = asn_of[node.device_name] != asn_of[interface.peer_device]
+            assert interface.passive is crosses_as
+    attachment = attach_traffic_stubs(
+        scoped,
+        TrafficMatrixSeries(
+            topology="abilene",
+            source="test",
+            intervals=(TrafficInterval(index=0, duration_sec=1, flows=()),),
+            sample_period_sec=1,
+            unit_note="test",
+            path=None,
+        ),
+        pop_node_ids=tuple(node.node_id for node in scoped.nodes),
+    )
+    assert attachment.plan.inventory["igp_scope"] == "per_as"
+    assert attachment.plan.inventory["igp_passive_boundary_links"]
 
 
 def test_order_independence() -> None:
@@ -160,3 +255,56 @@ def test_order_independence() -> None:
     pb = compile_bgp_plan(ub, "ibgp_rr")
     assert pa is not None and pb is not None
     assert pa.inventory == pb.inventory
+
+
+@pytest.mark.parametrize("topology", list_sndlib_topologies())
+def test_catalog_ebgp_has_connected_as_scoped_igp_and_linear_sessions(
+    topology: str,
+) -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology=topology, igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp")
+    assert bgp is not None
+    rebuilt = compile_bgp_plan(isp_plan, "ebgp")
+    assert rebuilt is not None and rebuilt.inventory == bgp.inventory
+    scoped = scope_igp_to_bgp_as(isp_plan, bgp)
+    asn_of = {node.device_name: node.asn for node in bgp.nodes}
+    as_regions = {
+        frozenset(device for device, value in asn_of.items() if value == asn)
+        for asn in set(asn_of.values())
+    }
+    assert {frozenset(component) for component in igp_components(scoped)} == as_regions
+    assert all(
+        asn_of[link.endpoint_a] == asn_of[link.endpoint_b]
+        for link in active_igp_links(scoped)
+    )
+    ibgp_sessions = [
+        session for session in bgp.sessions if session.session_type == "ibgp"
+    ]
+    assert len(ibgp_sessions) == 2 * (len(bgp.nodes) - len(as_regions))
+    traffic = attach_traffic_stubs(
+        scoped,
+        TrafficMatrixSeries(
+            topology=topology,
+            source="test",
+            intervals=(TrafficInterval(index=0, duration_sec=1, flows=()),),
+            sample_period_sec=1,
+            unit_note="test",
+            path=None,
+        ),
+        pop_node_ids=tuple(node.node_id for node in scoped.nodes),
+    )
+    contract = build_isp_validation_contract(
+        traffic.plan, traffic=traffic, bgp_plan=bgp
+    )
+    ospf_intents = [
+        intent
+        for intent in contract.intents
+        if intent.adjacency is not None and intent.adjacency.protocol == "ospf"
+    ]
+    assert len(ospf_intents) == len(active_igp_links(traffic.plan))
+    assert (
+        contract.to_json()
+        == build_isp_validation_contract(
+            traffic.plan, traffic=traffic, bgp_plan=bgp
+        ).to_json()
+    )

@@ -24,7 +24,7 @@ def create_host_api(
             from nika.service.kathara.base_api import KatharaBaseAPI
         except ImportError as exc:
             raise_missing_extra("kathara", cause=exc)
-        return KatharaBaseAPI(lab_name=lab_name)
+        return KatharaBaseAPI(lab_name=lab_name, session_meta=session_meta)
 
     require_backend_extra("containerlab")
     try:

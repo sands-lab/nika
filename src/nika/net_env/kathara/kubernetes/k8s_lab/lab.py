@@ -11,6 +11,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -130,6 +131,11 @@ class K8sFatTreeBGP(NetworkEnvBase):
         # Create FRR router machines
         for name, links in _frr_machines.items():
             m = self.lab.new_machine(name, **{"image": _FRR_IMAGE})
+            self.declare_machine(
+                name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "bgp"),
+            )
             if name in _bridged:
                 m.add_meta("bridged", True)
             if name in _sysctl_machines:
@@ -149,6 +155,15 @@ class K8sFatTreeBGP(NetworkEnvBase):
         )
         for name, links in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
+            self.declare_machine(
+                name,
+                role=(
+                    NodeRole.CONTROLLER
+                    if name == "controller"
+                    else NodeRole.INFRASTRUCTURE
+                ),
+                capabilities=("linux", "k3s"),
+            )
             m.add_meta("privileged", True)
             for ulimit in _K3S_ULIMITS:
                 m.add_meta("ulimit", ulimit)
@@ -180,6 +195,12 @@ class K8sFatTreeBGP(NetworkEnvBase):
 
         # Create client machine
         client = self.lab.new_machine("client", **{"image": _BASE_IMAGE})
+        self.declare_machine(
+            client.name,
+            role=NodeRole.HOST,
+            capabilities=("linux",),
+            reachability_target=True,
+        )
         self.lab.connect_machine_to_link("client", "W")
         all_machines["client"] = client
 
@@ -208,9 +229,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
 
     def load_machines(self):
         super().load_machines()
-        self.kubernetes_nodes = sorted(
-            name for name, m in self.lab.machines.items() if "k3s" in m.get_image()
-        )
+        self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
 
     def verify_lab(self) -> dict:
         from nika.net_env.kathara.kubernetes.k8s_lab.verify import verify_k8s_lab

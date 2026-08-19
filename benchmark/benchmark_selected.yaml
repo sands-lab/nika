@@ -70,20 +70,21 @@ cases:
   topo_size: null
   problem: bgp_max_prefix_exceeded
   inject:
-    receiver_name: atlang
-    peer_name: washng
-    neighbor_ip: 10.0.0.7
+    receiver_name: hstnng
+    peer_name: losang
+    neighbor_ip: 10.0.0.21
   topo: abilene
   igp: isis
   bgp_mode: ebgp
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: atlang
+      node: hstnng
     fault_type: bgp_max_prefix_exceeded
   - resource:
       kind: node
-      node: washng
+      node: losang
     fault_type: bgp_max_prefix_exceeded
 - scenario: dc_clos
   topo_size: s
@@ -100,14 +101,29 @@ cases:
   topo_size: null
   problem: bgp_rpki_invalid_route_leak
   inject:
-    host_name: losang
+    host_name: kscyng
   topo: abilene
-  igp: isis
+  igp: ospf
   bgp_mode: ebgp
+  rpki: true
   root_causes:
   - resource:
       kind: node
-      node: losang
+      node: kscyng
+    fault_type: bgp_rpki_invalid_route_leak
+- scenario: isp
+  topo_size: null
+  problem: bgp_rpki_invalid_route_leak
+  inject:
+    host_name: es1_es
+  topo: geant
+  igp: ospf
+  bgp_mode: ebgp
+  rpki: true
+  root_causes:
+  - resource:
+      kind: node
+      node: es1_es
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_bloom_filter
   topo_size: null

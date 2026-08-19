@@ -10,7 +10,6 @@ import pytest
 
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
-from nika.net_env.isp.inject_targets import isp_inject_params
 from nika.service.kathara import KatharaFRRAPI
 from nika.service.kathara.base_api import KatharaBaseAPI
 from nika.utils.session_store import SessionStore
@@ -32,7 +31,15 @@ from tests.support.prerequisites import docker_available
 load_test_env()
 
 PROBLEM = "bgp_rpki_invalid_route_leak"
-ENV_ARGS = ["--topo", "abilene", "--igp", "isis", "--bgp-mode", "ebgp"]
+ENV_ARGS: list[str] = [
+    "--topo",
+    "abilene",
+    "--igp",
+    "ospf",
+    "--bgp-mode",
+    "ebgp",
+    "--rpki",
+]
 AGENT_MAX_STEPS = 40
 _BGP_RPKI_TOOLS = (
     "frr_get_routing_state",
@@ -43,11 +50,21 @@ _BGP_RPKI_TOOLS = (
 )
 
 
-def _inject_params() -> dict[str, str]:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="isis"))
-    bgp = compile_bgp_plan(isp_plan, "ebgp")
+def _rpki_roles() -> dict[str, str]:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
     assert bgp is not None and bgp.inventory.get("rpki")
-    return isp_inject_params(PROBLEM, isp_plan.inventory, bgp.inventory)
+    return {
+        "leaker": str(bgp.inventory["leaker_device"]),
+        "rov": str(bgp.inventory["rov_observer"]),
+        "non_rov": str(bgp.inventory["non_rov_observer"]),
+        "leaker_asn": str(bgp.inventory["leaker_asn"]),
+    }
+
+
+def _inject_params() -> dict[str, str]:
+    roles = _rpki_roles()
+    return {"host_name": roles["leaker"]}
 
 
 def _tool_error_events(messages: list[dict]) -> list[dict]:
@@ -79,22 +96,23 @@ def _assert_no_tool_errors(messages: list[dict]) -> None:
     assert not errors, f"MCP tool errors during diagnosis/submission: {errors[:5]}"
 
 
-def _assert_rca_correct(session_dir: Path) -> None:
+def _assert_rca_correct(session_dir: Path, leaker: str) -> None:
     assert_submission_fields(session_dir)
     submission = json.loads((session_dir / "submission.json").read_text())
     causes = submission.get("root_causes") or []
     assert causes, "submission root_causes empty"
+    expected = f"node/{leaker}"
     matched = False
     for item in causes:
         resource_id = item.get("resource_id") or (item.get("resource") or {}).get(
             "id", ""
         )
         fault_type = item.get("fault_type") or ""
-        if resource_id == "node/losang" and fault_type == PROBLEM:
+        if resource_id == expected and fault_type == PROBLEM:
             matched = True
             break
     assert matched, (
-        f"expected RCA node/losang + {PROBLEM}; got {json.dumps(causes, ensure_ascii=False)}"
+        f"expected RCA {expected} + {PROBLEM}; got {json.dumps(causes, ensure_ascii=False)}"
     )
 
 
@@ -104,8 +122,8 @@ class TestBGPRPKIInvalidRouteLeakE2E(IntegrationTestCase):
 
     @pytest.mark.parametrize("run_idx", range(3))
     def test_rpki_invalid_route_leak_cycle(self, run_idx: int) -> None:
-        params = _inject_params()
-        assert params["host_name"] == "losang"
+        roles = _rpki_roles()
+        params = {"host_name": roles["leaker"]}
 
         session_id = self._start_env("isp", ENV_ARGS)
         try:
@@ -121,27 +139,29 @@ class TestBGPRPKIInvalidRouteLeakE2E(IntegrationTestCase):
             frr = KatharaFRRAPI(lab_name=lab_name)
             base = KatharaBaseAPI(lab_name=lab_name)
 
-            summary = frr.frr_get_routing_state("losang")
+            summary = frr.frr_get_routing_state(roles["leaker"])
             assert summary.strip()
 
             routes_non_rov = frr.frr_get_routing_state(
-                "atlang", prefix="203.0.113.0/24"
+                roles["non_rov"], prefix="203.0.113.0/24"
             )
             assert "203.0.113" in routes_non_rov
-            assert "65002" in routes_non_rov
+            assert roles["leaker_asn"] in routes_non_rov
 
-            routes_rov = frr.frr_get_routing_state("snvang", prefix="203.0.113.0/24")
+            routes_rov = frr.frr_get_routing_state(
+                roles["rov"], prefix="203.0.113.0/24"
+            )
             absent = (
                 "Network not in table" in routes_rov or "203.0.113" not in routes_rov
             )
             invalid_not_best = "Invalid" in routes_rov and "*" not in routes_rov
             assert absent or invalid_not_best, routes_rov
 
-            rpki = frr.frr_get_rpki_status("snvang", prefix="203.0.113.0/24")
+            rpki = frr.frr_get_rpki_status(roles["rov"], prefix="203.0.113.0/24")
             assert rpki.strip()
-            neighbors = frr.frr_get_routing_state("losang")
+            neighbors = frr.frr_get_routing_state(roles["leaker"])
             assert neighbors.strip()
-            tr = base.traceroute("atlang", "203.0.113.1")
+            tr = base.traceroute(roles["non_rov"], "203.0.113.1")
             assert tr is not None
         finally:
             self._close_session(session_id)
@@ -155,6 +175,7 @@ class _BGPRPKIAgentPipelineBase(OrderedPipelineTestCase):
     session_id: str | None = None
     session_dir: Path | None = None
     env_destroyed: bool = False
+    leaker: str = ""
 
     def test_step_01_start_env(self) -> None:
         type(self).session_id = self._start_env("isp", ENV_ARGS)
@@ -164,6 +185,7 @@ class _BGPRPKIAgentPipelineBase(OrderedPipelineTestCase):
     def test_step_02_inject_failure(self) -> None:
         assert self.session_id is not None
         params = _inject_params()
+        type(self).leaker = params["host_name"]
         self._inject_failure(PROBLEM, params, session_id=self.session_id)
         self._assert_failure_injected(PROBLEM, session_id=self.session_id)
         row = SessionStore().get_session(self.session_id)
@@ -191,7 +213,7 @@ class _BGPRPKIAgentPipelineBase(OrderedPipelineTestCase):
     def test_step_05_check_rca_and_eval(self) -> None:
         assert self.session_id is not None
         assert self.session_dir is not None
-        _assert_rca_correct(self.session_dir)
+        _assert_rca_correct(self.session_dir, self.leaker)
         close_session(session_id=self.session_id)
         type(self).env_destroyed = True
         run_eval_metrics(session_id=self.session_id)

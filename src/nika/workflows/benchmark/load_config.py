@@ -16,7 +16,10 @@ from nika.net_env.net_env_pool import (
     resolve_scenario_ref,
 )
 from nika.problems.prob_pool import list_avail_problem_instances, resolve_problem_name
-from nika.workflows.benchmark.isp_options import validate_and_resolve_isp_options
+from nika.workflows.benchmark.isp_options import (
+    ISP_SCENARIO,
+    validate_and_resolve_isp_options,
+)
 
 
 def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:
@@ -84,6 +87,11 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(inject, dict):
         raise ValueError("'inject' must be a mapping")
 
+    isp_topo = row.get("topo")
+    isp_igp = row.get("igp")
+    isp_bgp = row.get("bgp_mode")
+    isp_rpki = row.get("rpki")
+
     problem_tags: set[str] = set()
     problem_cls = list_avail_problem_instances().get(problem)
     if problem_cls is not None:
@@ -92,9 +100,10 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         scenario=canonical,
         problem=problem,
         problem_tags=problem_tags,
-        topo=row.get("topo"),
-        igp=row.get("igp"),
-        bgp_mode=row.get("bgp_mode"),
+        topo=isp_topo,
+        igp=isp_igp,
+        bgp_mode=isp_bgp,
+        rpki=isp_rpki,
     )
 
     # Legacy host-VPN inject params do not apply to Site Edge tunnels.
@@ -165,7 +174,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     ``wireguard_peer_key_misconfiguration`` with a Site Edge inject target.
     Legacy ``link_fragmentation_disabled`` rewrites to ``mtu_mismatch``.
     Legacy ``p4_counter`` rewrites to ``p4_dc_fabric`` with topo size ``s``.
-    ISP cases carry ``topo`` / ``igp`` / ``bgp_mode`` deploy options.
+    ISP cases carry ``topo`` / ``igp`` / ``bgp_mode`` / ``rpki`` deploy options.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or "cases" not in data:

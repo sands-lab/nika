@@ -15,8 +15,9 @@ from pathlib import Path
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
-from nika.config import RUNTIME_DIR
+from nika.config import REPO_ROOT, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +43,7 @@ _HELM_ARCHIVE_URL = (
 
 def _ensure_helm_binary() -> Path:
     """Download Helm on the host (k3s busybox wget has no HTTPS) and stage it for Kathara."""
-    cache_dir = RUNTIME_DIR / ".nika_cache" / "helm" / _HELM_VERSION
+    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / _HELM_VERSION
     helm_bin = cache_dir / f"helm-{_HELM_ARCHITECTURE}"
     if helm_bin.is_file() and os.access(helm_bin, os.X_OK):
         return helm_bin
@@ -116,6 +117,13 @@ class LLMDInferenceCluster(NetworkEnvBase):
         )
         for name, (links, is_controller) in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
+            self.declare_machine(
+                name,
+                role=(
+                    NodeRole.CONTROLLER if is_controller else NodeRole.INFRASTRUCTURE
+                ),
+                capabilities=("linux", "k3s"),
+            )
             m.add_meta("privileged", True)
             m.add_meta("bridged", True)
             for ulimit in _K3S_ULIMITS:
@@ -148,6 +156,12 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         # Client machine for testing service reachability
         client = self.lab.new_machine("client", **{"image": _BASE_IMAGE})
+        self.declare_machine(
+            client.name,
+            role=NodeRole.HOST,
+            capabilities=("linux",),
+            reachability_target=True,
+        )
         self.lab.connect_machine_to_link("client", "A")
         all_machines["client"] = client
 
@@ -180,9 +194,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
     def load_machines(self):
         super().load_machines()
-        self.kubernetes_nodes = sorted(
-            name for name, m in self.lab.machines.items() if "k3s" in m.get_image()
-        )
+        self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
 
     def verify_lab(self) -> dict:
         from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab

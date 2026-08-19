@@ -19,7 +19,9 @@ from nika.net_env.isp.igp.plan import (
     PlannedLink,
     PlannedNode,
     IspPlan,
+    active_igp_links,
     compile_isp_plan,
+    igp_components,
     link_metric,
     slugify,
 )
@@ -39,7 +41,9 @@ __all__ = [
     "IspConfigError",
     "IspError",
     "IspPlan",
+    "active_igp_links",
     "compile_isp_plan",
+    "igp_components",
     "link_metric",
     "slugify",
 ]

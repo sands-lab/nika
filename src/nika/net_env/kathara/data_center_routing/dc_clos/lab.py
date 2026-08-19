@@ -11,6 +11,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 Workload = Literal["host", "service"]
 
@@ -122,6 +123,11 @@ class DCClos(NetworkEnvBase):
             router_ss = self.lab.new_machine(
                 ss_name, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
             )
+            self.declare_machine(
+                ss_name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "bgp"),
+            )
             tot_super_spines.append(
                 RouterMeta(
                     name=ss_name,
@@ -140,6 +146,11 @@ class DCClos(NetworkEnvBase):
                     spine_name,
                     **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
                 )
+                self.declare_machine(
+                    spine_name,
+                    role=NodeRole.ROUTER,
+                    capabilities=("linux", "frr", "bgp"),
+                )
                 spine_meta = RouterMeta(
                     name=spine_name,
                     machine=router_spine,
@@ -156,6 +167,11 @@ class DCClos(NetworkEnvBase):
                 router_leaf = self.lab.new_machine(
                     leaf_name,
                     **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                )
+                self.declare_machine(
+                    leaf_name,
+                    role=NodeRole.ROUTER,
+                    capabilities=("linux", "frr", "bgp"),
                 )
                 leaf_meta = RouterMeta(
                     name=leaf_name,
@@ -335,6 +351,12 @@ class DCClos(NetworkEnvBase):
                     host_name,
                     **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
                 )
+                self.declare_machine(
+                    host_name,
+                    role=NodeRole.HOST,
+                    capabilities=("linux",),
+                    reachability_target=True,
+                )
                 host = HostMeta(
                     name=host_name,
                     machine=host_machine,
@@ -394,6 +416,13 @@ class DCClos(NetworkEnvBase):
             dns_machine = self.lab.new_machine(
                 dns_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
             )
+            self.declare_machine(
+                dns_name,
+                role=NodeRole.SERVICE,
+                capabilities=("linux", "dns"),
+                service_type="dns",
+                reachability_target=True,
+            )
             dns_meta = HostMeta(
                 name=dns_name,
                 machine=dns_machine,
@@ -410,6 +439,13 @@ class DCClos(NetworkEnvBase):
                     web_name,
                     **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
                 )
+                self.declare_machine(
+                    web_name,
+                    role=NodeRole.SERVICE,
+                    capabilities=("linux", "http"),
+                    service_type="web",
+                    reachability_target=True,
+                )
                 web_meta = HostMeta(
                     name=web_name,
                     machine=web_machine,
@@ -424,6 +460,12 @@ class DCClos(NetworkEnvBase):
             client_machine = self.lab.new_machine(
                 client_name,
                 **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+            )
+            self.declare_machine(
+                client_name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
             )
             tot_clients.append(
                 HostMeta(

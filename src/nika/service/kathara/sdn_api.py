@@ -44,13 +44,7 @@ class SdnAPIMixin:
             return {"raw": raw}
 
     def list_ovs_switches(self: _SupportsBase) -> list[str]:
-        names = []
-        for name, machine in (self.lab.machines or {}).items():
-            image = machine.get_image() if hasattr(machine, "get_image") else ""
-            if name.startswith(("leaf_", "spine_")) or "sdn" in str(image):
-                if name not in ("onos", "fabric_mgr"):
-                    names.append(name)
-        return sorted(set(names))
+        return self._require_machine_inventory().names_for_capability("ovs")
 
     def sdn_onos_topology(self: _SupportsBase) -> dict[str, Any]:
         """ONOS device / link / host inventory (evidence only)."""

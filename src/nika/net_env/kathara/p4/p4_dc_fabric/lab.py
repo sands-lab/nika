@@ -22,6 +22,7 @@ from nika.net_env.kathara.p4.p4_dc_fabric.topology_model import (
     build_clos_fabric_model,
     gateway_ip,
 )
+from nika.runtime.spec import NodeRole
 
 _PKG = Path(__file__).resolve().parent
 _MANAGER = _PKG / "fabric_manager" / "p4rt_manager.py"
@@ -107,12 +108,22 @@ class P4DcFabric(NetworkEnvBase):
             machine = self.lab.new_machine(
                 spine, **{"image": SWITCH_IMAGE, "cpus": 0.5, "mem": "512m"}
             )
+            self.declare_machine(
+                spine,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "bmv2", "p4", "p4runtime"),
+            )
             spine_metas.append(
                 SwitchMeta(name=spine, machine=machine, eth_index=0, cmd_list=[])
             )
         for leaf in self.model.leaves:
             machine = self.lab.new_machine(
                 leaf, **{"image": SWITCH_IMAGE, "cpus": 0.5, "mem": "512m"}
+            )
+            self.declare_machine(
+                leaf,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "bmv2", "p4", "p4runtime"),
             )
             leaf_metas.append(
                 SwitchMeta(name=leaf, machine=machine, eth_index=0, cmd_list=[])
@@ -124,6 +135,21 @@ class P4DcFabric(NetworkEnvBase):
             machine = self.lab.new_machine(
                 ep.name, **{"image": image, "cpus": 0.5, "mem": "256m"}
             )
+            if ep.role == "web":
+                self.declare_machine(
+                    ep.name,
+                    role=NodeRole.SERVICE,
+                    capabilities=("linux", "http"),
+                    service_type="web",
+                    reachability_target=True,
+                )
+            else:
+                self.declare_machine(
+                    ep.name,
+                    role=NodeRole.HOST,
+                    capabilities=("linux",),
+                    reachability_target=True,
+                )
             host_metas.append(
                 HostMeta(name=ep.name, machine=machine, eth_index=0, cmd_list=[])
             )
@@ -132,6 +158,11 @@ class P4DcFabric(NetworkEnvBase):
         fabric_mgr = self.lab.new_machine(
             "fabric_mgr",
             **{"image": FABRIC_CONTROLLER_IMAGE, "cpus": 1, "mem": "512m"},
+        )
+        self.declare_machine(
+            fabric_mgr.name,
+            role=NodeRole.CONTROLLER,
+            capabilities=("linux", "p4runtime"),
         )
 
         for leaf_id, leaf_meta in enumerate(leaf_metas, start=1):
@@ -204,10 +235,6 @@ class P4DcFabric(NetworkEnvBase):
             )
 
         self.load_machines()
-        for ep in self.model.web_endpoints():
-            if ep.name not in self.servers.get("web", []):
-                self.servers.setdefault("web", []).append(ep.name)
-        self.servers["web"] = sorted(set(self.servers.get("web", [])))
 
     def deploy(self):
         super().deploy()

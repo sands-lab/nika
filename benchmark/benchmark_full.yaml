@@ -3200,14 +3200,15 @@ cases:
   topo_size: null
   problem: bgp_acl_block
   inject:
-    host_name: bialystok
+    host_name: rzeszow
   topo: polska
   igp: isis
   bgp_mode: ibgp_rr
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: bialystok
+      node: rzeszow
     fault_type: bgp_acl_block
 - scenario: min3clos
   topo_size: null
@@ -3661,14 +3662,15 @@ cases:
   topo_size: null
   problem: icmp_acl_block
   inject:
-    host_name: pc_rzeszow
+    host_name: pc_warsaw
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: pc_rzeszow
+      node: pc_warsaw
     fault_type: icmp_acl_block
 - scenario: k8s_lab
   topo_size: null
@@ -3727,14 +3729,15 @@ cases:
   topo_size: null
   problem: ospf_acl_block
   inject:
-    host_name: szczecin
+    host_name: rzeszow
   topo: polska
   igp: ospf
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: szczecin
+      node: rzeszow
     fault_type: ospf_acl_block
 - scenario: sdn_l3_clos
   topo_size: s
@@ -4082,6 +4085,7 @@ cases:
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: interface
@@ -4551,14 +4555,15 @@ cases:
   topo_size: null
   problem: host_static_blackhole
   inject:
-    host_name: rzeszow
+    host_name: gdansk
   topo: polska
   igp: isis
   bgp_mode: ibgp_rr
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: rzeszow
+      node: gdansk
     fault_type: host_static_blackhole
 - scenario: min3clos
   topo_size: null
@@ -5001,15 +5006,16 @@ cases:
   topo_size: null
   problem: link_detach
   inject:
-    host_name: pc_bialystok
+    host_name: pc_kolobrzeg
     intf_name: eth0
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: interface
-      node: pc_bialystok
+      node: pc_kolobrzeg
       name: eth0
     fault_type: link_detach
 - scenario: min3clos
@@ -5286,15 +5292,16 @@ cases:
   topo_size: null
   problem: link_down
   inject:
-    host_name: pc_poznan
+    host_name: pc_katowice
     intf_name: eth0
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: interface
-      node: pc_poznan
+      node: pc_katowice
       name: eth0
     fault_type: link_down
 - scenario: min3clos
@@ -5616,6 +5623,7 @@ cases:
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: interface
@@ -5921,16 +5929,17 @@ cases:
   topo_size: null
   problem: link_high_packet_corruption
   inject:
-    host_name: pc_gdansk
+    host_name: pc_lodz
     intf_name: eth0
     corruption_percentage: '60'
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: interface
-      node: pc_gdansk
+      node: pc_lodz
       name: eth0
     fault_type: link_high_packet_corruption
 - scenario: min3clos
@@ -6170,14 +6179,15 @@ cases:
   topo_size: null
   problem: bgp_asn_misconfig
   inject:
-    host_name: poznan
+    host_name: lodz
   topo: polska
   igp: isis
   bgp_mode: ibgp_rr
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: poznan
+      node: lodz
     fault_type: bgp_asn_misconfig
 - scenario: min3clos
   topo_size: null
@@ -6276,14 +6286,15 @@ cases:
   topo_size: null
   problem: bgp_blackhole_route_leak
   inject:
-    host_name: warsaw
+    host_name: szczecin
   topo: polska
   igp: isis
   bgp_mode: ibgp_rr
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: warsaw
+      node: szczecin
     fault_type: bgp_blackhole_route_leak
 - scenario: min3clos
   topo_size: null
@@ -6309,20 +6320,21 @@ cases:
   topo_size: null
   problem: bgp_max_prefix_exceeded
   inject:
-    receiver_name: atlang
-    peer_name: washng
-    neighbor_ip: 10.0.0.7
+    receiver_name: hstnng
+    peer_name: losang
+    neighbor_ip: 10.0.0.21
   topo: abilene
   igp: isis
   bgp_mode: ebgp
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: atlang
+      node: hstnng
     fault_type: bgp_max_prefix_exceeded
   - resource:
       kind: node
-      node: washng
+      node: losang
     fault_type: bgp_max_prefix_exceeded
 - scenario: dc_clos
   topo_size: s
@@ -6401,14 +6413,15 @@ cases:
   topo_size: null
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: lodz
+    host_name: kolobrzeg
   topo: polska
   igp: isis
   bgp_mode: ibgp_rr
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: lodz
+      node: kolobrzeg
     fault_type: bgp_missing_route_advertisement
 - scenario: min3clos
   topo_size: null
@@ -6434,14 +6447,29 @@ cases:
   topo_size: null
   problem: bgp_rpki_invalid_route_leak
   inject:
-    host_name: losang
+    host_name: kscyng
   topo: abilene
-  igp: isis
+  igp: ospf
   bgp_mode: ebgp
+  rpki: true
   root_causes:
   - resource:
       kind: node
-      node: losang
+      node: kscyng
+    fault_type: bgp_rpki_invalid_route_leak
+- scenario: isp
+  topo_size: null
+  problem: bgp_rpki_invalid_route_leak
+  inject:
+    host_name: es1_es
+  topo: geant
+  igp: ospf
+  bgp_mode: ebgp
+  rpki: true
+  root_causes:
+  - resource:
+      kind: node
+      node: es1_es
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: dc_clos
   topo_size: s
@@ -6520,14 +6548,15 @@ cases:
   topo_size: null
   problem: bgp_hijacking
   inject:
-    host_name: bialystok
+    host_name: krakow
   topo: polska
   igp: isis
   bgp_mode: ibgp_rr
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: bialystok
+      node: krakow
     fault_type: bgp_hijacking
 - scenario: min3clos
   topo_size: null
@@ -6659,14 +6688,15 @@ cases:
   topo_size: null
   problem: frr_service_down
   inject:
-    host_name: poznan
+    host_name: krakow
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: poznan
+      node: krakow
     fault_type: frr_service_down
 - scenario: k8s_lab
   topo_size: null
@@ -6715,14 +6745,15 @@ cases:
   topo_size: null
   problem: ospf_area_misconfiguration
   inject:
-    host_name: kolobrzeg
+    host_name: warsaw
   topo: polska
   igp: ospf
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: kolobrzeg
+      node: warsaw
     fault_type: ospf_area_misconfiguration
 - scenario: campus_lan
   topo_size: s
@@ -6761,14 +6792,15 @@ cases:
   topo_size: null
   problem: ospf_neighbor_missing
   inject:
-    host_name: gdansk
+    host_name: krakow
   topo: polska
   igp: ospf
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: node
-      node: gdansk
+      node: krakow
     fault_type: ospf_neighbor_missing
 - scenario: k8s_lab
   topo_size: null
@@ -7369,7 +7401,7 @@ cases:
   topo_size: null
   problem: link_bandwidth_throttling
   inject:
-    host_name: pc_szczecin
+    host_name: pc_lodz
     intf_name: eth0
     rate: 30kbit
     burst: 64kb
@@ -7377,10 +7409,11 @@ cases:
   topo: polska
   igp: isis
   bgp_mode: none
+  rpki: false
   root_causes:
   - resource:
       kind: interface
-      node: pc_szczecin
+      node: pc_lodz
       name: eth0
     fault_type: link_bandwidth_throttling
 - scenario: min3clos

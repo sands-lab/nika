@@ -58,8 +58,7 @@ def _abilene_nodes() -> frozenset[str]:
     routers = sorted(str(n["device"]) for n in isp_plan.inventory["nodes"])
     # Edge stubs are always attached for ISP Kathara labs.
     stubs = [f"pc_{r}" for r in routers]
-    # Abilene eBGP activates the Routinator RPKI machine.
-    return frozenset(routers + stubs + ["routinator"])
+    return frozenset(routers + stubs)
 
 
 def _diagnosis_tool_names(messages: list[dict]) -> list[str]:

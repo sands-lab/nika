@@ -1,10 +1,20 @@
 """Start a network lab for one scenario and persist a new session."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from nika.net_env.isp.bgp.config import DEFAULT_BGP_MODE, normalize_bgp_mode
+from nika.net_env.isp.bgp.config import (
+    DEFAULT_BGP_MODE,
+    ISP_BGP_MODES,
+    normalize_bgp_mode,
+)
+from nika.net_env.contract import (
+    VALIDATION_CONTRACT_FILENAME,
+    VALIDATION_RESULTS_FILENAME,
+    ValidationReport,
+)
 from nika.net_env.isp.bgp.errors import BgpConfigError
 from nika.net_env.isp.igp.config import (
     DEFAULT_CONSTANT_METRIC,
@@ -31,6 +41,7 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
 )
 from nika.net_env.verify import verify_lab_with_retry
+from nika.run_config.loader import get_run_config
 from nika.utils.logger import (
     bind_session_dir,
     log_error_event,
@@ -39,6 +50,10 @@ from nika.utils.logger import (
 )
 from nika.utils.session import Session
 from nika.utils.session_id import make_session_id
+from nika.workflows.validation.static import (
+    STATIC_VALIDATION_FILENAME,
+    run_static_validation,
+)
 
 ISP_SCENARIO = "isp"
 SUPPORTED_DC_CLOS_WORKLOADS = ("host", "service")
@@ -99,6 +114,7 @@ def _resolve_isp_kwargs(
     metric_strategy: str | None,
     constant_metric: int | None,
     bgp_mode: str | None,
+    rpki: bool | None = None,
     device_profile: str | None = None,
     backend: str | None = None,
 ) -> dict:
@@ -109,6 +125,7 @@ def _resolve_isp_kwargs(
         "metric_strategy": metric_strategy,
         "constant_metric": constant_metric,
         "bgp_mode": bgp_mode,
+        "rpki": rpki,
         "device_profile": device_profile,
     }
     any_provided = any(value is not None for value in provided.values())
@@ -116,7 +133,7 @@ def _resolve_isp_kwargs(
         if any_provided:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
-                "--metric-strategy/--constant-metric/--bgp-mode/"
+                "--metric-strategy/--constant-metric/--bgp-mode/--rpki/"
                 "--device-profile; those flags are only valid for "
                 f"'{ISP_SCENARIO}'."
             )
@@ -135,12 +152,20 @@ def _resolve_isp_kwargs(
     resolved_metric = (
         constant_metric if constant_metric is not None else DEFAULT_CONSTANT_METRIC
     )
+    raw_bgp = bgp_mode if bgp_mode is not None else DEFAULT_BGP_MODE
+    resolved_rpki = bool(rpki) if rpki is not None else False
     try:
-        resolved_bgp = normalize_bgp_mode(
-            bgp_mode if bgp_mode is not None else DEFAULT_BGP_MODE
-        )
+        resolved_bgp = normalize_bgp_mode(raw_bgp)
     except BgpConfigError as exc:
         raise ValueError(str(exc)) from exc
+    if resolved_bgp not in ISP_BGP_MODES:
+        raise ValueError(
+            f"Unsupported bgp_mode {resolved_bgp!r}; expected one of {ISP_BGP_MODES}."
+        )
+    if resolved_rpki and resolved_bgp != "ebgp":
+        raise ValueError(f"--rpki requires --bgp-mode ebgp (got {resolved_bgp!r}).")
+    if resolved_rpki and resolved_backend != "kathara":
+        raise ValueError("RPKI capability is Kathara/FRR-only; use --backend kathara.")
     if resolved_igp not in SUPPORTED_IGPS:
         raise ValueError(
             f"Unsupported IGP {resolved_igp!r}; expected one of {SUPPORTED_IGPS}."
@@ -171,6 +196,7 @@ def _resolve_isp_kwargs(
         "metric_strategy": resolved_strategy,
         "constant_metric": resolved_metric,
         "bgp_mode": resolved_bgp,
+        "rpki": resolved_rpki,
         "device_profile": resolved_profile,
     }
 
@@ -190,14 +216,21 @@ def start_net_env(
     metric_strategy: str | None = None,
     constant_metric: int | None = None,
     bgp_mode: str | None = None,
+    rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
     workload: str | None = None,
+    static_validation: bool | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     from nika.remote.config import is_remote_enabled
 
     canonical, _alias_workload = resolve_scenario_ref(scenario)
+    static_validation_enabled = (
+        static_validation
+        if static_validation is not None
+        else get_run_config().nika.static_validation.enabled
+    )
 
     if is_remote_enabled():
         from nika.remote.workflows import remote_start_net_env
@@ -216,9 +249,11 @@ def start_net_env(
             metric_strategy=metric_strategy,
             constant_metric=constant_metric,
             bgp_mode=bgp_mode,
+            rpki=rpki,
             backend=backend,
             device_profile=device_profile,
             workload=workload,
+            static_validation=static_validation_enabled,
         )
 
     size = _normalize_topo_size(topo_size)
@@ -238,6 +273,7 @@ def start_net_env(
         metric_strategy=metric_strategy,
         constant_metric=constant_metric,
         bgp_mode=bgp_mode,
+        rpki=rpki,
         device_profile=device_profile,
         backend=backend,
     )
@@ -267,6 +303,8 @@ def start_net_env(
     net_env = get_net_env_instance(
         canonical, backend=resolved_backend, **net_env_kwargs
     )
+    if resolved_backend == "kathara":
+        net_env.load_machines()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
 
@@ -294,7 +332,49 @@ def start_net_env(
     )
     bind_session_dir(session.session_dir)
 
+    contract = net_env.get_validation_contract()
+    if contract is not None:
+        contract_path = contract.write(
+            Path(session.session_dir) / VALIDATION_CONTRACT_FILENAME
+        )
+        session.update_session("validation_contract", contract_path.name)
+        log_event(
+            "validation_contract_created",
+            f"Saved validation contract for {scenario} ({resolved_session_id})",
+            scenario=scenario,
+            session_id=resolved_session_id,
+            contract_id=contract.contract_id,
+            intent_count=len(contract.intents),
+            path=str(contract_path),
+        )
+
     try:
+        if static_validation_enabled and contract is not None:
+            static_reports = run_static_validation(
+                net_env=net_env,
+                contract=contract,
+                artifact_dir=session.session_dir,
+            )
+            for verifier, report in static_reports.items():
+                filename = STATIC_VALIDATION_FILENAME.format(verifier=verifier)
+                session.update_session(f"validation_{verifier}", filename)
+                log_event(
+                    "static_validation",
+                    f"Static validation {report.status}: {verifier} ({resolved_session_id})",
+                    scenario=scenario,
+                    session_id=resolved_session_id,
+                    verifier=verifier,
+                    status=report.status,
+                    coverage=report.coverage.model_dump(mode="json")
+                    if report.coverage
+                    else None,
+                    path=str(Path(session.session_dir) / filename),
+                )
+                if report.status in {"failed", "error"}:
+                    raise RuntimeError(
+                        f"{verifier} static validation {report.status}; see {filename}"
+                    )
+
         if net_env.lab_exists() and redeploy:
             net_env.undeploy()
             net_env.deploy()
@@ -303,12 +383,20 @@ def start_net_env(
 
         verify_result = verify_lab_with_retry(net_env)
         if verify_result is not None:
+            validation_payload = (verify_result.get("details") or {}).get("validation")
+            if validation_payload is not None:
+                report = ValidationReport.model_validate(validation_payload)
+                result_path = report.write(
+                    Path(session.session_dir) / VALIDATION_RESULTS_FILENAME
+                )
+                session.update_session("validation_results", result_path.name)
             log_event(
                 "env_verify",
                 f"Lab verification passed for {scenario} ({net_env.name})",
                 scenario=scenario,
                 lab_name=net_env.name,
                 checks=verify_result.get("checks"),
+                validation=validation_payload,
             )
 
         try:

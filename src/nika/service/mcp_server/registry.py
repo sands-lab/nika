@@ -13,7 +13,7 @@ Role = Literal["host", "routing", "switch", "telemetry", "task", "kubernetes"]
 ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
-ROUTING_KEYWORDS = frozenset({"bgp", "ospf", "rip", "frr", "routing"})
+ROUTING_KEYWORDS = frozenset({"bgp", "ebgp", "ospf", "rip", "frr", "routing", "rpki"})
 # P4/BMv2 only — OVS SDN scenarios use kathara_sdn_mcp_server.
 SWITCH_KEYWORDS = frozenset({"p4", "bmv2", "bloom", "mpls", "int", "counter"})
 SDN_KEYWORDS = frozenset({"sdn"})

@@ -29,14 +29,14 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 | Domain | Boundary | Registered failures | Working-matrix cases |
 | --- | --- | ---: | ---: |
 | Link & Interface | Link attachment, interface state, flapping, and packet corruption. | 4 | 92 |
-| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 9 | 62 |
+| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 9 | 63 |
 | Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 26 | 170 |
 | Service Networking | Kubernetes ClusterIP forwarding and load-balancer operation. | 2 | 5 |
 | Management & Orchestration Plane | Kubernetes API-server reachability, SDN controller availability, and controller southbound management channels. | 4 | 11 |
 | Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 17 | 168 |
 | Endpoint & Application | Host availability, endpoint resource contention, application delay, and application-layer denial of service. | 5 | 85 |
 | Traffic, Queueing & Resource | Offered load, queueing, and link-capacity constraints. | 2 | 39 |
-| **Total** |  | **69** | **632** |
+| **Total** |  | **69** | **633** |
 
 The domains follow the failed network mechanism. The orthogonal metadata captures configuration, resource exhaustion, and adversarial action without creating overlapping top-level groups. This split supports coverage comparisons across subsystem, cause, symptom, and scope.
 
@@ -51,7 +51,7 @@ The scenario labels below reproduce tag-subset matching in [`benchmark/generate_
 | **Routed host** | `dc_clos`, `campus_lan`, `enterprise_branch`, `simple_bgp`, `k8s_lab` |
 | **FRR** | `dc_clos`, `campus_lan`, `enterprise_branch`, `simple_bgp`, `isp`, `k8s_lab` |
 | **BGP** | `dc_clos`, `enterprise_branch`, `simple_bgp`, `isp`, `min3clos`, `k8s_lab` |
-| **RPKI** | `isp` (Abilene eBGP + Routinator) |
+| **RPKI** | `isp` with `--bgp-mode ebgp --rpki` |
 | **OSPF** | `campus_lan`, `isp` |
 | **DNS** | `dc_clos` service workload and `campus_lan` DHCP workload |
 | **HTTP** | `dc_clos` service workload, `campus_lan`, `enterprise_branch`, `sdn_l3_clos`, `p4_dc_fabric`, and `llmd_lab` |
@@ -61,7 +61,7 @@ The scenario labels below reproduce tag-subset matching in [`benchmark/generate_
 | **Kubernetes** | `k8s_lab`, `llmd_lab` |
 | **VPN** | `enterprise_branch` |
 
-For `isp`, OSPF failures require `--igp ospf`; BGP failures require `--bgp-mode ibgp_rr` or `ebgp`. `bgp_rpki_invalid_route_leak` and `bgp_max_prefix_exceeded` additionally require `--topo abilene --bgp-mode ebgp` (Kathara + FRR; RPKI also needs Routinator). Generic link failures work with either ISP backend. SR Linux support exists only where the failure implementation contains a Containerlab branch.
+For `isp`, OSPF failures require `--igp ospf`; BGP failures require `--bgp-mode ibgp_rr` or `ebgp`. `bgp_max_prefix_exceeded` requires `--topo abilene --bgp-mode ebgp`. `bgp_rpki_invalid_route_leak` requires `--bgp-mode ebgp --rpki` on a multi-AS topology such as Abilene or GEANT (Kathara+FRR+Routinator). Generic link failures work with either ISP backend. SR Linux support exists only where the failure implementation contains a Containerlab branch.
 
 ## Registered failures
 
@@ -81,9 +81,9 @@ Each table preserves the injection and verification contract. The taxonomy colum
 | Root cause | Failure ID | Taxonomy metadata | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | BGP ASN mismatch | `bgp_asn_misconfig` | `configuration` / `loss` / `path` / `persistent` / `partial` | **BGP**. `host_name` | Changes the local ASN in FRR or SR Linux configuration. | Peers reject or reset sessions because the configured remote AS no longer matches. | Running configuration contains the changed ASN. |
-| BGP maximum-prefix exceeded | `bgp_max_prefix_exceeded` | `operational` / `down` / `multi_node` / `persistent` / `partial` | **RPKI-style ISP eBGP** (`TAGS` require `bgp`+`isp`; `isp` Abilene eBGP). `receiver_name`, `peer_name`, optional `neighbor_ip` / `maximum_prefix` / `flood_count` | On the receiver, configures a low `maximum-prefix` for the chosen eBGP neighbor, temporarily permits a `198.19.0.0/16` flood space, then has the peer advertise many `/24` test prefixes so received count exceeds the limit. Does not shut the session directly. Inspired by the [Optus 2023 BGP maximum-prefix outage discussion](https://blog.apnic.net/2023/11/23/call-the-routing-police/). Kathara+FRR only. | FRR tears down the eBGP session; business routes from the peer may withdraw; reachability across the session drops. | Session not Established; neighbor/log evidence of maximum-prefix. GT labels both `node/{receiver}` and `node/{peer}`. |
+| BGP maximum-prefix exceeded | `bgp_max_prefix_exceeded` | `operational` / `down` / `multi_node` / `persistent` / `partial` | **ISP eBGP** (`TAGS` require `bgp`+`isp`; `isp` Abilene eBGP). `receiver_name`, `peer_name`, optional `neighbor_ip` / `maximum_prefix` / `flood_count` | On the receiver, configures a low `maximum-prefix` for the chosen eBGP neighbor, temporarily permits a `198.19.0.0/16` flood space, then has the peer advertise many `/24` test prefixes so received count exceeds the limit. Does not shut the session directly. Inspired by the [Optus 2023 BGP maximum-prefix outage discussion](https://blog.apnic.net/2023/11/23/call-the-routing-police/). Kathara+FRR only. | FRR tears down the eBGP session; business routes from the peer may withdraw; reachability across the session drops. | Session not Established; neighbor/log evidence of maximum-prefix. GT labels both `node/{receiver}` and `node/{peer}`. |
 | BGP blackhole route leak | `bgp_blackhole_route_leak` | `configuration` / `blackhole` / `multi_node` / `persistent` / `partial` | **BGP**. `host_name` | Resolves a victim `/30`, installs a Null0 or blackhole route, and advertises it through BGP. | Traffic to the more-specific victim network follows the leaked route and drops. | The blackhole route or its advertisement exists. |
-| RPKI-invalid BGP route leak | `bgp_rpki_invalid_route_leak` | `configuration` / `misrouting` / `multi_node` / `persistent` / `partial` | **RPKI** (`TAGS` require `bgp`+`rpki`; `isp` Abilene eBGP). `host_name` (leaker) | On Abilene eBGP with the fixed inter-AS/RPKI profile, changes the leaker AS export policy so VRP-unauthorized prefixes are advertised with the leaker origin ASN. Requires Kathara+FRR+Routinator. Inspired by [APNIC analysis of a route leak](https://blog.apnic.net/2025/05/06/analysis-of-a-route-leak/). | Non-ROV observers learn Invalid-origin routes; ROV observers reject them; sessions stay Established. | Leaker advertises the leak prefixes; non-ROV RIB contains them with leaker origin; ROV RIB does not accept them as best. |
+| RPKI-invalid BGP route leak | `bgp_rpki_invalid_route_leak` | `configuration` / `misrouting` / `multi_node` / `persistent` / `partial` | **RPKI** (`TAGS` require `rpki`; `isp` eBGP + `--rpki`). `host_name` (leaker from inventory) | Flips the leaker AS healthy BGP-OUT deny to permit so VRP-unauthorized prefixes advertise with the leaker origin ASN. Requires Kathara+FRR+Routinator. Inspired by [APNIC analysis of a route leak](https://blog.apnic.net/2025/05/06/analysis-of-a-route-leak/). | Non-ROV observers learn Invalid-origin routes; ROV observers reject them; sessions stay Established. | Leaker advertises the leak prefixes; non-ROV RIB contains them with leaker origin; ROV RIB does not accept them as best. |
 | Missing BGP advertisement | `bgp_missing_route_advertisement` | `configuration` / `blackhole` / `path` / `persistent` / `partial` | **BGP**. `host_name` | Removes an FRR network advertisement or applies an SR Linux export policy that withdraws it. | Peers stay reachable while they lose the selected prefix. | FRR configuration lacks the advertisement or SR Linux applies the withdrawal policy. |
 | Switch/router crash | `frr_service_down` | `software` / `down` / `node` / `persistent` / `complete` | **FRR**. `host_name`, `service_name=frr` | Stops FRR on a router. | Dynamic adjacencies and routes disappear while connected forwarding can remain. | Zebra is absent and FRR routing commands are unavailable. |
 | OSPF area misconfiguration | `ospf_area_misconfiguration` | `configuration` / `loss` / `multi_node` / `persistent` / `partial` | **OSPF**. `host_name` | Changes an OSPF network statement to a mismatched area and restarts FRR. | Adjacency fails on links whose endpoints no longer agree on area. | Both file and running configuration show the changed area. |

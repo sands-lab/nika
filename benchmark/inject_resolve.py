@@ -47,7 +47,8 @@ def _isp_rng_key(isp_options: dict[str, str] | None) -> str:
     return (
         f"{isp_options.get('topo', '')}|"
         f"{isp_options.get('igp', '')}|"
-        f"{isp_options.get('bgp_mode', '')}"
+        f"{isp_options.get('bgp_mode', '')}|"
+        f"{isp_options.get('rpki', False)}"
     )
 
 
@@ -620,8 +621,37 @@ def resolve_inject_params(
         params["host_name"] = router0
 
     elif problem == "bgp_rpki_invalid_route_leak":
-        # Fixed Abilene inter-AS leaker; requires --topo abilene --bgp-mode ebgp.
-        params["host_name"] = "losang"
+        from nika.net_env.isp.inject_targets import isp_inject_params
+
+        inventory = getattr(net_env, "inventory", None)
+        bgp_inv = inventory.get("bgp") if isinstance(inventory, dict) else None
+        if not isinstance(bgp_inv, dict) or not bgp_inv.get("rpki"):
+            from nika.net_env.isp.bgp import compile_bgp_plan
+            from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+            from nika.workflows.benchmark.isp_options import isp_config_for_problem
+
+            isp_opts = isp_options or isp_config_for_problem(problem, {"rpki"})
+            isp_plan = compile_isp_plan(
+                IspConfig(
+                    topology=isp_opts["topo"],
+                    igp=isp_opts["igp"],  # type: ignore[arg-type]
+                )
+            )
+            bgp = compile_bgp_plan(
+                isp_plan, isp_opts["bgp_mode"], rpki=bool(isp_opts.get("rpki"))
+            )
+            assert bgp is not None
+            bgp_inv = bgp.inventory
+            inventory = getattr(net_env, "inventory", None) or {}
+            if not isinstance(inventory, dict):
+                inventory = {}
+        params.update(
+            isp_inject_params(
+                problem,
+                inventory if isinstance(inventory, dict) else {},
+                bgp_inv,
+            )
+        )
 
     elif problem == "bgp_max_prefix_exceeded":
         from nika.net_env.isp.inject_targets import first_ebgp_session

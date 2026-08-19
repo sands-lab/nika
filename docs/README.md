@@ -27,6 +27,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | Task | Page | Content type |
 | --- | --- | --- |
 | Add a scenario, failure, traffic source, or benchmark case | [Create benchmark tasks](creating-benchmark-tasks.md) | How-to |
+| Define scenario expectations or implement a verifier | [Network validation contracts](validation-contracts.md) | Reference |
 | Inspect working matrices and frozen releases | [Benchmark configuration](benchmark-configuration.md) | Reference |
 | Define labels or understand scoring | [Root-cause ground truth and scoring](root-cause-evaluation.md) | Reference |
 | Package and submit an official release run | [Leaderboard submission](leaderboard-submission.md) | How-to |
@@ -47,6 +48,7 @@ uv run nika agent list
 | Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml) |
 | CLI and workflows | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/), [`workflows/`](../src/nika/workflows/) |
 | Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
+| Network validation contracts | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |
 | Failure registry and labels | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py), [`root_cause.py`](../src/nika/problems/root_cause.py) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/agent/registry.py) |
 | Benchmark generation | [`generate_benchmark.py`](../benchmark/generate_benchmark.py), [`workflows/benchmark/`](../src/nika/workflows/benchmark/) |

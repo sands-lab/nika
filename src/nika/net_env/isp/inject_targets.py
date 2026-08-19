@@ -217,7 +217,7 @@ def isp_inject_params(
     if problem == BGP_RPKI_LEAK_PROBLEM:
         if not bgp_inventory or not bgp_inventory.get("rpki"):
             raise ValueError(
-                "bgp_rpki_invalid_route_leak requires Abilene eBGP RPKI inventory"
+                "bgp_rpki_invalid_route_leak requires ISP eBGP RPKI inventory"
             )
         leaker = bgp_inventory.get("leaker_device")
         if not leaker:

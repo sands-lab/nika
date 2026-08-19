@@ -8,6 +8,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -111,6 +112,11 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
                 f"router_core_{core_id}",
                 **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
             )
+            self.declare_machine(
+                router_core.name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "ospf"),
+            )
             router_core_meta = RouterMeta(
                 name=f"router_core_{core_id}",
                 machine=router_core,
@@ -131,6 +137,11 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
                     dist_name,
                     **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
                 )
+                self.declare_machine(
+                    dist_name,
+                    role=NodeRole.ROUTER,
+                    capabilities=("linux", "frr", "ospf"),
+                )
                 dist_meta = RouterMeta(
                     name=dist_name,
                     machine=router_dist,
@@ -147,6 +158,11 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
                     router_access = self.lab.new_machine(
                         access_name,
                         **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                    )
+                    self.declare_machine(
+                        access_name,
+                        role=NodeRole.SWITCH,
+                        capabilities=("linux",),
                     )
                     access_meta = SwitchMeta(
                         name=access_name,
@@ -168,6 +184,12 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
                                 "cpus": 0.5,
                                 "mem": "256m",
                             },
+                        )
+                        self.declare_machine(
+                            host_name,
+                            role=NodeRole.HOST,
+                            capabilities=("linux", "dhcp_client"),
+                            reachability_target=True,
                         )
                         host_meta = HostMeta(
                             name=host_name,
@@ -191,6 +213,13 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
         host_machine = self.lab.new_machine(
             host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
         )
+        self.declare_machine(
+            host_name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux", "dns"),
+            service_type="dns",
+            reachability_target=True,
+        )
         host_meta = HostMeta(
             name=host_name,
             machine=host_machine,
@@ -204,6 +233,13 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
             host_name = f"web_server_{web_idx}"
             host_machine = self.lab.new_machine(
                 host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+            )
+            self.declare_machine(
+                host_name,
+                role=NodeRole.SERVICE,
+                capabilities=("linux", "http"),
+                service_type="web",
+                reachability_target=True,
             )
             host_meta = HostMeta(
                 name=host_name,
@@ -219,6 +255,13 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
         lb_machine = self.lab.new_machine(
             lb_name, **{"image": "nika/nginx", "cpus": 0.5, "mem": "256m"}
         )
+        self.declare_machine(
+            lb_name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux", "http", "load_balancer"),
+            service_type="load_balancer",
+            reachability_target=True,
+        )
         lb_meta = HostMeta(
             name=lb_name,
             machine=lb_machine,
@@ -233,6 +276,11 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
                 backend_name,
                 **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
             )
+            self.declare_machine(
+                backend_name,
+                role=NodeRole.INFRASTRUCTURE,
+                capabilities=("linux", "http"),
+            )
             backend_meta = HostMeta(
                 name=backend_name,
                 machine=backend_machine,
@@ -246,6 +294,13 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
         host_machine = self.lab.new_machine(
             host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
         )
+        self.declare_machine(
+            host_name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux", "dhcp"),
+            service_type="dhcp",
+            reachability_target=True,
+        )
         host_meta = HostMeta(
             name=host_name,
             machine=host_machine,
@@ -258,6 +313,11 @@ class OSPFEnterpriseDHCP(NetworkEnvBase):
         server_router = self.lab.new_machine(
             "server_access_router",
             **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+        )
+        self.declare_machine(
+            server_router.name,
+            role=NodeRole.ROUTER,
+            capabilities=("linux", "frr", "ospf"),
         )
         server_router_meta = RouterMeta(
             name="server_access_router",

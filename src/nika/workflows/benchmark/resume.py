@@ -23,6 +23,7 @@ def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
         "topo": row.get("topo") or "",
         "igp": row.get("igp") or "",
         "bgp_mode": row.get("bgp_mode") or "",
+        "rpki": bool(row.get("rpki", False)),
         "inject": {
             str(k): str(v) for k, v in sorted((row.get("inject") or {}).items())
         },
@@ -41,6 +42,7 @@ def benchmark_row_from_case(
     topo: str | None = None,
     igp: str | None = None,
     bgp_mode: str | None = None,
+    rpki: bool | None = None,
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "scenario": scenario,
@@ -56,6 +58,8 @@ def benchmark_row_from_case(
         row["igp"] = igp
     if bgp_mode:
         row["bgp_mode"] = bgp_mode
+    if rpki is not None:
+        row["rpki"] = bool(rpki)
     return row
 
 

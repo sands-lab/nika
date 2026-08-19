@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 from nika.net_env.isp.bgp.plan import BgpPlan
-from nika.net_env.isp.igp.plan import IspPlan
+from nika.net_env.isp.igp.plan import IspPlan, active_igp_links, igp_components
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
 from nika.net_env.verify import (
     build_lab_verify_result,
@@ -82,7 +82,7 @@ def _igp_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
 
 def _isis_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     degree: dict[str, int] = defaultdict(int)
-    for link in plan.links:
+    for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
     for node in plan.nodes:
@@ -103,7 +103,7 @@ def _isis_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
 
 def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     degree: dict[str, int] = defaultdict(int)
-    for link in plan.links:
+    for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
     for node in plan.nodes:
@@ -131,17 +131,25 @@ def _loopbacks_reachable(
     plan: IspPlan,
     traffic: IspTrafficAttachment | None,
 ) -> bool:
+    components = igp_components(plan)
     if traffic is None or not traffic.hosts:
-        # Fall back to router-to-router ping via first two routers.
-        nodes = sorted(plan.nodes, key=lambda n: n.device_name)
-        if len(nodes) < 2:
-            return True
-        return ping_ok(runtime, nodes[0].device_name, nodes[-1].loopback, count=1)
-    hosts = sorted(traffic.hosts, key=lambda h: h.host_name)
-    targets = sorted(plan.nodes, key=lambda n: n.device_name)
-    if not targets:
+        loopback = {node.device_name: node.loopback for node in plan.nodes}
+        for component in components:
+            if len(component) >= 2:
+                return ping_ok(runtime, component[0], loopback[component[-1]], count=1)
         return True
-    return ping_ok(runtime, hosts[0].host_name, targets[-1].loopback, count=1)
+    host_by_router = {host.router_device: host for host in traffic.hosts}
+    loopback = {node.device_name: node.loopback for node in plan.nodes}
+    for component in components:
+        routers = [router for router in component if router in host_by_router]
+        if len(routers) >= 2:
+            return ping_ok(
+                runtime,
+                host_by_router[routers[0]].host_name,
+                loopback[routers[-1]],
+                count=1,
+            )
+    return True
 
 
 def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
@@ -179,11 +187,19 @@ def _stub_gateway_ok(runtime: LabRuntime, traffic: IspTrafficAttachment) -> bool
 
 
 def _stub_remote_ok(runtime: LabRuntime, traffic: IspTrafficAttachment) -> bool:
-    hosts = sorted(traffic.hosts, key=lambda h: h.host_name)
-    if len(hosts) < 2:
-        return True
-    a, b = hosts[0], hosts[-1]
-    return ping_ok(runtime, a.host_name, b.address, count=1)
+    host_by_router = {host.router_device: host for host in traffic.hosts}
+    for component in igp_components(traffic.plan):
+        hosts = sorted(
+            (
+                host_by_router[router]
+                for router in component
+                if router in host_by_router
+            ),
+            key=lambda host: host.host_name,
+        )
+        if len(hosts) >= 2:
+            return ping_ok(runtime, hosts[0].host_name, hosts[-1].address, count=1)
+    return True
 
 
 def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:

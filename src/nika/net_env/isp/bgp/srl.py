@@ -147,5 +147,5 @@ def _render_ebgp(node: BgpNodePlan) -> dict[str, Any]:
                 ],
             }
         ],
-        "neighbor": _neighbors(node, group="EBGP", rr_clients=False),
+        "neighbor": _neighbors(node, group="EBGP", rr_clients=True),
     }

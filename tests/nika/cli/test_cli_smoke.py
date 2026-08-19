@@ -3,7 +3,10 @@ import importlib
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
 from typer.testing import CliRunner
+
 from nika.cli.main import app
 
 
@@ -118,6 +121,20 @@ class CliSmokeTest:
             result = _RUNNER.invoke(app, args)
 
             assert result.exit_code == 0
+
+    def test_env_static_validation_is_opt_in(self) -> None:
+        with patch(
+            "nika.workflows.env.start.start_net_env", return_value="session-test"
+        ) as mocked:
+            default = _RUNNER.invoke(app, ["env", "run", "simple_bgp"])
+            assert default.exit_code == 0, default.output
+            assert mocked.call_args.kwargs["static_validation"] is None
+
+            enabled = _RUNNER.invoke(
+                app, ["env", "run", "simple_bgp", "--static-validation"]
+            )
+            assert enabled.exit_code == 0, enabled.output
+            assert mocked.call_args.kwargs["static_validation"] is True
 
     def test_benchmark_run_requires_config_or_release(self) -> None:
         """Bare ``nika benchmark run`` has no default suite."""

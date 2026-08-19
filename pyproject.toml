@@ -44,6 +44,10 @@ sade = ["claude-agent-sdk"]
 sdk = ["claude-agent-sdk", "openai-codex>=0.1.0b3"]
 # Optional Langfuse tracing for byo.langgraph.
 observability = ["langfuse"]
+batfish = [
+    "docker>=7.1.0",
+    "pybatfish==2025.7.7.2423",
+]
 
 [project.scripts]
 nika = "nika.cli.main:main"

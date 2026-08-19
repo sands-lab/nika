@@ -19,7 +19,14 @@ from nika.workflows.benchmark.isp_options import ISP_SCENARIO
 # Coverage-matrix columns: plain scenarios, Clos/campus workloads, ISP variants.
 DC_CLOS_CONFIGS: tuple[str, ...] = ("host", "service")
 CAMPUS_LAN_CONFIGS: tuple[str, ...] = ("static", "dhcp")
-ISP_CONFIGS: tuple[str, ...] = ("isis", "ospf", "ibgp_rr", "abilene-ebgp")
+ISP_CONFIGS: tuple[str, ...] = (
+    "isis",
+    "ospf",
+    "ibgp_rr",
+    "abilene-ebgp",
+    "abilene-ebgp-rpki",
+    "geant-ebgp-rpki",
+)
 
 _DC_CLOS_BASE: frozenset[str] = frozenset(
     {"arp", "link", "mac", "bgp", "icmp", "frr", "pc"}
@@ -31,7 +38,12 @@ _ISP_BASE: frozenset[str] = frozenset({"isp", "sndlib", "frr", "igp", "link", "i
 
 # Failures that need a stricter column than TAGS alone encode.
 _PROBLEM_COLUMN_ALLOWLIST: dict[str, frozenset[str]] = {
-    "bgp_rpki_invalid_route_leak": frozenset({f"{ISP_SCENARIO}/abilene-ebgp"}),
+    "bgp_rpki_invalid_route_leak": frozenset(
+        {
+            f"{ISP_SCENARIO}/abilene-ebgp-rpki",
+            f"{ISP_SCENARIO}/geant-ebgp-rpki",
+        }
+    ),
     "bgp_max_prefix_exceeded": frozenset({f"{ISP_SCENARIO}/abilene-ebgp"}),
     "mpls_label_limit_exceeded": frozenset({"p4_mpls"}),
     "p4_aggressive_detection_thresholds": frozenset({"p4_bloom_filter"}),
@@ -88,7 +100,11 @@ def effective_tags(column: str) -> frozenset[str]:
         if config == "ibgp_rr":
             return _ISP_BASE | frozenset({"isis", "bgp"})
         if config == "abilene-ebgp":
-            return _ISP_BASE | frozenset({"isis", "bgp", "rpki"})
+            return _ISP_BASE | frozenset({"isis", "bgp"})
+        if config == "abilene-ebgp-rpki":
+            return _ISP_BASE | frozenset({"ospf", "bgp", "rpki"})
+        if config == "geant-ebgp-rpki":
+            return _ISP_BASE | frozenset({"ospf", "bgp", "rpki"})
         raise ValueError(f"Unknown isp config {config!r}")
     return frozenset(scenario_tags(scenario))
 

@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from ipaddress import IPv4Address, IPv4Network
+from time import perf_counter
 from typing import Any
 
+from nika.net_env.contract import (
+    NetworkEntity,
+    ValidationContract,
+    ValidationIntent,
+    ValidationReport,
+    ValidationResult,
+)
 from nika.net_env.isp.bgp.plan import BgpPlan
-from nika.net_env.isp.igp.plan import IspPlan
+from nika.net_env.isp.igp.plan import IspPlan, active_igp_links, igp_components
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
 from nika.net_env.verify import (
     build_lab_verify_result,
@@ -26,6 +35,7 @@ def verify_isp_lab(
     scenario_name: str,
     bgp_plan: BgpPlan | None = None,
     traffic: IspTrafficAttachment | None = None,
+    contract: ValidationContract | None = None,
 ) -> dict[str, Any]:
     expected = [node.device_name for node in plan.nodes]
     if traffic is not None:
@@ -74,12 +84,235 @@ def verify_isp_lab(
             checks["rpki_rtr_connected"] = _rpki_rtr_ok(runtime, bgp_plan)
             checks["rpki_leak_absent"] = _rpki_leak_absent_ok(runtime, bgp_plan)
         details["bgp"] = bgp_plan.inventory
+    if contract is not None:
+        report = verify_isp_contract(runtime, contract=contract, plan=plan)
+        checks["contract_required_intents"] = report.status == "passed"
+        details["validation"] = report.model_dump(mode="json")
     return build_lab_verify_result(
         scenario_name=scenario_name,
         verified=all(checks.values()),
         checks=checks,
         details=details,
     )
+
+
+def verify_isp_contract(
+    runtime: LabRuntime,
+    *,
+    contract: ValidationContract,
+    plan: IspPlan,
+) -> ValidationReport:
+    """Execute an ISP contract with runtime tools without changing its semantics."""
+    command_cache: dict[tuple[str, str], str] = {}
+    results = [
+        _verify_intent(runtime, intent=intent, plan=plan, command_cache=command_cache)
+        for intent in contract.intents
+    ]
+    return ValidationReport.from_results(contract, "isp-runtime-v1", results)
+
+
+def _verify_intent(
+    runtime: LabRuntime,
+    *,
+    intent: ValidationIntent,
+    plan: IspPlan,
+    command_cache: dict[tuple[str, str], str],
+) -> ValidationResult:
+    started = perf_counter()
+    try:
+        if intent.property == "adjacency":
+            passed, evidence, reason = _verify_adjacency(runtime, intent, command_cache)
+        elif intent.property == "waypoint":
+            passed, evidence, reason = _verify_waypoint(runtime, intent, plan)
+        else:
+            passed, evidence, reason = _verify_connectivity(runtime, intent)
+        status = "passed" if passed else "failed"
+    except Exception as exc:  # noqa: BLE001 - one intent must not hide other evidence
+        status = "error"
+        evidence = {}
+        reason = str(exc)
+    return ValidationResult(
+        intent=intent.id,
+        verifier="isp-runtime-v1",
+        status=status,
+        evidence=evidence,
+        reason=reason,
+        duration_ms=(perf_counter() - started) * 1000,
+    )
+
+
+def _verify_connectivity(
+    runtime: LabRuntime, intent: ValidationIntent
+) -> tuple[bool, dict[str, Any], str | None]:
+    assert intent.source is not None
+    assert intent.destination is not None
+    assert intent.traffic is not None
+    source = _runtime_source(intent.source)
+    target = _probe_address(intent.destination)
+    protocol = intent.traffic.protocol
+    if protocol in {"tcp", "udp"}:
+        assert intent.traffic.destination_port is not None
+        udp_flag = "-u " if protocol == "udp" else ""
+        output = exec_or_empty(
+            runtime,
+            source,
+            f"nc -z {udp_flag}-w 2 {target} {intent.traffic.destination_port} && echo NIKA_OPEN",
+            timeout=10,
+        )
+        reachable = "NIKA_OPEN" in output
+    else:
+        reachable = ping_ok(runtime, source, target, count=1)
+    passed = reachable if intent.property == "reachability" else not reachable
+    evidence = {
+        "source": source,
+        "target": target,
+        "protocol": protocol,
+        "destination_port": intent.traffic.destination_port,
+        "observed_reachable": reachable,
+    }
+    reason = None if passed else f"observed_reachable={reachable}"
+    return passed, evidence, reason
+
+
+def _verify_adjacency(
+    runtime: LabRuntime,
+    intent: ValidationIntent,
+    command_cache: dict[tuple[str, str], str],
+) -> tuple[bool, dict[str, Any], str | None]:
+    assert intent.adjacency is not None
+    adjacency = intent.adjacency
+    if adjacency.protocol == "bgp":
+        output = _cached_exec(
+            runtime,
+            adjacency.local_node,
+            "vtysh -c 'show bgp summary'",
+            command_cache,
+            timeout=20,
+        )
+        established = sorted(_bgp_established_peers(output))
+        passed = adjacency.remote_address in established
+        evidence = {
+            "local_node": adjacency.local_node,
+            "remote_node": adjacency.remote_node,
+            "peer_address": adjacency.remote_address,
+            "established_peers": established,
+        }
+    else:
+        output = _cached_exec(
+            runtime,
+            adjacency.local_node,
+            "vtysh -c 'show ip ospf neighbor'",
+            command_cache,
+            timeout=20,
+        )
+        full_router_ids = _ospf_full_router_ids(output)
+        remote_router_id = adjacency.remote_router_id or adjacency.remote_address
+        passed = remote_router_id in full_router_ids
+        evidence = {
+            "local_node": adjacency.local_node,
+            "remote_node": adjacency.remote_node,
+            "peer_router_id": remote_router_id,
+            "full_router_ids": sorted(full_router_ids),
+        }
+    return (
+        passed,
+        evidence,
+        None if passed else "expected adjacency was not established",
+    )
+
+
+def _verify_waypoint(
+    runtime: LabRuntime, intent: ValidationIntent, plan: IspPlan
+) -> tuple[bool, dict[str, Any], str | None]:
+    assert intent.source is not None
+    assert intent.destination is not None
+    assert intent.path is not None
+    source = _runtime_source(intent.source)
+    target = _probe_address(intent.destination)
+    output = exec_or_empty(
+        runtime,
+        source,
+        f"traceroute -n -m 32 -w 1 -q 1 {target}",
+        timeout=40,
+    )
+    address_to_node: dict[str, str] = {}
+    for node in plan.nodes:
+        address_to_node[node.loopback] = node.device_name
+        for interface in node.interfaces:
+            address_to_node[interface.address] = node.device_name
+    hops = []
+    for line in output.splitlines():
+        fields = line.split()
+        for field in fields[1:]:
+            try:
+                address = str(IPv4Address(field))
+            except ValueError:
+                continue
+            node = address_to_node.get(address)
+            if node and node not in hops:
+                hops.append(node)
+            break
+    required = set(intent.path.must_traverse)
+    forbidden = set(intent.path.must_avoid)
+    passed = (
+        bool(output.strip())
+        and required.issubset(hops)
+        and not forbidden.intersection(hops)
+    )
+    evidence = {
+        "source": source,
+        "target": target,
+        "observed_nodes": hops,
+        "must_traverse": list(intent.path.must_traverse),
+        "must_avoid": list(intent.path.must_avoid),
+    }
+    reason = None if passed else "observed path did not satisfy the path constraint"
+    return passed, evidence, reason
+
+
+def _runtime_source(entity: NetworkEntity) -> str:
+    if entity.kind == "endpoint":
+        return entity.name
+    if entity.kind == "node":
+        return entity.name
+    if entity.node:
+        return entity.node
+    raise ValueError(f"entity {entity.name!r} cannot be used as a runtime source")
+
+
+def _probe_address(entity: NetworkEntity) -> str:
+    if not entity.address:
+        raise ValueError(f"entity {entity.name!r} has no address")
+    if entity.kind == "prefix":
+        network = IPv4Network(entity.address)
+        return str(network.network_address + 1)
+    return entity.address.split("/", 1)[0]
+
+
+def _ospf_full_router_ids(output: str) -> set[str]:
+    peers: set[str] = set()
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and any(field.startswith("Full") for field in fields):
+            try:
+                peers.add(str(IPv4Address(fields[0])))
+            except ValueError:
+                continue
+    return peers
+
+
+def _cached_exec(
+    runtime: LabRuntime,
+    host: str,
+    command: str,
+    cache: dict[tuple[str, str], str],
+    *,
+    timeout: float,
+) -> str:
+    key = (host, command)
+    if key not in cache:
+        cache[key] = exec_or_empty(runtime, host, command, timeout=timeout)
+    return cache[key]
 
 
 def _igp_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
@@ -94,7 +327,7 @@ def _igp_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
 
 def _isis_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     degree: dict[str, int] = defaultdict(int)
-    for link in plan.links:
+    for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
     for node in plan.nodes:
@@ -117,7 +350,7 @@ def _isis_up(line: str) -> bool:
 
 def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     degree: dict[str, int] = defaultdict(int)
-    for link in plan.links:
+    for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
     for node in plan.nodes:
@@ -149,23 +382,26 @@ def _loopbacks_reachable(runtime: LabRuntime, plan: IspPlan) -> bool:
 
     adj: dict[str, list[tuple[str, str]]] = defaultdict(list)
     loopback = {node.device_name: node.loopback for node in plan.nodes}
-    for link in plan.links:
+    for link in active_igp_links(plan):
         adj[link.endpoint_a].append((link.endpoint_b, loopback[link.endpoint_b]))
         adj[link.endpoint_b].append((link.endpoint_a, loopback[link.endpoint_a]))
 
-    root = sorted(loopback)[0]
-    seen = {root}
-    queue: deque[str] = deque([root])
-    while queue:
-        device = queue.popleft()
-        for peer, peer_lo in sorted(adj[device]):
-            if peer in seen:
-                continue
-            if not ping_ok(runtime, device, peer_lo, count=1):
-                return False
-            seen.add(peer)
-            queue.append(peer)
-    return seen == set(loopback)
+    for component in igp_components(plan):
+        root = component[0]
+        seen = {root}
+        queue: deque[str] = deque([root])
+        while queue:
+            device = queue.popleft()
+            for peer, peer_lo in sorted(adj[device]):
+                if peer in seen:
+                    continue
+                if not ping_ok(runtime, device, peer_lo, count=1):
+                    return False
+                seen.add(peer)
+                queue.append(peer)
+        if seen != set(component):
+            return False
+    return True
 
 
 def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
@@ -209,11 +445,19 @@ def _stub_gateway_ok(runtime: LabRuntime, traffic: IspTrafficAttachment) -> bool
 
 
 def _stub_remote_ok(runtime: LabRuntime, traffic: IspTrafficAttachment) -> bool:
-    hosts = sorted(traffic.hosts, key=lambda h: h.host_name)
-    if len(hosts) < 2:
-        return True
-    a, b = hosts[0], hosts[-1]
-    return ping_ok(runtime, a.host_name, b.address, count=1)
+    host_by_router = {host.router_device: host for host in traffic.hosts}
+    for component in igp_components(traffic.plan):
+        hosts = sorted(
+            (
+                host_by_router[router]
+                for router in component
+                if router in host_by_router
+            ),
+            key=lambda host: host.host_name,
+        )
+        if len(hosts) >= 2:
+            return ping_ok(runtime, hosts[0].host_name, hosts[-1].address, count=1)
+    return True
 
 
 def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
@@ -338,6 +582,8 @@ def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     observer = str(bgp_plan.inventory.get("rov_observer") or "")
     if not observer:
         return False
+    rtr = bgp_plan.inventory.get("rpki_rtr") or {}
+    routinator_address = str(rtr.get("address") or "")
     output = exec_or_empty(
         runtime, observer, "vtysh -c 'show rpki cache-connection'", timeout=20
     )
@@ -348,7 +594,7 @@ def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
         "connected" in lowered
         or "establ" in lowered
         or "up" in lowered
-        or "10.255.254.2" in output
+        or (routinator_address and routinator_address in output)
         or "rtr" in lowered
     )
 

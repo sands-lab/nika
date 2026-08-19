@@ -8,7 +8,13 @@ from nika.net_env.isp.bgp.errors import BgpConfigError
 
 IspBgpMode = Literal["none", "ibgp_rr", "ebgp"]
 
-SUPPORTED_BGP_MODES: tuple[IspBgpMode, ...] = ("none", "ibgp_rr", "ebgp")
+# Public ``isp --bgp-mode`` values. Enable RPKI with ``--rpki`` on ``ebgp``.
+ISP_BGP_MODES: tuple[IspBgpMode, ...] = (
+    "none",
+    "ibgp_rr",
+    "ebgp",
+)
+SUPPORTED_BGP_MODES: tuple[IspBgpMode, ...] = ISP_BGP_MODES
 DEFAULT_BGP_MODE: IspBgpMode = "none"
 
 # Preset constants (NIKA policy — not derived from SNDlib).

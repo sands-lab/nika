@@ -20,13 +20,17 @@ def test_coverage_columns_include_config_variants() -> None:
     assert "isp/ospf" in cols
     assert "isp/ibgp_rr" in cols
     assert "isp/abilene-ebgp" in cols
+    assert "isp/abilene-ebgp-rpki" in cols
+    assert "isp/geant-ebgp-rpki" in cols
+    assert "ebgp_rpki" not in cols
     assert "simple_bgp" in cols
 
 
-def test_link_down_compatible_with_all_columns() -> None:
+def test_link_down_compatible_with_link_columns() -> None:
     cols = coverage_columns()
-    assert compatible_columns("link_down") == cols
-    assert all(compatible("link_down", col) for col in cols)
+    link_cols = [c for c in cols if "link" in effective_tags(c)]
+    assert compatible_columns("link_down") == link_cols
+    assert "ebgp_rpki" not in link_cols
 
 
 def test_ospf_not_on_isp_isis() -> None:
@@ -47,9 +51,13 @@ def test_bgp_needs_bgp_enabled_isp() -> None:
     assert not compatible("bgp_asn_misconfig", "isp/ospf")
 
 
-def test_rpki_only_abilene_ebgp() -> None:
+def test_rpki_on_isp_rpki_columns() -> None:
     cols = compatible_columns("bgp_rpki_invalid_route_leak")
-    assert cols == ["isp/abilene-ebgp"]
+    assert cols == ["isp/abilene-ebgp-rpki", "isp/geant-ebgp-rpki"]
+    assert compatible("bgp_rpki_invalid_route_leak", "isp/abilene-ebgp-rpki")
+    assert compatible("bgp_rpki_invalid_route_leak", "isp/geant-ebgp-rpki")
+    assert not compatible("bgp_rpki_invalid_route_leak", "isp/abilene-ebgp")
+    assert not compatible("bgp_rpki_invalid_route_leak", "isp/ibgp_rr")
 
 
 def test_dhcp_not_on_campus_static() -> None:

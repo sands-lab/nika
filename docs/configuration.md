@@ -66,6 +66,14 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `nika.mcp.gateway_host` | `127.0.0.1` | Host address for the session MCP gateway. |
 | `nika.mcp.gateway_port` | `0` | Gateway port. `0` selects a free port; negative values are invalid. |
 
+### Static validation
+
+| Key | Default | Meaning and constraints |
+| --- | --- | --- |
+| `nika.static_validation.enabled` | `false` | Run the optional Batfish verifier before deployment for supported ISP Kathara FRR scenarios. Live runtime verification remains enabled for normal startup. |
+
+The CLI flag `--static-validation` overrides this setting for one run. Use `--no-static-validation` to force the runtime-only path.
+
 ## `agent` settings
 
 | Key | Schema default | Meaning and constraints |

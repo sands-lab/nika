@@ -50,6 +50,12 @@ def _parse_env_run_args(extra_args: list[str] | None) -> dict[str, Any]:
         elif arg == "--bgp-mode" and i + 1 < len(args):
             kwargs["bgp_mode"] = args[i + 1]
             i += 2
+        elif arg == "--rpki":
+            kwargs["rpki"] = True
+            i += 1
+        elif arg == "--no-rpki":
+            kwargs["rpki"] = False
+            i += 1
         elif arg == "--backend" and i + 1 < len(args):
             kwargs["backend"] = args[i + 1]
             i += 2

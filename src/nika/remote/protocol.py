@@ -27,9 +27,11 @@ class EnvStartRequest(BaseModel):
     metric_strategy: str | None = None
     constant_metric: int | None = None
     bgp_mode: str | None = None
+    rpki: bool | None = None
     backend: str | None = None
     device_profile: str | None = None
     workload: str | None = None
+    static_validation: bool = False
 
 
 class EnvStartResponse(BaseModel):

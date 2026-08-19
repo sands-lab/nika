@@ -117,6 +117,14 @@ class McpSettings(BaseModel):
         return value
 
 
+class StaticValidationSettings(BaseModel):
+    """Enable the optional pre-deployment Batfish verifier."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -129,6 +137,9 @@ class NikaSettings(BaseModel):
     k8s: K8sSettings = Field(default_factory=K8sSettings)
     lab: LabSettings = Field(default_factory=LabSettings)
     mcp: McpSettings = Field(default_factory=McpSettings)
+    static_validation: StaticValidationSettings = Field(
+        default_factory=StaticValidationSettings
+    )
 
 
 class AgentModels(BaseModel):

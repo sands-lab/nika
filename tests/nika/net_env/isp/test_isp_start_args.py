@@ -14,6 +14,7 @@ def _kwargs(**overrides):
         "metric_strategy": None,
         "constant_metric": None,
         "bgp_mode": None,
+        "rpki": None,
         "device_profile": None,
         "backend": None,
     }
@@ -29,6 +30,7 @@ def test_isp_defaults_applied() -> None:
         "metric_strategy": "constant",
         "constant_metric": 10,
         "bgp_mode": "none",
+        "rpki": False,
         "device_profile": "frr",
     }
 
@@ -80,3 +82,22 @@ def test_bgp_mode_ibgp_rr_accepted() -> None:
     kwargs = _resolve_isp_kwargs("isp", **_kwargs(topo="abilene", bgp_mode="ibgp_rr"))
     assert kwargs["bgp_mode"] == "ibgp_rr"
     assert kwargs["topo"] == "abilene"
+
+
+def test_isp_rpki_accepted() -> None:
+    kwargs = _resolve_isp_kwargs(
+        "isp", **_kwargs(topo="abilene", bgp_mode="ebgp", rpki=True)
+    )
+    assert kwargs["bgp_mode"] == "ebgp"
+    assert kwargs["rpki"] is True
+    assert kwargs["topo"] == "abilene"
+
+
+def test_isp_rpki_requires_ebgp() -> None:
+    with pytest.raises(ValueError, match="requires --bgp-mode ebgp"):
+        _resolve_isp_kwargs("isp", **_kwargs(bgp_mode="ibgp_rr", rpki=True))
+
+
+def test_isp_rejects_unknown_bgp_mode() -> None:
+    with pytest.raises(ValueError, match="Unsupported bgp_mode"):
+        _resolve_isp_kwargs("isp", **_kwargs(bgp_mode="ebgp_rpki"))

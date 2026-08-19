@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from nika.net_env.contract import ValidationContract
 from nika.workflows.env.start import start_net_env
 
 
@@ -89,3 +90,79 @@ def test_cleanup_falls_back_to_undeploy_when_close_fails(tmp_path: Path) -> None
     )
     close_mock.assert_called_once_with(session_id=session_id, undeploy=True)
     env.undeploy.assert_called()
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_static_validation_requires_explicit_opt_in(
+    tmp_path: Path, enabled: bool
+) -> None:
+    env = MagicMock()
+    env.name = "simple_bgp__x"
+    env.lab_exists.return_value = True
+    env.metadata = {}
+    env.get_validation_contract.return_value = ValidationContract(
+        contract_id="simple_bgp.baseline",
+        scenario="simple_bgp",
+        design_source={},
+        intents=(),
+    )
+    session = MagicMock()
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    session.session_dir = str(session_dir)
+
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
+        patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
+        patch("nika.workflows.env.start.Session", return_value=session),
+        patch("nika.workflows.env.start.bind_session_dir"),
+        patch("nika.workflows.env.start.log_event"),
+        patch("nika.workflows.env.start.run_static_validation", return_value={}) as run,
+    ):
+        start_net_env(
+            "simple_bgp",
+            None,
+            redeploy=False,
+            static_validation=enabled,
+        )
+
+    assert run.called is enabled
+
+
+def test_yaml_static_validation_setting_enables_batfish(
+    tmp_path: Path,
+) -> None:
+    env = MagicMock()
+    env.name = "simple_bgp__x"
+    env.lab_exists.return_value = True
+    env.metadata = {}
+    env.get_validation_contract.return_value = ValidationContract(
+        contract_id="simple_bgp.baseline",
+        scenario="simple_bgp",
+        design_source={},
+        intents=(),
+    )
+    session = MagicMock()
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    session.session_dir = str(session_dir)
+
+    from types import SimpleNamespace
+
+    config = SimpleNamespace(
+        nika=SimpleNamespace(static_validation=SimpleNamespace(enabled=True))
+    )
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch("nika.workflows.env.start.get_run_config", return_value=config),
+        patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
+        patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
+        patch("nika.workflows.env.start.Session", return_value=session),
+        patch("nika.workflows.env.start.bind_session_dir"),
+        patch("nika.workflows.env.start.log_event"),
+        patch("nika.workflows.env.start.run_static_validation", return_value={}) as run,
+    ):
+        start_net_env("simple_bgp", None, redeploy=False)
+
+    run.assert_called_once()

@@ -302,6 +302,7 @@ def run_single_case(
     topo: str | None = None,
     igp: str | None = None,
     bgp_mode: str | None = None,
+    rpki: bool | None = None,
 ) -> tuple[str, Path]:
     """Run one benchmark case (env → inject → agent → close + metrics).
 
@@ -318,6 +319,8 @@ def run_single_case(
         isp_bits.append(f"IGP: {igp}")
     if bgp_mode:
         isp_bits.append(f"BGP: {bgp_mode}")
+    if rpki:
+        isp_bits.append("RPKI: on")
     print(
         f"Running benchmark for Problem: {problem}, Scenario: {scenario}, Topo Size: {topo_size}"
         + (f", Workload: {workload}" if workload else "")
@@ -367,6 +370,7 @@ def run_single_case(
         topo=topo,
         igp=igp,
         bgp_mode=bgp_mode,
+        rpki=rpki,
     )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
@@ -391,6 +395,7 @@ def run_single_case(
             topo=topo,
             igp=igp,
             bgp_mode=bgp_mode,
+            rpki=rpki,
         )
         session = Session().load_running_session(session_id=session_id)
         session.update_session(
@@ -547,6 +552,7 @@ def _run_trial(
         topo=row.get("topo"),
         igp=row.get("igp"),
         bgp_mode=row.get("bgp_mode"),
+        rpki=row.get("rpki"),
     )
 
 

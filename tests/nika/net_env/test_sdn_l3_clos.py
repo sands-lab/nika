@@ -6,6 +6,7 @@ import time
 
 import pytest
 
+from nika.net_env.kathara.sdn.fabric_manager import apply as fabric_apply
 from nika.net_env.kathara.sdn.fabric_manager.apply import (
     apply_forwarding,
     prune_groups_for_down_link,
@@ -63,6 +64,53 @@ def test_forwarding_rules_spine_prefixes() -> None:
     spine_flows = [f for f in rules["flows"] if f["switch"] == "spine_1"]
     assert len(spine_flows) == model.leaf_count
     assert all(f["device_id"] == device_id(dpid_for_spine(1)) for f in spine_flows)
+
+
+def test_prune_groups_removes_only_failed_link_buckets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    batches: list[list[tuple[str, str, dict | None]]] = []
+    waits: list[set[tuple[str, str, str]]] = []
+
+    monkeypatch.setattr(
+        fabric_apply,
+        "_ofport_map",
+        lambda _runtime, switch, _model: {
+            port.name: str(index)
+            for index, port in enumerate(model.ports[switch], start=1)
+        },
+    )
+    monkeypatch.setattr(
+        fabric_apply,
+        "_bucket_ids_for_output_port",
+        lambda _runtime, _device_id, _cookie, output_port: [f"bucket-{output_port}"],
+    )
+
+    def record_batch(_runtime, ops):
+        batches.append(ops)
+        return "[" + ",".join('{"status": 200}' for _ in ops) + "]"
+
+    def record_wait(_runtime, expected, *, timeout_sec=30.0):
+        waits.append(expected)
+        return True
+
+    monkeypatch.setattr(fabric_apply, "_onos_batch", record_batch)
+    monkeypatch.setattr(fabric_apply, "_wait_for_group_bucket_removal", record_wait)
+
+    prune_groups_for_down_link(
+        object(),
+        model,
+        leaf="leaf_1",
+        spine="spine_1",  # type: ignore[arg-type]
+    )
+
+    assert [[method for method, _path, _body in batch] for batch in batches] == [
+        ["DELETE"] * 6
+    ]
+    assert all("/buckets/bucket-" in path for _method, path, _body in batches[0])
+    assert len(waits) == 1
+    assert len(waits[0]) == 6
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")

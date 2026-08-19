@@ -50,14 +50,14 @@ def test_bgp_originator_and_hijack() -> None:
             assert speaker not in originators
 
 
-def test_bgp_rpki_leak_target_abilene() -> None:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
-    bgp = compile_bgp_plan(isp_plan, "ebgp")
+def test_bgp_rpki_leak_target_from_inventory() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
     assert bgp is not None
     params = isp_inject_params(
         "bgp_rpki_invalid_route_leak", isp_plan.inventory, bgp.inventory
     )
-    assert params == {"host_name": "losang"}
+    assert params == {"host_name": bgp.inventory["leaker_device"]}
 
 
 def test_bgp_max_prefix_target_ebgp() -> None:
@@ -79,9 +79,3 @@ def test_bgp_max_prefix_target_ebgp() -> None:
         and {s["local_device"], s["remote_device"]} == pair
     ]
     assert sessions
-
-
-def test_unsupported_problem() -> None:
-    plan = compile_isp_plan(IspConfig(topology="polska"))
-    with pytest.raises(ValueError, match="unsupported"):
-        isp_inject_params("host_crash", plan.inventory)

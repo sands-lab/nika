@@ -61,6 +61,14 @@ def env_run(
         "--bgp-mode",
         help=("BGP preset: none, ibgp_rr, or ebgp (isp only; default: none)."),
     ),
+    rpki: bool = typer.Option(
+        False,
+        "--rpki/--no-rpki",
+        help=(
+            "Enable offline RPKI/ROV on eBGP (isp + Kathara only; requires "
+            "--bgp-mode ebgp)."
+        ),
+    ),
     backend: str | None = typer.Option(
         None,
         "--backend",
@@ -90,6 +98,14 @@ def env_run(
         "--no-redeploy",
         help="If set, do not redeploy when the lab already exists.",
     ),
+    static_validation: bool | None = typer.Option(
+        None,
+        "--static-validation/--no-static-validation",
+        help=(
+            "Run the optional Batfish verifier before deployment (ISP Kathara FRR only). "
+            "Defaults to nika.static_validation.enabled."
+        ),
+    ),
     instance_tag: str | None = typer.Option(
         None,
         "--instance-tag",
@@ -116,9 +132,11 @@ def env_run(
         metric_strategy=metric_strategy,
         constant_metric=constant_metric,
         bgp_mode=bgp_mode,
+        rpki=rpki or None,
         backend=backend,
         device_profile=device_profile,
         workload=workload,
+        static_validation=static_validation,
     )
     typer.echo(f"session_id={session_id}")
 

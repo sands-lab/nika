@@ -160,7 +160,7 @@ Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center
 uv run nika env run enterprise_branch -s s
 ```
 
-## Fixed BGP scenario
+## Fixed BGP scenarios
 
 ### `simple_bgp`
 
@@ -318,8 +318,9 @@ uv run nika env run isp --backend containerlab \
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
 | `--bgp-mode` | `none`, `ibgp_rr`, `ebgp` | `none` | Adds a NIKA-defined BGP preset |
+| `--rpki` / `--no-rpki` | flag | off | Offline RPKI/ROV on `ebgp` (Kathara/FRR only) |
 
-`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions sorted routers into up to three ASes and creates sessions only on links crossing an AS boundary. It does not add iBGP inside each partition, except for **Abilene + eBGP**, which enables a fixed inter-AS / RPKI profile: intra-AS iBGP meshes, a Routinator RTR with offline SLURM VRPs, a leaker AS with healthy export deny for leak-target prefixes, one ROV observer that rejects RPKI Invalid routes, and one non-ROV observer. That profile supports `bgp_rpki_invalid_route_leak`.
+`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive. With `--rpki`, NIKA overlays an offline Routinator RTR, deterministic VRP assertions, one ROV observer, one non-ROV observer, and a leaker AS with a healthy export deny. Benchmark cases that exercise RPKI use Abilene and GEANT; other SNDlib graphs compile when they support a three-AS partition.
 
 The vendored SNDlib catalog contains 26 topologies:
 

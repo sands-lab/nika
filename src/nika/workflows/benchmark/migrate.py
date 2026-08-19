@@ -45,13 +45,20 @@ def materialize_case(
     isp_topo = row.get("topo")
     isp_igp = row.get("igp")
     isp_bgp = row.get("bgp_mode")
-    isp_kwargs: dict[str, str] = {}
+    isp_rpki = row.get("rpki")
+    isp_kwargs: dict[str, Any] = {}
     if isp_topo not in (None, "", "-"):
         isp_kwargs["topo"] = str(isp_topo)
     if isp_igp not in (None, "", "-"):
         isp_kwargs["igp"] = str(isp_igp)
     if isp_bgp not in (None, "", "-"):
         isp_kwargs["bgp_mode"] = str(isp_bgp)
+    if isp_rpki not in (None, "", "-"):
+        isp_kwargs["rpki"] = (
+            bool(isp_rpki)
+            if isinstance(isp_rpki, bool)
+            else str(isp_rpki).lower() in {"1", "true", "yes", "on"}
+        )
     inject = {str(k): str(v) for k, v in dict(row.get("inject") or {}).items()}
     cache = env_cache if env_cache is not None else {}
     cache_key = (
@@ -61,6 +68,7 @@ def materialize_case(
         isp_kwargs.get("topo", ""),
         isp_kwargs.get("igp", ""),
         isp_kwargs.get("bgp_mode", ""),
+        str(isp_kwargs.get("rpki", False)),
     )
     if cache_key not in cache:
         cache[cache_key] = load_offline_net_env(

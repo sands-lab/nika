@@ -10,7 +10,14 @@ from nika.runtime.factory import (
     runtime_for_net_env,
     runtime_for_session,
 )
-from nika.runtime.spec import LabSpec, LinkSpec, NodeSpec
+from nika.runtime.spec import (
+    LabSpec,
+    LinkSpec,
+    MachineInventory,
+    NodeIdentity,
+    NodeRole,
+    NodeSpec,
+)
 
 __all__ = [
     "ContainerlabRuntime",
@@ -18,6 +25,9 @@ __all__ = [
     "LabRuntime",
     "LabSpec",
     "LinkSpec",
+    "MachineInventory",
+    "NodeIdentity",
+    "NodeRole",
     "NodeSpec",
     "RuntimeCapabilityError",
     "parse_clab_topology",

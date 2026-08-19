@@ -60,6 +60,9 @@ nika:
     gateway_host: "127.0.0.1"
     # MCP gateway port; 0 selects a free port.
     gateway_port: 0
+  static_validation:
+    # Optional Batfish verifier; live runtime verification remains the default.
+    enabled: false
 
 agent:
   # Agent implementation from `nika agent list`.

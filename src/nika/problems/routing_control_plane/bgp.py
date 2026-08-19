@@ -401,7 +401,7 @@ class BGPRPKIInvalidRouteLeakParams(BaseModel):
     """Parameters for injecting an RPKI-invalid BGP route leak."""
 
     host_name: str = Field(
-        description="Primary leaker router (Abilene inter-AS profile)."
+        description="Primary leaker router from the ISP RPKI profile inventory."
     )
 
 
@@ -413,7 +413,7 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
     temporal = FailureTemporal.PERSISTENT
     impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_rpki_invalid_route_leak"
-    TAGS: str = ["bgp", "rpki"]
+    TAGS: str = ["rpki"]
 
     Params = BGPRPKIInvalidRouteLeakParams
 
@@ -434,9 +434,8 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
         bgp = inventory.get("bgp") if isinstance(inventory, dict) else None
         if not isinstance(bgp, dict) or not bgp.get("rpki"):
             raise RuntimeCapabilityError(
-                f"{type(self).__name__} requires isp Abilene eBGP with the "
-                "inter-AS RPKI profile "
-                "(deploy with: nika env run isp --topo abilene --bgp-mode ebgp)."
+                f"{type(self).__name__} requires isp with RPKI enabled "
+                "(deploy with: nika env run isp --bgp-mode ebgp --rpki)."
             )
         return bgp
 
@@ -561,6 +560,68 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
                 "non_rov_observer": non_rov,
             },
         )
+
+    def recover_fault(self, params: BGPRPKIInvalidRouteLeakParams) -> dict:
+        """Restore healthy BGP-OUT deny for leak prefixes on the leaker AS."""
+        if self.lab_backend != "kathara":
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__} cannot recover_fault: unsupported backend "
+                f"{self.lab_backend!r}."
+            )
+        bgp = self._rpki_bgp_inventory()
+        leaker = str(bgp.get("leaker_device") or params.host_name)
+        devices = [str(d) for d in (bgp.get("leaker_as_devices") or [leaker])]
+        prefixes = [str(p) for p in (bgp.get("leak_prefixes") or [])]
+        observers = [
+            str(bgp.get("rov_observer") or ""),
+            str(bgp.get("non_rov_observer") or ""),
+        ]
+        observers = [o for o in observers if o]
+
+        for device in devices:
+            cmd = (
+                "vtysh -c 'configure terminal' "
+                "-c 'route-map BGP-OUT deny 5' "
+                "-c 'match ip address prefix-list LEAK' "
+                "-c 'end' "
+                "-c 'write memory'"
+            )
+            self.runtime.exec(device, cmd)
+            self.runtime.exec(
+                device, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
+            )
+        time.sleep(25)
+
+        leak_absent = True
+        for observer in observers:
+            for prefix in prefixes:
+                out = self.runtime.exec(
+                    observer,
+                    f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
+                )
+                if "Network not in table" in out:
+                    continue
+                network = prefix.split("/")[0]
+                if network in out or prefix in out:
+                    if "from" in out.lower() or "Path" in out or "*" in out:
+                        leak_absent = False
+                        break
+            if not leak_absent:
+                break
+
+        ok = leak_absent
+        details = {
+            "host": params.host_name,
+            "leaker_device": leaker,
+            "leaker_as_devices": devices,
+            "leak_prefixes": prefixes,
+            "leak_absent": leak_absent,
+            "observers": observers,
+        }
+        self.logger.info(
+            f"recover_fault bgp_rpki_invalid_route_leak: ok={ok} {details}"
+        )
+        return {"ok": ok, "details": details}
 
 
 # ==================================================================

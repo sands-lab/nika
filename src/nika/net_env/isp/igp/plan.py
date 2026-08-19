@@ -73,6 +73,41 @@ class IspPlan:
     inventory: dict[str, Any]
 
 
+def active_igp_links(plan: IspPlan) -> tuple[PlannedLink, ...]:
+    """Return backbone links whose two router interfaces run the IGP."""
+    active_endpoints: dict[str, int] = {}
+    backbone = {link.link_id for link in plan.links}
+    for node in plan.nodes:
+        for interface in node.interfaces:
+            if interface.link_id in backbone and not interface.passive:
+                active_endpoints[interface.link_id] = (
+                    active_endpoints.get(interface.link_id, 0) + 1
+                )
+    return tuple(link for link in plan.links if active_endpoints.get(link.link_id) == 2)
+
+
+def igp_components(plan: IspPlan) -> tuple[tuple[str, ...], ...]:
+    """Return deterministic connected components of the active IGP graph."""
+    graph: dict[str, set[str]] = {node.device_name: set() for node in plan.nodes}
+    for link in active_igp_links(plan):
+        graph[link.endpoint_a].add(link.endpoint_b)
+        graph[link.endpoint_b].add(link.endpoint_a)
+    remaining = set(graph)
+    components: list[tuple[str, ...]] = []
+    while remaining:
+        root = min(remaining)
+        reached = {root}
+        queue = [root]
+        for device in queue:
+            for peer in sorted(graph[device]):
+                if peer not in reached:
+                    reached.add(peer)
+                    queue.append(peer)
+        remaining -= reached
+        components.append(tuple(sorted(reached)))
+    return tuple(components)
+
+
 def slugify(raw: str, *, kind: str) -> str:
     """Map an SNDlib id to a Kathara-safe runtime name."""
     slug = _SLUG_RE.sub("_", raw.strip().lower()).strip("_")
@@ -266,6 +301,7 @@ def build_inventory(
                 "address": f"{iface.address}/{iface.prefixlen}",
                 "subnet": iface.subnet,
                 "metric": iface.metric,
+                "passive": iface.passive,
             }
             for iface in sorted(node.interfaces, key=lambda i: i.name)
         ]

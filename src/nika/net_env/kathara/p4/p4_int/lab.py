@@ -5,6 +5,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,11 +26,31 @@ class P4INT(NetworkEnvBase):
         pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
         pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
         collector = self.lab.new_machine("collector", **{"image": "nika/influxdb"})
+        for host in (pc1, pc2):
+            self.declare_machine(
+                host.name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
+        self.declare_machine(
+            collector.name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux", "influxdb"),
+            service_type="database",
+            reachability_target=True,
+        )
 
         spine1 = self.lab.new_machine("spine1", **{"image": "kathara/p4"})
         spine2 = self.lab.new_machine("spine2", **{"image": "kathara/p4"})
         leaf1 = self.lab.new_machine("leaf1", **{"image": "kathara/p4"})
         leaf2 = self.lab.new_machine("leaf2", **{"image": "kathara/p4"})
+        for switch in (spine1, spine2, leaf1, leaf2):
+            self.declare_machine(
+                switch.name,
+                role=NodeRole.SWITCH,
+                capabilities=("linux", "bmv2", "p4"),
+            )
 
         self.lab.connect_machine_to_link(pc1.name, "A")
         self.lab.connect_machine_to_link(leaf1.name, "A")

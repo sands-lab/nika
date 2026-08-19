@@ -12,8 +12,16 @@ Coverage:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from nika.net_env.contract import (
+    VALIDATION_CONTRACT_FILENAME,
+    VALIDATION_RESULTS_FILENAME,
+    ValidationContract,
+    ValidationReport,
+)
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.kathara.isp.isp.lab import Isp
@@ -34,6 +42,24 @@ ALL_BGP_MODES = ("ibgp_rr", "ebgp")
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class IspDockerTest(IntegrationTestCase):
+    def _assert_contract_artifacts(
+        self, row: dict, *, expected_properties: set[str]
+    ) -> None:
+        session_dir = Path(row["session_dir"])
+        assert row["validation_contract"] == VALIDATION_CONTRACT_FILENAME
+        assert row["validation_results"] == VALIDATION_RESULTS_FILENAME
+        contract = ValidationContract.load(session_dir / VALIDATION_CONTRACT_FILENAME)
+        report = ValidationReport.load(session_dir / VALIDATION_RESULTS_FILENAME)
+        assert report.contract_id == contract.contract_id
+        assert report.status == "passed"
+        assert expected_properties.issubset(
+            {intent.property for intent in contract.intents}
+        )
+        assert {result.intent for result in report.results} == {
+            intent.id for intent in contract.intents
+        }
+        assert all(result.evidence for result in report.results)
+
     @pytest.mark.parametrize("igp", ALL_IGPS)
     @pytest.mark.parametrize("topo_name", ALL_TOPOS)
     def test_topo_starts_verifies_and_destroys(self, topo_name: str, igp: str) -> None:
@@ -55,6 +81,11 @@ class IspDockerTest(IntegrationTestCase):
             assert params.get("igp") == igp
             assert params.get("metric_strategy") == "constant"
             assert params.get("bgp_mode") == "none"
+            self._assert_contract_artifacts(
+                row,
+                expected_properties={"reachability", "isolation"}
+                | ({"adjacency"} if igp == "ospf" else set()),
+            )
 
             runtime = runtime_for_session(row)
             nodes = set(runtime.list_nodes())
@@ -109,6 +140,10 @@ class IspDockerTest(IntegrationTestCase):
             lab_name = row["lab_name"]
             params = row.get("scenario_params") or {}
             assert params.get("bgp_mode") == bgp_mode
+            self._assert_contract_artifacts(
+                row,
+                expected_properties={"reachability", "isolation", "adjacency"},
+            )
             env = get_net_env_instance(
                 "isp",
                 topo=topo_name,
@@ -131,6 +166,42 @@ class IspDockerTest(IntegrationTestCase):
                     topo=topo_name,
                     igp="isis",
                     bgp_mode=bgp_mode,
+                    lab_name=lab_name,
+                )
+                assert not env.lab_exists()
+
+    def test_abilene_ospf_ebgp_respects_as_boundaries(self) -> None:
+        session_id = self._start_env(
+            "isp",
+            ["--topo", "abilene", "--igp", "ospf", "--bgp-mode", "ebgp"],
+        )
+        lab_name = None
+        try:
+            row = self._assert_session_ready(session_id, "isp")
+            lab_name = row["lab_name"]
+            env = get_net_env_instance(
+                "isp",
+                topo="abilene",
+                igp="ospf",
+                bgp_mode="ebgp",
+                lab_name=lab_name,
+            )
+            result = env.verify_lab()
+            assert_verify_success(result)
+            assert result["checks"]["igp_adjacencies"]
+            assert result["checks"]["loopbacks_reachable"]
+            assert result["checks"]["bgp_sessions"]
+            assert result["checks"]["bgp_prefixes_propagated"]
+            assert env.plan.inventory["igp_scope"] == "per_as"
+            assert env.plan.inventory["igp_passive_boundary_links"]
+        finally:
+            self._close_session(session_id)
+            if lab_name:
+                env = get_net_env_instance(
+                    "isp",
+                    topo="abilene",
+                    igp="ospf",
+                    bgp_mode="ebgp",
                     lab_name=lab_name,
                 )
                 assert not env.lab_exists()

@@ -98,7 +98,7 @@ uv run nika env run isp --backend containerlab --device-profile nokia_srlinux --
 uv run nika traffic run sndlib --mode demands --max-intervals 1 --unit K --background
 ```
 
-See the [`isp` scenario reference](network-scenarios.md#sndlib-isp-scenario) for the shared compiler, backend bindings, and control knobs.
+See the [`isp` scenario reference](network-scenarios.md#sndlib-isp-scenario) for the shared compiler, backend bindings, and control knobs. Enable offline RPKI/ROV with `--bgp-mode ebgp --rpki`.
 
 ## Add an injectable failure
 

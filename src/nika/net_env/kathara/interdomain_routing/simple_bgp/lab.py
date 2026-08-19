@@ -5,6 +5,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,9 +25,22 @@ class SimpleBGP(NetworkEnvBase):
 
         router1 = self.lab.new_machine("router1", **{"image": "nika/frr", "cpus": 1})
         router2 = self.lab.new_machine("router2", **{"image": "nika/frr", "cpus": 1})
+        for router in (router1, router2):
+            self.declare_machine(
+                router.name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "bgp"),
+            )
 
         pc1 = self.lab.new_machine("pc1", **{"image": "nika/base"})
         pc2 = self.lab.new_machine("pc2", **{"image": "nika/base"})
+        for host in (pc1, pc2):
+            self.declare_machine(
+                host.name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
 
         self.lab.connect_machine_to_link(router1.name, "A")
         self.lab.connect_machine_to_link(router2.name, "A")
