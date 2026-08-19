@@ -134,39 +134,28 @@ def k8s_resource(
 class ProblemGroundTruth(BaseModel):
     """Detection + structured RCA ground truth.
 
-    ``root_cause_category`` is for statistics only. Core RCA is ``root_causes``.
-    ``faulty_devices`` and ``root_cause_name`` are legacy projections.
+    Taxonomy metadata is for statistics only. Core RCA is ``root_causes``.
     """
 
-    schema_version: Literal[1, 2] = 2
+    schema_version: Literal[1, 2, 3] = 3
     is_anomaly: bool = Field(
         description="Whether an anomaly is present in the network."
     )
     root_causes: list[RootCause] = Field(default_factory=list)
+    failure_domain: str = Field(
+        default="", description="Network subsystem in which the failure occurs."
+    )
+    cause: str = Field(default="", description="Root-cause mechanism.")
+    symptom: str = Field(default="", description="Primary observable symptom.")
+    scope: str = Field(default="", description="Primary failure extent.")
+    temporal: str = Field(default="", description="Temporal behavior.")
+    impact: str = Field(default="", description="Severity within the stated scope.")
     root_cause_category: str = Field(
-        default="", description="Root cause category identifier (stats only)."
+        default="", description="Legacy alias of failure_domain (stats only)."
     )
     detailed_cause: str = Field(
         default="", description="Detailed description of the root cause."
     )
-    faulty_devices: list[str] = Field(
-        default_factory=list,
-        description="Legacy device-level localization labels.",
-    )
-    root_cause_name: list[str] = Field(
-        default_factory=list, description="Legacy fault-type list."
-    )
-
-    @model_validator(mode="after")
-    def _sync_legacy_fields(self) -> ProblemGroundTruth:
-        if self.root_causes:
-            names: list[str] = []
-            for item in self.root_causes:
-                if item.fault_type not in names:
-                    names.append(item.fault_type)
-            if not self.root_cause_name:
-                self.root_cause_name = names
-        return self
 
 
 def canonical_root_causes(items: list[RootCause] | list[dict[str, Any]]) -> list[dict]:
@@ -193,11 +182,15 @@ def canonical_root_causes(items: list[RootCause] | list[dict[str, Any]]) -> list
 
 def healthy_ground_truth() -> ProblemGroundTruth:
     return ProblemGroundTruth(
-        schema_version=2,
+        schema_version=3,
         is_anomaly=False,
         root_causes=[],
+        failure_domain="",
+        cause="",
+        symptom="",
+        scope="",
+        temporal="",
+        impact="none",
         root_cause_category="",
         detailed_cause="",
-        faulty_devices=[],
-        root_cause_name=[],
     )

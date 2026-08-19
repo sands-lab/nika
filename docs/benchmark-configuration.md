@@ -50,12 +50,12 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 
 | File | Count | Role |
 |------|------:|------|
-| `benchmark_selected.yaml` | **58** | Editable curated suite (source for freezing a release) |
-| `benchmark_full.yaml` | **604** | Full scenario × failure × size matrix (62 represented problem IDs) |
+| `benchmark_selected.yaml` | **59** | Editable curated suite (source for freezing a release) |
+| `benchmark_full.yaml` | **605** | Full scenario × failure × size matrix (63 represented problem IDs) |
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
-Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices and frozen releases also carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. The `scenario`, `problem`, `topo_size`, and `inject` fields continue to define case identity. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
+Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices and frozen releases also carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. Case identity is `scenario` + `problem` + `topo_size` + `inject`, plus `workload` for Clos/campus and `topo` / `igp` / `bgp_mode` for `isp`. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 
 ```shell
 nika benchmark run --config benchmark/benchmark_selected.yaml
@@ -115,7 +115,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | Scenario | Tags |
 |----------|------|
 | `dc_clos` | `arp`, `bgp`, `dns`, `frr`, `http`, `icmp`, `link`, `mac`, `pc` |
-| `isp` | `bgp`, `containerlab`, `frr`, `icmp`, `igp`, `isis`, `isp`, `link`, `ospf`, `sndlib`, `srl` |
+| `isp` | `bgp`, `containerlab`, `frr`, `icmp`, `igp`, `isis`, `isp`, `link`, `ospf`, `rpki`, `sndlib`, `srl` |
 | `k8s_lab` | `arp`, `bgp`, `coredns`, `fat-tree`, `frr`, `icmp`, `ingress`, `k3s`, `k8s_control_plane`, `k8s_storage`, `k8s_workload`, `kube_proxy`, `kubernetes`, `link`, `mac`, `metallb`, `network_policy`, `pc` |
 | `llmd_lab` | `arp`, `coredns`, `http`, `icmp`, `inference`, `k3s`, `k8s_control_plane`, `kube_proxy`, `kubernetes`, `link`, `llm`, `mac`, `metallb`, `network_policy`, `pc` |
 | `min3clos` | `bgp`, `clos`, `containerlab`, `fabric`, `link`, `srl` |
@@ -133,13 +133,10 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 | Metric | Count |
 |--------|------:|
-| Registered failure types | 61 |
-| Failure types represented in `benchmark_full.yaml` | 61 |
-| Full benchmark cases | 604 |
-| Selected cases | 57 |
-| Scenarios in full matrix | 14 |
-
-Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target. The same release still lists `link_fragmentation_disabled`; loaders rewrite it to `mtu_mismatch` and update `fault_type` in `root_causes`.
+| Registered failure types | 64 |
+| Failure types represented in `benchmark_full.yaml` | 64 |
+| Full benchmark cases | 606 |
+| Selected cases | 60 |
 
 ### Full matrix by scenario
 
@@ -147,7 +144,7 @@ Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RI
 |----------|------:|
 | `campus_lan` | 111 |
 | `dc_clos` | 102 |
-| `enterprise_branch` | 93 |
+| `enterprise_branch` | 96 |
 | `sdn_clos` | 57 |
 | `sdn_star` | 57 |
 | `k8s_lab` | 27 |
@@ -157,7 +154,7 @@ Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RI
 | `p4_mpls` | 20 |
 | `p4_counter` | 19 |
 | `p4_int` | 19 |
-| `isp` | 17 |
+| `isp` | 19 |
 | `min3clos` | 12 |
 
 ### Selected / release matrix by scenario
@@ -168,46 +165,1723 @@ Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RI
 | `dc_clos` | 14 |
 | `p4_bloom_filter` | 6 |
 | `sdn_clos` | 5 |
-| `enterprise_branch` | 2 |
+| `enterprise_branch` | 3 |
+| `isp` | 2 |
 | `p4_mpls` | 1 |
+
+Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target. The same release still lists `link_fragmentation_disabled`; loaders rewrite it to `mtu_mismatch` and update `fault_type` in `root_causes`.
 
 Kubernetes scenarios (`k8s_lab`, `llmd_lab`) and Containerlab `min3clos` appear in the full matrix only; selected/release cases use traditional Kathara labs as the best-matching scenario per failure.
 
 ## Coverage matrix (scenario × failure)
 
-Compatibility comes from `benchmark_full.yaml`, and topology sizes (`s`/`m`/`l`) collapse into one column. The matrix uses a two-level header: each scenario spans its workload columns, and the second row names each workload when present. Legacy YAML may still say `dc_clos_bgp` / `dc_clos_service` or `ospf_enterprise_static` / `ospf_enterprise_dhcp`; loaders rewrite those to the canonical IDs.
+Cells mark **capability**, not whether `benchmark_full.yaml` sampled that config. A failure is compatible when its tags and deploy constraints match the scenario config (Clos/campus `workload`, ISP `topo`/`igp`/`bgp_mode` profile). `benchmark_full.yaml` remains a one-config-per-failure runnable sample. Release membership comes from `benchmark/releases/0.1.0/` (dev + test).
 
-Each value is `compatible / release 0.1.0` failure types. An em dash marks an incompatible scenario and category pair.
+Each table has two header rows: scenario, then config (when the scenario has more than one). Cells: blank = incompatible, `○` = compatible, `●` = compatible and in release `0.1.0`. Tables are split by failure subsystem.
 
-| Scenario · workload | Link | End host | Node | Misconfig. | Resource | Attack |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `campus_lan · dhcp` | 6 / 2 | 5 / 3 | 1 / 1 | 9 / 9 | 8 / 6 | 5 / 5 |
-| `campus_lan · static` | — | 3 / 3 | — | — | — | — |
-| `dc_clos · host` | 4 / 4 | 6 / 2 | 1 / 0 | 8 / 5 | 2 / 2 | 1 / 0 |
-| `dc_clos · service` | 1 / 0 | 2 / 0 | — | 2 / 0 | 5 / 0 | 2 / 1 |
-| `enterprise_branch` | 4 / 0 | 6 / 0 | 1 / 0 | 11 / 0 | 6 / 0 | 3 / 0 |
-| `isp` | 4 / 0 | — | 1 / 0 | 9 / 0 | 2 / 0 | 1 / 0 |
-| `k8s_lab` | 4 / 0 | 6 / 0 | 2 / 0 | 11 / 0 | 2 / 0 | 2 / 0 |
-| `llmd_lab` | 4 / 0 | 4 / 0 | 1 / 0 | 7 / 0 | 6 / 0 | 2 / 0 |
-| `min3clos` | 4 / 0 | — | — | 5 / 0 | 2 / 0 | 1 / 0 |
-| `p4_bloom_filter` | 5 / 1 | 4 / 0 | 5 / 5 | 3 / 0 | 2 / 0 | 1 / 0 |
-| `p4_counter` | 5 / 0 | 4 / 0 | 4 / 0 | 3 / 0 | 2 / 0 | 1 / 0 |
-| `p4_int` | 5 / 0 | 4 / 0 | 4 / 0 | 3 / 0 | 2 / 0 | 1 / 0 |
-| `p4_mpls` | 5 / 0 | 4 / 0 | 5 / 1 | 3 / 0 | 2 / 0 | 1 / 0 |
-| `sdn_clos` | 4 / 0 | 4 / 0 | 5 / 5 | 3 / 0 | 2 / 0 | 1 / 0 |
-| `sdn_star` | 4 / 0 | 4 / 0 | 5 / 0 | 3 / 0 | 2 / 0 | 1 / 0 |
-| `simple_bgp` | 4 / 0 | 6 / 0 | 1 / 0 | 8 / 0 | 2 / 0 | 2 / 0 |
+Regenerate after registry or TAGS changes:
 
-<details>
-<summary>View the complete failure-level compatibility matrix</summary>
+```shell
+uv run python scripts/render_coverage_matrix.py --write-docs
+```
 
-The full matrix stacks six category blocks with the same scenario columns. Failure names stay horizontal. Light dots mark compatible pairs, blue dots mark pairs included in release `0.1.0`, and incompatible pairs remain blank.
+### Link & Interface
 
-![Scenario × failure coverage matrix](../assets/images/benchmark_coverage_matrix.png)
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>link_detach</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_flap</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_high_packet_corruption</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+</tbody>
+</table>
 
-</details>
+### Routing & Control Plane
 
-When you add, remove, or retarget cases (new failure, new scenario, or a `TAGS` / registry change that changes compatibility), regenerate the working YAML, update the README table, and refresh the PNG in the same change so they match `benchmark_full.yaml` / `benchmark_selected.yaml`.
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bgp_asn_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_blackhole_route_leak</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_hijacking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_max_prefix_exceeded</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_missing_route_advertisement</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_rpki_invalid_route_leak</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>frr_service_down</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>ospf_area_misconfiguration</code></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_neighbor_missing</code></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table>
+
+### Forwarding, Encapsulation & Policy
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>arp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_acl_block</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bmv2_switch_down</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_port_blocked</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>flow_rule_loop</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>flow_rule_shadowing</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_static_blackhole</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>http_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>icmp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>k8s_networkpolicy_deny</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>mpls_label_limit_exceeded</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>mtu_mismatch</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>ospf_acl_block</code></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>p4_aggressive_detection_thresholds</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>p4_compilation_error_parser_state</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>p4_header_definition_error</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>p4_table_entry_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>p4_table_entry_missing</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>vrf_dscp_remarking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_allowed_ips_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_peer_key_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table>
+
+### Service Networking
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k8s_clusterip_routing_broken</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>load_balancer_overload</code></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table>
+
+### Management & Orchestration Plane
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k8s_worker_apiserver_partition</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>sdn_controller_crash</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>southbound_port_block</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>southbound_port_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table>
+
+### Addressing, Neighbor & Naming
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>arp_cache_poisoning</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>dhcp_missing_subnet</code></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_service_down</code></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_dns</code></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_gateway</code></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_subnet</code></td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_lookup_latency</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_record_error</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_service_down</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_dns</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_gateway</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>host_incorrect_ip</code></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>host_incorrect_netmask</code></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>host_ip_conflict</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>host_missing_ip</code></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>k8s_coredns_isolated</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>mac_address_conflict</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+</tbody>
+</table>
+
+### Endpoint & Application
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host_crash</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>receiver_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>sender_application_delay</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>sender_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>web_dos_attack</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table>
+
+### Traffic, Queueing & Resource
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="4">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_bloom</th>
+<th rowspan="2">p4_counter</th>
+<th rowspan="2">p4_int</th>
+<th rowspan="2">p4_mpls</th>
+<th rowspan="2">sdn_clos</th>
+<th rowspan="2">sdn_star</th>
+<th rowspan="2">simple_bgp</th>
+</tr>
+<tr>
+<th>static</th>
+<th>dhcp</th>
+<th>host</th>
+<th>service</th>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>incast_traffic_network_limitation</code></td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>link_bandwidth_throttling</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+</tbody>
+</table>
+
+When you add, remove, or retarget cases (new failure, new scenario, or a `TAGS` / registry change that changes compatibility), refresh this section in the same change.
 
 ## Regeneration
 
@@ -217,10 +1891,10 @@ Regenerate working YAML files:
 uv run python benchmark/generate_benchmark.py
 ```
 
-Refresh the failure-level matrix after the working YAML changes (requires the `dev` dependency group for matplotlib):
+Then refresh the capability coverage tables:
 
 ```shell
-uv run --group dev python scripts/plot_coverage_matrix.py
+uv run python scripts/render_coverage_matrix.py --write-docs
 ```
 
 Freeze a new Dev+Test release from the current working YAML (re-selects Test instances from `benchmark_full.yaml`):

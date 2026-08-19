@@ -12,7 +12,7 @@ import yaml
 
 from nika.workflows.benchmark.release import (
     RESOURCES_V1,
-    SCORING_V2,
+    SCORING,
     TOOLS_V1,
     freeze_release,
     load_release_from_dir,
@@ -75,7 +75,7 @@ def _freeze_mini(
         version=version,
         splits=release.splits,
         defaults=defaults,
-        scoring=dict(SCORING_V2),
+        scoring=dict(SCORING),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=release.images,
@@ -94,7 +94,7 @@ def _write_trial_artifacts(
     *,
     outcome: str = "success",
     rca_f1: float = 1.0,
-    predicted_root_cause_name: list[str] | None = None,
+    predicted_fault_types: list[str] | None = None,
     write_submission: bool | None = None,
 ) -> None:
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -105,15 +105,19 @@ def _write_trial_artifacts(
             "outcome": outcome,
             "session_id": session_dir.name,
             "scenario_name": "simple_bgp",
-            "root_cause_name": "link_down",
+            "problem_names": ["link_down"],
         },
     )
     _write_json(
         session_dir / "ground_truth.json",
         {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": ["link_down"],
+            "root_causes": [
+                {
+                    "resource_id": "node/pc1",
+                    "fault_type": "link_down",
+                }
+            ],
         },
     )
     (session_dir / "messages.jsonl").write_text(
@@ -141,16 +145,21 @@ def _write_trial_artifacts(
     )
     if should_write:
         pred = (
-            predicted_root_cause_name
-            if predicted_root_cause_name is not None
+            predicted_fault_types
+            if predicted_fault_types is not None
             else ["link_down"]
         )
         _write_json(
             session_dir / "submission.json",
             {
                 "is_anomaly": True,
-                "faulty_devices": ["pc1"],
-                "root_cause_name": pred,
+                "root_causes": [
+                    {
+                        "resource_id": "node/pc1",
+                        "fault_type": name,
+                    }
+                    for name in pred
+                ],
             },
         )
 
@@ -325,8 +334,8 @@ class TestLeaderboardPackValidate:
         assert trial_results
         for path in trial_results:
             trial = json.loads(path.read_text(encoding="utf-8"))
-            assert trial["gt_root_cause_name"] == ["link_down"]
-            assert trial["predicted_root_cause_name"] == ["link_down"]
+            assert trial["gt_fault_types"] == ["link_down"]
+            assert trial["predicted_fault_types"] == ["link_down"]
 
         confusion = json.loads(
             (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).read_text(
@@ -381,7 +390,7 @@ class TestLeaderboardPackValidate:
             trial_dir(result_dir, first.case_key, first.trial_index),
             outcome="success",
             rca_f1=0.0,
-            predicted_root_cause_name=["host_missing_ip"],
+            predicted_fault_types=["host_missing_ip"],
         )
         _write_trial_artifacts(
             trial_dir(result_dir, second.case_key, second.trial_index),
@@ -397,10 +406,10 @@ class TestLeaderboardPackValidate:
             path.parent.name: json.loads(path.read_text(encoding="utf-8"))
             for path in (package / RESULTS_DIRNAME / "trials").glob("*/result.json")
         }
-        assert by_id[first.trial_id]["gt_root_cause_name"] == ["link_down"]
-        assert by_id[first.trial_id]["predicted_root_cause_name"] == ["host_missing_ip"]
-        assert by_id[second.trial_id]["gt_root_cause_name"] == ["link_down"]
-        assert by_id[second.trial_id]["predicted_root_cause_name"] is None
+        assert by_id[first.trial_id]["gt_fault_types"] == ["link_down"]
+        assert by_id[first.trial_id]["predicted_fault_types"] == ["host_missing_ip"]
+        assert by_id[second.trial_id]["gt_fault_types"] == ["link_down"]
+        assert by_id[second.trial_id]["predicted_fault_types"] is None
 
         confusion = json.loads(
             (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).read_text(

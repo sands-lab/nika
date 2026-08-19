@@ -1,0 +1,1 @@
+"""Endpoint and application failures."""

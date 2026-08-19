@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from nika.evaluator.scoring import (
-    score_detection,
-    score_localization,
-    score_rca,
-    score_rca_v2,
-)
+from nika.evaluator.scoring import score_detection, score_rca_v2
 from nika.problems.root_cause import (
     healthy_ground_truth,
     interface_resource,
@@ -33,23 +28,6 @@ class ScoringTest:
 
     def test_score_detection_mismatch(self) -> None:
         assert score_detection({"is_anomaly": False}, {"is_anomaly": True}) == 0.0
-
-    def test_score_localization_perfect(self) -> None:
-        acc, prec, rec, f1 = score_localization(
-            {"faulty_devices": ["pc1", "router1"]},
-            {"faulty_devices": ["pc1", "router1"]},
-        )
-        assert (acc, prec, rec, f1) == (1.0, 1.0, 1.0, 1.0)
-
-    def test_score_rca_partial(self) -> None:
-        acc, prec, rec, f1 = score_rca(
-            {"root_cause_name": ["link_down", "extra"]},
-            {"root_cause_name": ["link_down"]},
-        )
-        assert acc == 1.0
-        assert prec == 0.5
-        assert rec == 1.0
-        assert f1 == 0.6667
 
     def test_v2_resource_id_submit(self) -> None:
         truth = RootCause(
@@ -125,14 +103,10 @@ class ScoringTest:
         gt = {
             "schema_version": 2,
             "is_anomaly": True,
-            "faulty_devices": ["pc1", "pc2"],
-            "root_cause_name": ["link_down"],
             "root_causes": [cause.model_dump(mode="json", exclude_none=True)],
         }
         submission = {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": ["link_down"],
             "root_causes": [cause.model_dump(mode="json", exclude_none=True)],
         }
         payload = generic_eval(gt, submission)

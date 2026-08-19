@@ -43,7 +43,6 @@ def _json_safe(value: Any) -> Any:
 def _extract_injection_params(problem: Any) -> dict[str, Any]:
     params: dict[str, Any] = {"problem_class": problem.__class__.__name__}
     for attr in (
-        "faulty_devices",
         "faulty_intf",
         "intf_name",
         "service_name",
@@ -134,10 +133,11 @@ def inject_failure(
         scenario_name=session.scenario_name,
         **scenario_params,
     )
-    if getattr(inject_problem, "root_cause_category", None):
-        session.update_session(
-            "root_cause_category", str(inject_problem.root_cause_category)
-        )
+    taxonomy = inject_problem.taxonomy_metadata()
+    for key, value in taxonomy.items():
+        session.update_session(key, value)
+    if taxonomy.get("failure_domain"):
+        session.update_session("root_cause_category", taxonomy["failure_domain"])
 
     failure_rows: list[tuple[int, str]] = []
     now_ts = datetime.now().timestamp()
@@ -162,8 +162,9 @@ def inject_failure(
                     "session_id": session.session_id,
                     "problem_name": problem_name,
                     "root_cause_category": str(
-                        getattr(sub_problem, "root_cause_category", "")
+                        getattr(sub_problem, "failure_domain", "")
                     ),
+                    **sub_problem.taxonomy_metadata(),
                     "scenario_name": session.scenario_name,
                     "lab_name": session.lab_name,
                     "injection_params": _extract_injection_params(sub_problem),
@@ -187,8 +188,9 @@ def inject_failure(
                 "session_id": session.session_id,
                 "problem_name": resolved_names[0],
                 "root_cause_category": str(
-                    getattr(inject_problem, "root_cause_category", "")
+                    getattr(inject_problem, "failure_domain", "")
                 ),
+                **taxonomy,
                 "scenario_name": session.scenario_name,
                 "lab_name": session.lab_name,
                 "injection_params": params_snapshot,

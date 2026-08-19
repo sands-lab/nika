@@ -74,6 +74,40 @@ def frr_exec(router_name: str, command: str) -> str:
     return kathara_api.frr_exec(router_name, command)
 
 
+@safe_tool
+@mcp.tool()
+def frr_get_routing_state(
+    device: str,
+    neighbor: str | None = None,
+    prefix: str | None = None,
+) -> str:
+    """Get aggregated BGP routing state from an FRR device.
+
+    Returns BGP summary, neighbor detail (session state, received/accepted
+    prefixes, configured maximum-prefix, last reset reason when present), and
+    RIB entries. Optionally filter to one neighbor and/or one prefix.
+
+    Args:
+        device: Router name.
+        neighbor: Optional BGP neighbor address for focused neighbor stats.
+        prefix: Optional prefix filter for the BGP RIB section.
+    """
+    kathara_api = KatharaFRRAPI(lab_name=get_lab_name())
+    return kathara_api.frr_get_routing_state(device, neighbor=neighbor, prefix=prefix)
+
+
+@safe_tool
+@mcp.tool()
+def frr_get_rpki_status(device: str, prefix: str | None = None) -> str:
+    """Get RPKI/RTR status and optional per-prefix validation detail.
+
+    Without prefix: cache connection and validation summary.
+    With prefix: VRP / origin ASN / validation state when available.
+    """
+    kathara_api = KatharaFRRAPI(lab_name=get_lab_name())
+    return kathara_api.frr_get_rpki_status(device, prefix=prefix)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")

@@ -42,23 +42,8 @@ RUN_CONFIG_FILENAME = "run.json"
 SplitName = Literal["dev", "test"]
 VALID_SPLITS: tuple[SplitName, ...] = ("dev", "test")
 
-SCORING_V1 = {
-    "id": "rule-based-v1",
-    "description": (
-        "detection accuracy; localization P/R/F1 on faulty_devices; "
-        "RCA P/R/F1 on root_cause_name (nika.evaluator.scoring)"
-    ),
-    "leaderboard_primary": "rca_f1",
-    "judge_allowed": False,
-}
-
-SCORING_V2 = {
-    "id": "rule-based-v2",
-    "description": (
-        "detection accuracy; joint RCA P/R/F1 and exact match on "
-        "(resource.id, fault_type); localization and fault-type submetrics; "
-        "efficiency metrics remain independent"
-    ),
+SCORING = {
+    "id": "rule-based",
     "leaderboard_primary": "rca_f1",
     "judge_allowed": False,
 }
@@ -368,7 +353,7 @@ def load_release_from_dir(
     cases = load_benchmark_yaml(cases_path)
     cases_sha256 = _sha256_file(cases_path)
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
-    scoring = dict(manifest.get("scoring") or SCORING_V2)
+    scoring = dict(manifest.get("scoring") or SCORING)
     tools = dict(manifest.get("tools") or TOOLS_V1)
     resources = dict(manifest.get("resources") or RESOURCES_V1)
     images = dict(manifest.get("images") or {"required": []})
@@ -808,7 +793,7 @@ def rebuild_release_manifest(
         version=version,
         splits=splits,
         defaults=defaults,
-        scoring=dict(scoring or SCORING_V2),
+        scoring=dict(scoring or SCORING),
         tools=tools,
         resources=resources,
         images={"required": collect_images_for_scenarios(scenarios)},
@@ -854,7 +839,7 @@ def freeze_release(
         version=version,
         splits=splits,
         defaults=dict(DEFAULTS_V1),
-        scoring=dict(SCORING_V2),
+        scoring=dict(SCORING),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=images,

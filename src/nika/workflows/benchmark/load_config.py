@@ -14,7 +14,8 @@ from nika.net_env.net_env_pool import (
     is_campus_lan_scenario,
     resolve_scenario_ref,
 )
-from nika.problems.prob_pool import resolve_problem_name
+from nika.problems.prob_pool import list_avail_problem_instances, resolve_problem_name
+from nika.workflows.benchmark.isp_options import validate_and_resolve_isp_options
 
 
 def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:
@@ -34,7 +35,7 @@ def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:
 
 
 def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Normalize scenario aliases, failure aliases, and ``workload`` on one case."""
+    """Normalize scenario aliases, failure aliases, workload, and ISP options."""
     raw_scenario = str(row["scenario"])
     canonical, alias_workload = resolve_scenario_ref(raw_scenario)
     workload = row.get("workload")
@@ -76,6 +77,19 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(inject, dict):
         raise ValueError("'inject' must be a mapping")
 
+    problem_tags: set[str] = set()
+    problem_cls = list_avail_problem_instances().get(problem)
+    if problem_cls is not None:
+        problem_tags = set(problem_cls.TAGS)
+    isp_options = validate_and_resolve_isp_options(
+        scenario=canonical,
+        problem=problem,
+        problem_tags=problem_tags,
+        topo=row.get("topo"),
+        igp=row.get("igp"),
+        bgp_mode=row.get("bgp_mode"),
+    )
+
     # Legacy host-VPN inject params do not apply to Site Edge tunnels.
     if raw_problem == "host_vpn_membership_missing":
         inject = _site_edge_wg_inject(topo_size)
@@ -116,6 +130,8 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     }
     if canonical in (DC_CLOS_SCENARIO, CAMPUS_LAN_SCENARIO):
         normalized["workload"] = workload
+    if isp_options is not None:
+        normalized.update(isp_options)
     if root_causes:
         normalized["root_causes"] = root_causes
     if row.get("root_causes_status") and raw_problem != "host_vpn_membership_missing":
@@ -141,6 +157,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     ``host_vpn_membership_missing`` rewrites to
     ``wireguard_peer_key_misconfiguration`` with a Site Edge inject target.
     Legacy ``link_fragmentation_disabled`` rewrites to ``mtu_mismatch``.
+    ISP cases carry ``topo`` / ``igp`` / ``bgp_mode`` deploy options.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or "cases" not in data:

@@ -31,7 +31,7 @@ SUBMIT_PROMPT_TEMPLATE = dedent("""\
     Your task is to submit the final diagnosis for this network problem.
     Call list_resources() to see localization ids and list_avail_problems() to see fault types.
     Then call submit() with is_anomaly and root_causes as [{resource_id, fault_type}, ...]
-    chosen from those two lists. Do not invent ids. Do not use faulty_devices.
+    chosen from those two lists. Do not invent ids.
     Rely only on the MCP tools available to you; do not execute arbitrary shell commands.\
 """).strip()
 

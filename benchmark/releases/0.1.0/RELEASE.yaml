@@ -10,15 +10,12 @@ splits:
     case_count: 56
     cases_sha256: 98441c92c560976a3fe216df5aeebce22170fcd223ebe6c5bb44ee84e329acc0
 default_split_for_release: test
-benchmark_digest: f80d926658b9dfc1a86bc2a58970668b35e7db3771f0d82a3a0bc360759c9bed
+benchmark_digest: 226d3209e3c3c46aade8c37ecd989642ae73692f0d9f149995954553e41474d1
 defaults:
   case_timeout_sec: 2400
   n_trials: 3
 scoring:
-  id: rule-based-v2
-  description: detection accuracy; joint RCA P/R/F1 and exact match on (resource.id,
-    fault_type); localization and fault-type submetrics; efficiency metrics remain
-    independent
+  id: rule-based
   leaderboard_primary: rca_f1
   judge_allowed: false
 tools:

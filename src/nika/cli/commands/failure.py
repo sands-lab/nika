@@ -75,6 +75,10 @@ def failure_describe(
         typer.echo(f"Unknown problem: {problem}", err=True)
         raise typer.Exit(1)
 
+    typer.echo(f"Problem: {problem}")
+    for key, value in cls.taxonomy_metadata().items():
+        typer.echo(f"{key}: {value}")
+
     ParamsClass = getattr(cls, "Params", None)
     if ParamsClass is None:
         typer.echo(f"{problem}: no typed parameter schema yet.")
@@ -82,7 +86,6 @@ def failure_describe(
         return
 
     schema = ParamsClass.model_json_schema()
-    typer.echo(f"Problem: {problem}")
     if schema.get("description"):
         typer.echo(schema["description"])
     typer.echo("\nParameter schema (JSON Schema):")

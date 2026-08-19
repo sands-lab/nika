@@ -171,7 +171,8 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
 
             assert gt["is_anomaly"]
 
-            assert case.problem in gt["root_cause_name"]
+            fault_types = {item.get("fault_type") for item in gt.get("root_causes") or []}
+            assert case.problem in fault_types
 
     def test_run_json_correctness(self) -> None:
         for case in SCENARIO_CASES:
@@ -196,7 +197,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         for case in SCENARIO_CASES:
             session_id, session_dir = self._result(case)
             sub = self._load_json(session_dir, "submission.json")
-            for field in ("is_anomaly", "faulty_devices", "root_cause_name"):
+            for field in ("is_anomaly", "root_causes"):
                 assert field in sub, f"Missing field '{field}' in submission.json"
 
             assert session_id in str(session_dir)

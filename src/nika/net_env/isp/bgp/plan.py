@@ -49,6 +49,9 @@ class BgpNodePlan:
     sessions: tuple[BgpSession, ...]
     originated: tuple[BgpOriginatedPrefix, ...]
     cluster_id: str | None = None
+    rov_reject_invalid: bool = False
+    rpki_cache: tuple[str, int] | None = None  # (ip, port)
+    export_deny_prefixes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,15 @@ def compile_bgp_plan(
     if resolved == "ibgp_rr":
         return _compile_ibgp_rr(isp_plan)
     if resolved == "ebgp":
-        return _compile_ebgp(isp_plan)
+        plan = _compile_ebgp(isp_plan)
+        from nika.net_env.isp.bgp.abilene_inter_as import (
+            apply_abilene_inter_as_profile,
+            is_abilene_ebgp_rpki,
+        )
+
+        if is_abilene_ebgp_rpki(plan.topology_name, plan.mode):
+            return apply_abilene_inter_as_profile(plan, isp_plan)
+        return plan
     raise BgpConfigError(f"Unsupported bgp_mode {resolved!r}.")
 
 

@@ -12,15 +12,6 @@ from nika.problems.root_cause import (
 )
 
 
-def _legacy_devices(root_causes: list[RootCause]) -> list[str]:
-    devices: list[str] = []
-    for item in root_causes:
-        node = item.resource.node if item.resource is not None else None
-        if node and node not in devices:
-            devices.append(node)
-    return devices
-
-
 def build_ground_truth(
     problem: Any,
     params: Any = None,
@@ -46,18 +37,12 @@ def build_multi_ground_truth(
         params = getattr(fault, "_resolved_params", None)
         piece = build_ground_truth(fault, params, getattr(fault, "net_env", None))
         root_causes.extend(piece.root_causes)
-    names: list[str] = []
-    for item in root_causes:
-        if item.fault_type not in names:
-            names.append(item.fault_type)
     return ProblemGroundTruth(
-        schema_version=2,
+        schema_version=3,
         is_anomaly=True,
         root_causes=root_causes,
         root_cause_category=category,
         detailed_cause="",
-        faulty_devices=_legacy_devices(root_causes),
-        root_cause_name=names,
     )
 
 
@@ -78,7 +63,6 @@ def ground_truth_for_case(
     env = net_env if net_env is not None else load_offline_net_env(scenario, topo_size)
     instance = cls.__new__(cls)
     instance.root_cause_name = cls.root_cause_name
-    instance.root_cause_category = cls.root_cause_category
     instance.symptom_desc = getattr(cls, "symptom_desc", "") or ""
     instance.net_env = env
     instance._resolved_params = None

@@ -352,6 +352,7 @@ def test_wireguard_allowed_ips_rejects_local_prefix() -> None:
 )
 def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
     from nika.workflows.benchmark.load_config import load_benchmark_yaml
+    from nika.workflows.benchmark.isp_options import isp_options_from_row
 
     path = _BENCHMARK_DIR / yaml_name
     for row in load_benchmark_yaml(path):
@@ -361,4 +362,5 @@ def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
             dict(row.get("inject") or {}),
             str(row.get("topo_size") or ""),
             workload=row.get("workload"),
+            isp_options=isp_options_from_row(row),
         )

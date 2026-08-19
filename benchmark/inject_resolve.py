@@ -30,10 +30,25 @@ def _case_rng(
     problem: str,
     topo_size: str,
     workload: str = "",
+    isp_key: str = "",
 ) -> random.Random:
-    key = f"{seed}|{scenario}|{problem}|{topo_size}|{workload}".encode()
-    digest = int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "big")
+    key = f"{seed}|{scenario}|{problem}|{topo_size}|{workload}"
+    if isp_key:
+        key = f"{key}|{isp_key}"
+    digest = int.from_bytes(
+        hashlib.blake2b(key.encode(), digest_size=8).digest(), "big"
+    )
     return random.Random(digest)
+
+
+def _isp_rng_key(isp_options: dict[str, str] | None) -> str:
+    if not isp_options:
+        return ""
+    return (
+        f"{isp_options.get('topo', '')}|"
+        f"{isp_options.get('igp', '')}|"
+        f"{isp_options.get('bgp_mode', '')}"
+    )
 
 
 def _choice(rng: random.Random, pool: list[str] | None, fallback: str) -> str:
@@ -248,13 +263,19 @@ def _all_device_names(net_env) -> set[str]:
 
 
 def _get_net_env_for_benchmark(
-    scenario: str, topo_size: str = "", *, workload: str | None = None
+    scenario: str,
+    topo_size: str = "",
+    *,
+    workload: str | None = None,
+    isp_options: dict[str, str] | None = None,
 ):
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
     if workload is not None:
         kwargs["workload"] = workload
+    if isp_options:
+        kwargs.update(isp_options)
     from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
     from nika.net_env.net_env_pool import resolve_scenario_backend
 
@@ -367,10 +388,20 @@ def resolve_inject_params(
     *,
     seed: int = DEFAULT_SEED,
     workload: str | None = None,
+    isp_options: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Return inject params for one benchmark row."""
-    rng = _case_rng(seed, scenario, problem, topo_size, workload or "")
-    net_env = _get_net_env_for_benchmark(scenario, topo_size, workload=workload)
+    rng = _case_rng(
+        seed,
+        scenario,
+        problem,
+        topo_size,
+        workload or "",
+        _isp_rng_key(isp_options),
+    )
+    net_env = _get_net_env_for_benchmark(
+        scenario, topo_size, workload=workload, isp_options=isp_options
+    )
     _load_inventory(net_env)
     from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
     from nika.net_env.net_env_pool import resolve_scenario_backend
@@ -537,6 +568,34 @@ def resolve_inject_params(
     }:
         params["host_name"] = router0
 
+    elif problem == "bgp_rpki_invalid_route_leak":
+        # Fixed Abilene inter-AS leaker; requires --topo abilene --bgp-mode ebgp.
+        params["host_name"] = "losang"
+
+    elif problem == "bgp_max_prefix_exceeded":
+        from nika.net_env.isp.inject_targets import first_ebgp_session
+
+        bgp_inv = None
+        inventory = getattr(net_env, "inventory", None)
+        if isinstance(inventory, dict):
+            bgp_inv = inventory.get("bgp")
+        if not isinstance(bgp_inv, dict):
+            from nika.net_env.isp.bgp import compile_bgp_plan
+            from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+            from nika.workflows.benchmark.isp_options import isp_config_for_problem
+
+            isp_opts = isp_options or isp_config_for_problem(problem, {"bgp"})
+            isp_plan = compile_isp_plan(
+                IspConfig(
+                    topology=isp_opts["topo"],
+                    igp=isp_opts["igp"],  # type: ignore[arg-type]
+                )
+            )
+            bgp = compile_bgp_plan(isp_plan, isp_opts["bgp_mode"])
+            assert bgp is not None
+            bgp_inv = bgp.inventory
+        params.update(first_ebgp_session(bgp_inv))
+
     elif problem in {"arp_acl_block", "icmp_acl_block", "http_acl_block"}:
         params["host_name"] = host0
 
@@ -663,6 +722,7 @@ def validate_benchmark_case(
     topo_size: str = "",
     *,
     workload: str | None = None,
+    isp_options: dict[str, str] | None = None,
 ) -> None:
     """Raise ValueError if a benchmark row is inconsistent with tags or topology."""
     from nika.net_env.net_env_pool import resolve_scenario_ref
@@ -685,7 +745,12 @@ def validate_benchmark_case(
             f"problem tags {sorted(problem_tags)} not subset of scenario tags {sorted(scenario_tags)}"
         )
 
-    net_env = _get_net_env_for_benchmark(canonical, topo_size, workload=workload)
+    net_env = _get_net_env_for_benchmark(
+        canonical,
+        topo_size,
+        workload=workload,
+        isp_options=isp_options,
+    )
     _load_inventory(net_env)
     devices = _all_device_names(net_env)
     ifaces_by_device = _device_interfaces(net_env)

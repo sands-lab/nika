@@ -30,6 +30,11 @@ def verify_isp_lab(
     expected = [node.device_name for node in plan.nodes]
     if traffic is not None:
         expected.extend(h.host_name for h in traffic.hosts)
+    if bgp_plan is not None and bgp_plan.inventory.get("rpki"):
+        rtr = bgp_plan.inventory.get("rpki_rtr") or {}
+        machine = rtr.get("machine")
+        if machine:
+            expected.append(str(machine))
     checks: dict[str, bool] = {
         "nodes_deployed": nodes_deployed(runtime, expected),
         "frr_active": all(
@@ -65,6 +70,9 @@ def verify_isp_lab(
             runtime, bgp_plan
         )
         checks["bgp_infra_denied"] = _bgp_infra_denied_ok(runtime, bgp_plan)
+        if bgp_plan.inventory.get("rpki"):
+            checks["rpki_rtr_connected"] = _rpki_rtr_ok(runtime, bgp_plan)
+            checks["rpki_leak_absent"] = _rpki_leak_absent_ok(runtime, bgp_plan)
         details["bgp"] = bgp_plan.inventory
     return build_lab_verify_result(
         scenario_name=scenario_name,
@@ -323,3 +331,51 @@ def _bgp_table_has_infra(table: str, deny_prefix: str) -> bool:
         elif "/" in net and net.startswith("10."):
             return True
     return False
+
+
+def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
+    """ROV observer has an established RPKI cache connection."""
+    observer = str(bgp_plan.inventory.get("rov_observer") or "")
+    if not observer:
+        return False
+    output = exec_or_empty(
+        runtime, observer, "vtysh -c 'show rpki cache-connection'", timeout=20
+    )
+    lowered = output.lower()
+    if "unknown command" in lowered:
+        return False
+    return (
+        "connected" in lowered
+        or "establ" in lowered
+        or "up" in lowered
+        or "10.255.254.2" in output
+        or "rtr" in lowered
+    )
+
+
+def _rpki_leak_absent_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
+    """Healthy state: observers must not learn leak-target prefixes via BGP."""
+    prefixes = [str(p) for p in (bgp_plan.inventory.get("leak_prefixes") or [])]
+    observers = [
+        str(bgp_plan.inventory.get("rov_observer") or ""),
+        str(bgp_plan.inventory.get("non_rov_observer") or ""),
+    ]
+    observers = [o for o in observers if o]
+    if not prefixes or not observers:
+        return False
+    for observer in observers:
+        for prefix in prefixes:
+            output = exec_or_empty(
+                runtime,
+                observer,
+                f"vtysh -c 'show bgp ipv4 unicast {prefix}'",
+                timeout=20,
+            )
+            if "Network not in table" in output:
+                continue
+            network = prefix.split("/")[0]
+            if network in output or prefix in output:
+                # Local aggregate noise is fine; reject learned paths.
+                if "from" in output.lower() or "Path" in output or "*" in output:
+                    return False
+    return True

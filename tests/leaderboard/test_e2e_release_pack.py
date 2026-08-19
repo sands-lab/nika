@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 from nika.cli.main import app
 from nika.workflows.benchmark.release import (
     RESOURCES_V1,
-    SCORING_V2,
+    SCORING,
     TOOLS_V1,
     freeze_release,
     load_release_from_dir,
@@ -71,7 +71,7 @@ def _freeze_mini_release(
         version=version,
         splits=release.splits,
         defaults=defaults,
-        scoring=dict(SCORING_V2),
+        scoring=dict(SCORING),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=release.images,
@@ -107,7 +107,7 @@ def _write_mocked_trial(
         "trial_index": trial_index,
         "case_key": case_key,
         "scenario_name": scenario,
-        "root_cause_name": problem,
+        "problem_names": [problem],
         "agent_type": (release_meta or {}).get("agent_type", "mock"),
         "model": (release_meta or {}).get("model", "mock-v1"),
     }
@@ -122,8 +122,12 @@ def _write_mocked_trial(
         session_dir / "ground_truth.json",
         {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": [problem],
+            "root_causes": [
+                {
+                    "resource_id": "node/pc1",
+                    "fault_type": problem,
+                }
+            ],
         },
     )
     (session_dir / "messages.jsonl").write_text(
@@ -155,8 +159,12 @@ def _write_mocked_trial(
             session_dir / "submission.json",
             {
                 "is_anomaly": True,
-                "faulty_devices": ["pc1"],
-                "root_cause_name": [problem],
+                "root_causes": [
+                    {
+                        "resource_id": "node/pc1",
+                        "fault_type": problem,
+                    }
+                ],
             },
         )
 
@@ -276,7 +284,7 @@ class TestReleaseRunToLeaderboardPackE2E:
         identity = yaml.safe_load(
             (package / RESULTS_DIRNAME / IDENTITY_FILENAME).read_text(encoding="utf-8")
         )
-        assert identity["schema_version"] == "2"
+        assert identity["schema_version"] == "3"
         assert identity["benchmark"]["version"] == release.version
         assert identity["benchmark"]["digest"] == release.benchmark_digest
         assert identity["benchmark"]["n_trials"] == 2
@@ -320,9 +328,9 @@ class TestReleaseRunToLeaderboardPackE2E:
             )
             for d in trial_dirs
         }
-        assert by_outcome["success"]["gt_root_cause_name"] == ["link_down"]
-        assert by_outcome["success"]["predicted_root_cause_name"] == ["link_down"]
-        assert by_outcome["agent_failed"]["predicted_root_cause_name"] is None
+        assert by_outcome["success"]["gt_fault_types"] == ["link_down"]
+        assert by_outcome["success"]["predicted_fault_types"] == ["link_down"]
+        assert by_outcome["agent_failed"]["predicted_fault_types"] is None
 
         with patch(
             "nika.workflows.benchmark.release.RELEASES_DIR",

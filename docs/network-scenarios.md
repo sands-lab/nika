@@ -319,7 +319,7 @@ uv run nika env run isp --backend containerlab \
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
 | `--bgp-mode` | `none`, `ibgp_rr`, `ebgp` | `none` | Adds a NIKA-defined BGP preset |
 
-`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions sorted routers into up to three ASes and creates sessions only on links crossing an AS boundary. It does not add iBGP inside each partition.
+`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions sorted routers into up to three ASes and creates sessions only on links crossing an AS boundary. It does not add iBGP inside each partition, except for **Abilene + eBGP**, which enables a fixed inter-AS / RPKI profile: intra-AS iBGP meshes, a Routinator RTR with offline SLURM VRPs, a leaker AS with healthy export deny for leak-target prefixes, one ROV observer that rejects RPKI Invalid routes, and one non-ROV observer. That profile supports `bgp_rpki_invalid_route_leak`.
 
 The vendored SNDlib catalog contains 26 topologies:
 

@@ -71,7 +71,7 @@ def _minimal_live_package(tmp_path: Path) -> Path:
     (results / "identity.yaml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": "2",
+                "schema_version": "3",
                 "benchmark": {
                     "id": "nika-bench",
                     "version": "0.1.0",
@@ -80,7 +80,7 @@ def _minimal_live_package(tmp_path: Path) -> Path:
                     "cases_sha256": "0" * 64,
                     "case_count": 1,
                     "n_trials": 1,
-                    "scoring_id": "rule-based-v2",
+                    "scoring_id": "rule-based",
                     "leaderboard_primary": "rca_f1",
                 },
                 "run": {

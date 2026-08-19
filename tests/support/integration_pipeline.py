@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import importlib.util
 import json
 import os
 import shutil
@@ -56,9 +58,7 @@ def anthropic_api_key_available() -> bool:
 
 
 def sade_available() -> bool:
-    try:
-        import claude_agent_sdk
-    except ImportError:
+    if importlib.util.find_spec("claude_agent_sdk") is None:
         return False
     from agent.community.sade.config import sade_credentials_available
 
@@ -66,9 +66,7 @@ def sade_available() -> bool:
 
 
 def claude_sdk_available() -> bool:
-    try:
-        import claude_agent_sdk
-    except ImportError:
+    if importlib.util.find_spec("claude_agent_sdk") is None:
         return False
     from agent.sdk.claude_sdk.config import claude_sdk_credentials_available
 
@@ -76,9 +74,7 @@ def claude_sdk_available() -> bool:
 
 
 def codex_sdk_available() -> bool:
-    try:
-        import openai_codex
-    except ImportError:
+    if importlib.util.find_spec("openai_codex") is None:
         return False
     from agent.sdk.codex_sdk.config import codex_sdk_local_auth_available
 
@@ -119,7 +115,8 @@ class CommonPipelineSteps:
 
         assert gt["is_anomaly"]
 
-        assert PROBLEM in gt["root_cause_name"]
+        fault_types = {item.get("fault_type") for item in gt.get("root_causes") or []}
+        assert PROBLEM in fault_types
 
     def _step_close_and_verify(self, expected_agent_type: str) -> None:
         assert self.session_id is not None
@@ -192,7 +189,8 @@ class ClabCommonPipelineSteps:
 
         assert gt["is_anomaly"]
 
-        assert PROBLEM in gt["root_cause_name"]
+        fault_types = {item.get("fault_type") for item in gt.get("root_causes") or []}
+        assert PROBLEM in fault_types
 
     def _step_close_and_verify(self, expected_agent_type: str) -> None:
         assert self.session_id is not None

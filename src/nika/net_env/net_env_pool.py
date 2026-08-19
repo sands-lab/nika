@@ -179,6 +179,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
             "isis",
             "ospf",
             "bgp",
+            "rpki",
             "igp",
             "link",
             "icmp",

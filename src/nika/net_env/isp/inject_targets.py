@@ -36,6 +36,8 @@ BGP_ORIGINATOR_PROBLEMS = frozenset(
     }
 )
 BGP_HIJACK_PROBLEM = "bgp_hijacking"
+BGP_RPKI_LEAK_PROBLEM = "bgp_rpki_invalid_route_leak"
+BGP_MAX_PREFIX_PROBLEM = "bgp_max_prefix_exceeded"
 
 
 def first_link_endpoint(isp_inventory: Mapping[str, Any]) -> tuple[str, str]:
@@ -109,6 +111,93 @@ def hijack_speaker_and_prefix(
     return speaker, hijack_prefix
 
 
+def first_ebgp_session(
+    bgp_inventory: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    """Return one undirected eBGP session as receiver/peer/neighbor_ip.
+
+    Prefers a session whose peer originates a business prefix so session reset
+    withdraws observable RIB state. ``neighbor_ip`` is the peer address as seen
+    from the receiver.
+    """
+    if not bgp_inventory:
+        raise ValueError("bgp inventory required for bgp_max_prefix_exceeded")
+    sessions = [
+        s
+        for s in (bgp_inventory.get("sessions") or [])
+        if str(s.get("session_type") or "") == "ebgp"
+        and s.get("local_device")
+        and s.get("remote_device")
+        and s.get("remote_ip")
+    ]
+    if not sessions:
+        raise ValueError("bgp inventory has no eBGP sessions")
+    originators = {
+        str(item["device"])
+        for item in (bgp_inventory.get("originated") or [])
+        if item.get("device")
+    }
+
+    def _rank(sess: Mapping[str, Any]) -> tuple[int, str, str, str]:
+        local = str(sess["local_device"])
+        remote = str(sess["remote_device"])
+        # Prefer peer (remote) as an originator so flood+withdraw hits its prefixes.
+        peer_is_orig = 0 if remote in originators else 1
+        either_orig = 0 if (local in originators or remote in originators) else 1
+        return (peer_is_orig, either_orig, local, remote)
+
+    sessions = sorted(
+        sessions,
+        key=lambda s: (
+            *_rank(s),
+            str(s.get("remote_ip") or ""),
+        ),
+    )
+    seen: set[tuple[str, str]] = set()
+    for sess in sessions:
+        local = str(sess["local_device"])
+        remote = str(sess["remote_device"])
+        key = tuple(sorted((local, remote)))
+        if key in seen:
+            continue
+        seen.add(key)
+        # Orient so peer is the originator when possible.
+        if remote in originators or local not in originators:
+            return {
+                "receiver_name": local,
+                "peer_name": remote,
+                "neighbor_ip": str(sess["remote_ip"]),
+            }
+        # local is originator and remote is not: flip using the reverse session.
+        reverse = next(
+            (
+                s
+                for s in sessions
+                if str(s.get("local_device")) == remote
+                and str(s.get("remote_device")) == local
+                and s.get("remote_ip")
+            ),
+            None,
+        )
+        if reverse is not None:
+            return {
+                "receiver_name": remote,
+                "peer_name": local,
+                "neighbor_ip": str(reverse["remote_ip"]),
+            }
+        return {
+            "receiver_name": local,
+            "peer_name": remote,
+            "neighbor_ip": str(sess["remote_ip"]),
+        }
+    sess = sessions[0]
+    return {
+        "receiver_name": str(sess["local_device"]),
+        "peer_name": str(sess["remote_device"]),
+        "neighbor_ip": str(sess["remote_ip"]),
+    }
+
+
 def isp_inject_params(
     problem: str,
     isp_inventory: Mapping[str, Any],
@@ -125,4 +214,15 @@ def isp_inject_params(
     if problem == BGP_HIJACK_PROBLEM:
         host, prefix = hijack_speaker_and_prefix(bgp_inventory)
         return {"host_name": host, "target_network": prefix}
+    if problem == BGP_RPKI_LEAK_PROBLEM:
+        if not bgp_inventory or not bgp_inventory.get("rpki"):
+            raise ValueError(
+                "bgp_rpki_invalid_route_leak requires Abilene eBGP RPKI inventory"
+            )
+        leaker = bgp_inventory.get("leaker_device")
+        if not leaker:
+            raise ValueError("bgp inventory missing leaker_device")
+        return {"host_name": str(leaker)}
+    if problem == BGP_MAX_PREFIX_PROBLEM:
+        return first_ebgp_session(bgp_inventory)
     raise ValueError(f"unsupported isp inject problem: {problem!r}")

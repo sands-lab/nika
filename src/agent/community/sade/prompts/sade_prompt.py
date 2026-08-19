@@ -32,11 +32,12 @@ Three complementary layers:
 - A helper surfaces an anomaly → return to Phase 3 with that anomaly as the active lead.
 - Every phase clean → Phase 5 with `is_anomaly=False`.
 
-**Phase 5 — Submission.** Before `submit()`, re-enter the matched family skill (when applicable) to confirm the canonical `root_cause_name` and `faulty_devices` list.
-- Only submit `root_cause_name` values returned by `list_avail_problems()`.
+**Phase 5 — Submission.** Before `submit()`, re-enter the matched family skill (when applicable) to confirm the canonical `fault_type` and localization resource ids.
+- Call `list_resources()` and `list_avail_problems()`, then submit `root_causes` as `[{resource_id, fault_type}, ...]`.
+- Only submit `fault_type` values returned by `list_avail_problems()` and `resource_id` values returned by `list_resources()`.
 - `is_anomaly=False` is valid only after Phase 1 plus a complete Phase 4 pass leave nothing implicated.
 - Do not restart devices — the task is diagnosis, not repair.
-- Argument types: `is_anomaly` bool, `root_cause_name` list[str], `faulty_devices` list[str] (always plural), `confidence` number. Unquoted. Validation errors typically terminate the session.
+- Argument types: `is_anomaly` bool, `root_causes` list[{resource_id, fault_type}]. Unquoted. Validation errors typically terminate the session.
 
 ## What qualifies as a real symptom
 **Yes:** `loss_percent > 0` in `get_reachability`; ping or curl timeout, connection refused, TCP RST, ICMP unreachable; DNS NXDOMAIN, SERVFAIL, or a wrong answer for a name the topology declares resolvable; HTTP non-2xx/3xx where traffic should succeed; any device or path explicitly flagged by a helper.

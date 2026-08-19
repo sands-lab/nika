@@ -28,12 +28,16 @@ from nika.problems.ground_truth import ground_truth_for_case
 from nika.problems.prob_pool import list_avail_problem_instances
 from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
 from nika.problems.topology_inventory import load_offline_net_env
+from nika.workflows.benchmark.isp_options import (
+    ISP_SCENARIO,
+    isp_config_for_problem,
+)
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.migrate import materialize_cases, write_cases_yaml
 from nika.workflows.benchmark.release import (
     DEFAULTS_V1,
     RESOURCES_V1,
-    SCORING_V2,
+    SCORING,
     TOOLS_V1,
     build_scenario_problem_pins,
     collect_images_for_scenarios,
@@ -60,6 +64,8 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "bgp_blackhole_route_leak": "dc_clos",
     "bgp_hijacking": "dc_clos",
     "bgp_missing_route_advertisement": "dc_clos",
+    "bgp_rpki_invalid_route_leak": "isp",
+    "bgp_max_prefix_exceeded": "isp",
     "bmv2_switch_down": "p4_bloom_filter",
     "dhcp_missing_subnet": "campus_lan",
     "dhcp_service_down": "campus_lan",
@@ -171,11 +177,24 @@ def _make_row(
     *,
     seed: int,
     workload: str | None = None,
+    isp_options: dict[str, str] | None = None,
 ) -> dict:
     inject = resolve_inject_params(
-        problem, scenario, topo_size, seed=seed, workload=workload
+        problem,
+        scenario,
+        topo_size,
+        seed=seed,
+        workload=workload,
+        isp_options=isp_options,
     )
-    validate_benchmark_case(scenario, problem, inject, topo_size, workload=workload)
+    validate_benchmark_case(
+        scenario,
+        problem,
+        inject,
+        topo_size,
+        workload=workload,
+        isp_options=isp_options,
+    )
     row: dict = {
         "scenario": scenario,
         "topo_size": topo_size or None,
@@ -184,13 +203,20 @@ def _make_row(
     }
     if workload is not None:
         row["workload"] = workload
+    if isp_options is not None:
+        row.update(isp_options)
     try:
         gt = ground_truth_for_case(
             problem=problem,
             params=inject,
             scenario=scenario,
             topo_size=topo_size,
-            net_env=load_offline_net_env(scenario, topo_size, workload=workload),
+            net_env=load_offline_net_env(
+                scenario,
+                topo_size,
+                workload=workload,
+                **(isp_options or {}),
+            ),
         )
         row["root_causes"] = canonical_root_causes(gt.root_causes)
     except UnresolvedRootCauseError as exc:
@@ -213,10 +239,13 @@ def iter_full_cases(*, seed: int) -> list[dict]:
             if not problem_tags.issubset(set(net_env_cls.TAGS)):
                 continue
             workload = None
+            isp_options = None
             if is_dc_clos_scenario(net_env_name):
                 workload = workload_for_dc_clos(prob_name, problem_tags)
             elif is_campus_lan_scenario(net_env_name):
                 workload = workload_for_campus_lan(prob_name, problem_tags)
+            elif net_env_name == ISP_SCENARIO:
+                isp_options = isp_config_for_problem(prob_name, problem_tags)
             for topo_size in _topo_sizes_for_scenario(net_env_name):
                 rows.append(
                     _make_row(
@@ -225,6 +254,7 @@ def iter_full_cases(*, seed: int) -> list[dict]:
                         topo_size,
                         seed=seed,
                         workload=workload,
+                        isp_options=isp_options,
                     )
                 )
     return rows
@@ -253,10 +283,13 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
             )
         topo_size = "s" if scenario_requires_topo_size(scenario) else ""
         workload = None
+        isp_options = None
         if is_dc_clos_scenario(scenario):
             workload = workload_for_dc_clos(prob_name, problem_tags)
         elif is_campus_lan_scenario(scenario):
             workload = workload_for_campus_lan(prob_name, problem_tags)
+        elif scenario == ISP_SCENARIO:
+            isp_options = isp_config_for_problem(prob_name, problem_tags)
         rows.append(
             _make_row(
                 scenario,
@@ -264,6 +297,7 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
                 topo_size,
                 seed=seed,
                 workload=workload,
+                isp_options=isp_options,
             )
         )
     return rows
@@ -473,7 +507,7 @@ def generate_release_splits(
         version=version,
         splits=splits,
         defaults=dict(DEFAULTS_V1),
-        scoring=dict(SCORING_V2),
+        scoring=dict(SCORING),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=images,

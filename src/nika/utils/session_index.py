@@ -27,7 +27,7 @@ def _is_finished_session(run_meta: dict) -> bool:
     return run_meta.get("end_time") is not None
 
 
-_JSON_LIST_FIELDS = frozenset({"problem_names", "faulty_devices"})
+_JSON_LIST_FIELDS = frozenset({"problem_names"})
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -38,9 +38,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     scenario_topo_size TEXT,
     session_dir TEXT,
     problem_names TEXT,
-    root_cause_name TEXT,
     root_cause_category TEXT,
-    faulty_devices TEXT,
     failure_count INTEGER DEFAULT 0,
     agent_type TEXT,
     llm_provider TEXT,
@@ -70,9 +68,7 @@ _UPSERT_COLUMNS = (
     "scenario_topo_size",
     "session_dir",
     "problem_names",
-    "root_cause_name",
     "root_cause_category",
-    "faulty_devices",
     "failure_count",
     "agent_type",
     "llm_provider",
@@ -125,9 +121,7 @@ def extract_index_fields(doc: Mapping[str, Any]) -> dict[str, Any]:
         "scenario_topo_size": doc.get("scenario_topo_size"),
         "session_dir": doc.get("session_dir"),
         "problem_names": doc.get("problem_names"),
-        "root_cause_name": doc.get("root_cause_name"),
         "root_cause_category": doc.get("root_cause_category"),
-        "faulty_devices": doc.get("faulty_devices"),
         "failure_count": failure_count if failure_count is not None else 0,
         "agent_type": doc.get("agent_type"),
         "llm_provider": doc.get("llm_provider"),
@@ -179,12 +173,11 @@ def extract_eval_fields(
 
 
 def extract_gt_fields(gt: Mapping[str, Any]) -> dict[str, Any]:
-    """Extract ground-truth fields for the index."""
+    """Extract ground-truth fields for the index from taxonomy metadata."""
     fields: dict[str, Any] = {}
-    if "faulty_devices" in gt:
-        fields["faulty_devices"] = gt["faulty_devices"]
-    if "root_cause_name" in gt:
-        fields["root_cause_name"] = gt["root_cause_name"]
+    category = gt.get("root_cause_category") or gt.get("failure_domain")
+    if category:
+        fields["root_cause_category"] = category
     return fields
 
 
@@ -218,13 +211,6 @@ class SessionIndex:
         for field in _JSON_LIST_FIELDS:
             if field in data and data[field] is not None:
                 data[field] = _json_loads(data[field])
-        if isinstance(data.get("root_cause_name"), str) and data[
-            "root_cause_name"
-        ].startswith("["):
-            try:
-                data["root_cause_name"] = _json_loads(data["root_cause_name"])
-            except (json.JSONDecodeError, TypeError):
-                pass
         return data
 
     def upsert(self, fields: Mapping[str, Any]) -> None:

@@ -20,6 +20,9 @@ def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
         "problem": row["problem"],
         "topo_size": row.get("topo_size") or "",
         "workload": row.get("workload") or "",
+        "topo": row.get("topo") or "",
+        "igp": row.get("igp") or "",
+        "bgp_mode": row.get("bgp_mode") or "",
         "inject": {
             str(k): str(v) for k, v in sorted((row.get("inject") or {}).items())
         },
@@ -35,6 +38,9 @@ def benchmark_row_from_case(
     topo_size: str,
     inject_params: dict[str, str],
     workload: str | None = None,
+    topo: str | None = None,
+    igp: str | None = None,
+    bgp_mode: str | None = None,
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "scenario": scenario,
@@ -44,6 +50,12 @@ def benchmark_row_from_case(
     }
     if workload:
         row["workload"] = workload
+    if topo:
+        row["topo"] = topo
+    if igp:
+        row["igp"] = igp
+    if bgp_mode:
+        row["bgp_mode"] = bgp_mode
     return row
 
 

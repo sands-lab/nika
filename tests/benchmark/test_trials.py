@@ -202,8 +202,6 @@ class TestTrialHelpers:
                             "fault_type": "link_down",
                         }
                     ],
-                    "faulty_devices": ["pc1"],
-                    "root_cause_name": ["link_down"],
                 }
             ),
             encoding="utf-8",
@@ -528,9 +526,13 @@ class TestAgentFailedFinalization:
                 json.dumps(
                     {
                         "is_anomaly": True,
-                        "faulty_devices": ["pc1"],
+                        "root_causes": [
+                            {
+                                "resource_id": "node/pc1",
+                                "fault_type": "link_down",
+                            }
+                        ],
                         "root_cause_category": "link_failure",
-                        "root_cause_name": ["link_down"],
                     }
                 ),
                 encoding="utf-8",

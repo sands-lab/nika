@@ -12,7 +12,7 @@ from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
 from nika.net_env.kathara.enterprise_wan.enterprise_branch.wireguard import (
     load_key_pairs,
 )
-from nika.problems.misconfigurations.wireguard import (
+from nika.problems.forwarding_encapsulation_policy.wireguard import (
     WRONG_HUB_PEER_PUBLIC_KEY,
     allowed_ips_for_spoke_hub_peer,
 )

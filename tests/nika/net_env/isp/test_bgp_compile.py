@@ -97,6 +97,43 @@ def test_frr_merge_only_when_bgp() -> None:
     assert "route-reflector-client" in merged or "neighbor" in merged
 
 
+def test_abilene_ebgp_rpki_profile() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
+    plan = compile_bgp_plan(isp_plan, "ebgp")
+    assert plan is not None
+    inv = plan.inventory
+    assert inv.get("rpki") is True
+    assert inv.get("leaker_device") == "losang"
+    assert inv.get("rov_observer") == "snvang"
+    assert inv.get("non_rov_observer") == "atlang"
+    assert inv.get("legitimate_origin_asn") == 65001
+    assert inv.get("leaker_asn") == 65002
+    assert "203.0.113.0/24" in inv.get("leak_prefixes")
+    # Intra-AS iBGP present alongside cross-AS eBGP.
+    assert any(s.session_type == "ibgp" for s in plan.sessions)
+    assert any(s.session_type == "ebgp" for s in plan.sessions)
+    losang = next(n for n in plan.nodes if n.device_name == "losang")
+    assert "leaker" in losang.roles
+    assert losang.export_deny_prefixes
+    snvang = next(n for n in plan.nodes if n.device_name == "snvang")
+    assert snvang.rov_reject_invalid
+    assert snvang.rpki_cache is not None
+    frag = render_bgp_frr_fragment(snvang, plan)
+    assert "rpki cache tcp" in frag
+    assert "match rpki invalid" in frag
+    leak_frag = render_bgp_frr_fragment(losang, plan)
+    assert "prefix-list LEAK" in leak_frag
+    assert "route-map BGP-OUT deny 5" in leak_frag
+
+
+def test_non_abilene_ebgp_unchanged() -> None:
+    u = _isp_plan()
+    plan = compile_bgp_plan(u, "ebgp")
+    assert plan is not None
+    assert not plan.inventory.get("rpki")
+    assert all(s.session_type == "ebgp" for s in plan.sessions)
+
+
 def test_order_independence() -> None:
     topo_a = NetworkTopology(
         name="tiny",

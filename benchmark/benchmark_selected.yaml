@@ -66,6 +66,25 @@ cases:
       kind: node
       node: leaf_router_0_0
     fault_type: bgp_hijacking
+- scenario: isp
+  topo_size: null
+  problem: bgp_max_prefix_exceeded
+  inject:
+    receiver_name: atlang
+    peer_name: washng
+    neighbor_ip: 10.0.0.7
+  topo: abilene
+  igp: isis
+  bgp_mode: ebgp
+  root_causes:
+  - resource:
+      kind: node
+      node: atlang
+    fault_type: bgp_max_prefix_exceeded
+  - resource:
+      kind: node
+      node: washng
+    fault_type: bgp_max_prefix_exceeded
 - scenario: dc_clos
   topo_size: s
   problem: bgp_missing_route_advertisement
@@ -77,6 +96,19 @@ cases:
       kind: node
       node: leaf_router_0_0
     fault_type: bgp_missing_route_advertisement
+- scenario: isp
+  topo_size: null
+  problem: bgp_rpki_invalid_route_leak
+  inject:
+    host_name: losang
+  topo: abilene
+  igp: isis
+  bgp_mode: ebgp
+  root_causes:
+  - resource:
+      kind: node
+      node: losang
+    fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_bloom_filter
   topo_size: null
   problem: bmv2_switch_down

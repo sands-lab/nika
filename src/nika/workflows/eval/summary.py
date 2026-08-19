@@ -34,8 +34,10 @@ def _matches_filters(
     if session_ids and session_label not in session_ids:
         return False
     if problems:
-        root_cause = run_meta.get("root_cause_name")
-        if root_cause not in problems:
+        names = run_meta.get("problem_names") or []
+        if isinstance(names, str):
+            names = [names]
+        if not any(name in problems for name in names):
             return False
     if envs and run_meta.get("scenario_name") not in envs:
         return False

@@ -26,7 +26,7 @@ nika leaderboard submit results/my-run/YYYYMMDD_slug
 
 `pack` writes `{result_dir}/{YYYYMMDD}_{slug}/` (slug from `metadata.info.name`; override with `--out`). `submit` validates (unless `--skip-validate`), pushes to `submissions/<release_version>/{YYYYMMDD}_{slug}/`, and opens a PR. CI re-validates packages under `submissions/`.
 
-Agents submit `(resource_id, fault_type)` pairs. Scoring is `rule-based-v2` (set metrics on those pairs). The package field `identity.yaml` `schema_version: "2"` is the leaderboard pack format.
+Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on those pairs. The package field `identity.yaml` `schema_version: "3"` is the leaderboard pack format.
 
 ## Package layout
 
@@ -36,7 +36,7 @@ Agents submit `(resource_id, fault_type)` pairs. Scoring is `rule-based-v2` (set
   metadata.yaml
   files.json
   results/
-    identity.yaml          # schema_version: "2"
+    identity.yaml          # schema_version: "3"
     metrics.json
     rca_confusion.json     # multi-label GT→predicted edge counts
     trials/{trial_id}/result.json
@@ -44,12 +44,12 @@ Agents submit `(resource_id, fault_type)` pairs. Scoring is `rule-based-v2` (set
 
 Remote path: `submissions/<release_version>/{YYYYMMDD}_{slug}/`. Traces and per-case run artifacts are not included; integrity uses `source_run_sha256` and the frozen `benchmark.digest`.
 
-### Per-trial `result.json` (schema 2)
+### Per-trial `result.json` (schema 3)
 
-In addition to metrics, each trial records RCA labels for confusion-matrix display:
+In addition to metrics, each trial records fault-type labels for confusion-matrix display:
 
-- `gt_root_cause_name`: list from session `ground_truth.json` (fallback: `[problem]`)
-- `predicted_root_cause_name`: list from session `submission.json`, or `null` when the file/field is missing
+- `gt_fault_types`: unique `fault_type` values from session `ground_truth.json` `root_causes` (fallback: `[problem]`)
+- `predicted_fault_types`: unique `fault_type` values from session `submission.json` `root_causes`, or `null` when the file is missing or has no pairs
 
 `results/rca_confusion.json` aggregates multi-label edges `(gt, predicted)` across trials and records `n_missing_prediction` / `missing_prediction_trial_ids`.
 

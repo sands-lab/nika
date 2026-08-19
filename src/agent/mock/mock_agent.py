@@ -28,6 +28,27 @@ from nika.utils.session import Session
 _ROUTER_HINTS = ("router", "leaf", "spine", "super_spine")
 
 
+def _preferred_devices_from_gt(gt: dict[str, Any]) -> list[str]:
+    preferred: list[str] = []
+    for item in gt.get("root_causes") or []:
+        if not isinstance(item, dict):
+            continue
+        node = None
+        resource = item.get("resource")
+        if isinstance(resource, dict):
+            node = resource.get("node")
+        if not node:
+            rid = str(item.get("resource_id") or "")
+            parts = rid.split("/")
+            if parts[:1] == ["node"] and len(parts) >= 2:
+                node = parts[1]
+            elif parts[:1] == ["interface"] and len(parts) >= 2:
+                node = parts[1]
+        if node and str(node) not in preferred:
+            preferred.append(str(node))
+    return preferred
+
+
 def _catalog_ids_from_tool(result: object) -> list[str]:
     payload: object = result
     if isinstance(result, str):
@@ -151,6 +172,7 @@ def _mock_diagnosis_tool_calls(
     else:
         router = _pick_router(devices) or (preferred[0] if preferred else None)
         if router and "kathara_frr_mcp_server" in server_names:
+            calls.append(("frr_get_routing_state", {"device": router}))
             calls.append(("frr_show_ip_route", {"router_name": router}))
     return calls
 
@@ -201,7 +223,7 @@ class MockAgent:
         scenario = str(getattr(self.session, "scenario_name", "") or "")
         server_names = select_diagnosis_servers(scenario, backend=backend)
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
-        preferred = [str(d) for d in (gt.get("faulty_devices") or []) if d]
+        preferred = _preferred_devices_from_gt(gt)
         devices = _session_device_names(self.session_id) or list(preferred)
 
         config = load_session_mcp_config(self.session_id, scenario, backend=backend)
@@ -281,11 +303,17 @@ class MockAgent:
         )
         avail_raw = await tools["list_avail_problems"].ainvoke({})
         avail = _tool_text_list(avail_raw)
-        gt_names = gt.get("root_cause_name") or []
-        if isinstance(gt_names, str):
-            gt_names = [gt_names]
-        session_root_cause = getattr(self.session, "root_cause_name", None)
-        candidates = [str(n) for n in gt_names if n] + (
+        gt_names: list[str] = []
+        for item in gt.get("root_causes") or []:
+            if isinstance(item, dict):
+                fault_type = str(item.get("fault_type") or "").strip()
+                if fault_type and fault_type not in gt_names:
+                    gt_names.append(fault_type)
+        session_root_cause = None
+        names = getattr(self.session, "problem_names", None) or []
+        if isinstance(names, list) and names:
+            session_root_cause = names[0]
+        candidates = list(gt_names) + (
             [session_root_cause] if session_root_cause else []
         )
         mock_root_cause = next((c for c in candidates if c in avail), None)

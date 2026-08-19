@@ -3,7 +3,7 @@ import os
 from typing import Any, List
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from nika.problems.prob_pool import (
     list_avail_problem_names as _list_avail_problems,
@@ -21,52 +21,32 @@ mcp = FastMCP(
 )
 
 
-class SubmissionFormat(BaseModel):
-    is_anomaly: bool = Field(
-        ..., description="Indicates whether an anomaly was detected."
-    )
-    root_causes: List[dict] = Field(
-        default_factory=list,
-        description=(
-            "Chosen diagnoses. Each item is {resource_id, fault_type} or "
-            "{resource: {kind, node, name}, fault_type}. "
-            "resource_id must match list_resources(); NIKA constructs it from "
-            "resource fields when omitted. fault_type comes from "
-            "list_avail_problems(). Example: "
-            "[{'resource_id': 'interface/pc1/eth0', 'fault_type': 'link_down'}]"
-        ),
-    )
-    faulty_devices: List[str] = Field(
-        default_factory=list,
-        description=(
-            "Legacy device names. Use only when root_causes is empty. "
-            "Example: ['router_1', 'switch_2']"
-        ),
-    )
-    root_cause_name: List[str] = Field(
-        default_factory=list,
-        description=(
-            "Legacy fault type names from list_avail_problems(). "
-            "Use only when root_causes is empty."
-        ),
-    )
-
-
 def _session_net_env():
     from nika.problems.topology_inventory import load_offline_net_env
 
     meta = get_session_meta()
     scenario = str(meta.get("scenario_name") or "")
     params = meta.get("scenario_params") or {}
-    topo = (
+    topo_size = (
         meta.get("scenario_topo_size")
         or params.get("topo_size")
         or params.get("size")
         or ""
     )
-    if topo in ("-", None):
-        topo = ""
-    return load_offline_net_env(scenario, str(topo))
+    if topo_size in ("-", None):
+        topo_size = ""
+    workload = params.get("workload")
+    topo = params.get("topo")
+    igp = params.get("igp")
+    bgp_mode = params.get("bgp_mode")
+    return load_offline_net_env(
+        scenario,
+        str(topo_size),
+        workload=str(workload) if workload not in (None, "", "-") else None,
+        topo=str(topo) if topo not in (None, "", "-") else None,
+        igp=str(igp) if igp not in (None, "", "-") else None,
+        bgp_mode=str(bgp_mode) if bgp_mode not in (None, "", "-") else None,
+    )
 
 
 def _live_k8s_catalog() -> tuple[list[dict], list[dict]]:
@@ -162,18 +142,14 @@ def list_resources() -> list[dict[str, str]]:
 def submit(
     is_anomaly: bool,
     root_causes: List[dict] | None = None,
-    faulty_devices: List[str] | None = None,
-    root_cause_name: List[str] | None = None,
 ) -> List[str]:
-    """Submit the diagnosis. Prefer resource_id + fault_type pairs from the list tools.
+    """Submit the diagnosis as resource_id + fault_type pairs from the list tools.
 
     Args:
         is_anomaly: Whether an anomaly was detected.
         root_causes: Diagnoses as [{resource_id, fault_type}, ...] from
             list_resources and list_avail_problems, or the same pair with
             resource fields instead of resource_id. NIKA constructs resource_id.
-        faulty_devices: Legacy device names. Accepted only when root_causes is empty.
-        root_cause_name: Legacy fault types. Accepted only when root_causes is empty.
     """
     causes = list(root_causes or [])
     if causes:
@@ -189,8 +165,6 @@ def submit(
     submission_dict: dict[str, Any] = {
         "is_anomaly": is_anomaly,
         "root_causes": causes,
-        "faulty_devices": list(faulty_devices or []),
-        "root_cause_name": list(root_cause_name or []),
     }
     session_dir = get_session_dir()
     os.makedirs(session_dir, exist_ok=True)

@@ -19,7 +19,7 @@ The resource catalog uses these canonical IDs:
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
 | Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/Service/kube-system/kube-dns` |
 
-`root_cause_category` remains a statistics field in `ground_truth.json`. NIKA does not include it in the RCA key.
+Schema version 3 writes `failure_domain`, `cause`, `symptom`, `scope`, `temporal`, and `impact` as statistics fields in `ground_truth.json`. `root_cause_category` remains a compatibility alias of `failure_domain`. NIKA does not include taxonomy metadata in the RCA key.
 
 Benchmark YAML stores the parsed resource fields (`kind` / `node` / `name`, or the k8s fields) plus `fault_type`. NIKA derives `resource_id` from those fields when it scores, injects, or accepts a submit. Agent submissions may send either `resource_id` or the same resource fields; `submit` always writes the constructed `resource_id`.
 
@@ -46,7 +46,7 @@ def root_cause_resources(self, params: MyFaultParams):
     return [interface_on(self.net_env, params.host_name, params.intf_name)]
 ```
 
-`ProblemBase.get_ground_truth()` combines each returned resource with the class `root_cause_name`. It also projects resource node names into `faulty_devices` for session artifacts. Failure authors should not call `set_faulty_devices()` or maintain a second root-cause table.
+`ProblemBase.get_ground_truth()` combines each returned resource with the class `root_cause_name` (the failure ID / `fault_type`). Failure authors should not maintain a second root-cause table.
 
 The following paths derive labels from the same method:
 
@@ -77,11 +77,11 @@ During the submission phase, an agent uses the task MCP tools in this order:
 }
 ```
 
-The task server rejects an unknown `resource_id` or `fault_type` and does not write `submission.json`. It still accepts `faulty_devices` and `root_cause_name` when `root_causes` is empty and writes those fields through. Scoring reads `root_causes` only.
+The task server rejects an unknown `resource_id` or `fault_type` and does not write `submission.json`. Scoring reads `root_causes` only.
 
 ## Score a submission
 
-Scoring compares the predicted and expected sets of `(resource_id, fault_type)` pairs. Duplicate pairs do not change a score. The frozen `nika-bench@0.1.0` manifest records this contract as `rule-based-v2`.
+Scoring compares the predicted and expected sets of `(resource_id, fault_type)` pairs. Duplicate pairs do not change a score.
 
 | Metric group | Compared set | Output fields |
 | --- | --- | --- |

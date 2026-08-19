@@ -444,7 +444,9 @@ class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
     def test_wireguard_peer_key_misconfiguration(self) -> None:
         import time
 
-        from nika.problems.misconfigurations.wireguard import WRONG_HUB_PEER_PUBLIC_KEY
+        from nika.problems.forwarding_encapsulation_policy.wireguard import (
+            WRONG_HUB_PEER_PUBLIC_KEY,
+        )
         from nika.net_env.verify import http_ok, ping_ok
         from nika.problems.prob_pool import get_problem_class
 
@@ -537,7 +539,9 @@ class VrfDscpRemarkingVerifyTest(PerTestEnvTestCase):
     def test_vrf_dscp_remarking(self) -> None:
         """Require DSCP demotion and QoS regression under competing bulk load."""
         from nika.net_env.verify import http_ok, ping_ok
-        from nika.problems.misconfigurations.vrf_dscp import VrfDscpRemarking
+        from nika.problems.forwarding_encapsulation_policy.vrf_dscp import (
+            VrfDscpRemarking,
+        )
         from nika.problems.prob_pool import get_problem_class
 
         params = {
@@ -587,9 +591,10 @@ class VrfDscpRemarkingVerifyTest(PerTestEnvTestCase):
 
         # Prefer seeing a large latency or loss move when available.
         if current.get("latency_ms") is not None and baseline.latency_ms is not None:
-            assert current["latency_ms"] >= baseline.latency_ms * 3 or (
-                current.get("lost_percent") or 0
-            ) >= 10, {"baseline": details["baseline"], "current": current}
+            assert (
+                current["latency_ms"] >= baseline.latency_ms * 3
+                or (current.get("lost_percent") or 0) >= 10
+            ), {"baseline": details["baseline"], "current": current}
 
         runtime = problem.runtime
         assert ping_ok(runtime, "br2_corp_pc", "10.0.10.2")

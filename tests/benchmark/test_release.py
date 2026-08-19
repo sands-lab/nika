@@ -92,7 +92,7 @@ class TestFrozenRelease010:
             source_cases=source,
             out_dir=tmp_path / "releases" / "mini",
         )
-        assert release.scoring["id"] == "rule-based-v2"
+        assert release.scoring["id"] == "rule-based"
         assert release.cases[0]["root_causes"]
         original = release.benchmark_digest
         new_digest = compute_benchmark_digest(
@@ -227,7 +227,7 @@ class TestReleaseRunMetadata:
         assert job["case_count"] == 1
         assert job["n_trials"] == 3
         assert job["run_id"] == job["job_id"]
-        assert job["scoring"]["id"] == "rule-based-v2"
+        assert job["scoring"]["id"] == "rule-based"
         assert "nika_git_commit" in job
         assert job["official"] is True
         assert (result_dir / "RELEASE.lock.json").is_file()

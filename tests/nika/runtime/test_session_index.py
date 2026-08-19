@@ -72,11 +72,21 @@ class SessionIndexTestCase:
             "lab_name": "bgp__fff999",
             "agent_type": "mock",
             "problem_names": ["link_down"],
-            "root_cause_name": "link_down",
         }
         (session_dir / RUN_FILENAME).write_text(json.dumps(run_meta), encoding="utf-8")
         (session_dir / GROUND_TRUTH_FILENAME).write_text(
-            json.dumps({"faulty_devices": ["pc1"], "root_cause_name": ["link_down"]}),
+            json.dumps(
+                {
+                    "is_anomaly": True,
+                    "root_causes": [
+                        {
+                            "resource_id": "node/pc1",
+                            "fault_type": "link_down",
+                        }
+                    ],
+                    "root_cause_category": "link_interface",
+                }
+            ),
             encoding="utf-8",
         )
         (session_dir / EVAL_METRICS_FILENAME).write_text(
@@ -89,6 +99,7 @@ class SessionIndexTestCase:
         assert row is not None
         assert row["status"] == "finished"
         assert row["agent_type"] == "mock"
-        assert row["faulty_devices"] == ["pc1"]
+        assert row["problem_names"] == ["link_down"]
+        assert row["root_cause_category"] == "link_interface"
         assert row["detection_score"] == 1.0
         assert row["failure_count"] == 1

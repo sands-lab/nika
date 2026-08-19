@@ -21,42 +21,96 @@ if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 
-class RootCauseCategory(StrEnum):
+class FailureDomain(StrEnum):
     def __new__(cls, value, description):
         obj = str.__new__(cls, value)
         obj._value_ = value
         obj.description = description
         return obj
 
-    LINK_FAILURE = (
-        "link_failure",
-        "Link failures: physical disconnections, interface down",
+    LINK_INTERFACE = (
+        "link_interface",
+        "Physical links and network interfaces",
     )
-    END_HOST_FAILURE = (
-        "end_host_failure",
-        "Host misconfiguration: IP, gateway, DNS, DHCP issues",
+    ROUTING_CONTROL_PLANE = (
+        "routing_control_plane",
+        "BGP, OSPF, and MPLS control-plane computation, signaling, and adjacency",
     )
-    NETWORK_NODE_ERROR = (
-        "network_node_error",
-        "Router/switch crashes, reboots, high CPU/memory usage",
+    FORWARDING_ENCAPSULATION_POLICY = (
+        "forwarding_encapsulation_policy",
+        "Packet forwarding, encapsulation, and data-plane policy",
     )
-    RESOURCE_CONTENTION = (
-        "resource_contention",
-        "Resource contention: bandwidth saturation, buffer overflows",
+    SERVICE_NETWORKING = (
+        "service_networking",
+        "Service virtual IPs, service forwarding, and load balancing",
     )
-    MISCONFIGURATION = (
-        "misconfiguration",
-        "Configuration errors: wrong IP, ACL, routing protocol settings",
+    MANAGEMENT_ORCHESTRATION_PLANE = (
+        "management_orchestration_plane",
+        "Network management systems, controllers, and orchestration APIs",
     )
-    NETWORK_UNDER_ATTACK = (
-        "network_under_attack",
-        "Security attacks: DDoS, BGP hijack, MITM, spoofing",
+    ADDRESSING_NEIGHBOR_NAMING = (
+        "addressing_neighbor_naming",
+        "Address assignment, neighbor state, and naming services",
     )
-    MULTIPLE_FAULTS = ("multiple_faults", "Multiple simultaneous faults in the network")
+    ENDPOINT_APPLICATION = (
+        "endpoint_application",
+        "Endpoint availability, resource state, and application behavior",
+    )
+    TRAFFIC_QUEUEING_RESOURCE = (
+        "traffic_queueing_resource",
+        "Traffic load, queueing, link capacity, and shared network resources",
+    )
+
+
+class FailureCause(StrEnum):
+    CONFIGURATION = "configuration"
+    HARDWARE = "hardware"
+    SOFTWARE = "software"
+    RESOURCE = "resource"
+    OPERATIONAL = "operational"
+    ADVERSARIAL = "adversarial"
+
+
+class FailureSymptom(StrEnum):
+    DOWN = "down"
+    FLAP = "flap"
+    LOSS = "loss"
+    LATENCY = "latency"
+    BLACKHOLE = "blackhole"
+    LOOP = "loop"
+    CORRUPTION = "corruption"
+    DEGRADED_THROUGHPUT = "degraded_throughput"
+    MISROUTING = "misrouting"
+
+
+class FailureScope(StrEnum):
+    HOST = "host"
+    LINK = "link"
+    NODE = "node"
+    PATH = "path"
+    SERVICE = "service"
+    MULTI_NODE = "multi_node"
+
+
+class FailureTemporal(StrEnum):
+    PERSISTENT = "persistent"
+    TRANSIENT = "transient"
+    INTERMITTENT = "intermittent"
+
+
+class FailureImpact(StrEnum):
+    NONE = "none"
+    PARTIAL = "partial"
+    COMPLETE = "complete"
 
 
 class ProblemMeta(BaseModel):
-    root_cause_category: RootCauseCategory
+    failure_domain: FailureDomain
+    cause: FailureCause
+    symptom: FailureSymptom
+    scope: FailureScope
+    temporal: FailureTemporal
+    impact: FailureImpact
     root_cause_name: str
     description: str
 
@@ -64,7 +118,12 @@ class ProblemMeta(BaseModel):
 class ProblemBase:
     """Core base class for fault definition, injection, verification, and truth."""
 
-    root_cause_category: ClassVar[RootCauseCategory | str | None] = None
+    failure_domain: ClassVar[FailureDomain | str | None] = None
+    cause: ClassVar[FailureCause | str | None] = None
+    symptom: ClassVar[FailureSymptom | str | None] = None
+    scope: ClassVar[FailureScope | str | None] = None
+    temporal: ClassVar[FailureTemporal | str | None] = None
+    impact: ClassVar[FailureImpact | str | None] = None
     root_cause_name: ClassVar[str] = ""
     symptom_desc: ClassVar[str] = ""
     Params: ClassVar[type[BaseModel] | None] = None
@@ -79,12 +138,17 @@ class ProblemBase:
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if "META" not in cls.__dict__:
-            category = cls.__dict__.get("root_cause_category")
+            domain = cls.__dict__.get("failure_domain")
             name = cls.__dict__.get("root_cause_name")
-            if category is not None and isinstance(name, str) and name:
+            if domain is not None and isinstance(name, str) and name:
                 description = cls.__dict__.get("symptom_desc") or name
                 cls.META = ProblemMeta(
-                    root_cause_category=category,
+                    failure_domain=domain,
+                    cause=cls.__dict__.get("cause"),
+                    symptom=cls.__dict__.get("symptom"),
+                    scope=cls.__dict__.get("scope"),
+                    temporal=cls.__dict__.get("temporal"),
+                    impact=cls.__dict__.get("impact"),
                     root_cause_name=name,
                     description=description,
                 )
@@ -117,6 +181,25 @@ class ProblemBase:
         self._resolved_params: BaseModel | dict[str, Any] | None = None
         if scenario_name is not None or kwargs:
             self.init_runtime(scenario_name, **kwargs)
+
+    @classmethod
+    def taxonomy_metadata(cls) -> dict[str, str]:
+        """Return the benchmark taxonomy dimensions for this failure."""
+        if cls.META is None:
+            return {}
+        return {
+            key: str(value)
+            for key, value in cls.META.model_dump(
+                include={
+                    "failure_domain",
+                    "cause",
+                    "symptom",
+                    "scope",
+                    "temporal",
+                    "impact",
+                }
+            ).items()
+        }
 
     def init_runtime(self, scenario_name: str | None, **kwargs: Any) -> None:
         """Resolve and attach the network environment and runtime once."""
@@ -164,28 +247,6 @@ class ProblemBase:
         """Resolve injection parameters; subclasses may fill derived defaults."""
         return self.parse_params(params, **overrides)
 
-    def _nodes_from_resources(self, params: Any = None) -> list[str]:
-        """Lab node names implied by ``root_cause_resources`` (legacy localization)."""
-        resolved = self._resolved_params if params is None else params
-        devices: list[str] = []
-        for resource in self.root_cause_resources(resolved):
-            node = resource.node
-            if node and node not in devices:
-                devices.append(node)
-        return devices
-
-    @property
-    def faulty_devices(self) -> list[str]:
-        """Projection of catalog resources onto lab node names.
-
-        Authors implement ``root_cause_resources`` only. Verify logs and legacy
-        localization read this list; do not set it in ``inject_fault``.
-        """
-        try:
-            return self._nodes_from_resources()
-        except (UnresolvedRootCauseError, TypeError, ValueError, AttributeError):
-            return []
-
     @property
     def lab_backend(self) -> str:
         return self.runtime.backend
@@ -201,7 +262,7 @@ class ProblemBase:
         )
 
     def get_ground_truth(self) -> ProblemGroundTruth:
-        """Return unified detection, localization, and RCA ground truth."""
+        """Return detection + structured RCA ground truth."""
         params = self._resolved_params
         resources = self.root_cause_resources(params)
         if not resources:
@@ -211,7 +272,6 @@ class ProblemBase:
         name = self.root_cause_name
         if isinstance(name, str):
             fault_type = name
-            names = [name]
         else:
             names = list(name or [])
             if len(names) != 1:
@@ -224,13 +284,17 @@ class ProblemBase:
             for resource in resources
         ]
         return ProblemGroundTruth(
-            schema_version=2,
+            schema_version=3,
             is_anomaly=True,
             root_causes=root_causes,
-            root_cause_category=str(self.root_cause_category or ""),
+            failure_domain=str(self.failure_domain or ""),
+            cause=str(self.cause or ""),
+            symptom=str(self.symptom or ""),
+            scope=str(self.scope or ""),
+            temporal=str(self.temporal or ""),
+            impact=str(self.impact or ""),
+            root_cause_category=str(self.failure_domain or ""),
             detailed_cause=self.symptom_desc or "",
-            faulty_devices=self._nodes_from_resources(params),
-            root_cause_name=names,
         )
 
     def get_task_description(self) -> str:
@@ -282,14 +346,12 @@ class ProblemBase:
 
 
 def build_verify_result(
-    root_cause_name: str,
-    faulty_devices: list[str],
+    fault_type: str,
     verified: bool,
     details: dict,
 ) -> dict:
     return {
         "verified": verified,
-        "root_cause_name": root_cause_name,
-        "faulty_devices": list(faulty_devices),
+        "fault_type": fault_type,
         "details": details,
     }

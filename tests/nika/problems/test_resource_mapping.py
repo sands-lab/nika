@@ -12,6 +12,91 @@ from nika.problems.prob_pool import (
     list_avail_problem_names,
 )
 from nika.problems.root_cause import UnresolvedRootCauseError
+from nika.problems.problem_base import FailureDomain
+
+
+EXPECTED_FAILURE_DOMAINS = {
+    FailureDomain.LINK_INTERFACE: {
+        "link_detach",
+        "link_down",
+        "link_flap",
+        "link_high_packet_corruption",
+    },
+    FailureDomain.ROUTING_CONTROL_PLANE: {
+        "bgp_asn_misconfig",
+        "bgp_blackhole_route_leak",
+        "bgp_hijacking",
+        "bgp_max_prefix_exceeded",
+        "bgp_missing_route_advertisement",
+        "bgp_rpki_invalid_route_leak",
+        "frr_service_down",
+        "ospf_area_misconfiguration",
+        "ospf_neighbor_missing",
+    },
+    FailureDomain.FORWARDING_ENCAPSULATION_POLICY: {
+        "arp_acl_block",
+        "bgp_acl_block",
+        "bmv2_switch_down",
+        "dns_port_blocked",
+        "flow_rule_loop",
+        "flow_rule_shadowing",
+        "host_static_blackhole",
+        "http_acl_block",
+        "icmp_acl_block",
+        "k8s_networkpolicy_deny",
+        "mpls_label_limit_exceeded",
+        "mtu_mismatch",
+        "ospf_acl_block",
+        "p4_aggressive_detection_thresholds",
+        "p4_compilation_error_parser_state",
+        "p4_header_definition_error",
+        "p4_table_entry_misconfig",
+        "p4_table_entry_missing",
+        "vrf_dscp_remarking",
+        "wireguard_allowed_ips_misconfiguration",
+        "wireguard_peer_key_misconfiguration",
+    },
+    FailureDomain.SERVICE_NETWORKING: {
+        "k8s_clusterip_routing_broken",
+        "load_balancer_overload",
+    },
+    FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE: {
+        "k8s_worker_apiserver_partition",
+        "sdn_controller_crash",
+        "southbound_port_block",
+        "southbound_port_mismatch",
+    },
+    FailureDomain.ADDRESSING_NEIGHBOR_NAMING: {
+        "arp_cache_poisoning",
+        "dhcp_missing_subnet",
+        "dhcp_service_down",
+        "dhcp_spoofed_dns",
+        "dhcp_spoofed_gateway",
+        "dhcp_spoofed_subnet",
+        "dns_lookup_latency",
+        "dns_record_error",
+        "dns_service_down",
+        "host_incorrect_dns",
+        "host_incorrect_gateway",
+        "host_incorrect_ip",
+        "host_incorrect_netmask",
+        "host_ip_conflict",
+        "host_missing_ip",
+        "k8s_coredns_isolated",
+        "mac_address_conflict",
+    },
+    FailureDomain.ENDPOINT_APPLICATION: {
+        "host_crash",
+        "receiver_resource_contention",
+        "sender_application_delay",
+        "sender_resource_contention",
+        "web_dos_attack",
+    },
+    FailureDomain.TRAFFIC_QUEUEING_RESOURCE: {
+        "incast_traffic_network_limitation",
+        "link_bandwidth_throttling",
+    },
+}
 
 
 class _Spec:
@@ -43,6 +128,31 @@ def _resources(problem: str, params: dict, env: _Env):
 
 
 class ResourceMappingTest:
+    def test_every_failure_has_orthogonal_taxonomy_metadata(self) -> None:
+        problems = list_avail_problem_instances()
+        assert len(problems) == 64
+        for name, cls in problems.items():
+            assert cls.META is not None, name
+            assert set(cls.taxonomy_metadata()) == {
+                "failure_domain",
+                "cause",
+                "symptom",
+                "scope",
+                "temporal",
+                "impact",
+            }
+            assert cls.__module__.split(".")[-2] == cls.META.failure_domain, name
+
+        actual = {
+            domain: {
+                name
+                for name, cls in problems.items()
+                if cls.META is not None and cls.META.failure_domain == domain
+            }
+            for domain in FailureDomain
+        }
+        assert actual == EXPECTED_FAILURE_DOMAINS
+
     def test_every_failure_implements_mapping(self) -> None:
         missing = [
             name
@@ -117,7 +227,7 @@ class ResourceMappingTest:
         )
         assert resource.id == "interface/br1_edge/wg_hq"
 
-    def test_faulty_devices_follows_resources_not_inject_side_effects(self) -> None:
+    def test_resources_follow_inject_not_side_effects(self) -> None:
         env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
         from nika.problems.prob_pool import get_problem_class
 
@@ -127,7 +237,8 @@ class ResourceMappingTest:
         problem = cls.__new__(cls)
         problem.net_env = env
         problem.parse_params({"host_name": "br1_edge", "intf_name": "wg_hq"})
-        assert problem.faulty_devices == ["br1_edge"]
+        resources = problem.root_cause_resources(problem._resolved_params)
+        assert [r.node for r in resources] == ["br1_edge"]
 
     def test_networkpolicy_is_k8s(self) -> None:
         env = _Env(("n1:eth0", "n2:eth0"))
@@ -171,7 +282,16 @@ class ResourceMappingTest:
         assert gt.is_anomaly
         assert len(gt.root_causes) == 1
         assert gt.root_causes[0].fault_type == "link_down"
-        assert gt.faulty_devices == ["pc1"]
+        assert gt.root_causes[0].resource is not None
+        assert gt.root_causes[0].resource.node == "pc1"
+        assert gt.schema_version == 3
+        assert gt.failure_domain == "link_interface"
+        assert gt.cause == "hardware"
+        assert gt.symptom == "down"
+        assert gt.scope == "link"
+        assert gt.temporal == "persistent"
+        assert gt.impact == "complete"
+        assert gt.root_cause_category == gt.failure_domain
 
     def test_multi_root_cause(self) -> None:
         env = _Env(("pc1:eth0", "r1:eth0"))

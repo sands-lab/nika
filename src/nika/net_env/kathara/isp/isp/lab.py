@@ -55,7 +55,18 @@ class Isp(NetworkEnvBase):
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
     TOPO_SIZE = None
-    TAGS = ["isp", "sndlib", "frr", "isis", "ospf", "bgp", "igp", "link", "icmp"]
+    TAGS = [
+        "isp",
+        "sndlib",
+        "frr",
+        "isis",
+        "ospf",
+        "bgp",
+        "rpki",
+        "igp",
+        "link",
+        "icmp",
+    ]
 
     def __init__(
         self,
@@ -121,6 +132,8 @@ class Isp(NetworkEnvBase):
         wait = max(180, min(cap, 60 + node_n * per_node + link_n + host_n * 5))
         if self.bgp_plan is not None:
             wait = max(wait, min(2400, 120 + node_n * 12 + link_n))
+        if self.bgp_plan is not None and self.bgp_plan.inventory.get("rpki"):
+            wait = max(wait, 900)
         self.VERIFY_MAX_WAIT_SEC = wait
         self.VERIFY_RETRY_DELAY_SEC = 5.0
 
@@ -140,11 +153,19 @@ class Isp(NetworkEnvBase):
         )
 
         if self.bgp_plan is not None:
-            daemons_pkg = (
-                "net_env/kathara/utils/isp/daemons_isis_bgp"
-                if self.plan.igp == "isis"
-                else "net_env/kathara/utils/isp/daemons_ospf_bgp"
-            )
+            rpki = bool(self.bgp_plan.inventory.get("rpki"))
+            if self.plan.igp == "isis":
+                daemons_pkg = (
+                    "net_env/kathara/utils/isp/daemons_isis_bgp_rpki"
+                    if rpki
+                    else "net_env/kathara/utils/isp/daemons_isis_bgp"
+                )
+            else:
+                daemons_pkg = (
+                    "net_env/kathara/utils/isp/daemons_ospf_bgp_rpki"
+                    if rpki
+                    else "net_env/kathara/utils/isp/daemons_ospf_bgp"
+                )
             vtysh_pkg = "net_env/kathara/utils/isp/vtysh.conf"
         else:
             daemons_pkg = (
@@ -184,6 +205,10 @@ class Isp(NetworkEnvBase):
             self.lab.connect_machine_to_link(edge.router_device, edge.collision_domain)
             self.lab.connect_machine_to_link(edge.host_name, edge.collision_domain)
 
+        self._rpki_attachment: dict | None = None
+        if self.bgp_plan is not None and self.bgp_plan.inventory.get("rpki"):
+            self._rpki_attachment = self._attach_routinator()
+
         bgp_by_device = {}
         if self.bgp_plan is not None:
             bgp_by_device = {n.device_name: n for n in self.bgp_plan.nodes}
@@ -206,10 +231,26 @@ class Isp(NetworkEnvBase):
                 for pref in bgp_node.originated:
                     plen = pref.prefix.rsplit("/", 1)[1]
                     extras.append(f"ip addr add {pref.ping_address}/{plen} dev lo")
+                if (
+                    self._rpki_attachment is not None
+                    and node.device_name == self._rpki_attachment["router"]
+                ):
+                    extras.append(
+                        "ip addr add "
+                        f"{self._rpki_attachment['router_address']}/"
+                        f"{self._rpki_attachment['prefixlen']} "
+                        f"dev {self._rpki_attachment['router_iface']}"
+                    )
                 if startup and startup[-1] == "service frr start":
-                    startup = startup[:-1] + extras + [startup[-1]]
+                    post_frr: list[str] = []
+                    if bgp_node is not None and bgp_node.rpki_cache is not None:
+                        # RPKI module must be started after bgpd is up.
+                        post_frr.append("vtysh -c 'rpki start'")
+                    startup = startup[:-1] + extras + [startup[-1]] + post_frr
                 else:
                     startup = startup + extras
+                    if bgp_node is not None and bgp_node.rpki_cache is not None:
+                        startup.append("vtysh -c 'rpki start'")
             machine.create_file_from_string(frr_conf, "/etc/frr/frr.conf")
             self.lab.create_file_from_list(
                 startup,
@@ -217,6 +258,100 @@ class Isp(NetworkEnvBase):
             )
 
         self.load_machines()
+
+    def _ensure_routinator_image(self) -> str:
+        """Build a root-USER wrapper image for Kathara startup compatibility."""
+        import subprocess
+
+        image = "nika/routinator-root:v0.14.2"
+        probe = subprocess.run(
+            ["docker", "image", "inspect", image],
+            capture_output=True,
+            check=False,
+        )
+        if probe.returncode == 0:
+            return image
+        dockerfile = pkg_path("net_env/kathara/utils/isp/rpki/Dockerfile.routinator")
+        build = subprocess.run(
+            [
+                "docker",
+                "build",
+                "-t",
+                image,
+                "-f",
+                str(dockerfile),
+                str(dockerfile.parent),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if build.returncode != 0:
+            raise RuntimeError(
+                f"Failed to build {image}: {build.stderr or build.stdout}"
+            )
+        return image
+
+    def _attach_routinator(self) -> dict:
+        """Attach an offline Routinator RTR next to the ROV observer."""
+        from nika.net_env.isp.bgp.abilene_inter_as import (
+            RPKI_COLLISION_DOMAIN,
+            RPKI_PREFIXLEN,
+            RPKI_ROUTER_ADDRESS,
+            RPKI_ROUTINATOR_ADDRESS,
+            RPKI_RTR_PORT,
+            ROUTINATOR_MACHINE,
+            ROV_OBSERVER,
+        )
+
+        assert self.bgp_plan is not None
+        rtr = self.bgp_plan.inventory.get("rpki_rtr") or {}
+        router = str(rtr.get("router") or ROV_OBSERVER)
+        node = next(n for n in self.plan.nodes if n.device_name == router)
+        router_iface = f"eth{len(node.interfaces)}"
+        collision = str(rtr.get("collision_domain") or RPKI_COLLISION_DOMAIN)
+        router_address = str(rtr.get("router_address") or RPKI_ROUTER_ADDRESS)
+        routinator_address = str(rtr.get("address") or RPKI_ROUTINATOR_ADDRESS)
+        prefixlen = int(rtr.get("prefixlen") or RPKI_PREFIXLEN)
+        port = int(rtr.get("port") or RPKI_RTR_PORT)
+        machine_name = str(rtr.get("machine") or ROUTINATOR_MACHINE)
+        image = self._ensure_routinator_image()
+
+        routinator = self.lab.new_machine(
+            machine_name,
+            **{
+                "image": image,
+                "shell": "/bin/sh",
+                "entrypoint": "/bin/sh",
+                "args": ["-c", "while true; do sleep 3600; done"],
+                "cpus": 0.5,
+                "mem": "256m",
+            },
+        )
+        self.lab.connect_machine_to_link(router, collision)
+        self.lab.connect_machine_to_link(machine_name, collision)
+
+        slurm_src = pkg_path("net_env/kathara/utils/isp/rpki/slurm.json")
+        routinator.create_file_from_path(str(slurm_src), "/tmp/slurm.json")
+        startup = [
+            "mkdir -p /tmp/rpki-cache",
+            f"ip addr add {routinator_address}/{prefixlen} dev eth0",
+            "ip link set eth0 up",
+            "routinator --repository-dir /tmp/rpki-cache "
+            "--no-rir-tals --disable-rsync --disable-rrdp "
+            "--exceptions /tmp/slurm.json "
+            f"server --rtr 0.0.0.0:{port} --http 127.0.0.1:8323",
+        ]
+        self.lab.create_file_from_list(startup, f"{machine_name}.startup")
+        return {
+            "router": router,
+            "router_iface": router_iface,
+            "router_address": router_address,
+            "prefixlen": prefixlen,
+            "routinator": machine_name,
+            "routinator_address": routinator_address,
+            "port": port,
+        }
 
     def get_info(self) -> str:
         base = super().get_info()

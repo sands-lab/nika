@@ -126,11 +126,11 @@ def build_rca_confusion(trials: list[TrialResult]) -> RcaConfusion:
     pair_counts: Counter[tuple[str, str]] = Counter()
     missing_ids: list[str] = []
     for trial in trials:
-        if trial.predicted_root_cause_name is None:
+        if trial.predicted_fault_types is None:
             missing_ids.append(trial.trial_id)
             continue
-        for gt in trial.gt_root_cause_name:
-            for pred in trial.predicted_root_cause_name:
+        for gt in trial.gt_fault_types:
+            for pred in trial.predicted_fault_types:
                 pair_counts[(gt, pred)] += 1
     pairs = [
         RcaConfusionPair(gt=gt, predicted=pred, count=count)

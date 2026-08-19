@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 from pathlib import Path
@@ -23,7 +22,6 @@ from tests.support.integration_base import (
     CliIntegrationTestCase,
     OrderedPipelineTestCase,
 )
-from tests.support.integration_pipeline import tool_text_list
 
 
 class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
@@ -45,7 +43,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
     EXEC_PROBE_HOST: ClassVar[str]
     EXEC_PROBE_CMD: ClassVar[str] = "hostname"
     SUBMIT_FAULTY_DEVICES: ClassVar[list[str]]
-    ROOT_CAUSE_CATEGORY: ClassVar[str] = "link_failure"
+    ROOT_CAUSE_CATEGORY: ClassVar[str] = "link_interface"
     IMAGE_SUBSTRING: ClassVar[str | None] = "kathara"
     DIAGNOSIS_MCP_SERVERS: ClassVar[list[str]] = ["kathara_base_mcp_server"]
 
@@ -125,13 +123,21 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
 
         assert ground_truth["is_anomaly"]
 
-        assert self.PROBLEM in ground_truth["root_cause_name"]
+        fault_types = {
+            item.get("fault_type") for item in ground_truth.get("root_causes") or []
+        }
+        assert self.PROBLEM in fault_types
 
         assert ground_truth["root_cause_category"] == self.ROOT_CAUSE_CATEGORY
-        assert ground_truth.get("schema_version") == 2
+        assert ground_truth.get("schema_version") == 3
         assert ground_truth.get("root_causes")
         for device in self.SUBMIT_FAULTY_DEVICES:
-            assert device in ground_truth["faulty_devices"]
+            assert any(
+                (item.get("resource") or {}).get("node") == device
+                or str(item.get("resource_id") or "").startswith(f"node/{device}")
+                or str(item.get("resource_id") or "").startswith(f"interface/{device}/")
+                for item in ground_truth["root_causes"]
+            )
 
     def test_step_04_mcp_session_context(self) -> None:
         assert self.session_id is not None

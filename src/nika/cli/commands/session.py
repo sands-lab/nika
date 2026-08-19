@@ -20,11 +20,6 @@ def _failure_summary(session: dict) -> str:
         problem_names = session.get("problem_names")
         if isinstance(problem_names, list) and problem_names:
             return str(problem_names[0])
-        root_cause = session.get("root_cause_name")
-        if isinstance(root_cause, str) and root_cause:
-            return root_cause
-        if isinstance(root_cause, list) and root_cause:
-            return str(root_cause[0])
         injections = session.get("failure_injections", [])
         if len(injections) == 1:
             return str(injections[0].get("problem_name", "—"))

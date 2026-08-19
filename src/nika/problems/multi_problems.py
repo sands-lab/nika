@@ -5,7 +5,6 @@ import asyncio
 from nika.problems.problem_base import (
     ProblemBase,
     ProblemGroundTruth,
-    RootCauseCategory,
     build_verify_result,
 )
 
@@ -13,7 +12,6 @@ from nika.problems.problem_base import (
 class MultiFaultProblem(ProblemBase):
     """Composite problem that injects multiple sub-faults in parallel."""
 
-    root_cause_category = RootCauseCategory.MULTIPLE_FAULTS
     root_cause_name: list[str] = []
 
     def __init__(self, sub_faults: list[ProblemBase], scenario_name: str, **kwargs):
@@ -68,14 +66,13 @@ class MultiFaultProblem(ProblemBase):
                 sub_results.append(
                     {
                         "verified": False,
-                        "root_cause_name": getattr(fault, "root_cause_name", "unknown"),
+                        "fault_type": getattr(fault, "root_cause_name", "unknown"),
                         "details": {"error": "no verify_fault method"},
                     }
                 )
         self._refresh_aggregates()
         return build_verify_result(
-            root_cause_name=str(self.root_cause_name),
-            faulty_devices=self.faulty_devices,
+            fault_type=str(self.root_cause_name),
             verified=all_verified,
             details={"sub_results": sub_results},
         )
@@ -84,6 +81,4 @@ class MultiFaultProblem(ProblemBase):
         from nika.problems.ground_truth import build_multi_ground_truth
 
         self._refresh_aggregates()
-        return build_multi_ground_truth(
-            self.sub_faults, category=str(self.root_cause_category)
-        )
+        return build_multi_ground_truth(self.sub_faults, category="multiple_faults")

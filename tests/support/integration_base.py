@@ -232,9 +232,12 @@ class IntegrationMixin:
         session_row = SessionStore().get_session(sid)
         gt_path = Path(session_row["session_dir"]) / "ground_truth.json"
         gt = json.loads(gt_path.read_text(encoding="utf-8"))
-        assert gt.get("schema_version") == 2
+        assert gt.get("schema_version") == 3
         assert gt.get("root_causes"), f"missing root_causes for {problem}"
-        assert problem in (gt.get("root_cause_name") or [])
+        fault_types = {
+            item.get("fault_type") for item in gt.get("root_causes") or []
+        }
+        assert problem in fault_types
         for item in gt["root_causes"]:
             resource_id = item.get("resource_id") or (item.get("resource") or {}).get(
                 "id", ""

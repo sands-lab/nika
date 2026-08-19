@@ -102,7 +102,7 @@ See the [`isp` scenario reference](network-scenarios.md#sndlib-isp-scenario) for
 
 ## Add an injectable failure
 
-Failures live under `src/nika/problems/<category>/`. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`. `prob_pool` builds `META` from class variables during import.
+Failures live under `src/nika/problems/<failure_domain>/`. The directory name must match the class `failure_domain`. Cross-domain base classes and helpers live under `src/nika/problems/support/`; support packages must not define registered failures. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`, validates all taxonomy fields, and builds `META` during import.
 
 Each fault is a single `ProblemBase` subclass that implements injection, verification, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
 
@@ -110,8 +110,13 @@ Each fault is a single `ProblemBase` subclass that implements injection, verific
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
+    FailureCause,
+    FailureDomain,
+    FailureImpact,
+    FailureScope,
+    FailureSymptom,
+    FailureTemporal,
     ProblemBase,
-    RootCauseCategory,
     build_verify_result,
 )
 from nika.problems.topology_inventory import interface_on
@@ -123,7 +128,12 @@ class MyFaultParams(BaseModel):
 
 
 class MyFault(ProblemBase):
-    root_cause_category = RootCauseCategory.LINK_FAILURE
+    failure_domain = FailureDomain.LINK_INTERFACE
+    cause = FailureCause.HARDWARE
+    symptom = FailureSymptom.DOWN
+    scope = FailureScope.LINK
+    temporal = FailureTemporal.PERSISTENT
+    impact = FailureImpact.COMPLETE
     root_cause_name = "my_fault"
     TAGS = ["link"]
     Params = MyFaultParams
@@ -142,8 +152,7 @@ class MyFault(ProblemBase):
     def verify_fault(self, params: MyFaultParams) -> dict:
         operstate = self.runtime.get_interface_operstate(params.host_name, params.intf_name)
         return build_verify_result(
-            root_cause_name=self.root_cause_name,
-            faulty_devices=self.faulty_devices,
+            fault_type=self.root_cause_name,
             verified=operstate == "down",
             details={"host": params.host_name, "intf": params.intf_name, "operstate": operstate},
         )
@@ -151,11 +160,12 @@ class MyFault(ProblemBase):
 
 Notes:
 
-- Set `root_cause_category`, `root_cause_name`, and `Params` on the class. `META` is auto-generated; you do not define it by hand.
+- Set `failure_domain`, `cause`, `symptom`, `scope`, `temporal`, `impact`, `root_cause_name`, and `Params` on the class. `META` is auto-generated; you do not define it by hand.
+- Place the implementation under the matching subsystem directory. Configuration is a `cause` value, so do not create a `misconfigurations` domain or directory.
 - `symptom_desc` is optional. When set, it becomes the registry description and ground-truth `detailed_cause`. When omitted, the registry description falls back to `root_cause_name`, while `detailed_cause` remains empty.
 - `inject_fault()` should mutate only the selected lab instance.
 - `verify_fault()` must prove the fault is active. Failed verification marks the injection as failed and stops the run.
-- Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. NIKA projects resource node names into `faulty_devices`. Do not call `set_faulty_devices` or maintain `root_causes` in a separate table. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
+- Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
 
 Verify the problem:
@@ -222,14 +232,14 @@ cases:
       intf_name: eth0
 ```
 
-When the new failure or scenario should enter the working matrices, regenerate them and refresh the coverage matrix image in the same change:
+When the new failure or scenario should enter the working matrices, regenerate them and refresh the failure × scenario tables in [Benchmark configuration](benchmark-configuration.md) in the same change:
 
 ```shell
 uv run python benchmark/generate_benchmark.py
-uv run --group dev python scripts/plot_coverage_matrix.py
+uv run python scripts/render_coverage_matrix.py --write-docs
 ```
 
-Review the YAML and PNG diffs. Failure rows in the image follow the six-category taxonomy; see [Benchmark configuration](benchmark-configuration.md).
+Review the YAML and docs table diffs.
 
 Run a single case:
 
@@ -255,6 +265,6 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
 - `uv run nika failure inject <problem> --set ...` verifies successfully.
 - `uv run nika benchmark run ... -a mock -m mock-v1` completes without external LLM credentials.
 - The session directory contains `ground_truth.json`, `run.json`, `events.jsonl`, and evaluation artifacts.
-- If working-matrix cases changed, `benchmark_full.yaml` / `benchmark_selected.yaml` and `assets/images/benchmark_coverage_matrix.png` are updated together.
+- If working-matrix cases changed, `benchmark_full.yaml` / `benchmark_selected.yaml` and the coverage tables in [Benchmark configuration](benchmark-configuration.md) are updated together.
 
 Update the [failure reference](failures.md) or [network scenario reference](network-scenarios.md) in the same change when the registry or runtime behavior changes.

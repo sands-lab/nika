@@ -46,6 +46,21 @@ def ping_pair(host_a: str, host_b: str, count: int = 4, args: str = "") -> str:
 
 @safe_tool
 @mcp.tool()
+def traceroute(host_name: str, dst_ip: str) -> str:
+    """Run traceroute from a lab host to a destination IP.
+
+    Args:
+        host_name (str): The name of the source host or router.
+        dst_ip (str): Destination IPv4 address.
+    Returns:
+        str: Traceroute command output.
+    """
+    lab_api = get_lab_api()
+    return lab_api.traceroute(host_name, dst_ip)
+
+
+@safe_tool
+@mcp.tool()
 def systemctl_ops(host_name: str, service_name: str, operation: str) -> str:
     """Perform systemctl operations (start, stop, restart, status) on a host.
 

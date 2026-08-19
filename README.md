@@ -50,88 +50,21 @@ NIKA combines two components:
 
 ### Network incidents
 
-NIKA constructs benchmark incidents from recurring root causes. Categories follow the [failure reference](docs/failures.md).
+NIKA constructs benchmark incidents from recurring failure mechanisms. The [failure taxonomy](docs/failures.md) uses a network-subsystem domain plus orthogonal cause, symptom, scope, temporal, and impact metadata. Failure IDs and injection behavior remain stable across taxonomy changes.
 
-| Category | Registered fault types | # Working-matrix cases |
-| --- | :---: | :---: |
-| Link failures | 7 | 109 |
-| End-host failures | 8 | 122 |
-| Network node errors | 13 | 62 |
-| Misconfigurations | 18 | 157 |
-| Resource contention | 8 | 97 |
-| Network under attack | 6 | 51 |
-| **Total** | **60** | **598** |
+| Failure domain | Registered failure types | Working-matrix cases |
+| --- | ---: | ---: |
+| Link & Interface | 4 | 96 |
+| Routing & Control Plane | 7 | 60 |
+| Forwarding, Encapsulation & Policy | 21 | 154 |
+| Service Networking | 2 | 5 |
+| Management & Orchestration Plane | 4 | 20 |
+| Addressing, Neighbor & Naming | 17 | 173 |
+| Endpoint & Application | 5 | 62 |
+| Traffic, Queueing & Resource | 2 | 34 |
+| **Total** | **62** | **604** |
 
-<details>
-<summary>🔍 <strong>Show all 60 registered failure types</strong></summary>
-
-Each incident pairs a root cause `Problem ID` with a network scenario (topology and workload).
-
-| Problem ID | Category | Description | # Tasks |
-| ---------- | -------- | ----------- | ------- |
-| `dns_record_error` | `network_under_attack` | Some hosts cannot access external websites. | 6 |
-| `host_crash` | `end_host_failure` | host_crash | 28 |
-| `host_incorrect_dns` | `network_under_attack` | Some hosts are unable to access web services. | 6 |
-| `host_incorrect_gateway` | `end_host_failure` | Some hosts seem to be unreachable in the network. | 17 |
-| `host_incorrect_ip` | `end_host_failure` | Some hosts seem to be unreachable in the network. | 28 |
-| `host_incorrect_netmask` | `end_host_failure` | Some hosts seem to be unreachable in the network. | 17 |
-| `host_ip_conflict` | `end_host_failure` | Some hosts experience intermittent connectivity issues. | 28 |
-| `host_missing_ip` | `end_host_failure` | Some hosts are unable to communicate with other devices in the network. | 28 |
-| `bmv2_switch_down` | `network_node_error` | bmv2_switch_down | 4 |
-| `dhcp_service_down` | `end_host_failure` | dhcp_service_down | 3 |
-| `dns_service_down` | `end_host_failure` | Some hosts cannot access external websites. | 6 |
-| `link_detach` | `link_failure` | Users report connectivity issues to other hosts. | 30 |
-| `link_down` | `link_failure` | Users report connectivity issues to other hosts. | 30 |
-| `link_flap` | `link_failure` | Users report connectivity issues to other hosts. | 30 |
-| `mtu_mismatch` | `misconfiguration` | Users report size-dependent packet loss: large transfers fail while small packets (for example small pings) still succeed. | 24 |
-| `link_high_packet_corruption` | `link_failure` | link_high_packet_corruption | 30 |
-| `mac_address_conflict` | `link_failure` | mac_address_conflict | 28 |
-| `arp_acl_block` | `misconfiguration` | arp_acl_block | 28 |
-| `bgp_acl_block` | `misconfiguration` | bgp_acl_block | 10 |
-| `bgp_asn_misconfig` | `misconfiguration` | Some hosts are experiencing connectivity issues. | 10 |
-| `bgp_blackhole_route_leak` | `misconfiguration` | bgp_blackhole_route_leak | 10 |
-| `bgp_missing_route_advertisement` | `misconfiguration` | bgp_missing_route_advertisement | 10 |
-| `dhcp_missing_subnet` | `network_under_attack` | dhcp_missing_subnet | 3 |
-| `dns_port_blocked` | `end_host_failure` | dns_port_blocked | 6 |
-| `host_static_blackhole` | `misconfiguration` | host_static_blackhole | 10 |
-| `http_acl_block` | `misconfiguration` | http_acl_block | 13 |
-| `icmp_acl_block` | `misconfiguration` | icmp_acl_block | 29 |
-| `k8s_coredns_isolated` | `misconfiguration` | Applications cannot resolve Kubernetes service names such as *.svc.cluster.local and report DNS timeouts, while communication by IP address keeps working. The CoreDNS pods are Running and Ready and the DNS Service still lists its endpoints. | 2 |
-| `k8s_networkpolicy_deny` | `misconfiguration` | Only the pods selected by a NetworkPolicy lose inbound connectivity while sibling routes and the rest of the cluster stay healthy. | 2 |
-| `k8s_worker_apiserver_partition` | `misconfiguration` | One Kubernetes worker node reports NotReady and stops receiving new pods, and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while those pods keep serving traffic and the node itself is still reachable over the network. | 2 |
-| `ospf_acl_block` | `misconfiguration` | ospf_acl_block | 7 |
-| `ospf_area_misconfiguration` | `misconfiguration` | ospf_area_misconfiguration | 7 |
-| `ospf_neighbor_missing` | `misconfiguration` | ospf_neighbor_missing | 7 |
-| `flow_rule_loop` | `misconfiguration` | flow_rule_loop | 6 |
-| `flow_rule_shadowing` | `misconfiguration` | flow_rule_shadowing | 6 |
-| `frr_service_down` | `network_node_error` | Users report connectivity issues to other hosts in the network. | 18 |
-| `k8s_clusterip_routing_broken` | `network_node_error` | Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, including in-cluster DNS, while direct pod-IP traffic from the same node still works. Services, endpoints and pods all report healthy, and the node stays Ready. | 2 |
-| `mpls_label_limit_exceeded` | `network_node_error` | mpls_label_limit_exceeded | 1 |
-| `p4_aggressive_detection_thresholds` | `network_under_attack` | p4_aggressive_detection_thresholds | 1 |
-| `p4_compilation_error_parser_state` | `network_node_error` | p4_compilation_error_parser_state | 4 |
-| `p4_header_definition_error` | `network_node_error` | p4_header_definition_error | 4 |
-| `p4_table_entry_misconfig` | `misconfiguration` | p4_table_entry_misconfig | 4 |
-| `p4_table_entry_missing` | `misconfiguration` | p4_table_entry_missing | 4 |
-| `sdn_controller_crash` | `network_node_error` | sdn_controller_crash | 6 |
-| `southbound_port_block` | `network_node_error` | southbound_port_block | 6 |
-| `southbound_port_mismatch` | `network_node_error` | southbound_port_mismatch | 6 |
-| `arp_cache_poisoning` | `network_under_attack` | arp_cache_poisoning | 28 |
-| `bgp_hijacking` | `network_under_attack` | bgp_hijacking | 10 |
-| `dhcp_spoofed_dns` | `network_under_attack` | Some hosts can not access webservices. | 3 |
-| `dhcp_spoofed_gateway` | `network_under_attack` | dhcp_spoofed_gateway | 3 |
-| `dhcp_spoofed_subnet` | `network_under_attack` | dhcp_spoofed_subnet | 3 |
-| `dns_lookup_latency` | `network_under_attack` | Users experience high latency when accessing web services. | 6 |
-| `web_dos_attack` | `network_under_attack` | Users reports high latency when accessing some web services. | 13 |
-| `wireguard_peer_key_misconfiguration` | `misconfiguration` | Wrong Hub WireGuard peer public key on a Branch Site Edge; overlay BGP and cross-site traffic fail while underlay stays up. | 3 |
-| `incast_traffic_network_limitation` | `resource_contention` | incast_traffic_network_limitation | 13 |
-| `link_bandwidth_throttling` | `resource_contention` | link_bandwidth_throttling | 30 |
-| `load_balancer_overload` | `resource_contention` | load_balancer_overload | 3 |
-| `receiver_resource_contention` | `resource_contention` | receiver_resource_contention | 13 |
-| `sender_application_delay` | `resource_contention` | sender_application_delay | 13 |
-| `sender_resource_contention` | `resource_contention` | sender_resource_contention | 13 |
-| - | **Total** | - | **598** |
-
-</details>
+Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata and injection parameter schema. The [failure reference](docs/failures.md#registered-failures) lists all 62 IDs with their injection and verification contracts.
 
 
 ## ✨ Features
@@ -262,7 +195,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 60 registered fault types <br> 6 network types | ⭐️⭐️ <br> 598 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 62 registered fault types <br> 6 network types | ⭐️⭐️ <br> 604 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

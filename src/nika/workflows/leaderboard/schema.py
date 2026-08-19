@@ -1,4 +1,4 @@
-"""Versioned leaderboard submission schemas (schema_version ``2``)."""
+"""Versioned leaderboard submission schemas (schema_version ``3``)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
@@ -126,7 +126,7 @@ class PackageIdentity(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["2"] = SCHEMA_VERSION
+    schema_version: Literal["3"] = SCHEMA_VERSION
     created_at: str
     benchmark: BenchmarkIdentity
     run: RunIdentity
@@ -142,26 +142,26 @@ class TrialResult(BaseModel):
     problem: str
     outcome: Literal["success", "agent_failed"]
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
-    gt_root_cause_name: list[str] = Field(default_factory=list)
-    predicted_root_cause_name: list[str] | None = None
+    gt_fault_types: list[str] = Field(default_factory=list)
+    predicted_fault_types: list[str] | None = None
 
-    @field_validator("gt_root_cause_name")
+    @field_validator("gt_fault_types")
     @classmethod
-    def _non_empty_gt_names(cls, value: list[str]) -> list[str]:
+    def _non_empty_gt_types(cls, value: list[str]) -> list[str]:
         for item in value:
             if not isinstance(item, str) or not item.strip():
-                raise ValueError("gt_root_cause_name entries must be non-empty strings")
+                raise ValueError("gt_fault_types entries must be non-empty strings")
         return value
 
-    @field_validator("predicted_root_cause_name")
+    @field_validator("predicted_fault_types")
     @classmethod
-    def _non_empty_pred_names(cls, value: list[str] | None) -> list[str] | None:
+    def _non_empty_pred_types(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
             return None
         for item in value:
             if not isinstance(item, str) or not item.strip():
                 raise ValueError(
-                    "predicted_root_cause_name entries must be non-empty strings"
+                    "predicted_fault_types entries must be non-empty strings"
                 )
         return value
 

@@ -169,6 +169,9 @@ def load_offline_net_env(
     topo_size: str = "",
     *,
     workload: str | None = None,
+    topo: str | None = None,
+    igp: str | None = None,
+    bgp_mode: str | None = None,
 ):
     """Instantiate a scenario without deploying, for GT generation and migration."""
     kwargs: dict = {}
@@ -176,6 +179,12 @@ def load_offline_net_env(
         kwargs["topo_size"] = topo_size
     if workload is not None:
         kwargs["workload"] = workload
+    if topo is not None:
+        kwargs["topo"] = topo
+    if igp is not None:
+        kwargs["igp"] = igp
+    if bgp_mode is not None:
+        kwargs["bgp_mode"] = bgp_mode
     kwargs["backend"] = resolve_scenario_backend(
         scenario, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
     )
