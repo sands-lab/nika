@@ -10,12 +10,7 @@ from nika.problems.inject_resolve import (
 )
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -35,12 +30,8 @@ class BGPAsnMisconfigParams(BaseModel):
 
 class BGPAsnMisconfig(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_asn_misconfig"
+    effect_protocol = "bgp"
     TAGS: str = ["bgp"]
 
     Params = BGPAsnMisconfigParams
@@ -162,12 +153,8 @@ class BGPMissingAdvertiseParams(BaseModel):
 
 class BGPMissingAdvertise(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_missing_route_advertisement"
+    effect_property = "reachability"
     TAGS: str = ["bgp"]
 
     Params = BGPMissingAdvertiseParams
@@ -292,11 +279,6 @@ class BGPBlackholeRouteLeakParams(BaseModel):
 
 class BGPBlackholeRouteLeak(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_blackhole_route_leak"
     TAGS: str = ["bgp"]
 
@@ -407,11 +389,6 @@ class BGPRPKIInvalidRouteLeakParams(BaseModel):
 
 class BGPRPKIInvalidRouteLeak(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_rpki_invalid_route_leak"
     TAGS: str = ["rpki"]
 
@@ -664,11 +641,6 @@ class BGPMaxPrefixExceededParams(BaseModel):
 
 class BGPMaxPrefixExceeded(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.OPERATIONAL
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_max_prefix_exceeded"
     TAGS: str = ["bgp", "isp"]
 

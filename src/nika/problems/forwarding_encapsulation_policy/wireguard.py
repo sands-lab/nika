@@ -9,12 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -87,11 +82,6 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
     TAGS: str = ["vpn"]
     Params = WireGuardPeerKeyMisconfigParams
@@ -276,11 +266,6 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "wireguard_allowed_ips_misconfiguration"
     TAGS: str = ["vpn"]
     Params = WireGuardAllowedIpsMisconfigParams

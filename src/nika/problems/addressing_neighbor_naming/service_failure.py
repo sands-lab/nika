@@ -1,12 +1,7 @@
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -29,11 +24,6 @@ class DNSServiceDownParams(BaseModel):
 
 class DNSServiceDown(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "dns_service_down"
     symptom_desc = "Some hosts cannot access external websites."
     TAGS: str = ["dns"]
@@ -74,11 +64,6 @@ class DHCPServiceDownParams(BaseModel):
 
 class DHCPServiceDown(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "dhcp_service_down"
 
     TAGS: str = ["dhcp"]

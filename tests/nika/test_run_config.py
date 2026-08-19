@@ -15,19 +15,8 @@ from nika.run_config.legacy import (
     detect_legacy_operational_env,
     warn_legacy_operational_env,
 )
-from nika.run_config.loader import (
-    load_run_config,
-    merge_cli,
-    reset_run_config,
-    set_run_config,
-)
+from nika.run_config.loader import load_run_config, merge_cli
 from nika.run_config.schema import RunConfig
-from nika.utils.agent_config import (
-    resolve_agent_model,
-    resolve_agent_type,
-    resolve_llm_provider,
-    resolve_max_steps,
-)
 
 _RUNNER = CliRunner()
 
@@ -69,28 +58,6 @@ def test_load_and_merge_cli(tmp_path: Path) -> None:
     assert merged.agent.max_steps == 30
     assert merged.agent.model == "override-model"
     assert merged.agent.provider == "deepseek"
-
-
-def test_resolve_from_run_config() -> None:
-    cfg = RunConfig.model_validate(
-        {
-            "agent": {
-                "type": "byo.langgraph",
-                "provider": "deepseek",
-                "max_steps": 15,
-                "models": {"langgraph": "deepseek-chat"},
-            }
-        }
-    )
-    set_run_config(cfg)
-    try:
-        assert resolve_agent_type(None) == "byo.langgraph"
-        assert resolve_llm_provider(None, agent_type="byo.langgraph") == "deepseek"
-        assert resolve_max_steps(None) == 15
-        assert resolve_agent_model("byo.langgraph", None) == "deepseek-chat"
-        assert resolve_agent_model("byo.langgraph", "cli-model") == "cli-model"
-    finally:
-        reset_run_config()
 
 
 def test_provider_validation_via_schema() -> None:

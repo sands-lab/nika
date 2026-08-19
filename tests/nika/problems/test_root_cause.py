@@ -51,7 +51,6 @@ class RootCauseSchemaTest:
         assert gt.is_anomaly is False
         assert gt.root_causes == []
         assert gt.schema_version == 3
-        assert gt.impact == "none"
 
     def test_resource_roundtrip(self) -> None:
         original = interface_resource("leaf1", "e1-1")

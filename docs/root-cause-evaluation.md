@@ -19,7 +19,7 @@ The resource catalog uses these canonical IDs:
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
 | Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/Service/kube-system/kube-dns` |
 
-Schema version 3 writes `failure_domain`, `cause`, `symptom`, `scope`, `temporal`, and `impact` as statistics fields in `ground_truth.json`. `root_cause_category` remains a compatibility alias of `failure_domain`. NIKA does not include taxonomy metadata in the RCA key.
+`ground_truth.json` records `failure_domain` as metadata. NIKA does not include taxonomy metadata in the RCA key.
 
 Benchmark YAML stores the parsed resource fields (`kind` / `node` / `name`, or the k8s fields) plus `fault_type`. NIKA derives `resource_id` from those fields when it scores, injects, or accepts a submit. Agent submissions may send either `resource_id` or the same resource fields; `submit` always writes the constructed `resource_id`.
 
@@ -89,7 +89,7 @@ Scoring compares the predicted and expected sets of `(resource_id, fault_type)` 
 | Localization | `resource_id` | `localization_precision`, `localization_recall`, `localization_f1` |
 | Fault type | `fault_type` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
 
-`rca_accuracy` and `localization_accuracy` copy their corresponding recall values for schema compatibility. Detection and trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, and `tool_errors`) remain separate fields in `eval_metrics.json`. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. All agent traces go through `agent.utils.usage.normalize_usage`.
+`rca_accuracy` and `localization_accuracy` copy their corresponding recall values for backward compatibility. Detection and trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, and `tool_errors`) remain separate fields in `eval_metrics.json`. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. All agent traces go through `agent.utils.usage.normalize_usage`.
 
 ```shell
 nika eval metrics

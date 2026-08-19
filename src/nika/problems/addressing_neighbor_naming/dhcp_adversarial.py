@@ -4,12 +4,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -28,11 +23,6 @@ class DHCPSpoofedGatewayParams(BaseModel):
 
 class DHCPSpoofedGateway(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.ADVERSARIAL
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "dhcp_spoofed_gateway"
 
     TAGS: str = ["dhcp"]
@@ -90,11 +80,6 @@ class DHCPSpoofedDNSParams(BaseModel):
 
 class DHCPSpoofedDNS(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.ADVERSARIAL
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "dhcp_spoofed_dns"
 
     symptom_desc = "Some hosts can not access webservices."
@@ -155,11 +140,6 @@ class DHCPSpoofedSubnetParams(BaseModel):
 
 class DHCPSpoofedSubnet(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.ADVERSARIAL
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "dhcp_spoofed_subnet"
 
     TAGS: str = ["dhcp"]

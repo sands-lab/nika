@@ -9,7 +9,7 @@ from nika.evaluator.result_log import (
     build_eval_result_from_session_dir,
     default_summary_csv_path,
     missing_summary_artifacts,
-    resolve_root_cause_category,
+    resolve_failure_metadata,
     write_eval_summary_csv,
 )
 from nika.utils.session_artifacts import (
@@ -25,7 +25,7 @@ def _matches_filters(
     *,
     problems: set[str] | None,
     envs: set[str] | None,
-    categories: set[str] | None,
+    failure_domains: set[str] | None,
     session_ids: set[str] | None,
     agent_types: set[str] | None,
     models: set[str] | None,
@@ -41,9 +41,9 @@ def _matches_filters(
             return False
     if envs and run_meta.get("scenario_name") not in envs:
         return False
-    if categories:
-        category = resolve_root_cause_category(run_meta)
-        if category not in categories:
+    if failure_domains:
+        failure_domain = resolve_failure_metadata(run_meta)["failure_domain"]
+        if failure_domain not in failure_domains:
             return False
     if agent_types and run_meta.get("agent_type") not in agent_types:
         return False
@@ -57,7 +57,7 @@ def run_eval_summary(
     output_path: str | None = None,
     problems: list[str] | None = None,
     envs: list[str] | None = None,
-    categories: list[str] | None = None,
+    failure_domains: list[str] | None = None,
     session_ids: list[str] | None = None,
     agent_types: list[str] | None = None,
     models: list[str] | None = None,
@@ -66,7 +66,7 @@ def run_eval_summary(
     """Scan finished sessions under results/, apply filters, and write one CSV file."""
     problem_set = set(problems) if problems else None
     env_set = set(envs) if envs else None
-    category_set = set(categories) if categories else None
+    failure_domain_set = set(failure_domains) if failure_domains else None
     session_id_set = set(session_ids) if session_ids else None
     agent_type_set = set(agent_types) if agent_types else None
     model_set = set(models) if models else None
@@ -81,7 +81,7 @@ def run_eval_summary(
             run_meta,
             problems=problem_set,
             envs=env_set,
-            categories=category_set,
+            failure_domains=failure_domain_set,
             session_ids=session_id_set,
             agent_types=agent_type_set,
             models=model_set,

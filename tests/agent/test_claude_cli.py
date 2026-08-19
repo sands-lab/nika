@@ -14,9 +14,6 @@ from agent.cli.claude.config import (
     prepare_claude_subprocess_env,
     use_bare_claude_mode,
 )
-from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig
-from nika.utils.agent_config import resolve_agent_model
 from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
@@ -24,24 +21,6 @@ load_test_env()
 
 class ClaudeConfigTest:
     """Claude env model and auth helpers."""
-
-    def test_claude_model_from_yaml(self) -> None:
-        reset_run_config()
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "cli.claude",
-                        "provider": "deepseek",
-                        "models": {"claude": "deepseek-v4-flash"},
-                    }
-                }
-            )
-        )
-        try:
-            assert resolve_agent_model("cli.claude", None) == "deepseek-v4-flash"
-        finally:
-            reset_run_config()
 
     def test_default_model_missing_raises(self) -> None:
         """Sandbox Claude Code compat: env model chain is empty."""

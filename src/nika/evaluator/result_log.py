@@ -32,13 +32,7 @@ SUMMARY_REQUIRED_ARTIFACTS = (
 class EvalResult:
     agent_type: str = None
     model: str = None
-    root_cause_category: str = None
     failure_domain: str = None
-    cause: str = None
-    symptom: str = None
-    scope: str = None
-    temporal: str = None
-    impact: str = None
     problem: str = None
     net_env: str = None
     scenario_topo_size: str = None
@@ -90,8 +84,7 @@ def missing_summary_artifacts(session_dir: Path) -> list[str]:
 
 
 def resolve_failure_metadata(run_meta: dict) -> dict[str, str | None]:
-    keys = ("failure_domain", "cause", "symptom", "scope", "temporal", "impact")
-    resolved = {key: run_meta.get(key) for key in keys}
+    resolved = {"failure_domain": run_meta.get("failure_domain")}
     problem_names = run_meta.get("problem_names") or []
     if len(problem_names) == 1:
         problem = get_problem_class(problem_names[0])
@@ -99,16 +92,6 @@ def resolve_failure_metadata(run_meta: dict) -> dict[str, str | None]:
             for key, value in problem.taxonomy_metadata().items():
                 resolved[key] = resolved[key] or value
     return {key: str(value) if value else None for key, value in resolved.items()}
-
-
-def resolve_root_cause_category(run_meta: dict) -> str | None:
-    """Return the legacy category field, now an alias of failure_domain."""
-    category = run_meta.get("root_cause_category")
-    return (
-        str(category)
-        if category
-        else resolve_failure_metadata(run_meta)["failure_domain"]
-    )
 
 
 def _primary_problem(run_meta: dict) -> str | None:
@@ -172,13 +155,7 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
     return EvalResult(
         agent_type=run_meta.get("agent_type"),
         model=run_meta.get("model"),
-        root_cause_category=resolve_root_cause_category(run_meta),
         failure_domain=taxonomy["failure_domain"],
-        cause=taxonomy["cause"],
-        symptom=taxonomy["symptom"],
-        scope=taxonomy["scope"],
-        temporal=taxonomy["temporal"],
-        impact=taxonomy["impact"],
         problem=_primary_problem(run_meta),
         net_env=run_meta.get("scenario_name"),
         scenario_topo_size=run_meta.get("scenario_topo_size"),

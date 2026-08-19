@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     scenario_topo_size TEXT,
     session_dir TEXT,
     problem_names TEXT,
-    root_cause_category TEXT,
+    failure_domain TEXT,
     failure_count INTEGER DEFAULT 0,
     agent_type TEXT,
     llm_provider TEXT,
@@ -68,7 +68,7 @@ _UPSERT_COLUMNS = (
     "scenario_topo_size",
     "session_dir",
     "problem_names",
-    "root_cause_category",
+    "failure_domain",
     "failure_count",
     "agent_type",
     "llm_provider",
@@ -121,7 +121,7 @@ def extract_index_fields(doc: Mapping[str, Any]) -> dict[str, Any]:
         "scenario_topo_size": doc.get("scenario_topo_size"),
         "session_dir": doc.get("session_dir"),
         "problem_names": doc.get("problem_names"),
-        "root_cause_category": doc.get("root_cause_category"),
+        "failure_domain": doc.get("failure_domain"),
         "failure_count": failure_count if failure_count is not None else 0,
         "agent_type": doc.get("agent_type"),
         "llm_provider": doc.get("llm_provider"),
@@ -175,9 +175,9 @@ def extract_eval_fields(
 def extract_gt_fields(gt: Mapping[str, Any]) -> dict[str, Any]:
     """Extract ground-truth fields for the index from taxonomy metadata."""
     fields: dict[str, Any] = {}
-    category = gt.get("root_cause_category") or gt.get("failure_domain")
-    if category:
-        fields["root_cause_category"] = category
+    failure_domain = gt.get("failure_domain")
+    if failure_domain:
+        fields["failure_domain"] = failure_domain
     return fields
 
 
@@ -303,7 +303,8 @@ class SessionIndex:
     def get_row(self, session_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM sessions WHERE session_id = ?",
+                f"SELECT {', '.join(_UPSERT_COLUMNS)} FROM sessions "
+                "WHERE session_id = ?",
                 (session_id,),
             ).fetchone()
         if row is None:
@@ -314,16 +315,16 @@ class SessionIndex:
         with self._connect() as conn:
             if running_only:
                 rows = conn.execute(
-                    """
-                    SELECT * FROM sessions
+                    f"""
+                    SELECT {", ".join(_UPSERT_COLUMNS)} FROM sessions
                     WHERE status = 'running'
                     ORDER BY updated_at DESC
                     """
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    """
-                    SELECT * FROM sessions
+                    f"""
+                    SELECT {", ".join(_UPSERT_COLUMNS)} FROM sessions
                     ORDER BY updated_at DESC
                     """
                 ).fetchall()

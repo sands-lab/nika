@@ -134,8 +134,7 @@ def validate_leaderboard_submission(
     if identity.schema_version != SCHEMA_VERSION:
         errors.append(
             f"unsupported schema_version {identity.schema_version!r}; "
-            f"expected {SCHEMA_VERSION!r} "
-            f"(schema 1 packages must be re-packed with NIKA that emits schema 2)"
+            f"expected {SCHEMA_VERSION!r}"
         )
 
     try:

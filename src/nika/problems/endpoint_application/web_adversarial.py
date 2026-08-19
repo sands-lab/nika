@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -27,11 +22,6 @@ class WebDoSParams(BaseModel):
 
 class WebDoS(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
-    cause = FailureCause.ADVERSARIAL
-    symptom = FailureSymptom.LATENCY
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "web_dos_attack"
     symptom_desc: str = "Users reports high latency when accessing some web services."
     TAGS: str = ["http"]

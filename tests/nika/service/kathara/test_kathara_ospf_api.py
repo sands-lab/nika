@@ -9,7 +9,6 @@ from nika.net_env.kathara.intradomain_routing.campus_lan.verify import (
     WEB0_URL,
     WEB3_URL,
 )
-from nika.runtime.factory import resolve_backend
 from tests.support.prerequisites import docker_available
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
 
@@ -22,11 +21,6 @@ INTF = "eth0"
 class KatharaOspfApiSmokeTest(KatharaScenarioApiSmokeTest):
     SCENARIO = "campus_lan"
     ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s", "--workload", "static"]
-
-    def test_session_backend(self) -> None:
-        row = self._session_row(self.session_id)
-
-        assert resolve_backend(row) == "kathara"
 
     def test_runtime_ospf_semantic_apis(self) -> None:
         runtime = self._runtime()

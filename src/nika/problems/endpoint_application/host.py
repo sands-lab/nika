@@ -1,12 +1,7 @@
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -25,11 +20,6 @@ class HostCrashParams(BaseModel):
 
 class HostCrash(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "host_crash"
     TAGS: str = ["pc"]
 

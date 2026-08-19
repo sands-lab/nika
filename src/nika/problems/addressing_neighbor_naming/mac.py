@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.topology_inventory import interface_on
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -27,11 +22,6 @@ class MacAddressConflictParams(BaseModel):
 
 class MacAddressConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.INTERMITTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "mac_address_conflict"
     TAGS: str = ["mac"]
 

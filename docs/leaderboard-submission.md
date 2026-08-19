@@ -26,7 +26,7 @@ nika leaderboard submit results/my-run/YYYYMMDD_slug
 
 `pack` writes `{result_dir}/{YYYYMMDD}_{slug}/` (slug from `metadata.info.name`; override with `--out`). `submit` validates (unless `--skip-validate`), pushes to `submissions/<release_version>/{YYYYMMDD}_{slug}/`, and opens a PR. CI re-validates packages under `submissions/`.
 
-Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on those pairs. The package field `identity.yaml` `schema_version: "3"` is the leaderboard pack format.
+Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on those pairs.
 
 ## Package layout
 
@@ -36,7 +36,7 @@ Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on tho
   metadata.yaml
   files.json
   results/
-    identity.yaml          # schema_version: "3"
+    identity.yaml
     metrics.json
     rca_confusion.json     # multi-label GT→predicted edge counts
     trials/{trial_id}/result.json
@@ -44,7 +44,7 @@ Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on tho
 
 Remote path: `submissions/<release_version>/{YYYYMMDD}_{slug}/`. Traces and per-case run artifacts are not included; integrity uses `source_run_sha256` and the frozen `benchmark.digest`.
 
-### Per-trial `result.json` (schema 3)
+### Per-trial `result.json`
 
 In addition to metrics, each trial records fault-type labels for confusion-matrix display:
 
@@ -89,11 +89,10 @@ Short system description, authors, and links to code / report / site (if any).
 
 ## Validate a package
 
-- Schema `2`; identity matches the in-tree frozen release
+- Identity matches the in-tree frozen release
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (failures count as 0 in means)
 - Package hashes in `files.json`; with `--source-result-dir`, `run.json` matches `source_run_sha256`
 - No secrets or absolute paths in package text
-- Schema `1` packages must be re-packed; they are rejected by current validate
 
 ## Check the pull request
 

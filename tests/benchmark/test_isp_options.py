@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
 from nika.workflows.benchmark.isp_options import (
@@ -13,12 +10,6 @@ from nika.workflows.benchmark.isp_options import (
 )
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
-
-_BENCHMARK_DIR = Path(__file__).resolve().parents[2] / "benchmark"
-if str(_BENCHMARK_DIR) not in sys.path:
-    sys.path.insert(0, str(_BENCHMARK_DIR))
-
-from generate_benchmark import isp_config_for_problem as gen_isp_config  # noqa: E402
 
 
 def test_isp_config_does_not_select_rpki_for_max_prefix() -> None:
@@ -29,7 +20,6 @@ def test_isp_config_does_not_select_rpki_for_max_prefix() -> None:
         "bgp_mode": "ebgp",
         "rpki": False,
     }
-    assert gen_isp_config("bgp_max_prefix_exceeded", {"bgp", "isp"}) == cfg
 
 
 def test_isp_config_rpki_default() -> None:

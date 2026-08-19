@@ -1,41 +1,46 @@
 # NIKA documentation
 
-Start with the root [README](../README.md) to install NIKA and run one incident. Use one canonical page for each topic; related pages link to it instead of repeating its instructions.
+Start with the root [README](../README.md) to install NIKA and run one incident. Then choose the page that matches your task.
 
-## Operate NIKA
+## Start and operate a lab
 
-| Task | Page | Content type |
+| Goal | Read | Type |
 | --- | --- | --- |
-| Configure agents, labs, MCP, sandboxes, and benchmark defaults | [Run configuration](configuration.md) | Reference |
-| Find a command, option, session rule, or artifact path | [CLI](cli-reference.md) | Reference |
-| Choose and configure a lab | [Network scenarios](network-scenarios.md) | Reference |
-| Select, inspect, and inject a fault | [Failures](failures.md) | Reference |
-| Run a lab on another host | [Remote lab execution](remote.md) | How-to |
-| Run an agent in a microVM | [Docker Sandbox execution](agent-sandbox.md) | How-to |
+| Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](configuration.md) | Reference |
+| Find a command, option, session rule, or artifact location | [CLI reference](cli-reference.md) | Reference |
+| Select a scenario and its backend, scale, workload, or prerequisites | [Network scenarios](network-scenarios.md) | Reference |
+| Select, inspect, and inject a failure | [Failure taxonomy and reference](failures.md) | Reference |
+| Run the lab host and agent host separately | [Remote lab execution](remote.md) | How-to |
+| Run a supported agent in a Docker Sandbox microVM | [Docker Sandbox execution](agent-sandbox.md) | How-to |
 
-## Work with agents
+## Choose or integrate an agent
 
-| Task | Page | Content type |
+| Goal | Read | Type |
 | --- | --- | --- |
-| Compare built-in agents and their provider support | [Agent implementations](agent-implementations.md) | Reference |
-| Implement and register an agent | [Custom agent integration](custom-agents.md) | How-to |
-| Attach troubleshooting instructions to Claude or Codex agents | [Agent skills](agent-skills.md) | How-to |
-| Configure a community agent | [Community agents](agents/community/README.md) | Reference |
+| Compare registered agents, providers, and execution modes | [Agent implementation reference](agent-implementations.md) | Reference |
+| Implement and register a `TroubleshootingAgent` | [Custom agent integration](custom-agents.md) | How-to |
+| Add reusable instructions for Claude or Codex agents | [Configure agent skills](agent-skills.md) | How-to |
+| Configure a community-maintained agent | [Community agent references](agents/community/README.md) | Reference |
 
-## Extend and evaluate NIKA
+## Run, evaluate, and publish a benchmark
 
-| Task | Page | Content type |
+| Goal | Read | Type |
 | --- | --- | --- |
-| Add a scenario, failure, traffic source, or benchmark case | [Create benchmark tasks](creating-benchmark-tasks.md) | How-to |
-| Define scenario expectations or implement a verifier | [Network validation contracts](validation-contracts.md) | Reference |
-| Inspect working matrices and frozen releases | [Benchmark configuration](benchmark-configuration.md) | Reference |
-| Define labels or understand scoring | [Root-cause ground truth and scoring](root-cause-evaluation.md) | Reference |
-| Package and submit an official release run | [Leaderboard submission](leaderboard-submission.md) | How-to |
-| Select and run test suites | [Testing](testing.md) | Guide |
+| Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmark-configuration.md) | Reference |
+| Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](root-cause-evaluation.md) | Reference |
+| Package a completed official release run | [Leaderboard submission](leaderboard-submission.md) | How-to |
 
-## Source of truth
+## Develop scenarios, failures, and verifiers
 
-The code registries define installed scenarios, failures, and agents. Inspect the current checkout before changing a catalog:
+| Goal | Read | Type |
+| --- | --- | --- |
+| Add a scenario, failure, traffic source, or working-matrix case | [Create benchmark tasks](creating-benchmark-tasks.md) | How-to |
+| Define healthy-network intents or implement a verifier | [Network validation contracts](validation-contracts.md) | Reference |
+| Select and run the smallest relevant test suite | [Testing](testing.md) | Guide |
+
+## Maintain the documentation
+
+Read the code registries before changing a catalog or count:
 
 ```shell
 uv run nika env list

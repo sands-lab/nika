@@ -56,9 +56,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             type(self)._agent_run_failed = True
             pytest.skip(f"Session store missing during agent run: {exc}")
 
-    def test_step_04_check_sandbox_artifacts(self) -> None:
-        if type(self)._agent_run_failed:
-            pytest.skip("Skipping sandbox artifact checks due to agent-run failure")
+    def _assert_sandbox_artifacts(self) -> None:
         assert self.session_dir is not None
         manifest = self.session_dir / "sandbox_manifest.json"
         assert manifest.is_file()
@@ -78,6 +76,11 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         for path in self.session_dir.rglob("*"):
             if path.name in _SENSITIVE_NAMES:
                 pytest.fail(f"credential file leaked into results: {path}")
+
+    def test_step_04_check_sandbox_artifacts(self) -> None:
+        if type(self)._agent_run_failed:
+            pytest.skip("Skipping sandbox artifact checks due to agent-run failure")
+        self._assert_sandbox_artifacts()
         messages = self._load_jsonl("messages.jsonl")
         assert_phase_messages(
             messages,
@@ -145,25 +148,7 @@ class SandboxSadePipelineTest(SandboxAgentPipelineBase):
     def test_step_04_check_sandbox_artifacts(self) -> None:
         if type(self)._agent_run_failed:
             pytest.skip("Skipping sandbox artifact checks due to agent-run failure")
-        assert self.session_dir is not None
-        manifest = self.session_dir / "sandbox_manifest.json"
-        assert manifest.is_file()
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        assert data["agent_type"] == self.agent_type
-        text = manifest.read_text(encoding="utf-8")
-        assert "OPENAI_API_KEY" not in text
-        assert "ANTHROPIC_API_KEY" not in text
-        assert not (self.session_dir / ".sandbox_run").exists()
-        for dirname in (
-            "codex_workspace",
-            "claude_workspace",
-            "codex_sdk_workspace",
-            "claude_sdk_workspace",
-        ):
-            assert not (self.session_dir / dirname).exists()
-        for path in self.session_dir.rglob("*"):
-            if path.name in _SENSITIVE_NAMES:
-                pytest.fail(f"credential file leaked into results: {path}")
+        self._assert_sandbox_artifacts()
         messages = self._load_jsonl("messages.jsonl")
         assert messages, "SADE must emit messages.jsonl"
         tool_starts = [e for e in messages if e.get("event") == "tool_start"]

@@ -21,17 +21,11 @@ from nika.net_env.net_env_pool import (
 )
 
 
-def test_isp_supports_both_backends() -> None:
+def test_isp_backend_resolution() -> None:
     assert scenario_supported_backends("isp") == ["kathara", "containerlab"]
-
-
-def test_resolve_isp_defaults_to_kathara() -> None:
     assert (
         resolve_scenario_backend("isp", default_when_ambiguous="kathara") == "kathara"
     )
-
-
-def test_resolve_isp_requires_choice_without_default() -> None:
     with pytest.raises(ValueError, match="pass --backend"):
         resolve_scenario_backend("isp")
 

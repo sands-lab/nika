@@ -7,7 +7,6 @@ from nika.net_env.kathara.intradomain_routing.campus_lan.verify import (
     PROBE_HOST,
     WEB0_URL,
 )
-from nika.runtime.factory import resolve_backend
 from tests.support.prerequisites import docker_available
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
 
@@ -20,11 +19,6 @@ DHCP_SERVER = "dhcp_server"
 class KatharaDhcpApiSmokeTest(KatharaScenarioApiSmokeTest):
     SCENARIO = "campus_lan"
     ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s", "--workload", "dhcp"]
-
-    def test_session_backend(self) -> None:
-        row = self._session_row(self.session_id)
-
-        assert resolve_backend(row) == "kathara"
 
     def test_runtime_dhcp_semantic_apis(self) -> None:
         runtime = self._runtime()

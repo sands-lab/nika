@@ -9,12 +9,7 @@ from nika.problems.inject_resolve import (
 from nika.problems.root_cause import node_resource
 from nika.problems.topology_inventory import interface_on
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -50,11 +45,6 @@ class HostMissingIPParams(BaseModel):
 
 class HostMissingIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "host_missing_ip"
     TAGS: str = ["pc"]
 
@@ -117,11 +107,6 @@ class HostIPConflictParams(BaseModel):
 
 class HostIPConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.INTERMITTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "host_ip_conflict"
     TAGS: str = ["pc"]
 
@@ -181,11 +166,6 @@ class HostIncorrectIPParams(BaseModel):
 
 class HostIncorrectIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "host_incorrect_ip"
     TAGS: str = ["pc"]
 
@@ -257,11 +237,6 @@ class HostIncorrectGatewayParams(BaseModel):
 
 class HostIncorrectGateway(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "host_incorrect_gateway"
     TAGS: str = ["pc", "frr"]
 
@@ -322,11 +297,6 @@ class HostIncorrectNetmaskParams(BaseModel):
 
 class HostIncorrectNetmask(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "host_incorrect_netmask"
     TAGS: str = ["pc", "frr"]
 
@@ -395,11 +365,6 @@ class HostIncorrectDNSParams(BaseModel):
 
 class HostIncorrectDNS(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "host_incorrect_dns"
     TAGS: str = ["dns"]
 

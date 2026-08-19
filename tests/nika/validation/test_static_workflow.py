@@ -73,4 +73,4 @@ def test_supported_environment_uses_internal_batfish_defaults(
     assert service_calls == [("127.0.0.1", 9996)]
     assert verifier_calls == [("127.0.0.1", 9996)]
     assert reports["batfish"].status == "passed"
-    assert (tmp_path / "validation-batfish.json").is_file()
+    assert (tmp_path / "batfish-validation.json").is_file()

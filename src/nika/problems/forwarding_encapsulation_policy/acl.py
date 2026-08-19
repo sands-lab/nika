@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -26,11 +21,6 @@ class BGPAclBlockParams(BaseModel):
 
 class BGPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "bgp_acl_block"
     TAGS: str = ["bgp"]
 
@@ -97,11 +87,6 @@ class OSPFAclBlockParams(BaseModel):
 
 class OSPFAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "ospf_acl_block"
     TAGS: str = ["ospf"]
 
@@ -147,11 +132,6 @@ class ARPAclBlockParams(BaseModel):
 
 class ARPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "arp_acl_block"
     TAGS: str = ["arp"]
 
@@ -193,11 +173,6 @@ class IcmpAclBlockParams(BaseModel):
 
 class IcmpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "icmp_acl_block"
     TAGS: str = ["icmp"]
 
@@ -240,11 +215,6 @@ class HttpAclBlockParams(BaseModel):
 
 class HttpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "http_acl_block"
     TAGS: str = ["http", "pc"]
 
@@ -287,11 +257,6 @@ class DNSPortBlockedParams(BaseModel):
 
 class DNSPortBlocked(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "dns_port_blocked"
 
     TAGS: str = ["dns", "http"]

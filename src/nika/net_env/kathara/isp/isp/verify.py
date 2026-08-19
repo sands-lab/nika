@@ -153,21 +153,24 @@ def _verify_connectivity(
     if protocol in {"tcp", "udp"}:
         assert intent.traffic.destination_port is not None
         udp_flag = "-u " if protocol == "udp" else ""
-        output = exec_or_empty(
-            runtime,
-            source,
-            f"nc -z {udp_flag}-w 2 {target} {intent.traffic.destination_port} && echo NIKA_OPEN",
-            timeout=10,
+        command = (
+            f"nc -z {udp_flag}-w 2 {target} {intent.traffic.destination_port} "
+            "&& echo NIKA_OPEN"
         )
+        output = exec_or_empty(runtime, source, command, timeout=10)
         reachable = "NIKA_OPEN" in output
     else:
-        reachable = ping_ok(runtime, source, target, count=1)
+        command = f"ping -c 1 -W 2 {target}"
+        output = exec_or_empty(runtime, source, command, timeout=15)
+        reachable = "1 received" in output or "1 packets received" in output
     passed = reachable if intent.property == "reachability" else not reachable
     evidence = {
         "source": source,
         "target": target,
         "protocol": protocol,
         "destination_port": intent.traffic.destination_port,
+        "command": command,
+        "output": output,
         "observed_reachable": reachable,
     }
     reason = None if passed else f"observed_reachable={reachable}"
@@ -182,10 +185,11 @@ def _verify_adjacency(
     assert intent.adjacency is not None
     adjacency = intent.adjacency
     if adjacency.protocol == "bgp":
+        command = "vtysh -c 'show bgp summary'"
         output = _cached_exec(
             runtime,
             adjacency.local_node,
-            "vtysh -c 'show bgp summary'",
+            command,
             command_cache,
             timeout=20,
         )
@@ -195,13 +199,16 @@ def _verify_adjacency(
             "local_node": adjacency.local_node,
             "remote_node": adjacency.remote_node,
             "peer_address": adjacency.remote_address,
+            "command": command,
+            "output": output,
             "established_peers": established,
         }
     else:
+        command = "vtysh -c 'show ip ospf neighbor'"
         output = _cached_exec(
             runtime,
             adjacency.local_node,
-            "vtysh -c 'show ip ospf neighbor'",
+            command,
             command_cache,
             timeout=20,
         )
@@ -212,6 +219,8 @@ def _verify_adjacency(
             "local_node": adjacency.local_node,
             "remote_node": adjacency.remote_node,
             "peer_router_id": remote_router_id,
+            "command": command,
+            "output": output,
             "full_router_ids": sorted(full_router_ids),
         }
     return (
@@ -229,10 +238,11 @@ def _verify_waypoint(
     assert intent.path is not None
     source = _runtime_source(intent.source)
     target = _probe_address(intent.destination)
+    command = f"traceroute -n -m 32 -w 1 -q 1 {target}"
     output = exec_or_empty(
         runtime,
         source,
-        f"traceroute -n -m 32 -w 1 -q 1 {target}",
+        command,
         timeout=40,
     )
     address_to_node: dict[str, str] = {}
@@ -262,6 +272,8 @@ def _verify_waypoint(
     evidence = {
         "source": source,
         "target": target,
+        "command": command,
+        "output": output,
         "observed_nodes": hops,
         "must_traverse": list(intent.path.must_traverse),
         "must_avoid": list(intent.path.must_avoid),

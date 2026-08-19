@@ -84,7 +84,7 @@ class SessionIndexTestCase:
                             "fault_type": "link_down",
                         }
                     ],
-                    "root_cause_category": "link_interface",
+                    "failure_domain": "link_interface",
                 }
             ),
             encoding="utf-8",
@@ -100,6 +100,6 @@ class SessionIndexTestCase:
         assert row["status"] == "finished"
         assert row["agent_type"] == "mock"
         assert row["problem_names"] == ["link_down"]
-        assert row["root_cause_category"] == "link_interface"
+        assert row["failure_domain"] == "link_interface"
         assert row["detection_score"] == 1.0
         assert row["failure_count"] == 1

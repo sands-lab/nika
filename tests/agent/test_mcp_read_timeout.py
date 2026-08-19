@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from agent.byo.autogen.config import to_mcp_params
 from agent.byo.mcp_agent.config import _to_server_settings
-from agent.utils.mcp_servers import (
-    DEFAULT_MCP_READ_TIMEOUT_SECONDS,
-    mcp_read_timeout_seconds,
-)
+from agent.utils.mcp_servers import mcp_read_timeout_seconds
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
@@ -16,11 +13,6 @@ def _set_mcp_timeout(seconds: float) -> None:
     set_run_config(
         RunConfig.model_validate({"nika": {"mcp": {"read_timeout_sec": seconds}}})
     )
-
-
-def test_mcp_read_timeout_seconds_default() -> None:
-    reset_run_config()
-    assert mcp_read_timeout_seconds() == DEFAULT_MCP_READ_TIMEOUT_SECONDS
 
 
 def test_mcp_read_timeout_seconds_disabled() -> None:

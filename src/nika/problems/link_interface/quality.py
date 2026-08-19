@@ -5,12 +5,7 @@ from pydantic import BaseModel, Field
 from nika.problems.topology_inventory import interface_on, select_host_interface
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -27,11 +22,6 @@ class LinkHighPacketCorruptionParams(BaseModel):
 
 class LinkHighPacketCorruption(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
-    cause = FailureCause.HARDWARE
-    symptom = FailureSymptom.CORRUPTION
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "link_high_packet_corruption"
     TAGS: str = ["link"]
 

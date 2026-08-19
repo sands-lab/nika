@@ -133,19 +133,12 @@ def _resources(problem: str, params: dict, env: _Env):
 
 
 class ResourceMappingTest:
-    def test_every_failure_has_orthogonal_taxonomy_metadata(self) -> None:
+    def test_every_failure_declares_failure_domain(self) -> None:
         problems = list_avail_problem_instances()
         assert len(problems) == 69
         for name, cls in problems.items():
             assert cls.META is not None, name
-            assert set(cls.taxonomy_metadata()) == {
-                "failure_domain",
-                "cause",
-                "symptom",
-                "scope",
-                "temporal",
-                "impact",
-            }
+            assert set(cls.taxonomy_metadata()) == {"failure_domain"}
             assert cls.__module__.split(".")[-2] == cls.META.failure_domain, name
 
         actual = {
@@ -291,12 +284,6 @@ class ResourceMappingTest:
         assert gt.root_causes[0].resource.node == "pc1"
         assert gt.schema_version == 3
         assert gt.failure_domain == "link_interface"
-        assert gt.cause == "hardware"
-        assert gt.symptom == "down"
-        assert gt.scope == "link"
-        assert gt.temporal == "persistent"
-        assert gt.impact == "complete"
-        assert gt.root_cause_category == gt.failure_domain
 
     def test_multi_root_cause(self) -> None:
         env = _Env(("pc1:eth0", "r1:eth0"))
@@ -315,7 +302,7 @@ class ResourceMappingTest:
                 _piece("link_down", {"host_name": "pc1", "intf_name": "eth0"}),
                 _piece("host_crash", {"host_name": "pc1"}),
             ],
-            category="multiple_faults",
+            failure_domain="multiple_faults",
         )
         assert len(gt.root_causes) == 2
         assert {item.fault_type for item in gt.root_causes} == {

@@ -16,10 +16,7 @@ from nika.net_env.net_env_pool import (
     resolve_scenario_ref,
 )
 from nika.problems.prob_pool import list_avail_problem_instances, resolve_problem_name
-from nika.workflows.benchmark.isp_options import (
-    ISP_SCENARIO,
-    validate_and_resolve_isp_options,
-)
+from nika.workflows.benchmark.isp_options import validate_and_resolve_isp_options
 
 
 def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:

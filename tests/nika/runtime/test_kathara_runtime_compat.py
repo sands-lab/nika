@@ -1,14 +1,10 @@
 from __future__ import annotations
-from nika.runtime.factory import resolve_backend, runtime_for_net_env
+from nika.runtime.factory import runtime_for_net_env
 from nika.runtime.kathara import KatharaRuntime
 from nika.net_env.kathara.interdomain_routing.simple_bgp.lab import SimpleBGP
 
 
 class KatharaRuntimeCompatTest:
-    def test_factory_default_backend(self) -> None:
-
-        assert resolve_backend({}) == "kathara"
-
     def test_runtime_for_kathara_net_env(self) -> None:
         env = SimpleBGP()
         runtime = runtime_for_net_env(env)

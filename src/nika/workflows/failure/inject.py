@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from nika.problems.prob_pool import (
@@ -136,8 +137,6 @@ def inject_failure(
     taxonomy = inject_problem.taxonomy_metadata()
     for key, value in taxonomy.items():
         session.update_session(key, value)
-    if taxonomy.get("failure_domain"):
-        session.update_session("root_cause_category", taxonomy["failure_domain"])
 
     failure_rows: list[tuple[int, str]] = []
     now_ts = datetime.now().timestamp()
@@ -161,9 +160,6 @@ def inject_failure(
                 {
                     "session_id": session.session_id,
                     "problem_name": problem_name,
-                    "root_cause_category": str(
-                        getattr(sub_problem, "failure_domain", "")
-                    ),
                     **sub_problem.taxonomy_metadata(),
                     "scenario_name": session.scenario_name,
                     "lab_name": session.lab_name,
@@ -187,9 +183,6 @@ def inject_failure(
             {
                 "session_id": session.session_id,
                 "problem_name": resolved_names[0],
-                "root_cause_category": str(
-                    getattr(inject_problem, "failure_domain", "")
-                ),
                 **taxonomy,
                 "scenario_name": session.scenario_name,
                 "lab_name": session.lab_name,
@@ -314,3 +307,64 @@ def inject_failure(
         f"Ground truth saved for session {session.session_id}.",
         session_id=session.session_id,
     )
+
+    contract_path = Path(session.session_dir) / "validation-contract.json"
+    if contract_path.is_file():
+        from nika.net_env.contract import ValidationContract
+        from nika.validation.effect import (
+            FAILURE_EFFECT_FILENAME,
+            FailureEffectReport,
+            run_failure_effect_validation,
+        )
+
+        contract = ValidationContract.load(contract_path)
+        try:
+            effect_report = run_failure_effect_validation(
+                problem=inject_problem,
+                contract=contract,
+                artifact_dir=session.session_dir,
+            )
+        except Exception as exc:  # noqa: BLE001 - preserve validation evidence
+            effect_report = FailureEffectReport(
+                failure=resolved_names[0],
+                status="UNSUPPORTED",
+                reason=f"failure-effect validation error: {exc}",
+            )
+            effect_report.write(
+                str(Path(session.session_dir) / FAILURE_EFFECT_FILENAME)
+            )
+        session.update_session("validation_failure_effect", FAILURE_EFFECT_FILENAME)
+        for failure_id, _problem_name in failure_rows:
+            store.update_failure_injection(
+                session.session_id,
+                failure_id,
+                {"effect_validation": effect_report.model_dump(mode="json")},
+            )
+        intent_evidence = effect_report.evidence.get("intents", {})
+        for verifier, event_name in (
+            ("batfish", "failure_effect_batfish_validation"),
+            ("runtime", "failure_effect_runtime_validation"),
+        ):
+            verifier_evidence = {
+                intent_id: {
+                    "expected": evidence.get("expected"),
+                    verifier: evidence.get(verifier),
+                }
+                for intent_id, evidence in intent_evidence.items()
+            }
+            log_event(
+                event_name,
+                f"Failure effect {verifier} validation: {resolved_names}",
+                session_id=session.session_id,
+                problems=resolved_names,
+                status=effect_report.status,
+                intents=verifier_evidence,
+            )
+        log_event(
+            "failure_effect_validation",
+            f"Failure effect validation {effect_report.status}: {resolved_names}",
+            session_id=session.session_id,
+            problems=resolved_names,
+            status=effect_report.status,
+            path=str(Path(session.session_dir) / FAILURE_EFFECT_FILENAME),
+        )

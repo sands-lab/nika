@@ -15,12 +15,7 @@ from nika.net_env.kathara.sdn.topology_model import (
     dpid_for_spine,
 )
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     ProblemBase,
     build_verify_result,
 )
@@ -64,11 +59,6 @@ class FlowRuleShadowingParams(BaseModel):
 
 class FlowRuleShadowing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "flow_rule_shadowing"
     TAGS: str = ["sdn"]
 
@@ -129,11 +119,6 @@ class FlowRuleLoopParams(BaseModel):
 
 class FlowRuleLoop(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOOP
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "flow_rule_loop"
     TAGS: str = ["sdn"]
 

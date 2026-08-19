@@ -16,12 +16,7 @@ from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.support.kubernetes.node_filter import NodeFilter, NodeFilterError
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
 )
 from nika.utils.logger import system_logger
 
@@ -70,11 +65,6 @@ def _as_port(value: Any) -> int | None:
 
 class ClusterIPRoutingBroken(K8sProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "k8s_clusterip_routing_broken"
     symptom_desc = (
         "Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, "

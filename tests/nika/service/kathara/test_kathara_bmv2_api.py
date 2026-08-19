@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from nika.runtime.factory import resolve_backend
 from nika.service.kathara.bmv2_api import KatharaBMv2API
 from tests.support.prerequisites import docker_available
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
@@ -18,11 +17,6 @@ class KatharaBmv2ApiSmokeTest(KatharaScenarioApiSmokeTest):
 
     def _bmv2_api(self) -> KatharaBMv2API:
         return KatharaBMv2API(lab_name=self._lab_name())
-
-    def test_session_backend(self) -> None:
-        row = self._session_row(self.session_id)
-
-        assert resolve_backend(row) == "kathara"
 
     def test_kathara_bmv2_discovery(self) -> None:
         api = self._host_api()

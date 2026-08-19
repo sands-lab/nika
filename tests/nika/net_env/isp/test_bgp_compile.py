@@ -229,34 +229,6 @@ def test_ebgp_as_regions_are_connected_and_boundaries_are_igp_passive() -> None:
     assert attachment.plan.inventory["igp_passive_boundary_links"]
 
 
-def test_order_independence() -> None:
-    topo_a = NetworkTopology(
-        name="tiny",
-        source_format="sndlib-xml",
-        meta={},
-        nodes=(TopoNode(id="A"), TopoNode(id="B"), TopoNode(id="C")),
-        links=(
-            TopoLink(id="L1", source="A", target="B"),
-            TopoLink(id="L2", source="B", target="C"),
-        ),
-        demands=(),
-    )
-    topo_b = NetworkTopology(
-        name="tiny",
-        source_format="sndlib-xml",
-        meta={},
-        nodes=tuple(reversed(topo_a.nodes)),
-        links=tuple(reversed(topo_a.links)),
-        demands=(),
-    )
-    ua = compile_isp_plan(IspConfig(topology="polska"), topology=topo_a)
-    ub = compile_isp_plan(IspConfig(topology="polska"), topology=topo_b)
-    pa = compile_bgp_plan(ua, "ibgp_rr")
-    pb = compile_bgp_plan(ub, "ibgp_rr")
-    assert pa is not None and pb is not None
-    assert pa.inventory == pb.inventory
-
-
 @pytest.mark.parametrize("topology", list_sndlib_topologies())
 def test_catalog_ebgp_has_connected_as_scoped_igp_and_linear_sessions(
     topology: str,

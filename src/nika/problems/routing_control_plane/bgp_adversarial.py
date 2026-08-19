@@ -5,12 +5,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -34,11 +29,6 @@ class BGPHijackingParams(BaseModel):
 
 class BGPHijacking(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.ADVERSARIAL
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "bgp_hijacking"
     TAGS: str = ["bgp"]
 

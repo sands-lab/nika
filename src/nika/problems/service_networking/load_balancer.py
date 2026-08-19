@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -26,11 +21,6 @@ class LoadBalancerOverloadParams(BaseModel):
 
 class LoadBalancerOverload(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.LATENCY
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "load_balancer_overload"
     TAGS: str = ["load_balancer", "http"]
 

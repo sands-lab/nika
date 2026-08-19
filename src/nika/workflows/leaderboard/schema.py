@@ -1,4 +1,4 @@
-"""Versioned leaderboard submission schemas (schema_version ``3``)."""
+"""Leaderboard submission schemas."""
 
 from __future__ import annotations
 

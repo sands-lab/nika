@@ -9,7 +9,7 @@ from nika.validation.batfish.snapshot import build_isp_snapshot
 from nika.validation.batfish.verifier import BatfishVerifier
 from nika.validation.dispatcher import VerifierDispatcher
 
-STATIC_VALIDATION_FILENAME = "validation-{verifier}.json"
+STATIC_VALIDATION_FILENAME = "{verifier}-validation.json"
 _BATFISH_HOST = "127.0.0.1"
 _BATFISH_PORT = 9996
 _STATIC_VERIFIERS = ("batfish",)

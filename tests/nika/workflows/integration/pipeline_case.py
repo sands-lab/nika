@@ -128,7 +128,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         }
         assert self.PROBLEM in fault_types
 
-        assert ground_truth["root_cause_category"] == self.ROOT_CAUSE_CATEGORY
+        assert ground_truth["failure_domain"] == self.ROOT_CAUSE_CATEGORY
         assert ground_truth.get("schema_version") == 3
         assert ground_truth.get("root_causes")
         for device in self.SUBMIT_FAULTY_DEVICES:

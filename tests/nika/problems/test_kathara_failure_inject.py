@@ -26,14 +26,6 @@ class LinkFailureVerifyTest(PerTestEnvTestCase):
         self._inject_failure("mtu_mismatch", {"host_name": HOST})
         self._assert_failure_injected("mtu_mismatch")
 
-    def test_link_fragmentation_disabled_is_alias(self) -> None:
-        from nika.problems.prob_pool import get_problem_class, resolve_problem_name
-
-        assert resolve_problem_name("link_fragmentation_disabled") == "mtu_mismatch"
-        cls = get_problem_class("link_fragmentation_disabled")
-        assert cls is not None
-        assert cls.root_cause_name == "mtu_mismatch"
-
 
 class HostMisconfigVerifyTest(PerTestEnvTestCase):
     SCENARIO = "simple_bgp"
@@ -198,31 +190,6 @@ class FrrDownVerifyTest(PerTestEnvTestCase):
         self._assert_failure_injected("frr_service_down")
 
 
-class SDNControllerVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "sdn_l3_clos"
-    ENV_RUN_ARGS = ["-s", "s"]
-
-    def test_sdn_controller_crash(self) -> None:
-        self._inject_failure("sdn_controller_crash")
-        self._assert_failure_injected("sdn_controller_crash")
-
-    def test_southbound_port_block(self) -> None:
-        self._inject_failure("southbound_port_block")
-        self._assert_failure_injected("southbound_port_block")
-
-    def test_southbound_port_mismatch(self) -> None:
-        self._inject_failure("southbound_port_mismatch")
-        self._assert_failure_injected("southbound_port_mismatch")
-
-    def test_flow_rule_shadowing(self) -> None:
-        self._inject_failure("flow_rule_shadowing")
-        self._assert_failure_injected("flow_rule_shadowing")
-
-    def test_flow_rule_loop(self) -> None:
-        self._inject_failure("flow_rule_loop")
-        self._assert_failure_injected("flow_rule_loop")
-
-
 class WebDoSVerifyTest(PerTestEnvTestCase):
     SCENARIO = "dc_clos"
     ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
@@ -327,21 +294,6 @@ class HostCrashVerifyTest(PerTestEnvTestCase):
     def test_host_crash(self) -> None:
         self._inject_failure("host_crash", {"host_name": HOST})
         self._assert_failure_injected("host_crash")
-
-
-class VPNMembershipMissingVerifyTest:
-    """Removed: legacy id remaps to wireguard_peer_key_misconfiguration."""
-
-    def test_host_vpn_membership_missing_is_alias(self) -> None:
-        from nika.problems.prob_pool import get_problem_class, resolve_problem_name
-
-        assert (
-            resolve_problem_name("host_vpn_membership_missing")
-            == "wireguard_peer_key_misconfiguration"
-        )
-        cls = get_problem_class("host_vpn_membership_missing")
-        assert cls is not None
-        assert cls.root_cause_name == "wireguard_peer_key_misconfiguration"
 
 
 class WireGuardAllowedIpsMisconfigVerifyTest(PerTestEnvTestCase):

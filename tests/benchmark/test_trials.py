@@ -532,7 +532,7 @@ class TestAgentFailedFinalization:
                                 "fault_type": "link_down",
                             }
                         ],
-                        "root_cause_category": "link_failure",
+                        "failure_domain": "link_interface",
                     }
                 ),
                 encoding="utf-8",

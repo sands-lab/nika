@@ -12,7 +12,7 @@ uv run nika env list
 
 Kathará scenarios need Docker and the Kathará dependency group. Containerlab scenarios need Docker, `clab`, and the Containerlab dependency group.
 
-Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../README.md#install-nika) covers the full installation flow.
+Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../README.md#-installation) covers the full installation flow.
 
 `min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `nika/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment.
 
@@ -126,7 +126,7 @@ Legacy benchmark YAML may still name `ospf_enterprise_static` or `ospf_enterpris
 
 ### `enterprise_branch`
 
-NIKA builds a multi-site enterprise WAN from one production template: HQ and a secondary DC hub, branch sites, and dual provider underlays. Every size keeps the same dual providers, dual hubs, WAN redundancy, and WireGuard+eBGP overlay. Size scales branch count and hosts per LAN; `m` and `l` also add an IOT VRF so complexity grows with business domains, not only replicated VLANs.
+NIKA builds a multi-site enterprise WAN from one production template: HQ and a secondary DC hub, branch sites, and dual provider underlays. Every size keeps the same dual providers, dual hubs, WAN redundancy, and WireGuard+eBGP overlay. Size scales branch count and hosts per LAN. The `m` and `l` sizes add an IOT VRF, which increases the number of business domains alongside the replicated VLANs.
 
 Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
 

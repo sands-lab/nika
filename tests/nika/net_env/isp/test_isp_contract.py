@@ -130,3 +130,23 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
         if result.intent in required
     )
     assert all(result.evidence for result in report.results)
+    adjacency_result = next(
+        result
+        for result in report.results
+        if next(
+            intent for intent in contract.intents if intent.id == result.intent
+        ).property
+        == "adjacency"
+    )
+    assert adjacency_result.evidence["command"] == ("vtysh -c 'show ip ospf neighbor'")
+    assert "Full/DR" in adjacency_result.evidence["output"]
+    reachability_result = next(
+        result
+        for result in report.results
+        if next(
+            intent for intent in contract.intents if intent.id == result.intent
+        ).property
+        == "reachability"
+    )
+    assert reachability_result.evidence["command"].startswith("ping -c 1")
+    assert reachability_result.evidence["output"] == "1 packets received"

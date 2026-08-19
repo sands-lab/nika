@@ -12,7 +12,7 @@ from nika.workflows.eval.session import generic_eval
 
 def _gt(*causes: RootCause) -> dict:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "is_anomaly": True,
         "root_causes": [c.model_dump(mode="json") for c in causes],
     }
@@ -101,7 +101,7 @@ class ScoringTest:
             resource=interface_resource("pc1", "eth0"), fault_type="link_down"
         )
         gt = {
-            "schema_version": 2,
+            "schema_version": 3,
             "is_anomaly": True,
             "root_causes": [cause.model_dump(mode="json", exclude_none=True)],
         }

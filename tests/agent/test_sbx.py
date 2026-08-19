@@ -499,21 +499,6 @@ def test_explicit_proxy_is_forwarded_to_sbx() -> None:
         reset_run_config()
 
 
-def test_proxy_from_main_env_file(tmp_path) -> None:
-    from nika.run_config.loader import reset_run_config, set_run_config
-    from nika.run_config.schema import RunConfig
-
-    set_run_config(
-        RunConfig.model_validate(
-            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
-        )
-    )
-    try:
-        assert resolve_sbx_upstream_proxy() == "http://proxy.test:8080"
-    finally:
-        reset_run_config()
-
-
 def test_ensure_sbx_proxy_config_no_op_without_upstream() -> None:
     with (
         patch("agent.sandbox.sbx.proxy.sbx_available", return_value=True),

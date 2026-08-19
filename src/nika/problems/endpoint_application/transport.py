@@ -1,11 +1,6 @@
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -52,11 +47,6 @@ class SenderResourceContentionParams(BaseModel):
 
 class SenderResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.DEGRADED_THROUGHPUT
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "sender_resource_contention"
     TAGS: str = ["http"]
 
@@ -99,11 +89,6 @@ class SenderApplicationDelayParams(BaseModel):
 
 class SenderApplicationDelay(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.LATENCY
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "sender_application_delay"
     TAGS: str = ["http"]
 
@@ -149,11 +134,6 @@ class ReceiverResourceContentionParams(BaseModel):
 
 class ReceiverResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.DEGRADED_THROUGHPUT
-    scope = FailureScope.HOST
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "receiver_resource_contention"
     TAGS: str = ["http"]
 

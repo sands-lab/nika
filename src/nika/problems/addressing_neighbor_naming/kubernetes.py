@@ -16,12 +16,7 @@ from nika.problems.support.kubernetes.node_filter import (
     NodeFilterError,
 )
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
 )
 from nika.utils.logger import system_logger
 
@@ -75,11 +70,6 @@ class CoreDNSIsolationParams(K8sParams):
 
 class CoreDNSIsolation(K8sProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "k8s_coredns_isolated"
     symptom_desc = (
         "Applications cannot resolve Kubernetes service names such as "

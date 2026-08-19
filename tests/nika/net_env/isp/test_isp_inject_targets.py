@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from nika.net_env.isp.inject_targets import (
     DEFAULT_HIJACK_PREFIX,
     first_link_endpoint,

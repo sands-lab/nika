@@ -36,18 +36,6 @@ from nika.workflows.benchmark.isp_options import (
     ISP_SCENARIO,
     isp_config_for_problem,
 )
-
-# RPKI capability: representative SNDlib topologies (not a full cartesian product).
-RPKI_SELECTED_TOPOS: tuple[str, ...] = ("abilene", "geant")
-
-
-def _rpki_isp_options(topo: str) -> dict:
-    return {
-        "topo": topo,
-        "igp": "ospf",
-        "bgp_mode": "ebgp",
-        "rpki": True,
-    }
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.migrate import materialize_cases, write_cases_yaml
 from nika.workflows.benchmark.release import (
@@ -62,6 +50,19 @@ from nika.workflows.benchmark.release import (
     write_release_manifest,
 )
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+
+# RPKI capability: representative SNDlib topologies (not a full cartesian product).
+RPKI_SELECTED_TOPOS: tuple[str, ...] = ("abilene", "geant")
+
+
+def _rpki_isp_options(topo: str) -> dict:
+    return {
+        "topo": topo,
+        "igp": "ospf",
+        "bgp_mode": "ebgp",
+        "rpki": True,
+    }
+
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, cur_path)

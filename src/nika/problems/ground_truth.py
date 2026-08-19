@@ -30,7 +30,7 @@ def build_ground_truth(
 def build_multi_ground_truth(
     sub_faults: list[Any],
     *,
-    category: str,
+    failure_domain: str,
 ) -> ProblemGroundTruth:
     root_causes: list[RootCause] = []
     for fault in sub_faults:
@@ -41,7 +41,7 @@ def build_multi_ground_truth(
         schema_version=3,
         is_anomaly=True,
         root_causes=root_causes,
-        root_cause_category=category,
+        failure_domain=failure_domain,
         detailed_cause="",
     )
 

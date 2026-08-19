@@ -62,55 +62,8 @@ class FailureDomain(StrEnum):
     )
 
 
-class FailureCause(StrEnum):
-    CONFIGURATION = "configuration"
-    HARDWARE = "hardware"
-    SOFTWARE = "software"
-    RESOURCE = "resource"
-    OPERATIONAL = "operational"
-    ADVERSARIAL = "adversarial"
-
-
-class FailureSymptom(StrEnum):
-    DOWN = "down"
-    FLAP = "flap"
-    LOSS = "loss"
-    LATENCY = "latency"
-    BLACKHOLE = "blackhole"
-    LOOP = "loop"
-    CORRUPTION = "corruption"
-    DEGRADED_THROUGHPUT = "degraded_throughput"
-    MISROUTING = "misrouting"
-
-
-class FailureScope(StrEnum):
-    HOST = "host"
-    LINK = "link"
-    NODE = "node"
-    PATH = "path"
-    SERVICE = "service"
-    MULTI_NODE = "multi_node"
-
-
-class FailureTemporal(StrEnum):
-    PERSISTENT = "persistent"
-    TRANSIENT = "transient"
-    INTERMITTENT = "intermittent"
-
-
-class FailureImpact(StrEnum):
-    NONE = "none"
-    PARTIAL = "partial"
-    COMPLETE = "complete"
-
-
 class ProblemMeta(BaseModel):
     failure_domain: FailureDomain
-    cause: FailureCause
-    symptom: FailureSymptom
-    scope: FailureScope
-    temporal: FailureTemporal
-    impact: FailureImpact
     root_cause_name: str
     description: str
 
@@ -119,11 +72,6 @@ class ProblemBase:
     """Core base class for fault definition, injection, verification, and truth."""
 
     failure_domain: ClassVar[FailureDomain | str | None] = None
-    cause: ClassVar[FailureCause | str | None] = None
-    symptom: ClassVar[FailureSymptom | str | None] = None
-    scope: ClassVar[FailureScope | str | None] = None
-    temporal: ClassVar[FailureTemporal | str | None] = None
-    impact: ClassVar[FailureImpact | str | None] = None
     root_cause_name: ClassVar[str] = ""
     symptom_desc: ClassVar[str] = ""
     Params: ClassVar[type[BaseModel] | None] = None
@@ -131,6 +79,9 @@ class ProblemBase:
     TAGS: ClassVar[list[str]] = []
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
+    # Optional protocol whose adjacency effect this failure declares.
+    effect_protocol: ClassVar[str | None] = None
+    effect_property: ClassVar[str | None] = None
 
     net_env: NetworkEnvBase
     runtime: LabRuntime
@@ -144,11 +95,6 @@ class ProblemBase:
                 description = cls.__dict__.get("symptom_desc") or name
                 cls.META = ProblemMeta(
                     failure_domain=domain,
-                    cause=cls.__dict__.get("cause"),
-                    symptom=cls.__dict__.get("symptom"),
-                    scope=cls.__dict__.get("scope"),
-                    temporal=cls.__dict__.get("temporal"),
-                    impact=cls.__dict__.get("impact"),
                     root_cause_name=name,
                     description=description,
                 )
@@ -189,16 +135,7 @@ class ProblemBase:
             return {}
         return {
             key: str(value)
-            for key, value in cls.META.model_dump(
-                include={
-                    "failure_domain",
-                    "cause",
-                    "symptom",
-                    "scope",
-                    "temporal",
-                    "impact",
-                }
-            ).items()
+            for key, value in cls.META.model_dump(include={"failure_domain"}).items()
         }
 
     def init_runtime(self, scenario_name: str | None, **kwargs: Any) -> None:
@@ -288,12 +225,6 @@ class ProblemBase:
             is_anomaly=True,
             root_causes=root_causes,
             failure_domain=str(self.failure_domain or ""),
-            cause=str(self.cause or ""),
-            symptom=str(self.symptom or ""),
-            scope=str(self.scope or ""),
-            temporal=str(self.temporal or ""),
-            impact=str(self.impact or ""),
-            root_cause_category=str(self.failure_domain or ""),
             detailed_cause=self.symptom_desc or "",
         )
 

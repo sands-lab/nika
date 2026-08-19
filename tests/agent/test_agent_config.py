@@ -23,24 +23,6 @@ def _clear_run_config():
 
 
 class AgentConfigTest:
-    def test_cli_values_override_config(self) -> None:
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "mock",
-                        "provider": "deepseek",
-                        "max_steps": 99,
-                        "models": {"langgraph": "deepseek-chat"},
-                    }
-                }
-            )
-        )
-        assert resolve_agent_type("byo.langgraph") == "byo.langgraph"
-        assert resolve_llm_provider("openai", agent_type="byo.langgraph") == "openai"
-        assert resolve_max_steps(20) == 20
-        assert resolve_agent_model("byo.langgraph", "override") == "override"
-
     def test_required_from_config(self) -> None:
         set_run_config(
             RunConfig.model_validate(

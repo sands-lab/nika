@@ -202,7 +202,7 @@ All filters are optional and repeatable. Omit filters to include every finished 
 | `--result_dir` | Results parent directory to scan (default: `results/` or `nika.result_dir`) |
 | `-p` / `--problem` | Root-cause / problem id (e.g. `link_down`) |
 | `-e` / `--env` | Scenario / net env (e.g. `simple_bgp`) |
-| `-c` / `--category` | Failure domain via the legacy category filter (e.g. `link_interface`) |
+| `-d` / `--failure-domain` | Failure domain such as `link_interface` |
 | `--session_id` | Specific session id |
 | `-a` / `--agent` | Agent type |
 | `--model` | Agent model id |

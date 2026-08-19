@@ -1,12 +1,7 @@
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     ProblemBase,
     build_verify_result,
 )
@@ -23,11 +18,6 @@ class DNSLookupLatencyParams(BaseModel):
 
 class DNSLookupLatency(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.LATENCY
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "dns_lookup_latency"
     symptom_desc: str = "Users experience high latency when accessing web services."
     TAGS: str = ["dns", "http"]

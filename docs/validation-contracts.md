@@ -21,7 +21,7 @@ The contract contains no Batfish query, shell command, CLI command, or probe imp
 
 | Model | Purpose |
 | --- | --- |
-| `ValidationContract` | Schema version, stable contract ID, scenario, design source, and sorted intents |
+| `ValidationContract` | Stable contract ID, scenario, design source, and sorted intents |
 | `ValidationIntent` | Stable ID, description, property, expected state, level, concrete entities, and property-specific data |
 | `NetworkEntity` | Concrete node, endpoint, prefix, or service with an optional address and hosting node |
 | `TrafficSelector` | IPv4 protocol; TCP and UDP require a destination port |
@@ -71,7 +71,7 @@ The ISP scenario selects a fixed SNDlib topology by name and does not accept top
 | --- | --- |
 | `validation-contract.json` | Exact healthy baseline used for the run |
 | `validation-results.json` | Verifier report with status and evidence for each intent |
-| `validation-batfish.json` | Batfish result, coverage, sanity checks, component versions, and snapshot identity |
+| `batfish-validation.json` | Batfish result, coverage, sanity checks, component versions, and snapshot identity |
 | `batfish-snapshot/` | Router inputs, host models, and explicit Layer 1 topology uploaded to Batfish |
 | `batfish-snapshot-metadata.json` | Contract ID, topology, snapshot object counts, and Batfish configuration format |
 
@@ -118,6 +118,23 @@ The Abilene `ebgp` baseline uses connected AS regions, per-AS IGP domains, and o
 4. Build the aggregate report with `ValidationReport.from_results()` and save it with `ValidationReport.write()`.
 
 `ValidationReport.from_results()` rejects missing, duplicate, and unknown intent IDs. It also rejects a result whose verifier name differs from the report verifier.
+
+## Failure effect validation
+
+Failure effect validation compares the healthy contract with the network after a real injection. The injection code supplies the faulty FRR configuration to the Batfish snapshot adapter; NIKA does not synthesize a second fault configuration.
+
+The first supported declarations cover OSPF and BGP configuration failures such as area mismatch, missing OSPF network, BGP ASN mismatch, and missing route advertisement. Failures that change only nftables or application state receive `UNSUPPORTED` until a snapshot adapter declares that state.
+
+Each injected case may write `validation-failure-effect.json` with one of these statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `PASS` | Batfish and runtime both observed the declared change and preserved declared properties. |
+| `FAIL` | The healthy baseline failed, the expected change did not occur, or a preserve property failed. |
+| `STATIC_RUNTIME_MISMATCH` | Batfish and the live runtime observed different states. |
+| `UNSUPPORTED` | The failure has no declared effect or a required verifier report is unavailable. |
+
+The report stores expected transitions, healthy/faulty observed states, and the verifier evidence needed to diagnose a mismatch.
 
 ## Verify changes
 

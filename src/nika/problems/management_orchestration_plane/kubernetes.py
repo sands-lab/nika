@@ -12,12 +12,7 @@ from nika.problems.support.kubernetes.node_filter import (
     NodeFilterError,
 )
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
 )
 from nika.utils.logger import system_logger
 
@@ -60,11 +55,6 @@ class WorkerApiServerPartitionParams(K8sParams):
 
 class WorkerApiServerPartition(K8sProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "k8s_worker_apiserver_partition"
     symptom_desc = (
         "One Kubernetes worker node reports NotReady and stops receiving new pods, "

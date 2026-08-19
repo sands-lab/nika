@@ -134,24 +134,16 @@ def k8s_resource(
 class ProblemGroundTruth(BaseModel):
     """Detection + structured RCA ground truth.
 
-    Taxonomy metadata is for statistics only. Core RCA is ``root_causes``.
+    ``failure_domain`` is metadata; core RCA is ``root_causes``.
     """
 
-    schema_version: Literal[1, 2, 3] = 3
+    schema_version: Literal[3] = 3
     is_anomaly: bool = Field(
         description="Whether an anomaly is present in the network."
     )
     root_causes: list[RootCause] = Field(default_factory=list)
     failure_domain: str = Field(
         default="", description="Network subsystem in which the failure occurs."
-    )
-    cause: str = Field(default="", description="Root-cause mechanism.")
-    symptom: str = Field(default="", description="Primary observable symptom.")
-    scope: str = Field(default="", description="Primary failure extent.")
-    temporal: str = Field(default="", description="Temporal behavior.")
-    impact: str = Field(default="", description="Severity within the stated scope.")
-    root_cause_category: str = Field(
-        default="", description="Legacy alias of failure_domain (stats only)."
     )
     detailed_cause: str = Field(
         default="", description="Detailed description of the root cause."
@@ -186,11 +178,5 @@ def healthy_ground_truth() -> ProblemGroundTruth:
         is_anomaly=False,
         root_causes=[],
         failure_domain="",
-        cause="",
-        symptom="",
-        scope="",
-        temporal="",
-        impact="none",
-        root_cause_category="",
         detailed_cause="",
     )

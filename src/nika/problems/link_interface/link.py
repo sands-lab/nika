@@ -3,12 +3,7 @@ import shlex
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -41,11 +36,6 @@ class LinkFailureParams(BaseModel):
 
 class LinkFailure(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
-    cause = FailureCause.HARDWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "link_down"
     TAGS: str = ["link"]
 
@@ -132,11 +122,6 @@ class LinkFlapParams(BaseModel):
 
 class LinkFlap(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
-    cause = FailureCause.HARDWARE
-    symptom = FailureSymptom.FLAP
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.INTERMITTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "link_flap"
     TAGS: str = ["link"]
 
@@ -265,11 +250,6 @@ class LinkDetachParams(BaseModel):
 
 class LinkDetach(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
-    cause = FailureCause.OPERATIONAL
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "link_detach"
     TAGS: str = ["link"]
 

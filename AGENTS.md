@@ -1,6 +1,6 @@
 # NIKA
 
-NIKA is a Python 3.12 platform for deploying Kathara or Containerlab network scenarios, injecting failures, running troubleshooting agents, and evaluating their submissions. Dependencies use `uv`.
+NIKA is a Python platform for deploying Kathara or Containerlab network scenarios, injecting failures, running troubleshooting agents, and evaluating their submissions. Dependencies use `uv`.
 
 ## Architecture boundaries
 
@@ -10,7 +10,7 @@ NIKA is a Python 3.12 platform for deploying Kathara or Containerlab network sce
 - Keep MCP behavior in `service/mcp_server/`, `service/mcp_gateway/`, or the Kubernetes MCP server. Agent implementations should call shared tools instead of copying tool behavior.
 - Keep registries importable with core dependencies. Do not import emulator packages or agent SDKs at module scope; preserve lazy loading and explicit extra checks.
 - Register scenarios in `src/nika/net_env/net_env_pool.py`. Put Kathara and Containerlab implementations in their matching backend directories.
-- New failures subclass `ProblemBase`, define typed `Params`, set `failure_domain`, `cause`, `symptom`, `scope`, `temporal`, `impact`, and `root_cause_name`, and add `symptom_desc` when the name does not describe the symptom. Place each implementation under the matching subsystem directory and use the taxonomy in `docs/failures.md`. Put cross-domain failure infrastructure under `src/nika/problems/support/`; it must not contain concrete registered failures. `prob_pool.py` discovers concrete classes and keys them by `root_cause_name`.
+- New failures subclass `ProblemBase`, define typed `Params`, set `failure_domain` and `root_cause_name`, and add `symptom_desc` when the name does not describe the symptom. Place each implementation under the matching subsystem directory and use the taxonomy in `docs/failures.md`. Put cross-domain failure infrastructure under `src/nika/problems/support/`; it must not contain concrete registered failures. `prob_pool.py` discovers concrete classes and keys them by `root_cause_name`.
 - Scenario and failure compatibility uses `TAGS` subset matching. Treat a `TAGS` or registry change as a benchmark contract change; regenerate the working matrices, refresh the coverage tables in `docs/benchmark-configuration.md` with `uv run python scripts/render_coverage_matrix.py --write-docs`, and review the diff.
 - Agents implement `agent.protocols.TroubleshootingAgent` and register their CLI name in `agent/registry.py`. Community implementations live under `src/agent/community/<name>/`; their operator references live under `docs/agents/community/`.
 - Keep the optional remote lab control plane in `src/nika/remote/`. MCP `remote_proxy` and leaderboard transport serve different purposes.

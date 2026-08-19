@@ -9,12 +9,7 @@ from nika.problems.root_cause import k8s_resource
 from nika.net_env.verify import http_ok
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
 )
 from nika.utils.logger import system_logger
 
@@ -74,11 +69,6 @@ class NetworkPolicyDenyParams(K8sParams):
 
 class NetworkPolicyDeny(K8sProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "k8s_networkpolicy_deny"
     symptom_desc = (
         "Only the pods selected by a NetworkPolicy lose inbound connectivity — "

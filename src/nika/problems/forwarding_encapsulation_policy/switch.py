@@ -5,12 +5,7 @@ from pydantic import BaseModel, Field
 from nika.problems.root_cause import node_resource
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -24,11 +19,6 @@ class Bmv2SwitchDownParams(BaseModel):
 
 class Bmv2SwitchDown(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "bmv2_switch_down"
     TAGS: str = ["p4"]
 

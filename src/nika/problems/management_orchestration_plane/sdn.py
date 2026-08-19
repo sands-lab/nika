@@ -4,12 +4,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     ProblemBase,
     build_verify_result,
 )
@@ -29,11 +24,6 @@ class SDNControllerCrashParams(BaseModel):
 
 class SDNControllerCrash(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "sdn_controller_crash"
     TAGS: str = ["sdn"]
 
@@ -98,11 +88,6 @@ class SouthboundPortBlockParams(BaseModel):
 
 class SouthboundPortBlock(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "southbound_port_block"
     TAGS: str = ["sdn"]
 
@@ -149,11 +134,6 @@ class SouthboundPortMismatchParams(BaseModel):
 
 class SouthboundPortMismatch(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "southbound_port_mismatch"
     TAGS: str = ["sdn"]
 

@@ -81,4 +81,6 @@ class MultiFaultProblem(ProblemBase):
         from nika.problems.ground_truth import build_multi_ground_truth
 
         self._refresh_aggregates()
-        return build_multi_ground_truth(self.sub_faults, category="multiple_faults")
+        return build_multi_ground_truth(
+            self.sub_faults, failure_domain="multiple_faults"
+        )

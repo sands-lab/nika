@@ -2,8 +2,7 @@
 
 RCA scores the pair ``(resource.id, fault_type)`` as a set (precision, recall,
 F1). Localization and fault-type identification are independent set metrics.
-``*_accuracy`` keys are aliases of recall for leaderboard package schema 2
-compatibility.
+``*_accuracy`` keys are aliases of recall for backward compatibility.
 """
 
 from __future__ import annotations

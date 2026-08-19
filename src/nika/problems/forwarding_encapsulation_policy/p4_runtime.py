@@ -8,12 +8,7 @@ from pydantic import BaseModel, Field
 
 from nika.net_env.verify import ping_ok
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     ProblemBase,
     build_verify_result,
 )
@@ -109,11 +104,6 @@ class P4ActionSelectorMemberMisconfigParams(BaseModel):
 
 class P4ActionSelectorMemberMisconfig(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "p4_action_selector_member_misconfig"
     TAGS = ["p4", "p4_runtime"]
     Params = P4ActionSelectorMemberMisconfigParams
@@ -220,11 +210,6 @@ class P4EcmpGroupMemberMissingParams(BaseModel):
 
 class P4EcmpGroupMemberMissing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "p4_ecmp_group_member_missing"
     TAGS = ["p4", "p4_runtime"]
     Params = P4EcmpGroupMemberMissingParams
@@ -313,11 +298,6 @@ class P4RuntimePipelineMismatchParams(BaseModel):
 
 class P4RuntimePipelineMismatch(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "p4runtime_pipeline_mismatch"
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePipelineMismatchParams
@@ -391,11 +371,6 @@ class P4RuntimePartialWriteParams(BaseModel):
 
 class P4RuntimePartialWrite(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "p4runtime_partial_write"
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePartialWriteParams
@@ -465,11 +440,6 @@ class P4TableResourceExhaustionParams(BaseModel):
 
 class P4TableResourceExhaustion(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "p4_table_resource_exhaustion"
     TAGS = ["p4", "p4_runtime"]
     Params = P4TableResourceExhaustionParams

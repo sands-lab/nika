@@ -110,12 +110,7 @@ Each fault is a single `ProblemBase` subclass that implements injection, verific
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     ProblemBase,
     build_verify_result,
 )
@@ -129,11 +124,6 @@ class MyFaultParams(BaseModel):
 
 class MyFault(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
-    cause = FailureCause.HARDWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "my_fault"
     TAGS = ["link"]
     Params = MyFaultParams
@@ -160,8 +150,8 @@ class MyFault(ProblemBase):
 
 Notes:
 
-- Set `failure_domain`, `cause`, `symptom`, `scope`, `temporal`, `impact`, `root_cause_name`, and `Params` on the class. `META` is auto-generated; you do not define it by hand.
-- Place the implementation under the matching subsystem directory. Configuration is a `cause` value, so do not create a `misconfigurations` domain or directory.
+- Set `failure_domain`, `root_cause_name`, and `Params` on the class. `META` is auto-generated; you do not define it by hand.
+- Place the implementation under the matching subsystem directory.
 - `symptom_desc` is optional. When set, it becomes the registry description and ground-truth `detailed_cause`. When omitted, the registry description falls back to `root_cause_name`, while `detailed_cause` remains empty.
 - `inject_fault()` should mutate only the selected lab instance.
 - `verify_fault()` must prove the fault is active. Failed verification marks the injection as failed and stops the run.

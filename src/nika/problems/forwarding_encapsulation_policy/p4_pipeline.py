@@ -5,12 +5,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     ProblemBase,
     build_verify_result,
 )
@@ -191,11 +186,6 @@ class P4HeaderDefinitionErrorParams(BaseModel):
 
 class P4HeaderDefinitionError(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "p4_header_definition_error"
     TAGS: str = ["p4"]
 
@@ -271,11 +261,6 @@ class P4CompilationErrorParserStateParams(BaseModel):
 
 class P4CompilationErrorParserState(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name = "p4_compilation_error_parser_state"
     TAGS: str = ["p4"]
 
@@ -344,11 +329,6 @@ class P4TableEntryMissingParams(BaseModel):
 
 class P4TableEntryMissing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "p4_table_entry_missing"
     TAGS: str = ["p4"]
 
@@ -449,11 +429,6 @@ class P4TableEntryMisconfigParams(BaseModel):
 
 class P4TableEntryMisconfig(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "p4_table_entry_misconfig"
     TAGS: str = ["p4"]
 
@@ -582,11 +557,6 @@ class P4MPLSLabelLimitExceededParams(BaseModel):
 
 class P4MPLSLabelLimitExceeded(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name = "mpls_label_limit_exceeded"
     TAGS: str = ["mpls"]
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 import json
-from nika.runtime.factory import resolve_backend
 from nika.service.kathara.telemetry_api import KatharaTelemetryAPI
 from tests.support.prerequisites import p4_int_prerequisites
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
@@ -19,11 +18,6 @@ class KatharaTelemetryApiSmokeTest(KatharaScenarioApiSmokeTest):
 
     def _telemetry_api(self) -> KatharaTelemetryAPI:
         return KatharaTelemetryAPI(lab_name=self._lab_name())
-
-    def test_session_backend(self) -> None:
-        row = self._session_row(self.session_id)
-
-        assert resolve_backend(row) == "kathara"
 
     def test_kathara_telemetry_influx_api(self) -> None:
         api = self._telemetry_api()

@@ -359,8 +359,9 @@ def start_net_env(
                 filename = STATIC_VALIDATION_FILENAME.format(verifier=verifier)
                 session.update_session(f"validation_{verifier}", filename)
                 log_event(
-                    "static_validation",
-                    f"Static validation {report.status}: {verifier} ({resolved_session_id})",
+                    f"{verifier}_validation",
+                    f"{verifier.capitalize()} validation {report.status} "
+                    f"({resolved_session_id})",
                     scenario=scenario,
                     session_id=resolved_session_id,
                     verifier=verifier,
@@ -390,13 +391,22 @@ def start_net_env(
                     Path(session.session_dir) / VALIDATION_RESULTS_FILENAME
                 )
                 session.update_session("validation_results", result_path.name)
+                log_event(
+                    "runtime_validation",
+                    f"Runtime validation {report.status} ({resolved_session_id})",
+                    scenario=scenario,
+                    session_id=resolved_session_id,
+                    verifier=report.verifier,
+                    status=report.status,
+                    validation=validation_payload,
+                    path=str(result_path),
+                )
             log_event(
                 "env_verify",
                 f"Lab verification passed for {scenario} ({net_env.name})",
                 scenario=scenario,
                 lab_name=net_env.name,
                 checks=verify_result.get("checks"),
-                validation=validation_payload,
             )
 
         try:

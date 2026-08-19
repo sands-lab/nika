@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.topology_inventory import interface_on, select_host_interface
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -35,11 +30,6 @@ class LinkBandwidthThrottlingParams(BaseModel):
 
 class LinkBandwidthThrottling(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.DEGRADED_THROUGHPUT
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "link_bandwidth_throttling"
     TAGS: str = ["link"]
 
@@ -122,11 +112,6 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
 
 class IncastTrafficNetworkLimitation(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
-    cause = FailureCause.RESOURCE
-    symptom = FailureSymptom.DEGRADED_THROUGHPUT
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "incast_traffic_network_limitation"
     TAGS: str = ["http"]
 

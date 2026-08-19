@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -36,11 +31,6 @@ class FrrDown(ProblemBase):
     """FRR device down problem."""
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.SOFTWARE
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "frr_service_down"
     TAGS: str = ["frr"]
 

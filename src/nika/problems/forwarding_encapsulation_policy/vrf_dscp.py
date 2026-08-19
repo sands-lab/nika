@@ -17,12 +17,7 @@ from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
 )
 from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -64,11 +59,6 @@ class VrfDscpRemarking(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LATENCY
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "vrf_dscp_remarking"
     TAGS: list[str] = ["vpn"]
     Params = VrfDscpRemarkingParams

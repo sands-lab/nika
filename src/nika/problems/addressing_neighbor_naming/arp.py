@@ -2,12 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -29,11 +24,6 @@ class ArpCachePoisoningParams(BaseModel):
 
 class ArpCachePoisoning(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.ADVERSARIAL
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "arp_cache_poisoning"
     TAGS: str = ["arp"]
 

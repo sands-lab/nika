@@ -119,11 +119,11 @@ def eval_summary(
         "--env",
         help="Include only sessions from this scenario / net env (repeatable).",
     ),
-    category: list[str] | None = typer.Option(
+    failure_domain: list[str] | None = typer.Option(
         None,
-        "-c",
-        "--category",
-        help="Include only sessions in this root-cause category (repeatable).",
+        "-d",
+        "--failure-domain",
+        help="Include only sessions in this failure domain (repeatable).",
     ),
     session_id: list[str] | None = typer.Option(
         None,
@@ -156,7 +156,7 @@ def eval_summary(
             output_path=output,
             problems=problem,
             envs=env,
-            categories=category,
+            failure_domains=failure_domain,
             session_ids=session_id,
             agent_types=agent,
             models=model,

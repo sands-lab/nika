@@ -228,7 +228,7 @@ def test_kathara_ospf_defaults_to_runtime_validation_only(tmp_path) -> None:
         runtime_report = ValidationReport.load(artifact_dir / row["validation_results"])
         assert runtime_report.status == "passed"
         assert "validation_batfish" not in row
-        assert not (artifact_dir / "validation-batfish.json").exists()
+        assert not (artifact_dir / "batfish-validation.json").exists()
         assert not (artifact_dir / "batfish-snapshot").exists()
     finally:
         if session_id is not None:

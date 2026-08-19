@@ -12,12 +12,7 @@ from nika.problems.inject_resolve import (
 from nika.problems.root_cause import node_resource
 
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -35,11 +30,6 @@ class StaticBlackHoleParams(BaseModel):
 
 class StaticBlackHole(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.BLACKHOLE
-    scope = FailureScope.PATH
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "host_static_blackhole"
     TAGS: str = ["bgp"]
 

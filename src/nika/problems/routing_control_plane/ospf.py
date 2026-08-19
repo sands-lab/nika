@@ -4,12 +4,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -28,12 +23,8 @@ class OSPFAreaMisconfigParams(BaseModel):
 
 class OSPFAreaMisconfig(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.LOSS
-    scope = FailureScope.MULTI_NODE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "ospf_area_misconfiguration"
+    effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
 
@@ -113,12 +104,8 @@ class OSPFNeighborMissingParams(BaseModel):
 
 class OSPFNeighborMissing(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.DOWN
-    scope = FailureScope.LINK
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.COMPLETE
     root_cause_name: str = "ospf_neighbor_missing"
+    effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
 

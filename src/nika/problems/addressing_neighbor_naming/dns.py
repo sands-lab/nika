@@ -4,12 +4,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
-    FailureCause,
     FailureDomain,
-    FailureImpact,
-    FailureScope,
-    FailureSymptom,
-    FailureTemporal,
     build_verify_result,
     ProblemBase,
 )
@@ -36,11 +31,6 @@ class DNSRecordErrorParams(BaseModel):
 
 class DNSRecordError(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
-    cause = FailureCause.CONFIGURATION
-    symptom = FailureSymptom.MISROUTING
-    scope = FailureScope.SERVICE
-    temporal = FailureTemporal.PERSISTENT
-    impact = FailureImpact.PARTIAL
     root_cause_name: str = "dns_record_error"
 
     symptom_desc = "Some hosts cannot access external websites."
