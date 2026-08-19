@@ -104,31 +104,87 @@ def test_host_static_blackhole_rejects_spine_target() -> None:
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
-def test_host_vpn_membership_missing_targets_wireguard_peers(topo_size: str) -> None:
-    inject = resolve_inject_params(
-        "host_vpn_membership_missing",
-        "rip_small_internet_vpn",
-        topo_size,
-        seed=43,
+def test_wireguard_peer_key_targets_single_path_hq_tunnels(topo_size: str) -> None:
+    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+        single_path_hq_peer_targets,
     )
-    assert inject["host_name"] in {"pc1", "web_server_1_1", "web_server_1_2"}
-    assert inject["host_name_2"] == "vpn_server_1"
+
+    inject = resolve_inject_params(
+        "wireguard_peer_key_misconfiguration",
+        "enterprise_branch",
+        topo_size,
+        seed=42,
+    )
+    eligible = set(single_path_hq_peer_targets(topo_size))  # type: ignore[arg-type]
+    assert (inject["host_name"], inject["intf_name"]) in eligible
     validate_benchmark_case(
-        "rip_small_internet_vpn",
-        "host_vpn_membership_missing",
+        "enterprise_branch",
+        "wireguard_peer_key_misconfiguration",
         inject,
         topo_size,
     )
 
 
-def test_host_vpn_membership_missing_rejects_non_peer_web_server() -> None:
-    with pytest.raises(ValueError, match="WireGuard peer"):
+@pytest.mark.parametrize("topo_size", ["s", "m", "l"])
+def test_wireguard_peer_key_rejects_dual_path_spoke(topo_size: str) -> None:
+    if topo_size == "s":
+        pytest.skip("small topo has no dual-path spokes")
+    with pytest.raises(ValueError, match="single-path HQ tunnel"):
         validate_benchmark_case(
-            "rip_small_internet_vpn",
-            "host_vpn_membership_missing",
-            {"host_name": "web_server_4_3", "host_name_2": "vpn_server_1"},
-            "l",
+            "enterprise_branch",
+            "wireguard_peer_key_misconfiguration",
+            {"host_name": "br1_edge", "intf_name": "wg_hq"},
+            topo_size,
         )
+
+
+def test_host_vpn_alias_resolves_to_wireguard() -> None:
+    from nika.problems.prob_pool import get_problem_class, resolve_problem_name
+
+    assert (
+        resolve_problem_name("host_vpn_membership_missing")
+        == "wireguard_peer_key_misconfiguration"
+    )
+    cls = get_problem_class("host_vpn_membership_missing")
+    assert cls is not None
+    assert cls.root_cause_name == "wireguard_peer_key_misconfiguration"
+
+
+def test_legacy_host_vpn_benchmark_row_rewrites_to_site_edge() -> None:
+    from nika.workflows.benchmark.load_config import normalize_benchmark_row
+
+    row = normalize_benchmark_row(
+        {
+            "scenario": "rip_small_internet_vpn",
+            "topo_size": "s",
+            "problem": "host_vpn_membership_missing",
+            "inject": {
+                "host_name": "web_server_1_1",
+                "host_name_2": "vpn_server_1",
+            },
+            "root_causes": [
+                {
+                    "resource": {"kind": "node", "node": "vpn_server_1"},
+                    "fault_type": "host_vpn_membership_missing",
+                }
+            ],
+        }
+    )
+    assert row["scenario"] == "enterprise_branch"
+    assert row["problem"] == "wireguard_peer_key_misconfiguration"
+    assert row["inject"]["intf_name"] == "wg_hq"
+    assert row["inject"]["host_name"].endswith("_edge")
+    assert row["root_causes"][0]["fault_type"] == "wireguard_peer_key_misconfiguration"
+    assert row["root_causes"][0]["resource"]["kind"] == "interface"
+
+
+def test_selected_scenario_mapping_includes_wireguard() -> None:
+    from generate_benchmark import SELECTED_SCENARIO_FOR_PROBLEM
+
+    assert (
+        SELECTED_SCENARIO_FOR_PROBLEM["wireguard_peer_key_misconfiguration"]
+        == "enterprise_branch"
+    )
 
 
 @pytest.mark.parametrize(

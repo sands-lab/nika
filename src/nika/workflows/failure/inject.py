@@ -9,6 +9,7 @@ from typing import Any
 from nika.problems.prob_pool import (
     get_problem_instance,
     list_avail_problem_names,
+    resolve_problem_name,
 )
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
 from nika.utils.session import Session
@@ -103,15 +104,17 @@ def inject_failure(
 
     session = Session()
     session.load_running_session(session_id=session_id)
-    session.update_session("problem_names", problem_names)
+
+    resolved_names = [resolve_problem_name(name) for name in problem_names]
+    for original, resolved in zip(problem_names, resolved_names, strict=True):
+        if resolved not in list_avail_problem_names():
+            raise ValueError(f"Unknown problem name: {original}")
+
+    session.update_session("problem_names", resolved_names)
 
     bind_session_dir(session.session_dir)
 
     store = SessionStore()
-
-    for problem_name in problem_names:
-        if problem_name not in list_avail_problem_names():
-            raise ValueError(f"Unknown problem name: {problem_name}")
 
     scenario_params = dict(
         session.scenario_params if hasattr(session, "scenario_params") else {}
@@ -121,13 +124,13 @@ def inject_failure(
     session_meta = {k: v for k, v in session.__dict__.items() if k != "store"}
     scenario_params.setdefault("backend", resolve_backend(session_meta))
     overrides = dict(param_overrides or {})
-    if overrides and len(problem_names) != 1:
+    if overrides and len(resolved_names) != 1:
         raise ValueError(
             "When using --set parameters, inject exactly one problem at a time."
         )
 
     inject_problem = get_problem_instance(
-        problem_names=problem_names,
+        problem_names=resolved_names,
         scenario_name=session.scenario_name,
         **scenario_params,
     )
@@ -145,14 +148,14 @@ def inject_failure(
         fault_params = ParamsClass(**overrides)
     elif overrides:
         raise ValueError(
-            f"Problem '{problem_names[0]}' does not accept --set parameters yet."
+            f"Problem '{resolved_names[0]}' does not accept --set parameters yet."
         )
     else:
         fault_params = None
 
-    if len(problem_names) > 1 and hasattr(inject_problem, "sub_faults"):
+    if len(resolved_names) > 1 and hasattr(inject_problem, "sub_faults"):
         sub_faults = list(getattr(inject_problem, "sub_faults"))
-        for idx, problem_name in enumerate(problem_names):
+        for idx, problem_name in enumerate(resolved_names):
             sub_problem = sub_faults[idx] if idx < len(sub_faults) else inject_problem
             failure_id = store.create_failure_injection(
                 {
@@ -182,7 +185,7 @@ def inject_failure(
         failure_id = store.create_failure_injection(
             {
                 "session_id": session.session_id,
-                "problem_name": problem_names[0],
+                "problem_name": resolved_names[0],
                 "root_cause_category": str(
                     getattr(inject_problem, "root_cause_category", "")
                 ),
@@ -193,7 +196,7 @@ def inject_failure(
                 "start_time": now_ts,
             }
         )
-        failure_rows.append((failure_id, problem_names[0]))
+        failure_rows.append((failure_id, resolved_names[0]))
 
     if ParamsClass is not None:
         try:

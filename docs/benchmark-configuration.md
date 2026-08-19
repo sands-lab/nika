@@ -51,7 +51,7 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 | File | Count | Role |
 |------|------:|------|
 | `benchmark_selected.yaml` | **56** | Editable curated suite (source for freezing a release) |
-| `benchmark_full.yaml` | **727** | Full scenario × failure × size matrix (60 represented problem IDs) |
+| `benchmark_full.yaml` | **598** | Full scenario × failure × size matrix (60 represented problem IDs) |
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
@@ -124,7 +124,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `p4_counter` | `arp`, `icmp`, `link`, `mac`, `p4`, `pc` |
 | `p4_int` | `arp`, `icmp`, `int`, `link`, `mac`, `p4`, `pc` |
 | `p4_mpls` | `arp`, `icmp`, `link`, `mac`, `mpls`, `p4`, `pc` |
-| `rip_small_internet_vpn` | `arp`, `frr`, `http`, `icmp`, `link`, `mac`, `pc`, `vpn` |
+| `enterprise_branch` | `arp`, `bgp`, `frr`, `http`, `icmp`, `link`, `mac`, `pc`, `vpn` |
 | `sdn_clos` | `arp`, `icmp`, `link`, `mac`, `pc`, `sdn` |
 | `sdn_star` | `arp`, `icmp`, `link`, `mac`, `pc`, `sdn` |
 | `simple_bgp` | `arp`, `bgp`, `frr`, `icmp`, `link`, `mac`, `pc` |
@@ -135,9 +135,11 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 |--------|------:|
 | Registered failure types | 60 |
 | Failure types represented in `benchmark_full.yaml` | 60 |
-| Full benchmark cases | 580 |
-| Selected / release 0.1.0 cases | 56 |
+| Full benchmark cases | 598 |
+| Selected cases | 56 |
 | Scenarios in full matrix | 14 |
+
+Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target.
 
 ### Full matrix by scenario
 
@@ -145,7 +147,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 |----------|------:|
 | `campus_lan` | 111 |
 | `dc_clos` | 102 |
-| `rip_small_internet_vpn` | 72 |
+| `enterprise_branch` | 90 |
 | `sdn_clos` | 57 |
 | `sdn_star` | 57 |
 | `k8s_lab` | 27 |
@@ -166,25 +168,46 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `dc_clos` | 14 |
 | `p4_bloom_filter` | 6 |
 | `sdn_clos` | 5 |
+| `enterprise_branch` | 1 |
 | `p4_mpls` | 1 |
-| `rip_small_internet_vpn` | 1 |
 
 Kubernetes scenarios (`k8s_lab`, `llmd_lab`) and Containerlab `min3clos` appear in the full matrix only; selected/release cases use traditional Kathara labs as the best-matching scenario per failure.
 
 ## Coverage matrix (scenario × failure)
 
-Compatibility from `benchmark_full.yaml` (tag match). Cells ignore topo size: a colored cell means the pair appears at least once in the full matrix. For `dc_clos` and `campus_lan`, the matrix marks compatibility when the failure appears with the chosen workload (generation does not expand size × workload × failure). Legacy YAML may still say `dc_clos_bgp` / `dc_clos_service` or `ospf_enterprise_static` / `ospf_enterprise_dhcp`; loaders rewrite those to the canonical ids.
+Compatibility comes from `benchmark_full.yaml`, and topology sizes (`s`/`m`/`l`) collapse into one column. The matrix uses a two-level header: each scenario spans its workload columns, and the second row names each workload when present. Legacy YAML may still say `dc_clos_bgp` / `dc_clos_service` or `ospf_enterprise_static` / `ospf_enterprise_dhcp`; loaders rewrite those to the canonical IDs.
 
-| Symbol | Meaning |
-|--------|---------|
-| Orange | Included in selected / release `0.1.0` |
-| Blue | Present in full matrix only |
-| Gray | Not tag-compatible |
+Each value is `compatible / release 0.1.0` failure types. An em dash marks an incompatible scenario and category pair.
 
-Open the image and zoom to read full scenario and failure names.
+| Scenario · workload | Link | End host | Node | Misconfig. | Resource | Attack |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `campus_lan · dhcp` | 6 / 2 | 5 / 3 | 1 / 1 | 9 / 9 | 8 / 6 | 5 / 5 |
+| `campus_lan · static` | — | 3 / 3 | — | — | — | — |
+| `dc_clos · host` | 4 / 4 | 6 / 2 | 1 / 0 | 8 / 5 | 2 / 2 | 1 / 0 |
+| `dc_clos · service` | 1 / 0 | 2 / 0 | — | 2 / 0 | 5 / 0 | 2 / 1 |
+| `enterprise_branch` | 4 / 0 | 6 / 0 | 1 / 0 | 10 / 0 | 6 / 0 | 3 / 0 |
+| `isp` | 4 / 0 | — | 1 / 0 | 9 / 0 | 2 / 0 | 1 / 0 |
+| `k8s_lab` | 4 / 0 | 6 / 0 | 2 / 0 | 11 / 0 | 2 / 0 | 2 / 0 |
+| `llmd_lab` | 4 / 0 | 4 / 0 | 1 / 0 | 7 / 0 | 6 / 0 | 2 / 0 |
+| `min3clos` | 4 / 0 | — | — | 5 / 0 | 2 / 0 | 1 / 0 |
+| `p4_bloom_filter` | 5 / 1 | 4 / 0 | 5 / 5 | 3 / 0 | 2 / 0 | 1 / 0 |
+| `p4_counter` | 5 / 0 | 4 / 0 | 4 / 0 | 3 / 0 | 2 / 0 | 1 / 0 |
+| `p4_int` | 5 / 0 | 4 / 0 | 4 / 0 | 3 / 0 | 2 / 0 | 1 / 0 |
+| `p4_mpls` | 5 / 0 | 4 / 0 | 5 / 1 | 3 / 0 | 2 / 0 | 1 / 0 |
+| `sdn_clos` | 4 / 0 | 4 / 0 | 5 / 5 | 3 / 0 | 2 / 0 | 1 / 0 |
+| `sdn_star` | 4 / 0 | 4 / 0 | 5 / 0 | 3 / 0 | 2 / 0 | 1 / 0 |
+| `simple_bgp` | 4 / 0 | 6 / 0 | 1 / 0 | 8 / 0 | 2 / 0 | 2 / 0 |
+
+<details>
+<summary>View the complete failure-level compatibility matrix</summary>
+
+The full matrix stacks six category blocks with the same scenario columns. Failure names stay horizontal. Light dots mark compatible pairs, blue dots mark pairs included in release `0.1.0`, and incompatible pairs remain blank.
 
 ![Scenario × failure coverage matrix](../assets/images/benchmark_coverage_matrix.png)
 
+</details>
+
+When you add, remove, or retarget cases (new failure, new scenario, or a `TAGS` / registry change that changes compatibility), regenerate the working YAML, update the README table, and refresh the PNG in the same change so they match `benchmark_full.yaml` / `benchmark_selected.yaml`.
 
 ## Regeneration
 
@@ -194,7 +217,7 @@ Regenerate working YAML files:
 uv run python benchmark/generate_benchmark.py
 ```
 
-Refresh the coverage matrix image after the working YAML changes:
+Refresh the failure-level matrix after the working YAML changes (requires the `dev` dependency group for matplotlib):
 
 ```shell
 uv run --group dev python scripts/plot_coverage_matrix.py

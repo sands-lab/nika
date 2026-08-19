@@ -323,17 +323,6 @@ cases:
       kind: node
       node: leaf_router_0_1
     fault_type: host_static_blackhole
-- scenario: rip_small_internet_vpn
-  topo_size: s
-  problem: host_vpn_membership_missing
-  inject:
-    host_name: web_server_1_1
-    host_name_2: vpn_server_1
-  root_causes:
-  - resource:
-      kind: node
-      node: vpn_server_1
-    fault_type: host_vpn_membership_missing
 - scenario: campus_lan
   topo_size: s
   problem: http_acl_block
@@ -655,3 +644,15 @@ cases:
       kind: node
       node: web_server_3
     fault_type: web_dos_attack
+- scenario: enterprise_branch
+  topo_size: s
+  problem: wireguard_peer_key_misconfiguration
+  inject:
+    host_name: br2_edge
+    intf_name: wg_hq
+  root_causes:
+  - resource:
+      kind: interface
+      node: br2_edge
+      name: wg_hq
+    fault_type: wireguard_peer_key_misconfiguration

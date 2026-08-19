@@ -478,6 +478,13 @@ def _verify_pins(pins: dict[str, Any], *, kind: str) -> None:
         if not path.is_absolute():
             path = REPO_ROOT / path
         if not path.is_file():
+            if kind == "problems":
+                from nika.problems.prob_pool import resolve_problem_name
+
+                # Legacy failure ids (e.g. host_vpn_membership_missing) remap; the
+                # pinned source may have been removed.
+                if resolve_problem_name(str(name)) != str(name):
+                    continue
             raise ReleaseError(f"Pinned {kind} source missing for {name!r}: {path}")
         actual = _sha256_file(path)
         expected = str(meta["sha256"]).removeprefix("sha256:")

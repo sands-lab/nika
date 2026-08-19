@@ -29,7 +29,7 @@ uv sync --extra containerlab
 | --- | --- | --- | --- | --- |
 | `dc_clos` | Kathara | `-s s\|m\|l` | `--workload host\|service` (default `host`) | FRR eBGP Clos; host or DNS/HTTP leaf workload |
 | `campus_lan` | Kathara | `-s s\|m\|l` | `--workload static\|dhcp` (default `static`) | Hierarchical campus LAN; static hosts or DHCP/DNS/LB farm |
-| `rip_small_internet_vpn` | Kathara | `-s s\|m\|l` |  | RIP mini-Internet with a WireGuard overlay |
+| `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay |
 | `simple_bgp` | Kathara | Fixed |  | Two FRR ASes with one host in each AS |
 | `sdn_star` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch star |
 | `sdn_clos` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch leaf-spine Clos |
@@ -130,26 +130,37 @@ uv run nika env run campus_lan -s s --workload dhcp
 
 Legacy benchmark YAML may still name `ospf_enterprise_static` or `ospf_enterprise_dhcp`. Loaders map those ids to `campus_lan` with `static` or `dhcp` workload. They are not listed by `nika env list`.
 
-## RIP and WireGuard scenario
+## Enterprise Branch VPN scenario
 
-### `rip_small_internet_vpn`
+### `enterprise_branch`
 
-NIKA generates a mini-Internet with a full mesh of internal FRR routers, a gateway, external service zones, Apache servers, and a WireGuard overlay. RIP advertises infrastructure and attached LANs.
+NIKA builds a multi-site enterprise WAN: HQ (and on large, a secondary DC hub), branch sites, and one or more provider underlay networks. Each site has business LANs and a WAN Edge router. Sites do not mesh over physical links. Edges attach to providers for IP underlay reachability between tunnel endpoints only.
+
+Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). Guest LANs stay local (NAT toward the provider) and are not advertised in overlay BGP. Cross-site traffic follows `LAN → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN`. Branch-to-branch traffic hairpins the hub.
 
 ```text
-internal PCs -- internal RIP full mesh -- gateway -- external RIP routers -- web servers
-     \________________________ WireGuard overlay ________________________/
-                                              |
-                                          VPN server
+  HQ CORP/SERVER[/GUEST] -- hq_edge ==WG+eBGP== brN_edge -- Branch CORP[/GUEST]
+                               |                    |
+                            isp*_core (underlay PE reachability only)
 ```
 
-| Size | Internal routers and PCs | External routers | HTTP servers |
-| --- | ---: | ---: | ---: |
-| `s` | 2 | 1 | 2 |
-| `m` | 4 | 2 | 8 |
-| `l` | 8 | 4 | 32 |
+| Size | Hubs | Branches | Providers | Dual WAN / backup tunnels | Business domains |
+| --- | ---: | ---: | ---: | --- | --- |
+| `s` | 1 HQ | 2 | 1 | none | HQ CORP+SERVER; branch CORP |
+| `m` | 1 HQ | 4 | 2 | HQ and BR1–BR2 dual-homed | + HQ/BR1 GUEST |
+| `l` | HQ + DC2 hub | 7 | 2 | hubs dual-homed; BR1–BR3 dual-hub | more CORP/SERVER; GUEST on HQ and BR1–BR2 |
 
-The first two internal routers connect to `gateway_router`; the gateway connects to each external router. `pc1`, `vpn_server_1`, and selected web servers use `172.16.1.0/24` for WireGuard. Use this scenario for RIP, external service reachability, and VPN membership failures. Verification checks FRR, RIP routes, WireGuard interfaces, and HTTP over the VPN.
+Enterprise LANs use `10.<site_id>.<role>.0/24` (role `10` CORP, `20` SERVER, `40` GUEST). Provider PE links use `100.64.0.0/16`. Tunnel addressing uses `172.30.0.0/16`. HQ ASN is `65000`; branches use `65001+`; DC2 uses `65010`.
+
+Use this scenario for underlay vs overlay diagnosis, hub-and-spoke VPN reachability, and eBGP path preference with backup sessions on medium/large. Verification covers every designed tunnel (underlay reachability, WireGuard, BGP both sides), every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the overlay, every provider without enterprise prefixes, every Guest isolated from remote CORP, and every backup BGP session with primary-path preference on dual-homed spokes.
+
+Legacy id `rip_small_internet_vpn` (and the short-lived `enterprise_branch_vpn`) resolve to this scenario. They are not listed by `nika env list`. Frozen release `0.1.0` still records the old RIP mini-Internet lab hash and host-VPN selected case; regenerate a release when you publish the new lab.
+
+Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp` is carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay.
+
+```shell
+uv run nika env run enterprise_branch -s s
+```
 
 ## Fixed BGP scenario
 

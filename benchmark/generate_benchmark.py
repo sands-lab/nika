@@ -81,7 +81,6 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "host_ip_conflict": "dc_clos",
     "host_missing_ip": "campus_lan",
     "host_static_blackhole": "dc_clos",
-    "host_vpn_membership_missing": "rip_small_internet_vpn",
     "http_acl_block": "campus_lan",
     "icmp_acl_block": "campus_lan",
     "incast_traffic_network_limitation": "campus_lan",
@@ -109,6 +108,7 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "southbound_port_block": "sdn_clos",
     "southbound_port_mismatch": "sdn_clos",
     "web_dos_attack": "campus_lan",
+    "wireguard_peer_key_misconfiguration": "enterprise_branch",
 }
 
 # Failures that are tag-compatible with host Clos but prefer service endpoints.
@@ -151,6 +151,9 @@ FULL_ONLY_PROBLEMS: set[str] = {
     "k8s_worker_apiserver_partition",
     "k8s_networkpolicy_deny",
 }
+
+# Problems kept in the registry but excluded from working matrices.
+ORPHANED_PROBLEMS: set[str] = set()
 
 
 def _topo_sizes_for_scenario(scenario: str) -> list[str]:
@@ -200,6 +203,8 @@ def iter_full_cases(*, seed: int) -> list[dict]:
     rows: list[dict] = []
 
     for prob_name, problem_class in problem_instances.items():
+        if prob_name in ORPHANED_PROBLEMS:
+            continue
         problem_instance = problem_class
         problem_tags = set(problem_instance.TAGS)
         for net_env_name, net_env_cls in net_envs.items():
@@ -230,6 +235,8 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
 
     for prob_name in sorted(problem_instances.keys()):
         if prob_name in FULL_ONLY_PROBLEMS:
+            continue
+        if prob_name in ORPHANED_PROBLEMS:
             continue
         scenario = SELECTED_SCENARIO_FOR_PROBLEM.get(prob_name)
         if scenario is None:

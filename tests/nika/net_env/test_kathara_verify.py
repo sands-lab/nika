@@ -5,10 +5,12 @@ from nika.net_env.kathara.data_center_routing.dc_clos.verify import (
     verify_dc_clos_bgp_lab,
     verify_dc_clos_service_lab,
 )
+from nika.net_env.kathara.enterprise_wan.enterprise_branch.verify import (
+    verify_enterprise_branch_lab,
+)
 from nika.net_env.kathara.interdomain_routing.simple_bgp.verify import (
     verify_simple_bgp_lab,
 )
-from nika.net_env.kathara.intradomain_routing.rip_vpn.verify import verify_rip_vpn_lab
 from nika.net_env.kathara.kubernetes.k8s_lab.verify import verify_k8s_lab
 from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab
 from nika.net_env.kathara.p4.p4_bloom_filter.verify import verify_p4_bloom_filter_lab
@@ -70,6 +72,14 @@ ALL_NODES = {
     "worker4",
     "worker5",
     "client",
+    "hq_corp_pc",
+    "hq_srv",
+    "hq_edge",
+    "br1_corp_pc",
+    "br1_edge",
+    "br2_corp_pc",
+    "br2_edge",
+    "isp1_core",
     "leaf_1_1",
 }
 HOST_ADDRS = {
@@ -84,6 +94,10 @@ HOST_ADDRS = {
     "collector": ("10.0.0.3",),
     "controller": ("201.1.1.2", "200.0.0.1"),
     "client": ("3.0.0.2", "200.0.0.7"),
+    "hq_corp_pc": ("10.0.10.2",),
+    "hq_srv": ("10.0.20.2",),
+    "br1_corp_pc": ("10.1.10.2",),
+    "br2_corp_pc": ("10.2.10.2",),
 }
 
 
@@ -124,9 +138,30 @@ class FakeRuntime:
         if command == "ovs-vsctl show":
             return "Bridge br0"
         if command == "vtysh -c 'show bgp summary'":
-            return "eth0 4 65000 1\neth1 4 65001 2\n"
-        if command == "wg show wg0":
-            return "interface: wg0"
+            # Legacy short lines for frr_bgp_established(); modern lines for
+            # enterprise_branch peer checks.
+            return (
+                "eth0 4 65000 1\n"
+                "eth1 4 65001 2\n"
+                "Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down "
+                "State/PfxRcd PfxSnt Desc\n"
+                "172.30.0.1 4 65000 25 9 6 0 0 00:00:30 5 1 N/A\n"
+                "172.30.0.2 4 65001 10 28 6 0 0 00:00:29 1 6 N/A\n"
+                "172.30.0.5 4 65000 25 9 6 0 0 00:00:30 5 1 N/A\n"
+                "172.30.0.6 4 65002 9 22 6 0 0 00:00:29 1 6 N/A\n"
+            )
+        if command == "vtysh -c 'show ip bgp'":
+            return "*> 10.0.10.0/24\n*> 10.0.20.0/24\n*> 10.1.10.0/24\n"
+        if command == "vtysh -c 'show ip route'":
+            return "C>* 100.64.0.0/30 is directly connected\n"
+        if command == "vtysh -c 'show ip bgp 10.0.10.0/24'":
+            return "*  172.30.0.1\n*> 172.30.0.1 from 172.30.0.1\n"
+        if command.startswith("wg show"):
+            return "interface: wg0\n  listening port: 51820\n"
+        if command.startswith("ip route get"):
+            return "10.2.10.2 via 172.30.0.1 dev wg_hq src 10.1.10.1"
+        if command == "ip route":
+            return "100.64.0.0/30 dev eth0\n100.64.0.4/30 dev eth1\n"
         if command.startswith("curl -s -o /dev/null"):
             return "200"
         if command == "kubectl get nodes --no-headers":
@@ -161,8 +196,51 @@ class KatharaVerifyUnitTest:
             verify_dc_clos_service_lab(FakeRuntime(), scenario_name="x")
         )
 
-    def test_rip_vpn_verify_passes(self) -> None:
-        assert_verify_success(verify_rip_vpn_lab(FakeRuntime(), scenario_name="x"))
+    def test_enterprise_branch_verify_passes(self) -> None:
+        from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+            BuiltTunnel,
+        )
+
+        tunnels = [
+            BuiltTunnel(
+                spoke="br1",
+                hub="hq",
+                provider="isp1",
+                primary=True,
+                local_pref=200,
+                spoke_iface="wg_hq",
+                hub_iface="wg_br1",
+                spoke_tunnel_ip="172.30.0.2",
+                hub_tunnel_ip="172.30.0.1",
+                spoke_wan_ip="100.64.0.5",
+                hub_wan_ip="100.64.0.1",
+                listen_port_spoke=51820,
+                listen_port_hub=51820,
+            ),
+            BuiltTunnel(
+                spoke="br2",
+                hub="hq",
+                provider="isp1",
+                primary=True,
+                local_pref=200,
+                spoke_iface="wg_hq",
+                hub_iface="wg_br2",
+                spoke_tunnel_ip="172.30.0.6",
+                hub_tunnel_ip="172.30.0.5",
+                spoke_wan_ip="100.64.0.9",
+                hub_wan_ip="100.64.0.1",
+                listen_port_spoke=51820,
+                listen_port_hub=51821,
+            ),
+        ]
+        assert_verify_success(
+            verify_enterprise_branch_lab(
+                FakeRuntime(),
+                scenario_name="enterprise_branch",
+                topo_size="s",
+                built_tunnels=tunnels,
+            )
+        )
 
     def test_sdn_star_verify_passes(self) -> None:
         assert_verify_success(verify_sdn_star_lab(FakeRuntime(), scenario_name="x"))
@@ -248,16 +326,17 @@ SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "rip_small_internet_vpn",
+        "enterprise_branch",
         ["-s", "s"],
         (
-            "router1",
-            "router2",
-            "gateway_router",
-            "external_router_1",
-            "pc1",
-            "vpn_server_1",
-            "web_server_1_1",
+            "hq_edge",
+            "br1_edge",
+            "br2_edge",
+            "isp1_core",
+            "hq_corp_pc",
+            "hq_srv",
+            "br1_corp_pc",
+            "br2_corp_pc",
         ),
     ),
     ("sdn_star", ["-s", "s"], ("controller", "switch_0", "switch_1", "pc1", "pc2")),

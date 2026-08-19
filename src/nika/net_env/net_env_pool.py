@@ -73,6 +73,11 @@ _CAMPUS_LAN_ALIASES: dict[str, str] = {
     "ospf_enterprise_static": "static",
     "ospf_enterprise_dhcp": "dhcp",
 }
+ENTERPRISE_BRANCH_SCENARIO = "enterprise_branch"
+_ENTERPRISE_BRANCH_ALIASES: set[str] = {
+    "rip_small_internet_vpn",
+    "enterprise_branch_vpn",
+}
 
 _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     "dc_clos": NetEnvSpec(
@@ -104,11 +109,11 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
-    "rip_small_internet_vpn": NetEnvSpec(
-        lab_name="rip_small_internet_vpn",
-        module="nika.net_env.kathara.intradomain_routing.rip_vpn.lab",
-        class_name="RIPSmallInternetVPN",
-        tags=("link", "http", "pc", "frr", "mac", "arp", "vpn", "icmp"),
+    "enterprise_branch": NetEnvSpec(
+        lab_name="enterprise_branch",
+        module="nika.net_env.kathara.enterprise_wan.enterprise_branch.lab",
+        class_name="EnterpriseBranch",
+        tags=("arp", "link", "mac", "icmp", "frr", "bgp", "pc", "http", "vpn"),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
@@ -264,6 +269,8 @@ def resolve_scenario_ref(scenario_name: str) -> tuple[str, str | None]:
         return DC_CLOS_SCENARIO, _DC_CLOS_ALIASES[scenario_name]
     if scenario_name in _CAMPUS_LAN_ALIASES:
         return CAMPUS_LAN_SCENARIO, _CAMPUS_LAN_ALIASES[scenario_name]
+    if scenario_name in _ENTERPRISE_BRANCH_ALIASES:
+        return ENTERPRISE_BRANCH_SCENARIO, None
     if scenario_name in _NET_ENV_SPECS:
         return scenario_name, None
     raise ValueError(f"Network environment '{scenario_name}' not found in the pool.")
@@ -279,6 +286,12 @@ def is_campus_lan_scenario(scenario_name: str) -> bool:
     """Return True for ``campus_lan`` or a legacy enterprise static/dhcp alias."""
     canonical, _ = resolve_scenario_ref(scenario_name)
     return canonical == CAMPUS_LAN_SCENARIO
+
+
+def is_enterprise_branch_scenario(scenario_name: str) -> bool:
+    """Return True for ``enterprise_branch`` or its legacy alias."""
+    canonical, _ = resolve_scenario_ref(scenario_name)
+    return canonical == ENTERPRISE_BRANCH_SCENARIO
 
 
 def scenario_accepts_workload(scenario_name: str) -> bool:

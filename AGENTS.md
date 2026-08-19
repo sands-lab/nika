@@ -11,7 +11,7 @@ NIKA is a Python 3.12 platform for deploying Kathara or Containerlab network sce
 - Keep registries importable with core dependencies. Do not import emulator packages or agent SDKs at module scope; preserve lazy loading and explicit extra checks.
 - Register scenarios in `src/nika/net_env/net_env_pool.py`. Put Kathara and Containerlab implementations in their matching backend directories.
 - New failures subclass `ProblemBase`, define typed `Params`, set `root_cause_category` and `root_cause_name`, and add `symptom_desc` when the name does not describe the symptom. Use the six-category taxonomy in `docs/failures.md`. `prob_pool.py` discovers concrete classes and keys them by `root_cause_name`.
-- Scenario and failure compatibility uses `TAGS` subset matching. Treat a `TAGS` or registry change as a benchmark contract change; regenerate the working matrices and review the diff.
+- Scenario and failure compatibility uses `TAGS` subset matching. Treat a `TAGS` or registry change as a benchmark contract change; regenerate the working matrices, refresh `assets/images/benchmark_coverage_matrix.png` with `uv run --group dev python scripts/plot_coverage_matrix.py`, and review the diff.
 - Agents implement `agent.protocols.TroubleshootingAgent` and register their CLI name in `agent/registry.py`. Community implementations live under `src/agent/community/<name>/`; their operator references live under `docs/agents/community/`.
 - Keep the optional remote lab control plane in `src/nika/remote/`. MCP `remote_proxy` and leaderboard transport serve different purposes.
 
@@ -35,7 +35,7 @@ NIKA is a Python 3.12 platform for deploying Kathara or Containerlab network sce
 
 - Do not delete `runtime/` or `results/` in bulk; they can contain active sessions and experiment outputs.
 - Use `nika session close` or `nika session wipe` for lab cleanup instead of removing emulator or Docker state by hand.
-- Do not edit generated benchmark YAML by hand unless the task targets benchmark cases. Regenerate matrices with `uv run python benchmark/generate_benchmark.py`.
+- Do not edit generated benchmark YAML by hand unless the task targets benchmark cases. Regenerate matrices with `uv run python benchmark/generate_benchmark.py`, then refresh the coverage matrix PNG whenever cases change.
 - Treat `benchmark/releases/` as frozen publication data. Modify it only when the task creates or updates a release.
 - Preserve lab configs, startup files, P4 programs, Kubernetes manifests, SNDlib data, and Containerlab topology files unless the task targets them.
 

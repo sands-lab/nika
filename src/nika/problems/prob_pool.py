@@ -9,6 +9,16 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
+# Legacy failure ids rewritten at load/inject time (no separate registry entry).
+_PROBLEM_ALIASES: dict[str, str] = {
+    "host_vpn_membership_missing": "wireguard_peer_key_misconfiguration",
+}
+
+
+def resolve_problem_name(problem_name: str) -> str:
+    """Map a legacy failure id to the registered ``root_cause_name``."""
+    return _PROBLEM_ALIASES.get(problem_name, problem_name)
+
 
 def _register_problems() -> dict[str, type[ProblemBase]]:
     """Register single-fault problem classes keyed by root_cause_name."""
@@ -78,8 +88,12 @@ def list_avail_tags() -> list[str]:
 
 
 def get_problem_class(problem_name: str) -> type[ProblemBase] | None:
-    """Return the registered class for *problem_name*, or None."""
-    return _PROBLEMS.get(problem_name)
+    """Return the registered class for *problem_name*, or None.
+
+    Legacy aliases (e.g. ``host_vpn_membership_missing``) resolve to the
+    current Site Edge failure.
+    """
+    return _PROBLEMS.get(resolve_problem_name(problem_name))
 
 
 def get_problem_instance(
@@ -89,13 +103,15 @@ def get_problem_instance(
     if not isinstance(problem_names, list) or len(problem_names) == 0:
         raise ValueError("problem_names should be a list of problem_names.")
 
-    if len(problem_names) > 1:
+    resolved = [resolve_problem_name(name) for name in problem_names]
+
+    if len(resolved) > 1:
         sub_faults = [
             _PROBLEMS[fault_name](scenario_name=scenario_name, **kwargs)
-            for fault_name in problem_names
+            for fault_name in resolved
         ]
         return MultiFaultProblem(
             sub_faults=sub_faults, scenario_name=scenario_name, **kwargs
         )
 
-    return _PROBLEMS[problem_names[0]](scenario_name=scenario_name, **kwargs)
+    return _PROBLEMS[resolved[0]](scenario_name=scenario_name, **kwargs)

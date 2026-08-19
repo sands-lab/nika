@@ -36,11 +36,14 @@ def _cross_pairs(snapshot: dict) -> list[dict]:
 
 
 class KatharaPingMeshIntegrationTest(PerTestEnvTestCase):
-    SCENARIO = "rip_small_internet_vpn"
+    SCENARIO = "enterprise_branch"
     ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "m"]
     MIN_ENDPOINTS = 6
-    INJECT_PARAMS: ClassVar[dict[str, str]] = {"host_name": "pc1", "intf_name": "eth0"}
-    FAULT_SOURCE = "pc1"
+    INJECT_PARAMS: ClassVar[dict[str, str]] = {
+        "host_name": "br1_corp_pc",
+        "intf_name": "eth0",
+    }
+    FAULT_SOURCE = "br1_corp_pc"
 
     @pytest.fixture(scope="class", autouse=True)
     def _setup_class(cls) -> None:
@@ -55,9 +58,8 @@ class KatharaPingMeshIntegrationTest(PerTestEnvTestCase):
             f"expected at least {self.MIN_ENDPOINTS} endpoints, got {endpoints}"
         )
 
-        assert "pc1" in endpoints
-
-        assert "pc2" in endpoints
+        assert "br1_corp_pc" in endpoints
+        assert "hq_corp_pc" in endpoints
 
         assert healthy["summary"]["anomaly_count"] == 0
         cross = _cross_pairs(healthy)

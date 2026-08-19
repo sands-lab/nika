@@ -1,6 +1,18 @@
 # WireGuard key pairs: one line per pair = private_key,public_key
-# Order: vpn_server_1, pc1, web_server_1_1, web_server_1_2 (at least 4 lines required)
-UF6GO/WF8RYGoZspYQ73JxMhdOWAwo3G5/9+655DqUg=,pNjUktPKMOKqq88UPy4BC1TLipjdJPM2ozWZjM8YNjA=
-cIyt1h6wNT/dPAsp90hJJb3i+l/iiWXsCOSYHTm8JGI=,1nsFyoZafBoCbR9Pedsyf2rqjvn6EtsP65wztLsvVV4=
-yGdGi88hELno2Q7gyMvRC9lTsFzWIS2ybjK5Yqs+wX8=,WlmcLCe6ThCHdyAtoS3yPuKnUK9WkSJxp7LFRutG72Y=
-8MDObM28ucE/1zRQL9SAAmZUPc+1RF9cEPBOLqN1JnI=,eru0IX0x/rb5zuoxtEBZSSFEX7wyixmGPP0q3aNyIRs=
+# Indexed by edge order for enterprise_branch (hq, dc2, br1..brN, …)
+2GgVb0iNnxftqW6ZjrcdKqheSJnMZkl4GfHquaTrrmA=,09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=
+wEzFSwngsTTLOHhpz/SmXaI5LAGSnnc93gHacGzaAk4=,89Mi8Tkjc30RDxO+mQ4ebJW00oHxEZUpID1ABduDr24=
+iD4CmVJlVYF0vXRDUnmAz4wQ6WesNjG4emVspsR5ZlE=,0zs157c4sM3B/6cQO49C+9nrQ+w6IJlYB2K9qchJ52s=
+AE/aRn5Tfh0+7WY9bWeErZ+QDZIgcGXrI1PA4JE7lnQ=,9TZmTy1wikaJp8h0d6E9BYjuWnQA0pwX3s5D7cN7P2E=
+kC1Tx2nD2/YFClZY3FVpJnbZcw4y3lrQF3M1l16XtWU=,mYAoFtYCu/VHDtfvy30anGjNlunbj81aS7cCXK9SfgQ=
+yF3uG4s5Sv8wVQPWDpu0K4Un51RQkwkSAqo2TpUT1mc=,428L6E57YOEsN/yfzLlH2y9s1iJRlgARHUkFm/LzGUU=
+sPRRma/VublHtiu0FPfgjfB9QKNgAZN4KfpmP/1lIE8=,Biy8ok5qpvDhQTbPkPH2yxWncoh9zuno6zQVHfoB5SY=
+0Gdo4khVmgrq41LXSSVbfto3MSjmOPsHd+86xSXEs1o=,As/tgQzIwcQK+y8vqtbqTji/b+aN1aVQ0UBNf+miIno=
+MIh7TjwlB0F1IOF5O8iHK1jcwAkS/JPcb64IBHtDckA=,dC3hq0ygwhHjaINOTMoBt4xkTVt1Xkam009W1uIdVlI=
+yCpEAvcQpWDtOUVDFTcW75xYTyyF5gGkshXKi100EEo=,FzafTkXCKGL8n87mm61v+K858sERiJ7c0aprS4gG+EU=
+sDzEr5b4lD1wZzSwpmD7R9fRaO/1/y+31zBP83I7zmg=,ph1rCulJO5+8neTNvOXz8PLMJobY3hXkY2z7Jz9fJR8=
+MCs/S50BWW+Zx4Aazr5iHgVRmUBKn+JbGDxro2YGoUo=,jDVMZ1iJgYCrgzEimvWK4/MLVygLK9B/hCxJKNQzyWI=
+iJw8M1hJJkQTEqQ9ul+J/FNJ0S2ImokK0vlKMNaqqEQ=,QeF4G0rDL94GOt56GXuWAQWePgMtRJl85GUGYRacUkU=
+wNbbFqDD5CimyRyxk1Rk1WcdloljIRsBs2RRAKPCV0U=,KNa55xy1SDQEZBjv2KAonK6xH85/4pDpELWvkon8uik=
+SAjPcZ3vv0AYzpnz8iGXYXHppKkovcxYjCROpfib4Ew=,0AYQWtHCzpxW15FYmHOTjDb6KWnkaVCmq09nx9ArqTQ=
+mNNfZnyqhHyRq84SHtmHwmSAzuzqAOZQ04FcK/QbNk0=,6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=

@@ -85,25 +85,36 @@ class ResourceMappingTest:
         )
         assert resource.id == "interface/pc2/eth0"
 
-    def test_vpn_is_server_node(self) -> None:
-        env = _Env(("pc1:eth0", "vpn:eth0"))
+    def test_host_vpn_alias_maps_to_wireguard_interface(self) -> None:
+        env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
+        # Legacy id resolves to wireguard_peer_key_misconfiguration.
         resource = _resources(
             "host_vpn_membership_missing",
-            {"host_name": "pc1", "host_name_2": "vpn_server_1"},
+            {"host_name": "br1_edge", "intf_name": "wg_hq"},
             env,
         )
-        assert resource.id == "node/vpn_server_1"
+        assert resource.id == "interface/br1_edge/wg_hq"
+
+    def test_wireguard_peer_key_is_wg_interface(self) -> None:
+        env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
+        resource = _resources(
+            "wireguard_peer_key_misconfiguration",
+            {"host_name": "br1_edge", "intf_name": "wg_hq"},
+            env,
+        )
+        assert resource.id == "interface/br1_edge/wg_hq"
 
     def test_faulty_devices_follows_resources_not_inject_side_effects(self) -> None:
-        env = _Env(("pc1:eth0", "vpn:eth0"))
+        env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
         from nika.problems.prob_pool import get_problem_class
 
         cls = get_problem_class("host_vpn_membership_missing")
         assert cls is not None
+        assert cls.root_cause_name == "wireguard_peer_key_misconfiguration"
         problem = cls.__new__(cls)
         problem.net_env = env
-        problem.parse_params({"host_name": "pc1", "host_name_2": "vpn_server_1"})
-        assert problem.faulty_devices == ["vpn_server_1"]
+        problem.parse_params({"host_name": "br1_edge", "intf_name": "wg_hq"})
+        assert problem.faulty_devices == ["br1_edge"]
 
     def test_networkpolicy_is_k8s(self) -> None:
         env = _Env(("n1:eth0", "n2:eth0"))

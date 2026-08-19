@@ -45,28 +45,27 @@ It helps different users answer questions like:
 
 NIKA combines two components:
 
-1. **NIKA Benchmark** — a suite of reproducible incidents defined by a network scenario and an injectable root cause. NIKA currently registers 60 fault types; all 60 appear in the 16-scenario working matrix, which contains 727 cases.
+1. **NIKA Benchmark** — a suite of reproducible incidents defined by a network scenario and an injectable root cause.
 2. **NIKA Orchestrator** — a modular platform that deploys live labs, injects faults, connects agents to interactive MCP tools, and evaluates their submissions.
 
 ### Network incidents
 
-NIKA constructs benchmark incidents from recurring root causes. The table applies the six-category taxonomy documented in the [failure reference](docs/failures.md) to the current 60-ID, 727-case working matrix.
+NIKA constructs benchmark incidents from recurring root causes. Categories follow the [failure reference](docs/failures.md).
 
 | Category | Registered fault types | # Working-matrix cases |
 | --- | :---: | :---: |
-| Link failures | 6 | 178 |
-| End-host failures | 10 | 164 |
-| Network node errors | 9 | 51 |
-| Misconfigurations | 18 | 167 |
-| Resource contention | 6 | 85 |
-| Network under attack | 11 | 82 |
-| **Total** | **60** | **727** |
+| Link failures | 7 | 109 |
+| End-host failures | 8 | 122 |
+| Network node errors | 13 | 62 |
+| Misconfigurations | 18 | 157 |
+| Resource contention | 8 | 97 |
+| Network under attack | 6 | 51 |
+| **Total** | **60** | **598** |
 
 <details>
 <summary>🔍 <strong>Show all 60 registered failure types</strong></summary>
 
-NIKA's benchmark consists of troubleshooting tasks based on incidents that are recurring in production networks. Each incident is defined by its root cause `Problem ID`, and a network scenario where the root cause is injected (e.g., network topology and traffic workload). The current working matrix contains 727 unique tasks.
-
+Each incident pairs a root cause `Problem ID` with a network scenario (topology and workload).
 
 | Problem ID | Category | Description | # Tasks |
 | ---------- | -------- | ----------- | ------- |
@@ -78,7 +77,6 @@ NIKA's benchmark consists of troubleshooting tasks based on incidents that are r
 | `host_incorrect_netmask` | `end_host_failure` | Some hosts seem to be unreachable in the network. | 17 |
 | `host_ip_conflict` | `end_host_failure` | Some hosts experience intermittent connectivity issues. | 28 |
 | `host_missing_ip` | `end_host_failure` | Some hosts are unable to communicate with other devices in the network. | 28 |
-| `host_vpn_membership_missing` | `end_host_failure` | host_vpn_membership_missing | 3 |
 | `bmv2_switch_down` | `network_node_error` | bmv2_switch_down | 4 |
 | `dhcp_service_down` | `end_host_failure` | dhcp_service_down | 3 |
 | `dns_service_down` | `end_host_failure` | Some hosts cannot access external websites. | 6 |
@@ -124,13 +122,14 @@ NIKA's benchmark consists of troubleshooting tasks based on incidents that are r
 | `dhcp_spoofed_subnet` | `network_under_attack` | dhcp_spoofed_subnet | 3 |
 | `dns_lookup_latency` | `network_under_attack` | Users experience high latency when accessing web services. | 6 |
 | `web_dos_attack` | `network_under_attack` | Users reports high latency when accessing some web services. | 13 |
+| `wireguard_peer_key_misconfiguration` | `misconfiguration` | Wrong Hub WireGuard peer public key on a Branch Site Edge; overlay BGP and cross-site traffic fail while underlay stays up. | 3 |
 | `incast_traffic_network_limitation` | `resource_contention` | incast_traffic_network_limitation | 13 |
 | `link_bandwidth_throttling` | `resource_contention` | link_bandwidth_throttling | 30 |
 | `load_balancer_overload` | `resource_contention` | load_balancer_overload | 3 |
 | `receiver_resource_contention` | `resource_contention` | receiver_resource_contention | 13 |
 | `sender_application_delay` | `resource_contention` | sender_application_delay | 13 |
 | `sender_resource_contention` | `resource_contention` | sender_resource_contention | 13 |
-| - | **Total** | - | **727** |
+| - | **Total** | - | **598** |
 
 </details>
 
@@ -263,7 +262,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 60 registered fault types <br> 6 network types | ⭐️⭐️ <br> 727 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 60 registered fault types <br> 6 network types | ⭐️⭐️ <br> 598 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

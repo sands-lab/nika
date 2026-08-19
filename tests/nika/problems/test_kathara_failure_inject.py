@@ -325,13 +325,104 @@ class HostCrashVerifyTest(PerTestEnvTestCase):
         self._assert_failure_injected("host_crash")
 
 
-class VPNMembershipMissingVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "rip_small_internet_vpn"
+class VPNMembershipMissingVerifyTest:
+    """Removed: legacy id remaps to wireguard_peer_key_misconfiguration."""
+
+    def test_host_vpn_membership_missing_is_alias(self) -> None:
+        from nika.problems.prob_pool import get_problem_class, resolve_problem_name
+
+        assert (
+            resolve_problem_name("host_vpn_membership_missing")
+            == "wireguard_peer_key_misconfiguration"
+        )
+        cls = get_problem_class("host_vpn_membership_missing")
+        assert cls is not None
+        assert cls.root_cause_name == "wireguard_peer_key_misconfiguration"
+
+
+class WireGuardPeerKeyMisconfigVerifyTest(PerTestEnvTestCase):
+    """Site Edge wrong Hub peer PublicKey on enterprise_branch (small)."""
+
+    SCENARIO = "enterprise_branch"
     ENV_RUN_ARGS = ["-s", "s"]
 
-    def test_host_vpn_membership_missing(self) -> None:
-        self._inject_failure("host_vpn_membership_missing")
-        self._assert_failure_injected("host_vpn_membership_missing")
+    def test_wireguard_peer_key_misconfiguration(self) -> None:
+        import time
+
+        from nika.problems.misconfigurations.wireguard import WRONG_HUB_PEER_PUBLIC_KEY
+        from nika.net_env.verify import http_ok, ping_ok
+        from nika.problems.prob_pool import get_problem_class
+
+        params = {"host_name": "br1_edge", "intf_name": "wg_hq"}
+        self._inject_failure("wireguard_peer_key_misconfiguration", params)
+        self._assert_failure_injected("wireguard_peer_key_misconfiguration")
+
+        cls = get_problem_class("wireguard_peer_key_misconfiguration")
+        assert cls is not None
+        problem = self._problem(cls)
+        runtime = problem.runtime
+        tunnels = {(t.spoke, t.spoke_iface): t for t in problem.net_env.built_tunnels}
+        target = tunnels[("br1", "wg_hq")]
+        other = tunnels[("br2", "wg_hq")]
+        wrong_key = WRONG_HUB_PEER_PUBLIC_KEY
+
+        def _bgp_established(summary: str, peer_ip: str) -> bool:
+            for line in summary.splitlines():
+                fields = line.split()
+                if peer_ip in line and len(fields) >= 10 and fields[9].isdigit():
+                    return True
+            return False
+
+        # Underlay / WAN endpoint still reachable.
+        assert ping_ok(runtime, "br1_edge", target.hub_wan_ip)
+        assert ping_ok(runtime, "hq_edge", target.spoke_wan_ip)
+
+        # WG iface up; wrong peer key; no successful handshake.
+        link = runtime.exec("br1_edge", "ip -o link show wg_hq").strip()
+        assert link and "state DOWN" not in link
+        conf = runtime.exec(
+            "br1_edge", "grep -E '^PublicKey = ' /etc/wireguard/wg_hq.conf"
+        ).strip()
+        assert conf == f"PublicKey = {wrong_key}"
+        hs = runtime.exec("br1_edge", "wg show wg_hq latest-handshakes").strip()
+        assert any(
+            wrong_key in line and line.split()[-1] == "0" for line in hs.splitlines()
+        )
+
+        # Overlay BGP on the broken tunnel is down; other branch stays up.
+        br1_sum = runtime.exec("br1_edge", "vtysh -c 'show bgp summary'")
+        br2_sum = runtime.exec("br2_edge", "vtysh -c 'show bgp summary'")
+        assert not _bgp_established(br1_sum, target.hub_tunnel_ip)
+        assert _bgp_established(br2_sum, other.hub_tunnel_ip)
+
+        # Target branch business fails; other branch succeeds.
+        assert not ping_ok(runtime, "br1_corp_pc", "10.0.10.2", count=2)
+        assert not http_ok(runtime, "br1_corp_pc", "http://10.0.20.2/")
+        assert ping_ok(runtime, "br2_corp_pc", "10.0.10.2")
+        assert http_ok(runtime, "br2_corp_pc", "http://10.0.20.2/")
+        other_hs = runtime.exec("br2_edge", "wg show wg_hq latest-handshakes").strip()
+        assert other_hs
+        for line in other_hs.splitlines():
+            assert int(line.split()[-1]) > 0
+
+        # Restore correct key → handshake + BGP + business recover.
+        runtime.exec(
+            "br1_edge",
+            "cp /etc/wireguard/wg_hq.conf.bak /etc/wireguard/wg_hq.conf "
+            "&& wg-quick strip wg_hq > /tmp/wg_hq.strip "
+            "&& wg syncconf wg_hq /tmp/wg_hq.strip "
+            f"&& vtysh -c 'clear ip bgp {target.hub_tunnel_ip}' 2>/dev/null || true",
+        )
+        deadline = time.monotonic() + 90
+        recovered = False
+        while time.monotonic() < deadline:
+            if ping_ok(runtime, "br1_corp_pc", "10.0.10.2", count=1) and http_ok(
+                runtime, "br1_corp_pc", "http://10.0.20.2/"
+            ):
+                recovered = True
+                break
+            time.sleep(5)
+        assert recovered, "cross-site traffic did not recover after restoring peer key"
 
 
 class ServiceDownVerifyTest(PerTestEnvTestCase):

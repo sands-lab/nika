@@ -82,16 +82,18 @@ def _routers_with_victim_hosts(routers: list[str]) -> list[str]:
     return _routers_with_bgp_network(routers)
 
 
-# WireGuard peers provisioned by ``rip_small_internet_vpn`` (all topo sizes).
-# Larger topos add more Apache hosts, but only these three are VPN members
-# (see ``rip_vpn/lab.py`` / ``confs/vpn_server_1``).
-_RIP_VPN_PEER_HOSTS = ("pc1", "web_server_1_1", "web_server_1_2")
+# Legacy host-level WireGuard peer names are unused; Site Edge VPN uses
+# wireguard_peer_key_misconfiguration.
 
 
-def _vpn_peer_hosts(net_env) -> list[str]:
-    """Hosts that are WireGuard peers on the scenario VPN server."""
-    devices = _all_device_names(net_env)
-    return [name for name in _RIP_VPN_PEER_HOSTS if name in devices]
+def _single_path_hq_wg_targets(topo_size: str) -> list[tuple[str, str]]:
+    """Eligible (branch_edge, wg_iface) pairs for Site Edge peer-key faults."""
+    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+        single_path_hq_peer_targets,
+    )
+
+    size = topo_size if topo_size in {"s", "m", "l"} else "s"
+    return single_path_hq_peer_targets(size)  # type: ignore[arg-type]
 
 
 _VICTIM_HOST_PROBLEMS = frozenset(
@@ -346,7 +348,6 @@ def resolve_inject_params(
     dns0 = _choice(rng, servers.get("dns"), host0)
     dhcp0 = _choice(rng, servers.get("dhcp"), dns0)
     web0 = _choice(rng, pools.get("web") or servers.get("web"), host0)
-    vpn0 = _choice(rng, servers.get("vpn"), host0)
     lb0 = _choice(rng, servers.get("load_balancer"), web0)
 
     params: dict[str, str] = {}
@@ -424,13 +425,16 @@ def resolve_inject_params(
         params["host_name"] = dhcp0
         params["host_name_2"] = client
 
-    elif problem == "host_vpn_membership_missing":
-        vpn_server = vpn0
-        # Only hosts with a peer stanza on the VPN server; other web_* are
-        # plain Apache nodes and sed/grep on `# {host}` yields "absent".
-        vpn_peer_pool = _vpn_peer_hosts(net_env) or list(host_pool)
-        params["host_name"] = _choice(rng, vpn_peer_pool, host0)
-        params["host_name_2"] = vpn_server
+    elif problem == "wireguard_peer_key_misconfiguration":
+        targets = _single_path_hq_wg_targets(topo_size)
+        if not targets:
+            raise ValueError(
+                f"No single-path HQ WireGuard peers for enterprise_branch "
+                f"topo_size={topo_size!r}"
+            )
+        edge, iface = rng.choice(targets)
+        params["host_name"] = edge
+        params["intf_name"] = iface
 
     elif problem == "bgp_missing_route_advertisement":
         advertise_pool = _routers_with_bgp_network(router_pool)
@@ -615,12 +619,30 @@ def validate_benchmark_case(
 
     host_name = inject.get("host_name")
     intf_name = inject.get("intf_name")
-    if host_name and intf_name:
+    # WireGuard tunnel ifaces are not Kathara L2 link endpoints; validate below.
+    if host_name and intf_name and problem != "wireguard_peer_key_misconfiguration":
         device_ifaces = ifaces_by_device.get(host_name) or []
         if device_ifaces and intf_name not in device_ifaces:
             raise ValueError(
                 f"Inject interface {intf_name!r} not on {host_name!r} in {scenario} "
                 f"(topo_size={topo_size!r}); known interfaces: {device_ifaces}"
+            )
+
+    if problem == "wireguard_peer_key_misconfiguration":
+        from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+        if not is_enterprise_branch_scenario(scenario):
+            raise ValueError(
+                "wireguard_peer_key_misconfiguration requires enterprise_branch "
+                f"(got {scenario!r})"
+            )
+        eligible = _single_path_hq_wg_targets(topo_size)
+        pair = (host_name or "", intf_name or "")
+        if pair not in eligible:
+            raise ValueError(
+                f"wireguard_peer_key_misconfiguration target {pair!r} is not a "
+                f"single-path HQ tunnel on {scenario} (topo_size={topo_size!r}); "
+                f"eligible: {eligible}"
             )
 
     if problem == "bgp_missing_route_advertisement" and host_name:
@@ -642,15 +664,6 @@ def validate_benchmark_case(
             raise ValueError(
                 f"{problem} host_name={host_name!r} has no attached end host on "
                 f"{scenario} (topo_size={topo_size!r}); use a leaf router: {eligible}"
-            )
-
-    if problem == "host_vpn_membership_missing" and host_name:
-        peers = _vpn_peer_hosts(net_env)
-        if peers and host_name not in peers:
-            raise ValueError(
-                f"host_vpn_membership_missing host_name={host_name!r} is not a "
-                f"WireGuard peer on {scenario} (topo_size={topo_size!r}); "
-                f"use one of: {peers}"
             )
 
     host_a = inject.get("host_name")

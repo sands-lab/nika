@@ -222,6 +222,15 @@ cases:
       intf_name: eth0
 ```
 
+When the new failure or scenario should enter the working matrices, regenerate them and refresh the coverage matrix image in the same change:
+
+```shell
+uv run python benchmark/generate_benchmark.py
+uv run --group dev python scripts/plot_coverage_matrix.py
+```
+
+Review the YAML and PNG diffs. Failure rows in the image follow the six-category taxonomy; see [Benchmark configuration](benchmark-configuration.md).
+
 Run a single case:
 
 ```shell
@@ -246,5 +255,6 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
 - `uv run nika failure inject <problem> --set ...` verifies successfully.
 - `uv run nika benchmark run ... -a mock -m mock-v1` completes without external LLM credentials.
 - The session directory contains `ground_truth.json`, `run.json`, `events.jsonl`, and evaluation artifacts.
+- If working-matrix cases changed, `benchmark_full.yaml` / `benchmark_selected.yaml` and `assets/images/benchmark_coverage_matrix.png` are updated together.
 
 Update the [failure reference](failures.md) or [network scenario reference](network-scenarios.md) in the same change when the registry or runtime behavior changes.

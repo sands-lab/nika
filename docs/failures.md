@@ -11,19 +11,17 @@ uv run nika failure describe <failure_id>
 
 ## Failure categories and counts
 
-NIKA currently registers 60 code-level failure IDs. The checked-in working matrix contains 580 cases for all 60 IDs. The totals below come from the current failure registry and [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml).
+Counts come from the failure registry and [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml).
 
 | Category | Registered failure IDs | Working-matrix cases |
 | --- | ---: | ---: |
-| Link failures | 6 | 142 |
-| End-host failures | 10 | 128 |
-| Network node errors | 9 | 45 |
-| Misconfigurations (routing, ACL, and related configuration) | 18 | 128 |
-| Resource contention | 6 | 67 |
-| Network under attack | 11 | 70 |
-| **Total** | **60** | **580** |
-
-The registry and working matrix are the sources of truth for failure IDs and case counts. The headings provide the six-category organization used by this reference.
+| Link failures | 7 | 109 |
+| End-host failures | 8 | 122 |
+| Network node errors | 13 | 62 |
+| Misconfigurations (routing, ACL, and related configuration) | 18 | 157 |
+| Resource contention | 8 | 97 |
+| Network under attack | 6 | 51 |
+| **Total** | **60** | **598** |
 
 ## How to read the compatibility sets
 
@@ -32,18 +30,18 @@ The **Scenarios and parameters** column names a compatibility set from the table
 | Set | Scenario IDs |
 | --- | --- |
 | **All** | All 14 registered scenarios |
-| **Host L2** | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `sdn_star`, `sdn_clos`, `p4_bloom_filter`, `p4_counter`, `p4_int`, `p4_mpls`, `simple_bgp`, `k8s_lab`, `llmd_lab` |
-| **Routed host** | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `simple_bgp`, `k8s_lab` |
-| **FRR** | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `simple_bgp`, `isp`, `k8s_lab` |
-| **BGP** | `dc_clos`, `simple_bgp`, `isp`, `min3clos`, `k8s_lab` |
+| **Host L2** | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_star`, `sdn_clos`, `p4_bloom_filter`, `p4_counter`, `p4_int`, `p4_mpls`, `simple_bgp`, `k8s_lab`, `llmd_lab` |
+| **Routed host** | `dc_clos`, `campus_lan`, `enterprise_branch`, `simple_bgp`, `k8s_lab` |
+| **FRR** | `dc_clos`, `campus_lan`, `enterprise_branch`, `simple_bgp`, `isp`, `k8s_lab` |
+| **BGP** | `dc_clos`, `enterprise_branch`, `simple_bgp`, `isp`, `min3clos`, `k8s_lab` |
 | **OSPF** | `campus_lan`, `isp` |
 | **DNS** | `dc_clos` (service workload), `campus_lan` (dhcp workload) |
-| **HTTP** | `dc_clos` (service workload), `campus_lan`, `rip_small_internet_vpn`, `llmd_lab` |
+| **HTTP** | `dc_clos` (service workload), `campus_lan`, `enterprise_branch`, `llmd_lab` |
 | **DHCP** | `campus_lan` (dhcp workload) |
 | **SDN** | `sdn_star`, `sdn_clos` |
 | **P4** | `p4_bloom_filter`, `p4_counter`, `p4_int`, `p4_mpls` |
 | **Kubernetes** | `k8s_lab`, `llmd_lab` |
-| **VPN** | `rip_small_internet_vpn` |
+| **VPN** | `enterprise_branch` |
 
 `isp` needs an extra protocol condition. OSPF faults require `--igp ospf`; BGP faults require `--bgp-mode ibgp_rr` or `ebgp`. The generic link faults work with either ISP backend. SR Linux support exists only where the failure implementation contains a Containerlab branch.
 
@@ -75,12 +73,6 @@ The **Trigger and signal** column describes the traffic or state that exposes th
 | MAC address conflict | `mac_address_conflict` | **Host L2**. `host_name`, `host_name_2` | Copies one host's `eth0` MAC address to the other. | Switch learning moves the shared MAC between ports as both hosts send traffic. | Both interfaces report the same MAC address. |
 
 ## End-host failures
-
-### VPN membership
-
-| Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
-| --- | --- | --- | --- | --- | --- |
-| Conflicting VPN memberships | `host_vpn_membership_missing` | **VPN**. `host_name`, `host_name_2` | Comments the selected peer's WireGuard membership lines and reloads the configuration, simulating a membership conflict or omission. | Underlay IP traffic remains available while traffic requiring the affected WireGuard peer fails. | The target peer lines are commented in the VPN configuration. |
 
 ### Host and service availability
 
@@ -144,6 +136,14 @@ The **Trigger and signal** column describes the traffic or state that exposes th
 
 ## Misconfigurations (routing, ACL, and related configuration)
 
+### Site Edge / WireGuard overlay
+
+| Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
+| --- | --- | --- | --- | --- | --- |
+| Wrong WireGuard peer public key | `wireguard_peer_key_misconfiguration` | **VPN** (`enterprise_branch` s/m/l). `host_name` (Branch Edge), `intf_name` (e.g. `wg_hq`). Targets a single-path Branch→HQ tunnel only. Legacy id `host_vpn_membership_missing` rewrites to this failure (and a Site Edge inject target) when loading old benchmark YAML. | Replaces the Hub peer `PublicKey` on the Branch Edge with a deterministic unused key and applies it with `wg syncconf` (interface stays up). Clears only that BGP neighbor session, then waits for settle. | Provider underlay and Hub WAN endpoint stay reachable; the WG interface stays up; the tunnel never completes a handshake; overlay BGP on that tunnel fails; that Branch's cross-site business fails; other Branches stay healthy. | Conf `PublicKey` matches the injected wrong key; iface is up; `wg show` lists the wrong peer with no successful handshake. |
+
+Planned follow-ups (not implemented): `wireguard_endpoint_misconfiguration` (correct key, wrong `Endpoint` IP/port) and `underlay_tunnel_endpoint_route_missing` (delete the Edge `/32` host route to the remote WAN endpoint while the WG iface stays up). Each needs a distinct causal chain from peer-key authentication failure.
+
 ### BGP routing
 
 | Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
@@ -184,7 +184,7 @@ The **Trigger and signal** column describes the traffic or state that exposes th
 | Root cause | Failure ID | Scenarios and parameters | Injection method | Trigger and signal | Verification evidence |
 | --- | --- | --- | --- | --- | --- |
 | ARP ACL block | `arp_acl_block` | **Host L2**. `host_name` | Adds an nftables ARP drop and flushes the neighbor cache. | New ARP resolution fails; cached entries are removed so local-subnet traffic stops. | An ARP drop appears in nftables. |
-| ICMP ACL block | `icmp_acl_block` | `dc_clos`, `campus_lan`, `rip_small_internet_vpn`, `sdn_star`, `sdn_clos`, **P4**, `simple_bgp`, `isp`, **Kubernetes**. `host_name` | Adds an nftables ICMP drop. | Ping and ICMP-based health checks fail while TCP or UDP services can remain reachable. | The ruleset contains an ICMP drop. |
+| ICMP ACL block | `icmp_acl_block` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_star`, `sdn_clos`, **P4**, `simple_bgp`, `isp`, **Kubernetes**. `host_name` | Adds an nftables ICMP drop. | Ping and ICMP-based health checks fail while TCP or UDP services can remain reachable. | The ruleset contains an ICMP drop. |
 | Routing control-plane ACL block | `bgp_acl_block` | **BGP**. `host_name` | Kathara adds nftables drops for TCP source and destination port 179; Containerlab installs the SR Linux ACL equivalent. | BGP sessions reset or cannot establish; routes learned through those sessions disappear. | The port-179 drop exists in nftables or the SR Linux ACL. |
 | Routing control-plane ACL block | `ospf_acl_block` | **OSPF**. `host_name` | Adds an nftables rule that drops IP protocol 89. | OSPF neighbors time out and learned routes withdraw while unrelated protocols can pass. | The nftables ruleset contains the OSPF drop. |
 | HTTP ACL block | `http_acl_block` | **HTTP**. `host_name` | Adds nftables drops for TCP port 80. | HTTP requests to or from the target time out while non-HTTP traffic can pass. | The ruleset contains the port-80 drop. |
@@ -279,4 +279,4 @@ uv run nika failure ps
 
 Parameters identify device names inside the running scenario, not Docker container names. Use `uv run nika session inspect` and `uv run nika session containers` to resolve the active inventory.
 
-The checked-in [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml) contains 580 cases for all 60 registered failures. Its scenario rows reflect the file's generation date; run `uv run python benchmark/generate_benchmark.py` after intentional registry changes. See [Create benchmark tasks](creating-benchmark-tasks.md) for the implementation contract and [Network scenario reference](network-scenarios.md) for topology details.
+The checked-in [`benchmark/benchmark_full.yaml`](../benchmark/benchmark_full.yaml) contains 580 cases for all 60 registered failures. Its scenario rows reflect the file's generation date. After intentional registry changes, run `uv run python benchmark/generate_benchmark.py`, then refresh the scenario × failure coverage image with `uv run --group dev python scripts/plot_coverage_matrix.py`. The plot orders failure rows by the six categories on this page. See [Benchmark configuration](benchmark-configuration.md), [Create benchmark tasks](creating-benchmark-tasks.md), and [Network scenario reference](network-scenarios.md).

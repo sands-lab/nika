@@ -144,35 +144,35 @@ cases:
       kind: node
       node: pc_1_1_4_4
     fault_type: host_crash
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: host_crash
   inject:
-    host_name: pc1
+    host_name: br2_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br2_corp_pc
     fault_type: host_crash
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: host_crash
   inject:
-    host_name: pc1
+    host_name: hq_guest_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: hq_guest_pc
     fault_type: host_crash
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: host_crash
   inject:
-    host_name: pc4
+    host_name: br3_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc4
+      node: br3_corp_pc
     fault_type: host_crash
 - scenario: sdn_star
   topo_size: s
@@ -382,40 +382,40 @@ cases:
       node: pc_1_3_2_3
       name: eth0
     fault_type: host_ip_conflict
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: host_ip_conflict
   inject:
-    host_name: pc1
-    host_name_2: pc2
+    host_name: br1_corp_pc
+    host_name_2: hq_corp_pc
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: hq_corp_pc
       name: eth0
     fault_type: host_ip_conflict
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: host_ip_conflict
   inject:
-    host_name: pc4
-    host_name_2: pc2
+    host_name: br2_corp_pc
+    host_name_2: hq_corp_pc
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: hq_corp_pc
       name: eth0
     fault_type: host_ip_conflict
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: host_ip_conflict
   inject:
-    host_name: pc5
-    host_name_2: pc7
+    host_name: br1_corp_pc
+    host_name_2: dc2_corp_pc
   root_causes:
   - resource:
       kind: interface
-      node: pc7
+      node: dc2_corp_pc
       name: eth0
     fault_type: host_ip_conflict
 - scenario: sdn_star
@@ -706,35 +706,35 @@ cases:
       kind: node
       node: pc_2_3_2_2
     fault_type: host_incorrect_gateway
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: host_incorrect_gateway
   inject:
-    host_name: pc1
+    host_name: br1_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br1_corp_pc
     fault_type: host_incorrect_gateway
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: host_incorrect_gateway
   inject:
-    host_name: pc1
+    host_name: br1_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br1_corp_pc
     fault_type: host_incorrect_gateway
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: host_incorrect_gateway
   inject:
-    host_name: pc2
+    host_name: br4_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc2
+      node: br4_corp_pc
     fault_type: host_incorrect_gateway
 - scenario: simple_bgp
   topo_size: null
@@ -828,37 +828,37 @@ cases:
       node: pc_1_4_4_4
       name: eth0
     fault_type: host_incorrect_ip
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: host_incorrect_ip
   inject:
-    host_name: pc2
+    host_name: hq_corp_pc
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: hq_corp_pc
       name: eth0
     fault_type: host_incorrect_ip
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: host_incorrect_ip
   inject:
-    host_name: pc2
+    host_name: br1_guest_pc
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br1_guest_pc
       name: eth0
     fault_type: host_incorrect_ip
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: host_incorrect_ip
   inject:
-    host_name: pc3
+    host_name: hq_guest_pc
   root_causes:
   - resource:
       kind: interface
-      node: pc3
+      node: hq_guest_pc
       name: eth0
     fault_type: host_incorrect_ip
 - scenario: sdn_star
@@ -1082,40 +1082,40 @@ cases:
       node: pc_1_3_2_2
       name: eth0
     fault_type: host_incorrect_netmask
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: host_incorrect_netmask
   inject:
-    host_name: pc1
+    host_name: hq_corp_pc
     netmask_prefix: '8'
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: hq_corp_pc
       name: eth0
     fault_type: host_incorrect_netmask
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: host_incorrect_netmask
   inject:
-    host_name: pc2
+    host_name: br3_corp_pc
     netmask_prefix: '8'
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br3_corp_pc
       name: eth0
     fault_type: host_incorrect_netmask
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: host_incorrect_netmask
   inject:
-    host_name: pc6
+    host_name: br1_corp_pc
     netmask_prefix: '8'
   root_causes:
   - resource:
       kind: interface
-      node: pc6
+      node: br1_corp_pc
       name: eth0
     fault_type: host_incorrect_netmask
 - scenario: simple_bgp
@@ -1220,40 +1220,40 @@ cases:
       node: pc_2_1_2_4
       name: eth0
     fault_type: host_missing_ip
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: host_missing_ip
   inject:
-    host_name: pc2
+    host_name: br2_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br2_corp_pc
       name: eth0
     fault_type: host_missing_ip
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: host_missing_ip
   inject:
-    host_name: pc4
+    host_name: br1_guest_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc4
+      node: br1_guest_pc
       name: eth0
     fault_type: host_missing_ip
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: host_missing_ip
   inject:
-    host_name: pc8
+    host_name: br3_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc8
+      node: br3_corp_pc
       name: eth0
     fault_type: host_missing_ip
 - scenario: sdn_star
@@ -1514,39 +1514,6 @@ cases:
       kind: node
       node: dns_server
     fault_type: dns_service_down
-- scenario: rip_small_internet_vpn
-  topo_size: s
-  problem: host_vpn_membership_missing
-  inject:
-    host_name: web_server_1_1
-    host_name_2: vpn_server_1
-  root_causes:
-  - resource:
-      kind: node
-      node: vpn_server_1
-    fault_type: host_vpn_membership_missing
-- scenario: rip_small_internet_vpn
-  topo_size: m
-  problem: host_vpn_membership_missing
-  inject:
-    host_name: web_server_1_1
-    host_name_2: vpn_server_1
-  root_causes:
-  - resource:
-      kind: node
-      node: vpn_server_1
-    fault_type: host_vpn_membership_missing
-- scenario: rip_small_internet_vpn
-  topo_size: l
-  problem: host_vpn_membership_missing
-  inject:
-    host_name: pc1
-    host_name_2: vpn_server_1
-  root_causes:
-  - resource:
-      kind: node
-      node: vpn_server_1
-    fault_type: host_vpn_membership_missing
 - scenario: k8s_lab
   topo_size: null
   problem: k8s_worker_apiserver_partition
@@ -1727,40 +1694,40 @@ cases:
       node: pc_1_2_2_2
       name: eth0
     fault_type: link_detach
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: link_detach
   inject:
-    host_name: pc1
+    host_name: hq_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: hq_corp_pc
       name: eth0
     fault_type: link_detach
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: link_detach
   inject:
-    host_name: pc1
+    host_name: br1_guest_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: br1_guest_pc
       name: eth0
     fault_type: link_detach
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: link_detach
   inject:
-    host_name: pc8
+    host_name: br7_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc8
+      node: br7_corp_pc
       name: eth0
     fault_type: link_detach
 - scenario: sdn_star
@@ -2021,40 +1988,40 @@ cases:
       node: pc_1_3_4_1
       name: eth0
     fault_type: link_down
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: link_down
   inject:
-    host_name: pc1
+    host_name: hq_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: hq_corp_pc
       name: eth0
     fault_type: link_down
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: link_down
   inject:
-    host_name: pc3
+    host_name: br4_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc3
+      node: br4_corp_pc
       name: eth0
     fault_type: link_down
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: link_down
   inject:
-    host_name: pc5
+    host_name: br4_corp_pc
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc5
+      node: br4_corp_pc
       name: eth0
     fault_type: link_down
 - scenario: sdn_star
@@ -2327,46 +2294,46 @@ cases:
       node: pc_2_1_1_3
       name: eth0
     fault_type: link_flap
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: link_flap
   inject:
-    host_name: pc1
+    host_name: br2_corp_pc
     intf_name: eth0
     down_time: '30'
     up_time: '30'
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: br2_corp_pc
       name: eth0
     fault_type: link_flap
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: link_flap
   inject:
-    host_name: pc2
+    host_name: br4_corp_pc
     intf_name: eth0
     down_time: '30'
     up_time: '30'
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br4_corp_pc
       name: eth0
     fault_type: link_flap
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: link_flap
   inject:
-    host_name: pc3
+    host_name: hq_corp_pc
     intf_name: eth0
     down_time: '30'
     up_time: '30'
   root_causes:
   - resource:
       kind: interface
-      node: pc3
+      node: hq_corp_pc
       name: eth0
     fault_type: link_flap
 - scenario: sdn_star
@@ -2663,43 +2630,43 @@ cases:
       node: pc_2_4_2_1
       name: eth0
     fault_type: link_fragmentation_disabled
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: link_fragmentation_disabled
   inject:
-    host_name: pc1
+    host_name: br1_corp_pc
     intf_name: eth0
     mtu: '100'
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: br1_corp_pc
       name: eth0
     fault_type: link_fragmentation_disabled
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: link_fragmentation_disabled
   inject:
-    host_name: pc2
+    host_name: br4_corp_pc
     intf_name: eth0
     mtu: '100'
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br4_corp_pc
       name: eth0
     fault_type: link_fragmentation_disabled
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: link_fragmentation_disabled
   inject:
-    host_name: pc8
+    host_name: br2_corp_pc
     intf_name: eth0
     mtu: '100'
   root_causes:
   - resource:
       kind: interface
-      node: pc8
+      node: br2_corp_pc
       name: eth0
     fault_type: link_fragmentation_disabled
 - scenario: sdn_star
@@ -2963,35 +2930,35 @@ cases:
       kind: node
       node: pc_1_3_3_3
     fault_type: arp_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: arp_acl_block
   inject:
-    host_name: pc2
+    host_name: hq_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc2
+      node: hq_corp_pc
     fault_type: arp_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: arp_acl_block
   inject:
-    host_name: pc2
+    host_name: br2_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc2
+      node: br2_corp_pc
     fault_type: arp_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: arp_acl_block
   inject:
-    host_name: pc1
+    host_name: br2_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br2_corp_pc
     fault_type: arp_acl_block
 - scenario: sdn_star
   topo_size: s
@@ -3155,6 +3122,36 @@ cases:
   - resource:
       kind: node
       node: spine_router_2_5
+    fault_type: bgp_acl_block
+- scenario: enterprise_branch
+  topo_size: s
+  problem: bgp_acl_block
+  inject:
+    host_name: isp1_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp1_core
+    fault_type: bgp_acl_block
+- scenario: enterprise_branch
+  topo_size: m
+  problem: bgp_acl_block
+  inject:
+    host_name: br4_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br4_edge
+    fault_type: bgp_acl_block
+- scenario: enterprise_branch
+  topo_size: l
+  problem: bgp_acl_block
+  inject:
+    host_name: dc2_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: dc2_edge
     fault_type: bgp_acl_block
 - scenario: simple_bgp
   topo_size: null
@@ -3328,35 +3325,35 @@ cases:
       kind: node
       node: pc_1_4_2_3
     fault_type: http_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: http_acl_block
   inject:
-    host_name: pc2
+    host_name: hq_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc2
+      node: hq_corp_pc
     fault_type: http_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: http_acl_block
   inject:
-    host_name: pc4
+    host_name: hq_guest_pc
   root_causes:
   - resource:
       kind: node
-      node: pc4
+      node: hq_guest_pc
     fault_type: http_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: http_acl_block
   inject:
-    host_name: pc1
+    host_name: br1_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br1_corp_pc
     fault_type: http_acl_block
 - scenario: llmd_lab
   topo_size: null
@@ -3434,35 +3431,35 @@ cases:
       kind: node
       node: pc_2_1_2_1
     fault_type: icmp_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: icmp_acl_block
   inject:
-    host_name: pc1
+    host_name: br1_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br1_corp_pc
     fault_type: icmp_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: icmp_acl_block
   inject:
-    host_name: pc2
+    host_name: br4_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc2
+      node: br4_corp_pc
     fault_type: icmp_acl_block
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: icmp_acl_block
   inject:
-    host_name: pc7
+    host_name: br1_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc7
+      node: br1_corp_pc
     fault_type: icmp_acl_block
 - scenario: sdn_star
   topo_size: s
@@ -3680,6 +3677,36 @@ cases:
       kind: node
       node: leaf_router_1_5
     fault_type: bgp_asn_misconfig
+- scenario: enterprise_branch
+  topo_size: s
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: isp1_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp1_core
+    fault_type: bgp_asn_misconfig
+- scenario: enterprise_branch
+  topo_size: m
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: hq_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: hq_edge
+    fault_type: bgp_asn_misconfig
+- scenario: enterprise_branch
+  topo_size: l
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: isp1_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp1_core
+    fault_type: bgp_asn_misconfig
 - scenario: simple_bgp
   topo_size: null
   problem: bgp_asn_misconfig
@@ -3752,6 +3779,36 @@ cases:
   - resource:
       kind: node
       node: leaf_router_2_4
+    fault_type: bgp_blackhole_route_leak
+- scenario: enterprise_branch
+  topo_size: s
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: br2_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br2_edge
+    fault_type: bgp_blackhole_route_leak
+- scenario: enterprise_branch
+  topo_size: m
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: br3_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br3_edge
+    fault_type: bgp_blackhole_route_leak
+- scenario: enterprise_branch
+  topo_size: l
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: br6_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br6_edge
     fault_type: bgp_blackhole_route_leak
 - scenario: simple_bgp
   topo_size: null
@@ -3826,6 +3883,36 @@ cases:
       kind: node
       node: leaf_router_2_4
     fault_type: bgp_missing_route_advertisement
+- scenario: enterprise_branch
+  topo_size: s
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: isp1_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp1_core
+    fault_type: bgp_missing_route_advertisement
+- scenario: enterprise_branch
+  topo_size: m
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: br1_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br1_edge
+    fault_type: bgp_missing_route_advertisement
+- scenario: enterprise_branch
+  topo_size: l
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: br2_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br2_edge
+    fault_type: bgp_missing_route_advertisement
 - scenario: simple_bgp
   topo_size: null
   problem: bgp_missing_route_advertisement
@@ -3898,6 +3985,36 @@ cases:
   - resource:
       kind: node
       node: leaf_router_3_4
+    fault_type: host_static_blackhole
+- scenario: enterprise_branch
+  topo_size: s
+  problem: host_static_blackhole
+  inject:
+    host_name: hq_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: hq_edge
+    fault_type: host_static_blackhole
+- scenario: enterprise_branch
+  topo_size: m
+  problem: host_static_blackhole
+  inject:
+    host_name: isp2_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp2_core
+    fault_type: host_static_blackhole
+- scenario: enterprise_branch
+  topo_size: l
+  problem: host_static_blackhole
+  inject:
+    host_name: isp2_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp2_core
     fault_type: host_static_blackhole
 - scenario: simple_bgp
   topo_size: null
@@ -4053,40 +4170,40 @@ cases:
       node: switch_access_2_2_3
       name: eth0
     fault_type: mac_address_conflict
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: mac_address_conflict
   inject:
-    host_name: router2
-    host_name_2: pc2
+    host_name: br1_edge
+    host_name_2: isp1_core
   root_causes:
   - resource:
       kind: interface
-      node: router2
+      node: br1_edge
       name: eth0
     fault_type: mac_address_conflict
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: mac_address_conflict
   inject:
-    host_name: external_router_2
-    host_name_2: web_server_2_3
+    host_name: hq_edge
+    host_name_2: hq_srv
   root_causes:
   - resource:
       kind: interface
-      node: external_router_2
+      node: hq_edge
       name: eth0
     fault_type: mac_address_conflict
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: mac_address_conflict
   inject:
-    host_name: router1
-    host_name_2: router2
+    host_name: hq_edge
+    host_name_2: isp1_core
   root_causes:
   - resource:
       kind: interface
-      node: router1
+      node: hq_edge
       name: eth0
     fault_type: mac_address_conflict
 - scenario: sdn_star
@@ -4341,6 +4458,42 @@ cases:
       kind: node
       node: switch_1
     fault_type: p4_aggressive_detection_thresholds
+- scenario: enterprise_branch
+  topo_size: s
+  problem: wireguard_peer_key_misconfiguration
+  inject:
+    host_name: br2_edge
+    intf_name: wg_hq
+  root_causes:
+  - resource:
+      kind: interface
+      node: br2_edge
+      name: wg_hq
+    fault_type: wireguard_peer_key_misconfiguration
+- scenario: enterprise_branch
+  topo_size: m
+  problem: wireguard_peer_key_misconfiguration
+  inject:
+    host_name: br3_edge
+    intf_name: wg_hq
+  root_causes:
+  - resource:
+      kind: interface
+      node: br3_edge
+      name: wg_hq
+    fault_type: wireguard_peer_key_misconfiguration
+- scenario: enterprise_branch
+  topo_size: l
+  problem: wireguard_peer_key_misconfiguration
+  inject:
+    host_name: br4_edge
+    intf_name: wg_hq
+  root_causes:
+  - resource:
+      kind: interface
+      node: br4_edge
+      name: wg_hq
+    fault_type: wireguard_peer_key_misconfiguration
 - scenario: sdn_star
   topo_size: s
   problem: flow_rule_loop
@@ -4941,35 +5094,35 @@ cases:
       kind: node
       node: router_core_3
     fault_type: frr_service_down
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: frr_service_down
   inject:
-    host_name: router1
+    host_name: br1_edge
   root_causes:
   - resource:
       kind: node
-      node: router1
+      node: br1_edge
     fault_type: frr_service_down
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: frr_service_down
   inject:
-    host_name: external_router_1
+    host_name: br4_edge
   root_causes:
   - resource:
       kind: node
-      node: external_router_1
+      node: br4_edge
     fault_type: frr_service_down
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: frr_service_down
   inject:
-    host_name: gateway_router
+    host_name: br3_edge
   root_causes:
   - resource:
       kind: node
-      node: gateway_router
+      node: br3_edge
     fault_type: frr_service_down
 - scenario: simple_bgp
   topo_size: null
@@ -5067,35 +5220,35 @@ cases:
       kind: node
       node: pc_2_2_1_4
     fault_type: arp_cache_poisoning
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: arp_cache_poisoning
   inject:
-    host_name: pc1
+    host_name: hq_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: hq_corp_pc
     fault_type: arp_cache_poisoning
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: arp_cache_poisoning
   inject:
-    host_name: pc2
+    host_name: hq_guest_pc
   root_causes:
   - resource:
       kind: node
-      node: pc2
+      node: hq_guest_pc
     fault_type: arp_cache_poisoning
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: arp_cache_poisoning
   inject:
-    host_name: pc5
+    host_name: br7_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: pc5
+      node: br7_corp_pc
     fault_type: arp_cache_poisoning
 - scenario: sdn_star
   topo_size: s
@@ -5259,6 +5412,36 @@ cases:
   - resource:
       kind: node
       node: leaf_router_2_6
+    fault_type: bgp_hijacking
+- scenario: enterprise_branch
+  topo_size: s
+  problem: bgp_hijacking
+  inject:
+    host_name: isp1_core
+  root_causes:
+  - resource:
+      kind: node
+      node: isp1_core
+    fault_type: bgp_hijacking
+- scenario: enterprise_branch
+  topo_size: m
+  problem: bgp_hijacking
+  inject:
+    host_name: br2_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: br2_edge
+    fault_type: bgp_hijacking
+- scenario: enterprise_branch
+  topo_size: l
+  problem: bgp_hijacking
+  inject:
+    host_name: dc2_edge
+  root_causes:
+  - resource:
+      kind: node
+      node: dc2_edge
     fault_type: bgp_hijacking
 - scenario: simple_bgp
   topo_size: null
@@ -5480,38 +5663,38 @@ cases:
       kind: node
       node: web_server_0
     fault_type: web_dos_attack
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: web_dos_attack
   inject:
-    host_name: web_server_1_1
-    attacker_device: pc1
+    host_name: br2_corp_pc
+    attacker_device: hq_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: web_server_1_1
+      node: br2_corp_pc
     fault_type: web_dos_attack
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: web_dos_attack
   inject:
-    host_name: web_server_1_3
-    attacker_device: pc1
+    host_name: br4_corp_pc
+    attacker_device: br1_guest_pc
   root_causes:
   - resource:
       kind: node
-      node: web_server_1_3
+      node: br4_corp_pc
     fault_type: web_dos_attack
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: web_dos_attack
   inject:
-    host_name: web_server_4_4
-    attacker_device: pc3
+    host_name: hq_guest_pc
+    attacker_device: dc2_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: web_server_4_4
+      node: hq_guest_pc
     fault_type: web_dos_attack
 - scenario: llmd_lab
   topo_size: null
@@ -5620,11 +5803,11 @@ cases:
       node: web_server_2
       name: eth0
     fault_type: incast_traffic_network_limitation
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: incast_traffic_network_limitation
   inject:
-    host_name: web_server_1_1
+    host_name: br1_corp_pc
     rate: 1mbit
     burst: 500kb
     limit: 500kb
@@ -5632,14 +5815,14 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: web_server_1_1
+      node: br1_corp_pc
       name: eth0
     fault_type: incast_traffic_network_limitation
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: incast_traffic_network_limitation
   inject:
-    host_name: web_server_2_2
+    host_name: br4_corp_pc
     rate: 1mbit
     burst: 500kb
     limit: 500kb
@@ -5647,14 +5830,14 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: web_server_2_2
+      node: br4_corp_pc
       name: eth0
     fault_type: incast_traffic_network_limitation
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: incast_traffic_network_limitation
   inject:
-    host_name: web_server_1_6
+    host_name: br1_guest_pc
     rate: 1mbit
     burst: 500kb
     limit: 500kb
@@ -5662,7 +5845,7 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: web_server_1_6
+      node: br1_guest_pc
       name: eth0
     fault_type: incast_traffic_network_limitation
 - scenario: llmd_lab
@@ -5776,11 +5959,11 @@ cases:
       node: pc_1_1_3_1
       name: eth0
     fault_type: link_bandwidth_throttling
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: link_bandwidth_throttling
   inject:
-    host_name: pc1
+    host_name: br2_corp_pc
     intf_name: eth0
     rate: 30kbit
     burst: 64kb
@@ -5788,14 +5971,14 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: br2_corp_pc
       name: eth0
     fault_type: link_bandwidth_throttling
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: link_bandwidth_throttling
   inject:
-    host_name: pc1
+    host_name: hq_guest_pc
     intf_name: eth0
     rate: 30kbit
     burst: 64kb
@@ -5803,14 +5986,14 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: hq_guest_pc
       name: eth0
     fault_type: link_bandwidth_throttling
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: link_bandwidth_throttling
   inject:
-    host_name: pc2
+    host_name: br7_corp_pc
     intf_name: eth0
     rate: 30kbit
     burst: 64kb
@@ -5818,7 +6001,7 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br7_corp_pc
       name: eth0
     fault_type: link_bandwidth_throttling
 - scenario: sdn_star
@@ -6130,43 +6313,43 @@ cases:
       node: pc_2_3_2_4
       name: eth0
     fault_type: link_high_packet_corruption
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: link_high_packet_corruption
   inject:
-    host_name: pc2
+    host_name: hq_corp_pc
     intf_name: eth0
     corruption_percentage: '60'
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: hq_corp_pc
       name: eth0
     fault_type: link_high_packet_corruption
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: link_high_packet_corruption
   inject:
-    host_name: pc1
+    host_name: hq_corp_pc
     intf_name: eth0
     corruption_percentage: '60'
   root_causes:
   - resource:
       kind: interface
-      node: pc1
+      node: hq_corp_pc
       name: eth0
     fault_type: link_high_packet_corruption
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: link_high_packet_corruption
   inject:
-    host_name: pc2
+    host_name: br7_corp_pc
     intf_name: eth0
     corruption_percentage: '60'
   root_causes:
   - resource:
       kind: interface
-      node: pc2
+      node: br7_corp_pc
       name: eth0
     fault_type: link_high_packet_corruption
 - scenario: sdn_star
@@ -6556,38 +6739,38 @@ cases:
       kind: node
       node: pc_2_1_3_3
     fault_type: receiver_resource_contention
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: receiver_resource_contention
   inject:
-    host_name: pc1
+    host_name: br2_corp_pc
     duration: '600'
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: br2_corp_pc
     fault_type: receiver_resource_contention
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: receiver_resource_contention
   inject:
-    host_name: pc1
+    host_name: hq_corp_pc
     duration: '600'
   root_causes:
   - resource:
       kind: node
-      node: pc1
+      node: hq_corp_pc
     fault_type: receiver_resource_contention
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: receiver_resource_contention
   inject:
-    host_name: pc6
+    host_name: br1_corp_pc
     duration: '600'
   root_causes:
   - resource:
       kind: node
-      node: pc6
+      node: br1_corp_pc
     fault_type: receiver_resource_contention
 - scenario: llmd_lab
   topo_size: null
@@ -6666,35 +6849,35 @@ cases:
       kind: node
       node: web_server_1
     fault_type: sender_application_delay
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: sender_application_delay
   inject:
-    host_name: web_server_1_2
+    host_name: br1_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: web_server_1_2
+      node: br1_corp_pc
     fault_type: sender_application_delay
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: sender_application_delay
   inject:
-    host_name: web_server_2_3
+    host_name: br3_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: web_server_2_3
+      node: br3_corp_pc
     fault_type: sender_application_delay
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: sender_application_delay
   inject:
-    host_name: web_server_1_6
+    host_name: dc2_corp_pc
   root_causes:
   - resource:
       kind: node
-      node: web_server_1_6
+      node: dc2_corp_pc
     fault_type: sender_application_delay
 - scenario: llmd_lab
   topo_size: null
@@ -6778,38 +6961,38 @@ cases:
       kind: node
       node: web_server_2
     fault_type: sender_resource_contention
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: s
   problem: sender_resource_contention
   inject:
-    host_name: web_server_1_1
+    host_name: br1_corp_pc
     duration: '600'
   root_causes:
   - resource:
       kind: node
-      node: web_server_1_1
+      node: br1_corp_pc
     fault_type: sender_resource_contention
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: m
   problem: sender_resource_contention
   inject:
-    host_name: web_server_2_2
+    host_name: hq_corp_pc
     duration: '600'
   root_causes:
   - resource:
       kind: node
-      node: web_server_2_2
+      node: hq_corp_pc
     fault_type: sender_resource_contention
-- scenario: rip_small_internet_vpn
+- scenario: enterprise_branch
   topo_size: l
   problem: sender_resource_contention
   inject:
-    host_name: web_server_1_5
+    host_name: dc2_corp_pc
     duration: '600'
   root_causes:
   - resource:
       kind: node
-      node: web_server_1_5
+      node: dc2_corp_pc
     fault_type: sender_resource_contention
 - scenario: llmd_lab
   topo_size: null
