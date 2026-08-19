@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from nika.net_env.net_env_pool import get_net_env_instance, resolve_scenario_ref
+from nika.net_env.net_env_pool import (
+    get_net_env_instance,
+    list_all_net_envs,
+    resolve_scenario_ref,
+)
 
 
 def test_dc_clos_alias_service_accepts_backend_kwarg() -> None:
@@ -25,6 +29,9 @@ def test_resolve_scenario_ref_aliases() -> None:
     assert resolve_scenario_ref("ospf_enterprise_static") == ("campus_lan", "static")
     assert resolve_scenario_ref("ospf_enterprise_dhcp") == ("campus_lan", "dhcp")
     assert resolve_scenario_ref("campus_lan") == ("campus_lan", None)
+    assert resolve_scenario_ref("sdn_star") == ("sdn_l3_clos", None)
+    assert resolve_scenario_ref("sdn_clos") == ("sdn_l3_clos", None)
+    assert resolve_scenario_ref("p4_counter") == ("p4_dc_fabric", None)
 
 
 def test_campus_lan_alias_default_workload() -> None:
@@ -47,3 +54,26 @@ def test_simple_bgp_forwards_backend() -> None:
     env = get_net_env_instance("simple_bgp", backend="kathara")
     assert env.backend == "kathara"
     assert env.lab is not None
+
+
+def test_p4_counter_alias_resolves_to_fabric() -> None:
+    assert "p4_counter" not in list_all_net_envs()
+    env = get_net_env_instance("p4_counter", backend="kathara", topo_size="s")
+    assert env.backend == "kathara"
+    assert "leaf_1" in env.lab.machines
+
+
+def test_p4_counter_benchmark_row_rewrites_to_fabric() -> None:
+    from nika.workflows.benchmark.load_config import normalize_benchmark_row
+
+    row = normalize_benchmark_row(
+        {
+            "scenario": "p4_counter",
+            "problem": "bmv2_switch_down",
+            "topo_size": None,
+            "inject": {"host_name": "s1"},
+        }
+    )
+    assert row["scenario"] == "p4_dc_fabric"
+    assert row["topo_size"] == "s"
+    assert row["inject"]["host_name"] == "s1"

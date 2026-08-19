@@ -52,6 +52,11 @@ EXPECTED_FAILURE_DOMAINS = {
         "p4_header_definition_error",
         "p4_table_entry_misconfig",
         "p4_table_entry_missing",
+        "p4_action_selector_member_misconfig",
+        "p4_ecmp_group_member_missing",
+        "p4runtime_pipeline_mismatch",
+        "p4runtime_partial_write",
+        "p4_table_resource_exhaustion",
         "vrf_dscp_remarking",
         "wireguard_allowed_ips_misconfiguration",
         "wireguard_peer_key_misconfiguration",
@@ -130,7 +135,7 @@ def _resources(problem: str, params: dict, env: _Env):
 class ResourceMappingTest:
     def test_every_failure_has_orthogonal_taxonomy_metadata(self) -> None:
         problems = list_avail_problem_instances()
-        assert len(problems) == 64
+        assert len(problems) == 69
         for name, cls in problems.items():
             assert cls.META is not None, name
             assert set(cls.taxonomy_metadata()) == {

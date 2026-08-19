@@ -59,7 +59,7 @@ class RouterMeta:
     router_id: str = ""
     frr_neighbor_configs: list[str] = field(default_factory=list)
     host_network: str | None = None
-    image: str = "kathara/nika-frr"
+    image: str = "nika/frr"
     cpus: float = 0.5
     mem: str = "256m"
     links: list[tuple[int, str]] = field(
@@ -74,7 +74,7 @@ class HostMeta:
     eth_index: int = 0
     cmd_list: list[str] = field(default_factory=list)
     ip_address: str | None = None
-    image: str = "kathara/nika-base"
+    image: str = "nika/base"
     cpus: float = 0.5
     mem: str = "256m"
     links: list[tuple[int, str]] = field(default_factory=list)

@@ -1,5 +1,7 @@
 from typing import List
 
+import json
+
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 
 
@@ -311,6 +313,74 @@ class BMv2APIMixin:
 
         # Nothing found
         return ""
+
+    def p4_get_fabric_state(
+        self: _SupportsBase,
+        switch_name: str | None = None,
+        source: str | None = None,
+        target_ip: str | None = None,
+    ) -> dict:
+        """Aggregated P4 fabric evidence. Does not name faults."""
+        focus = switch_name or "leaf_1"
+        summary_cmd = (
+            "python3 - <<'PY'\n"
+            "import json\n"
+            "d=json.load(open('/tmp/p4_fabric/intent.json'))\n"
+            f"n={focus!r}\n"
+            "s=d['switches'][n]\n"
+            "print(json.dumps({\n"
+            " 'pipeline': d.get('pipeline'),\n"
+            " 'spines': d.get('spines'),\n"
+            " 'leaves': d.get('leaves'),\n"
+            " 'endpoints': [{'name':e.get('name'),'ip':e.get('ip'),'role':e.get('role'),"
+            "'leaf_id':e.get('leaf_id')} for e in d.get('endpoints') or []],\n"
+            " 'switch': {n: {'role': s.get('role'), 'device_id': s.get('device_id'),\n"
+            "  'address': s.get('address'),\n"
+            "  'ipv4_lpm': s.get('ipv4_lpm'), 'groups': s.get('groups'),\n"
+            "  'member_count': len(s.get('members') or [])}}\n"
+            "}))\n"
+            "PY"
+        )
+        intent_raw = self.exec_cmd("fabric_mgr", summary_cmd, timeout=20)
+        try:
+            intent = json.loads(intent_raw[intent_raw.find("{") :])
+        except (json.JSONDecodeError, ValueError):
+            intent = {}
+        cmd = (
+            "python3 /opt/nika/p4rt_manager.py --intent /tmp/p4_fabric/intent.json "
+            "--p4info /tmp/p4_fabric/fabric.p4info.txt --json /tmp/p4_fabric/fabric.json "
+            f"read --switch {focus}"
+        )
+        observed_raw = self.exec_cmd("fabric_mgr", cmd, timeout=90)
+        try:
+            start = observed_raw.find("{")
+            observed = json.loads(observed_raw[start:]) if start >= 0 else {}
+        except json.JSONDecodeError:
+            observed = {"ok": False, "raw": observed_raw[-2000:]}
+        sw = (intent.get("switch") or {}).get(focus) or {}
+        payload = {
+            "intended_forwarding": intent,
+            "p4runtime_observed": observed.get("switches") or observed,
+            "switch_inventory": [
+                {
+                    "name": focus,
+                    "role": sw.get("role"),
+                    "device_id": sw.get("device_id"),
+                    "address": sw.get("address"),
+                }
+            ],
+            "endpoint_addressing": intent.get("endpoints"),
+        }
+        if source and target_ip:
+            ping_output = self.exec_cmd(
+                source, f"ping -c 3 -W 2 {target_ip}", timeout=20
+            )
+            payload["traffic_observed"] = {
+                "source": source,
+                "target_ip": target_ip,
+                "ping_output": ping_output,
+            }
+        return payload
 
 
 class KatharaBMv2API(KatharaBaseAPI, BMv2APIMixin):

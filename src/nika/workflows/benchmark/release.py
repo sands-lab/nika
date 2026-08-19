@@ -55,6 +55,7 @@ TOOLS_V1 = {
         "pingmesh_mcp_server",
         "kathara_frr_mcp_server",
         "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
         "kathara_telemetry_mcp_server",
         "task_mcp_server",
     ],
@@ -469,6 +470,17 @@ def _verify_pins(pins: dict[str, Any], *, kind: str) -> None:
                 # Legacy failure ids (e.g. host_vpn_membership_missing) remap; the
                 # pinned source may have been removed.
                 if resolve_problem_name(str(name)) != str(name):
+                    continue
+            elif kind == "scenarios":
+                from nika.net_env.net_env_pool import resolve_scenario_ref
+
+                # Legacy scenario ids (e.g. sdn_star, p4_counter) remap; the
+                # pinned source may have been removed.
+                try:
+                    canonical, _ = resolve_scenario_ref(str(name))
+                except ValueError:
+                    canonical = str(name)
+                if canonical != str(name):
                     continue
             raise ReleaseError(f"Pinned {kind} source missing for {name!r}: {path}")
         actual = _sha256_file(path)

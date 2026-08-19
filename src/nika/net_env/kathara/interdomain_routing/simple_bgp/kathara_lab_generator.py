@@ -20,7 +20,7 @@ class MachineMeta:
     name: str
     eth_index: int = 0
     cmd_list: list[str] = field(default_factory=list)
-    image: str = "kathara/nika-frr"
+    image: str = "nika/frr"
     cpus: float = 1.0
     mem: str = "256m"
     links: list[tuple[int, str]] = field(default_factory=list)
@@ -43,10 +43,10 @@ def generate_simple_bgp_topology(
         output_dir = os.path.join(SCRIPT_DIR, "topology")
     bgp_utils = bgp_utils_path or BGP_UTILS
 
-    router1 = MachineMeta(name="router1", image="kathara/nika-frr", cpus=1.0)
-    router2 = MachineMeta(name="router2", image="kathara/nika-frr", cpus=1.0)
-    pc1 = MachineMeta(name="pc1", image="kathara/nika-base")
-    pc2 = MachineMeta(name="pc2", image="kathara/nika-base")
+    router1 = MachineMeta(name="router1", image="nika/frr", cpus=1.0)
+    router2 = MachineMeta(name="router2", image="nika/frr", cpus=1.0)
+    pc1 = MachineMeta(name="pc1", image="nika/base")
+    pc2 = MachineMeta(name="pc2", image="nika/base")
 
     # Link A: router1 -- router2
     router1.links.append((0, "A"))

@@ -66,11 +66,10 @@ SCENARIO_DISPLAY: dict[str, str] = {
     "k8s_lab": "k8s",
     "llmd_lab": "llmd",
     "p4_bloom_filter": "p4_bloom",
-    "p4_counter": "p4_counter",
     "p4_int": "p4_int",
     "p4_mpls": "p4_mpls",
-    "sdn_clos": "sdn_clos",
-    "sdn_star": "sdn_star",
+    "p4_dc_fabric": "p4_dc_fabric",
+    "sdn_l3_clos": "sdn_l3_clos",
     "simple_bgp": "simple_bgp",
     "min3clos": "min3clos",
     "isp": "isp",
@@ -97,7 +96,11 @@ def _load_pairs(path: Path) -> set[tuple[str, str]]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     pairs: set[tuple[str, str]] = set()
     for raw in data.get("cases") or []:
-        row = normalize_benchmark_row(raw)
+        try:
+            row = normalize_benchmark_row(raw)
+        except ValueError:
+            # Frozen releases may reference retired scenario IDs.
+            continue
         pairs.add((_column_label(row), str(row["problem"])))
     return pairs
 

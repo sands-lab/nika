@@ -120,7 +120,7 @@ class DCClos(NetworkEnvBase):
         for ss in range(super_spine_count):
             ss_name = f"super_spine_router_{ss}"
             router_ss = self.lab.new_machine(
-                ss_name, **{"image": "kathara/nika-frr", "cpus": 0.5, "mem": "256m"}
+                ss_name, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
             )
             tot_super_spines.append(
                 RouterMeta(
@@ -138,7 +138,7 @@ class DCClos(NetworkEnvBase):
                 spine_name = f"spine_router_{pod}_{spine_id}"
                 router_spine = self.lab.new_machine(
                     spine_name,
-                    **{"image": "kathara/nika-frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
                 )
                 spine_meta = RouterMeta(
                     name=spine_name,
@@ -155,7 +155,7 @@ class DCClos(NetworkEnvBase):
                 leaf_name = f"leaf_router_{pod}_{leaf_id}"
                 router_leaf = self.lab.new_machine(
                     leaf_name,
-                    **{"image": "kathara/nika-frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
                 )
                 leaf_meta = RouterMeta(
                     name=leaf_name,
@@ -333,7 +333,7 @@ class DCClos(NetworkEnvBase):
                 host_name = f"pc_{pod}_{idx}"
                 host_machine = self.lab.new_machine(
                     host_name,
-                    **{"image": "kathara/nika-base", "cpus": 0.5, "mem": "256m"},
+                    **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
                 )
                 host = HostMeta(
                     name=host_name,
@@ -392,7 +392,7 @@ class DCClos(NetworkEnvBase):
         for pod in range(super_spine_count):
             dns_name = f"dns_pod{pod}"
             dns_machine = self.lab.new_machine(
-                dns_name, **{"image": "kathara/nika-base", "cpus": 0.5, "mem": "256m"}
+                dns_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
             )
             dns_meta = HostMeta(
                 name=dns_name,
@@ -408,7 +408,7 @@ class DCClos(NetworkEnvBase):
                 web_name = f"webserver{host}_pod{pod}"
                 web_machine = self.lab.new_machine(
                     web_name,
-                    **{"image": "kathara/nika-base", "cpus": 0.5, "mem": "256m"},
+                    **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
                 )
                 web_meta = HostMeta(
                     name=web_name,
@@ -423,7 +423,7 @@ class DCClos(NetworkEnvBase):
             client_name = f"client_{client_id}"
             client_machine = self.lab.new_machine(
                 client_name,
-                **{"image": "kathara/nika-base", "cpus": 0.5, "mem": "256m"},
+                **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
             )
             tot_clients.append(
                 HostMeta(

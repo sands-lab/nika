@@ -24,7 +24,7 @@ class P4INT(NetworkEnvBase):
 
         pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
         pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
-        collector = self.lab.new_machine("collector", **{"image": "kathara/influxdb"})
+        collector = self.lab.new_machine("collector", **{"image": "nika/influxdb"})
 
         spine1 = self.lab.new_machine("spine1", **{"image": "kathara/p4"})
         spine2 = self.lab.new_machine("spine2", **{"image": "kathara/p4"})

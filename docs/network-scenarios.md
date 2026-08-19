@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 14 scenario IDs. Thirteen use one backend; `isp` supports both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists 13 scenario IDs through `nika env list`. Twelve use one backend; `isp` supports both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -14,7 +14,7 @@ Kathará scenarios need Docker and the Kathará dependency group. Containerlab s
 
 Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../README.md#install-nika) covers the full installation flow.
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `kathara/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment.
+`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `nika/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment.
 
 ## Scenario catalog
 
@@ -24,18 +24,17 @@ Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--e
 | `campus_lan` | Kathara | `-s s\|m\|l` | `--workload static\|dhcp` (default `static`) | Hierarchical campus LAN; static hosts or DHCP/DNS/LB farm |
 | `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
 | `simple_bgp` | Kathara | Fixed |  | Two FRR ASes with one host in each AS |
-| `sdn_star` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch star |
-| `sdn_clos` | Kathara | `-s s\|m\|l` |  | POX and Open vSwitch leaf-spine Clos |
+| `sdn_l3_clos` | Kathara | `-s s\|m\|l` |  | ONOS + OVS L3 Clos with SELECT ECMP |
 | `p4_bloom_filter` | Kathara | Fixed |  | BMv2 flow-counting Bloom filter pipeline |
-| `p4_counter` | Kathara | Fixed |  | BMv2 L2 forwarding and port counters |
 | `p4_int` | Kathara | Fixed |  | BMv2 in-band telemetry and collector |
 | `p4_mpls` | Kathara | Fixed |  | BMv2 MPLS classification and label switching |
+| `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
 | `isp` | Kathara or Containerlab |  | `--topo` and protocol options | SNDlib topology compiled to FRR or SR Linux |
 | `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
 | `k8s_lab` | Kathara | Fixed |  | FRR fat-tree with a six-node k3s cluster |
 | `llmd_lab` | Kathara | Fixed |  | L2 k3s cluster with simulated llm-d inference |
 
-Six scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
+Five scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
 
 ```shell
 uv run nika env run dc_clos -s s
@@ -175,53 +174,40 @@ pc1 -- router1 == eBGP == router2 -- pc2
 
 ## SDN scenarios
 
-NIKA generates both SDN topologies with Open vSwitch data planes and a POX controller at `20.0.0.100:6633`. Hosts use `10.0.0.0/24`.
+### `sdn_l3_clos`
 
-### `sdn_star`
-
-Each edge switch connects one host to `switch_0`. POX runs `forwarding.l2_learning`.
+Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` (pinned `onosproject/onos:2.7-latest` plus iproute2) when missing and pulls `kathara/sdn` when missing. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
 
 ```text
-pc1 -- switch_1 --\
-pc2 -- switch_2 ---+-- switch_0
- ...               |
-pcN -- switch_N --/
-
-POX controller == control network == all switches
+                    ONOS
+                     |
+            OOB control network
+                     |
+          spine_1 ... spine_N
+           |\           /|
+           | \         / |
+         leaf_1 ...... leaf_M
+          | |          | |
+       web/client   web/client
 ```
 
-| Size | Edge switches and hosts | Total switches |
-| --- | ---: | ---: |
-| `s` | 4 | 5 |
-| `m` | 8 | 9 |
-| `l` | 16 | 17 |
+| Size | Spines | Leaves | Endpoints per leaf |
+| --- | ---: | ---: | ---: |
+| `s` | 2 | 4 | 2 |
+| `m` | 4 | 8 | 4 |
+| `l` | 8 | 16 | 4 |
 
-### `sdn_clos`
+Deploy starts containers, waits for ONOS device discovery over live OpenFlow sessions, then installs proactive L3 flows and SELECT ECMP groups through the ONOS REST API so the controller keeps owning forwarding state. Controllers stay attached. Verification checks live OpenFlow sessions, topology consistency, addressing, cross-rack ICMP/HTTP, ECMP group shape, and controller vs OVS dataplane evidence.
 
-Each leaf connects to every spine and to its host group. POX discovery and spanning tree suppress redundant flooding before the learning-switch module handles traffic.
+Diagnosis agents get `kathara_sdn_mcp_server`. Primary tool `sdn_get_fabric_state` aggregates ONOS topology/apps, live ONOS flow/group store, and observed OVS flows/groups/port/status (optional reachability and controller logs), keeping controller-live state separate from switch-observed state without ground-truth fault labels.
 
-```text
-              spine_1 ... spine_N
-                |  \     /  |
-                |   \   /   |
-              leaf_1 ... leaf_N
-               / |         | \
-             PC  PC       PC  PC
-
-POX controller == control network == all switches
+```shell
+uv run nika env run sdn_l3_clos -s s
 ```
-
-| Size | Spines | Leaves | Hosts per leaf | Total hosts |
-| --- | ---: | ---: | ---: | ---: |
-| `s` | 1 | 2 | 2 | 4 |
-| `m` | 2 | 4 | 4 | 16 |
-| `l` | 4 | 8 | 8 | 64 |
-
-Use the star for a single aggregation point and the Clos for redundant paths. Both verifiers check the controller process, OVS readiness, addressing, and host reachability.
 
 ## P4 scenarios
 
-The four fixed Kathara scenarios compile repository-owned P4 programs during BMv2 startup and load forwarding entries through `simple_switch_CLI`.
+Three fixed Kathara scenarios compile repository-owned P4 programs during BMv2 startup and load forwarding entries through `simple_switch_CLI`. `p4_dc_fabric` is the sized L3 Clos lab; it starts `simple_switch_grpc` with no local table file and programs every switch through P4Runtime.
 
 ### `p4_bloom_filter`
 
@@ -230,18 +216,6 @@ Two BMv2 switches connect `pc1` and `pc2`. The pipeline hashes TCP five-tuples i
 ```text
 pc1 -- switch_1 -- switch_2 -- pc2
          Bloom-filter P4 pipeline
-```
-
-### `p4_counter`
-
-Four BMv2 switches connect three hosts over two paths. The program forwards on destination MAC address and records ingress and egress counters per port. Use it for forwarding-table and counter-aware troubleshooting.
-
-```text
-              switch_2
-             /        \
-pc1 -- switch_1        switch_4 -- pc2
-             \        /           \
-              switch_3             pc3
 ```
 
 ### `p4_int`
@@ -257,7 +231,7 @@ pc1 -- leaf_1           leaf_2 -- pc2
 ```
 
 ```shell
-docker build -t kathara/influxdb src/nika/net_env/kathara/p4/p4_int
+docker build -t nika/influxdb src/nika/net_env/kathara/p4/p4_int
 ```
 
 ### `p4_mpls`
@@ -273,7 +247,40 @@ pc1 -- switch_1
                                                                         \-- pc3
 ```
 
-All four verifiers check BMv2 processes, host addresses, and expected end-to-end reachability. `p4_int` also checks its collector.
+### `p4_dc_fabric`
+
+Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Build `nika/fabric-controller` on deploy when missing (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
+
+```text
+                 fabric_mgr
+                      |
+             OOB control network
+                      |
+           spine_1 ... spine_N
+            |\           /|
+            | \         / |
+          leaf_1 ...... leaf_M
+           | |          | |
+        web/client   web/client
+```
+
+| Size | Spines | Leaves | Endpoints per leaf |
+| --- | ---: | ---: | ---: |
+| `s` | 2 | 4 | 2 |
+| `m` | 4 | 8 | 4 |
+| `l` | 8 | 16 | 4 |
+
+Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs intent, same-rack and sparse cross-rack ICMP, HTTP to a remote web, and multi-flow ECMP counters on at least two spines.
+
+Diagnosis agents get `kathara_bmv2_mcp_server`. Tool `p4_get_fabric_state` returns intended forwarding, live P4Runtime Read (pipeline, LPM, members, groups, counters), endpoint addressing, and an optional ping, without ground-truth fault labels.
+
+```shell
+uv run nika env run p4_dc_fabric -s s
+```
+
+Legacy id `p4_counter` resolves to this scenario. It is not listed by `nika env list`. Frozen release `0.1.0` still records the old L2 counter lab hash; regenerate a release when you publish the new lab.
+
+The three fixed-size verifiers check BMv2 processes, host addresses, and expected end-to-end reachability. `p4_int` also checks its collector.
 
 ## SNDlib ISP scenario
 

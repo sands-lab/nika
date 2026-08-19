@@ -28,6 +28,10 @@ from nika.problems.ground_truth import ground_truth_for_case
 from nika.problems.prob_pool import list_avail_problem_instances
 from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
 from nika.problems.topology_inventory import load_offline_net_env
+from nika.workflows.benchmark.compatibility import (
+    _PROBLEM_COLUMN_ALLOWLIST,
+    parse_column,
+)
 from nika.workflows.benchmark.isp_options import (
     ISP_SCENARIO,
     isp_config_for_problem,
@@ -76,8 +80,8 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "dns_port_blocked": "campus_lan",
     "dns_record_error": "campus_lan",
     "dns_service_down": "campus_lan",
-    "flow_rule_loop": "sdn_clos",
-    "flow_rule_shadowing": "sdn_clos",
+    "flow_rule_loop": "sdn_l3_clos",
+    "flow_rule_shadowing": "sdn_l3_clos",
     "frr_service_down": "campus_lan",
     "host_crash": "dc_clos",
     "host_incorrect_dns": "campus_lan",
@@ -107,12 +111,17 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "p4_header_definition_error": "p4_bloom_filter",
     "p4_table_entry_misconfig": "p4_bloom_filter",
     "p4_table_entry_missing": "p4_bloom_filter",
+    "p4_action_selector_member_misconfig": "p4_dc_fabric",
+    "p4_ecmp_group_member_missing": "p4_dc_fabric",
+    "p4runtime_pipeline_mismatch": "p4_dc_fabric",
+    "p4runtime_partial_write": "p4_dc_fabric",
+    "p4_table_resource_exhaustion": "p4_dc_fabric",
     "receiver_resource_contention": "campus_lan",
-    "sdn_controller_crash": "sdn_clos",
+    "sdn_controller_crash": "sdn_l3_clos",
     "sender_application_delay": "campus_lan",
     "sender_resource_contention": "campus_lan",
-    "southbound_port_block": "sdn_clos",
-    "southbound_port_mismatch": "sdn_clos",
+    "southbound_port_block": "sdn_l3_clos",
+    "southbound_port_mismatch": "sdn_l3_clos",
     "web_dos_attack": "campus_lan",
     "wireguard_allowed_ips_misconfiguration": "enterprise_branch",
     "wireguard_peer_key_misconfiguration": "enterprise_branch",
@@ -237,6 +246,11 @@ def iter_full_cases(*, seed: int) -> list[dict]:
         problem_tags = set(problem_instance.TAGS)
         for net_env_name, net_env_cls in net_envs.items():
             if not problem_tags.issubset(set(net_env_cls.TAGS)):
+                continue
+            allow = _PROBLEM_COLUMN_ALLOWLIST.get(prob_name)
+            if allow is not None and net_env_name not in {
+                parse_column(column)[0] for column in allow
+            }:
                 continue
             workload = None
             isp_options = None

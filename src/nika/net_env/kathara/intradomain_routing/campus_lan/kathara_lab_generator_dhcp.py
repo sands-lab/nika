@@ -49,7 +49,7 @@ class RouterMeta:
     cmd_list: list[str] = field(default_factory=list)
     router_id: str = ""
     frr_ospf_configs: list[str] = field(default_factory=list)
-    image: str = "kathara/nika-frr"
+    image: str = "nika/frr"
     cpus: float = 0.5
     mem: str = "256m"
     links: list[tuple[int, str]] = field(default_factory=list)
@@ -62,7 +62,7 @@ class SwitchMeta:
     eth_index: int = 0
     cmd_list: list[str] = field(default_factory=list)
     host_network: IPv4Network | None = None
-    image: str = "kathara/nika-base"
+    image: str = "nika/base"
     cpus: float = 0.5
     mem: str = "256m"
     links: list[tuple[int, str]] = field(default_factory=list)
@@ -74,7 +74,7 @@ class HostMeta:
     eth_index: int = 0
     cmd_list: list[str] = field(default_factory=list)
     ip_address: str | None = None
-    image: str = "kathara/nika-base"
+    image: str = "nika/base"
     cpus: float = 0.5
     mem: str = "256m"
     links: list[tuple[int, str]] = field(default_factory=list)
@@ -146,7 +146,7 @@ def generate_ospf_enterprise_dhcp_topology(
         web_meta = HostMeta(name=f"web_server_{web_idx}")
         servers[f"web_server_{web_idx}"] = web_meta
         web_servers.append(web_meta)
-    lb_meta = HostMeta(name="load_balancer", image="kathara/nika-nginx")
+    lb_meta = HostMeta(name="load_balancer", image="nika/nginx")
     servers["load_balancer"] = lb_meta
     lb_backends = [HostMeta(name=f"backend_web_{i}") for i in range(3)]
     dhcp_meta = HostMeta(name="dhcp_server")

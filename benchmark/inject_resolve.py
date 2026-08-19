@@ -237,10 +237,18 @@ def _mac_conflict_pair(net_env, rng: random.Random) -> tuple[str, str]:
     return pair[0], pair[1]
 
 
-def _flow_rule_loop_pair(net_env, rng: random.Random) -> tuple[str, str]:
+def _flow_rule_loop_pair(net_env, rng: random.Random) -> tuple[str, str, str, str]:
+    """Return (switch_a, switch_b, port_a, port_b) preferring an adjacent fabric link."""
+    model = getattr(net_env, "model", None)
+    if model is not None and model.leaf_spine_links:
+        leaf, spine = rng.choice(model.leaf_spine_links)
+        p0 = model.port_to_peer(leaf, spine)
+        p1 = model.port_to_peer(spine, leaf)
+        if p0 is not None and p1 is not None:
+            return leaf, spine, p0.name, p1.name
     switches = net_env.ovs_switches or []
     pair = _choice_distinct(rng, switches, "leaf_1")
-    return pair[0], pair[1]
+    return pair[0], pair[1], "eth0", "eth0"
 
 
 def _all_device_names(net_env) -> set[str]:
@@ -362,6 +370,26 @@ def _scenario_device_pools(scenario: str, net_env) -> dict[str, list[str]]:
             "web": client_pool,
             "attacker_pool": client_pool,
         }
+    if scenario == "sdn_l3_clos":
+        client_pool = [h for h in hosts if "client" in h] or hosts
+        web_pool = list((net_env.servers or {}).get("web") or [])
+        controllers = net_env.sdn_controllers or ["onos"]
+        return {
+            "hosts": client_pool,
+            "host1_pool": client_pool,
+            "web": web_pool or client_pool,
+            "attacker_pool": client_pool,
+            "controllers": controllers,
+        }
+    if scenario == "p4_dc_fabric":
+        client_pool = [h for h in hosts if "client" in h] or hosts
+        web_pool = list((net_env.servers or {}).get("web") or [])
+        return {
+            "hosts": client_pool,
+            "host1_pool": client_pool,
+            "web": web_pool or client_pool,
+            "attacker_pool": client_pool,
+        }
     return {}
 
 
@@ -445,7 +473,30 @@ def resolve_inject_params(
         "arp_cache_poisoning",
         "receiver_resource_contention",
     }:
-        if scenario == "min3clos" and problem.startswith("link_"):
+        if scenario in {"sdn_l3_clos", "p4_dc_fabric"} and problem.startswith("link_"):
+            # Prefer a leaf–spine fabric link so Clos path/ECMP failures are exercised.
+            # Packet corruption uses the last iface; on a switch that is OOB, so pin
+            # corruption to a client access link.
+            if scenario == "p4_dc_fabric" and problem == "link_high_packet_corruption":
+                params["host_name"] = host0
+                params["intf_name"] = "eth0"
+            else:
+                model = getattr(net_env, "model", None)
+                if model is not None and getattr(model, "leaf_spine_links", None):
+                    leaf, spine = rng.choice(model.leaf_spine_links)
+                    port = model.port_to_peer(leaf, spine)
+                    params["host_name"] = leaf
+                    params["intf_name"] = port.name if port is not None else "eth2"
+                else:
+                    switches = net_env.ovs_switches or net_env.bmv2_switches or []
+                    leaf = _choice(
+                        rng,
+                        [n for n in switches if str(n).startswith("leaf_")] or switches,
+                        "leaf_1",
+                    )
+                    params["host_name"] = leaf
+                    params["intf_name"] = _choice_interface(rng, net_env, leaf, backend)
+        elif scenario == "min3clos" and problem.startswith("link_"):
             params["host_name"] = router0
             params["intf_name"] = _choice_interface(rng, net_env, router0, backend)
         else:
@@ -615,8 +666,23 @@ def resolve_inject_params(
         "p4_aggressive_detection_thresholds",
         "bmv2_switch_down",
         "mpls_label_limit_exceeded",
+        "p4_action_selector_member_misconfig",
+        "p4_ecmp_group_member_missing",
+        "p4runtime_pipeline_mismatch",
+        "p4runtime_partial_write",
+        "p4_table_resource_exhaustion",
     }:
-        params["host_name"] = _choice(rng, bmv2, host0)
+        if problem in {
+            "p4_action_selector_member_misconfig",
+            "p4_ecmp_group_member_missing",
+            "p4runtime_pipeline_mismatch",
+            "p4runtime_partial_write",
+            "p4_table_resource_exhaustion",
+        }:
+            leaves = [n for n in bmv2 if str(n).startswith("leaf_")]
+            params["host_name"] = _choice(rng, leaves, "leaf_1")
+        else:
+            params["host_name"] = _choice(rng, bmv2, host0)
 
     elif problem in {
         "sdn_controller_crash",
@@ -626,18 +692,20 @@ def resolve_inject_params(
         controller_pool = pools.get("controllers") or controllers
         params["host_name"] = _choice(rng, controller_pool, host0)
         if problem == "southbound_port_block":
-            params["southbound_port"] = "6633"
+            params["southbound_port"] = "6653"
         if problem == "southbound_port_mismatch":
-            params["mismatched_port"] = "6653"
-            params["original_port"] = "6633"
+            params["mismatched_port"] = "6633"
+            params["original_port"] = "6653"
 
     elif problem == "flow_rule_shadowing":
         params["host_name"] = _choice(rng, net_env.ovs_switches, host0)
 
     elif problem == "flow_rule_loop":
-        a, b = _flow_rule_loop_pair(net_env, rng)
+        a, b, port_a, port_b = _flow_rule_loop_pair(net_env, rng)
         params["host_name"] = a
         params["host_name_2"] = b
+        params["port_name"] = port_a
+        params["port_name_2"] = port_b
 
     elif problem == "web_dos_attack":
         if scenario == "llmd_lab":

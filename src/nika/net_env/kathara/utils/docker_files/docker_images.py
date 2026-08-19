@@ -1,4 +1,4 @@
-"""Build, pull, and verify local NIKA Kathara Docker images via the Docker Python API."""
+"""Build, pull, and verify local NIKA Docker images via the Docker Python API."""
 
 from __future__ import annotations
 
@@ -8,18 +8,32 @@ from typing import Iterable, Set
 import docker
 from docker.errors import APIError, BuildError, ImageNotFound
 
-NIKA_IMAGE_PREFIX = "kathara/nika-"
+NIKA_IMAGE_PREFIX = "nika/"
 DOCKER_FILES_DIR = Path(__file__).resolve().parent
 
-# Mirrors src/nika/net_env/kathara/utils/DockerFiles/build_dockers.sh, plus
-# scenario-local images that are required at deploy time.
+# Scenario-local images required at deploy time. Upstream Kathara images
+# (kathara/base, kathara/frr, …) are pulled, not listed here.
 NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
-    "kathara/nika-frr": "Dockerfile.frr",
-    "kathara/nika-base": "Dockerfile.base",
-    "kathara/nika-nginx": "Dockerfile.nginx",
-    "kathara/nika-wireguard": "Dockerfile.wireguard",
-    "kathara/nika-pox": "Dockerfile.pox",
-    "kathara/influxdb": "../../p4/p4_int/Dockerfile",
+    "nika/frr": "Dockerfile.frr",
+    "nika/base": "Dockerfile.base",
+    "nika/nginx": "Dockerfile.nginx",
+    "nika/wireguard": "Dockerfile.wireguard",
+    "nika/pox": "Dockerfile.pox",
+    "nika/onos": "Dockerfile.onos",
+    "nika/fabric-controller": "Dockerfile.fabric-controller",
+    "nika/influxdb": "../../p4/p4_int/Dockerfile",
+    "nika/routinator:v0.14.2": "../isp/rpki/Dockerfile.routinator",
+}
+
+# Old tags from before the nika/* rename. ensure retags these when the new
+# name is missing so local builds are not repeated.
+LEGACY_NIKA_IMAGE_NAMES: dict[str, tuple[str, ...]] = {
+    "nika/base": ("kathara/nika-base",),
+    "nika/frr": ("kathara/nika-frr",),
+    "nika/nginx": ("kathara/nika-nginx",),
+    "nika/wireguard": ("kathara/nika-wireguard",),
+    "nika/pox": ("kathara/nika-pox",),
+    "nika/influxdb": ("kathara/influxdb",),
 }
 
 _client: docker.DockerClient | None = None
@@ -63,6 +77,41 @@ def _is_locally_buildable(image: str) -> bool:
         return False
 
 
+def _split_image_tag(image: str) -> tuple[str, str | None]:
+    if ":" in image:
+        repo, tag = image.rsplit(":", 1)
+        return repo, tag
+    return image, None
+
+
+def retag_image(source: str, target: str) -> None:
+    """Copy ``source`` to ``target`` and remove the ``source`` name (rename)."""
+    print(f"Renaming Docker image {source} -> {target}...")
+    client = _get_client()
+    try:
+        img = client.images.get(source)
+    except ImageNotFound as exc:
+        raise RuntimeError(f"Legacy Docker image not found: {source}") from exc
+
+    repo, tag = _split_image_tag(target)
+    if not img.tag(repo, tag=tag):
+        raise RuntimeError(f"Failed to tag Docker image {source} as {target}")
+
+    try:
+        client.images.remove(source)
+    except APIError as exc:
+        raise RuntimeError(f"Failed to remove legacy Docker image {source}") from exc
+
+
+def _migrate_legacy_image(image: str) -> bool:
+    """If a legacy tag exists for ``image``, retag it. Return True if migrated."""
+    for legacy in LEGACY_NIKA_IMAGE_NAMES.get(image, ()):
+        if image_exists(legacy):
+            retag_image(legacy, image)
+            return True
+    return False
+
+
 def build_nika_image(image: str) -> None:
     dockerfile = _dockerfile_for_image(image)
     print(f"Building Docker image {image} from {dockerfile.name}...")
@@ -96,8 +145,9 @@ def ensure_nika_docker_images(
 ) -> None:
     """Ensure required images are available locally.
 
-    Locally buildable ``kathara/nika-*`` (and mapped) images are built when
-    missing. Other images (e.g. upstream ``kathara/p4``) are pulled. With
+    Locally buildable ``nika/*`` images are built when missing, after first
+    checking for and renaming legacy ``kathara/nika-*`` / ``kathara/influxdb``
+    tags. Other images (e.g. upstream ``kathara/p4``) are pulled. With
     ``force_rebuild=True``, every buildable image is rebuilt; pullable images
     are still only fetched when missing.
     """
@@ -111,7 +161,12 @@ def ensure_nika_docker_images(
     if force_rebuild:
         to_build = buildable
     else:
-        to_build = {img for img in buildable if not image_exists(img)}
+        missing_buildable = {img for img in buildable if not image_exists(img)}
+        to_build = set()
+        for image in sorted(missing_buildable):
+            if not _migrate_legacy_image(image):
+                to_build.add(image)
+
     to_pull = {img for img in pullable if not image_exists(img)}
 
     if to_build:
@@ -138,7 +193,7 @@ def ensure_nika_docker_images(
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Build NIKA Kathara Docker images.")
+    parser = argparse.ArgumentParser(description="Build NIKA Docker images.")
     parser.add_argument(
         "-f",
         "--force-rebuild",
@@ -149,7 +204,7 @@ def main() -> None:
         "images",
         nargs="*",
         metavar="IMAGE",
-        help="Images to build (default: all known kathara/nika-* images).",
+        help="Images to build (default: all known nika/* images).",
     )
     args = parser.parse_args()
     required = args.images or list(NIKA_IMAGE_DOCKERFILES.keys())

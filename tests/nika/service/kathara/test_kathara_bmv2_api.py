@@ -6,16 +6,15 @@ from nika.service.kathara.bmv2_api import KatharaBMv2API
 from tests.support.prerequisites import docker_available
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
 
-SWITCH = "s1"
-TABLE = "dmac_forward"
-INGRESS_COUNTER = "ingress_port_counter"
-EGRESS_COUNTER = "egress_port_counter"
-EXPECTED_SWITCHES = ("s1", "s2", "s3", "s4")
+SWITCH = "switch_1"
+TABLE = "ipv4_lpm"
+REGISTER = "bloom_filter"
+EXPECTED_SWITCHES = ("switch_1", "switch_2")
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class KatharaBmv2ApiSmokeTest(KatharaScenarioApiSmokeTest):
-    SCENARIO = "p4_counter"
+    SCENARIO = "p4_bloom_filter"
 
     def _bmv2_api(self) -> KatharaBMv2API:
         return KatharaBMv2API(lab_name=self._lab_name())
@@ -94,17 +93,12 @@ class KatharaBmv2ApiSmokeTest(KatharaScenarioApiSmokeTest):
             min_len=1,
         )
         self.smoke(
-            "KatharaBMv2API.bmv2_counter_read(ingress)",
-            lambda: api.bmv2_counter_read(SWITCH, INGRESS_COUNTER, 0),
-            min_len=1,
-        )
-        self.smoke(
-            "KatharaBMv2API.bmv2_counter_read(egress)",
-            lambda: api.bmv2_counter_read(SWITCH, EGRESS_COUNTER, 0),
-            min_len=1,
-        )
-        self.smoke(
             "KatharaBMv2API.bmv2_get_register_arrays",
             lambda: api.bmv2_get_register_arrays(SWITCH),
+            min_len=1,
+        )
+        self.smoke(
+            "KatharaBMv2API.bmv2_register_read",
+            lambda: api.bmv2_register_read(SWITCH, REGISTER, 0),
             min_len=1,
         )

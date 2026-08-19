@@ -35,6 +35,10 @@ _PROBLEM_COLUMN_ALLOWLIST: dict[str, frozenset[str]] = {
     "bgp_max_prefix_exceeded": frozenset({f"{ISP_SCENARIO}/abilene-ebgp"}),
     "mpls_label_limit_exceeded": frozenset({"p4_mpls"}),
     "p4_aggressive_detection_thresholds": frozenset({"p4_bloom_filter"}),
+    "p4_compilation_error_parser_state": frozenset(
+        {"p4_bloom_filter", "p4_int", "p4_mpls"}
+    ),
+    "p4_header_definition_error": frozenset({"p4_bloom_filter", "p4_int", "p4_mpls"}),
 }
 
 

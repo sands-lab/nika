@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import json
+
 from mcp.server.fastmcp import FastMCP
 
 from nika.service.kathara import KatharaBMv2API
@@ -6,6 +10,14 @@ from nika.utils.errors import safe_tool
 
 # Initialize FastMCP server
 mcp = FastMCP("kathara_bmv2_mcp_server")
+
+
+def _api() -> KatharaBMv2API:
+    return KatharaBMv2API(lab_name=get_lab_name())
+
+
+def _json(payload: object) -> str:
+    return json.dumps(payload, indent=2, default=str)
 
 
 @safe_tool
@@ -130,6 +142,35 @@ def bmv2_register_read(
     """
     kathara_api = KatharaBMv2API(lab_name=get_lab_name())
     return kathara_api.bmv2_register_read(switch_name, register_name, index)
+
+
+@safe_tool
+@mcp.tool()
+def p4_get_fabric_state(
+    switch_name: str | None = None,
+    source: str | None = None,
+    target_ip: str | None = None,
+) -> str:
+    """Get aggregated P4 fabric evidence (like frr_get_routing_state).
+
+    Returns intended forwarding from the scenario plan, live P4Runtime Read
+    state (pipeline, arbitration, IPv4 LPM, ActionProfile members/groups,
+    counters), endpoint addressing, and an optional ping probe. Intended,
+    P4Runtime, and traffic sections are separate. This tool does not assert
+    mismatches or name faults.
+
+    Args:
+        switch_name: Optional leaf/spine to focus P4Runtime dumps.
+        source: Optional endpoint name for a ping probe (requires target_ip).
+        target_ip: Optional IPv4 destination for the ping probe.
+    """
+    return _json(
+        _api().p4_get_fabric_state(
+            switch_name=switch_name,
+            source=source,
+            target_ip=target_ip,
+        )
+    )
 
 
 if __name__ == "__main__":

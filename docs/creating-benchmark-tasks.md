@@ -56,8 +56,8 @@ class MyScenario(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.lab = Lab(self.name)
 
-        pc1 = self.lab.new_machine("pc1", image="kathara/nika-base")
-        pc2 = self.lab.new_machine("pc2", image="kathara/nika-base")
+        pc1 = self.lab.new_machine("pc1", image="nika/base")
+        pc2 = self.lab.new_machine("pc2", image="nika/base")
         self.lab.connect_machine_to_link(pc1.name, "A")
         self.lab.connect_machine_to_link(pc2.name, "A")
 

@@ -10,6 +10,7 @@ import yaml
 from nika.net_env.net_env_pool import (
     DC_CLOS_SCENARIO,
     CAMPUS_LAN_SCENARIO,
+    P4_DC_FABRIC_SCENARIO,
     is_dc_clos_scenario,
     is_campus_lan_scenario,
     resolve_scenario_ref,
@@ -70,6 +71,12 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     if topo is None:
         topo = ""
     topo_size = "" if topo in ("-", "", None) else str(topo)
+    if (
+        canonical == P4_DC_FABRIC_SCENARIO
+        and raw_scenario != canonical
+        and not topo_size
+    ):
+        topo_size = "s"
 
     raw_problem = str(row["problem"])
     problem = resolve_problem_name(raw_problem)
@@ -157,6 +164,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     ``host_vpn_membership_missing`` rewrites to
     ``wireguard_peer_key_misconfiguration`` with a Site Edge inject target.
     Legacy ``link_fragmentation_disabled`` rewrites to ``mtu_mismatch``.
+    Legacy ``p4_counter`` rewrites to ``p4_dc_fabric`` with topo size ``s``.
     ISP cases carry ``topo`` / ``igp`` / ``bgp_mode`` deploy options.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))

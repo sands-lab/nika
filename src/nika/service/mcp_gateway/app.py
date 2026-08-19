@@ -42,6 +42,10 @@ _MCP_MODULE_ATTRS: dict[str, tuple[str, str]] = {
         "nika.service.mcp_server.kathara.bmv2_server",
         "mcp",
     ),
+    "kathara_sdn_mcp_server": (
+        "nika.service.mcp_server.kathara.sdn_server",
+        "mcp",
+    ),
     "kathara_telemetry_mcp_server": (
         "nika.service.mcp_server.kathara.telemetry_server",
         "mcp",

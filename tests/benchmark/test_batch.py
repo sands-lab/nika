@@ -171,7 +171,9 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
 
             assert gt["is_anomaly"]
 
-            fault_types = {item.get("fault_type") for item in gt.get("root_causes") or []}
+            fault_types = {
+                item.get("fault_type") for item in gt.get("root_causes") or []
+            }
             assert case.problem in fault_types
 
     def test_run_json_correctness(self) -> None:

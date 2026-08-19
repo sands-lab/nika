@@ -276,7 +276,7 @@ class EnterpriseBranch(NetworkEnvBase):
         for site_name in self.spec.sites:
             ename = edge_name_for(site_name)
             machine = self.lab.new_machine(
-                ename, **{"image": "kathara/nika-frr", "cpus": 0.5, "mem": "256m"}
+                ename, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
             )
             self._edges[site_name] = EdgeRuntime(
                 name=ename, site=site_name, machine=machine, key_idx=key_i
@@ -286,7 +286,7 @@ class EnterpriseBranch(NetworkEnvBase):
         for provider in self.spec.providers:
             iname = isp_name_for(provider)
             machine = self.lab.new_machine(
-                iname, **{"image": "kathara/nika-frr", "cpus": 0.5, "mem": "256m"}
+                iname, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
             )
             self._isps[provider] = IspRuntime(
                 name=iname, provider=provider, machine=machine
@@ -298,7 +298,7 @@ class EnterpriseBranch(NetworkEnvBase):
                     machine = self.lab.new_machine(
                         host_name,
                         **{
-                            "image": "kathara/nika-base",
+                            "image": "nika/base",
                             "cpus": 0.5,
                             "mem": "256m",
                         },

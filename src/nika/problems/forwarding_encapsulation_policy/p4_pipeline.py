@@ -26,6 +26,22 @@ def _cli_run(runtime, host: str, command: str) -> str:
     return runtime.exec(host, f"simple_switch_CLI <<< '{command}' 2>/dev/null")
 
 
+def _is_p4_dc_fabric(problem: ProblemBase) -> bool:
+    return problem.scenario_name == "p4_dc_fabric"
+
+
+def _fabric_manager():
+    from nika.net_env.kathara.p4.p4_dc_fabric.fabric_manager.apply import (
+        load_intent,
+        run_manager,
+    )
+    from nika.net_env.kathara.p4.p4_dc_fabric.fabric_manager.intent import (
+        remote_rack_prefix,
+    )
+
+    return load_intent, run_manager, remote_rack_prefix
+
+
 def _cli_show_match_tables(runtime, host: str) -> list[str]:
     output = _cli_run(runtime, host, "show_tables")
     tables: list[str] = []
@@ -346,6 +362,28 @@ class P4TableEntryMissing(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: P4TableEntryMissingParams):
+        if _is_p4_dc_fabric(self):
+            load_intent, run_manager, remote_rack_prefix = _fabric_manager()
+            intent = load_intent(self.runtime)
+            prefix = remote_rack_prefix(intent, params.host_name)
+            if not prefix:
+                raise RuntimeError(f"No IPv4 LPM prefix on {params.host_name}")
+            result = run_manager(
+                self.runtime,
+                "delete-lpm",
+                "--switch",
+                params.host_name,
+                "--prefix",
+                prefix,
+            )
+            self._cleared_table = prefix
+            logger.info(
+                "Injected fault: Deleted P4Runtime LPM %s on %s (%s)",
+                prefix,
+                params.host_name,
+                result,
+            )
+            return
         table_name = _find_table_with_entries(self.runtime, params.host_name)
         _cli_run(self.runtime, params.host_name, f"table_clear {table_name}")
         self._cleared_table = table_name
@@ -355,6 +393,27 @@ class P4TableEntryMissing(ProblemBase):
 
     def verify_fault(self, params: P4TableEntryMissingParams) -> dict:
         """Verify the forwarding table has no match entries."""
+        if _is_p4_dc_fabric(self):
+            load_intent, run_manager, remote_rack_prefix = _fabric_manager()
+            intent = load_intent(self.runtime)
+            prefix = self._cleared_table or remote_rack_prefix(intent, params.host_name)
+            observed = run_manager(
+                self.runtime, "read", "--switch", params.host_name, timeout=60
+            )
+            entries = (observed.get("switches") or {}).get(params.host_name, {}).get(
+                "ipv4_lpm"
+            ) or []
+            present = any(e.get("prefix") == prefix for e in entries)
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=not present,
+                details={
+                    "params.host_name": params.host_name,
+                    "prefix": prefix,
+                    "present": present,
+                    "ipv4_lpm": entries,
+                },
+            )
         table_name = self._cleared_table or _find_table_with_entries(
             self.runtime, params.host_name
         )
@@ -408,6 +467,37 @@ class P4TableEntryMisconfig(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: P4TableEntryMisconfigParams):
+        if _is_p4_dc_fabric(self):
+            load_intent, run_manager, remote_rack_prefix = _fabric_manager()
+            intent = load_intent(self.runtime)
+            prefix = remote_rack_prefix(intent, params.host_name)
+            switch = intent["switches"][params.host_name]
+            other = next(
+                e["group_id"] for e in switch["ipv4_lpm"] if e["prefix"] != prefix
+            )
+            result = run_manager(
+                self.runtime,
+                "modify-lpm-group",
+                "--switch",
+                params.host_name,
+                "--prefix",
+                prefix,
+                "--group-id",
+                str(other),
+            )
+            self._misconfig_details = {
+                "table_name": "ipv4_lpm",
+                "prefix": prefix,
+                "group_id": int(other),
+                "result": result,
+            }
+            logger.info(
+                "Injected fault: Misconfigured P4Runtime LPM %s on %s -> group %s",
+                prefix,
+                params.host_name,
+                other,
+            )
+            return
         self._misconfig_details = _misconfigure_first_table_entry(
             self.runtime, params.host_name
         )
@@ -418,6 +508,42 @@ class P4TableEntryMisconfig(ProblemBase):
 
     def verify_fault(self, params: P4TableEntryMisconfigParams) -> dict:
         """Verify a table entry action was modified via simple_switch_CLI."""
+        if _is_p4_dc_fabric(self):
+            load_intent, run_manager, remote_rack_prefix = _fabric_manager()
+            intent = load_intent(self.runtime)
+            details = self._misconfig_details or {}
+            prefix = details.get("prefix") or remote_rack_prefix(
+                intent, params.host_name
+            )
+            group_id = details.get("group_id")
+            if group_id is None and prefix:
+                switch = intent["switches"][params.host_name]
+                group_id = next(
+                    e["group_id"] for e in switch["ipv4_lpm"] if e["prefix"] != prefix
+                )
+            observed = run_manager(
+                self.runtime, "read", "--switch", params.host_name, timeout=60
+            )
+            entries = (observed.get("switches") or {}).get(params.host_name, {}).get(
+                "ipv4_lpm"
+            ) or []
+            got = next((e for e in entries if e.get("prefix") == prefix), None)
+            verified = (
+                got is not None
+                and prefix is not None
+                and group_id is not None
+                and int(got.get("group_id") or -1) == int(group_id)
+            )
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=verified,
+                details={
+                    "params.host_name": params.host_name,
+                    "prefix": prefix,
+                    "expected_group_id": group_id,
+                    "observed": got,
+                },
+            )
         if self._misconfig_details:
             table_name = self._misconfig_details["table_name"]
             handle = self._misconfig_details["entry_handle"]

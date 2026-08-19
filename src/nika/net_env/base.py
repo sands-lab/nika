@@ -79,8 +79,10 @@ class NetworkEnvBase:
 
             elif "sdn" in image:
                 self.ovs_switches.append(machine)
-            elif "pox" in image:
+            elif "pox" in image or "onos" in image:
                 self.sdn_controllers.append(machine)
+            elif "fabric-controller" in image:
+                pass
             elif "k3s" in image:
                 pass  # k8s nodes are tracked via kubernetes_nodes on kubernetes labs
             else:

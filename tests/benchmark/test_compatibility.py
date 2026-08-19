@@ -71,6 +71,21 @@ def test_http_not_on_clos_host() -> None:
     assert not compatible("http_acl_block", "dc_clos/host")
 
 
+def test_p4_dc_fabric_tags() -> None:
+    assert "p4_dc_fabric" in coverage_columns()
+    assert compatible("bmv2_switch_down", "p4_dc_fabric")
+    assert compatible("p4_table_entry_missing", "p4_dc_fabric")
+    assert compatible("p4_action_selector_member_misconfig", "p4_dc_fabric")
+    assert compatible("http_acl_block", "p4_dc_fabric")
+    assert not compatible("p4_action_selector_member_misconfig", "p4_bloom_filter")
+    assert not compatible("p4_compilation_error_parser_state", "p4_dc_fabric")
+    assert not compatible("sdn_controller_crash", "p4_dc_fabric")
+
+
+def test_p4_counter_omitted_from_working_coverage() -> None:
+    assert "p4_counter" not in coverage_columns()
+
+
 def test_dc_clos_host_omits_dns_http() -> None:
     tags = effective_tags("dc_clos/host")
     assert "bgp" in tags

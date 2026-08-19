@@ -234,9 +234,7 @@ class IntegrationMixin:
         gt = json.loads(gt_path.read_text(encoding="utf-8"))
         assert gt.get("schema_version") == 3
         assert gt.get("root_causes"), f"missing root_causes for {problem}"
-        fault_types = {
-            item.get("fault_type") for item in gt.get("root_causes") or []
-        }
+        fault_types = {item.get("fault_type") for item in gt.get("root_causes") or []}
         assert problem in fault_types
         for item in gt["root_causes"]:
             resource_id = item.get("resource_id") or (item.get("resource") or {}).get(

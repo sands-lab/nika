@@ -14,7 +14,9 @@ ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
 ROUTING_KEYWORDS = frozenset({"bgp", "ospf", "rip", "frr", "routing"})
-SWITCH_KEYWORDS = frozenset({"p4", "bmv2", "sdn", "bloom", "mpls", "int", "counter"})
+# P4/BMv2 only — OVS SDN scenarios use kathara_sdn_mcp_server.
+SWITCH_KEYWORDS = frozenset({"p4", "bmv2", "bloom", "mpls", "int", "counter"})
+SDN_KEYWORDS = frozenset({"sdn"})
 TELEMETRY_KEYWORDS = frozenset({"telemetry"})
 KUBERNETES_KEYWORDS = frozenset({"kubernetes", "k3s", "k8s"})
 
@@ -66,6 +68,12 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         backend="kathara",
         role="switch",
         module="kathara/bmv2_server.py",
+    ),
+    "kathara_sdn_mcp_server": MCPServerSpec(
+        name="kathara_sdn_mcp_server",
+        backend="kathara",
+        role="switch",
+        module="kathara/sdn_server.py",
     ),
     "kathara_telemetry_mcp_server": MCPServerSpec(
         name="kathara_telemetry_mcp_server",
@@ -166,6 +174,8 @@ def select_diagnosis_servers(
         servers.append("kathara_frr_mcp_server")
     if tokens & SWITCH_KEYWORDS:
         servers.append("kathara_bmv2_mcp_server")
+    if tokens & SDN_KEYWORDS:
+        servers.append("kathara_sdn_mcp_server")
     if tokens & TELEMETRY_KEYWORDS:
         servers.append("kathara_telemetry_mcp_server")
     if tokens & KUBERNETES_KEYWORDS and _k8s_mcp_enabled():

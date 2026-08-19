@@ -1,0 +1,9 @@
+FROM nika/base
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3-pip python3-venv iproute2 iputils-ping && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /opt/nika /tmp/p4_fabric
+
+RUN pip3 install --break-system-packages --no-cache-dir p4runtime-shell \
+    || pip3 install --no-cache-dir p4runtime-shell

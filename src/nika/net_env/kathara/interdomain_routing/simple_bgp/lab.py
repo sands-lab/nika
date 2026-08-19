@@ -22,15 +22,11 @@ class SimpleBGP(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = "A simple BGP network with two routers and two pcs."
 
-        router1 = self.lab.new_machine(
-            "router1", **{"image": "kathara/nika-frr", "cpus": 1}
-        )
-        router2 = self.lab.new_machine(
-            "router2", **{"image": "kathara/nika-frr", "cpus": 1}
-        )
+        router1 = self.lab.new_machine("router1", **{"image": "nika/frr", "cpus": 1})
+        router2 = self.lab.new_machine("router2", **{"image": "nika/frr", "cpus": 1})
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "kathara/nika-base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "kathara/nika-base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": "nika/base"})
+        pc2 = self.lab.new_machine("pc2", **{"image": "nika/base"})
 
         self.lab.connect_machine_to_link(router1.name, "A")
         self.lab.connect_machine_to_link(router2.name, "A")

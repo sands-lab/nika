@@ -288,7 +288,6 @@ class TestReleaseDockerSmoke:
             "simple_bgp",
             "p4_bloom_filter",
             "p4_mpls",
-            "p4_counter",
             "p4_int",
         }
     )

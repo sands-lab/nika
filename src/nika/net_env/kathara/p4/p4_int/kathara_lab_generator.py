@@ -56,7 +56,7 @@ def generate_p4_int_topology(output_dir: str | None = None) -> str:
 
     pc1 = MachineMeta(name="pc1", image="kathara/base")
     pc2 = MachineMeta(name="pc2", image="kathara/base")
-    collector = MachineMeta(name="collector", image="kathara/influxdb")
+    collector = MachineMeta(name="collector", image="nika/influxdb")
     spine1 = MachineMeta(name="spine1", image="kathara/p4")
     spine2 = MachineMeta(name="spine2", image="kathara/p4")
     leaf1 = MachineMeta(name="leaf1", image="kathara/p4")

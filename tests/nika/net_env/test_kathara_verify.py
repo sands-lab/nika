@@ -14,10 +14,10 @@ from nika.net_env.kathara.interdomain_routing.simple_bgp.verify import (
 from nika.net_env.kathara.kubernetes.k8s_lab.verify import verify_k8s_lab
 from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab
 from nika.net_env.kathara.p4.p4_bloom_filter.verify import verify_p4_bloom_filter_lab
-from nika.net_env.kathara.p4.p4_counter.verify import verify_p4_counter_lab
 from nika.net_env.kathara.p4.p4_int.verify import verify_p4_int_lab
 from nika.net_env.kathara.p4.p4_mpls.verify import verify_p4_mpls_lab
-from nika.net_env.kathara.sdn.verify import verify_sdn_clos_lab, verify_sdn_star_lab
+from nika.net_env.kathara.sdn.topology_model import build_clos_fabric_model
+from nika.net_env.kathara.sdn.verify import verify_sdn_l3_clos_lab
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
@@ -47,9 +47,22 @@ ALL_NODES = {
     "switch_0",
     "switch_1",
     "switch_2",
+    "onos",
+    "fabric_mgr",
     "spine_1",
+    "spine_2",
     "leaf_1",
     "leaf_2",
+    "leaf_3",
+    "leaf_4",
+    "web_1",
+    "web_2",
+    "web_3",
+    "web_4",
+    "client_1_1",
+    "client_2_1",
+    "client_3_1",
+    "client_4_1",
     "pc_1_1",
     "pc_2_1",
     "s1",
@@ -99,7 +112,13 @@ HOST_ADDRS = {
     "client_0": ("192.168.0.2",),
     "pc_1_1": ("10.0.0.1",),
     "pc_2_1": ("10.0.0.3",),
+    "web_1": ("10.0.1.11",),
+    "web_2": ("10.0.2.11",),
+    "client_1_1": ("10.0.1.12",),
+    "client_2_1": ("10.0.2.12",),
     "collector": ("10.0.0.3",),
+    "onos": ("172.31.0.100",),
+    "fabric_mgr": ("172.31.0.101",),
     "controller": ("201.1.1.2", "200.0.0.1"),
     "client": ("3.0.0.2", "200.0.0.7"),
     "hq_corp_pc": ("10.0.10.2",),
@@ -159,8 +178,36 @@ class FakeRuntime:
             return "123"
         if command == "pgrep -x python3":
             return "456"
+        if command == "pgrep -x java" or command.startswith("pgrep -af java"):
+            return "789 java"
+        if command.startswith("pgrep -af onos"):
+            return "789 onos"
         if command == "ovs-vsctl show":
             return "Bridge br0"
+        if "dump-flows" in command:
+            return "cookie=0x1, priority=30000,ip,nw_dst=10.0.2.0/24 actions=group:4098"
+        if "dump-groups" in command:
+            return (
+                "group_id=4098,type=select,selection_method=hash,"
+                "bucket=actions=output:eth2,bucket=actions=output:eth3"
+            )
+        if "dump-ports" in command:
+            return "OFPST_PORT reply"
+        if "onos/v1/devices" in command:
+            return (
+                '{"devices":[{"id":"of:0000000000001001","available":true},'
+                '{"id":"of:0000000000001002","available":true},'
+                '{"id":"of:0000000000001003","available":true},'
+                '{"id":"of:0000000000001004","available":true},'
+                '{"id":"of:0000000000002001","available":true},'
+                '{"id":"of:0000000000002002","available":true}]}'
+            )
+        if "onos/v1/links" in command:
+            return '{"links":[{},{},{},{},{},{},{},{}]}'
+        if "onos/v1/hosts" in command:
+            return '{"hosts":[]}'
+        if command.startswith("ip neigh show"):
+            return "10.0.1.1 lladdr 02:00:00:00:00:01 REACHABLE"
         if command == "vtysh -c 'show bgp summary'":
             # Legacy short lines for frr_bgp_established(); modern lines for
             # enterprise_branch peer checks (cover scaled /30 tunnel peers).
@@ -302,19 +349,18 @@ class KatharaVerifyUnitTest:
             )
         )
 
-    def test_sdn_star_verify_passes(self) -> None:
-        assert_verify_success(verify_sdn_star_lab(FakeRuntime(), scenario_name="x"))
-
-    def test_sdn_clos_verify_passes(self) -> None:
-        assert_verify_success(verify_sdn_clos_lab(FakeRuntime(), scenario_name="x"))
+    def test_sdn_l3_clos_verify_passes(self) -> None:
+        model = build_clos_fabric_model("s")
+        assert_verify_success(
+            verify_sdn_l3_clos_lab(
+                FakeRuntime(), scenario_name="sdn_l3_clos", model=model
+            )
+        )
 
     def test_p4_bloom_filter_verify_passes(self) -> None:
         assert_verify_success(
             verify_p4_bloom_filter_lab(FakeRuntime(), scenario_name="x")
         )
-
-    def test_p4_counter_verify_passes(self) -> None:
-        assert_verify_success(verify_p4_counter_lab(FakeRuntime(), scenario_name="x"))
 
     def test_p4_int_verify_passes(self) -> None:
         assert_verify_success(verify_p4_int_lab(FakeRuntime(), scenario_name="x"))
@@ -399,14 +445,17 @@ SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
             "br2_corp_pc",
         ),
     ),
-    ("sdn_star", ["-s", "s"], ("controller", "switch_0", "switch_1", "pc1", "pc2")),
     (
-        "sdn_clos",
+        "sdn_l3_clos",
         ["-s", "s"],
-        ("controller", "spine_1", "leaf_1", "leaf_2", "pc_1_1", "pc_2_1"),
+        ("onos", "fabric_mgr", "spine_1", "leaf_1", "web_1", "client_1_1"),
+    ),
+    (
+        "p4_dc_fabric",
+        ["-s", "s"],
+        ("fabric_mgr", "spine_1", "leaf_1", "web_1", "client_1_1"),
     ),
     ("p4_bloom_filter", [], ("pc1", "pc2", "switch_1", "switch_2")),
-    ("p4_counter", [], ("pc1", "pc2", "pc3", "s1", "s2", "s3", "s4")),
     ("p4_int", [], ("pc1", "pc2", "collector", "leaf1", "leaf2", "spine1", "spine2")),
     ("p4_mpls", [], ("pc1", "pc2", "pc3", "switch_1", "switch_4", "switch_7")),
 )

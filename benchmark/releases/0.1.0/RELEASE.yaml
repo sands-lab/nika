@@ -33,11 +33,11 @@ images:
   required:
   - kathara/base
   - kathara/frr
-  - kathara/nika-base
-  - kathara/nika-frr
-  - kathara/nika-nginx
-  - kathara/nika-pox
-  - kathara/nika-wireguard
+  - nika/base
+  - nika/frr
+  - nika/nginx
+  - nika/pox
+  - nika/wireguard
   - kathara/p4
   - kathara/sdn
 scenario_problem_pin:

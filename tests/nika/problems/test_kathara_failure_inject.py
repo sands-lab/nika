@@ -161,10 +161,6 @@ class P4MisconfigVerifyTest(PerTestEnvTestCase):
         self._inject_failure("p4_aggressive_detection_thresholds")
         self._assert_failure_injected("p4_aggressive_detection_thresholds")
 
-
-class Bmv2SwitchDownVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "p4_counter"
-
     def test_bmv2_switch_down(self) -> None:
         self._inject_failure("bmv2_switch_down")
         self._assert_failure_injected("bmv2_switch_down")
@@ -203,7 +199,7 @@ class FrrDownVerifyTest(PerTestEnvTestCase):
 
 
 class SDNControllerVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "sdn_star"
+    SCENARIO = "sdn_l3_clos"
     ENV_RUN_ARGS = ["-s", "s"]
 
     def test_sdn_controller_crash(self) -> None:

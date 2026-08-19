@@ -228,26 +228,28 @@ cases:
       kind: node
       node: dns_server
     fault_type: dns_service_down
-- scenario: sdn_clos
+- scenario: sdn_l3_clos
   topo_size: s
   problem: flow_rule_loop
   inject:
     host_name: leaf_2
-    host_name_2: leaf_1
+    host_name_2: spine_2
+    port_name: eth3
+    port_name_2: eth1
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: flow_rule_loop
+- scenario: sdn_l3_clos
+  topo_size: s
+  problem: flow_rule_shadowing
+  inject:
+    host_name: leaf_1
   root_causes:
   - resource:
       kind: node
       node: leaf_1
-    fault_type: flow_rule_loop
-- scenario: sdn_clos
-  topo_size: s
-  problem: flow_rule_shadowing
-  inject:
-    host_name: spine_1
-  root_causes:
-  - resource:
-      kind: node
-      node: spine_1
     fault_type: flow_rule_shadowing
 - scenario: campus_lan
   topo_size: s
@@ -545,6 +547,16 @@ cases:
       kind: node
       node: server_access_router
     fault_type: ospf_neighbor_missing
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_action_selector_member_misconfig
+  inject:
+    host_name: leaf_2
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: p4_action_selector_member_misconfig
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_aggressive_detection_thresholds
@@ -565,6 +577,16 @@ cases:
       kind: node
       node: switch_1
     fault_type: p4_compilation_error_parser_state
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_ecmp_group_member_missing
+  inject:
+    host_name: leaf_2
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: p4_ecmp_group_member_missing
 - scenario: p4_bloom_filter
   topo_size: null
   problem: p4_header_definition_error
@@ -595,6 +617,36 @@ cases:
       kind: node
       node: switch_1
     fault_type: p4_table_entry_missing
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_table_resource_exhaustion
+  inject:
+    host_name: leaf_2
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: p4_table_resource_exhaustion
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4runtime_partial_write
+  inject:
+    host_name: leaf_4
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_4
+    fault_type: p4runtime_partial_write
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4runtime_pipeline_mismatch
+  inject:
+    host_name: leaf_2
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_2
+    fault_type: p4runtime_pipeline_mismatch
 - scenario: campus_lan
   topo_size: s
   problem: receiver_resource_contention
@@ -607,15 +659,15 @@ cases:
       kind: node
       node: pc_2_1_1_1
     fault_type: receiver_resource_contention
-- scenario: sdn_clos
+- scenario: sdn_l3_clos
   topo_size: s
   problem: sdn_controller_crash
   inject:
-    host_name: controller
+    host_name: onos
   root_causes:
   - resource:
       kind: node
-      node: controller
+      node: onos
     fault_type: sdn_controller_crash
 - scenario: campus_lan
   topo_size: s
@@ -640,28 +692,28 @@ cases:
       kind: node
       node: web_server_1
     fault_type: sender_resource_contention
-- scenario: sdn_clos
+- scenario: sdn_l3_clos
   topo_size: s
   problem: southbound_port_block
   inject:
-    host_name: controller
-    southbound_port: '6633'
+    host_name: onos
+    southbound_port: '6653'
   root_causes:
   - resource:
       kind: node
-      node: controller
+      node: onos
     fault_type: southbound_port_block
-- scenario: sdn_clos
+- scenario: sdn_l3_clos
   topo_size: s
   problem: southbound_port_mismatch
   inject:
-    host_name: controller
-    mismatched_port: '6653'
-    original_port: '6633'
+    host_name: onos
+    mismatched_port: '6633'
+    original_port: '6653'
   root_causes:
   - resource:
       kind: node
-      node: controller
+      node: onos
     fault_type: southbound_port_mismatch
 - scenario: enterprise_branch
   topo_size: s

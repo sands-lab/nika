@@ -12,7 +12,7 @@ MEASUREMENT = "flow_stat"
 
 
 @pytest.mark.skipif(
-    not p4_int_prerequisites(), reason="Docker or kathara/influxdb image not available"
+    not p4_int_prerequisites(), reason="Docker or nika/influxdb image not available"
 )
 class KatharaTelemetryApiSmokeTest(KatharaScenarioApiSmokeTest):
     SCENARIO = "p4_int"

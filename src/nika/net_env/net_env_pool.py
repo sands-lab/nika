@@ -78,6 +78,17 @@ _ENTERPRISE_BRANCH_ALIASES: set[str] = {
     "rip_small_internet_vpn",
     "enterprise_branch_vpn",
 }
+SDN_L3_CLOS_SCENARIO = "sdn_l3_clos"
+# Retired POX L2 labs; frozen releases may still name them.
+_SDN_L3_CLOS_ALIASES: set[str] = {
+    "sdn_star",
+    "sdn_clos",
+}
+P4_DC_FABRIC_SCENARIO = "p4_dc_fabric"
+# Retired Thrift L2 counter lab; frozen releases may still name it.
+_P4_DC_FABRIC_ALIASES: set[str] = {
+    "p4_counter",
+}
 
 _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     "dc_clos": NetEnvSpec(
@@ -117,19 +128,11 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
-    "sdn_star": NetEnvSpec(
-        lab_name="sdn_star",
-        module="nika.net_env.kathara.sdn.star_topo",
-        class_name="SDNStar",
-        tags=("link", "sdn", "pc", "mac", "arp", "icmp"),
-        supported_backends=("kathara",),
-        topo_size=["s", "m", "l"],
-    ),
-    "sdn_clos": NetEnvSpec(
-        lab_name="sdn_clos",
-        module="nika.net_env.kathara.sdn.clos_topo",
-        class_name="SDNClos",
-        tags=("link", "sdn", "pc", "mac", "arp", "icmp"),
+    "sdn_l3_clos": NetEnvSpec(
+        lab_name="sdn_l3_clos",
+        module="nika.net_env.kathara.sdn.l3_clos_topo",
+        class_name="SDNL3Clos",
+        tags=("link", "sdn", "pc", "mac", "arp", "icmp", "http"),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
@@ -138,13 +141,6 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         module="nika.net_env.kathara.p4.p4_bloom_filter.lab",
         class_name="P4BloomFilter",
         tags=("link", "pc", "p4", "mac", "arp", "icmp", "bloom_filter"),
-        supported_backends=("kathara",),
-    ),
-    "p4_counter": NetEnvSpec(
-        lab_name="p4_counter",
-        module="nika.net_env.kathara.p4.p4_counter.lab",
-        class_name="P4Counter",
-        tags=("link", "pc", "p4", "mac", "arp", "icmp"),
         supported_backends=("kathara",),
     ),
     "p4_int": NetEnvSpec(
@@ -160,6 +156,14 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         class_name="P4_MPLS",
         tags=("link", "pc", "p4", "mac", "arp", "icmp", "mpls"),
         supported_backends=("kathara",),
+    ),
+    "p4_dc_fabric": NetEnvSpec(
+        lab_name="p4_dc_fabric",
+        module="nika.net_env.kathara.p4.p4_dc_fabric.lab",
+        class_name="P4DcFabric",
+        tags=("link", "pc", "p4", "p4_runtime", "mac", "arp", "icmp", "http"),
+        supported_backends=("kathara",),
+        topo_size=["s", "m", "l"],
     ),
     "simple_bgp": NetEnvSpec(
         lab_name="simple_bgp",
@@ -272,6 +276,10 @@ def resolve_scenario_ref(scenario_name: str) -> tuple[str, str | None]:
         return CAMPUS_LAN_SCENARIO, _CAMPUS_LAN_ALIASES[scenario_name]
     if scenario_name in _ENTERPRISE_BRANCH_ALIASES:
         return ENTERPRISE_BRANCH_SCENARIO, None
+    if scenario_name in _SDN_L3_CLOS_ALIASES:
+        return SDN_L3_CLOS_SCENARIO, None
+    if scenario_name in _P4_DC_FABRIC_ALIASES:
+        return P4_DC_FABRIC_SCENARIO, None
     if scenario_name in _NET_ENV_SPECS:
         return scenario_name, None
     raise ValueError(f"Network environment '{scenario_name}' not found in the pool.")

@@ -1,3 +1,5 @@
+"""SDN controller / southbound failure implementations (ONOS)."""
+
 from pydantic import BaseModel, Field
 
 from nika.problems.root_cause import node_resource
@@ -15,9 +17,8 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
-# ==================================================================
-# Problem: SDN controller crash
-# ==================================================================
+ONOS_OF_PORT_DEFAULT = 6653
+ONOS_OF_PORT_MISMATCH = 6633
 
 
 class SDNControllerCrashParams(BaseModel):
@@ -45,15 +46,40 @@ class SDNControllerCrash(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: SDNControllerCrashParams):
-        self.runtime.exec(params.host_name, "pkill -f pox.py")
+        # ONOS runs as a Java/karaf process; also match legacy POX if present.
+        # nika/onos PID 1 is a keeper script, so killing Java leaves the
+        # container exec-able for verify_fault.
+        self.runtime.exec(
+            params.host_name,
+            "pkill -f 'onos-service|org.apache.karaf|java.*onos' || "
+            "pkill -f pox.py || true; "
+            "sleep 1",
+        )
 
     def verify_fault(self, params: SDNControllerCrashParams) -> dict:
-        """Verify POX controller is NOT running on the SDN controller."""
-        pgrep_output = self.runtime.exec(
-            params.host_name,
-            "pgrep -af pox 2>/dev/null | grep -v 'pgrep\\|bash\\|grep' | grep . || echo NONE",
-        ).strip()
-        verified = pgrep_output == "NONE" or "pox" not in pgrep_output
+        try:
+            pgrep_output = self.runtime.exec(
+                params.host_name,
+                "pgrep -af 'onos-service|karaf|java.*onos|pox.py' 2>/dev/null "
+                "| grep -v 'pgrep\\|bash\\|grep\\|onos-entrypoint\\|sleep infinity' "
+                "| grep . || echo NONE",
+            ).strip()
+        except Exception as exc:  # noqa: BLE001
+            # Container exited with the controller process (legacy images).
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=True,
+                details={
+                    "host": params.host_name,
+                    "pgrep_output": f"exec_failed: {exc}",
+                },
+            )
+        verified = pgrep_output == "NONE" or (
+            "onos" not in pgrep_output
+            and "karaf" not in pgrep_output
+            and "pox" not in pgrep_output
+            and "java" not in pgrep_output
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -61,16 +87,13 @@ class SDNControllerCrash(ProblemBase):
         )
 
 
-# ==================================================================
-# Problem: Southbound port block
-# ==================================================================
-
-
 class SouthboundPortBlockParams(BaseModel):
     """Parameters for injecting a southbound port block fault."""
 
     host_name: str = Field(description="Target SDN controller host name.")
-    southbound_port: int = Field(default=6633, description="Port to block.")
+    southbound_port: int = Field(
+        default=ONOS_OF_PORT_DEFAULT, description="Port to block."
+    )
 
 
 class SouthboundPortBlock(ProblemBase):
@@ -97,7 +120,6 @@ class SouthboundPortBlock(ProblemBase):
         )
 
     def verify_fault(self, params: SouthboundPortBlockParams) -> dict:
-        """Verify nftables has a rule blocking the southbound port."""
         nft_output = self.runtime.exec(
             params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()
@@ -111,18 +133,17 @@ class SouthboundPortBlock(ProblemBase):
         )
 
 
-# ==================================================================
-# Problem: Southbound port mismatch
-# ==================================================================
-
-
 class SouthboundPortMismatchParams(BaseModel):
     """Parameters for injecting a southbound port mismatch fault."""
 
     host_name: str = Field(description="Target SDN controller host name.")
-    mismatched_port: int = Field(default=6653, description="Port used after restart.")
+    mismatched_port: int = Field(
+        default=ONOS_OF_PORT_MISMATCH,
+        description="Port used after reconfigure (switches keep original).",
+    )
     original_port: int = Field(
-        default=6633, description="Expected original OpenFlow port."
+        default=ONOS_OF_PORT_DEFAULT,
+        description="Expected original OpenFlow port.",
     )
 
 
@@ -145,33 +166,40 @@ class SouthboundPortMismatch(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: SouthboundPortMismatchParams):
-        self.runtime.exec(params.host_name, "pkill -f pox.py")
+        # Block the original OpenFlow port and listen on the mismatched port so
+        # switches still targeting original_port fail to session while evidence
+        # shows a listener on the wrong port.
+        self.runtime.add_nft_drop_rule(
+            params.host_name, f"tcp dport {params.original_port} drop"
+        )
         self.runtime.exec(
             params.host_name,
-            f"python3 /pox/pox.py openflow.of_01 --port={params.mismatched_port} forwarding.l2_learning &",
+            f'nohup python3 -c "import socket,time;s=socket.socket();'
+            f"s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);"
+            f"s.bind(('0.0.0.0',{params.mismatched_port}));s.listen(1);"
+            f'time.sleep(3600)" >/tmp/of_mismatch.log 2>&1 &',
         )
 
     def verify_fault(self, params: SouthboundPortMismatchParams) -> dict:
-        """Verify POX controller is running with the mismatched port."""
-        pgrep_output = self.runtime.exec(
-            params.host_name,
-            "pgrep -af pox 2>/dev/null | grep -v 'pgrep\\|bash\\|grep' | grep . || echo NONE",
+        nft_output = self.runtime.exec(
+            params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()
-        running = "pox" in pgrep_output and pgrep_output != "NONE"
-        has_port = str(params.mismatched_port) in pgrep_output
-        verified = running and has_port
+        listen = self.runtime.exec(
+            params.host_name,
+            f"ss -lnt 2>/dev/null | grep ':{params.mismatched_port} ' || "
+            f"netstat -lnt 2>/dev/null | grep ':{params.mismatched_port} ' || echo NONE",
+        ).strip()
+        blocked = (
+            f"tcp dport {params.original_port}" in nft_output and "drop" in nft_output
+        )
+        listening = listen != "NONE" and str(params.mismatched_port) in listen
+        verified = blocked and listening
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
-            details={"host": params.host_name, "pgrep_output": pgrep_output},
+            details={
+                "host": params.host_name,
+                "nft_output": nft_output,
+                "listen": listen,
+            },
         )
-
-
-# ==================================================================
-# Problem: Flow rule shadowing
-# ==================================================================
-
-
-# ==================================================================
-# Problem: Flow rule loop
-# ==================================================================
