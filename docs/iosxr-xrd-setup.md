@@ -40,7 +40,25 @@ If the tag is missing, `nika env run iosxr_simple_bgp` fails fast with a
 `RuntimeError` that repeats the `docker load` / `docker tag` steps above
 instead of deploying a broken lab.
 
-## 4. Deploy
+
+
+## 4. Configure the host
+
+Cisco IOS XR (>=7.9.2) uses the official XRd Control Plane Docker image. You
+need to properly configure the host machine before running the XRd
+container. See
+[this tutorial](https://xrdocs.io/virtual-routing/tutorials/2022-08-22-setting-up-host-environment-to-run-xrd)
+for more information.
+
+Particularly, you have to increase the `fs.inotify.max_user_instances` and
+`fs.inotify.max_user_watches` to at least 64000:
+
+```shell
+sysctl -w fs.inotify.max_user_instances=64000
+sysctl -w fs.inotify.max_user_watches=64000
+```
+
+## 5. Deploy
 
 ```shell
 uv run nika env run iosxr_simple_bgp
