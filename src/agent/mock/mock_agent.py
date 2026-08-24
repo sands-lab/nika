@@ -152,6 +152,8 @@ def _mock_diagnosis_tool_calls(
         router = _pick_router(devices) or (preferred[0] if preferred else None)
         if router and "kathara_frr_mcp_server" in server_names:
             calls.append(("frr_show_ip_route", {"router_name": router}))
+        elif router and "kathara_iosxr_mcp_server" in server_names:
+            calls.append(("iosxr_show_route", {"router_name": router}))
     return calls
 
 

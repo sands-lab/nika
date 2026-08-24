@@ -21,7 +21,7 @@ uv sync --extra kathara
 uv sync --extra containerlab
 ```
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `kathara/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment.
+`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `kathara/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image, see [Cisco IOS-XR (XRd) image setup](iosxr-xrd-setup.md).
 
 ## Scenario catalog
 
