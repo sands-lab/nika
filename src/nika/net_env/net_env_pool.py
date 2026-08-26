@@ -170,6 +170,13 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
+    "iosxr_simple_bgp": NetEnvSpec(
+        lab_name="iosxr_simple_bgp",
+        module="nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.lab",
+        class_name="IosXrSimpleBGP",
+        tags=("arp", "link", "bgp", "icmp", "iosxr", "pc"),
+        supported_backends=("kathara",),
+    ),
     "isp": NetEnvSpec(
         lab_name="isp",
         module="nika.net_env.isp.kathara.lab",

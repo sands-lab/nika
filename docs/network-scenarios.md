@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists 10 scenario IDs through `nika env list`. Nine use one backend; `isp` supports both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists 11 scenario IDs through `nika env list`. Ten use one backend; `isp` supports both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -14,7 +14,7 @@ Kathará scenarios need Docker and the Kathará dependency group. Containerlab s
 
 Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../README.md#-installation) covers the full installation flow.
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. The Kubernetes scenarios download k3s and workload images during deployment.
+`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image; see [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
 
 ## Scenario catalog
 
@@ -26,6 +26,7 @@ Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--e
 | `sdn_l3_clos` | Kathara | `-s s\|m\|l` |  | ONOS + OVS L3 Clos with SELECT ECMP |
 | `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
 | `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
+| `iosxr_simple_bgp` | Kathara | Fixed |  | Two Cisco XRd routers with eBGP and two PCs |
 | `isp` | Kathara or Containerlab | `s`, `m`, `l` | Size and protocol options | SNDlib topology compiled to FRR or SR Linux |
 | `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
 | `k8s_lab` | Kathara | Fixed |  | FRR fat-tree with a six-node k3s cluster |
@@ -229,6 +230,39 @@ The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, p
 uv run nika env run p4_dc_gateway -s s
 uv run nika traffic run burst --sources client_1,client_2 --destination service_1_1 --protocol tcp --rate 10M --packet-size 1200 --duration 10 --seed 42
 ```
+
+## IOS-XR simple BGP scenario
+
+### `iosxr_simple_bgp`
+
+Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. Cisco licensing blocks redistributing or auto-building the image like `nika/*`, so you load and tag it before deploy.
+
+1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
+
+2. Load and tag it to the image reference in [`lab.py`](../src/nika/net_env/kathara/interdomain_routing/iosxr_simple_bgp/lab.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
+
+```shell
+docker load -i xrd-control-plane-container-x86_64-<version>.tgz
+docker tag <loaded-repo>:<loaded-tag> ios-xr/xrd-control-plane:26.2.1
+docker images | grep xrd-control-plane
+```
+
+If the tag is missing, `nika env run iosxr_simple_bgp` raises a `RuntimeError` with the same `docker load` / `docker tag` steps instead of deploying a broken lab.
+
+3. Raise host inotify limits (XRd Control Plane, IOS XR >= 7.9.2). See the [XRd host setup tutorial](https://xrdocs.io/virtual-routing/tutorials/2022-08-22-setting-up-host-environment-to-run-xrd):
+
+```shell
+sysctl -w fs.inotify.max_user_instances=64000
+sysctl -w fs.inotify.max_user_watches=64000
+```
+
+4. Deploy:
+
+```shell
+uv run nika env run iosxr_simple_bgp
+```
+
+Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.py`). XRd ZTP can briefly race the container network namespace at first boot; the router startup scripts retry config apply until that clears, so a slow first boot is expected.
 
 ## SNDlib ISP scenario
 
