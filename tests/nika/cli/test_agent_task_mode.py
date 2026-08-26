@@ -106,7 +106,7 @@ class TestAgentRunTaskMode:
                     "-a",
                     "cli.claude",
                     "--problem",
-                    "dc_clos_bgp_s_link_down",
+                    "dc_clos_s_link_down",
                     "--set",
                     "host_name=pc_0_1",
                 ],
@@ -118,7 +118,7 @@ class TestAgentRunTaskMode:
         assert run_mock.call_args.kwargs["scenario"] == "dc_clos"
         assert run_mock.call_args.kwargs["topo_size"] == "s"
         assert run_mock.call_args.kwargs["problem"] == "link_down"
-        assert run_mock.call_args.kwargs["workload"] == "host"
+        assert "workload" not in run_mock.call_args.kwargs
 
     def test_session_mode_still_calls_start_agent(self) -> None:
         with patch(

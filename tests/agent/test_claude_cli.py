@@ -124,6 +124,42 @@ class ClaudeWorkerConfigTest:
                 llm_provider="anthropic",
             )
 
+    @pytest.mark.parametrize(
+        ("phase", "expected_servers"),
+        [
+            ("diagnosis", {"kathara_base_mcp_server"}),
+            ("submission", {"task_mcp_server"}),
+        ],
+    )
+    def test_mcp_config_exposes_only_current_phase_servers(
+        self, tmp_path, phase: str, expected_servers: set[str]
+    ) -> None:
+        worker = ClaudeWorker(
+            session_id="sess-123",
+            session_dir=str(tmp_path),
+            phase=phase,
+            model="test-model",
+            llm_provider="anthropic",
+        )
+        worker.workspace.mkdir()
+        servers = {
+            "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
+            "task_mcp_server": {"transport": "http", "url": "http://task"},
+        }
+        with (
+            unittest.mock.patch(
+                "agent.cli.claude.claude_worker.load_session_mcp_config",
+                return_value=servers,
+            ),
+            unittest.mock.patch(
+                "agent.cli.claude.claude_worker.begin_submission_mcp_phase"
+            ),
+        ):
+            worker._write_mcp_config()
+
+        config = json.loads(worker._mcp_config_path.read_text())
+        assert set(config["mcpServers"]) == expected_servers
+
 
 class ClaudeDisplayTest:
     """Claude Code stream-json event formatting."""

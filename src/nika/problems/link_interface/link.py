@@ -1,5 +1,3 @@
-import shlex
-
 from pydantic import BaseModel, Field
 
 from nika.problems.problem_base import (
@@ -9,6 +7,8 @@ from nika.problems.problem_base import (
 )
 from nika.problems.topology_inventory import interface_on
 from nika.runtime.base import RuntimeCapabilityError
+from nika.service.containerlab.host_tc import HostTcController
+from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 from nika.utils.logger import system_logger
 
 
@@ -23,7 +23,7 @@ def _resolve_link_intf(params_intf: str, backend: str) -> str:
 
 
 # ==================================================================
-# Problem: Link failure by ip link down on host interface
+# Problem: Link failure through controller-owned link endpoints
 # ==================================================================
 
 
@@ -46,8 +46,6 @@ class LinkFailure(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
-        self.down_time = 1
-        self.up_time = 1
 
     def root_cause_resources(self, params: LinkFailureParams):
         return [interface_on(self.net_env, params.host_name, params.intf_name)]
@@ -66,15 +64,19 @@ class LinkFailure(ProblemBase):
     def _inject_link_down_kathara(self, params: LinkFailureParams) -> None:
         intf = _resolve_link_intf(params.intf_name, "kathara")
         self.faulty_intf = intf
-        self.runtime.set_interface_state(params.host_name, intf, "down")
+        controller = KatharaVdeFaultProxy(self.runtime)
+        self._proxy = controller.insert(params.host_name, intf)
+        controller.set_netem_loss(self._proxy, 100)
 
     def _inject_link_down_containerlab(self, params: LinkFailureParams) -> None:
         intf = _resolve_link_intf(params.intf_name, "containerlab")
         self.faulty_intf = intf
-        self.runtime.set_interface_state(params.host_name, intf, "down")
+        self._host_veth = HostTcController(self.runtime).set_netem_loss(
+            params.host_name, intf, 100
+        )
 
     def verify_fault(self, params: LinkFailureParams) -> dict:
-        """Verify the link-down fault is active by reading the interface operstate from the container."""
+        """Verify the controller-side loss rule that models the link-down state."""
         match self.lab_backend:
             case "kathara":
                 return self._verify_link_down_kathara(params)
@@ -87,27 +89,64 @@ class LinkFailure(ProblemBase):
 
     def _verify_link_down_kathara(self, params: LinkFailureParams) -> dict:
         intf = _resolve_link_intf(params.intf_name, "kathara")
-        return self._verify_link_down(params, intf)
+        controller = KatharaVdeFaultProxy(self.runtime)
+        proxy = getattr(self, "_proxy", None) or controller.discover(
+            params.host_name, intf
+        )
+        return self._verify_link_down(
+            params, intf, proxy is not None and controller.netem_configured(proxy)
+        )
 
     def _verify_link_down_containerlab(self, params: LinkFailureParams) -> dict:
         intf = _resolve_link_intf(params.intf_name, "containerlab")
-        return self._verify_link_down(params, intf)
+        controller = HostTcController(self.runtime)
+        peer = getattr(self, "_host_veth", None) or controller.peer_name(
+            params.host_name, intf
+        )
+        qdisc = controller.qdisc(peer).lower()
+        verified = "netem" in qdisc and "loss 100%" in qdisc
+        return self._verify_link_down(params, intf, verified)
 
-    def _verify_link_down(self, params: LinkFailureParams, intf: str) -> dict:
-        operstate = self.runtime.get_interface_operstate(params.host_name, intf)
+    def _verify_link_down(
+        self, params: LinkFailureParams, intf: str, verified: bool
+    ) -> dict:
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=operstate == "down",
+            verified=verified,
             details={
                 "host": params.host_name,
                 "intf": intf,
-                "operstate": operstate,
             },
         )
 
+    def recover_fault(self, params: LinkFailureParams) -> dict:
+        """Restore the controller-owned link endpoint."""
+        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
+        if self.lab_backend == "kathara":
+            controller = KatharaVdeFaultProxy(self.runtime)
+            proxy = getattr(self, "_proxy", None) or controller.discover(
+                params.host_name, intf
+            )
+            if proxy is not None:
+                controller.remove(proxy)
+            restored = (
+                proxy is None or controller.discover(params.host_name, intf) is None
+            )
+        else:
+            controller = HostTcController(self.runtime)
+            peer = getattr(self, "_host_veth", None) or controller.peer_name(
+                params.host_name, intf
+            )
+            controller.clear(peer)
+            restored = "netem" not in controller.qdisc(peer).lower()
+        return {
+            "verified": restored,
+            "details": {"host": params.host_name, "intf": intf},
+        }
+
 
 # ==========================================
-# Problem: Link flapping by manual script
+# Problem: Link flapping from controller-owned link endpoints
 # ==========================================
 
 
@@ -149,61 +188,34 @@ class LinkFlap(ProblemBase):
 
     def _inject_link_flap_kathara(self, params: LinkFlapParams) -> None:
         intf = _resolve_link_intf(params.intf_name, "kathara")
-        self._inject_link_flap(params, intf)
+        self._inject_link_flap(params, intf, backend="kathara")
 
     def _inject_link_flap_containerlab(self, params: LinkFlapParams) -> None:
         intf = _resolve_link_intf(params.intf_name, "containerlab")
-        self._inject_link_flap(params, intf)
+        self._inject_link_flap(params, intf, backend="containerlab")
 
-    def _inject_link_flap(self, params: LinkFlapParams, intf_name: str) -> None:
+    def _inject_link_flap(
+        self, params: LinkFlapParams, intf_name: str, *, backend: str
+    ) -> None:
         self.faulty_intf = intf_name
         if params.down_time <= 0 or params.up_time <= 0:
             raise ValueError("down_time and up_time must be positive integers")
-
-        script_path = f"/tmp/link_flap_{intf_name}.sh"
-        pid_path = f"/tmp/link_flap_{intf_name}.pid"
-        log_path = f"/tmp/link_flap_{intf_name}.log"
-
-        script = f"""#!/bin/bash
-IFACE={shlex.quote(intf_name)}
-DOWN_TIME={int(params.down_time)}
-UP_TIME={int(params.up_time)}
-PID_FILE={shlex.quote(pid_path)}
-
-cleanup() {{
-    ip link set $IFACE up >/dev/null 2>&1 || true
-    rm -f $PID_FILE
-}}
-trap cleanup EXIT INT TERM
-
-echo $$ > $PID_FILE
-while true; do
-    ip link set $IFACE down
-    sleep $DOWN_TIME
-    ip link set $IFACE up
-    sleep $UP_TIME
-done
-"""
-        write_cmd = f"cat <<'EOF' > {shlex.quote(script_path)}\n{script}\nEOF\nchmod +x {shlex.quote(script_path)}"
-        self.runtime.exec(params.host_name, write_cmd)
-
-        stop_previous_cmd = (
-            f"if [ -f {shlex.quote(pid_path)} ]; then "
-            f"kill $(cat {shlex.quote(pid_path)}) 2>/dev/null || true; "
-            f"rm -f {shlex.quote(pid_path)}; "
-            "fi"
-        )
-        self.runtime.exec(params.host_name, stop_previous_cmd)
-
-        start_cmd = f"nohup {shlex.quote(script_path)} > {shlex.quote(log_path)} 2>&1 < /dev/null &"
-        self.runtime.exec(params.host_name, start_cmd)
+        if backend == "kathara":
+            controller = KatharaVdeFaultProxy(self.runtime)
+            self._proxy = controller.insert(params.host_name, intf_name)
+            controller.start_link_flap(self._proxy, params.down_time, params.up_time)
+        else:
+            controller = HostTcController(self.runtime)
+            self._controller_target = controller.start_node_link_flap(
+                params.host_name, intf_name, params.down_time, params.up_time
+            )
         system_logger.info(
             f"Injected link flap on {params.host_name}:{intf_name} "
             f"(down_time={params.down_time}, up_time={params.up_time})"
         )
 
     def verify_fault(self, params: LinkFlapParams) -> dict:
-        """Verify the link-flap script is running by checking the pid file and process liveness."""
+        """Verify controller-side flap state without exposing it to lab nodes."""
         match self.lab_backend:
             case "kathara":
                 return self._verify_link_flap_kathara(params)
@@ -223,17 +235,51 @@ done
         return self._verify_link_flap(params, intf)
 
     def _verify_link_flap(self, params: LinkFlapParams, intf_name: str) -> dict:
-        pid_path = f"/tmp/link_flap_{intf_name}.pid"
-        running = self.runtime.pidfile_running(params.host_name, pid_path)
+        if self.lab_backend == "kathara":
+            controller = KatharaVdeFaultProxy(self.runtime)
+            proxy = getattr(self, "_proxy", None) or controller.discover(
+                params.host_name, intf_name
+            )
+            running = proxy is not None and controller.link_flap_running(proxy)
+        else:
+            controller = HostTcController(self.runtime)
+            target = getattr(self, "_controller_target", None) or (
+                f"{params.host_name}:{intf_name}"
+            )
+            running = controller.link_flap_running(target)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=running,
             details={
                 "host": params.host_name,
                 "intf": intf_name,
-                "flap_process": "running" if running else "not_running",
             },
         )
+
+    def recover_fault(self, params: LinkFlapParams) -> dict:
+        """Stop controller-side flapping and restore the logical link."""
+        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
+        if self.lab_backend == "kathara":
+            controller = KatharaVdeFaultProxy(self.runtime)
+            proxy = getattr(self, "_proxy", None) or controller.discover(
+                params.host_name, intf
+            )
+            if proxy is not None:
+                controller.remove(proxy)
+            restored = (
+                proxy is None or controller.discover(params.host_name, intf) is None
+            )
+        else:
+            controller = HostTcController(self.runtime)
+            target = getattr(self, "_controller_target", None) or (
+                f"{params.host_name}:{intf}"
+            )
+            controller.stop_node_link_flap(params.host_name, intf)
+            restored = not controller.link_flap_running(target)
+        return {
+            "verified": restored,
+            "details": {"host": params.host_name, "intf": intf},
+        }
 
 
 # ==========================================

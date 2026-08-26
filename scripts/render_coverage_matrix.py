@@ -1,7 +1,7 @@
 """Render failure × scenario coverage as HTML tables for docs.
 
-Compatibility is config-scoped (Clos/campus workload, ISP deploy variant), not
-whether ``benchmark_full.yaml`` sampled that column. Release membership overlays
+Compatibility is scenario-scoped (and ISP deploy-variant scoped), not whether
+``benchmark_full.yaml`` sampled that column. Release membership overlays
 ``benchmark/releases/0.1.0`` (dev + test).
 
 Tables use two real header rows (scenario, then config). Cells: blank =
@@ -46,6 +46,7 @@ DOMAIN_ORDER: tuple[FailureDomain, ...] = (
     FailureDomain.ADDRESSING_NEIGHBOR_NAMING,
     FailureDomain.ENDPOINT_APPLICATION,
     FailureDomain.TRAFFIC_QUEUEING_RESOURCE,
+    FailureDomain.SECURITY,
 )
 
 DOMAIN_LABEL: dict[FailureDomain, str] = {
@@ -57,6 +58,7 @@ DOMAIN_LABEL: dict[FailureDomain, str] = {
     FailureDomain.ADDRESSING_NEIGHBOR_NAMING: "Addressing, Neighbor & Naming",
     FailureDomain.ENDPOINT_APPLICATION: "Endpoint & Application",
     FailureDomain.TRAFFIC_QUEUEING_RESOURCE: "Traffic, Queueing & Resource",
+    FailureDomain.SECURITY: "Security",
 }
 
 SCENARIO_DISPLAY: dict[str, str] = {
@@ -65,12 +67,8 @@ SCENARIO_DISPLAY: dict[str, str] = {
     "enterprise_branch": "enterprise",
     "k8s_lab": "k8s",
     "llmd_lab": "llmd",
-    "p4_bloom_filter": "p4_bloom",
-    "p4_int": "p4_int",
-    "p4_mpls": "p4_mpls",
     "p4_dc_fabric": "p4_dc_fabric",
     "sdn_l3_clos": "sdn_l3_clos",
-    "simple_bgp": "simple_bgp",
     "min3clos": "min3clos",
     "isp": "isp",
 }
@@ -81,9 +79,6 @@ MARK_RELEASE = "●"
 
 def _column_label(row: dict) -> str:
     scenario = str(row["scenario"])
-    workload = row.get("workload")
-    if workload:
-        return f"{scenario}/{workload}"
     if scenario == ISP_SCENARIO:
         return (
             f"{ISP_SCENARIO}/"
@@ -244,8 +239,8 @@ def render_section(*, release_dir: Path) -> str:
         "\n"
         "Cells mark **capability**, not whether `benchmark_full.yaml` sampled "
         "that config. A failure is compatible when its tags and deploy "
-        "constraints match the scenario config (Clos/campus `workload`, ISP "
-        "`topo`/`igp`/`bgp_mode` profile). `benchmark_full.yaml` remains a "
+        "constraints match the scenario and ISP `topo`/`igp`/`bgp_mode` "
+        "profile. `benchmark_full.yaml` remains a "
         "one-config-per-failure runnable sample. Release membership comes from "
         f"`benchmark/releases/{release_name}/` (dev + test).\n"
         "\n"

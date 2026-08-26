@@ -37,11 +37,6 @@ def materialize_case(
     scenario = str(row["scenario"])
     problem = str(row["problem"])
     topo = _topo_size(row)
-    workload = row.get("workload")
-    if workload in ("-", "", None):
-        workload = None
-    else:
-        workload = str(workload)
     isp_topo = row.get("topo")
     isp_igp = row.get("igp")
     isp_bgp = row.get("bgp_mode")
@@ -64,16 +59,13 @@ def materialize_case(
     cache_key = (
         scenario,
         topo,
-        workload or "",
         isp_kwargs.get("topo", ""),
         isp_kwargs.get("igp", ""),
         isp_kwargs.get("bgp_mode", ""),
         str(isp_kwargs.get("rpki", False)),
     )
     if cache_key not in cache:
-        cache[cache_key] = load_offline_net_env(
-            scenario, topo, workload=workload, **isp_kwargs
-        )
+        cache[cache_key] = load_offline_net_env(scenario, topo, **isp_kwargs)
     gt = ground_truth_for_case(
         problem=problem,
         params=inject,
@@ -88,8 +80,6 @@ def materialize_case(
         "inject": inject,
         "root_causes": canonical_root_causes(gt.root_causes),
     }
-    if workload is not None:
-        out["workload"] = workload
     out.update(isp_kwargs)
     return out
 

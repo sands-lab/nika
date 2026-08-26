@@ -50,12 +50,12 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 
 | File | Count | Role |
 |------|------:|------|
-| `benchmark_selected.yaml` | **66** | Editable curated suite (source for freezing a release) |
-| `benchmark_full.yaml` | **633** | Full scenario × failure × size matrix (69 represented problem IDs) |
+| `benchmark_selected.yaml` | **122** | Editable curated suite with one balanced ISP core per compatible failure and tier (source for freezing a release) |
+| `benchmark_full.yaml` | **1,070** | Full scenario × failure × size matrix (74 represented problem IDs) |
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
-Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices and frozen releases also carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. Case identity is `scenario` + `problem` + `topo_size` + `inject`, plus `workload` for Clos/campus and `topo` / `igp` / `bgp_mode` / `rpki` for `isp`. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
+Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. Case identity is `scenario` + `problem` + `topo_size` + `inject`, plus the materialized `topo` / `igp` / `bgp_mode` / `rpki` profile for `isp`. ISP uses `topo` only inside benchmark rows; operators select ordinary ISP labs with `-s`. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 
 ```shell
 nika benchmark run --config benchmark/benchmark_selected.yaml
@@ -75,7 +75,6 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 |-----|---------|
 | `arp` | ARP / L2 neighbor resolution present |
 | `bgp` | BGP routing (FRR or equivalent) |
-| `bloom_filter` | P4 bloom-filter program |
 | `coredns` | Kubernetes CoreDNS service |
 | `clos` | Clos / leaf-spine style fabric |
 | `containerlab` | Containerlab backend (not Kathara) |
@@ -123,38 +122,32 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `k8s_lab` | `arp`, `bgp`, `coredns`, `fat-tree`, `frr`, `icmp`, `ingress`, `k3s`, `k8s_control_plane`, `k8s_storage`, `k8s_workload`, `kube_proxy`, `kubernetes`, `link`, `mac`, `metallb`, `network_policy`, `pc` |
 | `llmd_lab` | `arp`, `coredns`, `http`, `icmp`, `inference`, `k3s`, `k8s_control_plane`, `kube_proxy`, `kubernetes`, `link`, `llm`, `mac`, `metallb`, `network_policy`, `pc` |
 | `min3clos` | `bgp`, `clos`, `containerlab`, `fabric`, `link`, `srl` |
-| `p4_bloom_filter` | `arp`, `bloom_filter`, `icmp`, `link`, `mac`, `p4`, `pc` |
-| `p4_int` | `arp`, `icmp`, `int`, `link`, `mac`, `p4`, `pc` |
-| `p4_mpls` | `arp`, `icmp`, `link`, `mac`, `mpls`, `p4`, `pc` |
 | `p4_dc_fabric` | `arp`, `http`, `icmp`, `link`, `mac`, `p4`, `p4_runtime`, `pc` |
+| `p4_dc_gateway` | `arp`, `ecn`, `flow_tracking`, `http`, `icmp`, `int`, `link`, `mac`, `p4`, `p4_runtime`, `pc`, `queue`, `telemetry` |
 | `sdn_l3_clos` | `arp`, `http`, `icmp`, `link`, `mac`, `pc`, `sdn` |
-| `simple_bgp` | `arp`, `bgp`, `frr`, `icmp`, `link`, `mac`, `pc` |
 
 ## Statistics
 
 | Metric | Count |
 |--------|------:|
-| Registered failure types | 69 |
-| Failure types represented in `benchmark_full.yaml` | 69 |
-| Full benchmark cases | 633 |
-| Selected cases | 66 |
+| Registered failure types | 74 |
+| Failure types represented in `benchmark_full.yaml` | 74 |
+| Full benchmark cases | 1,070 |
+| Selected cases | 122 |
 
 ### Full matrix by scenario
 
 | Scenario | Cases |
 |----------|------:|
-| `campus_lan` | 111 |
-| `dc_clos` | 102 |
-| `enterprise_branch` | 96 |
-| `p4_dc_fabric` | 84 |
-| `sdn_l3_clos` | 75 |
-| `k8s_lab` | 27 |
-| `llmd_lab` | 24 |
-| `simple_bgp` | 23 |
-| `p4_bloom_filter` | 20 |
-| `p4_mpls` | 20 |
-| `isp` | 20 |
-| `p4_int` | 19 |
+| `isp` | 445 |
+| `campus_lan` | 108 |
+| `p4_dc_gateway` | 105 |
+| `dc_clos` | 99 |
+| `enterprise_branch` | 99 |
+| `p4_dc_fabric` | 81 |
+| `sdn_l3_clos` | 72 |
+| `k8s_lab` | 26 |
+| `llmd_lab` | 23 |
 | `min3clos` | 12 |
 
 ### Selected / release matrix by scenario
@@ -162,13 +155,12 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | Scenario | Cases |
 |----------|------:|
 | `campus_lan` | 29 |
-| `dc_clos` | 14 |
-| `p4_bloom_filter` | 6 |
-| `p4_dc_fabric` | 5 |
+| `dc_clos` | 13 |
+| `p4_dc_fabric` | 8 |
+| `p4_dc_gateway` | 8 |
 | `sdn_l3_clos` | 5 |
-| `enterprise_branch` | 3 |
-| `isp` | 3 |
-| `p4_mpls` | 1 |
+| `enterprise_branch` | 5 |
+| `isp` | 54 |
 
 Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target. The same release still lists `link_fragmentation_disabled`; loaders rewrite it to `mtu_mismatch` and update `fault_type` in `root_causes`. The same release still names `p4_counter`; loaders rewrite that id to `p4_dc_fabric` with topo size `s`.
 
@@ -176,7 +168,7 @@ Kubernetes scenarios (`k8s_lab`, `llmd_lab`) and Containerlab `min3clos` appear 
 
 ## Coverage matrix (scenario × failure)
 
-Cells mark **capability**, not whether `benchmark_full.yaml` sampled that config. A failure is compatible when its tags and deploy constraints match the scenario config (Clos/campus `workload`, ISP `topo`/`igp`/`bgp_mode` profile). `benchmark_full.yaml` remains a one-config-per-failure runnable sample. Release membership comes from `benchmark/releases/0.1.0/` (dev + test).
+Cells mark **capability**, not whether `benchmark_full.yaml` sampled that config. A failure is compatible when its tags and deploy constraints match the scenario and ISP `topo`/`igp`/`bgp_mode` profile. `benchmark_full.yaml` remains a one-config-per-failure runnable sample. Release membership comes from `benchmark/releases/0.1.0/` (dev + test).
 
 Each table has two header rows: scenario, then config (when the scenario has more than one). Cells: blank = incompatible, `○` = compatible, `●` = compatible and in release `0.1.0`. Tables are split by failure subsystem.
 
@@ -192,25 +184,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -222,11 +207,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tbody>
 <tr>
 <td><code>link_detach</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -247,11 +227,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>link_down</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -270,9 +245,22 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>link_flap</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_packet_corruption</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -290,27 +278,22 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 </tr>
 <tr>
-<td><code>link_high_packet_corruption</code></td>
+<td><code>silent_egress_packet_loss</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
 </tr>
 </tbody>
 </table>
@@ -321,25 +304,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -352,9 +328,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>bgp_asn_misconfig</code></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -368,16 +342,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>bgp_blackhole_route_leak</code></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -391,32 +360,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-</tr>
-<tr>
-<td><code>bgp_hijacking</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>bgp_max_prefix_exceeded</code></td>
@@ -426,12 +369,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -444,9 +382,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>bgp_missing_route_advertisement</code></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -460,9 +396,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>bgp_rpki_invalid_route_leak</code></td>
@@ -473,13 +406,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -490,8 +418,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>frr_service_down</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -506,15 +432,10 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>ospf_area_misconfiguration</code></td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -523,9 +444,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -535,9 +453,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>ospf_neighbor_missing</code></td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -546,9 +462,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -565,25 +478,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -596,8 +502,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>arp_acl_block</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -609,9 +513,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -619,9 +520,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>bgp_acl_block</code></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -635,9 +534,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>bmv2_switch_down</code></td>
@@ -653,24 +549,32 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
+</tr>
+<tr>
+<td><code>device_forwarding_packet_corruption</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>dns_port_blocked</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -701,12 +605,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>flow_rule_shadowing</code></td>
@@ -724,19 +623,12 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_static_blackhole</code></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -750,16 +642,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>http_acl_block</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -770,35 +657,63 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>icmp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>icmp_frag_needed_filter_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
-<td><code>icmp_acl_block</code></td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td><code>int_insufficient_mtu_headroom</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>k8s_networkpolicy_deny</code></td>
@@ -811,48 +726,15 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>mpls_label_limit_exceeded</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>mtu_mismatch</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -871,9 +753,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>ospf_acl_block</code></td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -882,9 +762,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -906,59 +783,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>p4_aggressive_detection_thresholds</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>p4_compilation_error_parser_state</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -975,36 +801,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>p4_header_definition_error</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1021,13 +819,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1044,13 +837,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1067,13 +855,26 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>p4_tcam_entry_corruption</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1090,13 +891,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1113,25 +909,15 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>vrf_dscp_remarking</code></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1149,12 +935,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>wireguard_allowed_ips_misconfiguration</code></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1172,12 +953,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>wireguard_peer_key_misconfiguration</code></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1200,25 +976,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -1239,10 +1008,59 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>lb_connection_state_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>lb_pending_connection_update_race</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>load_balancer_overload</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1252,15 +1070,28 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
-<td><code>load_balancer_overload</code></td>
-<td align="center"></td>
-<td align="center">●</td>
+<td><code>nat_mapping_removed_without_drain</code></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>snat_port_pool_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1283,25 +1114,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -1322,13 +1146,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1350,12 +1169,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>southbound_port_block</code></td>
@@ -1373,12 +1187,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>southbound_port_mismatch</code></td>
@@ -1396,12 +1205,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 </tbody>
 </table>
@@ -1412,25 +1216,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -1441,36 +1238,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </thead>
 <tbody>
 <tr>
-<td><code>arp_cache_poisoning</code></td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-</tr>
-<tr>
 <td><code>dhcp_missing_subnet</code></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1488,81 +1257,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>dhcp_service_down</code></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>dhcp_spoofed_dns</code></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>dhcp_spoofed_gateway</code></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>dhcp_spoofed_subnet</code></td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1581,12 +1276,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>dns_lookup_latency</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1604,12 +1294,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>dns_record_error</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1627,12 +1312,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>dns_service_down</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1650,12 +1330,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>host_incorrect_dns</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1673,8 +1348,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>host_incorrect_gateway</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1689,15 +1362,10 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_incorrect_ip</code></td>
-<td align="center">●</td>
 <td align="center">○</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1709,18 +1377,13 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_incorrect_netmask</code></td>
-<td align="center">●</td>
 <td align="center">○</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1735,16 +1398,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_ip_conflict</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1755,18 +1413,13 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_missing_ip</code></td>
-<td align="center">●</td>
 <td align="center">○</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1778,9 +1431,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -1796,13 +1446,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1811,8 +1456,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>mac_address_conflict</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1824,9 +1467,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -1840,25 +1480,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -1869,34 +1502,9 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </thead>
 <tbody>
 <tr>
-<td><code>host_crash</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-</tr>
-<tr>
 <td><code>receiver_resource_contention</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1907,19 +1515,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>sender_application_delay</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1930,19 +1533,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>sender_resource_contention</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1953,35 +1551,9 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>web_dos_attack</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
 </tr>
 </tbody>
 </table>
@@ -1992,25 +1564,18 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <thead>
 <tr>
 <th rowspan="2">Failure</th>
-<th colspan="2">campus</th>
-<th colspan="2">clos</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
 <th rowspan="2">enterprise</th>
 <th colspan="6">isp</th>
 <th rowspan="2">k8s</th>
 <th rowspan="2">llmd</th>
 <th rowspan="2">min3clos</th>
-<th rowspan="2">p4_bloom</th>
 <th rowspan="2">p4_dc_fabric</th>
-<th rowspan="2">p4_int</th>
-<th rowspan="2">p4_mpls</th>
+<th rowspan="2">p4_dc_gateway</th>
 <th rowspan="2">sdn_l3_clos</th>
-<th rowspan="2">simple_bgp</th>
 </tr>
 <tr>
-<th>static</th>
-<th>dhcp</th>
-<th>host</th>
-<th>service</th>
 <th>isis</th>
 <th>ospf</th>
 <th>ibgp_rr</th>
@@ -2023,9 +1588,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>incast_traffic_network_limitation</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2036,32 +1599,198 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_bandwidth_throttling</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>p4_ecn_threshold_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table>
+
+### Security
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th rowspan="2">campus</th>
+<th rowspan="2">clos</th>
+<th rowspan="2">enterprise</th>
+<th colspan="6">isp</th>
+<th rowspan="2">k8s</th>
+<th rowspan="2">llmd</th>
+<th rowspan="2">min3clos</th>
+<th rowspan="2">p4_dc_fabric</th>
+<th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">sdn_l3_clos</th>
+</tr>
+<tr>
+<th>isis</th>
+<th>ospf</th>
+<th>ibgp_rr</th>
+<th>abilene-ebgp</th>
+<th>abilene-ebgp-rpki</th>
+<th>geant-ebgp-rpki</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>arp_cache_poisoning</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_hijacking</code></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_dns</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_gateway</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_subnet</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tcp_syn_flood_attack</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
-<td><code>link_bandwidth_throttling</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center">●</td>
+<td><code>web_dos_attack</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>

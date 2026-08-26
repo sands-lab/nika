@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from nika.net_env.contract import ValidationReport
-from nika.net_env.kathara.isp.isp.lab import Isp
+from nika.net_env.isp.kathara.lab import Isp
 from nika.validation.batfish.service import ensure_batfish_service
 from nika.validation.batfish.snapshot import build_isp_snapshot
 from nika.validation.batfish.verifier import BatfishVerifier

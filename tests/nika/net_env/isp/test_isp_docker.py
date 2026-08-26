@@ -24,7 +24,7 @@ from nika.net_env.contract import (
 )
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
-from nika.net_env.kathara.isp.isp.lab import Isp
+from nika.net_env.isp.kathara.lab import Isp
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.net_env.verify import build_lab_verify_result
 from nika.runtime.factory import resolve_backend, runtime_for_session
@@ -316,7 +316,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
     ) -> list:
         import time
 
-        from nika.generator.traffic.od_flows import ODFLowGenerator
+        from traffic.od_flows import ODFLowGenerator
         from nika.net_env.isp.traffic import resolve_traffic_series, series_to_od_dicts
 
         env = get_net_env_instance(

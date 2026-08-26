@@ -12,9 +12,7 @@ from nika.workflows.benchmark.compatibility import (
 
 def test_coverage_columns_include_config_variants() -> None:
     cols = coverage_columns()
-    assert "dc_clos/host" in cols
     assert "dc_clos/service" in cols
-    assert "campus_lan/static" in cols
     assert "campus_lan/dhcp" in cols
     assert "isp/isis" in cols
     assert "isp/ospf" in cols
@@ -34,16 +32,13 @@ def test_link_down_compatible_with_link_columns() -> None:
 
 
 def test_ospf_not_on_isp_isis() -> None:
-    assert compatible("ospf_neighbor_missing", "campus_lan/static")
     assert compatible("ospf_neighbor_missing", "campus_lan/dhcp")
     assert compatible("ospf_neighbor_missing", "isp/ospf")
     assert not compatible("ospf_neighbor_missing", "isp/isis")
     assert not compatible("ospf_neighbor_missing", "isp/ibgp_rr")
-    assert not compatible("ospf_neighbor_missing", "dc_clos/host")
 
 
 def test_bgp_needs_bgp_enabled_isp() -> None:
-    assert compatible("bgp_asn_misconfig", "dc_clos/host")
     assert compatible("bgp_asn_misconfig", "dc_clos/service")
     assert compatible("bgp_asn_misconfig", "isp/ibgp_rr")
     assert compatible("bgp_asn_misconfig", "isp/abilene-ebgp")
@@ -60,33 +55,34 @@ def test_rpki_on_isp_rpki_columns() -> None:
     assert not compatible("bgp_rpki_invalid_route_leak", "isp/ibgp_rr")
 
 
-def test_dhcp_not_on_campus_static() -> None:
+def test_dhcp_is_available_on_campus_lan() -> None:
     assert compatible("dhcp_service_down", "campus_lan/dhcp")
-    assert not compatible("dhcp_service_down", "campus_lan/static")
-    assert not compatible("dhcp_service_down", "dc_clos/host")
 
 
-def test_dns_needs_service_or_campus_with_dns() -> None:
+def test_dns_is_available_on_service_workloads() -> None:
     assert compatible("dns_service_down", "dc_clos/service")
     assert compatible("dns_service_down", "campus_lan/dhcp")
-    assert compatible("dns_service_down", "campus_lan/static")
-    assert not compatible("dns_service_down", "dc_clos/host")
 
 
-def test_http_not_on_clos_host() -> None:
+def test_http_is_available_on_service_workloads() -> None:
     assert compatible("http_acl_block", "dc_clos/service")
-    assert compatible("http_acl_block", "campus_lan/static")
-    assert not compatible("http_acl_block", "dc_clos/host")
 
 
 def test_p4_dc_fabric_tags() -> None:
     assert "p4_dc_fabric" in coverage_columns()
     assert compatible("bmv2_switch_down", "p4_dc_fabric")
     assert compatible("p4_table_entry_missing", "p4_dc_fabric")
+    assert compatible("p4_table_entry_misconfig", "p4_dc_fabric")
     assert compatible("p4_action_selector_member_misconfig", "p4_dc_fabric")
     assert compatible("http_acl_block", "p4_dc_fabric")
-    assert not compatible("p4_action_selector_member_misconfig", "p4_bloom_filter")
-    assert not compatible("p4_compilation_error_parser_state", "p4_dc_fabric")
+    assert compatible("p4_table_entry_missing", "p4_dc_gateway")
+    assert compatible("p4_table_entry_misconfig", "p4_dc_gateway")
+    assert compatible("p4_action_selector_member_misconfig", "p4_dc_gateway")
+    assert compatible("p4_ecmp_group_member_missing", "p4_dc_gateway")
+    assert compatible("p4runtime_pipeline_mismatch", "p4_dc_gateway")
+    assert compatible("p4runtime_partial_write", "p4_dc_gateway")
+    assert compatible("p4_table_resource_exhaustion", "p4_dc_gateway")
+    assert compatible("bmv2_switch_down", "p4_dc_gateway")
     assert not compatible("sdn_controller_crash", "p4_dc_fabric")
 
 
@@ -94,10 +90,5 @@ def test_p4_counter_omitted_from_working_coverage() -> None:
     assert "p4_counter" not in coverage_columns()
 
 
-def test_dc_clos_host_omits_dns_http() -> None:
-    tags = effective_tags("dc_clos/host")
-    assert "bgp" in tags
-    assert "dns" not in tags
-    assert "http" not in tags
-    service = effective_tags("dc_clos/service")
-    assert {"dns", "http"}.issubset(service)
+def test_dc_clos_service_includes_dns_http() -> None:
+    assert {"dns", "http"}.issubset(effective_tags("dc_clos/service"))

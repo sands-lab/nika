@@ -281,7 +281,7 @@ def _text_summary(payload: dict[str, Any]) -> str:
 # The main entry point gathers snapshots for all discovered routers and prints a summary.
 def main() -> int:
     parser = argparse.ArgumentParser(description="Get one-pass BGP coverage across all discovered routers.")
-    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "ospf_enterprise_dhcp"))
+    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "campus_lan"))
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args()
 

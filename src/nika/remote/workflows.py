@@ -146,7 +146,6 @@ def remote_start_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
-    workload: str | None = None,
     static_validation: bool = False,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
@@ -172,7 +171,6 @@ def remote_start_net_env(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
-            workload=workload,
             static_validation=static_validation,
         )
     )

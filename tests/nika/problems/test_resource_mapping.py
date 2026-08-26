@@ -8,6 +8,7 @@ from nika.problems.ground_truth import (
     ground_truth_for_case,
 )
 from nika.problems.prob_pool import (
+    get_problem_class,
     list_avail_problem_instances,
     list_avail_problem_names,
 )
@@ -20,12 +21,12 @@ EXPECTED_FAILURE_DOMAINS = {
         "link_detach",
         "link_down",
         "link_flap",
-        "link_high_packet_corruption",
+        "link_packet_corruption",
+        "silent_egress_packet_loss",
     },
     FailureDomain.ROUTING_CONTROL_PLANE: {
         "bgp_asn_misconfig",
         "bgp_blackhole_route_leak",
-        "bgp_hijacking",
         "bgp_max_prefix_exceeded",
         "bgp_missing_route_advertisement",
         "bgp_rpki_invalid_route_leak",
@@ -43,13 +44,10 @@ EXPECTED_FAILURE_DOMAINS = {
         "host_static_blackhole",
         "http_acl_block",
         "icmp_acl_block",
+        "icmp_frag_needed_filter_misconfiguration",
         "k8s_networkpolicy_deny",
-        "mpls_label_limit_exceeded",
         "mtu_mismatch",
         "ospf_acl_block",
-        "p4_aggressive_detection_thresholds",
-        "p4_compilation_error_parser_state",
-        "p4_header_definition_error",
         "p4_table_entry_misconfig",
         "p4_table_entry_missing",
         "p4_action_selector_member_misconfig",
@@ -57,13 +55,20 @@ EXPECTED_FAILURE_DOMAINS = {
         "p4runtime_pipeline_mismatch",
         "p4runtime_partial_write",
         "p4_table_resource_exhaustion",
+        "p4_tcam_entry_corruption",
+        "int_insufficient_mtu_headroom",
         "vrf_dscp_remarking",
         "wireguard_allowed_ips_misconfiguration",
         "wireguard_peer_key_misconfiguration",
+        "device_forwarding_packet_corruption",
     },
     FailureDomain.SERVICE_NETWORKING: {
         "k8s_clusterip_routing_broken",
+        "lb_connection_state_exhaustion",
+        "lb_pending_connection_update_race",
         "load_balancer_overload",
+        "nat_mapping_removed_without_drain",
+        "snat_port_pool_exhaustion",
     },
     FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE: {
         "k8s_worker_apiserver_partition",
@@ -72,12 +77,8 @@ EXPECTED_FAILURE_DOMAINS = {
         "southbound_port_mismatch",
     },
     FailureDomain.ADDRESSING_NEIGHBOR_NAMING: {
-        "arp_cache_poisoning",
         "dhcp_missing_subnet",
         "dhcp_service_down",
-        "dhcp_spoofed_dns",
-        "dhcp_spoofed_gateway",
-        "dhcp_spoofed_subnet",
         "dns_lookup_latency",
         "dns_record_error",
         "dns_service_down",
@@ -91,15 +92,23 @@ EXPECTED_FAILURE_DOMAINS = {
         "mac_address_conflict",
     },
     FailureDomain.ENDPOINT_APPLICATION: {
-        "host_crash",
         "receiver_resource_contention",
         "sender_application_delay",
         "sender_resource_contention",
-        "web_dos_attack",
     },
     FailureDomain.TRAFFIC_QUEUEING_RESOURCE: {
         "incast_traffic_network_limitation",
         "link_bandwidth_throttling",
+        "p4_ecn_threshold_misconfiguration",
+    },
+    FailureDomain.SECURITY: {
+        "arp_cache_poisoning",
+        "bgp_hijacking",
+        "dhcp_spoofed_dns",
+        "dhcp_spoofed_gateway",
+        "dhcp_spoofed_subnet",
+        "tcp_syn_flood_attack",
+        "web_dos_attack",
     },
 }
 
@@ -135,7 +144,7 @@ def _resources(problem: str, params: dict, env: _Env):
 class ResourceMappingTest:
     def test_every_failure_declares_failure_domain(self) -> None:
         problems = list_avail_problem_instances()
-        assert len(problems) == 69
+        assert len(problems) == 75
         for name, cls in problems.items():
             assert cls.META is not None, name
             assert set(cls.taxonomy_metadata()) == {"failure_domain"}
@@ -160,6 +169,24 @@ class ResourceMappingTest:
         assert missing == [], missing
         assert set(list_avail_problem_names())
 
+    def test_link_packet_corruption_replaces_legacy_names(self) -> None:
+        assert "link_packet_corruption" in list_avail_problem_names()
+        assert "link_high_packet_corruption" not in list_avail_problem_names()
+        assert "physical_link_corruption" not in list_avail_problem_names()
+        assert get_problem_class("link_high_packet_corruption") is get_problem_class(
+            "link_packet_corruption"
+        )
+        assert get_problem_class("physical_link_corruption") is get_problem_class(
+            "link_packet_corruption"
+        )
+
+    def test_silent_egress_packet_loss_replaces_legacy_name(self) -> None:
+        assert "silent_egress_packet_loss" in list_avail_problem_names()
+        assert "faulty_egress_interface" not in list_avail_problem_names()
+        assert get_problem_class("faulty_egress_interface") is get_problem_class(
+            "silent_egress_packet_loss"
+        )
+
     def test_link_down_is_single_interface(self) -> None:
         env = _Env(("pc1:eth0", "router1:eth0"))
         resource = _resources(
@@ -171,9 +198,18 @@ class ResourceMappingTest:
         env = _Env(
             ("pc1:eth0", "pc2:eth0", "r1:eth0", "a:eth0", "b:eth0", "c:eth0", "d:eth0")
         )
-        resource = _resources("link_high_packet_corruption", {"host_name": "pc1"}, env)
+        resource = _resources("link_packet_corruption", {"host_name": "pc1"}, env)
         assert resource.kind == "interface"
         assert resource.id.startswith("interface/pc1/")
+
+    def test_device_forwarding_corruption_is_a_node(self) -> None:
+        env = _Env(("spine_router_0_0:eth1", "leaf_router_0_0:eth0"))
+        resource = _resources(
+            "device_forwarding_packet_corruption",
+            {"forwarding_device": "spine_router_0_0", "intf_name": "eth1", "seed": 7},
+            env,
+        )
+        assert resource.id == "node/spine_router_0_0"
 
     def test_dhcp_client_is_not_a_root_cause(self) -> None:
         env = _Env(("pc1:eth0", "dhcp:eth0"))
@@ -300,14 +336,14 @@ class ResourceMappingTest:
         gt = build_multi_ground_truth(
             [
                 _piece("link_down", {"host_name": "pc1", "intf_name": "eth0"}),
-                _piece("host_crash", {"host_name": "pc1"}),
+                _piece("host_missing_ip", {"host_name": "pc1"}),
             ],
             failure_domain="multiple_faults",
         )
         assert len(gt.root_causes) == 2
         assert {item.fault_type for item in gt.root_causes} == {
             "link_down",
-            "host_crash",
+            "host_missing_ip",
         }
 
     def test_unknown_failure_unresolved(self) -> None:

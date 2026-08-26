@@ -122,7 +122,7 @@ def test_clab_setup_script_is_serial(tmp_path) -> None:
 
 
 def test_host_ips_from_isp_inventory_data_plane() -> None:
-    from nika.generator.traffic.sndlib_replay import host_ips_from_isp_inventory
+    from traffic.sndlib_replay import host_ips_from_isp_inventory
 
     mapping = host_ips_from_isp_inventory(
         {

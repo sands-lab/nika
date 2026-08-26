@@ -41,7 +41,7 @@ Local lab integration tests expect lab extras installed (`uv sync --extra labs -
 
 ## Agent tests (`tests/agent/`)
 
-Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an **integration pipeline** on `simple_bgp` / `link_down`:
+Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an **integration pipeline** on a test-only BGP fixture with `link_down`:
 
 | Module | Agent | Unit tests | Pipeline requires |
 |--------|-------|------------|-------------------|
@@ -59,7 +59,7 @@ Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an *
 | `test_sandbox.py` | sandbox | manifest, redaction, SDK context | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
-| `test_sandbox_agents.py` | sandbox | five-agent E2E (`simple_bgp` / `link_down`) | sbx + Docker; Codex=`OPENAI_API_KEY`+`gpt-5-mini`, Claude/SADE=`DEEPSEEK_API_KEY`+`deepseek-v4-flash` |
+| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`) | sbx + Docker; Codex=`OPENAI_API_KEY`+`gpt-5-mini`, Claude/SADE=`DEEPSEEK_API_KEY`+`deepseek-v4-flash` |
 
 Host-side pipeline classes in `test_*_cli.py`, `test_*_sdk.py`, and `test_sade.py` are skipped for live agent E2E; sandbox coverage lives in `test_sandbox_agents.py`.
 

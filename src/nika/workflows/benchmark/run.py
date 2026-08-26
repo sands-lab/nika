@@ -298,7 +298,6 @@ def run_single_case(
     trial_index: int | None = None,
     case_key: str | None = None,
     expected_root_causes: list | None = None,
-    workload: str | None = None,
     topo: str | None = None,
     igp: str | None = None,
     bgp_mode: str | None = None,
@@ -323,7 +322,6 @@ def run_single_case(
         isp_bits.append("RPKI: on")
     print(
         f"Running benchmark for Problem: {problem}, Scenario: {scenario}, Topo Size: {topo_size}"
-        + (f", Workload: {workload}" if workload else "")
         + (f", {', '.join(isp_bits)}" if isp_bits else "")
         + (f", Trial: {trial_id}" if trial_id else "")
     )
@@ -366,7 +364,6 @@ def run_single_case(
         session_tag=session_tag,
         session_id=trial_id,
         session_dir=predetermined_dir,
-        workload=workload,
         topo=topo,
         igp=igp,
         bgp_mode=bgp_mode,
@@ -391,7 +388,6 @@ def run_single_case(
             problem=problem,
             topo_size=topo_size,
             inject_params=params,
-            workload=workload,
             topo=topo,
             igp=igp,
             bgp_mode=bgp_mode,
@@ -548,7 +544,6 @@ def _run_trial(
         trial_id=trial.trial_id,
         trial_index=trial.trial_index,
         case_key=trial.case_key,
-        workload=row.get("workload"),
         topo=row.get("topo"),
         igp=row.get("igp"),
         bgp_mode=row.get("bgp_mode"),

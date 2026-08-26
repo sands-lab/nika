@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 
 from benchmark.inject_resolve import resolve_inject_params
-from nika.net_env.kathara.p4.p4_dc_fabric.topology_model import build_clos_fabric_model
-from nika.net_env.kathara.p4.p4_dc_fabric.verify import verify_p4_dc_fabric_lab
+from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
+from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab
 from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.prob_pool import get_problem_instance
 from nika.runtime.factory import runtime_for_session
@@ -27,7 +27,7 @@ SAMPLED_EXISTING = (
     "bmv2_switch_down",
     "link_down",
     "link_flap",
-    "link_high_packet_corruption",
+    "link_packet_corruption",
     "link_bandwidth_throttling",
     "host_incorrect_ip",
     "host_missing_ip",
@@ -135,7 +135,7 @@ class P4DcFabricFailureCompatTest(IntegrationTestCase):
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class P4DcFabricP4RuntimeFailureLiveTest(IntegrationTestCase):
     def test_p4runtime_failures_inject_verify_restore(self) -> None:
-        from nika.net_env.kathara.p4.p4_dc_fabric.fabric_manager.apply import (
+        from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
             reconcile_fabric,
         )
 

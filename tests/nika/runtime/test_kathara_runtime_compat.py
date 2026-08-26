@@ -1,7 +1,7 @@
 from __future__ import annotations
 from nika.runtime.factory import runtime_for_net_env
 from nika.runtime.kathara import KatharaRuntime
-from nika.net_env.kathara.interdomain_routing.simple_bgp.lab import SimpleBGP
+from tests.support.simple_bgp.lab import SimpleBGP
 
 
 class KatharaRuntimeCompatTest:

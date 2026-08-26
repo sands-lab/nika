@@ -4,70 +4,37 @@ from nika.service.kathara import KatharaTelemetryAPI
 from nika.service.mcp_server.session_context import get_lab_name
 from nika.utils.errors import safe_tool
 
-# Initialize FastMCP server
 mcp = FastMCP("kathara_telemetry_mcp_server")
 
 
 @safe_tool
 @mcp.tool()
-def influx_list_buckets() -> list[str]:
-    """List all InfluxDB buckets.
-
-    Returns:
-        list[str]: A list of InfluxDB bucket names, default in json format.
-    """
-    kathara_api = KatharaTelemetryAPI(lab_name=get_lab_name())
-    return kathara_api.influx_list_buckets()
-
-
-@safe_tool
-@mcp.tool()
-def influx_get_measurements() -> list[str]:
-    """List all InfluxDB measurements.
-
-    Returns:
-        list[str]: A list of InfluxDB measurement names.
-    """
-    kathara_api = KatharaTelemetryAPI(lab_name=get_lab_name())
-    return kathara_api.influx_get_measurements()
-
-
-@safe_tool
-@mcp.tool()
-def influx_count_measurements(measurement: str) -> list[str]:
-    """Count the number of records in an InfluxDB measurement.
-
-    Args:
-        measurement (str): The name of the measurement.
-
-    Returns:
-        list[str]: The count of records in the measurement, default in json format.
-    """
-    kathara_api = KatharaTelemetryAPI(lab_name=get_lab_name())
-    return kathara_api.influx_count_measurements(measurement)
-
-
-@safe_tool
-@mcp.tool()
-def influx_query_measurement(
-    measurement: str, limit: int = 10, offset: int = 0
-) -> list[str]:
-    """Query an InfluxDB measurement.
-    Large Dataset Warning: InfluxDB might contain massive time-series data.
-    Always use influx_count_measurements() first to check size, then LIMIT/OFFSET for large results (>1000 rows).
-
-    Args:
-        measurement (str): The name of the measurement.
-        limit (int, optional): The maximum number of records to return. Defaults to 10.
-        offset (int, optional): The number of records to skip. Defaults to 0.
-
-    Returns:
-        list[str]: The queried records from the measurement, default in json format.
-    """
-    kathara_api = KatharaTelemetryAPI(lab_name=get_lab_name())
-    return kathara_api.influx_query_measurement(measurement, limit=limit, offset=offset)
+def int_query_telemetry(
+    start_time: str,
+    end_time: str | None = None,
+    src: str | None = None,
+    dst: str | None = None,
+    protocol: str | None = None,
+    src_port: int | None = None,
+    dst_port: int | None = None,
+    flow_id: str | None = None,
+    packet_id: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    """Return observed INT-MX packet traces and hop metadata."""
+    return KatharaTelemetryAPI(lab_name=get_lab_name()).int_query_telemetry(
+        start_time=start_time,
+        end_time=end_time,
+        src=src,
+        dst=dst,
+        protocol=protocol,
+        src_port=src_port,
+        dst_port=dst_port,
+        flow_id=flow_id,
+        packet_id=packet_id,
+        limit=limit,
+    )
 
 
 if __name__ == "__main__":
-    # Initialize and run the server
     mcp.run(transport="stdio")

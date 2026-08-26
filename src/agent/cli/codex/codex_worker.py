@@ -252,6 +252,24 @@ class CodexWorker:
             self.scenario_name,
             session_dir=self.session_dir,
         )
+        # Give each Codex subprocess only the servers it can use in its
+        # current phase.  The gateway enforces this too, but excluding the
+        # task server here keeps the diagnosis prompt and tool inventory free
+        # of submission-only fault catalog metadata.
+        from nika.service.mcp_server.registry import SUBMISSION_SERVER
+
+        if self.phase == SUBMISSION:
+            servers = {
+                name: config
+                for name, config in servers.items()
+                if name == SUBMISSION_SERVER
+            }
+        else:
+            servers = {
+                name: config
+                for name, config in servers.items()
+                if name != SUBMISSION_SERVER
+            }
 
         self._logger.log(
             "mcp_config",

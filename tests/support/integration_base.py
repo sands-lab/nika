@@ -62,9 +62,6 @@ def _parse_env_run_args(extra_args: list[str] | None) -> dict[str, Any]:
         elif arg == "--device-profile" and i + 1 < len(args):
             kwargs["device_profile"] = args[i + 1]
             i += 2
-        elif arg == "--workload" and i + 1 < len(args):
-            kwargs["workload"] = args[i + 1]
-            i += 2
         elif arg == "--no-redeploy":
             kwargs["redeploy"] = False
             i += 1

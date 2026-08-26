@@ -661,7 +661,7 @@ def _text_summary(payload: dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compact service-path snapshot helper.")
-    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "ospf_enterprise_dhcp"))
+    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "campus_lan"))
     parser.add_argument("target", nargs="?", help="Optional hostname or full URL shortcut.")
     parser.add_argument("--client", action="append", default=[], dest="clients")
     parser.add_argument("--hostname", action="append", default=[], dest="hostnames")

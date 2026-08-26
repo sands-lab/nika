@@ -283,14 +283,7 @@ class TestReleaseRunMetadata:
 class TestReleaseDockerSmoke:
     """Real Kathara smoke: one lightweight case from Dev and Test."""
 
-    _LIGHT = frozenset(
-        {
-            "simple_bgp",
-            "p4_bloom_filter",
-            "p4_mpls",
-            "p4_int",
-        }
-    )
+    _LIGHT = frozenset({"simple_bgp"})
 
     def _pick_light_row(self, split: str) -> dict:
         rows = resolve_cases("0.1.0", split=split)

@@ -35,8 +35,8 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 ## Quick start
 
 ```bash
-uv run nika env run simple_bgp
-uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
 uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
 # or Claude via DeepSeek:
 # uv run nika agent run -a cli.claude -p deepseek -m deepseek-v4-flash -n 20

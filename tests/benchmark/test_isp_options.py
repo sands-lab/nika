@@ -90,6 +90,32 @@ def test_normalize_isp_rpki_keeps_isp_scenario() -> None:
     assert row["rpki"] is True
 
 
+def test_normalize_legacy_isp_topology_infers_its_size() -> None:
+    row = normalize_benchmark_row(
+        {
+            "scenario": "isp",
+            "problem": "link_down",
+            "topo_size": None,
+            "inject": {"host_name": "router_a", "intf_name": "eth0"},
+            "topo": "geant",
+        }
+    )
+    assert row["topo_size"] == "m"
+
+
+def test_normalize_rejects_isp_topology_in_the_wrong_size_tier() -> None:
+    with pytest.raises(ValueError, match="belongs to size 'm', not 's'"):
+        normalize_benchmark_row(
+            {
+                "scenario": "isp",
+                "problem": "link_down",
+                "topo_size": "s",
+                "inject": {"host_name": "router_a", "intf_name": "eth0"},
+                "topo": "geant",
+            }
+        )
+
+
 def test_normalize_rejects_retired_ebgp_rpki_scenario() -> None:
     with pytest.raises(ValueError, match="not found in the pool"):
         normalize_benchmark_row(
@@ -109,7 +135,6 @@ def test_normalize_rejects_isp_options_on_non_isp() -> None:
                 "scenario": "dc_clos",
                 "problem": "link_down",
                 "topo_size": "s",
-                "workload": "host",
                 "bgp_mode": "ibgp_rr",
                 "inject": {"host_name": "pc_0_0", "intf_name": "eth0"},
             }

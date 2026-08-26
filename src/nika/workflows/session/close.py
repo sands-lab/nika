@@ -6,7 +6,6 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
 from nika.config import (
     RESULTS_DIR,
     RUNTIME_DIR,
@@ -111,6 +110,7 @@ def wipe_runtime_artifacts(
 def wipe_kathara_labs() -> None:
     """Remove all Kathara devices and collision domains for the current user."""
     try:
+        import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
         from Kathara.manager.Kathara import Kathara
 
         Kathara.get_instance().wipe()
@@ -176,7 +176,7 @@ def load_session_meta_for_close(
 
 
 def wipe_all_containerlab_labs() -> None:
-    """Remove all Containerlab labs for the current user."""
+    """Remove all Containerlab labs and their orphaned Docker networks."""
     try:
         result = subprocess.run(
             ["clab", "destroy", "--all", "--cleanup", "--yes", "--log-level", "error"],
@@ -187,9 +187,61 @@ def wipe_all_containerlab_labs() -> None:
 
         if result.returncode != 0:
             print(f"Error wiping containerlab labs: {result.stderr or result.stdout}")
+
+        result = subprocess.run(
+            ["docker", "network", "prune", "--force", "--filter", "label=containerlab"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(
+                "Error pruning orphaned Containerlab networks: "
+                f"{result.stderr or result.stdout}"
+            )
     except FileNotFoundError:
-        # Containerlab is not installed; nothing to clean up
+        # Containerlab or Docker is not installed; nothing to clean up.
         return
+
+
+def remove_orphaned_containerlab_management_network(lab_name: str | None) -> None:
+    """Remove this lab's unused Containerlab management network, if any."""
+    if not lab_name:
+        return
+    network_name = f"br-{lab_name}"
+    try:
+        result = subprocess.run(
+            ["docker", "network", "inspect", network_name],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return
+    if result.returncode != 0:
+        return
+    try:
+        networks = json.loads(result.stdout)
+        network = networks[0]
+    except (IndexError, TypeError, json.JSONDecodeError):
+        return
+    if (
+        not isinstance(network, dict)
+        or "containerlab" not in (network.get("Labels") or {})
+        or network.get("Containers")
+    ):
+        return
+    result = subprocess.run(
+        ["docker", "network", "rm", network_name],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(
+            "Error removing orphaned Containerlab management network "
+            f"{network_name}: {result.stderr or result.stdout}"
+        )
 
 
 def _stop_session_record(
@@ -224,7 +276,6 @@ def _stop_session_record(
         "constant_metric",
         "bgp_mode",
         "device_profile",
-        "workload",
     ):
         if key in scenario_params and scenario_params[key] is not None:
             net_env_kwargs[key] = scenario_params[key]
@@ -250,7 +301,11 @@ def _stop_session_record(
         raise ValueError(f"Session '{session.session_id}' has no session_dir.")
     bind_session_dir(session_dir)
 
-    if undeploy and net_env.lab_exists():
+    topology_file = meta_path(session_meta, "topology_file", scenario_params=True)
+    topology_cleanup_available = bool(
+        backend == "containerlab" and topology_file and topology_file.is_file()
+    )
+    if undeploy and (net_env.lab_exists() or topology_cleanup_available):
         try:
             net_env.undeploy()
         except Exception as exc:
@@ -271,6 +326,8 @@ def _stop_session_record(
             session_id=session.session_id,
             backend=backend,
         )
+        if backend == "containerlab":
+            remove_orphaned_containerlab_management_network(session.lab_name)
     elif undeploy:
         log_event(
             "env_stop_skipped",
@@ -280,34 +337,60 @@ def _stop_session_record(
             backend=backend,
         )
 
+    _clear_session_record(
+        session_meta,
+        session_id=session.session_id,
+        backend=backend,
+        store=session.store,
+    )
+
+
+def _clear_session_record(
+    session_meta: dict,
+    *,
+    session_id: str,
+    backend: str,
+    store: SessionStore | None = None,
+) -> None:
+    """Finish bookkeeping for a session without resolving its scenario."""
+    session = Session()
+    if store is not None:
+        session.store = store
+    session._apply_session_meta(session_meta)
+    session.session_id = session_id
+
+    session_dir = session_meta.get("session_dir")
+    if session_dir:
+        bind_session_dir(session_dir)
+
     try:
-        ended_cnt = SessionStore().mark_session_failures_ended(
-            session.session_id, end_time=datetime.now().timestamp()
+        ended_cnt = session.store.mark_session_failures_ended(
+            session_id, end_time=datetime.now().timestamp()
         )
     except FileNotFoundError:
         ended_cnt = 0
     if ended_cnt:
         log_event(
             "failures_ended",
-            f"Marked {ended_cnt} failure record(s) as ended for session {session.session_id}",
-            session_id=session.session_id,
+            f"Marked {ended_cnt} failure record(s) as ended for session {session_id}",
+            session_id=session_id,
             count=ended_cnt,
         )
 
     if remove_session_runtime_workdir(session_meta):
         log_event(
             "runtime_workdir_removed",
-            f"Removed runtime workdir for session {session.session_id}",
-            session_id=session.session_id,
+            f"Removed runtime workdir for session {session_id}",
+            session_id=session_id,
             backend=backend,
         )
 
     session.clear_session()
     log_event(
         "session_cleared",
-        f"Cleared session {session.session_id} for scenario {scenario}",
-        session_id=session.session_id,
-        scenario=scenario,
+        f"Cleared session {session_id}",
+        session_id=session_id,
+        scenario=session_meta.get("scenario_name"),
     )
 
 
@@ -345,7 +428,25 @@ def close_session(
                     full_meta = load_session_meta_for_close(sid, store=store)
                 except FileNotFoundError:
                     continue
-                _stop_session_record(full_meta, undeploy=undeploy, session_id=sid)
+                try:
+                    _stop_session_record(full_meta, undeploy=undeploy, session_id=sid)
+                except Exception as exc:
+                    if full_meta.get("session_dir"):
+                        bind_session_dir(full_meta["session_dir"])
+                    log_error_event(
+                        "session_stop_failed",
+                        f"Failed to stop session {sid}; forcing session cleanup: {exc}",
+                        session_id=sid,
+                        scenario=full_meta.get("scenario_name"),
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                    )
+                    _clear_session_record(
+                        full_meta,
+                        session_id=sid,
+                        backend=resolve_backend(full_meta),
+                        store=store,
+                    )
         finally:
             if undeploy:
                 wipe_kathara_labs()

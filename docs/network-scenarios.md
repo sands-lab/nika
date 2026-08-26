@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists 13 scenario IDs through `nika env list`. Twelve use one backend; `isp` supports both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists 10 scenario IDs through `nika env list`. Nine use one backend; `isp` supports both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -14,37 +14,34 @@ Kathará scenarios need Docker and the Kathará dependency group. Containerlab s
 
 Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../README.md#-installation) covers the full installation flow.
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `nika/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment.
+`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. The Kubernetes scenarios download k3s and workload images during deployment.
 
 ## Scenario catalog
 
-| Scenario ID | Backend | Scale control | Options | Network and workload |
+| Scenario ID | Backend | Scale control | Options | Network |
 | --- | --- | --- | --- | --- |
-| `dc_clos` | Kathara | `-s s\|m\|l` | `--workload host\|service` (default `host`) | FRR eBGP Clos; host or DNS/HTTP leaf workload |
-| `campus_lan` | Kathara | `-s s\|m\|l` | `--workload static\|dhcp` (default `static`) | Hierarchical campus LAN; static hosts or DHCP/DNS/LB farm |
+| `dc_clos` | Kathara | `-s s\|m\|l` | — | FRR eBGP Clos with DNS/HTTP leaf services |
+| `campus_lan` | Kathara | `-s s\|m\|l` | — | Hierarchical campus LAN with DHCP/DNS/LB farm |
 | `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
-| `simple_bgp` | Kathara | Fixed |  | Two FRR ASes with one host in each AS |
 | `sdn_l3_clos` | Kathara | `-s s\|m\|l` |  | ONOS + OVS L3 Clos with SELECT ECMP |
-| `p4_bloom_filter` | Kathara | Fixed |  | BMv2 flow-counting Bloom filter pipeline |
-| `p4_int` | Kathara | Fixed |  | BMv2 in-band telemetry and collector |
-| `p4_mpls` | Kathara | Fixed |  | BMv2 MPLS classification and label switching |
 | `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
-| `isp` | Kathara or Containerlab |  | `--topo` and protocol options | SNDlib topology compiled to FRR or SR Linux |
+| `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
+| `isp` | Kathara or Containerlab | `s`, `m`, `l` | Size and protocol options | SNDlib topology compiled to FRR or SR Linux |
 | `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
 | `k8s_lab` | Kathara | Fixed |  | FRR fat-tree with a six-node k3s cluster |
 | `llmd_lab` | Kathara | Fixed |  | L2 k3s cluster with simulated llm-d inference |
 
-Five scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
+Six scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
 
 ```shell
 uv run nika env run dc_clos -s s
 ```
 
-Fixed scenarios reject a size. The `isp` scenario uses its own topology and protocol controls instead of `-s`.
+Fixed scenarios reject a size. The `isp` scenario selects its SNDlib topology with `-s`.
 
 ## Data-center Clos scenario
 
-NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router links use `/31` networks from `172.16.0.0/16`, and leaf access networks use `10.<pod>.<leaf>.0/24`. Choose the leaf workload with `--workload` (`host` is the default).
+NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router links use `/31` networks from `172.16.0.0/16`, and leaf access networks use `10.<pod>.<leaf>.0/24`.
 
 ```text
                     super-spine(s)
@@ -53,7 +50,7 @@ NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router l
                /  \           /  \
             leaf  leaf  ...  leaf  leaf
              |      |          |      |
-             +------ host or service endpoints
+             +------ service endpoints
 ```
 
 | Size | Super-spines and pods | Spines per pod | Leaves per pod |
@@ -62,29 +59,17 @@ NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router l
 | `m` | 2 | 4 | 4 |
 | `l` | 4 | 8 | 8 |
 
-Super-spines use AS 65000, spines use AS 651xx, and leaves use AS 652xx. Workload does not change spine or leaf counts.
+Super-spines use AS 65000, spines use AS 651xx, and leaves use AS 652xx.
 
-### `host` workload (default)
-
-Attaches one `pc_*` host to each leaf. Use this for BGP, link, MTU, congestion, and host addressing failures. The verifier checks FRR, BGP sessions, and host reachability.
+Each pod has one authoritative BIND server, HTTP servers on the remaining leaves, and an external client on the super-spine (`192.168.<pod>.0/24`). Clients resolve names such as `web0.pod0`. Use this when the failure needs DNS or HTTP observability.
 
 ```shell
-uv run nika env run dc_clos -s s --workload host
+uv run nika env run dc_clos -s s
 ```
-
-### `service` workload
-
-Keeps the same fabric and replaces leaf hosts with DNS/HTTP endpoints. Each pod has one authoritative BIND server, HTTP servers on the remaining leaves, and an external client on the super-spine (`192.168.<pod>.0/24`). Clients resolve names such as `web0.pod0`. Use this when the failure needs DNS or HTTP observability.
-
-```shell
-uv run nika env run dc_clos -s s --workload service
-```
-
-Legacy benchmark YAML may still name `dc_clos_bgp` or `dc_clos_service`. Loaders map those ids to `dc_clos` with `host` or `service` workload. They are not listed by `nika env list`.
 
 ## Campus LAN scenario
 
-NIKA builds one campus LAN fabric: a three-router core triangle, distribution and access tiers, user LANs, and a server farm on core3. FRR advertises routed links and services through OSPF. Routed uplinks use `/31` networks from `172.16.0.0/16`; user LANs use `10.<core>.<distribution>.0/24`. Choose the host and farm workload with `--workload` (`static` is the default). Workload does not change core, distribution, or access counts. Device names stay workload-specific so frozen release inject targets remain valid.
+NIKA builds one campus LAN fabric: a three-router core triangle, distribution and access tiers, user LANs, and a server farm on core3. FRR advertises routed links and services through OSPF. Routed uplinks use `/31` networks from `172.16.0.0/16`; user LANs use `10.<core>.<distribution>.0/24`.
 
 ```text
 user PCs -- access switches -- distribution routers
@@ -93,9 +78,7 @@ user PCs -- access switches -- distribution routers
                                         |
                               server-access device
                                /    |     |    \
-                             DNS  HTTP  DHCP*  load balancer*
-
-* Present with --workload dhcp.
+                             DNS  HTTP  DHCP  load balancer
 ```
 
 | Size | Distribution routers | Access switches | User hosts |
@@ -104,23 +87,11 @@ user PCs -- access switches -- distribution routers
 | `m` | 4 | 8 | 16 |
 | `l` | 8 | 32 | 128 |
 
-### `static` workload (default)
-
-Hosts use static addresses and default routes. Dist/access names stay `switch_dist_*` / `switch_server_access`. The farm has one BIND server and four Apache sites (`web0.local` through `web3.local`). Use this for sticky host-address faults such as `host_incorrect_ip`.
+Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
 ```shell
-uv run nika env run campus_lan -s s --workload static
+uv run nika env run campus_lan -s s
 ```
-
-### `dhcp` workload
-
-Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Use this for DHCP, DNS, and load-balancer failures. Both workloads verify OSPF adjacency, cross-branch reachability, DNS, and HTTP.
-
-```shell
-uv run nika env run campus_lan -s s --workload dhcp
-```
-
-Legacy benchmark YAML may still name `ospf_enterprise_static` or `ospf_enterprise_dhcp`. Loaders map those ids to `campus_lan` with `static` or `dhcp` workload. They are not listed by `nika env list`.
 
 ## Enterprise Branch VPN scenario
 
@@ -160,18 +131,6 @@ Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center
 uv run nika env run enterprise_branch -s s
 ```
 
-## Fixed BGP scenarios
-
-### `simple_bgp`
-
-`simple_bgp` is a hand-defined two-AS Kathara lab:
-
-```text
-pc1 -- router1 == eBGP == router2 -- pc2
-```
-
-`pc1` uses `195.11.14.2/24`; `pc2` uses `200.1.1.2/24`. Each FRR router advertises its host-facing network. Use this small topology for fast BGP and end-to-end routing experiments. Verification checks the BGP session, routes, default gateway, and traffic between the hosts.
-
 ## SDN scenarios
 
 ### `sdn_l3_clos`
@@ -207,45 +166,7 @@ uv run nika env run sdn_l3_clos -s s
 
 ## P4 scenarios
 
-Three fixed Kathara scenarios compile repository-owned P4 programs during BMv2 startup and load forwarding entries through `simple_switch_CLI`. `p4_dc_fabric` is the sized L3 Clos lab; it starts `simple_switch_grpc` with no local table file and programs every switch through P4Runtime.
-
-### `p4_bloom_filter`
-
-Two BMv2 switches connect `pc1` and `pc2`. The pipeline hashes TCP five-tuples into two register positions and drops a flow after both counters exceed `PACKET_THRESHOLD` (1000 in the healthy program). Use this scenario for Bloom filter thresholds, compiler failures, and table-entry failures.
-
-```text
-pc1 -- switch_1 -- switch_2 -- pc2
-         Bloom-filter P4 pipeline
-```
-
-### `p4_int`
-
-Two leaves and two spines connect two hosts and an INT collector. The pipeline adds per-hop telemetry and exports reports for flow statistics, hop latency, port utilization, and queue occupancy. Build the required collector image before deployment:
-
-```text
-               spine_1
-              /       \
-pc1 -- leaf_1           leaf_2 -- pc2
-              \       /    \
-               spine_2      collector
-```
-
-```shell
-docker build -t nika/influxdb src/nika/net_env/kathara/p4/p4_int
-```
-
-### `p4_mpls`
-
-Seven BMv2 switches connect three hosts. Border switches classify IPv4 destinations into labels, transit switches forward on labels, and the egress border removes the MPLS header. Labels 2 and 3 carry traffic away from `pc1`; label 1 carries return traffic. Use this scenario for MPLS table and label-limit failures.
-
-```text
-pc1 -- switch_1
-          | \
-          |  +-- switch_2 --\
-          |                  +-- switch_4 -- switch_5 --\
-          +----- switch_3 --/             \-- switch_6 --+-- switch_7 -- pc2
-                                                                        \-- pc3
-```
+The two Kathara P4 scenarios start BMv2 `simple_switch_grpc` with no local table file and configure forwarding through P4Runtime.
 
 ### `p4_dc_fabric`
 
@@ -272,7 +193,7 @@ Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA 
 
 Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs intent, same-rack and sparse cross-rack ICMP, HTTP to a remote web, and multi-flow ECMP counters on at least two spines.
 
-Diagnosis agents get `kathara_bmv2_mcp_server`. Tool `p4_get_fabric_state` returns intended forwarding, live P4Runtime Read (pipeline, LPM, members, groups, counters), endpoint addressing, and an optional ping, without ground-truth fault labels.
+Diagnosis agents get `kathara_bmv2_mcp_server`. Tool `p4_get_runtime_state` returns the live pipeline, LPM entries, selector members and groups, counters, port and queue data, flow statistics, and ECN configuration.
 
 ```shell
 uv run nika env run p4_dc_fabric -s s
@@ -280,7 +201,22 @@ uv run nika env run p4_dc_fabric -s s
 
 Legacy id `p4_counter` resolves to this scenario. It is not listed by `nika env list`. Frozen release `0.1.0` still records the old L2 counter lab hash; regenerate a release when you publish the new lab.
 
-The three fixed-size verifiers check BMv2 processes, host addresses, and expected end-to-end reachability. `p4_int` also checks its collector.
+### `p4_dc_gateway`
+
+This benchmark scenario connects one external client to each gateway, fully meshes gateways to spines and spines to leaves, and connects two HTTP services to each leaf. Every switch also joins a telemetry LAN, and an isolated OOB network carries P4Runtime traffic.
+
+| Size | Gateways | Spines | Leaves | External clients | HTTP services |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `s` | 2 | 2 | 2 | 2 | 4 |
+| `m` | 4 | 4 | 4 | 4 | 8 |
+| `l` | 8 | 8 | 8 | 8 | 16 |
+
+The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. The agent API filters the private table and register names. `int_query_telemetry` returns observed packet traces keyed by flow and packet ID and does not calculate an expected path.
+
+```shell
+uv run nika env run p4_dc_gateway -s s
+uv run nika traffic run burst --sources client_1,client_2 --destination service_1_1 --protocol tcp --rate 10M --packet-size 1200 --duration 10 --seed 42
+```
 
 ## SNDlib ISP scenario
 
@@ -299,30 +235,30 @@ Each ===== link comes from the selected SNDlib graph.
 ```
 
 ```shell
-# Default: Kathara, polska, IS-IS, constant metric 10, no BGP
+# Default: Kathara, small SNDlib tier, IS-IS, constant metric 10, no BGP
 uv run nika env run isp
 
-uv run nika env run isp --topo abilene --igp ospf \
+uv run nika env run isp -s s --igp ospf \
   --metric-strategy routing_cost --bgp-mode ibgp_rr
 
 uv run nika env run isp --backend containerlab \
-  --device-profile nokia_srlinux --topo pdh --igp isis
+  --device-profile nokia_srlinux -s m --igp isis
 ```
 
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
 | `--backend` | `kathara`, `containerlab` | `kathara` for `isp` | Selects FRR or SR Linux rendering |
 | `--device-profile` | `frr`, `nokia_srlinux` | Derived from backend | Validates the router profile |
-| `--topo` | Catalog name or `network.xml` path | `polska` | Selects the physical graph and demands |
+| `-s`, `--size` | `s`, `m`, `l` | `s` | Selects one of the fixed relative-size SNDlib tiers |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
 | `--bgp-mode` | `none`, `ibgp_rr`, `ebgp` | `none` | Adds a NIKA-defined BGP preset |
 | `--rpki` / `--no-rpki` | flag | off | Offline RPKI/ROV on `ebgp` (Kathara/FRR only) |
 
-`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive. With `--rpki`, NIKA overlays an offline Routinator RTR, deterministic VRP assertions, one ROV observer, one non-ROV observer, and a leaker AS with a healthy export deny. Benchmark cases that exercise RPKI use Abilene and GEANT; other SNDlib graphs compile when they support a three-AS partition.
+`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive. With `--rpki`, NIKA overlays an offline Routinator RTR, deterministic VRP assertions, one ROV observer, one non-ROV observer, and a leaker AS with a healthy export deny. RPKI benchmark cases use Abilene or GEANT; other SNDlib graphs compile when they support a three-AS partition.
 
-The vendored SNDlib catalog contains 26 topologies:
+NIKA ranks the 26 vendored SNDlib graphs by node count, breaks ties by topology name, and divides the ordered catalog into fixed tiers of 8, 9, and 9 graphs. It uses `abilene` for `s` (12 nodes), `france` for `m` (25 nodes), and `pioro40` for `l` (40 nodes) as deterministic CLI defaults. Benchmark generation materializes a graph name from the selected tier so that each run remains reproducible.
 
 | Topology | Nodes | Links | Demands | Topology | Nodes | Links | Demands |
 | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |

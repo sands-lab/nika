@@ -70,6 +70,79 @@ def test_close_undeploys_when_runtime_json_is_gone(tmp_path: Path, monkeypatch) 
     env.undeploy.assert_called_once()
 
 
+def test_wipe_force_clears_retired_scenario_and_continues(
+    tmp_path: Path, monkeypatch
+) -> None:
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    db_path = tmp_path / "sessions.db"
+    store = SessionStore(sessions_dir, db_path)
+    monkeypatch.setattr(
+        "nika.workflows.session.close.SessionStore", lambda *args, **kwargs: store
+    )
+    monkeypatch.setattr(
+        "nika.utils.session.SessionStore", lambda *args, **kwargs: store
+    )
+
+    session_dirs: dict[str, Path] = {}
+    for session_id, scenario in (
+        ("current-session", "dc_clos"),
+        ("retired-session", "retired_scenario"),
+    ):
+        session_dir = tmp_path / "results" / session_id
+        session_dirs[session_id] = session_dir
+        session_dir.mkdir(parents=True)
+        meta = {
+            "session_id": session_id,
+            "scenario_name": scenario,
+            "lab_name": f"{scenario}__test",
+            "session_dir": str(session_dir),
+            "status": "running",
+            "backend": "kathara",
+            "scenario_params": {"backend": "kathara"},
+        }
+        (session_dir / "run.json").write_text(json.dumps(meta), encoding="utf-8")
+        store.create_session(meta)
+
+    assert store.list_running_sessions()[0]["session_id"] == "retired-session"
+
+    env = MagicMock()
+    env.lab_exists.return_value = False
+
+    def load_env(scenario: str, **kwargs):
+        if scenario == "retired_scenario":
+            raise ValueError("Network environment 'retired_scenario' not found")
+        return env
+
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch(
+            "nika.workflows.session.close.get_net_env_instance",
+            side_effect=load_env,
+        ) as factory,
+        patch("nika.workflows.session.close.wipe_kathara_labs") as wipe_kathara,
+        patch(
+            "nika.workflows.session.close.wipe_all_containerlab_labs"
+        ) as wipe_containerlab,
+        patch(
+            "nika.workflows.session.close.wipe_runtime_artifacts", return_value=0
+        ) as wipe_runtime,
+    ):
+        close_session(stop_all=True)
+
+    assert {call.args[0] for call in factory.call_args_list} == {
+        "retired_scenario",
+        "dc_clos",
+    }
+    assert store.list_running_sessions() == []
+    for session_dir in session_dirs.values():
+        run_meta = json.loads((session_dir / "run.json").read_text(encoding="utf-8"))
+        assert run_meta["status"] == "finished"
+    wipe_kathara.assert_called_once_with()
+    wipe_containerlab.assert_called_once_with()
+    wipe_runtime.assert_called_once_with()
+
+
 def test_cleanup_undeploys_before_deleting_run_json(
     tmp_path: Path, monkeypatch
 ) -> None:

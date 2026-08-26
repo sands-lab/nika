@@ -8,7 +8,7 @@ class SubmitValidationTest:
         parsed, errors = validate_root_cause_choices(
             [{"resource_id": "interface/pc1/eth0", "fault_type": "link_down"}],
             catalog_ids={"interface/pc1/eth0", "node/pc1"},
-            fault_types={"link_down", "host_crash"},
+            fault_types={"link_down", "host_missing_ip"},
         )
         assert errors == []
         assert parsed == [

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from nika.runtime.base import LabRuntime
-from nika.runtime.extras import raise_missing_extra, require_backend_extra
+from nika.utils.dependencies import raise_missing_extra, require_backend_extra
 from nika.runtime.meta import meta_get, meta_lab_name, meta_path
 
 if TYPE_CHECKING:

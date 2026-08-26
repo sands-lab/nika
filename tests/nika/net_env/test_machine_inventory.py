@@ -2,7 +2,7 @@ from Kathara.model.Lab import Lab
 import pytest
 
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.kathara.isp.isp.lab import Isp
+from nika.net_env.isp.kathara.lab import Isp
 from nika.runtime.spec import MachineInventory, NodeIdentity, NodeRole
 
 

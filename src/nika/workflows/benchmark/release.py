@@ -14,7 +14,7 @@ from typing import Any, Literal
 import yaml
 
 from nika.config import BENCHMARK_DIR, REPO_ROOT
-from nika.net_env.kathara.utils.docker_files.docker_images import (
+from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
 )
 from nika.net_env.net_env_pool import (
@@ -68,6 +68,16 @@ RESOURCES_V1 = {
 DEFAULTS_V1 = {
     "case_timeout_sec": 2400,
     "n_trials": 3,
+}
+
+# Release 0.1.0 predates canonical image sorting in compute_benchmark_digest().
+# Accept its published digest only when the current canonical digest also
+# matches this exact pair. Case-file hashes are still verified below.
+_LEGACY_DIGEST_COMPAT = {
+    (
+        "226d3209e3c3c46aade8c37ecd989642ae73692f0d9f149995954553e41474d1",
+        "8654c020e14de0505fba2c426a0d2f0d031bfbaa294a7bef0d84aa1c6825842f",
+    )
 }
 
 
@@ -386,7 +396,8 @@ def load_release_from_dir(
         scenario_problem_pin=pins,
     )
     stored = str(manifest.get("benchmark_digest") or "").removeprefix("sha256:")
-    if verify_digest and stored and stored != digest:
+    legacy_digest_pair = (stored, digest) in _LEGACY_DIGEST_COMPAT
+    if verify_digest and stored and stored != digest and not legacy_digest_pair:
         raise ReleaseError(
             f"Release digest mismatch for {root.name}: "
             f"RELEASE.yaml has {stored}, computed {digest}"
@@ -470,17 +481,6 @@ def _verify_pins(pins: dict[str, Any], *, kind: str) -> None:
                 # Legacy failure ids (e.g. host_vpn_membership_missing) remap; the
                 # pinned source may have been removed.
                 if resolve_problem_name(str(name)) != str(name):
-                    continue
-            elif kind == "scenarios":
-                from nika.net_env.net_env_pool import resolve_scenario_ref
-
-                # Legacy scenario ids (e.g. sdn_star, p4_counter) remap; the
-                # pinned source may have been removed.
-                try:
-                    canonical, _ = resolve_scenario_ref(str(name))
-                except ValueError:
-                    canonical = str(name)
-                if canonical != str(name):
                     continue
             raise ReleaseError(f"Pinned {kind} source missing for {name!r}: {path}")
         actual = _sha256_file(path)

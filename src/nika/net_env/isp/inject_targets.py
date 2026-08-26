@@ -18,7 +18,7 @@ LINK_HOST_ONLY_PROBLEMS = frozenset(
     {
         "mtu_mismatch",
         "link_bandwidth_throttling",
-        "link_high_packet_corruption",
+        "link_packet_corruption",
         "icmp_acl_block",
         "frr_service_down",
         "ospf_area_misconfiguration",

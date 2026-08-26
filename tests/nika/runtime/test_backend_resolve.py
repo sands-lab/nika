@@ -131,6 +131,7 @@ class BackendResolveTest:
                         start_net_env("isp", None)
                         _, kwargs = mock_env.call_args
                         assert kwargs.get("backend") == "kathara"
+                        assert kwargs.get("topo_size") == "s"
                         init_kwargs = session.init_session.call_args.kwargs
                         assert init_kwargs.get("backend") == "kathara"
 

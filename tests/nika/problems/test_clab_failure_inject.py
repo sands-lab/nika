@@ -14,7 +14,7 @@ MIN3CLOS_FAILURES = (
     "link_flap",
     "mtu_mismatch",
     "link_bandwidth_throttling",
-    "link_high_packet_corruption",
+    "link_packet_corruption",
     "bgp_acl_block",
     "bgp_asn_misconfig",
     "bgp_missing_route_advertisement",
@@ -49,8 +49,8 @@ class ClabFailureInjectVerifyTest(PerTestEnvTestCase):
     def test_link_bandwidth_throttling(self) -> None:
         self._inject_and_assert("link_bandwidth_throttling")
 
-    def test_link_high_packet_corruption(self) -> None:
-        self._inject_and_assert("link_high_packet_corruption")
+    def test_link_packet_corruption(self) -> None:
+        self._inject_and_assert("link_packet_corruption")
 
     def test_bgp_acl_block(self) -> None:
         self._inject_and_assert("bgp_acl_block")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from nika.runtime.ops_mixin import ExecSemanticOpsMixin
+from nika.service.lab.runtime_ops import ExecSemanticOpsMixin
 
 if TYPE_CHECKING:
     from docker.models.containers import Container

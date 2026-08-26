@@ -7,8 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from nika.generator.traffic import corp_qos_compete as qos_traffic
-from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+from traffic import corp_qos_compete as qos_traffic
+from nika.net_env.enterprise_branch.topology import (
     DSCP_CS0,
     DSCP_EF,
     TOS_EF,
@@ -108,7 +108,7 @@ class VrfDscpRemarking(ProblemBase):
             if params.host_name.endswith("_edge")
             else params.host_name
         )
-        from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+        from nika.net_env.enterprise_branch.topology import (
             build_topo_spec,
         )
 

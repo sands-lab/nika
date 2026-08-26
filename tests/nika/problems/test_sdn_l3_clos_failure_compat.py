@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 
 from benchmark.inject_resolve import resolve_inject_params
-from nika.net_env.kathara.sdn.topology_model import build_clos_fabric_model
-from nika.net_env.kathara.sdn.verify import verify_sdn_l3_clos_lab
+from nika.net_env.sdn_l3_clos.topology_model import build_clos_fabric_model
+from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
 from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.prob_pool import get_problem_instance, list_avail_problem_names
 from nika.runtime.factory import runtime_for_session

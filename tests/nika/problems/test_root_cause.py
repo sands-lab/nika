@@ -39,8 +39,8 @@ class RootCauseSchemaTest:
 
     def test_canonical_sort(self) -> None:
         items = [
-            RootCause(resource=node_resource("b"), fault_type="host_crash"),
-            RootCause(resource=node_resource("a"), fault_type="host_crash"),
+            RootCause(resource=node_resource("b"), fault_type="host_missing_ip"),
+            RootCause(resource=node_resource("a"), fault_type="host_missing_ip"),
         ]
         dumped = canonical_root_causes(items)
         assert dumped[0]["resource"] == {"kind": "node", "node": "a"}

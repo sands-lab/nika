@@ -52,7 +52,7 @@ class ScoringTest:
         truth = RootCause(
             resource=interface_resource("pc1", "eth0"), fault_type="link_down"
         )
-        extra = RootCause(resource=node_resource("r1"), fault_type="host_crash")
+        extra = RootCause(resource=node_resource("r1"), fault_type="host_missing_ip")
         scores = score_rca_v2(_sub(truth, extra), _gt(truth))
         assert scores["rca_recall"] == 1.0
         assert scores["rca_precision"] == 0.5
@@ -62,7 +62,7 @@ class ScoringTest:
         a = RootCause(
             resource=interface_resource("pc1", "eth0"), fault_type="link_down"
         )
-        b = RootCause(resource=node_resource("r1"), fault_type="host_crash")
+        b = RootCause(resource=node_resource("r1"), fault_type="host_missing_ip")
         scores = score_rca_v2(_sub(a), _gt(a, b))
         assert scores["rca_precision"] == 1.0
         assert scores["rca_recall"] == 0.5

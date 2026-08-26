@@ -19,10 +19,14 @@ logger = logging.getLogger(__name__)
 
 _MCP_POLICY_PREFIX = "nika-mcp-"
 
-# DeepSeek is used for sandbox API-key mode (Codex + Claude). The default
-# balanced policy does not allow it, which surfaces as HTTP 403
-# "Blocked by network policy: domain api.deepseek.com:443".
-_LLM_NETWORK_HOSTS = ("api.deepseek.com",)
+# The default balanced policy blocks model APIs.  These are the provider
+# endpoints supported by NIKA's sandbox agent configurations, including an
+# Anthropic-compatible OpenRouter endpoint used by some Claude credentials.
+_LLM_NETWORK_HOSTS = (
+    "api.anthropic.com",
+    "api.deepseek.com",
+    "openrouter.ai",
+)
 
 # Needed when SDK agents install deps from PyPI (offline wheels disabled).
 _PYPI_NETWORK_HOSTS = (

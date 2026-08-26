@@ -215,6 +215,39 @@ def iperf_test(
 
 @safe_tool
 @mcp.tool()
+def active_tcp_probe(
+    source: str,
+    destination: str,
+    source_port: int,
+    destination_port: int,
+    payload_seed: int,
+    payload_size: int = 256,
+    packets: int = 32,
+) -> dict:
+    """Send deterministic TCP payload probes over a chosen 5-tuple.
+
+    Change endpoints or ports to exercise a different ECMP path.  The result
+    reports endpoint observations only and does not infer an intermediate node.
+    """
+    from traffic.active_probe import run_active_tcp_probe
+
+    from nika.runtime.factory import runtime_for_session
+    from nika.service.mcp_server.session_context import get_session_meta
+
+    return run_active_tcp_probe(
+        runtime_for_session(get_session_meta()),
+        source=source,
+        destination=destination,
+        source_port=source_port,
+        destination_port=destination_port,
+        payload_seed=payload_seed,
+        payload_size=payload_size,
+        packets=packets,
+    )
+
+
+@safe_tool
+@mcp.tool()
 def cat_file(host_name: str, file_path: str) -> str:
     """Show contents of a file on a host.
 

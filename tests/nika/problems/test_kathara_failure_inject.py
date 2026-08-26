@@ -55,7 +55,7 @@ class HostMisconfigVerifyTest(PerTestEnvTestCase):
 
 class HostIncorrectDNSVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_host_incorrect_dns(self) -> None:
         self._inject_failure("host_incorrect_dns")
@@ -68,7 +68,7 @@ class HostIncorrectDNSVerifyTest(PerTestEnvTestCase):
 
 class OSPFMisconfigVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "static"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_ospf_area_misconfiguration(self) -> None:
         self._inject_failure("ospf_area_misconfiguration")
@@ -105,7 +105,7 @@ class BGPMisconfigVerifyTest(PerTestEnvTestCase):
 
 class MacMisconfigVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "static"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_mac_address_conflict(self) -> None:
         self._inject_failure("mac_address_conflict")
@@ -114,7 +114,7 @@ class MacMisconfigVerifyTest(PerTestEnvTestCase):
 
 class DHCPMisconfigVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_dhcp_missing_subnet(self) -> None:
         self._inject_failure("dhcp_missing_subnet")
@@ -139,7 +139,7 @@ class ACLBlockVerifyTest(PerTestEnvTestCase):
 
 class HttpACLBlockVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_http_acl_block(self) -> None:
         self._inject_failure("http_acl_block")
@@ -147,23 +147,12 @@ class HttpACLBlockVerifyTest(PerTestEnvTestCase):
 
 
 class P4MisconfigVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "p4_bloom_filter"
-
-    def test_p4_aggressive_detection_thresholds(self) -> None:
-        self._inject_failure("p4_aggressive_detection_thresholds")
-        self._assert_failure_injected("p4_aggressive_detection_thresholds")
+    SCENARIO = "p4_dc_fabric"
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_bmv2_switch_down(self) -> None:
         self._inject_failure("bmv2_switch_down")
         self._assert_failure_injected("bmv2_switch_down")
-
-    def test_p4_header_definition_error(self) -> None:
-        self._inject_failure("p4_header_definition_error")
-        self._assert_failure_injected("p4_header_definition_error")
-
-    def test_p4_compilation_error_parser_state(self) -> None:
-        self._inject_failure("p4_compilation_error_parser_state")
-        self._assert_failure_injected("p4_compilation_error_parser_state")
 
     def test_p4_table_entry_missing(self) -> None:
         self._inject_failure("p4_table_entry_missing")
@@ -172,14 +161,6 @@ class P4MisconfigVerifyTest(PerTestEnvTestCase):
     def test_p4_table_entry_misconfig(self) -> None:
         self._inject_failure("p4_table_entry_misconfig")
         self._assert_failure_injected("p4_table_entry_misconfig")
-
-
-class P4MPLSVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "p4_mpls"
-
-    def test_mpls_label_limit_exceeded(self) -> None:
-        self._inject_failure("mpls_label_limit_exceeded")
-        self._assert_failure_injected("mpls_label_limit_exceeded")
 
 
 class FrrDownVerifyTest(PerTestEnvTestCase):
@@ -192,7 +173,7 @@ class FrrDownVerifyTest(PerTestEnvTestCase):
 
 class WebDoSVerifyTest(PerTestEnvTestCase):
     SCENARIO = "dc_clos"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_web_dos_attack(self) -> None:
         self._inject_failure("web_dos_attack")
@@ -201,7 +182,7 @@ class WebDoSVerifyTest(PerTestEnvTestCase):
 
 class DHCPAttackVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_dhcp_spoofed_gateway(self) -> None:
         self._inject_failure("dhcp_spoofed_gateway")
@@ -230,7 +211,7 @@ class BGPHijackingVerifyTest(PerTestEnvTestCase):
 
 class StressVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_sender_resource_contention(self) -> None:
         self._inject_failure("sender_resource_contention")
@@ -251,7 +232,7 @@ class StressVerifyTest(PerTestEnvTestCase):
 
 class DNSLookupLatencyVerifyTest(PerTestEnvTestCase):
     SCENARIO = "dc_clos"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_dns_lookup_latency(self) -> None:
         self._inject_failure("dns_lookup_latency")
@@ -261,9 +242,9 @@ class DNSLookupLatencyVerifyTest(PerTestEnvTestCase):
 class LinkIssueVerifyTest(PerTestEnvTestCase):
     SCENARIO = "simple_bgp"
 
-    def test_link_high_packet_corruption(self) -> None:
-        self._inject_failure("link_high_packet_corruption", {"host_name": HOST})
-        self._assert_failure_injected("link_high_packet_corruption")
+    def test_link_packet_corruption(self) -> None:
+        self._inject_failure("link_packet_corruption", {"host_name": HOST})
+        self._assert_failure_injected("link_packet_corruption")
 
     def test_link_bandwidth_throttling(self) -> None:
         self._inject_failure("link_bandwidth_throttling", {"host_name": HOST})
@@ -272,7 +253,7 @@ class LinkIssueVerifyTest(PerTestEnvTestCase):
 
 class IncastTrafficLimitationVerifyTest(PerTestEnvTestCase):
     SCENARIO = "dc_clos"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "service"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_incast_traffic_network_limitation(self) -> None:
         self._inject_failure("incast_traffic_network_limitation")
@@ -281,19 +262,11 @@ class IncastTrafficLimitationVerifyTest(PerTestEnvTestCase):
 
 class DNSRecordErrorVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_dns_record_error(self) -> None:
         self._inject_failure("dns_record_error")
         self._assert_failure_injected("dns_record_error")
-
-
-class HostCrashVerifyTest(PerTestEnvTestCase):
-    SCENARIO = "simple_bgp"
-
-    def test_host_crash(self) -> None:
-        self._inject_failure("host_crash", {"host_name": HOST})
-        self._assert_failure_injected("host_crash")
 
 
 class WireGuardAllowedIpsMisconfigVerifyTest(PerTestEnvTestCase):
@@ -565,7 +538,7 @@ class VrfDscpRemarkingVerifyTest(PerTestEnvTestCase):
 
 class ServiceDownVerifyTest(PerTestEnvTestCase):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS = ["-s", "s", "--workload", "dhcp"]
+    ENV_RUN_ARGS = ["-s", "s"]
 
     def test_dns_service_down(self) -> None:
         self._inject_failure("dns_service_down")

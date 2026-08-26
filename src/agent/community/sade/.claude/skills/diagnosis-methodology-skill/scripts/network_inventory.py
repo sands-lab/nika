@@ -345,7 +345,7 @@ def main() -> int:
     # remain importable for other scripts.
     parser = argparse.ArgumentParser(description="Discover lab topology and device groupings.")
     parser.set_defaults(command="summary", as_json=False)
-    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "ospf_enterprise_dhcp"))
+    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "campus_lan"))
     subparsers = parser.add_subparsers(dest="command")
 
     summary_parser = subparsers.add_parser("summary", help="Show grouped devices plus discovered links.")

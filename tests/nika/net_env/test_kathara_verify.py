@@ -1,27 +1,19 @@
 from __future__ import annotations
 
 import pytest
-from nika.net_env.kathara.data_center_routing.dc_clos.verify import (
-    verify_dc_clos_bgp_lab,
-    verify_dc_clos_service_lab,
-)
-from nika.net_env.kathara.enterprise_wan.enterprise_branch.verify import (
+from nika.net_env.dc_clos.verify import verify_dc_clos_lab
+from nika.net_env.enterprise_branch.verify import (
     verify_enterprise_branch_lab,
 )
-from nika.net_env.kathara.interdomain_routing.simple_bgp.verify import (
-    verify_simple_bgp_lab,
-)
-from nika.net_env.kathara.kubernetes.k8s_lab.verify import verify_k8s_lab
-from nika.net_env.kathara.kubernetes.llmd_lab.verify import verify_llmd_lab
-from nika.net_env.kathara.p4.p4_bloom_filter.verify import verify_p4_bloom_filter_lab
-from nika.net_env.kathara.p4.p4_int.verify import verify_p4_int_lab
-from nika.net_env.kathara.p4.p4_mpls.verify import verify_p4_mpls_lab
-from nika.net_env.kathara.sdn.topology_model import build_clos_fabric_model
-from nika.net_env.kathara.sdn.verify import verify_sdn_l3_clos_lab
+from nika.net_env.k8s_lab.verify import verify_k8s_lab
+from nika.net_env.llmd_lab.verify import verify_llmd_lab
+from nika.net_env.sdn_l3_clos.topology_model import build_clos_fabric_model
+from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
-from tests.support.prerequisites import docker_available
 from tests.support.net_env import assert_verify_success
+from tests.support.prerequisites import docker_available
+from tests.support.simple_bgp.verify import verify_simple_bgp_lab
 
 ALL_NODES = {
     "router1",
@@ -294,16 +286,11 @@ class KatharaVerifyUnitTest:
     def test_simple_bgp_verify_passes(self) -> None:
         assert_verify_success(verify_simple_bgp_lab(FakeRuntime(), scenario_name="x"))
 
-    def test_dc_clos_bgp_verify_passes(self) -> None:
-        assert_verify_success(verify_dc_clos_bgp_lab(FakeRuntime(), scenario_name="x"))
-
-    def test_dc_clos_service_verify_passes(self) -> None:
-        assert_verify_success(
-            verify_dc_clos_service_lab(FakeRuntime(), scenario_name="x")
-        )
+    def test_dc_clos_verify_passes(self) -> None:
+        assert_verify_success(verify_dc_clos_lab(FakeRuntime(), scenario_name="x"))
 
     def test_enterprise_branch_verify_passes(self) -> None:
-        from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+        from nika.net_env.enterprise_branch.topology import (
             BuiltTunnel,
             build_topo_spec,
         )
@@ -357,17 +344,6 @@ class KatharaVerifyUnitTest:
             )
         )
 
-    def test_p4_bloom_filter_verify_passes(self) -> None:
-        assert_verify_success(
-            verify_p4_bloom_filter_lab(FakeRuntime(), scenario_name="x")
-        )
-
-    def test_p4_int_verify_passes(self) -> None:
-        assert_verify_success(verify_p4_int_lab(FakeRuntime(), scenario_name="x"))
-
-    def test_p4_mpls_verify_passes(self) -> None:
-        assert_verify_success(verify_p4_mpls_lab(FakeRuntime(), scenario_name="x"))
-
     def test_k8s_verify_passes(self) -> None:
         assert_verify_success(verify_k8s_lab(FakeRuntime(), scenario_name="x"))
 
@@ -382,16 +358,6 @@ class KatharaVerifyUnitTest:
         assert not result["verified"]
 
         assert not result["checks"]["nodes_deployed"]
-
-    def test_p4_process_failure_fails(self) -> None:
-        result = verify_p4_bloom_filter_lab(
-            FakeRuntime(overrides={("switch_1", "pgrep -x simple_switch"): ""}),
-            scenario_name="x",
-        )
-
-        assert not result["verified"]
-
-        assert not result["checks"]["p4_switches_ready"]
 
     def test_k8s_not_ready_fails(self) -> None:
         result = verify_k8s_lab(
@@ -410,18 +376,7 @@ SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
     ("simple_bgp", [], ("router1", "router2", "pc1", "pc2")),
     (
         "dc_clos",
-        ["-s", "s", "--workload", "host"],
-        (
-            "super_spine_router_0",
-            "spine_router_0_0",
-            "leaf_router_0_0",
-            "pc_0_0",
-            "pc_0_1",
-        ),
-    ),
-    (
-        "dc_clos",
-        ["-s", "s", "--workload", "service"],
+        ["-s", "s"],
         (
             "super_spine_router_0",
             "spine_router_0_0",
@@ -455,9 +410,6 @@ SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
         ["-s", "s"],
         ("fabric_mgr", "spine_1", "leaf_1", "web_1", "client_1_1"),
     ),
-    ("p4_bloom_filter", [], ("pc1", "pc2", "switch_1", "switch_2")),
-    ("p4_int", [], ("pc1", "pc2", "collector", "leaf1", "leaf2", "spine1", "spine2")),
-    ("p4_mpls", [], ("pc1", "pc2", "pc3", "switch_1", "switch_4", "switch_7")),
 )
 
 

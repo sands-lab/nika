@@ -7,7 +7,7 @@ class ClabConnectedDevicesTest:
     def test_min3clos_neighbors(self) -> None:
         template = (
             Path(__file__).resolve().parents[3]
-            / "src/nika/net_env/containerlab/min3clos/min3clos.clab.yml.tmpl"
+            / "src/nika/net_env/min3clos/min3clos.clab.yml.tmpl"
         )
         runtime = ContainerlabRuntime(lab_name="min3clos__test", topology_file=template)
 

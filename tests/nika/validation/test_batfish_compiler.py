@@ -69,7 +69,7 @@ def test_prefix_without_source_location_is_explicitly_unsupported() -> None:
         compile_intent(intent)
 
 
-def test_prefix_destination_excludes_ipv4_network_and_broadcast_addresses() -> None:
+def test_prefix_destination_probes_the_first_usable_address() -> None:
     intent = _flow_intent().model_copy(
         update={
             "destination": NetworkEntity(
@@ -78,4 +78,5 @@ def test_prefix_destination_excludes_ipv4_network_and_broadcast_addresses() -> N
         }
     )
     question = compile_intent(intent)[0]
-    assert question.parameters["headers"]["dstIps"] == "192.0.2.1-192.0.2.254"
+    # Matches the runtime probe (network + 1) instead of the whole usable range.
+    assert question.parameters["headers"]["dstIps"] == "192.0.2.1"

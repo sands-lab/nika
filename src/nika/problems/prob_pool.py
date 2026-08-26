@@ -13,6 +13,9 @@ logger = system_logger
 _PROBLEM_ALIASES: dict[str, str] = {
     "host_vpn_membership_missing": "wireguard_peer_key_misconfiguration",
     "link_fragmentation_disabled": "mtu_mismatch",
+    "link_high_packet_corruption": "link_packet_corruption",
+    "physical_link_corruption": "link_packet_corruption",
+    "faulty_egress_interface": "silent_egress_packet_loss",
 }
 
 

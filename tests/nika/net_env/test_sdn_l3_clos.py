@@ -6,15 +6,15 @@ import time
 
 import pytest
 
-from nika.net_env.kathara.sdn.fabric_manager import apply as fabric_apply
-from nika.net_env.kathara.sdn.fabric_manager.apply import (
+from nika.net_env.sdn_l3_clos.fabric_manager import apply as fabric_apply
+from nika.net_env.sdn_l3_clos.fabric_manager.apply import (
     apply_forwarding,
     prune_groups_for_down_link,
 )
-from nika.net_env.kathara.sdn.fabric_manager.forwarding_rules import (
+from nika.net_env.sdn_l3_clos.fabric_manager.forwarding_rules import (
     build_forwarding_rules,
 )
-from nika.net_env.kathara.sdn.topology_model import (
+from nika.net_env.sdn_l3_clos.topology_model import (
     SIZE_TABLE,
     build_clos_fabric_model,
     device_id,
@@ -64,6 +64,24 @@ def test_forwarding_rules_spine_prefixes() -> None:
     spine_flows = [f for f in rules["flows"] if f["switch"] == "spine_1"]
     assert len(spine_flows) == model.leaf_count
     assert all(f["device_id"] == device_id(dpid_for_spine(1)) for f in spine_flows)
+
+
+def test_onos_batch_splits_large_command_payload() -> None:
+    class Runtime:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+
+        def exec(self, _node: str, command: str, **_kwargs) -> str:
+            self.commands.append(command)
+            return '[{"status": 200}]'
+
+    runtime = Runtime()
+    ops = [("POST", "/onos/v1/groups/of:1", {"payload": "x" * 1000})] * 100
+    result = fabric_apply._onos_batch(runtime, ops)
+
+    assert len(runtime.commands) > 1
+    assert all(len(command) < 70_000 for command in runtime.commands)
+    assert len(__import__("json").loads(result)) == len(runtime.commands)
 
 
 def test_prune_groups_removes_only_failed_link_buckets(

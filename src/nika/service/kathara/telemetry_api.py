@@ -1,110 +1,75 @@
-import csv
-import io
 import json
+from datetime import datetime
 
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 
 
 class TelemetryAPIMixin:
-    """
-    Interfaces to interact with the in-band telemetry (P4 supported) data stored in InfluxDB within Kathara.
-    """
+    """Query observed INT-MX telemetry from a Kathara collector."""
 
-    # Keep these parameters consistent with the InfluxDB configuration in the Dockerfile.
-    token = "int_token"
-    org = "int_org"
-    bucket = "int_bucket"
+    @staticmethod
+    def _time_bound_ns(value: str) -> int:
+        """Normalize Unix seconds, Unix nanoseconds, or an ISO-8601 value."""
+        try:
+            numeric = float(value)
+        except ValueError:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return int(parsed.timestamp() * 1_000_000_000)
+        if abs(numeric) < 1_000_000_000_000:
+            numeric *= 1_000_000_000
+        return int(numeric)
 
-    def influx_list_buckets(
-        self: _SupportsBase, host_name: str = "collector"
-    ) -> list[str]:
-        """List all buckets in the InfluxDB instance."""
-        query_cmd = "influx bucket list --json"
-        return [self.exec_cmd(host_name=host_name, command=query_cmd)]
-
-    def influx_get_measurements(
-        self: _SupportsBase, host_name: str = "collector"
-    ) -> list[str]:
-        """List all measurements (tables) in a database"""
-        query_cmd = f"""influx query 'import "influxdata/influxdb/schema" schema.measurements(bucket: "{self.bucket}")'"""
-        return [self.exec_cmd(host_name=host_name, command=query_cmd)]
-
-    def influx_count_measurements(
-        self: _SupportsBase, measurement: str, host_name: str = "collector"
-    ) -> list[str]:
-        """Count the size of all records in a measurement"""
-        query_cmd = (
-            f'curl -sS --request POST "http://localhost:8086/api/v2/query?org={self.org}" '
-            f'--header "Authorization: Token {self.token}" '
-            '--header "Accept: application/csv" '
-            '--header "Content-type: application/vnd.flux" '
-            "--data '"
-            f'from(bucket: "{self.bucket}")\n'
-            "  |> range(start: -1h)\n"
-            f'  |> filter(fn: (r) => r["_measurement"] == "{measurement}")\n'
-            f"  |> group(columns: [])\n"
-            f"  |> count()"
-            "'"
-        )
-        result = self.exec_cmd(host_name=host_name, command=query_cmd)
-        jsoned_result = self._csv_to_json(result)
-        return [jsoned_result]
-
-    def _csv_to_json(self: _SupportsBase, query_result: str) -> list[dict]:
-        """Convert CSV query result to JSON format."""
-        lines = [
-            line
-            for line in query_result.splitlines()
-            if line.strip() and not line.startswith("#")
-        ]
-
-        header = None
-        data_lines = []
-        for line in lines:
-            if line.startswith(",result,"):
-                if header is None:
-                    header = line.split(",")
-                else:
-                    continue
-            else:
-                data_lines.append(line)
-
-        reader = csv.DictReader(io.StringIO("\n".join(data_lines)), fieldnames=header)
-        rows = [row for row in reader]
-        return json.dumps(rows, indent=2)
-
-    def influx_query_measurement(
+    def int_query_telemetry(
         self: _SupportsBase,
-        measurement: str,
-        limit: int = 10,
-        offset: int = 0,
-        host_name: str = "collector",
-    ) -> list[str]:
-        """
-        ref: https://github.com/influxdata/influxdb3_mcp_server/blob/3fb86fe505f76fddcab4c7740ad62987beb02c45/src/tools/categories/query.tools.ts#L14
-        Execute a SQL query against an InfluxDB database (all versions). Returns results in the specified format (defaults to JSON).
-        Large Dataset Warning: InfluxDB might contain massive time-series data. Always use count_measurements() first to check size, then LIMIT/OFFSET for large results (>1000 rows).
-        """
-        query_cmd = (
-            f'curl -sS --request POST "http://localhost:8086/api/v2/query?org={self.org}" '
-            f'--header "Authorization: Token {self.token}" '
-            '--header "Accept: application/csv" '
-            '--header "Content-type: application/vnd.flux" '
-            "--data '"
-            f'from(bucket: "{self.bucket}")\n'
-            "  |> range(start: -1h)\n"
-            f'  |> filter(fn: (r) => r["_measurement"] == "{measurement}")\n'
-            f"  |> limit(n: {limit}, offset: {offset})"
-            "'"
+        start_time: str,
+        end_time: str | None = None,
+        src: str | None = None,
+        dst: str | None = None,
+        protocol: str | None = None,
+        src_port: int | None = None,
+        dst_port: int | None = None,
+        flow_id: str | None = None,
+        packet_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Query observed INT-MX traces from the scenario collector."""
+        start_ns = self._time_bound_ns(start_time)
+        end_ns = self._time_bound_ns(end_time) if end_time is not None else None
+        raw = self.exec_cmd(
+            "collector",
+            "tail -n 10000 /var/lib/nika/int_reports.jsonl 2>/dev/null || true",
+            timeout=20,
         )
-        query_result = self.exec_cmd(host_name=host_name, command=query_cmd)
-        jsoned_result = self._csv_to_json(query_result)
-        return [jsoned_result]
+        rows: list[dict] = []
+        for line in raw.splitlines():
+            try:
+                row = json.loads(line)
+                timestamp_ns = int(row["packet_timestamp"])
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                continue
+            if timestamp_ns < start_ns or (
+                end_ns is not None and timestamp_ns > end_ns
+            ):
+                continue
+            filters = {
+                "src": src,
+                "dst": dst,
+                "protocol": protocol,
+                "src_port": src_port,
+                "dst_port": dst_port,
+                "flow_id": flow_id,
+                "packet_id": packet_id,
+            }
+            if any(
+                value is not None and str(row.get(key)) != str(value)
+                for key, value in filters.items()
+            ):
+                continue
+            rows.append(row)
+        return rows[-max(1, min(limit, 1000)) :]
 
 
 class KatharaTelemetryAPI(KatharaBaseAPI, TelemetryAPIMixin):
-    """
-    Kathara interface API to query telemetry data.
-    """
+    """Kathara API for observed INT-MX telemetry."""
 
     pass

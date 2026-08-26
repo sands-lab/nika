@@ -148,7 +148,7 @@ class NetworkEnvBase:
 
     def _ensure_docker_images(self) -> None:
         """Ensure local NIKA Docker images required by this lab are available."""
-        from nika.net_env.kathara.utils.docker_files.docker_images import (
+        from nika.net_env.utils.kathara.docker_files.docker_images import (
             ensure_nika_docker_images,
         )
 

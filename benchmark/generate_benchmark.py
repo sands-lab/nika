@@ -18,12 +18,7 @@ from pathlib import Path
 import yaml
 
 from nika.config import BENCHMARK_DIR
-from nika.net_env.net_env_pool import (
-    is_dc_clos_scenario,
-    is_campus_lan_scenario,
-    list_all_net_envs,
-    scenario_requires_topo_size,
-)
+from nika.net_env.net_env_pool import list_all_net_envs, scenario_requires_topo_size
 from nika.problems.ground_truth import ground_truth_for_case
 from nika.problems.prob_pool import list_avail_problem_instances
 from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
@@ -50,6 +45,11 @@ from nika.workflows.benchmark.release import (
     write_release_manifest,
 )
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+from nika.topology.sndlib.catalog import (
+    list_sndlib_topologies,
+    topologies_for_size,
+    topology_size_for_name,
+)
 
 # RPKI capability: representative SNDlib topologies (not a full cartesian product).
 RPKI_SELECTED_TOPOS: tuple[str, ...] = ("abilene", "geant")
@@ -62,6 +62,20 @@ def _rpki_isp_options(topo: str) -> dict:
         "bgp_mode": "ebgp",
         "rpki": True,
     }
+
+
+def _isp_options_for_topology(problem: str, problem_tags: set[str], topo: str) -> dict:
+    options = isp_config_for_problem(problem, problem_tags)
+    options["topo"] = topo
+    return options
+
+
+def _selected_isp_topology(*, seed: int, problem: str, topo_size: str) -> str:
+    candidates = topologies_for_size(topo_size)
+    digest = hashlib.blake2b(
+        f"{seed}|{problem}|{topo_size}".encode(), digest_size=8
+    ).digest()
+    return candidates[int.from_bytes(digest, "big") % len(candidates)]
 
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -83,7 +97,7 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "bgp_missing_route_advertisement": "dc_clos",
     "bgp_rpki_invalid_route_leak": "isp",
     "bgp_max_prefix_exceeded": "isp",
-    "bmv2_switch_down": "p4_bloom_filter",
+    "bmv2_switch_down": "p4_dc_fabric",
     "dhcp_missing_subnet": "campus_lan",
     "dhcp_service_down": "campus_lan",
     "dhcp_spoofed_dns": "campus_lan",
@@ -96,7 +110,6 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "flow_rule_loop": "sdn_l3_clos",
     "flow_rule_shadowing": "sdn_l3_clos",
     "frr_service_down": "campus_lan",
-    "host_crash": "dc_clos",
     "host_incorrect_dns": "campus_lan",
     "host_incorrect_gateway": "campus_lan",
     "host_incorrect_ip": "campus_lan",
@@ -112,23 +125,30 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "link_down": "dc_clos",
     "link_flap": "dc_clos",
     "mtu_mismatch": "dc_clos",
-    "link_high_packet_corruption": "dc_clos",
+    "link_packet_corruption": "dc_clos",
+    "device_forwarding_packet_corruption": "dc_clos",
     "load_balancer_overload": "campus_lan",
     "mac_address_conflict": "campus_lan",
-    "mpls_label_limit_exceeded": "p4_mpls",
     "ospf_acl_block": "campus_lan",
     "ospf_area_misconfiguration": "campus_lan",
     "ospf_neighbor_missing": "campus_lan",
-    "p4_aggressive_detection_thresholds": "p4_bloom_filter",
-    "p4_compilation_error_parser_state": "p4_bloom_filter",
-    "p4_header_definition_error": "p4_bloom_filter",
-    "p4_table_entry_misconfig": "p4_bloom_filter",
-    "p4_table_entry_missing": "p4_bloom_filter",
+    "p4_table_entry_misconfig": "p4_dc_fabric",
+    "p4_table_entry_missing": "p4_dc_fabric",
     "p4_action_selector_member_misconfig": "p4_dc_fabric",
     "p4_ecmp_group_member_missing": "p4_dc_fabric",
     "p4runtime_pipeline_mismatch": "p4_dc_fabric",
     "p4runtime_partial_write": "p4_dc_fabric",
     "p4_table_resource_exhaustion": "p4_dc_fabric",
+    "p4_tcam_entry_corruption": "p4_dc_gateway",
+    "silent_egress_packet_loss": "p4_dc_gateway",
+    "p4_ecn_threshold_misconfiguration": "p4_dc_gateway",
+    "tcp_syn_flood_attack": "p4_dc_gateway",
+    "int_insufficient_mtu_headroom": "p4_dc_gateway",
+    "lb_connection_state_exhaustion": "p4_dc_gateway",
+    "lb_pending_connection_update_race": "p4_dc_gateway",
+    "icmp_frag_needed_filter_misconfiguration": "p4_dc_gateway",
+    "snat_port_pool_exhaustion": "enterprise_branch",
+    "nat_mapping_removed_without_drain": "enterprise_branch",
     "receiver_resource_contention": "campus_lan",
     "sdn_controller_crash": "sdn_l3_clos",
     "sender_application_delay": "campus_lan",
@@ -140,36 +160,6 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "wireguard_peer_key_misconfiguration": "enterprise_branch",
     "vrf_dscp_remarking": "enterprise_branch",
 }
-
-# Failures that are tag-compatible with host Clos but prefer service endpoints.
-DC_CLOS_SERVICE_WORKLOAD_OVERRIDES: frozenset[str] = frozenset({"bgp_hijacking"})
-
-# Host-address faults that need sticky static IPs on the enterprise lab.
-OSPF_STATIC_WORKLOAD_OVERRIDES: frozenset[str] = frozenset(
-    {
-        "host_incorrect_ip",
-        "host_incorrect_netmask",
-        "host_missing_ip",
-    }
-)
-
-
-def workload_for_dc_clos(problem: str, problem_tags: set[str]) -> str:
-    """Pick Clos workload from failure observation needs (not a cartesian product)."""
-    if problem in DC_CLOS_SERVICE_WORKLOAD_OVERRIDES:
-        return "service"
-    if problem_tags & {"dns", "http"}:
-        return "service"
-    return "host"
-
-
-def workload_for_campus_lan(problem: str, problem_tags: set[str]) -> str:
-    """Pick campus_lan workload from failure needs (not a cartesian product)."""
-    if problem in OSPF_STATIC_WORKLOAD_OVERRIDES:
-        return "static"
-    if problem_tags & {"dhcp", "dns", "load_balancer", "web"}:
-        return "dhcp"
-    return "dhcp"
 
 
 # Problems whose only compatible scenarios are the Kubernetes labs. Those labs
@@ -198,7 +188,6 @@ def _make_row(
     topo_size: str,
     *,
     seed: int,
-    workload: str | None = None,
     isp_options: dict[str, str] | None = None,
 ) -> dict:
     inject = resolve_inject_params(
@@ -206,7 +195,6 @@ def _make_row(
         scenario,
         topo_size,
         seed=seed,
-        workload=workload,
         isp_options=isp_options,
     )
     validate_benchmark_case(
@@ -214,7 +202,6 @@ def _make_row(
         problem,
         inject,
         topo_size,
-        workload=workload,
         isp_options=isp_options,
     )
     row: dict = {
@@ -223,8 +210,6 @@ def _make_row(
         "problem": problem,
         "inject": inject,
     }
-    if workload is not None:
-        row["workload"] = workload
     if isp_options is not None:
         row.update(isp_options)
     try:
@@ -236,7 +221,6 @@ def _make_row(
             net_env=load_offline_net_env(
                 scenario,
                 topo_size,
-                workload=workload,
                 **(isp_options or {}),
             ),
         )
@@ -265,28 +249,46 @@ def iter_full_cases(*, seed: int) -> list[dict]:
                 parse_column(column)[0] for column in allow
             }:
                 continue
-            workload = None
             isp_options = None
-            if is_dc_clos_scenario(net_env_name):
-                workload = workload_for_dc_clos(prob_name, problem_tags)
-            elif is_campus_lan_scenario(net_env_name):
-                workload = workload_for_campus_lan(prob_name, problem_tags)
-            elif net_env_name == ISP_SCENARIO:
+            if net_env_name == ISP_SCENARIO:
                 if prob_name == "bgp_rpki_invalid_route_leak":
                     for topo in RPKI_SELECTED_TOPOS:
-                        for topo_size in _topo_sizes_for_scenario(net_env_name):
-                            rows.append(
-                                _make_row(
-                                    net_env_name,
-                                    prob_name,
-                                    topo_size,
-                                    seed=seed,
-                                    workload=None,
-                                    isp_options=_rpki_isp_options(topo),
-                                )
+                        rows.append(
+                            _make_row(
+                                net_env_name,
+                                prob_name,
+                                topology_size_for_name(topo),
+                                seed=seed,
+                                isp_options=_rpki_isp_options(topo),
                             )
+                        )
                     continue
-                isp_options = isp_config_for_problem(prob_name, problem_tags)
+                if prob_name == "bgp_max_prefix_exceeded":
+                    rows.append(
+                        _make_row(
+                            net_env_name,
+                            prob_name,
+                            topology_size_for_name("abilene"),
+                            seed=seed,
+                            isp_options=_isp_options_for_topology(
+                                prob_name, problem_tags, "abilene"
+                            ),
+                        )
+                    )
+                    continue
+                for topo in list_sndlib_topologies():
+                    rows.append(
+                        _make_row(
+                            net_env_name,
+                            prob_name,
+                            topology_size_for_name(topo),
+                            seed=seed,
+                            isp_options=_isp_options_for_topology(
+                                prob_name, problem_tags, topo
+                            ),
+                        )
+                    )
+                continue
             for topo_size in _topo_sizes_for_scenario(net_env_name):
                 rows.append(
                     _make_row(
@@ -294,10 +296,44 @@ def iter_full_cases(*, seed: int) -> list[dict]:
                         prob_name,
                         topo_size,
                         seed=seed,
-                        workload=workload,
                         isp_options=isp_options,
                     )
                 )
+    return rows
+
+
+def _iter_selected_isp_cases(*, seed: int) -> list[dict]:
+    """Build the balanced ISP core that complements selected scenarios."""
+    rows: list[dict] = []
+    isp_tags = set(list_all_net_envs()[ISP_SCENARIO].TAGS)
+    for prob_name, problem_class in list_avail_problem_instances().items():
+        if prob_name in FULL_ONLY_PROBLEMS or prob_name in ORPHANED_PROBLEMS:
+            continue
+        if SELECTED_SCENARIO_FOR_PROBLEM.get(prob_name) == ISP_SCENARIO:
+            continue
+        if not set(problem_class.TAGS).issubset(isp_tags):
+            continue
+        allow = _PROBLEM_COLUMN_ALLOWLIST.get(prob_name)
+        if allow is not None and ISP_SCENARIO not in {
+            parse_column(column)[0] for column in allow
+        }:
+            continue
+        problem_tags = set(problem_class.TAGS)
+        for topo_size in ("s", "m", "l"):
+            topo = _selected_isp_topology(
+                seed=seed, problem=prob_name, topo_size=topo_size
+            )
+            rows.append(
+                _make_row(
+                    ISP_SCENARIO,
+                    prob_name,
+                    topo_size,
+                    seed=seed,
+                    isp_options=_isp_options_for_topology(
+                        prob_name, problem_tags, topo
+                    ),
+                )
+            )
     return rows
 
 
@@ -323,37 +359,52 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
                 f"(problem={problem_instance.TAGS}, scenario={net_env_cls.TAGS})"
             )
         topo_size = "s" if scenario_requires_topo_size(scenario) else ""
-        workload = None
         isp_options = None
-        if is_dc_clos_scenario(scenario):
-            workload = workload_for_dc_clos(prob_name, problem_tags)
-        elif is_campus_lan_scenario(scenario):
-            workload = workload_for_campus_lan(prob_name, problem_tags)
-        elif scenario == ISP_SCENARIO:
+        if scenario == ISP_SCENARIO:
             if prob_name == "bgp_rpki_invalid_route_leak":
                 for topo in RPKI_SELECTED_TOPOS:
                     rows.append(
                         _make_row(
                             scenario,
                             prob_name,
-                            topo_size,
+                            topology_size_for_name(topo),
                             seed=seed,
-                            workload=None,
                             isp_options=_rpki_isp_options(topo),
                         )
                     )
                 continue
-            isp_options = isp_config_for_problem(prob_name, problem_tags)
+            if prob_name == "bgp_max_prefix_exceeded":
+                topo_sizes = (topology_size_for_name("abilene"),)
+                topologies = ("abilene",)
+            else:
+                topo_sizes = ("s", "m", "l")
+                topologies = tuple(
+                    _selected_isp_topology(seed=seed, problem=prob_name, topo_size=size)
+                    for size in topo_sizes
+                )
+            for size, topo in zip(topo_sizes, topologies, strict=True):
+                rows.append(
+                    _make_row(
+                        scenario,
+                        prob_name,
+                        size,
+                        seed=seed,
+                        isp_options=_isp_options_for_topology(
+                            prob_name, problem_tags, topo
+                        ),
+                    )
+                )
+            continue
         rows.append(
             _make_row(
                 scenario,
                 prob_name,
                 topo_size,
                 seed=seed,
-                workload=workload,
                 isp_options=isp_options,
             )
         )
+    rows.extend(_iter_selected_isp_cases(seed=seed))
     return rows
 
 

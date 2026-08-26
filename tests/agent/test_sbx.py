@@ -16,12 +16,19 @@ from agent.sandbox.sbx.credentials import (
     missing_credential_message,
     required_services_for_agent,
 )
-from agent.sandbox.sbx.client import ensure_sbx_daemon, run_sbx, run_sbx_checked
+from agent.sandbox.sbx.client import (
+    ensure_sbx_daemon,
+    require_sbx_authenticated,
+    run_sbx,
+    run_sbx_checked,
+)
 from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
 from agent.sandbox.sbx.manager import SbxSandboxManager
+from agent.sandbox.sbx.policy import _LLM_NETWORK_HOSTS
 from agent.sandbox.sbx.proxy import (
     ensure_sbx_proxy_config,
     resolve_sbx_upstream_proxy,
+    sbx_daemon_running,
     sbx_process_env,
 )
 from agent.sandbox.sbx.wheels import (
@@ -67,6 +74,12 @@ def test_exec_command_uses_sandbox_relative_paths() -> None:
     assert command[:4] == ["sbx", "exec", "-d", "nika-test"]
     assert "CODEX_HOME=.codex_home" in command[-1]
     assert "cd codex_workspace" in command[-1]
+
+
+def test_llm_policy_allows_supported_provider_endpoints() -> None:
+    assert {"api.anthropic.com", "api.deepseek.com", "openrouter.ai"} <= set(
+        _LLM_NETWORK_HOSTS
+    )
 
 
 def test_exec_command_rewrites_secret_env_to_sentinel() -> None:
@@ -252,6 +265,7 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
     with (
         patch("agent.sandbox.sbx.manager.ensure_sbx_proxy_config"),
         patch("agent.sandbox.sbx.manager.ensure_sbx_ready"),
+        patch("agent.sandbox.sbx.manager.require_sbx_authenticated"),
         patch("agent.sandbox.sbx.manager.ensure_llm_network_policy"),
         patch(
             "agent.sandbox.sbx.manager.ensure_sbx_credentials",
@@ -648,6 +662,32 @@ def test_ensure_sbx_daemon_uses_status_not_ls() -> None:
         ensure_sbx_daemon()
     status.assert_called()
     run.assert_not_called()
+
+
+def test_sbx_daemon_running_uses_live_unix_socket(tmp_path, monkeypatch) -> None:
+    socket_path = tmp_path / ".local/state/sandboxes/sandboxes/sandboxd/sandboxd.sock"
+    socket_path.parent.mkdir(parents=True)
+    socket_path.touch()
+    probe = SimpleNamespace(
+        settimeout=lambda _timeout: None,
+        connect=lambda path: path == str(socket_path),
+        close=lambda: None,
+    )
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    with (
+        patch("agent.sandbox.sbx.proxy.socket.socket", return_value=probe),
+        patch("agent.sandbox.sbx.proxy.subprocess.run") as run,
+    ):
+        assert sbx_daemon_running() is True
+    run.assert_not_called()
+
+
+def test_require_sbx_authenticated_fails_with_actionable_message() -> None:
+    with (
+        patch("agent.sandbox.sbx.client.sbx_authenticated", return_value=False),
+        pytest.raises(RuntimeError, match=r"sbx login.*upstream proxy"),
+    ):
+        require_sbx_authenticated()
 
 
 def test_run_sbx_checked_retries_hub_token_error() -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from nika.net_env.kathara.isp.isp.lab import Isp
+from nika.net_env.isp.kathara.lab import Isp
 from nika.topology import list_sndlib_topologies
 from nika.validation.batfish.snapshot import build_isp_snapshot
 

@@ -444,7 +444,7 @@ def _text_summary(payload: dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compact DNS client snapshot helper.")
-    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "ospf_enterprise_dhcp"))
+    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "campus_lan"))
     parser.add_argument("hostname_arg", nargs="?", help="Optional hostname shortcut.")
     parser.add_argument("--device", action="append", default=[], dest="devices")
     parser.add_argument(

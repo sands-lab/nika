@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from typing import ClassVar
-from nika.net_env.kathara.intradomain_routing.campus_lan.verify import (
+from nika.net_env.campus_lan.verify import (
     CORE_ROUTER,
     DNS_SERVER,
     PROBE_HOST,
@@ -20,7 +20,7 @@ INTF = "eth0"
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class KatharaOspfApiSmokeTest(KatharaScenarioApiSmokeTest):
     SCENARIO = "campus_lan"
-    ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s", "--workload", "static"]
+    ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s"]
 
     def test_runtime_ospf_semantic_apis(self) -> None:
         runtime = self._runtime()

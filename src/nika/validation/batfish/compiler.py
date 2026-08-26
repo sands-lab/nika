@@ -130,4 +130,7 @@ def _destination_ip_space(destination: NetworkEntity) -> str | None:
     network = IPv4Network(destination.address)
     if network.num_addresses <= 2:
         return destination.address
-    return f"{network.network_address + 1}-{network.broadcast_address - 1}"
+    # Probe the same canonical address as the runtime verifier (first usable
+    # host). Checking the whole usable range could pass statically while the
+    # runtime probe address is filtered, producing a false mismatch.
+    return str(network.network_address + 1)

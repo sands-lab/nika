@@ -4,19 +4,17 @@ cases:
   topo_size: s
   problem: arp_acl_block
   inject:
-    host_name: pc_1_1_1_1
-  workload: dhcp
+    host_name: pc_2_1_1_1
   root_causes:
   - resource:
       kind: node
-      node: pc_1_1_1_1
+      node: pc_2_1_1_1
     fault_type: arp_acl_block
 - scenario: campus_lan
   topo_size: s
   problem: arp_cache_poisoning
   inject:
     host_name: pc_2_1_1_1
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -26,48 +24,44 @@ cases:
   topo_size: s
   problem: bgp_acl_block
   inject:
-    host_name: leaf_router_0_1
-  workload: host
+    host_name: leaf_router_0_0
   root_causes:
   - resource:
       kind: node
-      node: leaf_router_0_1
+      node: leaf_router_0_0
     fault_type: bgp_acl_block
 - scenario: dc_clos
   topo_size: s
   problem: bgp_asn_misconfig
   inject:
-    host_name: leaf_router_0_1
-  workload: host
+    host_name: spine_router_0_1
   root_causes:
   - resource:
       kind: node
-      node: leaf_router_0_1
+      node: spine_router_0_1
     fault_type: bgp_asn_misconfig
 - scenario: dc_clos
   topo_size: s
   problem: bgp_blackhole_route_leak
   inject:
-    host_name: leaf_router_0_0
-  workload: host
+    host_name: leaf_router_0_1
   root_causes:
   - resource:
       kind: node
-      node: leaf_router_0_0
+      node: leaf_router_0_1
     fault_type: bgp_blackhole_route_leak
 - scenario: dc_clos
   topo_size: s
   problem: bgp_hijacking
   inject:
     host_name: leaf_router_0_0
-  workload: service
   root_causes:
   - resource:
       kind: node
       node: leaf_router_0_0
     fault_type: bgp_hijacking
 - scenario: isp
-  topo_size: null
+  topo_size: s
   problem: bgp_max_prefix_exceeded
   inject:
     receiver_name: hstnng
@@ -90,15 +84,14 @@ cases:
   topo_size: s
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: leaf_router_0_0
-  workload: host
+    host_name: leaf_router_0_1
   root_causes:
   - resource:
       kind: node
-      node: leaf_router_0_0
+      node: leaf_router_0_1
     fault_type: bgp_missing_route_advertisement
 - scenario: isp
-  topo_size: null
+  topo_size: s
   problem: bgp_rpki_invalid_route_leak
   inject:
     host_name: kscyng
@@ -112,7 +105,7 @@ cases:
       node: kscyng
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: isp
-  topo_size: null
+  topo_size: m
   problem: bgp_rpki_invalid_route_leak
   inject:
     host_name: es1_es
@@ -125,23 +118,34 @@ cases:
       kind: node
       node: es1_es
     fault_type: bgp_rpki_invalid_route_leak
-- scenario: p4_bloom_filter
-  topo_size: null
+- scenario: p4_dc_fabric
+  topo_size: s
   problem: bmv2_switch_down
   inject:
-    host_name: switch_2
+    host_name: spine_1
   root_causes:
   - resource:
       kind: node
-      node: switch_2
+      node: spine_1
     fault_type: bmv2_switch_down
+- scenario: dc_clos
+  topo_size: s
+  problem: device_forwarding_packet_corruption
+  inject:
+    forwarding_device: spine_router_0_1
+    intf_name: eth2
+    seed: '42'
+  root_causes:
+  - resource:
+      kind: node
+      node: spine_router_0_1
+    fault_type: device_forwarding_packet_corruption
 - scenario: campus_lan
   topo_size: s
   problem: dhcp_missing_subnet
   inject:
     host_name: dhcp_server
     host_name_2: pc_1_1_1_1
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -152,8 +156,7 @@ cases:
   problem: dhcp_service_down
   inject:
     host_name: dhcp_server
-    host_name_2: pc_2_1_1_1
-  workload: dhcp
+    host_name_2: pc_1_1_1_1
   root_causes:
   - resource:
       kind: node
@@ -165,7 +168,6 @@ cases:
   inject:
     host_name: dhcp_server
     host_name_2: pc_2_1_1_1
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -176,8 +178,7 @@ cases:
   problem: dhcp_spoofed_gateway
   inject:
     host_name: dhcp_server
-    host_name_2: pc_2_1_1_1
-  workload: dhcp
+    host_name_2: pc_1_1_1_1
   root_causes:
   - resource:
       kind: node
@@ -188,8 +189,7 @@ cases:
   problem: dhcp_spoofed_subnet
   inject:
     host_name: dhcp_server
-    host_name_2: pc_2_1_1_1
-  workload: dhcp
+    host_name_2: pc_1_1_1_1
   root_causes:
   - resource:
       kind: node
@@ -202,7 +202,6 @@ cases:
     host_name: dns_server
     intf_name: eth0
     delay_ms: '1000'
-  workload: dhcp
   root_causes:
   - resource:
       kind: interface
@@ -214,7 +213,6 @@ cases:
   problem: dns_port_blocked
   inject:
     host_name: dns_server
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -225,9 +223,8 @@ cases:
   problem: dns_record_error
   inject:
     host_name: dns_server
-    target_website: web2
+    target_website: web99
     target_domain: local
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -238,7 +235,6 @@ cases:
   problem: dns_service_down
   inject:
     host_name: dns_server
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -248,64 +244,50 @@ cases:
   topo_size: s
   problem: flow_rule_loop
   inject:
-    host_name: leaf_2
-    host_name_2: spine_2
-    port_name: eth3
-    port_name_2: eth1
+    host_name: leaf_3
+    host_name_2: spine_1
+    port_name: eth2
+    port_name_2: eth2
   root_causes:
   - resource:
       kind: node
-      node: leaf_2
+      node: leaf_3
     fault_type: flow_rule_loop
 - scenario: sdn_l3_clos
   topo_size: s
   problem: flow_rule_shadowing
   inject:
-    host_name: leaf_1
+    host_name: spine_1
   root_causes:
   - resource:
       kind: node
-      node: leaf_1
+      node: spine_1
     fault_type: flow_rule_shadowing
 - scenario: campus_lan
   topo_size: s
   problem: frr_service_down
   inject:
-    host_name: router_dist_2_1
-  workload: dhcp
+    host_name: router_core_2
   root_causes:
   - resource:
       kind: node
-      node: router_dist_2_1
+      node: router_core_2
     fault_type: frr_service_down
-- scenario: dc_clos
-  topo_size: s
-  problem: host_crash
-  inject:
-    host_name: pc_0_0
-  workload: host
-  root_causes:
-  - resource:
-      kind: node
-      node: pc_0_0
-    fault_type: host_crash
 - scenario: campus_lan
   topo_size: s
   problem: host_incorrect_dns
   inject:
-    host_name: pc_1_1_1_1
-  workload: dhcp
+    host_name: pc_2_1_1_1
   root_causes:
   - resource:
       kind: node
-      node: pc_1_1_1_1
+      node: pc_2_1_1_1
     fault_type: host_incorrect_dns
 - scenario: campus_lan
   topo_size: s
   problem: host_incorrect_gateway
   inject:
     host_name: pc_2_1_1_1
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -316,7 +298,6 @@ cases:
   problem: host_incorrect_ip
   inject:
     host_name: pc_1_1_1_1
-  workload: static
   root_causes:
   - resource:
       kind: interface
@@ -327,168 +308,204 @@ cases:
   topo_size: s
   problem: host_incorrect_netmask
   inject:
-    host_name: pc_2_1_1_1
+    host_name: pc_1_1_1_1
     netmask_prefix: '8'
-  workload: static
   root_causes:
   - resource:
       kind: interface
-      node: pc_2_1_1_1
+      node: pc_1_1_1_1
       name: eth0
     fault_type: host_incorrect_netmask
 - scenario: dc_clos
   topo_size: s
   problem: host_ip_conflict
   inject:
-    host_name: pc_0_1
-    host_name_2: pc_0_0
-  workload: host
+    host_name: client_0
+    host_name_2: client_0
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: client_0
       name: eth0
     fault_type: host_ip_conflict
 - scenario: campus_lan
   topo_size: s
   problem: host_missing_ip
   inject:
-    host_name: pc_2_1_1_1
+    host_name: pc_1_1_1_1
     intf_name: eth0
-  workload: static
   root_causes:
   - resource:
       kind: interface
-      node: pc_2_1_1_1
+      node: pc_1_1_1_1
       name: eth0
     fault_type: host_missing_ip
 - scenario: dc_clos
   topo_size: s
   problem: host_static_blackhole
   inject:
-    host_name: leaf_router_0_1
-  workload: host
+    host_name: leaf_router_0_0
   root_causes:
   - resource:
       kind: node
-      node: leaf_router_0_1
+      node: leaf_router_0_0
     fault_type: host_static_blackhole
 - scenario: campus_lan
   topo_size: s
   problem: http_acl_block
   inject:
-    host_name: pc_2_1_1_1
-  workload: dhcp
+    host_name: pc_1_1_1_1
   root_causes:
   - resource:
       kind: node
-      node: pc_2_1_1_1
+      node: pc_1_1_1_1
     fault_type: http_acl_block
 - scenario: campus_lan
   topo_size: s
   problem: icmp_acl_block
   inject:
-    host_name: pc_2_1_1_1
-  workload: dhcp
+    host_name: pc_1_1_1_1
   root_causes:
   - resource:
       kind: node
-      node: pc_2_1_1_1
+      node: pc_1_1_1_1
     fault_type: icmp_acl_block
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: icmp_frag_needed_filter_misconfiguration
+  inject:
+    host_name: gateway_1
+  root_causes:
+  - resource:
+      kind: node
+      node: gateway_1
+    fault_type: icmp_frag_needed_filter_misconfiguration
 - scenario: campus_lan
   topo_size: s
   problem: incast_traffic_network_limitation
   inject:
-    host_name: web_server_3
+    host_name: web_server_2
     rate: 1mbit
     burst: 500kb
     limit: 500kb
     delay_ms: '20'
-  workload: dhcp
   root_causes:
   - resource:
       kind: interface
-      node: web_server_3
+      node: web_server_2
       name: eth0
     fault_type: incast_traffic_network_limitation
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: int_insufficient_mtu_headroom
+  inject:
+    host_name: gateway_2
+    intf_name: eth2
+    bmv2_port: '3'
+    int_mtu: '1480'
+  root_causes:
+  - resource:
+      kind: interface
+      node: gateway_2
+      name: eth2
+    fault_type: int_insufficient_mtu_headroom
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: lb_connection_state_exhaustion
+  inject:
+    host_name: gateway_1
+    capacity: '256'
+    syn_timeout_sec: '10'
+    seed: '42'
+  root_causes:
+  - resource:
+      kind: node
+      node: gateway_1
+    fault_type: lb_connection_state_exhaustion
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: lb_pending_connection_update_race
+  inject:
+    host_name: gateway_1
+    learning_delay_ms: '5'
+    seed: '42'
+  root_causes:
+  - resource:
+      kind: node
+      node: gateway_1
+    fault_type: lb_pending_connection_update_race
 - scenario: dc_clos
   topo_size: s
   problem: link_bandwidth_throttling
   inject:
-    host_name: pc_0_0
+    host_name: client_0
     intf_name: eth0
     rate: 30kbit
     burst: 64kb
     limit: 500kb
-  workload: host
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: client_0
       name: eth0
     fault_type: link_bandwidth_throttling
 - scenario: dc_clos
   topo_size: s
   problem: link_detach
   inject:
-    host_name: pc_0_1
+    host_name: client_0
     intf_name: eth0
-  workload: host
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_1
+      node: client_0
       name: eth0
     fault_type: link_detach
 - scenario: dc_clos
   topo_size: s
   problem: link_down
   inject:
-    host_name: pc_0_1
+    host_name: client_0
     intf_name: eth0
-  workload: host
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_1
+      node: client_0
       name: eth0
     fault_type: link_down
 - scenario: dc_clos
   topo_size: s
   problem: link_flap
   inject:
-    host_name: pc_0_0
+    host_name: client_0
     intf_name: eth0
     down_time: '30'
     up_time: '30'
-  workload: host
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: client_0
       name: eth0
     fault_type: link_flap
 - scenario: dc_clos
   topo_size: s
-  problem: link_high_packet_corruption
+  problem: link_packet_corruption
   inject:
-    host_name: pc_0_0
+    host_name: client_0
     intf_name: eth0
     corruption_percentage: '60'
-  workload: host
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: client_0
       name: eth0
-    fault_type: link_high_packet_corruption
+    fault_type: link_packet_corruption
 - scenario: campus_lan
   topo_size: s
   problem: load_balancer_overload
   inject:
     host_name: load_balancer
     duration: '300'
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -498,170 +515,165 @@ cases:
   topo_size: s
   problem: mac_address_conflict
   inject:
-    host_name: switch_access_1_1_1
-    host_name_2: pc_1_1_1_1
-  workload: dhcp
+    host_name: web_server_0
+    host_name_2: server_access_router
   root_causes:
   - resource:
       kind: interface
-      node: switch_access_1_1_1
+      node: web_server_0
       name: eth0
     fault_type: mac_address_conflict
-- scenario: p4_mpls
-  topo_size: null
-  problem: mpls_label_limit_exceeded
-  inject:
-    host_name: switch_7
-  root_causes:
-  - resource:
-      kind: node
-      node: switch_7
-    fault_type: mpls_label_limit_exceeded
 - scenario: dc_clos
   topo_size: s
   problem: mtu_mismatch
   inject:
-    host_name: pc_0_0
+    host_name: client_0
     mtu: '100'
-  workload: host
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: client_0
       name: eth0
     fault_type: mtu_mismatch
+- scenario: enterprise_branch
+  topo_size: s
+  problem: nat_mapping_removed_without_drain
+  inject:
+    host_name: br1_edge
+    source_prefix: 10.1.40.0/24
+    nat_ip_a: 198.18.1.10
+    nat_ip_b: 198.18.1.11
+    wan_interface: eth2
+  root_causes:
+  - resource:
+      kind: node
+      node: br1_edge
+    fault_type: nat_mapping_removed_without_drain
 - scenario: campus_lan
   topo_size: s
   problem: ospf_acl_block
   inject:
-    host_name: router_core_1
-  workload: dhcp
+    host_name: server_access_router
   root_causes:
   - resource:
       kind: node
-      node: router_core_1
+      node: server_access_router
     fault_type: ospf_acl_block
 - scenario: campus_lan
   topo_size: s
   problem: ospf_area_misconfiguration
   inject:
-    host_name: server_access_router
-  workload: dhcp
+    host_name: router_dist_2_1
   root_causes:
   - resource:
       kind: node
-      node: server_access_router
+      node: router_dist_2_1
     fault_type: ospf_area_misconfiguration
 - scenario: campus_lan
   topo_size: s
   problem: ospf_neighbor_missing
   inject:
-    host_name: server_access_router
-  workload: dhcp
+    host_name: router_dist_1_1
   root_causes:
   - resource:
       kind: node
-      node: server_access_router
+      node: router_dist_1_1
     fault_type: ospf_neighbor_missing
 - scenario: p4_dc_fabric
   topo_size: s
   problem: p4_action_selector_member_misconfig
-  inject:
-    host_name: leaf_2
-  root_causes:
-  - resource:
-      kind: node
-      node: leaf_2
-    fault_type: p4_action_selector_member_misconfig
-- scenario: p4_bloom_filter
-  topo_size: null
-  problem: p4_aggressive_detection_thresholds
-  inject:
-    host_name: switch_1
-  root_causes:
-  - resource:
-      kind: node
-      node: switch_1
-    fault_type: p4_aggressive_detection_thresholds
-- scenario: p4_bloom_filter
-  topo_size: null
-  problem: p4_compilation_error_parser_state
-  inject:
-    host_name: switch_1
-  root_causes:
-  - resource:
-      kind: node
-      node: switch_1
-    fault_type: p4_compilation_error_parser_state
-- scenario: p4_dc_fabric
-  topo_size: s
-  problem: p4_ecmp_group_member_missing
-  inject:
-    host_name: leaf_2
-  root_causes:
-  - resource:
-      kind: node
-      node: leaf_2
-    fault_type: p4_ecmp_group_member_missing
-- scenario: p4_bloom_filter
-  topo_size: null
-  problem: p4_header_definition_error
-  inject:
-    host_name: switch_1
-  root_causes:
-  - resource:
-      kind: node
-      node: switch_1
-    fault_type: p4_header_definition_error
-- scenario: p4_bloom_filter
-  topo_size: null
-  problem: p4_table_entry_misconfig
-  inject:
-    host_name: switch_1
-  root_causes:
-  - resource:
-      kind: node
-      node: switch_1
-    fault_type: p4_table_entry_misconfig
-- scenario: p4_bloom_filter
-  topo_size: null
-  problem: p4_table_entry_missing
-  inject:
-    host_name: switch_1
-  root_causes:
-  - resource:
-      kind: node
-      node: switch_1
-    fault_type: p4_table_entry_missing
-- scenario: p4_dc_fabric
-  topo_size: s
-  problem: p4_table_resource_exhaustion
-  inject:
-    host_name: leaf_2
-  root_causes:
-  - resource:
-      kind: node
-      node: leaf_2
-    fault_type: p4_table_resource_exhaustion
-- scenario: p4_dc_fabric
-  topo_size: s
-  problem: p4runtime_partial_write
   inject:
     host_name: leaf_4
   root_causes:
   - resource:
       kind: node
       node: leaf_4
+    fault_type: p4_action_selector_member_misconfig
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_ecmp_group_member_missing
+  inject:
+    host_name: leaf_4
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_4
+    fault_type: p4_ecmp_group_member_missing
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: p4_ecn_threshold_misconfiguration
+  inject:
+    host_name: gateway_1
+    intf_name: eth1
+    bmv2_port: '2'
+    threshold: '1024'
+  root_causes:
+  - resource:
+      kind: interface
+      node: gateway_1
+      name: eth1
+    fault_type: p4_ecn_threshold_misconfiguration
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_table_entry_misconfig
+  inject:
+    host_name: leaf_3
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_3
+    fault_type: p4_table_entry_misconfig
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_table_entry_missing
+  inject:
+    host_name: spine_1
+  root_causes:
+  - resource:
+      kind: node
+      node: spine_1
+    fault_type: p4_table_entry_missing
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4_table_resource_exhaustion
+  inject:
+    host_name: leaf_3
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_3
+    fault_type: p4_table_resource_exhaustion
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: p4_tcam_entry_corruption
+  inject:
+    host_name: spine_1
+    target_ip: 10.0.1.12
+    control_source: client_2
+  root_causes:
+  - resource:
+      kind: node
+      node: spine_1
+    fault_type: p4_tcam_entry_corruption
+- scenario: p4_dc_fabric
+  topo_size: s
+  problem: p4runtime_partial_write
+  inject:
+    host_name: leaf_1
+  root_causes:
+  - resource:
+      kind: node
+      node: leaf_1
     fault_type: p4runtime_partial_write
 - scenario: p4_dc_fabric
   topo_size: s
   problem: p4runtime_pipeline_mismatch
   inject:
-    host_name: leaf_2
+    host_name: leaf_3
   root_causes:
   - resource:
       kind: node
-      node: leaf_2
+      node: leaf_3
     fault_type: p4runtime_pipeline_mismatch
 - scenario: campus_lan
   topo_size: s
@@ -669,7 +681,6 @@ cases:
   inject:
     host_name: pc_2_1_1_1
     duration: '600'
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
@@ -689,25 +700,52 @@ cases:
   topo_size: s
   problem: sender_application_delay
   inject:
-    host_name: web_server_2
-  workload: dhcp
+    host_name: web_server_0
   root_causes:
   - resource:
       kind: node
-      node: web_server_2
+      node: web_server_0
     fault_type: sender_application_delay
 - scenario: campus_lan
   topo_size: s
   problem: sender_resource_contention
   inject:
-    host_name: web_server_1
+    host_name: web_server_3
     duration: '600'
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
-      node: web_server_1
+      node: web_server_3
     fault_type: sender_resource_contention
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: silent_egress_packet_loss
+  inject:
+    host_name: spine_2
+    intf_name: eth2
+    bmv2_port: '3'
+    loss_basis_points: '200'
+    seed: '42'
+  root_causes:
+  - resource:
+      kind: interface
+      node: spine_2
+      name: eth2
+    fault_type: silent_egress_packet_loss
+- scenario: enterprise_branch
+  topo_size: s
+  problem: snat_port_pool_exhaustion
+  inject:
+    host_name: br1_edge
+    source_prefix: 10.1.40.0/24
+    public_ip: 198.18.1.10
+    port_start: '40000'
+    port_end: '40063'
+  root_causes:
+  - resource:
+      kind: node
+      node: br1_edge
+    fault_type: snat_port_pool_exhaustion
 - scenario: sdn_l3_clos
   topo_size: s
   problem: southbound_port_block
@@ -731,33 +769,48 @@ cases:
       kind: node
       node: onos
     fault_type: southbound_port_mismatch
+- scenario: p4_dc_gateway
+  topo_size: s
+  problem: tcp_syn_flood_attack
+  inject:
+    attacker_device: client_2
+    target_ip: 10.0.2.11
+    target_port: '80'
+    rate_pps: '100'
+    duration: '60'
+    flows: '40'
+    seed: '42'
+  root_causes:
+  - resource:
+      kind: node
+      node: client_2
+    fault_type: tcp_syn_flood_attack
 - scenario: enterprise_branch
   topo_size: s
   problem: vrf_dscp_remarking
   inject:
-    host_name: hq_edge
+    host_name: dc2_edge
     intf_name: wg_br1
-    src_host: hq_corp_pc
+    src_host: dc2_corp_pc
     dst_host: br1_corp_pc
     direction: lan_to_overlay
-    corp_prefix: 10.0.10.0/24
+    corp_prefix: 10.10.10.0/24
   root_causes:
   - resource:
       kind: interface
-      node: hq_edge
+      node: dc2_edge
       name: wg_br1
     fault_type: vrf_dscp_remarking
 - scenario: campus_lan
   topo_size: s
   problem: web_dos_attack
   inject:
-    host_name: web_server_3
+    host_name: web_server_2
     attacker_device: pc_2_1_1_1
-  workload: dhcp
   root_causes:
   - resource:
       kind: node
-      node: web_server_3
+      node: web_server_2
     fault_type: web_dos_attack
 - scenario: enterprise_branch
   topo_size: s
@@ -784,3 +837,771 @@ cases:
       node: br2_edge
       name: wg_hq
     fault_type: wireguard_peer_key_misconfiguration
+- scenario: isp
+  topo_size: s
+  problem: bgp_acl_block
+  inject:
+    host_name: n10
+  topo: pdh
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n10
+    fault_type: bgp_acl_block
+- scenario: isp
+  topo_size: m
+  problem: bgp_acl_block
+  inject:
+    host_name: n20
+  topo: sun
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n20
+    fault_type: bgp_acl_block
+- scenario: isp
+  topo_size: l
+  problem: bgp_acl_block
+  inject:
+    host_name: n17
+  topo: ta2
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n17
+    fault_type: bgp_acl_block
+- scenario: isp
+  topo_size: s
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_losang
+  topo: abilene
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_losang
+    fault_type: icmp_acl_block
+- scenario: isp
+  topo_size: m
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_madrid
+  topo: nobel-eu
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_madrid
+    fault_type: icmp_acl_block
+- scenario: isp
+  topo_size: l
+  problem: icmp_acl_block
+  inject:
+    host_name: pc_tu18
+  topo: brain
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_tu18
+    fault_type: icmp_acl_block
+- scenario: isp
+  topo_size: s
+  problem: ospf_acl_block
+  inject:
+    host_name: kscyng
+  topo: abilene
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: kscyng
+    fault_type: ospf_acl_block
+- scenario: isp
+  topo_size: m
+  problem: ospf_acl_block
+  inject:
+    host_name: n24
+  topo: norway
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n24
+    fault_type: ospf_acl_block
+- scenario: isp
+  topo_size: l
+  problem: ospf_acl_block
+  inject:
+    host_name: n33
+  topo: pioro40
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n33
+    fault_type: ospf_acl_block
+- scenario: isp
+  topo_size: s
+  problem: mtu_mismatch
+  inject:
+    host_name: pc_leipzig
+    mtu: '100'
+  topo: dfn-bwin
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_leipzig
+      name: eth0
+    fault_type: mtu_mismatch
+- scenario: isp
+  topo_size: m
+  problem: mtu_mismatch
+  inject:
+    host_name: pc_madrid
+    mtu: '100'
+  topo: nobel-eu
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_madrid
+      name: eth0
+    fault_type: mtu_mismatch
+- scenario: isp
+  topo_size: l
+  problem: mtu_mismatch
+  inject:
+    host_name: pc_n16
+    mtu: '100'
+  topo: pioro40
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_n16
+      name: eth0
+    fault_type: mtu_mismatch
+- scenario: isp
+  topo_size: s
+  problem: host_static_blackhole
+  inject:
+    host_name: atlanta
+  topo: nobel-us
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: atlanta
+    fault_type: host_static_blackhole
+- scenario: isp
+  topo_size: m
+  problem: host_static_blackhole
+  inject:
+    host_name: ulm
+  topo: nobel-germany
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: ulm
+    fault_type: host_static_blackhole
+- scenario: isp
+  topo_size: l
+  problem: host_static_blackhole
+  inject:
+    host_name: rome
+  topo: cost266
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: rome
+    fault_type: host_static_blackhole
+- scenario: isp
+  topo_size: s
+  problem: link_detach
+  inject:
+    host_name: pc_bydgoszcz
+    intf_name: eth0
+  topo: polska
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_bydgoszcz
+      name: eth0
+    fault_type: link_detach
+- scenario: isp
+  topo_size: m
+  problem: link_detach
+  inject:
+    host_name: pc_zurich
+    intf_name: eth0
+  topo: nobel-eu
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_zurich
+      name: eth0
+    fault_type: link_detach
+- scenario: isp
+  topo_size: l
+  problem: link_detach
+  inject:
+    host_name: pc_n_1
+    intf_name: eth0
+  topo: india35
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_n_1
+      name: eth0
+    fault_type: link_detach
+- scenario: isp
+  topo_size: s
+  problem: link_down
+  inject:
+    host_name: pc_stuttgart
+    intf_name: eth0
+  topo: dfn-bwin
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_stuttgart
+      name: eth0
+    fault_type: link_down
+- scenario: isp
+  topo_size: m
+  problem: link_down
+  inject:
+    host_name: pc_norden
+    intf_name: eth0
+  topo: nobel-germany
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_norden
+      name: eth0
+    fault_type: link_down
+- scenario: isp
+  topo_size: l
+  problem: link_down
+  inject:
+    host_name: pc_bayreuth
+    intf_name: eth0
+  topo: germany50
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_bayreuth
+      name: eth0
+    fault_type: link_down
+- scenario: isp
+  topo_size: s
+  problem: link_flap
+  inject:
+    host_name: pc_n8
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+  topo: pdh
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_n8
+      name: eth0
+    fault_type: link_flap
+- scenario: isp
+  topo_size: m
+  problem: link_flap
+  inject:
+    host_name: pc_washingtondc
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+  topo: janos-us
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_washingtondc
+      name: eth0
+    fault_type: link_flap
+- scenario: isp
+  topo_size: l
+  problem: link_flap
+  inject:
+    host_name: pc_strasbourg
+    intf_name: eth0
+    down_time: '30'
+    up_time: '30'
+  topo: cost266
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_strasbourg
+      name: eth0
+    fault_type: link_flap
+- scenario: isp
+  topo_size: s
+  problem: link_packet_corruption
+  inject:
+    host_name: pc_hamburg
+    intf_name: eth0
+    corruption_percentage: '60'
+  topo: dfn-gwin
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_hamburg
+      name: eth0
+    fault_type: link_packet_corruption
+- scenario: isp
+  topo_size: m
+  problem: link_packet_corruption
+  inject:
+    host_name: pc_n10
+    intf_name: eth0
+    corruption_percentage: '60'
+  topo: norway
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_n10
+      name: eth0
+    fault_type: link_packet_corruption
+- scenario: isp
+  topo_size: l
+  problem: link_packet_corruption
+  inject:
+    host_name: pc_hu43
+    intf_name: eth0
+    corruption_percentage: '60'
+  topo: brain
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_hu43
+      name: eth0
+    fault_type: link_packet_corruption
+- scenario: isp
+  topo_size: s
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: rzeszow
+  topo: polska
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: rzeszow
+    fault_type: bgp_asn_misconfig
+- scenario: isp
+  topo_size: m
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: norden
+  topo: nobel-germany
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: norden
+    fault_type: bgp_asn_misconfig
+- scenario: isp
+  topo_size: l
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: muenchen
+  topo: germany50
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: muenchen
+    fault_type: bgp_asn_misconfig
+- scenario: isp
+  topo_size: s
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: lincoln
+  topo: nobel-us
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: lincoln
+    fault_type: bgp_blackhole_route_leak
+- scenario: isp
+  topo_size: m
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: madrid
+  topo: nobel-eu
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: madrid
+    fault_type: bgp_blackhole_route_leak
+- scenario: isp
+  topo_size: l
+  problem: bgp_blackhole_route_leak
+  inject:
+    host_name: cvk4
+  topo: brain
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: cvk4
+    fault_type: bgp_blackhole_route_leak
+- scenario: isp
+  topo_size: s
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: frankfurt
+  topo: dfn-bwin
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: frankfurt
+    fault_type: bgp_missing_route_advertisement
+- scenario: isp
+  topo_size: m
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: n24
+  topo: ta1
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n24
+    fault_type: bgp_missing_route_advertisement
+- scenario: isp
+  topo_size: l
+  problem: bgp_missing_route_advertisement
+  inject:
+    host_name: sofia
+  topo: cost266
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: sofia
+    fault_type: bgp_missing_route_advertisement
+- scenario: isp
+  topo_size: s
+  problem: frr_service_down
+  inject:
+    host_name: n_2
+  topo: di-yuan
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n_2
+    fault_type: frr_service_down
+- scenario: isp
+  topo_size: m
+  problem: frr_service_down
+  inject:
+    host_name: n5
+  topo: newyork
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n5
+    fault_type: frr_service_down
+- scenario: isp
+  topo_size: l
+  problem: frr_service_down
+  inject:
+    host_name: n37
+  topo: zib54
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n37
+    fault_type: frr_service_down
+- scenario: isp
+  topo_size: s
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: poznan
+  topo: polska
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: poznan
+    fault_type: ospf_area_misconfiguration
+- scenario: isp
+  topo_size: m
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: essen
+  topo: nobel-germany
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: essen
+    fault_type: ospf_area_misconfiguration
+- scenario: isp
+  topo_size: l
+  problem: ospf_area_misconfiguration
+  inject:
+    host_name: zib100
+  topo: brain
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: zib100
+    fault_type: ospf_area_misconfiguration
+- scenario: isp
+  topo_size: s
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: salt_lake_city
+  topo: nobel-us
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: salt_lake_city
+    fault_type: ospf_neighbor_missing
+- scenario: isp
+  topo_size: m
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: losangeles
+  topo: janos-us
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: losangeles
+    fault_type: ospf_neighbor_missing
+- scenario: isp
+  topo_size: l
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: n29
+  topo: pioro40
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: n29
+    fault_type: ospf_neighbor_missing
+- scenario: isp
+  topo_size: s
+  problem: bgp_hijacking
+  inject:
+    host_name: atlanta
+  topo: nobel-us
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: atlanta
+    fault_type: bgp_hijacking
+- scenario: isp
+  topo_size: m
+  problem: bgp_hijacking
+  inject:
+    host_name: hamburg
+  topo: nobel-eu
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: hamburg
+    fault_type: bgp_hijacking
+- scenario: isp
+  topo_size: l
+  problem: bgp_hijacking
+  inject:
+    host_name: stlouis
+  topo: janos-us-ca
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  root_causes:
+  - resource:
+      kind: node
+      node: stlouis
+    fault_type: bgp_hijacking
+- scenario: isp
+  topo_size: s
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_nycmng
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+  topo: abilene
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_nycmng
+      name: eth0
+    fault_type: link_bandwidth_throttling
+- scenario: isp
+  topo_size: m
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_n10
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+  topo: newyork
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_n10
+      name: eth0
+    fault_type: link_bandwidth_throttling
+- scenario: isp
+  topo_size: l
+  problem: link_bandwidth_throttling
+  inject:
+    host_name: pc_warsaw
+    intf_name: eth0
+    rate: 30kbit
+    burst: 64kb
+    limit: 500kb
+  topo: cost266
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  root_causes:
+  - resource:
+      kind: interface
+      node: pc_warsaw
+      name: eth0
+    fault_type: link_bandwidth_throttling

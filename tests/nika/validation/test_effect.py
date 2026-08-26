@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 from nika.net_env.contract import (
     AdjacencyExpectation,
+    NetworkEntity,
+    TrafficSelector,
     ValidationContract,
     ValidationIntent,
     ValidationReport,
@@ -70,6 +72,68 @@ def test_build_ospf_failure_effect_from_declared_problem_metadata() -> None:
     assert effect.supported is True
     assert effect.expected_change[0].from_state == "established"
     assert effect.expected_change[0].to_state == "not_established"
+
+
+def test_reachability_effect_only_targets_prefix_destinations() -> None:
+    """A missing-advertisement failure on a node must not claim edge intents.
+
+    ``reach.edge.pc_a.pc_b`` destinations are endpoints hosted behind the node
+    (IGP stubs stay reachable), so only prefix destinations originated by the
+    node belong in the declared change.
+    """
+    contract = ValidationContract(
+        contract_id="isp.test.ebgp",
+        scenario="isp",
+        design_source={},
+        intents=(
+            ValidationIntent(
+                id="reach.bgp.r3.bgp_198_51_100_0_24.icmp",
+                description="Observer must reach the designed prefix.",
+                property="reachability",
+                expected="reachable",
+                source=NetworkEntity(kind="node", name="r3", address="10.255.0.3"),
+                destination=NetworkEntity(
+                    kind="prefix",
+                    name="bgp_198_51_100_0_24",
+                    address="198.51.100.0/24",
+                    node="r2",
+                ),
+                traffic=TrafficSelector(protocol="icmp"),
+            ),
+            ValidationIntent(
+                id="reach.edge.pc_a.pc_b.icmp",
+                description="Edge stub must reach the other edge stub.",
+                property="reachability",
+                expected="reachable",
+                source=NetworkEntity(
+                    kind="endpoint",
+                    name="pc_a",
+                    address="10.0.0.1",
+                    node="r1",
+                ),
+                destination=NetworkEntity(
+                    kind="endpoint",
+                    name="pc_b",
+                    address="10.0.0.5",
+                    node="r2",
+                ),
+                traffic=TrafficSelector(protocol="icmp"),
+            ),
+        ),
+    )
+    problem = SimpleNamespace(
+        root_cause_name="bgp_missing_route_advertisement",
+        effect_property="reachability",
+        _resolved_params=SimpleNamespace(host_name="r2"),
+    )
+    effect = build_failure_effect_contract(problem, contract)
+    assert effect.supported is True
+    assert [item.intent for item in effect.expected_change] == [
+        "reach.bgp.r3.bgp_198_51_100_0_24.icmp"
+    ]
+    expectation = effect.expected_change[0]
+    assert expectation.from_state == "reachable"
+    assert expectation.to_state == "unreachable"
 
 
 def test_compare_effect_requires_static_and_runtime_agreement() -> None:

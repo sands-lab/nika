@@ -25,7 +25,6 @@ def _kwargs(**overrides):
 def test_isp_defaults_applied() -> None:
     kwargs = _resolve_isp_kwargs("isp", **_kwargs())
     assert kwargs == {
-        "topo": "polska",
         "igp": "isis",
         "metric_strategy": "constant",
         "constant_metric": 10,

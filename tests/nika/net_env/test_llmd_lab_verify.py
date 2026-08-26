@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nika.net_env.kathara.kubernetes.llmd_lab.lab import LLMDInferenceCluster
+from nika.net_env.llmd_lab.lab import LLMDInferenceCluster
 from tests.support.net_env import instantiate_with_mocked_kathara
 
 
@@ -9,7 +9,7 @@ class LLMDLabUnitTest:
 
     def _inst(self) -> LLMDInferenceCluster:
         return instantiate_with_mocked_kathara(
-            "nika.net_env.kathara.kubernetes.llmd_lab.lab.Kathara.get_instance",
+            "nika.net_env.llmd_lab.lab.Kathara.get_instance",
             LLMDInferenceCluster,
         )
 

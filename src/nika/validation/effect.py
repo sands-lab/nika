@@ -10,6 +10,7 @@ from nika.net_env.contract import ValidationContract, ValidationReport
 
 FAILURE_EFFECT_FILENAME = "validation-failure-effect.json"
 FAULTY_BATFISH_FILENAME = "batfish-validation-faulty.json"
+FAULTY_RUNTIME_FILENAME = "validation-results-faulty.json"
 
 EffectStatus = Literal["PASS", "FAIL", "STATIC_RUNTIME_MISMATCH", "UNSUPPORTED"]
 BehaviorState = Literal[
@@ -83,11 +84,16 @@ def build_failure_effect_contract(
         )
 
     if property_name == "reachability":
+        # Only prefix destinations are broken by a missing advertisement: the
+        # failure node stops originating a designed prefix. Endpoint destinations
+        # hosted behind the node (e.g. IGP edge stubs) stay reachable, so they
+        # must not be declared as expected to change.
         intents = [
             intent
             for intent in baseline.intents
             if intent.property == "reachability"
             and intent.destination is not None
+            and intent.destination.kind == "prefix"
             and intent.destination.node == node
         ]
         from_state, to_state = "reachable", "unreachable"
@@ -301,6 +307,8 @@ def run_failure_effect_validation(
 
     if effect.supported:
         faulty_runtime = _faulty_runtime_report(problem, contract)
+        if faulty_runtime is not None:
+            faulty_runtime.write(str(root / FAULTY_RUNTIME_FILENAME))
         if healthy_static is not None:
             faulty_static = _faulty_batfish_report(problem, contract, root)
 
@@ -330,7 +338,7 @@ def _faulty_runtime_report(
         return None
     if contract.scenario != "isp":
         return None
-    from nika.net_env.kathara.isp.isp.verify import verify_isp_contract
+    from nika.net_env.isp.kathara.verify import verify_isp_contract
 
     return verify_isp_contract(
         problem.runtime, contract=contract, plan=problem.net_env.plan

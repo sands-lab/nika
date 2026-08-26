@@ -1,45 +1,114 @@
 # NIKA
 
-NIKA is a Python platform for deploying Kathara or Containerlab network scenarios, injecting failures, running troubleshooting agents, and evaluating their submissions. Dependencies use `uv`.
+NIKA is a platform for managing, generating, and running executable benchmarks for network troubleshooting agents. Python dependencies and commands use `uv`.
 
-## Architecture boundaries
+## Development rules
 
-- Keep Typer parsing and presentation in `src/nika/cli/commands/`. Put behavior that must work outside a CLI callback in `src/nika/workflows/` or a lower-level module.
-- Use `src/nika/runtime/` for lab lifecycle and session operations. Keep shared contracts in `base.py`, `spec.py`, and `meta.py`; put backend implementations under `runtime/kathara/` or `runtime/containerlab/`.
-- Use `src/nika/service/` for device and backend APIs. Backend-neutral adapters belong in `service/lab/`; backend-specific APIs belong in `service/kathara/` or `service/containerlab/`.
-- Keep MCP behavior in `service/mcp_server/`, `service/mcp_gateway/`, or the Kubernetes MCP server. Agent implementations should call shared tools instead of copying tool behavior.
-- Keep registries importable with core dependencies. Do not import emulator packages or agent SDKs at module scope; preserve lazy loading and explicit extra checks.
-- Register scenarios in `src/nika/net_env/net_env_pool.py`. Put Kathara and Containerlab implementations in their matching backend directories.
-- New failures subclass `ProblemBase`, define typed `Params`, set `failure_domain` and `root_cause_name`, and add `symptom_desc` when the name does not describe the symptom. Place each implementation under the matching subsystem directory and use the taxonomy in `docs/failures.md`. Put cross-domain failure infrastructure under `src/nika/problems/support/`; it must not contain concrete registered failures. `prob_pool.py` discovers concrete classes and keys them by `root_cause_name`.
-- Scenario and failure compatibility uses `TAGS` subset matching. Treat a `TAGS` or registry change as a benchmark contract change; regenerate the working matrices, refresh the coverage tables in `docs/benchmark-configuration.md` with `uv run python scripts/render_coverage_matrix.py --write-docs`, and review the diff.
-- Agents implement `agent.protocols.TroubleshootingAgent` and register their CLI name in `agent/registry.py`. Community implementations live under `src/agent/community/<name>/`; their operator references live under `docs/agents/community/`.
-- Keep the optional remote lab control plane in `src/nika/remote/`. MCP `remote_proxy` and leaderboard transport serve different purposes.
+* Read the relevant code and tests before modifying behavior.
+* Follow existing abstractions and make the smallest change needed.
+* Reuse existing scenario, runtime, traffic, telemetry, failure, and session infrastructure.
+* Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
+* Add regression tests for behavior changes when practical.
+* Do not weaken tests to make changes pass.
+
+## Architecture
+
+* CLI parsing and presentation: `src/nika/cli/commands/`.
+* Reusable workflows: `src/nika/workflows/`.
+* Lab lifecycle and sessions: `src/nika/runtime/`; backend implementations under `runtime/kathara/` and `runtime/containerlab/`.
+* Device/backend APIs: `src/nika/service/`; keep shared and backend-specific APIs separated.
+* MCP implementations belong under the corresponding MCP service modules. Agents should reuse shared tools.
+* Keep registries importable without optional emulator or agent dependencies; preserve lazy loading.
+* Register scenarios in `src/nika/net_env/net_env_pool.py`.
+* Remote lab control belongs in `src/nika/remote/`.
+
+## Scenarios and failures
+
+* Prefer realistic network architectures, protocols, workloads, telemetry, and documented failure modes.
+* Keep scenarios minimal while retaining what is required to reproduce and diagnose their failures.
+* New failures subclass `ProblemBase`, define typed `Params`, `failure_domain`, and `root_cause_name`; add `symptom_desc` when needed.
+* Follow the taxonomy in `docs/failures.md`.
+* Cross-domain failure helpers belong in `src/nika/problems/support/`; concrete registered failures do not.
+* Failures should represent root causes rather than symptoms.
+* Avoid telemetry or metadata that leaks ground truth.
+
+## Benchmark contracts
+
+Scenario/failure compatibility uses `TAGS` subset matching.
+
+Treat changes to `TAGS`, registries, compatibility, root-cause names, ground truth, or benchmark cases as benchmark contract changes.
+
+After compatibility changes:
+
+```bash
+uv run python scripts/render_coverage_matrix.py --write-docs
+```
+
+After benchmark-case changes:
+
+```bash
+uv run python benchmark/generate_benchmark.py
+uv run python scripts/render_coverage_matrix.py --write-docs
+```
+
+Review generated diffs. Do not manually edit generated benchmark YAML unless explicitly required. Treat `benchmark/releases/` as frozen publication data.
+
+## Agents
+
+* Agents implement `agent.protocols.TroubleshootingAgent` and register in `agent/registry.py`.
+* Community agents belong under `src/agent/community/<name>/`.
+* Agents should use shared NIKA tools instead of duplicating tool behavior.
+* Use the deterministic `mock` agent for tests that should not require external credentials.
 
 ## Configuration and state
 
-- Configuration precedence is CLI flags, then `config/nika.yaml`, then code defaults. `--run-config` and `NIKA_RUN_CONFIG` select another operations file.
-- Keep credentials in the repository-root `.env`; use `.env.example` as the template. Do not commit credentials.
-- Resolve relative result paths from the repository root through `resolve_results_root()`. Runtime state belongs under `runtime/`; experiment artifacts belong under `results/{session_id}/`.
-- Session-scoped operations may select the sole running session. If several sessions run, require `--session_id` and reuse `nika.utils.session_resolve`.
-- The `mock` agent is deterministic and test-only. Use it for pipeline tests that should not need credentials.
+* Configuration precedence: CLI flags → `config/nika.yaml` → defaults.
+* Credentials belong in the repository-root `.env`; never commit secrets.
+* Runtime state belongs under `runtime/`; experiment artifacts under `results/{session_id}/`.
+* Reuse `nika.utils.session_resolve` for session selection.
+
+## Testing
+
+* Run focused tests before broader suites.
+* Exercise CLI paths when changing configuration, paths, or session behavior.
+* Use isolated result directories and session IDs for integration tests.
+* Distinguish unavailable external prerequisites from code failures.
+
+**Any test that creates a NIKA session or external resource must clean it up before exiting, including on failure.**
+
+Use fixtures or `try/finally` so cleanup always runs. Close/wipe sessions through NIKA lifecycle APIs or commands.
+
+A test must not leave behind resources it created, including Docker containers/networks, Kathara or Containerlab labs, Kubernetes resources, subprocesses, or network namespaces.
+
+Cleanup must target only test-owned resources. Never perform system-wide Docker, emulator, or runtime cleanup.
 
 ## Verification
 
-- Run focused tests near the changed subsystem before broader suites. Locate them by subsystem name under `tests/`.
-- Exercise the CLI path when config resolution, repository-root paths, or session selection affect behavior.
-- Use a temporary or isolated `--result_dir` for benchmark resume and artifact tests.
-- Format Python with `uv run ruff format .` and lint with `uv run ruff check .`.
-- Docker, Kathara, Containerlab, `clab`, `gnmic`, Kubernetes, local agent CLIs, and API credentials gate some integration tests. Distinguish missing prerequisites from code failures.
+Run relevant tests, then:
+
+```bash
+uv run ruff format .
+uv run ruff check .
+```
+
+Before completion:
+
+* Confirm intended tests pass.
+* Confirm test-created sessions and external resources are gone.
+* Review the repository diff for unintended changes.
+* Update documentation when externally visible behavior or benchmark contracts change.
+
+An integration test is not complete if its assertions pass but its resources remain.
 
 ## Operational safety
 
-- Do not delete `runtime/` or `results/` in bulk; they can contain active sessions and experiment outputs.
-- Use `nika session close` or `nika session wipe` for lab cleanup instead of removing emulator or Docker state by hand.
-- Do not edit generated benchmark YAML by hand unless the task targets benchmark cases. Regenerate matrices with `uv run python benchmark/generate_benchmark.py`, then refresh the coverage matrix PNG whenever cases change.
-- Treat `benchmark/releases/` as frozen publication data. Modify it only when the task creates or updates a release.
-- Preserve lab configs, startup files, P4 programs, Kubernetes manifests, SNDlib data, and Containerlab topology files unless the task targets them.
+* Do not bulk-delete `runtime/` or `results/`.
+* Prefer `nika session close` or `nika session wipe` over manual emulator/Docker cleanup.
+* Never remove unrelated Docker, Kathara, Containerlab, or Kubernetes resources.
+* Preserve scenario configs, startup files, P4 programs, manifests, topology/data files, and traffic datasets unless explicitly modifying them.
 
 ## Documentation
 
-- Keep `README.md` as the user-facing introduction. Start from `docs/README.md` for detailed references and update its index when adding or moving a page.
-- Keep Markdown prose on one source line and let the renderer wrap it.
+* `README.md`: user-facing introduction.
+* `docs/README.md`: documentation index.
+* Keep `docs/failures.md` and `docs/benchmark-configuration.md` synchronized with implementation and generated coverage.

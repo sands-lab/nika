@@ -95,8 +95,8 @@ Add scripts under `skills/my-link-skill/scripts/` and document how to run them. 
 Run a small scenario with skills enabled:
 
 ```shell
-uv run nika env run simple_bgp
-uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
 uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash -n 20
 ```
 

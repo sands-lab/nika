@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from nika.net_env.kathara.kubernetes.k8s_lab.lab import K8sFatTreeBGP
+from nika.net_env.k8s_lab.lab import K8sFatTreeBGP
 from nika.service.kathara.base_api import KatharaBaseAPI
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.net_env import instantiate_with_mocked_kathara, ready_node_count
@@ -17,7 +17,7 @@ class K8sLabUnitTest:
 
     def _inst(self) -> K8sFatTreeBGP:
         return instantiate_with_mocked_kathara(
-            "nika.net_env.kathara.kubernetes.k8s_lab.lab.Kathara.get_instance",
+            "nika.net_env.k8s_lab.lab.Kathara.get_instance",
             K8sFatTreeBGP,
         )
 

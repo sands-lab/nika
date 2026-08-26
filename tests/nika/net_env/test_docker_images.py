@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nika.net_env.kathara.utils.docker_files import docker_images as di
+from nika.net_env.utils.kathara.docker_files import docker_images as di
 
 
 @pytest.fixture(autouse=True)

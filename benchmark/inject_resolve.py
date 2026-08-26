@@ -6,10 +6,7 @@ import hashlib
 import random
 from collections import defaultdict
 
-from nika.net_env.net_env_pool import (
-    get_net_env_instance,
-    list_all_net_envs,
-)
+from nika.net_env.net_env_pool import get_net_env_instance
 from nika.problems.prob_pool import list_avail_problem_instances
 
 DEFAULT_SEED = 42
@@ -21,6 +18,7 @@ _DEVICE_KEYS = (
     "control_node",
     "node_name",
     "symptom_host",
+    "forwarding_device",
 )
 
 
@@ -29,10 +27,9 @@ def _case_rng(
     scenario: str,
     problem: str,
     topo_size: str,
-    workload: str = "",
     isp_key: str = "",
 ) -> random.Random:
-    key = f"{seed}|{scenario}|{problem}|{topo_size}|{workload}"
+    key = f"{seed}|{scenario}|{problem}|{topo_size}"
     if isp_key:
         key = f"{key}|{isp_key}"
     digest = int.from_bytes(
@@ -81,8 +78,7 @@ def _routers_with_bgp_network(routers: list[str]) -> list[str]:
 
     Spines (and ``dc_clos`` super-spines without a client subnet) only peer and
     have no ``network`` lines, so commenting those out is a no-op. Prefer leaves;
-    fall back to the full pool when the topology does not use leaf role names
-    (e.g. simple_bgp).
+    fall back to the full pool when the topology does not use leaf role names.
     """
     advertisers = [r for r in routers if "leaf" in r]
     return advertisers or list(routers)
@@ -113,7 +109,7 @@ def _single_path_hq_wg_targets(topo_size: str) -> list[tuple[str, str]]:
 
 def _primary_hq_wg_targets(topo_size: str) -> list[tuple[str, str]]:
     """Eligible (branch_edge, wg_iface) pairs for AllowedIPs faults."""
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         primary_hq_peer_targets,
     )
 
@@ -122,7 +118,7 @@ def _primary_hq_wg_targets(topo_size: str) -> list[tuple[str, str]]:
 
 
 def _remote_prefixes_for_spoke(topo_size: str, spoke: str) -> list[str]:
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         remote_advertised_prefixes_for_spoke,
     )
 
@@ -131,7 +127,7 @@ def _remote_prefixes_for_spoke(topo_size: str, spoke: str) -> list[str]:
 
 
 def _dscp_remark_targets(topo_size: str):
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         dscp_remark_inject_targets,
     )
 
@@ -275,14 +271,11 @@ def _get_net_env_for_benchmark(
     scenario: str,
     topo_size: str = "",
     *,
-    workload: str | None = None,
     isp_options: dict[str, str] | None = None,
 ):
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
-    if workload is not None:
-        kwargs["workload"] = workload
     if isp_options:
         kwargs.update(isp_options)
     from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
@@ -382,7 +375,7 @@ def _scenario_device_pools(scenario: str, net_env) -> dict[str, list[str]]:
             "attacker_pool": client_pool,
             "controllers": controllers,
         }
-    if scenario == "p4_dc_fabric":
+    if scenario in {"p4_dc_fabric", "p4_dc_gateway"}:
         client_pool = [h for h in hosts if "client" in h] or hosts
         web_pool = list((net_env.servers or {}).get("web") or [])
         return {
@@ -416,7 +409,6 @@ def resolve_inject_params(
     topo_size: str = "",
     *,
     seed: int = DEFAULT_SEED,
-    workload: str | None = None,
     isp_options: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Return inject params for one benchmark row."""
@@ -425,12 +417,9 @@ def resolve_inject_params(
         scenario,
         problem,
         topo_size,
-        workload or "",
         _isp_rng_key(isp_options),
     )
-    net_env = _get_net_env_for_benchmark(
-        scenario, topo_size, workload=workload, isp_options=isp_options
-    )
+    net_env = _get_net_env_for_benchmark(scenario, topo_size, isp_options=isp_options)
     _load_inventory(net_env)
     from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
     from nika.net_env.net_env_pool import resolve_scenario_backend
@@ -458,27 +447,118 @@ def resolve_inject_params(
 
     params: dict[str, str] = {}
 
-    if problem in {
+    if problem == "device_forwarding_packet_corruption":
+        forwarding = list(routers) + list(net_env.switches or [])
+        if not forwarding:
+            raise ValueError(
+                f"device_forwarding_packet_corruption requires a forwarding device in {scenario}"
+            )
+        if scenario == "dc_clos":
+            candidates = [name for name in routers if name.startswith("spine_router_")]
+        elif scenario == "sdn_l3_clos":
+            candidates = [name for name in forwarding if name.startswith("spine_")]
+        else:
+            candidates = forwarding
+        target = _choice(rng, candidates, forwarding[0])
+        interfaces = _device_interfaces(net_env).get(target) or []
+        params.update(
+            forwarding_device=target,
+            intf_name=interfaces[-1] if interfaces else "eth0",
+            seed=str(seed),
+        )
+
+    elif scenario == "p4_dc_gateway" and problem in {
+        "lb_connection_state_exhaustion",
+        "lb_pending_connection_update_race",
+        "icmp_frag_needed_filter_misconfiguration",
+    }:
+        params["host_name"] = "gateway_1"
+        if problem == "lb_connection_state_exhaustion":
+            params.update(capacity="256", syn_timeout_sec="10", seed=str(seed))
+        elif problem == "lb_pending_connection_update_race":
+            params.update(learning_delay_ms="5", seed=str(seed))
+
+    elif scenario == "p4_dc_gateway" and problem in {
+        "p4_tcam_entry_corruption",
+        "silent_egress_packet_loss",
+        "p4_ecn_threshold_misconfiguration",
+        "tcp_syn_flood_attack",
+        "int_insufficient_mtu_headroom",
+    }:
+        model = net_env.model
+        service = rng.choice(model.services)
+        if problem == "tcp_syn_flood_attack":
+            params.update(
+                attacker_device=rng.choice(model.clients).name,
+                target_ip=service.ip,
+                target_port="80",
+                rate_pps="100",
+                duration="60",
+                flows="40",
+                seed=str(seed),
+            )
+        elif problem == "p4_tcam_entry_corruption":
+            target = rng.choice(model.gateways + model.spines)
+            control = (
+                next(
+                    client.name
+                    for client in model.clients
+                    if client.name != model.clients[0].name
+                )
+                if len(model.clients) > 1
+                else model.clients[0].name
+            )
+            params.update(
+                host_name=target, target_ip=service.ip, control_source=control
+            )
+        else:
+            if problem == "int_insufficient_mtu_headroom":
+                target = rng.choice(model.gateways)
+                peer = rng.choice(model.spines)
+            else:
+                target = rng.choice(model.gateways + model.spines)
+                candidates = [
+                    port
+                    for port in model.ports[target]
+                    if port.role in {"spine", "leaf"}
+                ]
+                peer = rng.choice(candidates).peer
+            port = model.port_to_peer(target, peer)
+            assert port is not None
+            params.update(
+                host_name=target,
+                intf_name=port.name,
+                bmv2_port=str(port.bmv2_port),
+            )
+            if problem == "silent_egress_packet_loss":
+                params.update(loss_basis_points="200", seed=str(seed))
+            elif problem == "p4_ecn_threshold_misconfiguration":
+                params["threshold"] = "1024"
+            else:
+                params["int_mtu"] = "1480"
+
+    elif problem in {
         "link_down",
         "link_flap",
         "link_detach",
         "mtu_mismatch",
-        "link_high_packet_corruption",
+        "link_packet_corruption",
         "link_bandwidth_throttling",
         "host_missing_ip",
         "host_incorrect_ip",
         "host_incorrect_gateway",
         "host_incorrect_netmask",
         "host_incorrect_dns",
-        "host_crash",
         "arp_cache_poisoning",
         "receiver_resource_contention",
     }:
-        if scenario in {"sdn_l3_clos", "p4_dc_fabric"} and problem.startswith("link_"):
+        if scenario in {"sdn_l3_clos", "p4_dc_fabric"} and (
+            problem.startswith("link_")
+        ):
             # Prefer a leaf–spine fabric link so Clos path/ECMP failures are exercised.
             # Packet corruption uses the last iface; on a switch that is OOB, so pin
             # corruption to a client access link.
-            if scenario == "p4_dc_fabric" and problem == "link_high_packet_corruption":
+            if scenario == "p4_dc_fabric" and problem == "link_packet_corruption":
                 params["host_name"] = host0
                 params["intf_name"] = "eth0"
             else:
@@ -497,7 +577,7 @@ def resolve_inject_params(
                     )
                     params["host_name"] = leaf
                     params["intf_name"] = _choice_interface(rng, net_env, leaf, backend)
-        elif scenario == "min3clos" and problem.startswith("link_"):
+        elif scenario == "min3clos" and (problem.startswith("link_")):
             params["host_name"] = router0
             params["intf_name"] = _choice_interface(rng, net_env, router0, backend)
         else:
@@ -517,10 +597,32 @@ def resolve_inject_params(
             params["rate"] = "30kbit"
             params["burst"] = "64kb"
             params["limit"] = "500kb"
-        if problem == "link_high_packet_corruption":
+        if problem == "link_packet_corruption":
             params["corruption_percentage"] = "60"
         if problem == "receiver_resource_contention":
             params["duration"] = "600"
+
+    elif scenario == "enterprise_branch" and problem in {
+        "snat_port_pool_exhaustion",
+        "nat_mapping_removed_without_drain",
+    }:
+        edge = "br1_edge"
+        if problem == "snat_port_pool_exhaustion":
+            params.update(
+                host_name=edge,
+                source_prefix="10.1.40.0/24",
+                public_ip="198.18.1.10",
+                port_start="40000",
+                port_end="40063",
+            )
+        else:
+            params.update(
+                host_name=edge,
+                source_prefix="10.1.40.0/24",
+                nat_ip_a="198.18.1.10",
+                nat_ip_b="198.18.1.11",
+                wan_interface="eth2",
+            )
 
     elif problem == "host_ip_conflict":
         pair = _choice_distinct(rng, host_pool, host0)
@@ -689,13 +791,9 @@ def resolve_inject_params(
         params["host_name_2"] = b
 
     elif problem in {
-        "p4_header_definition_error",
-        "p4_compilation_error_parser_state",
         "p4_table_entry_missing",
         "p4_table_entry_misconfig",
-        "p4_aggressive_detection_thresholds",
         "bmv2_switch_down",
-        "mpls_label_limit_exceeded",
         "p4_action_selector_member_misconfig",
         "p4_ecmp_group_member_missing",
         "p4runtime_pipeline_mismatch",
@@ -819,34 +917,31 @@ def validate_benchmark_case(
     inject: dict[str, str],
     topo_size: str = "",
     *,
-    workload: str | None = None,
     isp_options: dict[str, str] | None = None,
 ) -> None:
     """Raise ValueError if a benchmark row is inconsistent with tags or topology."""
-    from nika.net_env.net_env_pool import resolve_scenario_ref
+    from nika.net_env.net_env_pool import resolve_scenario_id, scenario_tags
 
-    net_envs = list_all_net_envs()
     problems = list_avail_problem_instances()
-    canonical, alias_workload = resolve_scenario_ref(scenario)
-    if workload is None:
-        workload = alias_workload
-    if canonical not in net_envs:
-        raise ValueError(f"Unknown scenario {scenario!r}")
+    canonical = resolve_scenario_id(scenario)
+    try:
+        registered_tags = scenario_tags(canonical)
+    except ValueError:
+        raise ValueError(f"Unknown scenario {scenario!r}") from None
     if problem not in problems:
         raise ValueError(f"Unknown problem {problem!r}")
 
     problem_tags = set(problems[problem].TAGS)
-    scenario_tags = set(net_envs[canonical].TAGS)
-    if not problem_tags.issubset(scenario_tags):
+    available_tags = set(registered_tags)
+    if not problem_tags.issubset(available_tags):
         raise ValueError(
             f"Tag mismatch for {problem} on {scenario}: "
-            f"problem tags {sorted(problem_tags)} not subset of scenario tags {sorted(scenario_tags)}"
+            f"problem tags {sorted(problem_tags)} not subset of scenario tags {sorted(available_tags)}"
         )
 
     net_env = _get_net_env_for_benchmark(
         canonical,
         topo_size,
-        workload=workload,
         isp_options=isp_options,
     )
     _load_inventory(net_env)
@@ -870,6 +965,19 @@ def validate_benchmark_case(
             raise ValueError(
                 f"Inject interface {intf_name!r} not on {host_name!r} in {scenario} "
                 f"(topo_size={topo_size!r}); known interfaces: {device_ifaces}"
+            )
+
+    if problem == "device_forwarding_packet_corruption":
+        target = inject.get("forwarding_device", "")
+        target_intf = inject.get("intf_name", "")
+        forwarding_devices = set(net_env.routers or []) | set(net_env.switches or [])
+        if target not in forwarding_devices:
+            raise ValueError(
+                "device_forwarding_packet_corruption requires a router or switch target"
+            )
+        if target_intf not in (ifaces_by_device.get(target) or []):
+            raise ValueError(
+                f"forwarding interface {target_intf!r} is not on {target!r}"
             )
 
     if problem == "wireguard_peer_key_misconfiguration":

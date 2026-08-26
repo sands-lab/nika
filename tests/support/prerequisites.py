@@ -35,11 +35,6 @@ def docker_image_available(image: str) -> bool:
         return False
 
 
-def p4_int_prerequisites() -> bool:
-    """``p4_int`` needs the custom Influx collector image."""
-    return docker_image_available("nika/influxdb")
-
-
 def privileged_lab_supported() -> bool:
     """k3s labs need Docker privileged containers.
 

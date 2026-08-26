@@ -54,10 +54,11 @@ nika = "nika.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nika*", "agent*"]
+include = ["nika*", "agent*", "traffic*"]
 
 [tool.setuptools.package-data]
 "nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]
+"nika.problems.forwarding_encapsulation_policy" = ["*.bpf.c"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]
@@ -74,7 +75,3 @@ filterwarnings = [
 
 [tool.uv]
 prerelease = "allow"
-
-[tool.ruff.lint.per-file-ignores]
-# Barefoot Networks P4 runtime Thrift client (vendor code).
-"src/nika/net_env/kathara/utils/p4/thrift_API.py" = ["E712", "E721", "E722", "E741", "F403", "F405", "F841"]

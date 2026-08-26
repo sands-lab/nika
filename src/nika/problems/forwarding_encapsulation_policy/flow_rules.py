@@ -7,7 +7,7 @@ import json
 
 from pydantic import BaseModel, Field
 
-from nika.net_env.kathara.sdn.topology_model import (
+from nika.net_env.sdn_l3_clos.topology_model import (
     ONOS_OOB_IP,
     ONOS_REST_PORT,
     device_id,

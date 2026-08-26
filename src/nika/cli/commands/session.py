@@ -85,7 +85,7 @@ def session_ps(
     Columns
     -------
     SESSION ID  unique session identifier
-    ENV ID      scenario name plus instance suffix (e.g. simple_bgp_a1b2c3)
+    ENV ID      scenario name plus instance suffix (e.g. dc_clos_a1b2c3)
     STATUS      running | finished
     FAILURES    problem name when there is one, otherwise record count
     AGENTS      agent activity summary

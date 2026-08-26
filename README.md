@@ -54,17 +54,17 @@ NIKA constructs benchmark incidents from recurring failure mechanisms. The [fail
 
 | Failure domain | Registered failure types | Working-matrix cases |
 | --- | ---: | ---: |
-| Link & Interface | 4 | 92 |
-| Routing & Control Plane | 9 | 63 |
-| Forwarding, Encapsulation & Policy | 26 | 170 |
-| Service Networking | 2 | 5 |
+| Link & Interface | 5 | 191 |
+| Routing & Control Plane | 9 | 233 |
+| Forwarding, Encapsulation & Policy | 25 | 309 |
+| Service Networking | 6 | 17 |
 | Management & Orchestration Plane | 4 | 11 |
-| Addressing, Neighbor & Naming | 17 | 168 |
-| Endpoint & Application | 5 | 85 |
-| Traffic, Queueing & Resource | 2 | 39 |
-| **Total** | **69** | **633** |
+| Addressing, Neighbor & Naming | 17 | 161 |
+| Endpoint & Application | 5 | 96 |
+| Traffic, Queueing & Resource | 4 | 72 |
+| **Total** | **75** | **1,090** |
 
-Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata and injection parameter schema. The [failure reference](docs/failures.md#registered-failures) lists all 69 IDs with their injection and verification contracts.
+Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata and injection parameter schema. The [failure reference](docs/failures.md#registered-failures) lists all 75 IDs with their injection and verification contracts.
 
 
 ## ✨ Features
@@ -88,6 +88,17 @@ Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata
 - **[Kathará](https://www.kathara.org/)** — install with `--extra kathara` option below.
 - **[Containerlab](https://containerlab.dev/)** — install with `--extra containerlab` option below.
 - **Both** — install with `--extra labs` option below.
+
+`switch_internal_packet_corruption` also needs controller-host eBPF build
+tooling. On Debian or Ubuntu, install it with:
+
+```shell
+sudo apt-get update
+sudo apt-get install -y clang iproute2
+```
+
+This is a controller-host prerequisite. It is not installed in lab nodes or
+Agent sandboxes.
 
 ### Basic setup
 
@@ -148,7 +159,7 @@ Run one incident end-to-end with a task label (`{scenario}_{problem}`, or `{scen
 ```shell
 nika agent list
 nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
-  --problem simple_bgp_link_down
+  --problem dc_clos_s_link_down
 ```
 
 That deploys the lab, injects the fault, runs the agent, closes the session, and writes evaluation results.
@@ -195,7 +206,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 69 registered fault types <br> 6 network types | ⭐️⭐️ <br> 633 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 75 registered fault types <br> 10 scenario IDs | ⭐️⭐️ <br> 1,090 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

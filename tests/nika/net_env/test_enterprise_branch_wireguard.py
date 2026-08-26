@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+from nika.net_env.enterprise_branch.topology import (
     SCALE,
     build_topo_spec,
     primary_hq_peer_targets,
     remote_advertised_prefixes_for_spoke,
     single_path_hq_peer_targets,
 )
-from nika.net_env.kathara.enterprise_wan.enterprise_branch.wireguard import (
+from nika.net_env.enterprise_branch.wireguard import (
     load_key_pairs,
 )
 from nika.problems.forwarding_encapsulation_policy.wireguard import (
@@ -134,7 +134,7 @@ def test_local_only_prefixes_exclude_overlay() -> None:
 
 
 def test_edge_frr_vrf_import_stable() -> None:
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.lab import (
+    from nika.net_env.enterprise_branch.lab import (
         _render_edge_frr,
     )
 

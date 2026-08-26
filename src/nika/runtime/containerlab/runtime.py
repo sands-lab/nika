@@ -12,8 +12,8 @@ import docker
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.containerlab.parse import parse_clab_topology
-from nika.runtime.docker_ops import pause_container, unpause_container
-from nika.runtime.exec_utils import exec_with_timeout
+from nika.runtime.shared.containers import pause_container, unpause_container
+from nika.runtime.shared.execution import exec_with_timeout
 
 
 class ContainerlabRuntime(LabRuntime):
@@ -124,6 +124,12 @@ class ContainerlabRuntime(LabRuntime):
         self._refresh_node_map()
 
     def destroy(self) -> None:
+        # Host-side flap workers are outside containerlab's inventory.
+        # Remove only workers carrying this lab's opaque identifier before
+        # destroying their veth endpoints.
+        from nika.service.containerlab.host_tc import HostTcController
+
+        HostTcController.cleanup_lab(self._lab_name)
         result = self._run_clab(
             "destroy",
             "-t",

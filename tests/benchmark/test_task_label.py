@@ -22,9 +22,6 @@ class TestFormatTaskLabel:
 
     def test_scalable(self) -> None:
         assert format_task_label("dc_clos", "link_down", "s") == "dc_clos_s_link_down"
-        assert (
-            format_task_label("dc_clos_bgp", "link_down", "s") == "dc_clos_s_link_down"
-        )
 
     def test_rejects_missing_size_for_scalable(self) -> None:
         with pytest.raises(ValueError, match="requires topo_size"):
@@ -38,53 +35,34 @@ class TestFormatTaskLabel:
 class TestParseTaskLabel:
     def test_round_trip_non_scalable(self) -> None:
         label = format_task_label("simple_bgp", "link_down")
-        assert parse_task_label(label) == ("simple_bgp", "", "link_down", None)
+        assert parse_task_label(label) == ("simple_bgp", "", "link_down")
 
     def test_round_trip_scalable(self) -> None:
         label = format_task_label("dc_clos", "link_down", "s")
-        assert parse_task_label(label) == ("dc_clos", "s", "link_down", "host")
+        assert parse_task_label(label) == ("dc_clos", "s", "link_down")
 
-    def test_legacy_clos_labels(self) -> None:
-        assert parse_task_label("dc_clos_bgp_s_link_down") == (
-            "dc_clos",
-            "s",
-            "link_down",
-            "host",
-        )
-        assert parse_task_label("dc_clos_service_s_dns_service_down") == (
-            "dc_clos",
-            "s",
-            "dns_service_down",
-            "service",
-        )
-
-    def test_legacy_ospf_labels(self) -> None:
-        assert parse_task_label("ospf_enterprise_static_s_host_incorrect_ip") == (
-            "campus_lan",
-            "s",
-            "host_incorrect_ip",
-            "static",
-        )
-        assert parse_task_label("ospf_enterprise_dhcp_s_dhcp_service_down") == (
-            "campus_lan",
-            "s",
-            "dhcp_service_down",
-            "dhcp",
-        )
-
-    def test_campus_lan_round_trip_workload(self) -> None:
+    def test_campus_lan_round_trip(self) -> None:
         assert parse_task_label("campus_lan_s_host_incorrect_ip") == (
             "campus_lan",
             "s",
             "host_incorrect_ip",
-            "static",
         )
         assert parse_task_label("campus_lan_s_ospf_neighbor_missing") == (
             "campus_lan",
             "s",
             "ospf_neighbor_missing",
-            "dhcp",
         )
+
+    @pytest.mark.parametrize(
+        "label",
+        [
+            "dc_clos_service_s_dns_service_down",
+            "ospf_enterprise_dhcp_s_dhcp_service_down",
+        ],
+    )
+    def test_legacy_labels_are_rejected(self, label: str) -> None:
+        with pytest.raises(ValueError, match="Unknown"):
+            parse_task_label(label)
 
     def test_unknown_label(self) -> None:
         with pytest.raises(ValueError, match="Unknown task label"):

@@ -119,7 +119,8 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
 
     Returns ``None`` when the scenario defines no startup verification.
     """
-    result = net_env.verify_lab()
+    verify = getattr(net_env, "startup_verify_lab", net_env.verify_lab)
+    result = verify()
     if result is None:
         return None
 
@@ -129,7 +130,7 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     deadline = time.time() + max_wait_sec
     last_result = result
     while time.time() < deadline:
-        last_result = net_env.verify_lab()
+        last_result = verify()
         if last_result.get("verified", False):
             return last_result
         time.sleep(retry_delay_sec)

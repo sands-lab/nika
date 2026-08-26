@@ -1,4 +1,4 @@
-"""ISP deploy options for benchmark cases (parallel to Clos / campus ``workload``)."""
+"""ISP deploy options for benchmark cases."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from nika.net_env.isp.bgp.config import (
 )
 from nika.net_env.isp.bgp.errors import BgpConfigError
 from nika.net_env.isp.igp.config import DEFAULT_IGP, DEFAULT_TOPO, SUPPORTED_IGPS
+from nika.topology.sndlib.catalog import topology_for_size
 
 ISP_SCENARIO = "isp"
 ISP_OPTION_KEYS = ("topo", "igp", "bgp_mode", "rpki")
@@ -100,6 +101,7 @@ def validate_and_resolve_isp_options(
     scenario: str,
     problem: str,
     problem_tags: set[str] | None = None,
+    topo_size: str = "",
     topo: Any = None,
     igp: Any = None,
     bgp_mode: Any = None,
@@ -128,8 +130,11 @@ def validate_and_resolve_isp_options(
 
     tags = problem_tags if problem_tags is not None else set()
     defaults = isp_config_for_problem(problem, tags)
+    default_topo = defaults["topo"]
+    if problem not in {"bgp_max_prefix_exceeded", "bgp_rpki_invalid_route_leak"}:
+        default_topo = topology_for_size(topo_size or "s")
     resolved = {
-        "topo": provided["topo"] if provided["topo"] is not None else defaults["topo"],
+        "topo": provided["topo"] if provided["topo"] is not None else default_topo,
         "igp": provided["igp"] if provided["igp"] is not None else defaults["igp"],
         "bgp_mode": (
             provided["bgp_mode"]

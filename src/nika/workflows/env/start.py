@@ -20,7 +20,6 @@ from nika.net_env.isp.igp.config import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
     DEFAULT_METRIC_STRATEGY,
-    DEFAULT_TOPO,
     SUPPORTED_IGPS,
     SUPPORTED_METRIC_STRATEGIES,
 )
@@ -30,14 +29,11 @@ from nika.net_env.isp.profiles import (
     normalize_device_profile,
     validate_backend_profile,
 )
+from nika.topology.sndlib.catalog import topology_size_for_name
 from nika.net_env.net_env_pool import (
-    DC_CLOS_SCENARIO,
-    CAMPUS_LAN_SCENARIO,
     get_net_env_instance,
-    is_dc_clos_scenario,
-    is_campus_lan_scenario,
     resolve_scenario_backend,
-    resolve_scenario_ref,
+    resolve_scenario_id,
     scenario_requires_topo_size,
 )
 from nika.net_env.verify import verify_lab_with_retry
@@ -56,10 +52,6 @@ from nika.workflows.validation.static import (
 )
 
 ISP_SCENARIO = "isp"
-SUPPORTED_DC_CLOS_WORKLOADS = ("host", "service")
-DEFAULT_DC_CLOS_WORKLOAD = "host"
-SUPPORTED_CAMPUS_LAN_WORKLOADS = ("static", "dhcp")
-DEFAULT_CAMPUS_LAN_WORKLOAD = "static"
 
 
 def _normalize_topo_size(raw: str | None) -> Literal["s", "m", "l"] | None:
@@ -69,41 +61,6 @@ def _normalize_topo_size(raw: str | None) -> Literal["s", "m", "l"] | None:
     if raw not in ("s", "m", "l"):
         raise ValueError("Topology size must be one of: s, m, l.")
     return raw  # type: ignore[return-value]
-
-
-def _resolve_workload_kwargs(
-    scenario: str,
-    *,
-    workload: str | None,
-) -> dict:
-    """Validate ``--workload`` for Clos / OSPF campus_lan; return instance kwargs."""
-    canonical, alias_workload = resolve_scenario_ref(scenario)
-    if is_dc_clos_scenario(canonical):
-        allowed = SUPPORTED_DC_CLOS_WORKLOADS
-        default = alias_workload or DEFAULT_DC_CLOS_WORKLOAD
-        label = DC_CLOS_SCENARIO
-    elif is_campus_lan_scenario(canonical):
-        allowed = SUPPORTED_CAMPUS_LAN_WORKLOADS
-        default = alias_workload or DEFAULT_CAMPUS_LAN_WORKLOAD
-        label = CAMPUS_LAN_SCENARIO
-    else:
-        if workload is not None:
-            raise ValueError(
-                f"Scenario '{scenario}' does not accept --workload; "
-                f"that flag is only valid for '{DC_CLOS_SCENARIO}' or "
-                f"'{CAMPUS_LAN_SCENARIO}' (and their legacy aliases)."
-            )
-        return {}
-    if workload is None:
-        resolved = default
-    else:
-        if workload not in allowed:
-            raise ValueError(
-                f"Unsupported workload {workload!r} for '{label}'; "
-                f"expected one of {allowed}."
-            )
-        resolved = workload
-    return {"workload": resolved}
 
 
 def _resolve_isp_kwargs(
@@ -144,7 +101,7 @@ def _resolve_isp_kwargs(
         backend=backend,
         default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP,
     )
-    resolved_topo = topo if topo is not None else DEFAULT_TOPO
+    resolved_topo = topo
     resolved_igp = igp if igp is not None else DEFAULT_IGP
     resolved_strategy = (
         metric_strategy if metric_strategy is not None else DEFAULT_METRIC_STRATEGY
@@ -191,7 +148,7 @@ def _resolve_isp_kwargs(
         raise ValueError(str(exc)) from exc
 
     return {
-        "topo": resolved_topo,
+        **({"topo": resolved_topo} if resolved_topo is not None else {}),
         "igp": resolved_igp,
         "metric_strategy": resolved_strategy,
         "constant_metric": resolved_metric,
@@ -219,13 +176,12 @@ def start_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
-    workload: str | None = None,
     static_validation: bool | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     from nika.remote.config import is_remote_enabled
 
-    canonical, _alias_workload = resolve_scenario_ref(scenario)
+    canonical = resolve_scenario_id(scenario)
     static_validation_enabled = (
         static_validation
         if static_validation is not None
@@ -252,11 +208,12 @@ def start_net_env(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
-            workload=workload,
             static_validation=static_validation_enabled,
         )
 
     size = _normalize_topo_size(topo_size)
+    if canonical == ISP_SCENARIO and size is None:
+        size = topology_size_for_name(topo) if topo is not None else "s"
     if scenario_requires_topo_size(canonical) and size is None:
         raise ValueError(
             f"Scenario '{scenario}' requires an explicit topology size (-s s|m|l)."
@@ -277,7 +234,6 @@ def start_net_env(
         device_profile=device_profile,
         backend=backend,
     )
-    clos_kwargs = _resolve_workload_kwargs(scenario, workload=workload)
 
     default_backend = DEFAULT_BACKEND_FOR_ISP if canonical == ISP_SCENARIO else None
     resolved_backend = resolve_scenario_backend(
@@ -297,7 +253,7 @@ def start_net_env(
     resolved_session_id = session_id or make_session_id(
         session_tag=session_tag, suffix=suffix
     )
-    net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs, **clos_kwargs}
+    net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
     if size is not None:
         net_env_kwargs["topo_size"] = size
     net_env = get_net_env_instance(
@@ -313,7 +269,6 @@ def start_net_env(
     if size is not None:
         scenario_params["topo_size"] = size
     scenario_params.update(isp_kwargs)
-    scenario_params.update(clos_kwargs)
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)

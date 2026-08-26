@@ -8,15 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from nika.net_env.kathara.p4.p4_dc_fabric.fabric_manager.apply import (
+from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
     _COMPILE_OK,
     compile_pipeline_cmd,
     compile_pipeline_on_switch,
 )
-from nika.net_env.kathara.p4.p4_dc_fabric.fabric_manager.intent import (
+from nika.net_env.p4_dc_fabric.fabric_manager.intent import (
     build_forwarding_intent,
 )
-from nika.net_env.kathara.p4.p4_dc_fabric.topology_model import (
+from nika.net_env.p4_dc_fabric.topology_model import (
     SIZE_TABLE,
     SWITCH_IMAGE,
     VIRTUAL_ROUTER_MAC,
@@ -88,7 +88,7 @@ def test_scenario_registered() -> None:
     assert "10.0.1." in model.web_urls[0]
 
 
-def test_p4_get_fabric_state_sections() -> None:
+def test_p4_get_runtime_state_is_live_only() -> None:
     from unittest.mock import patch
 
     from nika.service.kathara.bmv2_api import KatharaBMv2API
@@ -98,27 +98,16 @@ def test_p4_get_fabric_state_sections() -> None:
     def _exec(host: str, command: str, timeout: float = 15) -> str:
         if "read --switch" in command:
             return '{"ok": true, "switches": {"leaf_1": {"pipeline": {"ok": true}, "ipv4_lpm": []}}}'
-        if "intent.json" in command:
-            return (
-                '{"pipeline":{"name":"fabric"},"spines":["spine_1"],'
-                '"leaves":["leaf_1"],"endpoints":[{"name":"web_1","ip":"10.0.1.11","role":"web","leaf_id":1}],'
-                '"switch":{"leaf_1":{"role":"leaf","device_id":1,"address":"172.31.0.11:9559",'
-                '"ipv4_lpm":[],"groups":[],"member_count":0}}}'
-            )
-        if "ping" in command:
-            return "3 packets transmitted, 3 received"
-        return "{}"
+        return "1: lo: <LOOPBACK>"
 
     with patch.object(KatharaBMv2API, "exec_cmd", side_effect=_exec):
-        state = api.p4_get_fabric_state(
-            "leaf_1", source="client_1_1", target_ip="10.0.2.11"
-        )
+        state = api.p4_get_runtime_state("leaf_1")
 
-    assert "intended_forwarding" in state
-    assert "p4runtime_observed" in state
-    assert "endpoint_addressing" in state
-    assert "traffic_observed" in state
+    assert "switches" in state
+    assert state["switches"]["leaf_1"]["pipeline"] == {"ok": True}
     blob = json.dumps(state)
+    assert "intended" not in blob
+    assert "expected" not in blob
     assert "p4_table_entry_missing" not in blob
     assert "fault_type" not in blob
     servers = select_diagnosis_servers("p4_dc_fabric", backend="kathara")
@@ -127,7 +116,7 @@ def test_p4_get_fabric_state_sections() -> None:
 
 
 def test_compile_pipeline_on_switch_requires_ok_marker(monkeypatch) -> None:
-    from nika.net_env.kathara.p4.p4_dc_fabric.fabric_manager import apply as apply_mod
+    from nika.net_env.p4_dc_fabric.fabric_manager import apply as apply_mod
 
     monkeypatch.setattr(
         apply_mod,

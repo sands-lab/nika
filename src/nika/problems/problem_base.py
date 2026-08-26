@@ -60,6 +60,10 @@ class FailureDomain(StrEnum):
         "traffic_queueing_resource",
         "Traffic load, queueing, link capacity, and shared network resources",
     )
+    SECURITY = (
+        "security",
+        "Attacks, spoofing, and poisoning",
+    )
 
 
 class ProblemMeta(BaseModel):

@@ -120,8 +120,8 @@ def _assert_rca_correct(session_dir: Path, leaker: str) -> None:
 class TestBGPRPKIInvalidRouteLeakE2E(IntegrationTestCase):
     """Deploy Abilene eBGP, inject leak, verify observer divergence (≥3 runs)."""
 
-    @pytest.mark.parametrize("run_idx", range(3))
-    def test_rpki_invalid_route_leak_cycle(self, run_idx: int) -> None:
+    @pytest.mark.parametrize("_run_idx", range(3))
+    def test_rpki_invalid_route_leak_cycle(self, _run_idx: int) -> None:
         roles = _rpki_roles()
         params = {"host_name": roles["leaker"]}
 

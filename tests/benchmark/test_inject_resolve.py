@@ -18,28 +18,22 @@ from inject_resolve import (  # noqa: E402
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
-@pytest.mark.parametrize(
-    "scenario,workload",
-    [("dc_clos", "host"), ("dc_clos", "service"), ("dc_clos_bgp", None)],
-)
 def test_bgp_missing_route_advertisement_targets_advertisers(
-    scenario: str, topo_size: str, workload: str | None
+    topo_size: str,
 ) -> None:
     inject = resolve_inject_params(
         "bgp_missing_route_advertisement",
-        scenario,
+        "dc_clos",
         topo_size,
         seed=43,
-        workload=workload,
     )
     host = inject["host_name"]
     assert "leaf" in host
     validate_benchmark_case(
-        scenario,
+        "dc_clos",
         "bgp_missing_route_advertisement",
         inject,
         topo_size,
-        workload=workload,
     )
 
 
@@ -50,7 +44,6 @@ def test_bgp_missing_route_advertisement_rejects_spine_target() -> None:
             "bgp_missing_route_advertisement",
             {"host_name": "spine_router_2_2"},
             "l",
-            workload="service",
         )
 
 
@@ -61,7 +54,6 @@ def test_bgp_missing_route_advertisement_rejects_dc_clos_super_spine() -> None:
             "bgp_missing_route_advertisement",
             {"host_name": "super_spine_router_0"},
             "s",
-            workload="host",
         )
 
 
@@ -75,21 +67,13 @@ def test_bgp_missing_route_advertisement_simple_bgp_unchanged() -> None:
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
 @pytest.mark.parametrize(
-    "scenario,workload",
-    [("dc_clos", "host"), ("dc_clos_service", None)],
-)
-@pytest.mark.parametrize(
     "problem",
     ["host_static_blackhole", "bgp_blackhole_route_leak", "bgp_hijacking"],
 )
-def test_victim_host_problems_target_leaf_routers(
-    scenario: str, topo_size: str, problem: str, workload: str | None
-) -> None:
-    inject = resolve_inject_params(
-        problem, scenario, topo_size, seed=43, workload=workload
-    )
+def test_victim_host_problems_target_leaf_routers(topo_size: str, problem: str) -> None:
+    inject = resolve_inject_params(problem, "dc_clos", topo_size, seed=43)
     assert "leaf" in inject["host_name"], inject
-    validate_benchmark_case(scenario, problem, inject, topo_size, workload=workload)
+    validate_benchmark_case("dc_clos", problem, inject, topo_size)
 
 
 def test_host_static_blackhole_rejects_spine_target() -> None:
@@ -99,13 +83,12 @@ def test_host_static_blackhole_rejects_spine_target() -> None:
             "host_static_blackhole",
             {"host_name": "spine_router_3_0"},
             "l",
-            workload="service",
         )
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
 def test_wireguard_peer_key_targets_primary_hq_tunnels(topo_size: str) -> None:
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         primary_hq_peer_targets,
     )
 
@@ -157,7 +140,6 @@ def test_link_fragmentation_disabled_alias_resolves_to_mtu_mismatch() -> None:
         {
             "scenario": "dc_clos",
             "topo_size": "",
-            "workload": "host",
             "problem": "link_fragmentation_disabled",
             "inject": {"host_name": "pc1", "mtu": "100"},
             "root_causes": [
@@ -188,32 +170,27 @@ def test_host_vpn_alias_resolves_to_wireguard() -> None:
     assert cls.root_cause_name == "wireguard_peer_key_misconfiguration"
 
 
-def test_legacy_host_vpn_benchmark_row_rewrites_to_site_edge() -> None:
+def test_legacy_scenario_benchmark_row_is_rejected() -> None:
     from nika.workflows.benchmark.load_config import normalize_benchmark_row
 
-    row = normalize_benchmark_row(
-        {
-            "scenario": "rip_small_internet_vpn",
-            "topo_size": "s",
-            "problem": "host_vpn_membership_missing",
-            "inject": {
-                "host_name": "web_server_1_1",
-                "host_name_2": "vpn_server_1",
-            },
-            "root_causes": [
-                {
-                    "resource": {"kind": "node", "node": "vpn_server_1"},
-                    "fault_type": "host_vpn_membership_missing",
-                }
-            ],
-        }
-    )
-    assert row["scenario"] == "enterprise_branch"
-    assert row["problem"] == "wireguard_peer_key_misconfiguration"
-    assert row["inject"]["intf_name"] == "wg_hq"
-    assert row["inject"]["host_name"].endswith("_edge")
-    assert row["root_causes"][0]["fault_type"] == "wireguard_peer_key_misconfiguration"
-    assert row["root_causes"][0]["resource"]["kind"] == "interface"
+    with pytest.raises(ValueError, match="not found in the pool"):
+        normalize_benchmark_row(
+            {
+                "scenario": "rip_small_internet_vpn",
+                "topo_size": "s",
+                "problem": "host_vpn_membership_missing",
+                "inject": {
+                    "host_name": "web_server_1_1",
+                    "host_name_2": "vpn_server_1",
+                },
+                "root_causes": [
+                    {
+                        "resource": {"kind": "node", "node": "vpn_server_1"},
+                        "fault_type": "host_vpn_membership_missing",
+                    }
+                ],
+            }
+        )
 
 
 def test_selected_scenario_mapping_includes_wireguard() -> None:
@@ -237,6 +214,24 @@ def test_selected_scenario_mapping_includes_wireguard() -> None:
     assert SELECTED_SCENARIO_FOR_PROBLEM["bgp_rpki_invalid_route_leak"] == "isp"
 
 
+@pytest.mark.parametrize("topo_size", ["s", "m", "l"])
+@pytest.mark.parametrize(
+    "scenario", ["dc_clos", "campus_lan", "enterprise_branch", "sdn_l3_clos"]
+)
+def test_device_forwarding_corruption_targets_a_forwarding_node(
+    scenario: str, topo_size: str
+) -> None:
+    inject = resolve_inject_params(
+        "device_forwarding_packet_corruption", scenario, topo_size, seed=43
+    )
+    assert inject["forwarding_device"]
+    assert inject["intf_name"].startswith("eth")
+    assert inject["seed"] == "43"
+    validate_benchmark_case(
+        scenario, "device_forwarding_packet_corruption", inject, topo_size
+    )
+
+
 def test_p4_dc_fabric_runtime_failures_target_a_leaf() -> None:
     for problem in (
         "p4_action_selector_member_misconfig",
@@ -251,7 +246,7 @@ def test_p4_dc_fabric_runtime_failures_target_a_leaf() -> None:
 
 def test_p4_dc_fabric_corruption_pins_client_eth0() -> None:
     inject = resolve_inject_params(
-        "link_high_packet_corruption", "p4_dc_fabric", "s", seed=0
+        "link_packet_corruption", "p4_dc_fabric", "s", seed=0
     )
     assert "client" in inject["host_name"]
     assert inject["intf_name"] == "eth0"
@@ -259,7 +254,7 @@ def test_p4_dc_fabric_corruption_pins_client_eth0() -> None:
 
 def test_vrf_dscp_remarking_inject_resolve_and_validate() -> None:
     """One offline resolve+validate check; Docker inject covers runtime behavior."""
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         dscp_remark_inject_targets,
     )
 
@@ -304,7 +299,7 @@ def test_vrf_dscp_remarking_inject_resolve_and_validate() -> None:
 def test_wireguard_allowed_ips_targets_primary_hq_and_remote_prefix(
     topo_size: str,
 ) -> None:
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         primary_hq_peer_targets,
         remote_advertised_prefixes_for_spoke,
     )
@@ -369,33 +364,17 @@ def test_wireguard_allowed_ips_rejects_local_prefix() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "yaml_name",
-    [
-        "releases/0.1.0/dev.yaml",
-        "releases/0.1.0/test.yaml",
-        "benchmark_selected.yaml",
-    ],
-)
+@pytest.mark.parametrize("yaml_name", ["benchmark_selected.yaml"])
 def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
     from nika.workflows.benchmark.load_config import load_benchmark_yaml
     from nika.workflows.benchmark.isp_options import isp_options_from_row
 
     path = _BENCHMARK_DIR / yaml_name
-    frozen_release = yaml_name.startswith("releases/")
     for row in load_benchmark_yaml(path):
-        try:
-            validate_benchmark_case(
-                row["scenario"],
-                row["problem"],
-                dict(row.get("inject") or {}),
-                str(row.get("topo_size") or ""),
-                workload=row.get("workload"),
-                isp_options=isp_options_from_row(row),
-            )
-        except ValueError as exc:
-            # Frozen releases may pin inject targets from retired labs (e.g. POX
-            # sdn_star/sdn_clos device names) that aliases still resolve.
-            if frozen_release and "not in" in str(exc) and "topology" in str(exc):
-                continue
-            raise
+        validate_benchmark_case(
+            row["scenario"],
+            row["problem"],
+            dict(row.get("inject") or {}),
+            str(row.get("topo_size") or ""),
+            isp_options=isp_options_from_row(row),
+        )

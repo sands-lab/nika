@@ -180,8 +180,8 @@ For LangChain-based agents, use `AgentCallbackLogger` instead of manual event lo
 Use the mock agent first to validate the lab and task:
 
 ```shell
-uv run nika env run simple_bgp
-uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
 uv run nika agent run -a mock -m mock-v1
 uv run nika session close -y
 uv run nika eval metrics
@@ -190,16 +190,16 @@ uv run nika eval metrics
 Then run your agent:
 
 ```shell
-uv run nika env run simple_bgp
-uv run nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
 uv run nika agent run -a community.my_agent -m <model> -n 20
 ```
 
 For benchmark mode:
 
 ```shell
-uv run nika benchmark run simple_bgp --problem link_down \
-  --set host_name=pc1 --set intf_name=eth0 \
+uv run nika benchmark run dc_clos -s s --problem link_down \
+  --set host_name=pc_0_0 --set intf_name=eth0 \
   -a community.my_agent -m <model> -n 20
 ```
 

@@ -31,7 +31,7 @@ For benchmark automation, `nika benchmark run` performs env deploy, fault inject
 
 Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](network-scenarios.md) before adding another scenario ID; an existing parameterized scenario may already cover the topology.
 
-1. Add the lab under `src/nika/net_env/kathara/<domain>/<scenario>/` (Kathara) or `src/nika/net_env/containerlab/<scenario>/` (Containerlab).
+1. Add a single-backend lab under `src/nika/net_env/<scenario>/`. Only multi-backend scenarios use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Shared backend helpers belong in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
 2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, sets `self.name`, `self.desc`, and declares useful host lists through `load_machines()`.
 3. If the scenario has sizes, expose `TOPO_SIZE = ["s", "m", "l"]` and accept `topo_size` in `__init__`.
 4. Add import-safe metadata and a lazy module/class binding to `src/nika/net_env/net_env_pool.py`.
@@ -88,13 +88,13 @@ uv run nika session inspect
 uv run nika session close -y
 ```
 
-The ISP scenario is parameterized by SNDlib topology (not `-s`). The same `isp` scenario supports Kathara (FRR) and Containerlab (Nokia SR Linux):
+The ISP scenario selects a SNDlib topology tier with `-s`. The same `isp` scenario supports Kathara (FRR) and Containerlab (Nokia SR Linux):
 
 ```shell
-uv run nika env run isp --topo polska --igp isis
-uv run nika env run isp --topo polska --bgp-mode ibgp_rr
-uv run nika env run isp --topo geant --bgp-mode ebgp
-uv run nika env run isp --backend containerlab --device-profile nokia_srlinux --topo pdh
+uv run nika env run isp -s s --igp isis
+uv run nika env run isp -s m --bgp-mode ibgp_rr
+uv run nika env run isp -s l --bgp-mode ebgp
+uv run nika env run isp --backend containerlab --device-profile nokia_srlinux -s m
 uv run nika traffic run sndlib --mode demands --max-intervals 1 --unit K --background
 ```
 
@@ -102,7 +102,7 @@ See the [`isp` scenario reference](network-scenarios.md#sndlib-isp-scenario) for
 
 ## Add an injectable failure
 
-Failures live under `src/nika/problems/<failure_domain>/`. The directory name must match the class `failure_domain`. Cross-domain base classes and helpers live under `src/nika/problems/support/`; support packages must not define registered failures. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`, validates all taxonomy fields, and builds `META` during import.
+Failures live under `src/nika/problems/<failure_domain>/`. The directory name must match the class `failure_domain`. Cross-domain base classes and helpers live under `src/nika/problems/support/`; support packages must not define registered failures. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`, validates all taxonomy fields, and builds `META` during import. Put attacks, spoofing, and poisoning failures under `security`.
 
 Each fault is a single `ProblemBase` subclass that implements injection, verification, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
 
@@ -177,7 +177,7 @@ OD-matrix iperf3 traffic:
 ```python
 import asyncio
 
-from nika.generator.traffic.od_flows import ODFLowGenerator
+from traffic.od_flows import ODFLowGenerator
 
 
 async def run_traffic(lab_name: str):

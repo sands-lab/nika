@@ -10,7 +10,7 @@ Basic logging (requires a bound session directory):
 
 Structured event logging:
     from nika.utils.logger import log_event
-    log_event("env_start", "Lab deployed", scenario="simple_bgp", session_id="...")
+    log_event("env_start", "Lab deployed", scenario="dc_clos", session_id="...")
 
 Bind a session directory (call once session_dir is known):
     from nika.utils.logger import bind_session_dir
@@ -112,7 +112,7 @@ def log_event(event_type: str, message: str, **data) -> None:
     Writes a structured JSON line to events.jsonl when a session dir is bound.
 
     Example::
-        log_event("env_start", "Lab deployed", scenario="simple_bgp", session_id="...")
+        log_event("env_start", "Lab deployed", scenario="dc_clos", session_id="...")
         log_error_event("failure_inject_error", "Inject failed", error="timeout")
     """
     system_logger.info(message, extra={"event_type": event_type, "data": data or None})

@@ -35,14 +35,12 @@ def _session_net_env():
     )
     if topo_size in ("-", None):
         topo_size = ""
-    workload = params.get("workload")
     topo = params.get("topo")
     igp = params.get("igp")
     bgp_mode = params.get("bgp_mode")
     return load_offline_net_env(
         scenario,
         str(topo_size),
-        workload=str(workload) if workload not in (None, "", "-") else None,
         topo=str(topo) if topo not in (None, "", "-") else None,
         igp=str(igp) if igp not in (None, "", "-") else None,
         bgp_mode=str(bgp_mode) if bgp_mode not in (None, "", "-") else None,

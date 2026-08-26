@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from typing import ClassVar
-from nika.net_env.containerlab.min3clos.verify import (
+from nika.net_env.min3clos.verify import (
     CLIENT1,
     CLIENT2,
     EXPECTED_NODES,

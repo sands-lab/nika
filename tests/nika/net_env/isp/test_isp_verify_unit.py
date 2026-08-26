@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
-from nika.net_env.kathara.isp.isp.verify import verify_isp_lab
+from nika.net_env.isp.kathara.verify import verify_isp_lab
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
 

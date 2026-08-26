@@ -38,6 +38,51 @@ SNDLIB_TOPOLOGY_NAMES: tuple[str, ...] = (
     "zib54",
 )
 
+SNDLIB_TOPOLOGY_SIZE_DEFAULTS: dict[str, str] = {
+    "s": "abilene",
+    "m": "france",
+    "l": "pioro40",
+}
+
+# The current SNDlib catalog ordered by ``(node_count, topology_name)`` and
+# split as evenly as possible into the same relative s/m/l sizes as NIKA's
+# generated scenarios. Keep this explicit so adding an asset cannot silently
+# change the meaning of a published benchmark case.
+SNDLIB_TOPOLOGY_TIERS: dict[str, tuple[str, ...]] = {
+    "s": (
+        "dfn-bwin",
+        "dfn-gwin",
+        "di-yuan",
+        "pdh",
+        "abilene",
+        "polska",
+        "nobel-us",
+        "atlanta",
+    ),
+    "m": (
+        "newyork",
+        "nobel-germany",
+        "geant",
+        "ta1",
+        "france",
+        "janos-us",
+        "norway",
+        "sun",
+        "nobel-eu",
+    ),
+    "l": (
+        "india35",
+        "cost266",
+        "giul39",
+        "janos-us-ca",
+        "pioro40",
+        "germany50",
+        "zib54",
+        "ta2",
+        "brain",
+    ),
+}
+
 _NETWORK_FILENAME = "network.xml"
 
 
@@ -61,6 +106,30 @@ def list_sndlib_topologies() -> list[str]:
         if path.is_dir() and (path / _NETWORK_FILENAME).is_file()
     )
     return names
+
+
+def topologies_for_size(topo_size: str) -> tuple[str, ...]:
+    """Return the fixed SNDlib candidates for a relative size tier."""
+    try:
+        return SNDLIB_TOPOLOGY_TIERS[topo_size]
+    except KeyError as exc:
+        raise ValueError("Topology size must be one of: s, m, l.") from exc
+
+
+def topology_size_for_name(topology: str) -> str:
+    """Return the relative SNDlib size tier that contains ``topology``."""
+    for topo_size, names in SNDLIB_TOPOLOGY_TIERS.items():
+        if topology in names:
+            return topo_size
+    raise ValueError(f"Unknown SNDlib topology {topology!r}.")
+
+
+def topology_for_size(topo_size: str) -> str:
+    """Return the deterministic SNDlib representative for ``s``, ``m``, or ``l``."""
+    try:
+        return SNDLIB_TOPOLOGY_SIZE_DEFAULTS[topo_size]
+    except KeyError as exc:
+        raise ValueError("Topology size must be one of: s, m, l.") from exc
 
 
 def load_sndlib_topology(name_or_path: str | Path) -> NetworkTopology:

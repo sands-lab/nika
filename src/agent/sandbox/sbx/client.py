@@ -38,7 +38,7 @@ def sbx_authenticated() -> bool:
             capture_output=True,
             text=True,
             check=False,
-            timeout=20,
+            timeout=8,
         )
         combined = f"{proc.stdout}\n{proc.stderr}"
         returncode = proc.returncode
@@ -52,6 +52,17 @@ def sbx_authenticated() -> bool:
     if "local-policy" in combined or "POLICY" in combined:
         return True
     return returncode == 0
+
+
+def require_sbx_authenticated() -> None:
+    """Fail before policy mutation when Docker Sandboxes has no login session."""
+    if sbx_authenticated():
+        return
+    raise RuntimeError(
+        "Docker Sandboxes is not authenticated. Run `sbx login` (or "
+        "`sbx login --username <name> --password-stdin`) and retry. "
+        "The NIKA sandbox upstream proxy cannot replace Docker authentication."
+    )
 
 
 def ensure_sbx_daemon() -> None:

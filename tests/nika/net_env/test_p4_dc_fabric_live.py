@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from nika.net_env.kathara.p4.p4_dc_fabric.topology_model import build_clos_fabric_model
+from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
 from nika.net_env.verify import http_ok, ping_ok
 from nika.runtime.factory import runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
@@ -39,7 +39,7 @@ class P4DcFabricLiveTest(IntegrationTestCase):
             runtime = runtime_for_session(meta)
             model = build_clos_fabric_model("s")
             row["deployment_success"] = True
-            from nika.net_env.kathara.p4.p4_dc_fabric.verify import (
+            from nika.net_env.p4_dc_fabric.verify import (
                 verify_p4_dc_fabric_lab,
             )
 

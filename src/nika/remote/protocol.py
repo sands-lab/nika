@@ -30,7 +30,6 @@ class EnvStartRequest(BaseModel):
     rpki: bool | None = None
     backend: str | None = None
     device_profile: str | None = None
-    workload: str | None = None
     static_validation: bool = False
 
 

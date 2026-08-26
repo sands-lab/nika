@@ -13,6 +13,7 @@ from Kathara.manager.Kathara import Kathara, Lab
 from Kathara.model.Machine import Machine
 
 from nika.runtime.spec import MachineInventory, NodeRole
+from nika.service.lab.tc_api import TCMixin
 
 
 @runtime_checkable
@@ -25,7 +26,7 @@ class _SupportsBase(Protocol):
     def _require_machine_inventory(self) -> MachineInventory: ...
 
 
-class KatharaBaseAPI:
+class KatharaBaseAPI(TCMixin):
     """
     Base interfaces to interact with the Kathara.
     """

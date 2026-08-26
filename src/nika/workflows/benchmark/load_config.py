@@ -7,21 +7,15 @@ from typing import Any
 
 import yaml
 
-from nika.net_env.net_env_pool import (
-    DC_CLOS_SCENARIO,
-    CAMPUS_LAN_SCENARIO,
-    P4_DC_FABRIC_SCENARIO,
-    is_dc_clos_scenario,
-    is_campus_lan_scenario,
-    resolve_scenario_ref,
-)
+from nika.net_env.net_env_pool import resolve_scenario_id
 from nika.problems.prob_pool import list_avail_problem_instances, resolve_problem_name
 from nika.workflows.benchmark.isp_options import validate_and_resolve_isp_options
+from nika.topology.sndlib.catalog import topology_size_for_name
 
 
 def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:
     """Default Branch→HQ WireGuard target for remapped legacy VPN cases."""
-    from nika.net_env.kathara.enterprise_wan.enterprise_branch.topology import (
+    from nika.net_env.enterprise_branch.topology import (
         primary_hq_peer_targets,
     )
 
@@ -36,47 +30,16 @@ def _site_edge_wg_inject(topo_size: str) -> dict[str, str]:
 
 
 def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Normalize scenario aliases, failure aliases, workload, and ISP options."""
+    """Validate a canonical benchmark row and normalize its failure options."""
     raw_scenario = str(row["scenario"])
-    canonical, alias_workload = resolve_scenario_ref(raw_scenario)
-    workload = row.get("workload")
-    if workload in ("-", "", None):
-        workload = None
-    elif workload is not None:
-        workload = str(workload)
-
-    if is_dc_clos_scenario(canonical):
-        if workload is None:
-            workload = alias_workload or "host"
-        if workload not in ("host", "service"):
-            raise ValueError(
-                f"Invalid workload {workload!r} for scenario {canonical!r}; "
-                "expected 'host' or 'service'."
-            )
-    elif is_campus_lan_scenario(canonical):
-        if workload is None:
-            workload = alias_workload or "static"
-        if workload not in ("static", "dhcp"):
-            raise ValueError(
-                f"Invalid workload {workload!r} for scenario {canonical!r}; "
-                "expected 'static' or 'dhcp'."
-            )
-    elif workload is not None:
-        raise ValueError(
-            f"Scenario {canonical!r} does not accept a workload field "
-            f"(got {workload!r})."
-        )
+    canonical = resolve_scenario_id(raw_scenario)
+    if "workload" in row:
+        raise ValueError("Benchmark cases do not accept a workload field.")
 
     topo = row.get("topo_size")
     if topo is None:
         topo = ""
     topo_size = "" if topo in ("-", "", None) else str(topo)
-    if (
-        canonical == P4_DC_FABRIC_SCENARIO
-        and raw_scenario != canonical
-        and not topo_size
-    ):
-        topo_size = "s"
 
     raw_problem = str(row["problem"])
     problem = resolve_problem_name(raw_problem)
@@ -97,11 +60,21 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         scenario=canonical,
         problem=problem,
         problem_tags=problem_tags,
+        topo_size=topo_size,
         topo=isp_topo,
         igp=isp_igp,
         bgp_mode=isp_bgp,
         rpki=isp_rpki,
     )
+    if canonical == "isp" and isp_options is not None:
+        inferred_size = topology_size_for_name(isp_options["topo"])
+        if not topo_size:
+            topo_size = inferred_size
+        elif topo_size != inferred_size:
+            raise ValueError(
+                f"ISP topology {isp_options['topo']!r} belongs to size "
+                f"{inferred_size!r}, not {topo_size!r}."
+            )
 
     # Legacy host-VPN inject params do not apply to Site Edge tunnels.
     if raw_problem == "host_vpn_membership_missing":
@@ -141,8 +114,6 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         "topo_size": topo_size,
         "inject": inject,
     }
-    if canonical in (DC_CLOS_SCENARIO, CAMPUS_LAN_SCENARIO):
-        normalized["workload"] = workload
     if isp_options is not None:
         normalized.update(isp_options)
     if root_causes:
@@ -158,16 +129,14 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     Expected shape::
 
         cases:
-          - scenario: simple_bgp
-            topo_size: null
+          - scenario: dc_clos
+            topo_size: s
             problem: link_down
             inject:
-              host_name: pc1
+              host_name: pc_0_0
               intf_name: eth0
 
-    Legacy Clos / campus LAN scenario ids are rewritten to the unified
-    scenario with the matching ``workload``. Legacy
-    ``host_vpn_membership_missing`` rewrites to
+    Legacy failure IDs such as ``host_vpn_membership_missing`` rewrite to
     ``wireguard_peer_key_misconfiguration`` with a Site Edge inject target.
     Legacy ``link_fragmentation_disabled`` rewrites to ``mtu_mismatch``.
     Legacy ``p4_counter`` rewrites to ``p4_dc_fabric`` with topo size ``s``.

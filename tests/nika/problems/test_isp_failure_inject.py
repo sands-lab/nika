@@ -24,7 +24,7 @@ LINK_ICMP_FRR = (
     "link_detach",
     "mtu_mismatch",
     "link_bandwidth_throttling",
-    "link_high_packet_corruption",
+    "link_packet_corruption",
     "icmp_acl_block",
     "frr_service_down",
 )

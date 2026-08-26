@@ -168,7 +168,6 @@ def load_offline_net_env(
     scenario: str,
     topo_size: str = "",
     *,
-    workload: str | None = None,
     topo: str | None = None,
     igp: str | None = None,
     bgp_mode: str | None = None,
@@ -178,8 +177,6 @@ def load_offline_net_env(
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
-    if workload is not None:
-        kwargs["workload"] = workload
     if topo is not None:
         kwargs["topo"] = topo
     if igp is not None:

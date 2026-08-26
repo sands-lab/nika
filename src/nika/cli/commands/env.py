@@ -33,11 +33,6 @@ def env_run(
         "--size",
         help="Topology size s, m, or l (required only for scalable scenarios).",
     ),
-    topo: str | None = typer.Option(
-        None,
-        "--topo",
-        help="SNDlib topology name or network.xml path (isp only; default: polska).",
-    ),
     igp: str | None = typer.Option(
         None,
         "--igp",
@@ -85,14 +80,6 @@ def env_run(
             "Defaults from --backend."
         ),
     ),
-    workload: str | None = typer.Option(
-        None,
-        "--workload",
-        help=(
-            "Scenario workload: dc_clos host|service (default host); "
-            "campus_lan static|dhcp (default static)."
-        ),
-    ),
     no_redeploy: bool = typer.Option(
         False,
         "--no-redeploy",
@@ -127,7 +114,6 @@ def env_run(
         redeploy=not no_redeploy,
         instance_tag=instance_tag,
         result_dir=result_dir,
-        topo=topo,
         igp=igp,
         metric_strategy=metric_strategy,
         constant_metric=constant_metric,
@@ -135,7 +121,6 @@ def env_run(
         rpki=rpki or None,
         backend=backend,
         device_profile=device_profile,
-        workload=workload,
         static_validation=static_validation,
     )
     typer.echo(f"session_id={session_id}")
@@ -152,7 +137,7 @@ def env_ps() -> None:
     \b
     Columns
     -------
-    ENV ID      scenario name plus instance suffix (e.g. simple_bgp_a1b2c3)
+    ENV ID      scenario name plus instance suffix (e.g. dc_clos_a1b2c3)
     BACKEND     kathara or containerlab
     SIZE        topology size when applicable (s, m, l), — otherwise
     STATUS      running | finished

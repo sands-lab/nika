@@ -12,8 +12,8 @@ import time
 
 import pytest
 
-from nika.generator.traffic.od_flows import ODFLowGenerator
-from nika.generator.traffic.sndlib_replay import host_ips_from_isp_inventory
+from traffic.od_flows import ODFLowGenerator
+from traffic.sndlib_replay import host_ips_from_isp_inventory
 from nika.net_env.isp.inject_targets import isp_inject_params
 from nika.net_env.isp.traffic import resolve_traffic_series, series_to_od_dicts
 from nika.net_env.isp.traffic.models import TrafficInterval, TrafficMatrixSeries

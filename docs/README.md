@@ -8,7 +8,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | --- | --- | --- |
 | Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](configuration.md) | Reference |
 | Find a command, option, session rule, or artifact location | [CLI reference](cli-reference.md) | Reference |
-| Select a scenario and its backend, scale, workload, or prerequisites | [Network scenarios](network-scenarios.md) | Reference |
+| Select a scenario, backend, scale, or prerequisites | [Network scenarios](network-scenarios.md) | Reference |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](remote.md) | How-to |
 | Run a supported agent in a Docker Sandbox microVM | [Docker Sandbox execution](agent-sandbox.md) | How-to |
@@ -35,7 +35,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | Goal | Read | Type |
 | --- | --- | --- |
 | Add a scenario, failure, traffic source, or working-matrix case | [Create benchmark tasks](creating-benchmark-tasks.md) | How-to |
-| Define healthy-network intents or implement a verifier | [Network validation contracts](validation-contracts.md) | Reference |
+| Define healthy-network intents or implement a verifier | [Scenario validation](scenario-validation.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](testing.md) | Guide |
 
 ## Maintain the documentation
@@ -53,7 +53,7 @@ uv run nika agent list
 | Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml) |
 | CLI and workflows | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/), [`workflows/`](../src/nika/workflows/) |
 | Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
-| Network validation contracts | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |
+| Scenario validation | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |
 | Failure registry and labels | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py), [`root_cause.py`](../src/nika/problems/root_cause.py) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/agent/registry.py) |
 | Benchmark generation | [`generate_benchmark.py`](../benchmark/generate_benchmark.py), [`workflows/benchmark/`](../src/nika/workflows/benchmark/) |

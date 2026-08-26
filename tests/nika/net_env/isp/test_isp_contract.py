@@ -5,7 +5,7 @@ from nika.net_env.isp.contract import build_isp_validation_contract
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.isp.traffic.models import TrafficInterval, TrafficMatrixSeries
 from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
-from nika.net_env.kathara.isp.isp.verify import verify_isp_contract
+from nika.net_env.isp.kathara.verify import verify_isp_contract
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
 

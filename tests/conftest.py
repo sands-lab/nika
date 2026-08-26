@@ -5,9 +5,21 @@ from pathlib import Path
 
 import pytest
 
+from nika.net_env import net_env_pool
+from nika.net_env.net_env_pool import NetEnvSpec
 from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
+
+# Keep the small Kathara BGP lab available to backend tests without exposing it
+# through the installed scenario registry.
+net_env_pool._NET_ENV_SPECS["simple_bgp"] = NetEnvSpec(
+    lab_name="simple_bgp",
+    module="tests.support.simple_bgp.lab",
+    class_name="SimpleBGP",
+    tags=("arp", "link", "mac", "bgp", "icmp", "frr", "pc"),
+    supported_backends=("kathara",),
+)
 
 _SANDBOX_E2E_LOCK = Path("/tmp/nika-sandbox-e2e.lock")
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from nika.net_env.kathara.sdn.topology_model import (
+from nika.net_env.sdn_l3_clos.topology_model import (
     FABRIC_MGR_OOB_IP,
     ONOS_OOB_IP,
     ONOS_REST_PORT,

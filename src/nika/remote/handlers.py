@@ -131,7 +131,6 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             rpki=request.rpki,
             backend=request.backend,
             device_profile=request.device_profile,
-            workload=request.workload,
             static_validation=request.static_validation,
         )
     except Exception:

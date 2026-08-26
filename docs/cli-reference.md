@@ -59,7 +59,7 @@ Use separate directories to isolate experiments (different datasets, models, age
 CLI `--result_dir` overrides YAML. Relative paths resolve from the repository root (e.g. `results/list1` → `<repo>/results/list1/`).
 
 ```shell
-nika env run simple_bgp --result_dir results/list1
+nika env run dc_clos -s s --result_dir results/list1
 # → results/list1/20260702-053412-abc123/
 
 nika benchmark run --release 0.1.0 --result_dir results/my-release-run
@@ -96,7 +96,7 @@ Aligned with `nika agent run`:
 ## `nika env`
 
 - **`nika env list`**: print registered scenario ids.
-- **`nika env run NAME [-s s|m|l] [--workload VALUE] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG]`**: deploy one instance, run live runtime verification, create a session, and print `session_id=…`. Batfish follows `nika.static_validation.enabled`; the CLI flags override it for one run. `--workload` applies to `dc_clos` (`host` default, or `service`) and `campus_lan` (`static` default, or `dhcp`).
+- **`nika env run NAME [-s s|m|l] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG]`**: deploy one instance, run live runtime verification, create a session, and print `session_id=…`. Batfish follows `nika.static_validation.enabled`; the CLI flags override it for one run.
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
@@ -160,13 +160,13 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
   ```shell
   # Task mode: env → inject → agent → close + metrics
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
-    --problem simple_bgp_link_down
+    --problem dc_clos_s_link_down
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
     --problem dc_clos_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
 
   # Session mode (manual lab control)
-  nika env run simple_bgp
-  nika failure inject link_down --set host_name=pc1 --set intf_name=eth0
+  nika env run dc_clos -s s
+  nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
   nika agent run -a cli.codex -m gpt-5-mini -e medium
   nika session close -y
   ```
@@ -201,7 +201,7 @@ All filters are optional and repeatable. Omit filters to include every finished 
 | `-o` / `--output` | Output CSV path (default: `{result_dir}/0_summary/evaluation_summary.csv`) |
 | `--result_dir` | Results parent directory to scan (default: `results/` or `nika.result_dir`) |
 | `-p` / `--problem` | Root-cause / problem id (e.g. `link_down`) |
-| `-e` / `--env` | Scenario / net env (e.g. `simple_bgp`) |
+| `-e` / `--env` | Scenario / net env (e.g. `dc_clos`) |
 | `-d` / `--failure-domain` | Failure domain such as `link_interface` |
 | `--session_id` | Specific session id |
 | `-a` / `--agent` | Agent type |

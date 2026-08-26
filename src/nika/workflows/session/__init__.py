@@ -1,19 +1,28 @@
 """Session lifecycle and inspection (``nika session``)."""
 
-from nika.workflows.session.close import (
-    close_session,
-    wipe_all_containerlab_labs,
-    wipe_kathara_labs,
-)
-from nika.workflows.session.containers import list_session_containers
-from nika.workflows.session.inspect import inspect_session
-from nika.workflows.session.list import list_sessions
+from __future__ import annotations
 
-__all__ = [
-    "close_session",
-    "inspect_session",
-    "list_session_containers",
-    "list_sessions",
-    "wipe_all_containerlab_labs",
-    "wipe_kathara_labs",
-]
+from importlib import import_module
+from typing import Any
+
+_EXPORTS = {
+    "close_session": ("close", "close_session"),
+    "wipe_all_containerlab_labs": ("close", "wipe_all_containerlab_labs"),
+    "wipe_kathara_labs": ("close", "wipe_kathara_labs"),
+    "list_session_containers": ("containers", "list_session_containers"),
+    "inspect_session": ("inspect", "inspect_session"),
+    "list_sessions": ("list", "list_sessions"),
+}
+
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name: str) -> Any:
+    """Load session workflows only when their command needs them."""
+    try:
+        module_name, attribute = _EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+    value = getattr(import_module(f"{__name__}.{module_name}"), attribute)
+    globals()[name] = value
+    return value

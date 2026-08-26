@@ -19,8 +19,6 @@ The resource catalog uses these canonical IDs:
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
 | Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/Service/kube-system/kube-dns` |
 
-`ground_truth.json` records `failure_domain` as metadata. NIKA does not include taxonomy metadata in the RCA key.
-
 Benchmark YAML stores the parsed resource fields (`kind` / `node` / `name`, or the k8s fields) plus `fault_type`. NIKA derives `resource_id` from those fields when it scores, injects, or accepts a submit. Agent submissions may send either `resource_id` or the same resource fields; `submit` always writes the constructed `resource_id`.
 
 ```yaml
