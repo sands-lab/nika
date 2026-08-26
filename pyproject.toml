@@ -67,6 +67,14 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]
 pythonpath = ["src", "."]
 python_classes = ["Test*", "*Test", "*Tests", "*TestCase"]
 asyncio_mode = "auto"
+markers = [
+    "unit: fast tests with no Docker or external services",
+    "contract: benchmark/registry/schema/artifact contracts without emulators",
+    "integration: env deploy, failure inject, traffic, MCP smoke (Docker/clab)",
+    "sandbox: sandbox isolation and security probes",
+    "e2e: full user flows (mock agent benchmark/pipeline)",
+    "live: real LLM, GitHub, or Batfish live tests (credentials required)",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:fs",
     "ignore::DeprecationWarning:fs.opener",

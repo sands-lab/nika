@@ -1,19 +1,37 @@
+import re
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from nika.problems.inject_resolve import (
+from nika.problems.support.inject_resolve import (
     derive_incorrect_ip,
     derive_wrong_gateway,
 )
-from nika.problems.root_cause import node_resource
-from nika.problems.topology_inventory import interface_on
-from nika.problems.problem_base import (
+from nika.problems.rca import node_resource
+from nika.problems.rca.inventory import interface_on
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
 from nika.utils.logger import system_logger
+
+
+def _read_host_ipv4(
+    runtime,
+    host_name: str,
+    intf_name: str = "eth0",
+) -> str | None:
+    """Return host IPv4 CIDR on ``intf_name``, with exec fallback."""
+    ip = runtime.get_host_ip(host_name, intf_name, with_prefix=True)
+    if ip:
+        return ip
+    line = runtime.exec(
+        host_name,
+        f"ip -4 -o addr show dev {intf_name} scope global 2>/dev/null | head -1",
+    ).strip()
+    match = re.search(r"inet\s+(\S+)", line)
+    return match.group(1) if match else None
 
 
 def _inject_ip_change(
@@ -181,8 +199,13 @@ class HostIncorrectIP(ProblemBase):
         return [interface_on(self.net_env, params.host_name, "eth0")]
 
     def inject_fault(self, params: HostIncorrectIPParams):
-        old_ip = self.runtime.get_host_ip(params.host_name, "eth0", with_prefix=True)
+        old_ip = _read_host_ipv4(self.runtime, params.host_name, "eth0")
         self._original_ip = old_ip
+        if old_ip:
+            self.runtime.exec(
+                params.host_name,
+                f"printf '%s\\n' '{old_ip.split('/')[0]}' > /tmp/nika_original_ip",
+            )
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
             self.runtime, params.host_name
         )
@@ -207,14 +230,26 @@ class HostIncorrectIP(ProblemBase):
                 if p == "inet" and i + 1 < len(parts):
                     current_ip = parts[i + 1]
                     break
-        verified = bool(current_ip) and current_ip != self._original_ip
+        original = self._original_ip
+        if not original:
+            stored = self.runtime.exec(
+                params.host_name,
+                "cat /tmp/nika_original_ip 2>/dev/null || true",
+            ).strip()
+            if stored:
+                original = stored
+        current_addr = current_ip.split("/")[0] if current_ip else None
+        original_addr = original.split("/")[0] if original else None
+        verified = (
+            bool(current_addr) and bool(original_addr) and current_addr != original_addr
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": params.host_name,
                 "ip_line": ip_line,
-                "original_ip": self._original_ip,
+                "original_ip": original,
                 "current_ip": current_ip,
             },
         )
@@ -271,6 +306,13 @@ class HostIncorrectGateway(ProblemBase):
             params.host_name, "ip route show default"
         ).strip()
         expected_gateway = params.new_gateway or self._injected_gateway
+        if not expected_gateway:
+            # Fresh instance after workflow inject: .254 derivation is idempotent
+            # once the wrong gateway is already installed.
+            try:
+                expected_gateway = derive_wrong_gateway(self.runtime, params.host_name)
+            except ValueError:
+                expected_gateway = None
         verified = bool(expected_gateway) and expected_gateway in route_line
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -360,7 +402,10 @@ class HostIncorrectDNSParams(BaseModel):
     """Parameters for injecting an incorrect DNS resolver fault."""
 
     host_name: str = Field(description="Target host name.")
-    fake_dns_ip: str = Field(default="8.8.8.8", description="Incorrect DNS IP.")
+    fake_dns_ip: str = Field(
+        default="192.0.2.1",
+        description="Incorrect DNS IP (TEST-NET; non-resolving).",
+    )
 
 
 class HostIncorrectDNS(ProblemBase):
@@ -378,7 +423,10 @@ class HostIncorrectDNS(ProblemBase):
     def inject_fault(self, params: HostIncorrectDNSParams):
         self.runtime.exec(
             params.host_name,
-            f"echo 'nameserver {params.fake_dns_ip}' > /etc/resolv.conf",
+            f"echo 'nameserver {params.fake_dns_ip}' > /etc/resolv.conf; "
+            # Drop static hosts overrides so name lookups must use DNS.
+            "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
+            "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",
         )
 
     def verify_fault(self, params: HostIncorrectDNSParams) -> dict:

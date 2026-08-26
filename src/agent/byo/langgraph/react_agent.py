@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from pathlib import Path
@@ -13,8 +14,9 @@ from typing_extensions import TypedDict
 
 from agent.byo.langgraph.phases.diagnosis import DiagnosisPhase
 from agent.byo.langgraph.phases.submission import SubmissionPhase
-from agent.utils.loggers import AgentCallbackLogger, MessageLogger
+from agent.utils.loggers import AgentCallbackLogger, MessageLogger, MESSAGES_FILENAME
 from agent.utils.mcp_client import begin_submission_mcp_phase
+from agent.utils.submission_context import submission_prompt_context
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.logger import system_logger
 from nika.utils.session import Session
@@ -74,15 +76,9 @@ class BasicReActAgent:
         worker_builder.add_node(SUBMISSION, self._run_submission)
 
         worker_builder.add_edge(START, DIAGNOSIS)
-        worker_builder.add_conditional_edges(
-            DIAGNOSIS,
-            lambda state: state.get("is_max_steps_reached", False),
-            {
-                True: END,
-                False: SUBMISSION,
-            },
-        )
-
+        # Submission is the agent's terminal action even if diagnosis reaches
+        # its tool-budget.  The frozen report then records that limitation.
+        worker_builder.add_edge(DIAGNOSIS, SUBMISSION)
         worker_builder.add_edge(SUBMISSION, END)
 
         # compile the graph
@@ -137,7 +133,7 @@ class BasicReActAgent:
 
     async def _run_diagnosis(self, state: AgentState):
         try:
-            cb = AgentCallbackLogger(agent=DIAGNOSIS, session_dir=self.session_dir)
+            cb = AgentCallbackLogger(phase=DIAGNOSIS, session_dir=self.session_dir)
             diagnosis_report = await self._diagnosis_runner.ainvoke(
                 {"messages": state["messages"]},
                 config={
@@ -151,7 +147,7 @@ class BasicReActAgent:
                 "is_max_steps_reached": False,
             }
         except ValidationError as e:
-            MessageLogger(agent=DIAGNOSIS, session_dir=self.session_dir).log(
+            MessageLogger(phase=DIAGNOSIS, session_dir=self.session_dir).log(
                 "error", {"message": f"Validation error: {e}"}
             )
             return {
@@ -160,22 +156,38 @@ class BasicReActAgent:
                 "is_max_steps_reached": False,
             }
         except GraphRecursionError:
-            MessageLogger(agent=DIAGNOSIS, session_dir=self.session_dir).log(
+            MessageLogger(phase=DIAGNOSIS, session_dir=self.session_dir).log(
                 "error",
                 {"message": "Diagnosis phase reached max recursion limit."},
             )
             return {
-                "messages": [
-                    HumanMessage(
-                        content="Error: diagnosis did not finish within max steps."
-                    )
-                ],
-                "diagnosis_report": ["ERROR_MAX_STEPS_REACHED"],
+                "messages": [],
+                "diagnosis_report": [self._recent_diagnosis_report()],
                 "is_max_steps_reached": True,
             }
 
+    def _recent_diagnosis_report(self) -> str:
+        """Preserve the latest agent conclusions when its diagnosis budget expires."""
+        path = Path(self.session_dir) / MESSAGES_FILENAME
+        conclusions: list[str] = []
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("phase") == DIAGNOSIS and event.get("event") == "llm_end":
+                    text = event.get("text")
+                    if isinstance(text, str) and text.strip():
+                        conclusions.append(text.strip())
+        suffix = "\n\n".join(conclusions[-5:])
+        return (
+            "Diagnosis reached its tool budget; the following frozen conclusions "
+            "are the available evidence:\n\n" + suffix
+        )
+
     async def _run_submission(self, state: AgentState):
-        begin_submission_mcp_phase(self.session_id)
+        begin_submission_mcp_phase(self.session_id, str(state["diagnosis_report"][-1]))
         submission_phase = SubmissionPhase(
             session_id=self.session_id,
             llm_provider=self.llm_provider,
@@ -187,19 +199,23 @@ class BasicReActAgent:
         submission_runner = submission_phase.get_agent()
 
         diag_text = state["diagnosis_report"][-1]
+        frozen_context = submission_prompt_context(self.session_id)
         try:
             result = await submission_runner.ainvoke(
                 {
                     "messages": [
                         HumanMessage(
-                            content=f"Based on the diagnosis report: {diag_text}, please provide the submission. Do not submit if no report available."
+                            content=(
+                                "Use this frozen diagnosis report to make the one final "
+                                f"canonical submission:\n{diag_text}\n\n{frozen_context}"
+                            )
                         ),
                     ]
                 },
                 config={
                     "callbacks": [
                         AgentCallbackLogger(
-                            agent=SUBMISSION, session_dir=self.session_dir
+                            phase=SUBMISSION, session_dir=self.session_dir
                         )
                     ],
                     "recursion_limit": self.max_steps,
@@ -216,7 +232,7 @@ class BasicReActAgent:
             # the session better than a crash does (missing submission scores
             # as "no submission").
             submitted = (Path(self.session_dir) / "submission.json").exists()
-            MessageLogger(agent=SUBMISSION, session_dir=self.session_dir).log(
+            MessageLogger(phase=SUBMISSION, session_dir=self.session_dir).log(
                 "error",
                 {
                     "message": (

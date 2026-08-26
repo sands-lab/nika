@@ -1,14 +1,42 @@
 import ipaddress
+import re
+import time
 
 from pydantic import BaseModel, Field
 
-from nika.problems.root_cause import node_resource
-from nika.problems.problem_base import (
+from nika.problems.rca import node_resource
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
 from nika.utils.logger import system_logger
+
+
+def _client_subnet(runtime, client_host: str, dhcp_server: str | None = None) -> str:
+    """Derive the client's IPv4 network address for dhcpd subnet matching."""
+    ip = runtime.get_host_ip(client_host, with_prefix=True)
+    if not ip:
+        for intf in ("eth0", "eth1"):
+            line = runtime.exec(
+                client_host,
+                f"ip -4 -o addr show dev {intf} scope global 2>/dev/null | head -1",
+            ).strip()
+            match = re.search(r"inet\s+(\S+)", line)
+            if match:
+                ip = match.group(1)
+                break
+    if not ip and dhcp_server:
+        conf = runtime.exec(
+            dhcp_server,
+            "awk '/^subnet /{print $2; exit}' /etc/dhcp/dhcpd.conf 2>/dev/null || true",
+        ).strip()
+        if conf:
+            return str(ipaddress.ip_address(conf))
+    if not ip:
+        raise ValueError(f"No IPv4 address on DHCP client {client_host}")
+    return str(ipaddress.ip_network(ip, strict=False).network_address)
+
 
 # ==================================================================
 # Problem: DHCP missing subnet
@@ -20,6 +48,10 @@ class DHCPMissingSubnetParams(BaseModel):
 
     host_name: str = Field(description="DHCP server host name.")
     host_name_2: str = Field(description="Affected client host name.")
+    subnet: str | None = Field(
+        default=None,
+        description="IPv4 network address to remove; derived from the client when omitted.",
+    )
 
 
 class DHCPMissingSubnet(ProblemBase):
@@ -42,38 +74,39 @@ class DHCPMissingSubnet(ProblemBase):
         system_logger.info(
             f"Injecting DHCP missing subnet fault: DHCP server {dhcp_server}, affected host {client_host}"
         )
-        subnet = str(
-            ipaddress.ip_network(
-                self.runtime.get_host_ip(client_host, with_prefix=True), strict=False
-            ).network_address
-        )
+        subnet = params.subnet or _client_subnet(self.runtime, client_host, dhcp_server)
         self.runtime.dhcp_delete_subnet(dhcp_server, subnet)
-        self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
+        time.sleep(1.0)
         self._injected_subnet = subnet
+
+    def _subnet_stanza_count(self, dhcp_server: str, subnet: str) -> int:
+        escaped = subnet.replace(".", "\\.")
+        raw = self.runtime.exec(
+            dhcp_server,
+            f"grep -E 'subnet {escaped} netmask' /etc/dhcp/dhcpd.conf 2>/dev/null | wc -l",
+        ).strip()
+        try:
+            return int(raw)
+        except ValueError:
+            return -1
 
     def verify_fault(self, params: DHCPMissingSubnetParams) -> dict:
         """Verify the deleted subnet is absent from dhcpd.conf."""
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        subnet = getattr(self, "_injected_subnet", None)
-        if subnet is None:
-            subnet = str(
-                ipaddress.ip_network(
-                    self.runtime.get_host_ip(client_host, with_prefix=True),
-                    strict=False,
-                ).network_address
-            )
-        grep_result = self.runtime.exec(
-            dhcp_server,
-            f"grep 'subnet {subnet} netmask' /etc/dhcp/dhcpd.conf && echo found || echo absent",
-        ).strip()
-        verified = "absent" in grep_result
+        subnet = (
+            params.subnet
+            or getattr(self, "_injected_subnet", None)
+            or _client_subnet(self.runtime, client_host, dhcp_server)
+        )
+        match_count = self._subnet_stanza_count(dhcp_server, subnet)
+        verified = match_count == 0
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "dhcp_server": dhcp_server,
                 "subnet": subnet,
-                "grep_result": grep_result,
+                "match_count": match_count,
             },
         )

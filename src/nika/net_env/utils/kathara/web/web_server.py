@@ -33,9 +33,24 @@ def generate_html_body(target_kb=256):
     return "".join(parts)
 
 
+# ~2 KiB body for LB overload probes (backend service time << queueing latency).
+_SMALL_BODY = ("x" * 2048).encode("ascii")
+
+
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path == "/small":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(_SMALL_BODY)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(_SMALL_BODY)
+            return
+
         qs = parse_qs(parsed.query)
 
         size_kb = int(qs.get("size_kb", [256])[0])

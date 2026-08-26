@@ -79,6 +79,14 @@ class NFTableMixin:
         )
         self.exec_cmd(node, command)
 
+    def _ensure_nft_available(self: SupportsExec, node: str) -> None:
+        self.exec_cmd(
+            node,
+            "command -v nft >/dev/null 2>&1 || "
+            "(apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
+            "apt-get install -y -qq nftables >/dev/null 2>&1 || true)",
+        )
+
     def add_nft_drop_rule(
         self: SupportsExec,
         node: str,
@@ -87,6 +95,7 @@ class NFTableMixin:
         table: str = "filter",
         family: str = "inet",
     ) -> None:
+        self._ensure_nft_available(node)
         self.exec_cmd(node, f"nft add table {family} {table}")
         for chain_name in ("input", "forward", "output"):
             self._nft_add_chain(node, table, chain_name, family, chain_name)

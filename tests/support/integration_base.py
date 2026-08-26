@@ -235,7 +235,7 @@ class IntegrationMixin:
         session_row = SessionStore().get_session(sid)
         gt_path = Path(session_row["session_dir"]) / "ground_truth.json"
         gt = json.loads(gt_path.read_text(encoding="utf-8"))
-        assert gt.get("schema_version") == 3
+        assert gt.get("is_anomaly") is True
         assert gt.get("root_causes"), f"missing root_causes for {problem}"
         fault_types = {item.get("fault_type") for item in gt.get("root_causes") or []}
         assert problem in fault_types
@@ -243,7 +243,9 @@ class IntegrationMixin:
             resource_id = item.get("resource_id") or (item.get("resource") or {}).get(
                 "id", ""
             )
-            assert resource_id.startswith(("node/", "interface/", "k8s/")), resource_id
+            assert resource_id.startswith(("node/", "interface/", "link/", "k8s/")), (
+                resource_id
+            )
 
 
 IntegrationTestCase = IntegrationMixin

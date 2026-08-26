@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import FailureDomain, ProblemBase, build_verify_result
-from nika.problems.root_cause import node_resource
+from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
+from nika.problems.rca import node_resource
 
 
 class TcpSynFloodAttackParams(BaseModel):
@@ -25,6 +25,7 @@ class TcpSynFloodAttack(ProblemBase):
         "Deterministic SYN-only flows create half-open pressure on one HTTP service."
     )
     TAGS = ["flow_tracking", "http", "telemetry"]
+    COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = TcpSynFloodAttackParams
 
     def root_cause_resources(self, params: TcpSynFloodAttackParams):

@@ -8,7 +8,8 @@ from typing import Any
 import yaml
 
 from nika.net_env.net_env_pool import resolve_scenario_id
-from nika.problems.prob_pool import list_avail_problem_instances, resolve_problem_name
+from nika.problems.registry import list_avail_problem_instances, resolve_problem_name
+from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import validate_and_resolve_isp_options
 from nika.topology.sndlib.catalog import topology_size_for_name
 
@@ -42,7 +43,6 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     topo_size = "" if topo in ("-", "", None) else str(topo)
 
     raw_problem = str(row["problem"])
-    problem = resolve_problem_name(raw_problem)
     inject = row.get("inject") or {}
     if not isinstance(inject, dict):
         raise ValueError("'inject' must be a mapping")
@@ -52,6 +52,63 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     isp_bgp = row.get("bgp_mode")
     isp_rpki = row.get("rpki")
 
+    if is_healthy_case(raw_problem):
+        if inject:
+            raise ValueError(
+                f"Case {canonical}/{HEALTHY_PROBLEM} must use an empty 'inject' map"
+            )
+        root_causes = row.get("root_causes")
+        if root_causes:
+            raise ValueError(
+                f"Case {canonical}/{HEALTHY_PROBLEM} must not declare root_causes"
+            )
+        if canonical == "isp":
+            missing = [
+                key
+                for key, value in (
+                    ("topo", isp_topo),
+                    ("igp", isp_igp),
+                    ("bgp_mode", isp_bgp),
+                    ("rpki", isp_rpki),
+                )
+                if value in (None, "", "-")
+            ]
+            if missing:
+                raise ValueError(
+                    f"Healthy ISP case requires explicit deploy options; "
+                    f"missing {missing}"
+                )
+        isp_options = validate_and_resolve_isp_options(
+            scenario=canonical,
+            problem=HEALTHY_PROBLEM,
+            problem_tags=set(),
+            topo_size=topo_size,
+            topo=isp_topo,
+            igp=isp_igp,
+            bgp_mode=isp_bgp,
+            rpki=isp_rpki,
+        )
+        if canonical == "isp" and isp_options is not None:
+            inferred_size = topology_size_for_name(isp_options["topo"])
+            if not topo_size:
+                topo_size = inferred_size
+            elif topo_size != inferred_size:
+                raise ValueError(
+                    f"ISP topology {isp_options['topo']!r} belongs to size "
+                    f"{inferred_size!r}, not {topo_size!r}."
+                )
+        normalized: dict[str, Any] = {
+            "scenario": canonical,
+            "problem": HEALTHY_PROBLEM,
+            "topo_size": topo_size,
+            "inject": {},
+            "root_causes": [],
+        }
+        if isp_options is not None:
+            normalized.update(isp_options)
+        return normalized
+
+    problem = resolve_problem_name(raw_problem)
     problem_tags: set[str] = set()
     problem_cls = list_avail_problem_instances().get(problem)
     if problem_cls is not None:
@@ -108,7 +165,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
                 rewritten.append(updated)
             root_causes = rewritten
 
-    normalized: dict[str, Any] = {
+    normalized = {
         "scenario": canonical,
         "problem": problem,
         "topo_size": topo_size,
@@ -141,6 +198,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     Legacy ``link_fragmentation_disabled`` rewrites to ``mtu_mismatch``.
     Legacy ``p4_counter`` rewrites to ``p4_dc_fabric`` with topo size ``s``.
     ISP cases carry ``topo`` / ``igp`` / ``bgp_mode`` / ``rpki`` deploy options.
+    Healthy (no-fault) cases use ``problem: healthy`` with an empty ``inject`` map.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or "cases" not in data:

@@ -6,9 +6,19 @@ from nika.service.mcp_gateway.session_registry import (
     clear_sessions,
     register_session,
 )
+import pytest
 
 
 def test_failure_catalog_is_unavailable_during_diagnosis() -> None:
+    clear_sessions()
+
+
+def test_submission_phase_cannot_be_reversed() -> None:
+    clear_sessions()
+    register_session("phase-lock", scenario_name="simple_bgp")
+    advance_phase("phase-lock", "submission")
+    with pytest.raises(ValueError, match="cannot move back"):
+        advance_phase("phase-lock", "diagnosis")
     clear_sessions()
     register_session("shortcut-test", scenario_name="dc_clos")
     assert is_server_allowed("shortcut-test", "kathara_base_mcp_server")

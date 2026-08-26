@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from nika.problems.root_cause import RootCause
+from nika.problems.rca import RootCause
 
 
 class DetectionSubmission(BaseModel):

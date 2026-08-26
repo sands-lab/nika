@@ -5,74 +5,37 @@ from typing import Any, List
 from mcp.server.fastmcp import FastMCP
 from pydantic import ValidationError
 
-from nika.problems.prob_pool import (
-    list_avail_problem_names as _list_avail_problems,
-)
-from nika.problems.root_cause import RootCause
-from nika.service.mcp_server.session_context import get_session_dir, get_session_meta
+from nika.problems.rca import RootCause
+from nika.service.mcp_server.session_context import get_session_dir
 from nika.utils.errors import safe_tool
 
 mcp = FastMCP(
     "task_mcp_server",
     instructions=(
-        "Task APIs: call list_resources() and list_avail_problems() to see the "
-        "closed catalog, then submit() with chosen resource_id and fault_type pairs."
+        "Task API: submit() exactly once using the frozen diagnosis report, fault "
+        "ontology, and canonical resource inventory supplied in your prompt."
     ),
 )
 
 
-def _session_net_env():
-    from nika.problems.topology_inventory import load_offline_net_env
+def _submission_catalog() -> tuple[set[str], set[str], str]:
+    from nika.workflows.agent.submission import load_submission_context
+    from nika.service.mcp_server.mcp_session_context import require_session_id
 
-    meta = get_session_meta()
-    scenario = str(meta.get("scenario_name") or "")
-    params = meta.get("scenario_params") or {}
-    topo_size = (
-        meta.get("scenario_topo_size")
-        or params.get("topo_size")
-        or params.get("size")
-        or ""
+    context = load_submission_context(require_session_id())
+    resources = {
+        str(item.get("id"))
+        for item in context.get("resources") or []
+        if isinstance(item, dict) and item.get("id")
+    }
+    return (
+        resources,
+        {
+            str(item.get("id")) if isinstance(item, dict) else str(item)
+            for item in context.get("fault_ontology") or []
+        },
+        str(context["diagnosis_report"]),
     )
-    if topo_size in ("-", None):
-        topo_size = ""
-    topo = params.get("topo")
-    igp = params.get("igp")
-    bgp_mode = params.get("bgp_mode")
-    return load_offline_net_env(
-        scenario,
-        str(topo_size),
-        topo=str(topo) if topo not in (None, "", "-") else None,
-        igp=str(igp) if igp not in (None, "", "-") else None,
-        bgp_mode=str(bgp_mode) if bgp_mode not in (None, "", "-") else None,
-    )
-
-
-def _live_k8s_catalog() -> tuple[list[dict], list[dict]]:
-    try:
-        from nika.service.k8s_mcp_server.client import get_client
-
-        client = get_client()
-        services = client.list_services(all_namespaces=True)
-        policies = client.get_network_policies(all_namespaces=True)
-        if not isinstance(services, list):
-            services = []
-        if not isinstance(policies, list):
-            policies = []
-        return services, policies
-    except Exception:
-        return [], []
-
-
-def catalog_resource_ids() -> list[str]:
-    from nika.problems.topology_inventory import catalog_resources
-
-    services, policies = _live_k8s_catalog()
-    items = catalog_resources(
-        _session_net_env(),
-        k8s_services=services,
-        k8s_network_policies=policies,
-    )
-    return [item.id for item in items]
 
 
 def validate_root_cause_choices(
@@ -85,6 +48,13 @@ def validate_root_cause_choices(
     parsed: list[dict] = []
     errors: list[str] = []
     for index, raw in enumerate(root_causes):
+        if not isinstance(raw, dict):
+            errors.append(f"root_causes[{index}]: must be an object")
+            continue
+        unknown = set(raw) - {"resource", "resource_id", "fault_type"}
+        if unknown:
+            errors.append(f"root_causes[{index}]: unknown fields {sorted(unknown)!r}")
+            continue
         try:
             cause = RootCause.model_validate(raw)
         except (ValidationError, ValueError) as exc:
@@ -94,45 +64,15 @@ def validate_root_cause_choices(
         if resource_id not in catalog_ids:
             errors.append(
                 f"root_causes[{index}]: resource_id {resource_id!r} is not in "
-                "list_resources(). Call list_resources() and pick an id."
+                "the supplied canonical resource inventory."
             )
         if cause.fault_type not in fault_types:
             errors.append(
                 f"root_causes[{index}]: fault_type {cause.fault_type!r} is not in "
-                "list_avail_problems()."
+                "the supplied fault ontology."
             )
         parsed.append({"resource_id": resource_id, "fault_type": cause.fault_type})
     return parsed, errors
-
-
-@safe_tool
-@mcp.tool()
-def list_avail_problems() -> list[str]:
-    """List all available fault types (failure IDs) you may submit.
-
-    Returns:
-        list[str]: Fault type names such as link_down or bgp_asn_misconfig.
-    """
-    return _list_avail_problems()
-
-
-@safe_tool
-@mcp.tool()
-def list_resources() -> list[dict[str, str]]:
-    """List lab-enumerable resources you may submit as localization targets.
-
-    Returns:
-        list[dict]: Each item has id and kind (node, interface, or k8s).
-    """
-    from nika.problems.topology_inventory import catalog_resources
-
-    services, policies = _live_k8s_catalog()
-    items = catalog_resources(
-        _session_net_env(),
-        k8s_services=services,
-        k8s_network_policies=policies,
-    )
-    return [{"id": item.id, "kind": str(item.kind)} for item in items]
 
 
 @safe_tool
@@ -141,33 +81,50 @@ def submit(
     is_anomaly: bool,
     root_causes: List[dict] | None = None,
 ) -> List[str]:
-    """Submit the diagnosis as resource_id + fault_type pairs from the list tools.
+    """Submit the diagnosis as resource_id + fault_type pairs from frozen context.
 
     Args:
         is_anomaly: Whether an anomaly was detected.
-        root_causes: Diagnoses as [{resource_id, fault_type}, ...] from
-            list_resources and list_avail_problems, or the same pair with
-            resource fields instead of resource_id. NIKA constructs resource_id.
+        root_causes: Diagnoses as [{resource_id, fault_type}, ...] selected
+            from the prompt's canonical resource inventory and fault ontology.
     """
+    if type(is_anomaly) is not bool:
+        return ["Submission rejected: is_anomaly must be a boolean."]
     causes = list(root_causes or [])
+    if not is_anomaly and causes:
+        return [
+            "Submission rejected: healthy/no-fault submissions require root_causes=[]."
+        ]
+    if is_anomaly and not causes:
+        return ["Submission rejected: anomalous submissions require root_causes."]
+    catalog_ids, fault_types, diagnosis_report = _submission_catalog()
     if causes:
         parsed, errors = validate_root_cause_choices(
             causes,
-            catalog_ids=set(catalog_resource_ids()),
-            fault_types=set(_list_avail_problems()),
+            catalog_ids=catalog_ids,
+            fault_types=fault_types,
         )
         if errors:
             return ["Submission rejected: " + " ".join(errors)]
-        causes = parsed
+        keys = [(item["resource_id"], item["fault_type"]) for item in parsed]
+        if len(set(keys)) != len(keys):
+            return ["Submission rejected: duplicate root cause pairs."]
+        causes = [
+            {"resource_id": resource_id, "fault_type": fault_type}
+            for resource_id, fault_type in sorted(keys)
+        ]
 
     submission_dict: dict[str, Any] = {
+        "diagnosis_report": diagnosis_report,
         "is_anomaly": is_anomaly,
         "root_causes": causes,
     }
     session_dir = get_session_dir()
     os.makedirs(session_dir, exist_ok=True)
     submission_path = os.path.join(session_dir, "submission.json")
-    with open(submission_path, "w+", encoding="utf-8") as log_file:
+    if os.path.exists(submission_path):
+        return ["Submission rejected: a canonical submission already exists."]
+    with open(submission_path, "x", encoding="utf-8") as log_file:
         log_file.write(json.dumps(submission_dict))
 
     return ["Submission success."]

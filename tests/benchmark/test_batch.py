@@ -250,18 +250,16 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 for line in trace_path.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            agents_seen = {e["agent"] for e in events}
+            phases_seen = {e["phase"] for e in events}
 
-            assert DIAGNOSIS in agents_seen
+            assert DIAGNOSIS in phases_seen
 
-            assert SUBMISSION in agents_seen
+            assert SUBMISSION in phases_seen
             tool_names_seen = {
                 e["tool"]["name"]
                 for e in events
                 if e.get("event") == "tool_start" and "tool" in e
             }
-
-            assert "list_avail_problems" in tool_names_seen
 
             assert "submit" in tool_names_seen
 

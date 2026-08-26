@@ -21,14 +21,11 @@ from pathlib import Path
 import yaml
 
 from nika.config import BENCHMARK_DIR, REPO_ROOT
-from nika.problems.prob_pool import list_avail_problem_instances
-from nika.problems.problem_base import FailureDomain
-from nika.workflows.benchmark.compatibility import (
-    compatible,
-    coverage_columns,
-    parse_column,
-)
+from nika.net_env.net_env_pool import coverage_columns, parse_column
+from nika.problems.registry import compatible, list_avail_problem_instances
+from nika.problems.base import FailureDomain
 from nika.workflows.benchmark.isp_options import ISP_SCENARIO, isp_column_suffix
+from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
 
 DOCS_PATH = REPO_ROOT / "docs" / "benchmark-configuration.md"
@@ -95,6 +92,8 @@ def _load_pairs(path: Path) -> set[tuple[str, str]]:
             row = normalize_benchmark_row(raw)
         except ValueError:
             # Frozen releases may reference retired scenario IDs.
+            continue
+        if is_healthy_case(row.get("problem")):
             continue
         pairs.add((_column_label(row), str(row["problem"])))
     return pairs
@@ -258,7 +257,8 @@ def render_section(*, release_dir: Path) -> str:
         f"{tables}"
         "\n"
         "When you add, remove, or retarget cases (new failure, new scenario, or "
-        "a `TAGS` / registry change that changes compatibility), refresh this "
+        "a `TAGS` / `COMPATIBLE_COLUMNS` / registry change that changes "
+        "compatibility), refresh this "
         "section in the same change.\n"
         "\n"
     )

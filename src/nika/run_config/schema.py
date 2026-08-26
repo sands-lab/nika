@@ -185,6 +185,33 @@ class AgentLlmSettings(BaseModel):
         return value
 
 
+class DiagnosisAccessPolicy(BaseModel):
+    """Portable diagnosis permissions selected by an agent role."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tools: list[str] = Field(default_factory=lambda: ["*"])
+    node_roles: list[str] = Field(default_factory=lambda: ["*"])
+    node_ids: list[str] = Field(default_factory=list)
+
+
+class AgentAccessSettings(BaseModel):
+    """Role-selected, execution-enforced access for the diagnosis phase."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str = "default"
+    roles: dict[str, DiagnosisAccessPolicy] = Field(
+        default_factory=lambda: {"default": DiagnosisAccessPolicy()}
+    )
+
+    @model_validator(mode="after")
+    def _configured_role_exists(self) -> "AgentAccessSettings":
+        if self.role not in self.roles:
+            raise ValueError(f"agent.access.role {self.role!r} is not defined")
+        return self
+
+
 class AgentSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -196,6 +223,7 @@ class AgentSettings(BaseModel):
     models: AgentModels = Field(default_factory=AgentModels)
     custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
+    access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
 
     @field_validator("max_steps")
     @classmethod

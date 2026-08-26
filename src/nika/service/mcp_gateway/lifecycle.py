@@ -13,6 +13,7 @@ from typing import Iterator, Literal
 import uvicorn
 
 from nika.service.mcp_gateway.app import create_gateway_app, reset_gateway_mcp_state
+from nika.service.mcp_gateway.access import node_roles_for_session, policy_snapshot
 from nika.service.mcp_gateway.session_registry import (
     clear_sessions,
     register_session,
@@ -190,10 +191,23 @@ def mcp_gateway_for_session(
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
+    from nika.run_config.loader import get_run_config
+    from nika.utils.session_store import SessionStore
+
+    access = get_run_config().agent.access
+    role = access.role
+    policy = access.roles[role]
+    row = SessionStore().get_session(session_id)
+    node_roles = node_roles_for_session(session_id)
+    snapshot = policy_snapshot(role=role, policy=policy, node_roles=node_roles)
+    session_dir = str(row["session_dir"])
     register_session(
         session_id,
         scenario_name=scenario_name,
         policy_mode=policy_mode,
+        session_dir=session_dir,
+        access_policy=snapshot["diagnosis"],
+        node_roles=node_roles,
     )
     try:
         yield manager

@@ -2,7 +2,7 @@
 
 The agent mirrors the two-phase architecture of BasicReActAgent:
   1. diagnosis phase  – calls lab MCP tools and emits a deterministic report
-  2. submission phase – calls list_avail_problems + submit via task MCP server
+  2. submission phase – calls submit via task MCP server using frozen context
 
 Uses the session's ground truth and live lab device names (not hardcoded
 ``pc1``/``pc2``), so it works across release topologies.
@@ -13,15 +13,16 @@ Test-only. See ``docs/testing.md``.
 from __future__ import annotations
 
 import json
+from itertools import count
 from pathlib import Path
 from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
+from agent.utils.loggers import tool_event_payload
 from agent.utils.mcp_servers import select_diagnosis_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
-from nika.problems.root_cause import RootCause
+from nika.problems.rca import RootCause
 from nika.runtime.factory import resolve_backend
 from nika.utils.session import Session
 
@@ -238,12 +239,19 @@ class MockAgent:
         )
         diagnosis_report = _mock_diagnosis_report(devices=devices, preferred=preferred)
 
+        tool_call_counter = count(1)
+
         for tool_name, tool_input in tool_calls:
             if tool_name not in tools:
                 continue
+            tool_call_id = f"mock-{next(tool_call_counter)}"
             logger.log(
                 "tool_start",
-                {"tool": {"name": tool_name}, "input": json.dumps(tool_input)},
+                tool_event_payload(
+                    name=tool_name,
+                    input=tool_input,
+                    tool_call_id=tool_call_id,
+                ),
             )
             try:
                 tool_output = await tools[tool_name].ainvoke(tool_input)
@@ -251,10 +259,13 @@ class MockAgent:
                 tool_output = f"tool_error: {exc}"
             logger.log(
                 "tool_end",
-                {
-                    "output": str(tool_output),
-                    "output_type": type(tool_output).__name__,
-                },
+                tool_event_payload(
+                    name=tool_name,
+                    input=tool_input,
+                    tool_call_id=tool_call_id,
+                    output=str(tool_output),
+                    output_type=type(tool_output).__name__,
+                ),
             )
 
         logger.log("llm_end", {"text": diagnosis_report})
@@ -273,7 +284,7 @@ class MockAgent:
                     "role": "user",
                     "content": (
                         f"Based on diagnosis: {diagnosis_report}. "
-                        "Call list_resources, list_avail_problems, then submit "
+                        "Use the frozen submission context and submit canonical "
                         "resource_id and fault_type pairs."
                     ),
                 },
@@ -281,28 +292,20 @@ class MockAgent:
             },
         )
 
-        begin_submission_mcp_phase(self.session_id)
+        begin_submission_mcp_phase(self.session_id, diagnosis_report)
         config = load_session_mcp_config(self.session_id, scenario, backend=backend)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        logger.log("tool_start", {"tool": {"name": "list_resources"}, "input": "{}"})
-        resources_raw = await tools["list_resources"].ainvoke({})
-        catalog_ids = _catalog_ids_from_tool(resources_raw)
-        catalog_set = set(catalog_ids)
-        logger.log(
-            "tool_end",
-            {
-                "output": json.dumps(catalog_ids[:8]) + " ...",
-                "output_type": "list",
-            },
-        )
+        from nika.workflows.agent.submission import load_submission_context
 
-        logger.log(
-            "tool_start", {"tool": {"name": "list_avail_problems"}, "input": "{}"}
-        )
-        avail_raw = await tools["list_avail_problems"].ainvoke({})
-        avail = _tool_text_list(avail_raw)
+        context = load_submission_context(self.session_id)
+        catalog_ids = [str(item["id"]) for item in context["resources"]]
+        catalog_set = set(catalog_ids)
+        avail = [
+            str(item.get("id")) if isinstance(item, dict) else str(item)
+            for item in context["fault_ontology"]
+        ]
         gt_names: list[str] = []
         for item in gt.get("root_causes") or []:
             if isinstance(item, dict):
@@ -319,11 +322,6 @@ class MockAgent:
         mock_root_cause = next((c for c in candidates if c in avail), None)
         if mock_root_cause is None:
             mock_root_cause = avail[0] if avail else "link_down"
-        logger.log(
-            "tool_end",
-            {"output": json.dumps(avail[:5]) + " ...", "output_type": "list"},
-        )
-
         chosen: list[dict[str, str]] = []
         for item in gt.get("root_causes") or []:
             if not isinstance(item, dict):
@@ -339,18 +337,29 @@ class MockAgent:
         if not chosen and catalog_ids:
             chosen = [{"resource_id": catalog_ids[0], "fault_type": mock_root_cause}]
 
-        submission: dict[str, Any] = {
-            "is_anomaly": True,
-            "root_causes": chosen,
-        }
+        if gt.get("is_anomaly") is False:
+            submission = {"is_anomaly": False, "root_causes": []}
+        else:
+            submission = {
+                "is_anomaly": True,
+                "root_causes": chosen,
+            }
         logger.log(
             "tool_start",
-            {"tool": {"name": "submit"}, "input": json.dumps(submission)},
+            tool_event_payload(
+                name="submit", input=submission, tool_call_id="mock-submit"
+            ),
         )
         submit_result = await tools["submit"].ainvoke(submission)
         logger.log(
             "tool_end",
-            {"output": str(submit_result), "output_type": type(submit_result).__name__},
+            tool_event_payload(
+                name="submit",
+                input=submission,
+                tool_call_id="mock-submit",
+                output=str(submit_result),
+                output_type=type(submit_result).__name__,
+            ),
         )
 
         logger.log(
@@ -362,4 +371,4 @@ class MockAgent:
         """Return a MessageLogger for *agent_name*."""
         from agent.utils.loggers import MessageLogger  # noqa: PLC0415
 
-        return MessageLogger(agent=agent_name, session_dir=self.session.session_dir)
+        return MessageLogger(phase=agent_name, session_dir=self.session.session_dir)

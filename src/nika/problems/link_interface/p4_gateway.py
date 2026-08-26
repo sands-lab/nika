@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import FailureDomain, ProblemBase, build_verify_result
-from nika.problems.root_cause import interface_resource
+from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
+from nika.problems.rca import interface_resource
 from nika.problems.support.p4_gateway import set_deterministic_loss
 
 
@@ -24,6 +24,7 @@ class SilentEgressPacketLoss(ProblemBase):
         "A deterministic packet subset disappears on one healthy egress interface."
     )
     TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
+    COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = SilentEgressPacketLossParams
 
     def root_cause_resources(self, params: SilentEgressPacketLossParams):
@@ -38,9 +39,16 @@ class SilentEgressPacketLoss(ProblemBase):
         self._result = set_deterministic_loss(
             self.runtime, params.host_name, params.bmv2_port, threshold
         )
+        self.runtime.exec(
+            params.host_name,
+            f"printf '%s\\n' '{self._result}' > /tmp/nika_silent_egress_result",
+        )
 
     def verify_fault(self, params: SilentEgressPacketLossParams) -> dict:
-        output = getattr(self, "_result", "")
+        output = getattr(self, "_result", "") or self.runtime.exec(
+            params.host_name,
+            "cat /tmp/nika_silent_egress_result 2>/dev/null || true",
+        )
         threshold = self.register_threshold(params.loss_basis_points)
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -49,5 +57,6 @@ class SilentEgressPacketLoss(ProblemBase):
                 "interface": params.intf_name,
                 "loss_basis_points": params.loss_basis_points,
                 "seed": params.seed,
+                "output": output[:200],
             },
         )

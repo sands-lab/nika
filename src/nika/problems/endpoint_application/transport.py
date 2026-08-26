@@ -1,37 +1,108 @@
-from nika.problems.root_cause import node_resource
-from nika.problems.problem_base import (
+from __future__ import annotations
+
+import time
+
+from pydantic import BaseModel, Field
+
+from nika.net_env.verify import (
+    http_download_stats,
+    median_float,
+    median_throughput_bps,
+    ping_stats,
+)
+from nika.problems.base import (
     FailureDomain,
-    build_verify_result,
     ProblemBase,
+    build_verify_result,
+)
+from nika.problems.rca import node_resource
+from nika.problems.support.cpu_quota_helpers import (
+    clear_original_nano_cpus,
+    cpu_quota_to_nano_cpus,
+    load_original_nano_cpus,
+    persist_original_nano_cpus,
+    read_nano_cpus,
+    set_nano_cpus,
 )
 from nika.utils.logger import system_logger
-from pydantic import BaseModel, Field
 
 _STRESS_CMD = (
     "nohup stress-ng --cpu 0 --cpu-load 100 --iomix 0 --sock 0 --hdd 2 "
     "--vm 0 --vm-bytes 75% --timeout {duration} </dev/null >/dev/null 2>&1 &"
 )
 
-_SLOW_SENDER_SERVER = """\
-import time
+_CPU_STRESS_CMD = (
+    "nohup stress-ng --cpu {stress_cpus} --cpu-load 100 "
+    "--timeout {duration} </dev/null >/dev/null 2>&1 &"
+)
+
+_DOCROOT = "/var/www"
+_SMALL_OBJECT = f"{_DOCROOT}/small.bin"
+_LARGE_OBJECT = f"{_DOCROOT}/large.bin"
+_CPU_HTTP_SERVER = "/tmp/nika_cpu_http_server.py"
+
+# Injected large-object performance vs baseline (either gate may pass).
+# Target: unmistakable multi-x slowdown (order-of-magnitude class symptom).
+_THROUGHPUT_MAX_RATIO = 0.20
+_TIME_MIN_RATIO = 5.0
+_RTT_MAX_RATIO = 1.5
+_MAX_LOSS_PERCENT = 5.0
+_RECOVER_THROUGHPUT_MIN_RATIO = 0.80
+
+# CPU-sensitive static file server: heavy per-chunk hashing so competing
+# stress-ng under a tight CFS quota produces multi-x HTTP slowdown.
+_CPU_HTTP_SERVER_SRC = f'''#!/usr/bin/env python3
+"""CPU-sensitive file server for sender_resource_contention probes."""
+from __future__ import annotations
+
+import hashlib
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-CHUNK = b"x" * 1024
-DELAY = 0.1
+DOCROOT = "{_DOCROOT}"
+# Extra SHA256 rounds per 64 KiB. small.bin stays cheap; large.bin burns hard.
+ROUNDS_PER_64K_SMALL = 2
+ROUNDS_PER_64K_LARGE = 180
+LARGE_THRESHOLD = 1024 * 1024
 
-class SlowSenderHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+        rel = self.path.split("?", 1)[0]
+        if rel in ("", "/"):
+            rel = "/index.html"
+        path = os.path.normpath(DOCROOT + rel)
+        if not path.startswith(DOCROOT) or not os.path.isfile(path):
+            self.send_error(404)
+            return
+        with open(path, "rb") as fh:
+            data = fh.read()
+        rounds = (
+            ROUNDS_PER_64K_LARGE
+            if len(data) >= LARGE_THRESHOLD
+            else ROUNDS_PER_64K_SMALL
+        )
+        view = memoryview(data)
+        step = 64 * 1024
+        for i in range(0, len(data), step):
+            block = bytes(view[i : i + step])
+            digest = block
+            for _ in range(rounds):
+                digest = hashlib.sha256(digest).digest()
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
         self.end_headers()
+        self.wfile.write(data)
 
-        for _ in range(5 * 1024):
-            time.sleep(DELAY)
-            self.wfile.write(CHUNK)
+    def log_message(self, fmt: str, *args) -> None:
+        return
 
-server = HTTPServer(("", 80), SlowSenderHandler)
-server.serve_forever()
-"""
+
+if __name__ == "__main__":
+    HTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+'''
+
 
 # ==================================================================
 # Problem: sender resource contention. Ref. Dapper: Data Plane Performance Diagnosis of TCP
@@ -39,85 +110,277 @@ server.serve_forever()
 
 
 class SenderResourceContentionParams(BaseModel):
-    """Parameters for injecting a sender resource contention fault."""
+    """Parameters for injecting HTTP-server CPU resource contention."""
 
-    host_name: str = Field(description="Target sender host name.")
+    host_name: str = Field(description="Target HTTP server host name.")
     duration: int = Field(default=600, description="Stress duration in seconds.")
+    cpu_quota: float = Field(
+        default=0.05,
+        description="Docker CPU quota applied to the HTTP server (fractional CPUs).",
+    )
+    stress_cpus: int = Field(
+        default=16,
+        description="Number of stress-ng CPU workers competing inside the quota.",
+    )
+    client_host: str = Field(
+        default="client_0",
+        description="HTTP client used for baseline and injected probes.",
+    )
+    dst_ip: str = Field(
+        default="10.0.1.2",
+        description="IPv4 address of the HTTP server (ping target).",
+    )
+    small_url: str = Field(
+        default="http://web0.pod0/small.bin",
+        description="Small-object URL (should remain roughly healthy).",
+    )
+    large_url: str = Field(
+        default="http://web0.pod0/large.bin",
+        description="Large-object URL used for bulk-transfer measurement.",
+    )
+    baseline_trials: int = Field(
+        default=5,
+        description="Number of large-object trials for median throughput/time.",
+    )
 
 
 class SenderResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
     root_cause_name: str = "sender_resource_contention"
-    TAGS: str = ["http"]
-
+    TAGS: list[str] = ["http"]
     Params = SenderResourceContentionParams
+    symptom_desc = (
+        "The HTTP server has insufficient CPU capacity under competing workload. "
+        "Large or sustained HTTP transfers become slower while the network path, "
+        "routing, packet loss, and basic TCP connectivity remain healthy."
+    )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
+        self._original_nano_cpus: int | None = None
+        self._injected_nano_cpus: int | None = None
+        self._baseline_throughput_bps: float | None = None
+        self._baseline_time_s: float | None = None
+        self._baseline_rtt_ms: float | None = None
+        self._baseline_loss_percent: float | None = None
 
     def root_cause_resources(self, params: SenderResourceContentionParams):
         return [node_resource(params.host_name)]
 
-    def inject_fault(self, params: SenderResourceContentionParams):
+    def _ensure_http_objects(self, params: SenderResourceContentionParams) -> None:
+        """Create objects and run a CPU-sensitive HTTP server on :80."""
+        host = params.host_name
         self.runtime.exec(
-            params.host_name, _STRESS_CMD.format(duration=params.duration)
+            host,
+            (
+                f"mkdir -p {_DOCROOT} && "
+                f"if [ ! -s {_SMALL_OBJECT} ]; then "
+                f"dd if=/dev/zero of={_SMALL_OBJECT} bs=1024 count=16 "
+                f"status=none 2>/dev/null || true; fi && "
+                f"if [ ! -s {_LARGE_OBJECT} ]; then "
+                f"dd if=/dev/zero of={_LARGE_OBJECT} bs=1M count=32 "
+                f"status=none 2>/dev/null || true; fi"
+            ),
+            timeout=120,
         )
+        self.runtime.write_file(host, _CPU_HTTP_SERVER, _CPU_HTTP_SERVER_SRC)
+        # Free :80 without pkill -f on the server path (that pattern matches the
+        # Kathara/docker exec shell argv and kills the starter itself).
+        self.runtime.exec(
+            host,
+            "fuser -k 80/tcp 2>/dev/null || true; "
+            "pkill -f 'python3 -m http.server' 2>/dev/null || true; "
+            "sleep 0.3",
+            timeout=15,
+        )
+        start_out = self.runtime.exec(
+            host,
+            (
+                f"nohup python3 {_CPU_HTTP_SERVER} </dev/null "
+                f">/tmp/nika_cpu_http_server.log 2>&1 & echo START:$!"
+            ),
+            timeout=15,
+        )
+        deadline = time.time() + 25.0
+        probe = ""
+        while time.time() < deadline:
+            time.sleep(0.5)
+            probe = self.runtime.exec(
+                host,
+                "curl -s -o /dev/null -w '%{http_code}' --max-time 10 "
+                "http://127.0.0.1/small.bin || true",
+                timeout=20,
+            ).strip()
+            if probe in {"200", "206"}:
+                break
+        if probe not in {"200", "206"}:
+            log = self.runtime.exec(
+                host,
+                "echo LOG; cat /tmp/nika_cpu_http_server.log 2>/dev/null || true; "
+                "echo PS; ps aux 2>/dev/null | head -n 30 || true; "
+                f"python3 -m py_compile {_CPU_HTTP_SERVER}; echo COMPILE:$?",
+                timeout=20,
+            )
+            raise RuntimeError(
+                f"CPU-sensitive HTTP server failed to serve on {host}: "
+                f"http_code={probe!r} start_out={start_out!r} diag={log!r}"
+            )
+
+    def _median_large_stats(
+        self,
+        params: SenderResourceContentionParams,
+        *,
+        max_time_sec: int,
+    ) -> tuple[float | None, float | None]:
+        throughputs: list[float] = []
+        times: list[float] = []
+        for _ in range(params.baseline_trials):
+            stats = http_download_stats(
+                self.runtime,
+                params.client_host,
+                params.large_url,
+                max_time_sec=max_time_sec,
+            )
+            if stats.ok and stats.throughput_bps is not None and stats.time_total_s:
+                throughputs.append(stats.throughput_bps)
+                times.append(stats.time_total_s)
+        return median_float(throughputs), median_float(times)
+
+    def inject_fault(self, params: SenderResourceContentionParams):
+        self._ensure_http_objects(params)
+
+        ping = ping_stats(
+            self.runtime,
+            params.client_host,
+            params.dst_ip,
+            count=10,
+            interval_sec=0.2,
+        )
+        self._baseline_rtt_ms = ping.rtt_avg_ms
+        self._baseline_loss_percent = ping.loss_percent
+
+        bps, time_s = self._median_large_stats(params, max_time_sec=300)
+        if bps is None or time_s is None:
+            raise RuntimeError(
+                "sender_resource_contention baseline large HTTP measurement failed "
+                f"on {params.client_host} -> {params.large_url}"
+            )
+        self._baseline_throughput_bps = bps
+        self._baseline_time_s = time_s
+
+        original = read_nano_cpus(self.runtime, params.host_name)
+        self._original_nano_cpus = original
+        persist_original_nano_cpus(self.runtime, params.host_name, original)
+
+        injected = cpu_quota_to_nano_cpus(params.cpu_quota)
+        set_nano_cpus(self.runtime, params.host_name, injected)
+        self._injected_nano_cpus = injected
+
+        self.runtime.exec(
+            params.host_name,
+            _CPU_STRESS_CMD.format(
+                stress_cpus=params.stress_cpus,
+                duration=params.duration,
+            ),
+            timeout=15,
+        )
+        # Let CFS + stress-ng saturate before verify samples.
+        time.sleep(3.0)
         system_logger.info(
-            f"Injected TCP slow sender issue on params.host_name {params.host_name}"
+            "Injected sender_resource_contention on %s: "
+            "cpu_quota=%.2f nano=%d stress_cpus=%d "
+            "baseline_bps=%.0f baseline_time_s=%.3f rtt=%.2fms",
+            params.host_name,
+            params.cpu_quota,
+            injected,
+            params.stress_cpus,
+            bps,
+            time_s,
+            ping.rtt_avg_ms or -1.0,
         )
 
     def verify_fault(self, params: SenderResourceContentionParams) -> dict:
-        """Verify stress-ng is running on the sender params.host_name."""
-        verified = self.runtime.process_running(params.host_name, "stress-ng")
+        """Verify stress-ng and CPU quota are injected (artifact gate for inject)."""
+        stress_running = self.runtime.process_running(params.host_name, "stress-ng")
+        current_nano = read_nano_cpus(self.runtime, params.host_name)
+        expected_nano = self._injected_nano_cpus or cpu_quota_to_nano_cpus(
+            params.cpu_quota
+        )
+        quota_ok = current_nano == expected_nano
+        verified = bool(stress_running and quota_ok)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
-            details={"host": params.host_name},
+            details={
+                "host": params.host_name,
+                "client_host": params.client_host,
+                "stress_running": stress_running,
+                "nano_cpus": current_nano,
+                "expected_nano_cpus": expected_nano,
+                "quota_ok": quota_ok,
+            },
         )
 
+    def recover_fault(self, params: SenderResourceContentionParams) -> dict:
+        original = self._original_nano_cpus
+        if original is None:
+            original = load_original_nano_cpus(self.runtime, params.host_name)
+        if original is None:
+            return {
+                "verified": False,
+                "details": {"error": "original_nano_cpus_missing"},
+            }
 
-# ==================================================================
-# Problem: Application level delay causing TCP sender issues
-# ==================================================================
+        self.runtime.exec(
+            params.host_name,
+            "pkill -f stress-ng 2>/dev/null || true",
+            timeout=10,
+        )
+        time.sleep(0.5)
+        set_nano_cpus(self.runtime, params.host_name, original)
+        clear_original_nano_cpus(self.runtime, params.host_name)
 
+        stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
+        restored_nano = read_nano_cpus(self.runtime, params.host_name)
+        quota_restored = restored_nano == original
 
-class SenderApplicationDelayParams(BaseModel):
-    """Parameters for injecting a sender application delay fault."""
+        restored_bps = median_throughput_bps(
+            self.runtime,
+            params.client_host,
+            params.large_url,
+            trials=params.baseline_trials,
+            max_time_sec=300,
+        )
+        baseline_bps = self._baseline_throughput_bps
+        restore_ratio = None
+        perf_restored = True
+        if baseline_bps and restored_bps is not None:
+            restore_ratio = restored_bps / baseline_bps
+            perf_restored = restore_ratio >= _RECOVER_THROUGHPUT_MIN_RATIO
 
-    host_name: str = Field(description="Target sender host name.")
-
-
-class SenderApplicationDelay(ProblemBase):
-    failure_domain = FailureDomain.ENDPOINT_APPLICATION
-    root_cause_name: str = "sender_application_delay"
-    TAGS: str = ["http"]
-
-    Params = SenderApplicationDelayParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
-
-    def root_cause_resources(self, params: SenderApplicationDelayParams):
-        return [node_resource(params.host_name)]
-
-    def inject_fault(self, params: SenderApplicationDelayParams):
-        self.runtime.exec(params.host_name, "cp web_server.py web_server.py.bak")
-        self.runtime.write_file(params.host_name, "/web_server.py", _SLOW_SENDER_SERVER)
-        self.runtime.systemctl(params.host_name, "web_server.service", "restart")
+        ok = bool(stress_gone and quota_restored and perf_restored)
         system_logger.info(
-            f"Injected TCP sender application delay issue on params.host_name {params.host_name}"
+            "recover_fault sender_resource_contention on %s: ok=%s "
+            "nano=%d restore_ratio=%s",
+            params.host_name,
+            ok,
+            restored_nano,
+            restore_ratio,
         )
-
-    def verify_fault(self, params: SenderApplicationDelayParams) -> dict:
-        """Verify the web_server.py has a sleep call injected."""
-        verified = self.runtime.file_contains(
-            params.host_name, "/web_server.py", "time.sleep"
-        )
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name},
-        )
+        return {
+            "verified": ok,
+            "details": {
+                "host": params.host_name,
+                "stress_gone": stress_gone,
+                "restored_nano_cpus": restored_nano,
+                "expected_nano_cpus": original,
+                "quota_restored": quota_restored,
+                "restored_throughput_bps": restored_bps,
+                "baseline_throughput_bps": baseline_bps,
+                "restore_ratio": restore_ratio,
+                "perf_restored": perf_restored,
+            },
+        }
 
 
 # ==================================================================
@@ -135,7 +398,7 @@ class ReceiverResourceContentionParams(BaseModel):
 class ReceiverResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
     root_cause_name: str = "receiver_resource_contention"
-    TAGS: str = ["http"]
+    TAGS: list[str] = ["http"]
 
     Params = ReceiverResourceContentionParams
 

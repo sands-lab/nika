@@ -15,7 +15,7 @@ Source: [`tests/`](../tests/) contains the suites, and [`tests/support/`](../tes
 | Directory | Maps to | Purpose |
 |-----------|---------|---------|
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
-| `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, resume, sandbox benchmark runs |
+| `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, release, trials, sandbox benchmark runs; runner YAML load contracts |
 | `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
 | `tests/nika/workflows/integration/` | end-to-end session pipeline | env → inject → mock agent → close → metrics → summary |
@@ -27,6 +27,40 @@ Source: [`tests/`](../tests/) contains the suites, and [`tests/support/`](../tes
 | `tests/support/` | Not applicable | Shared bases, prerequisites, and pipeline helpers |
 
 Local lab integration tests expect lab extras installed (`uv sync --extra labs --group dev`). Core/agent unit tests should run without Kathara/Containerlab packages.
+
+Packet capture inspect tests and live inspect operations require `tshark` on the NIKA host (`wireshark-common` on Debian/Ubuntu). Capture on lab nodes uses `tcpdump` (installed in base lab images) or `dumpcap` when present.
+
+## Pytest markers
+
+Markers are registered in `pyproject.toml` and auto-applied from path conventions in `tests/conftest.py`:
+
+| Marker | Purpose |
+|--------|---------|
+| `unit` | Fast tests without Docker |
+| `contract` | Registry, benchmark YAML, schema, artifact contracts |
+| `integration` | Env deploy, failure inject, traffic, MCP smoke |
+| `sandbox` | Sandbox isolation and security |
+| `e2e` | Full mock-agent pipeline and benchmark flows |
+| `live` | Real LLM / GitHub / Batfish (credentials required) |
+
+```shell
+# Fast local smoke (no Docker)
+uv run pytest -m "unit or contract" -q
+
+# Emulator / lab integration (Docker / containerlab)
+uv run pytest -m integration -q
+
+# Full mock-agent flows
+uv run pytest -m "e2e and not live" -q
+
+# Sandbox isolation (serial; sbx + Docker)
+uv run pytest -m sandbox -q
+
+# Real LLM / live services (credentials required)
+uv run pytest -m live -q
+```
+
+Run these tiers locally; there is no GitHub Actions workflow for them yet (lab backends and credentials are not available on shared CI runners).
 
 ## Shared support (`tests/support/`)
 
@@ -82,21 +116,31 @@ uv run pytest tests/agent/test_sandbox_agents.py -v
 
 ## Benchmark tests (`tests/benchmark/`)
 
-Covers `nika benchmark run` and resume. It does not cover YAML injection-parameter generation. Batch mode requires explicit `--config` or `--release` (no bare default suite).
+Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`, `task_label`). Offline inject-param generation, ISP option/symptom targeting, and healthy-case rules live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Batch mode requires explicit `--config` or `--release` (no bare default suite).
 
 | Module | Purpose |
 |--------|---------|
 | `test_release.py` | Frozen `nika-bench@0.1.0` Dev/Test digests, isolation, job metadata; optional Docker smoke |
-| `test_resume.py` | Resume/fingerprint unit tests (no Docker) |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |
+| `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |
+| `test_migrate.py` | Benchmark YAML migrate → `root_causes` |
+| `test_task_label.py` | Compound task label format/parse |
 | `helpers.py` | Load inject params from bundled benchmark YAML |
+
+Related (moved out of this directory):
+
+| Module | Purpose |
+|--------|---------|
+| `tests/nika/problems/test_inject_resolve.py` | Offline inject-target resolve/validate for YAML generation |
+| `tests/nika/net_env/isp/test_isp_options.py` | ISP deploy-option selection + row normalize/fingerprint |
+| `tests/nika/net_env/isp/test_isp_bgp_symptom.py` | ISP BGP inject symptom host / probe target attachment |
+| `tests/nika/workflows/test_healthy_cases.py` | Healthy (no-fault) case normalize + selected YAML coverage |
 
 ```shell
 uv run pytest tests/benchmark/test_release.py -v
 uv run pytest tests/benchmark/test_release.py -v -k DockerSmoke   # requires Docker
-uv run pytest tests/benchmark/test_resume.py -v
 uv run pytest tests/benchmark/test_trials.py -v
 uv run pytest tests/benchmark/test_trials.py -v -k ReleaseRunE2E  # requires Docker
 uv run pytest tests/benchmark/test_batch.py -v                 # requires Docker
@@ -155,10 +199,26 @@ uv run pytest tests/nika/service/pingmesh/test_integration.py::KatharaPingMeshIn
 
 ## Problem injection (`tests/nika/problems/`)
 
-| Module | Backend |
-|--------|---------|
-| `test_kathara_failure_inject.py` | Kathara (Docker) |
-| `test_clab_failure_inject.py` | Containerlab (skipped without `clab` on PATH) |
+| Module | Backend | Purpose |
+|--------|---------|---------|
+| `test_failure_inject_contract.py` | Kathara + Containerlab | **Verify-only**: parametrized inject + ground-truth via `verify_fault` |
+| `test_symptom_contracts.py` | none | Symptom contract registry + gray probe unit coverage |
+| `test_sdn_l3_clos_failure_compat.py` | Kathara | TAGS-compatible failures + `evaluate_symptom` |
+| `test_p4_dc_fabric_failure_compat.py` | Kathara | P4 fabric inject/verify samples |
+| `test_p4_dc_gateway_p4runtime_failure_compat.py` | Kathara | Shared P4Runtime failure suite |
+| `test_link_capacity_bottleneck.py` | Kathara | VDE proxy TBF + iperf symptom on `dc_clos` |
+| `test_mtu_mismatch.py` | Kathara | Path MTU / Frag Needed probes on `dc_clos` |
+| `test_pmtu_blackhole_combo.py` | Kathara | MTU + Frag Needed filter black-hole combo |
+| `test_load_balancer_overload.py` | Kathara | VIP overload: verify_fault + `evaluate_symptom` |
+| `test_sender_resource_contention.py` | Kathara | CPU quota + HTTP: verify_fault + `evaluate_symptom` |
+| `test_web_dos_attack.py` | Kathara | Web DoS: separate verify-only and symptom suites |
+
+```shell
+uv run pytest tests/nika/problems/test_symptom_contracts.py -v
+uv run pytest tests/nika/problems/test_failure_inject_contract.py -v
+```
+
+Artifact `verify_fault` gates `nika failure inject`. Symptom checks use the unified test API `tests.support.symptom.evaluate_symptom` (per-failure contracts + custom handlers). User workflows must not import that package. Gray/statistical failures use heavier probes inside `evaluate_symptom`; `probe="artifact_only"` skips network probes when impact is nondeterministic (BGP ACL).
 
 ## Network environment (`tests/nika/net_env/`)
 

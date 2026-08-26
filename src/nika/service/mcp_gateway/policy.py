@@ -21,9 +21,6 @@ def is_server_allowed(session_id: str, server_name: str) -> bool:
     if entry is None:
         return False
 
-    if entry.policy_mode == "unified":
-        return True
-
     role = server_phase_role(server_name)
     if entry.phase == DIAGNOSIS:
         return role == "diagnosis"

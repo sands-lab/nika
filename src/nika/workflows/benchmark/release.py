@@ -23,8 +23,10 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
     scenario_source_path,
 )
-from nika.problems.prob_pool import get_problem_class, list_avail_problem_instances
+from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.service.mcp_server.registry import (
+    DIAGNOSIS_PACKET_CAPTURE_SERVER,
     MCP_SERVER_SPECS,
     select_diagnosis_servers,
     SUBMISSION_SERVER,
@@ -53,6 +55,7 @@ TOOLS_V1 = {
     "allowed_mcp_servers": [
         "kathara_base_mcp_server",
         "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
         "kathara_frr_mcp_server",
         "kathara_bmv2_mcp_server",
         "kathara_sdn_mcp_server",
@@ -234,6 +237,7 @@ def collect_images_for_scenarios(scenario_names: set[str]) -> list[str]:
 def build_scenario_problem_pins(
     scenarios: set[str], problems: set[str]
 ) -> dict[str, Any]:
+    pin_problems = {name for name in problems if not is_healthy_case(name)}
     return {
         "scenarios": {
             name: _pin_source_file(_scenario_source_path(name))
@@ -241,7 +245,7 @@ def build_scenario_problem_pins(
         },
         "problems": {
             name: _pin_source_file(_problem_source_path(name))
-            for name in sorted(problems)
+            for name in sorted(pin_problems)
         },
     }
 
@@ -476,7 +480,7 @@ def _verify_pins(pins: dict[str, Any], *, kind: str) -> None:
             path = REPO_ROOT / path
         if not path.is_file():
             if kind == "problems":
-                from nika.problems.prob_pool import resolve_problem_name
+                from nika.problems.registry import resolve_problem_name
 
                 # Legacy failure ids (e.g. host_vpn_membership_missing) remap; the
                 # pinned source may have been removed.
@@ -499,10 +503,13 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
         raise ReleaseError(
             f"Release allowlist references unknown MCP servers: {sorted(unknown)}"
         )
+    # Platform-default servers added after a freeze may be mounted at runtime
+    # without rewriting frozen RELEASE.yaml allowlists (e.g. nika-bench@0.1.0).
+    platform_optional = {DIAGNOSIS_PACKET_CAPTURE_SERVER}
     for row in cases:
         servers = set(select_diagnosis_servers(row["scenario"]))
         servers.add(SUBMISSION_SERVER)
-        extra = servers - allowed
+        extra = servers - allowed - platform_optional
         if extra:
             raise ReleaseError(
                 f"Scenario {row['scenario']!r} needs MCP servers outside allowlist: "

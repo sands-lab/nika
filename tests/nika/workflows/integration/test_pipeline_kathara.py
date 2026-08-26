@@ -11,3 +11,4 @@ class KatharaPipelineIntegrationTest(pipeline_case.PipelineCaseBase):
     EXEC_PROBE_HOST = "pc1"
     SUBMIT_FAULTY_DEVICES = ["pc1"]
     IMAGE_SUBSTRING = "kathara"
+    RUN_TRAFFIC = True

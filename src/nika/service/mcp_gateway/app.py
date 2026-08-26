@@ -33,6 +33,10 @@ _MCP_MODULE_ATTRS: dict[str, tuple[str, str]] = {
         "nika.service.mcp_server.common.pingmesh_server",
         "mcp",
     ),
+    "packet_capture_mcp_server": (
+        "nika.service.mcp_server.common.packet_capture_server",
+        "mcp",
+    ),
     "task_mcp_server": ("nika.service.mcp_server.common.task_server", "mcp"),
     "kathara_frr_mcp_server": (
         "nika.service.mcp_server.kathara.frr_server",

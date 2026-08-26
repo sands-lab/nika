@@ -22,7 +22,6 @@ from tests.agent._assertions import (
 )
 from tests.support.integration_base import IntegrationTestCase, OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
-    anthropic_api_key_available,
     deepseek_api_key_available,
     load_test_env,
 )
@@ -76,7 +75,7 @@ def _diagnosis_tool_names(messages: list[dict]) -> list[str]:
 
     names: list[str] = []
     for entry in messages:
-        if entry.get("agent") != DIAGNOSIS:
+        if entry["phase"] != DIAGNOSIS:
             continue
         names.extend(n for n in _extract_tool_names(entry) if n)
     return names
@@ -231,12 +230,3 @@ class _BGPRPKIAgentPipelineBase(OrderedPipelineTestCase):
 class TestBGPRPKIInvalidRouteLeakAgentDeepseek(_BGPRPKIAgentPipelineBase):
     llm_provider = "deepseek"
     model = "deepseek-chat"
-
-
-@pytest.mark.skipif(
-    not (docker_available() and anthropic_api_key_available()),
-    reason="Docker and ANTHROPIC_API_KEY required for RPKI agent e2e",
-)
-class TestBGPRPKIInvalidRouteLeakAgentAnthropic(_BGPRPKIAgentPipelineBase):
-    llm_provider = "anthropic"
-    model = "claude-haiku-4-5"

@@ -19,8 +19,11 @@ from nika.net_env.enterprise_branch.addressing import (
     vrf_name,
 )
 from nika.net_env.enterprise_branch.topology import (
+    HTTP_LARGE_OBJECT_MB,
+    HTTP_SMALL_OBJECT_KB,
     LOCAL_ONLY_ROLES,
     OVERLAY_ROLES,
+    UNDERLAY_ONE_WAY_DELAY_MS,
     BuiltTunnel,
     TunnelSpec,
     TopoSpec,
@@ -326,6 +329,10 @@ class EnterpriseBranch(NetworkEnvBase):
                             "mem": "256m",
                         },
                     )
+                    # Privileged: allow runtime net.ipv4.tcp_* sysctl writes used by
+                    # tcp_receive_window_limited (Docker mounts those read-only
+                    # otherwise).
+                    machine.add_meta("privileged", True)
                     self.declare_machine(
                         host_name,
                         role=NodeRole.HOST,
@@ -368,8 +375,18 @@ class EnterpriseBranch(NetworkEnvBase):
                     host.cmd_list.append(f"ip route add default via {e_ip.ip} dev eth0")
                     host.ip = str(h_ip.ip)
                     if lan.role == "server":
-                        host.cmd_list.append(
-                            "nohup python3 -m http.server 80 >/dev/null 2>&1 &"
+                        host.cmd_list.extend(
+                            [
+                                "mkdir -p /var/www",
+                                f"dd if=/dev/zero of=/var/www/small.bin "
+                                f"bs=1024 count={HTTP_SMALL_OBJECT_KB} "
+                                f"status=none 2>/dev/null || true",
+                                f"dd if=/dev/zero of=/var/www/large.bin "
+                                f"bs=1M count={HTTP_LARGE_OBJECT_MB} "
+                                f"status=none 2>/dev/null || true",
+                                "cd /var/www && nohup python3 -m http.server 80 "
+                                ">/dev/null 2>&1 &",
+                            ]
                         )
 
     def _wire_wan(self) -> None:
@@ -390,11 +407,22 @@ class EnterpriseBranch(NetworkEnvBase):
                 edge_ip = str(subnet.network_address + 1)
                 isp_ip = str(subnet.network_address + 2)
                 wan_dev = f"eth{edge.eth_index}"
+                isp_dev = f"eth{isp.eth_index}"
                 edge.cmd_list.append(f"ip addr add {edge_cidr} dev {wan_dev}")
                 edge.eth_index += 1
-                isp.cmd_list.append(f"ip addr add {isp_cidr} dev eth{isp.eth_index}")
+                isp.cmd_list.append(f"ip addr add {isp_cidr} dev {isp_dev}")
                 isp.eth_index += 1
                 edge.wan[provider] = (edge_cidr, isp_ip, edge_ip, wan_dev)
+                # Healthy regional WAN propagation (Cisco SD-WAN small-branch
+                # case study). Applied on both ends of each PE attachment so
+                # branch→HQ one-way ≈ 40 ms and RTT ≈ 80 ms.
+                delay = UNDERLAY_ONE_WAY_DELAY_MS
+                edge.cmd_list.append(
+                    f"tc qdisc replace dev {wan_dev} root netem delay {delay}ms || true"
+                )
+                isp.cmd_list.append(
+                    f"tc qdisc replace dev {isp_dev} root netem delay {delay}ms || true"
+                )
                 # GUEST NAT uses two routed /32 aliases.  They model a managed
                 # NAT pool while keeping address withdrawal independent from
                 # the provider-facing /30 that carries the underlay.

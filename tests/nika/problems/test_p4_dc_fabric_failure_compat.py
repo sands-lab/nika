@@ -13,7 +13,7 @@ from benchmark.inject_resolve import resolve_inject_params
 from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
 from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab
 from nika.net_env.verify import http_ok, ping_ok
-from nika.problems.prob_pool import get_problem_instance
+from nika.problems.registry import get_problem_instance
 from nika.runtime.factory import runtime_for_session
 from nika.workflows.failure.inject import inject_failure as inject_failure_workflow
 from tests.support.integration_base import IntegrationTestCase
@@ -28,7 +28,7 @@ SAMPLED_EXISTING = (
     "link_down",
     "link_flap",
     "link_packet_corruption",
-    "link_bandwidth_throttling",
+    "link_capacity_bottleneck",
     "host_incorrect_ip",
     "host_missing_ip",
     "p4_table_entry_missing",

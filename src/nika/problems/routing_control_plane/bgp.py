@@ -4,12 +4,12 @@ import time
 
 from pydantic import BaseModel, Field
 
-from nika.problems.inject_resolve import (
+from nika.problems.support.inject_resolve import (
     resolve_victim_host,
     resolve_victim_host_ip,
 )
-from nika.problems.root_cause import node_resource
-from nika.problems.problem_base import (
+from nika.problems.rca import node_resource
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
@@ -62,6 +62,10 @@ class BGPAsnMisconfig(ProblemBase):
         self.runtime.srl_set_bgp_as(params.host_name, wrong_asn)
         self._orig_asn = as_number
         self._wrong_asn = wrong_asn
+        self.runtime.exec(
+            params.host_name,
+            f"printf '%s\\n' '{as_number}' > /tmp/nika_orig_bgp_asn",
+        )
         self.logger.info(
             f"Injected BGP ASN misconfiguration on {params.host_name} "
             f"from ASN {as_number} to {wrong_asn} (SRL)."
@@ -74,6 +78,7 @@ class BGPAsnMisconfig(ProblemBase):
             params.host_name,
             f"sed -i.bak 's/^router bgp {as_number}$/router bgp {wrong_asn}/' /etc/frr/frr.conf && service frr restart 2>/dev/null || true",
         )
+        time.sleep(8)
         self._orig_asn = as_number
         self._wrong_asn = wrong_asn
         self.logger.info(
@@ -96,6 +101,14 @@ class BGPAsnMisconfig(ProblemBase):
         running_asn = self.runtime.srl_get_bgp_as(params.host_name)
         orig_asn = getattr(self, "_orig_asn", None)
         wrong_asn = getattr(self, "_wrong_asn", None)
+        if orig_asn is None:
+            stored = self.runtime.exec(
+                params.host_name,
+                "cat /tmp/nika_orig_bgp_asn 2>/dev/null || true",
+            ).strip()
+            if stored.isdigit():
+                orig_asn = int(stored)
+                wrong_asn = orig_asn + 600
         verified = (wrong_asn is not None and running_asn == wrong_asn) or (
             orig_asn is not None and running_asn != orig_asn
         )
@@ -643,6 +656,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name: str = "bgp_max_prefix_exceeded"
     TAGS: str = ["bgp", "isp"]
+    COMPATIBLE_COLUMNS = frozenset({"isp/abilene-ebgp"})
 
     Params = BGPMaxPrefixExceededParams
 
@@ -888,7 +902,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         if not self._session_established(receiver, neighbor_ip):
             # Allow BGP to finish converging after deploy.
             if not self._wait_session_state(
-                receiver, neighbor_ip, established=True, timeout_s=120.0
+                receiver, neighbor_ip, established=True, timeout_s=180.0
             ):
                 raise RuntimeError(
                     f"eBGP session {receiver}←{neighbor_ip} ({peer}) not Established "

@@ -7,7 +7,7 @@ from typing import Any
 
 from agent.sdk.claude_sdk.config import prepare_claude_sdk_env
 from agent.sdk.mcp import to_sdk_mcp_servers
-from agent.utils.loggers import MessageLogger
+from agent.utils.loggers import MessageLogger, tool_event_payload
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
@@ -52,7 +52,7 @@ class ClaudeSdkWorker:
         self.max_steps = max_steps
         self.scenario_name = scenario_name
         self.system_prompt = system_prompt
-        self._logger = MessageLogger(agent=phase, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
 
     def _load_mcp_servers(self) -> dict[str, Any]:
         if self.phase == SUBMISSION:
@@ -117,6 +117,8 @@ class ClaudeSdkWorker:
 
         result_text = ""
         turn_text: list[str] = []
+        tool_names_by_id: dict[str, str] = {}
+        tool_inputs_by_id: dict[str, str] = {}
 
         def _flush_turn() -> None:
             nonlocal turn_text
@@ -147,14 +149,16 @@ class ClaudeSdkWorker:
                                 turn_text.append(text)
                             elif isinstance(block, ToolUseBlock):
                                 _flush_turn()
+                                tool_name = _normalize_tool_name(block.name)
+                                tool_names_by_id[block.id] = tool_name
+                                tool_inputs_by_id[block.id] = str(block.input)
                                 self._logger.log(
                                     "tool_start",
-                                    {
-                                        "tool": {
-                                            "name": _normalize_tool_name(block.name)
-                                        },
-                                        "input": str(block.input),
-                                    },
+                                    tool_event_payload(
+                                        name=tool_name,
+                                        input=block.input,
+                                        tool_call_id=block.id,
+                                    ),
                                 )
                     elif isinstance(message, UserMessage):
                         _flush_turn()
@@ -163,14 +167,26 @@ class ClaudeSdkWorker:
                         )
                         for block in content:
                             if isinstance(block, ToolResultBlock):
+                                tool_name = tool_names_by_id.get(block.tool_use_id)
+                                tool_input = tool_inputs_by_id.get(block.tool_use_id)
+                                correlation = tool_event_payload(
+                                    name=tool_name,
+                                    input=tool_input,
+                                    tool_call_id=block.tool_use_id,
+                                )
                                 if block.is_error:
                                     self._logger.log(
-                                        "tool_error", {"output": str(block.content)}
+                                        "tool_error",
+                                        {
+                                            **correlation,
+                                            "output": str(block.content),
+                                        },
                                     )
                                 else:
                                     self._logger.log(
                                         "tool_end",
                                         {
+                                            **correlation,
                                             "output": str(block.content),
                                             "output_type": "tool_result",
                                         },

@@ -2,8 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from nika.problems.root_cause import node_resource
-from nika.problems.problem_base import (
+from nika.problems.rca import node_resource
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
@@ -70,7 +70,16 @@ class DNSRecordError(ProblemBase):
 
     def verify_fault(self, params: DNSRecordErrorParams) -> dict:
         """Verify the DNS zone file contains the wrong IP and the running daemon serves it."""
-        wrong_ip = params.wrong_ip or self._wrong_ip
+        wrong_ip = params.wrong_ip or getattr(self, "_wrong_ip", None)
+        if not wrong_ip and self.net_env.hosts:
+            # Fresh problem instance after workflow inject: re-derive the same way.
+            wrong_ip = self.runtime.get_host_ip(self.net_env.hosts[0])
+        if not wrong_ip:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "wrong_ip unavailable"},
+            )
         grep_result = self.runtime.exec(
             params.host_name,
             f"grep '{params.target_website}.*{wrong_ip}' /etc/bind/db.{params.target_domain} 2>/dev/null && echo found || echo absent",

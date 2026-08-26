@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.topology_inventory import interface_on
-from nika.problems.problem_base import (
+from nika.problems.rca.inventory import interface_on
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,

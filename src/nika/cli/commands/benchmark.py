@@ -152,6 +152,9 @@ def benchmark_run(
         "--max-steps",
         help="Max steps per phase (default: agent.max_steps in run config).",
     ),
+    access_role: str | None = typer.Option(
+        None, "--role", help="Diagnosis access role (default: agent.access.role)."
+    ),
     run_config: str | None = typer.Option(
         None,
         "--run-config",
@@ -227,6 +230,7 @@ def benchmark_run(
         llm_provider=llm_provider,
         model=model,
         max_steps=max_steps,
+        access_role=access_role,
         result_dir=result_dir,
         batch_size=batch_size,
         case_timeout_sec=case_timeout,
@@ -392,7 +396,7 @@ def benchmark_migrate(
     ),
 ) -> None:
     """Materialize structured root-cause ground truth for every case."""
-    from nika.problems.root_cause import UnresolvedRootCauseError
+    from nika.problems.rca import UnresolvedRootCauseError
     from nika.workflows.benchmark.migrate import migrate_benchmark_yaml
 
     try:

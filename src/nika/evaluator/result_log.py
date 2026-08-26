@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from nika.config import RESULTS_DIR
 from nika.evaluator.llm_judge import JudgeResponse
 from nika.evaluator.trace_parser import AgentTraceParser
-from nika.problems.prob_pool import get_problem_class
+from nika.problems.registry import get_problem_class
 from nika.utils.session_artifacts import RUN_FILENAME, is_finished_session
 
 load_dotenv()

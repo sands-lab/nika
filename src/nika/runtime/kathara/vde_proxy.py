@@ -29,6 +29,7 @@ class _Endpoint:
     mac: str
     mtu: int
     addresses: tuple[str, ...]
+    routes: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -162,6 +163,42 @@ class KatharaVdeFaultProxy:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
         return result.exit_code == 0 and b"netem" in result.output.lower()
+
+    def set_tbf(
+        self,
+        state: VdeFaultProxyState,
+        rate: str,
+        burst: str,
+        limit: str,
+    ) -> None:
+        proxy = self._client.containers.get(state.proxy_id)
+        result = proxy.exec_run(
+            [
+                "tc",
+                "qdisc",
+                "replace",
+                "dev",
+                "eth1",
+                "root",
+                "tbf",
+                "rate",
+                rate,
+                "burst",
+                burst,
+                "limit",
+                limit,
+            ]
+        )
+        if result.exit_code:
+            raise RuntimeCapabilityError(
+                f"could not configure controller-side VDE proxy TBF: "
+                f"{result.output.decode(errors='ignore')}"
+            )
+
+    def tbf_configured(self, state: VdeFaultProxyState) -> bool:
+        proxy = self._client.containers.get(state.proxy_id)
+        result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
+        return result.exit_code == 0 and b"tbf" in result.output.lower()
 
     def start_link_flap(
         self, state: VdeFaultProxyState, down_time: int, up_time: int
@@ -424,7 +461,40 @@ done
             info["address"],
             info["mtu"],
             self._addresses(node, intf),
+            self._routes(node, intf),
         )
+
+    def _routes(self, node: str, intf: str) -> tuple[dict, ...]:
+        """Capture non-kernel routes that would be dropped when the NIC is moved."""
+        try:
+            rows = json.loads(self.runtime.exec(node, "ip -j route show"))
+        except json.JSONDecodeError:
+            return ()
+        kept: list[dict] = []
+        for row in rows:
+            if row.get("dev") != intf:
+                continue
+            # Address install recreates proto-kernel link routes.
+            if row.get("protocol") == "kernel" and row.get("scope") == "link":
+                continue
+            kept.append(row)
+        return tuple(kept)
+
+    @staticmethod
+    def _route_replace_cmd(row: dict, intf: str) -> str:
+        dst = row.get("dst") or "default"
+        parts = ["ip", "route", "replace", str(dst)]
+        gateway = row.get("gateway")
+        if gateway:
+            parts.extend(["via", str(gateway)])
+        parts.extend(["dev", intf])
+        metric = row.get("metric")
+        if metric is not None:
+            parts.extend(["metric", str(metric)])
+        prefsrc = row.get("prefsrc")
+        if prefsrc:
+            parts.extend(["src", str(prefsrc)])
+        return " ".join(parts)
 
     def _restore_endpoint(self, endpoint: _Endpoint) -> None:
         """Rename the new VDE NIC and restore the interface's L3 state."""
@@ -458,6 +528,10 @@ done
             for address in endpoint.addresses:
                 self.runtime.exec(
                     endpoint.node, f"ip address replace {address} dev {endpoint.intf}"
+                )
+            for row in endpoint.routes:
+                self.runtime.exec(
+                    endpoint.node, self._route_replace_cmd(row, endpoint.intf)
                 )
             return
         raise RuntimeCapabilityError(

@@ -4,7 +4,7 @@ import pytest
 import json
 from unittest.mock import MagicMock
 from nika.runtime.base import LabRuntime, RuntimeCapabilityError
-from nika.problems.problem_base import ProblemBase
+from nika.problems.base import ProblemBase
 
 
 class _StubRuntime(LabRuntime):

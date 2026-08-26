@@ -44,6 +44,15 @@ def test_vde_proxy_preserves_point_to_point_link_identity_and_connectivity() -> 
         proxy.remove(state)
         state = None
         assert "0% packet loss" in runtime.exec("router1", "ping -c 2 -W 2 193.10.11.2")
+
+        state = proxy.insert("router1", "eth0")
+        proxy.set_tbf(state, rate="30kbit", burst="64kb", limit="500kb")
+        assert proxy.tbf_configured(state)
+        assert "tbf" not in runtime.exec("router1", "tc qdisc show dev eth0").lower()
+        assert "0% packet loss" in runtime.exec("router1", "ping -c 2 -W 2 193.10.11.2")
+        proxy.remove(state)
+        state = None
+        assert "0% packet loss" in runtime.exec("router1", "ping -c 2 -W 2 193.10.11.2")
     finally:
         if state is not None:
             KatharaVdeFaultProxy(runtime).remove(state, suppress_errors=True)

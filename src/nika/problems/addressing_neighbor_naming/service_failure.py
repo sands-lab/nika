@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.root_cause import node_resource
+from nika.problems.rca import node_resource
 from nika.utils.logger import system_logger
 
 logger = system_logger

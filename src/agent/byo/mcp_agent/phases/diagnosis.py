@@ -33,7 +33,7 @@ class McpDiagnosisPhase:
 
     async def run(self, task_description: str) -> tuple[str, bool]:
         """Return ``(diagnosis_report, is_max_steps_reached)``."""
-        logger = MessageLogger(agent=DIAGNOSIS, session_dir=self._session_dir)
+        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self._session_dir)
         request_params = build_mcp_request_params(
             model=self._model,
             max_steps=self._max_steps,

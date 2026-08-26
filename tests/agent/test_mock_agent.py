@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from agent.mock.mock_agent import (
     _mock_diagnosis_tool_calls,
     _pick_pair,
@@ -40,3 +42,11 @@ def test_diagnosis_calls_use_lab_hosts_not_hardcoded_pc() -> None:
     assert by_name["frr_show_ip_route"]["router_name"] == "router_dist_2_1"
     assert "pc1" not in str(calls)
     assert "pc2" not in str(calls)
+
+
+def test_mock_agent_handles_healthy_ground_truth() -> None:
+    """Mock agent submits is_anomaly=false when GT is healthy."""
+    source = Path("src/agent/mock/mock_agent.py").read_text(encoding="utf-8")
+    assert 'gt.get("is_anomaly") is False' in source
+    assert '"is_anomaly": False' in source
+    assert '"root_causes": []' in source

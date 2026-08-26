@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.contract import build_isp_validation_contract
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+from nika.net_env.isp.igp.ifaces import srl_e1_name, srl_ethernet_name
+from nika.net_env.isp.kathara.verify import verify_isp_contract, verify_isp_lab
 from nika.net_env.isp.traffic.models import TrafficInterval, TrafficMatrixSeries
 from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
-from nika.net_env.isp.kathara.verify import verify_isp_contract
+from nika.net_env.net_env_pool import (
+    get_net_env_instance,
+    resolve_scenario_backend,
+    scenario_supported_backends,
+)
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
 
@@ -150,3 +158,60 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
     )
     assert reachability_result.evidence["command"].startswith("ping -c 1")
     assert reachability_result.evidence["output"] == "1 packets received"
+
+
+@pytest.mark.unit
+def test_isp_backend_resolution() -> None:
+    assert scenario_supported_backends("isp") == ["kathara", "containerlab"]
+    assert (
+        resolve_scenario_backend("isp", default_when_ambiguous="kathara") == "kathara"
+    )
+    with pytest.raises(ValueError, match="pass --backend"):
+        resolve_scenario_backend("isp")
+
+
+@pytest.mark.unit
+def test_clab_rejects_kathara_only_rpki_mode() -> None:
+    with pytest.raises(ValueError, match="Kathara"):
+        get_net_env_instance(
+            "isp",
+            backend="containerlab",
+            topo="abilene",
+            bgp_mode="ebgp",
+            rpki=True,
+            device_profile="nokia_srlinux",
+        )
+
+
+@pytest.mark.unit
+def test_iface_mapping() -> None:
+    assert srl_e1_name("eth0") == "e1-1"
+    assert srl_ethernet_name("eth0") == "ethernet-1/1"
+
+
+class _FakeRuntime:
+    def __init__(self, *, nodes: set[str] | None = None, overrides: dict | None = None):
+        self.nodes = nodes or set()
+        self.overrides = overrides or {}
+
+    def list_nodes(self) -> list[str]:
+        return sorted(self.nodes)
+
+    def exec(self, host: str, command: str, timeout: float = 10.0) -> str:
+        return self.overrides.get((host, command), "1 packets received")
+
+
+@pytest.mark.unit
+def test_verify_success_isis() -> None:
+    topo = NetworkTopology(
+        name="tiny",
+        source_format="sndlib-xml",
+        meta={},
+        nodes=(TopoNode(id="A"), TopoNode(id="B")),
+        links=(TopoLink(id="L1", source="A", target="B"),),
+        demands=(),
+    )
+    plan = compile_isp_plan(IspConfig(topology="polska", igp="isis"), topology=topo)
+    devices = {n.device_name for n in plan.nodes}
+    result = verify_isp_lab(_FakeRuntime(nodes=devices), plan=plan, scenario_name="isp")
+    assert result["verified"]

@@ -50,12 +50,12 @@ Per-trial `run.json` is stamped with the same release identity fields plus `tria
 
 | File | Count | Role |
 |------|------:|------|
-| `benchmark_selected.yaml` | **122** | Editable curated suite with one balanced ISP core per compatible failure and tier (source for freezing a release) |
-| `benchmark_full.yaml` | **1,070** | Full scenario × failure × size matrix (74 represented problem IDs) |
+| `benchmark_selected.yaml` | **130** | Editable curated suite with one balanced ISP core per compatible failure and tier, plus healthy baselines (source for freezing a release) |
+| `benchmark_full.yaml` | **1,104** | Full scenario × failure × size matrix (74 represented problem IDs) plus healthy baselines |
 
 Ad-hoc `--config` uses the **same** batch orchestrator and `trials/{case_key}__t01/` layout as release runs, with `n_trials=1` (no release `run.json` / `runtime/benchmark_runs` progress unless you go through `--release`).
 
-Each case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. Case identity is `scenario` + `problem` + `topo_size` + `inject`, plus the materialized `topo` / `igp` / `bgp_mode` / `rpki` profile for `isp`. ISP uses `topo` only inside benchmark rows; operators select ordinary ISP labs with `-s`. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
+Each fault case includes an `inject` map that NIKA passes to `nika failure inject` as `--set` flags. Device names must match the target scenario topology. Working matrices carry materialized `root_causes`. NIKA derives these labels from the failure implementation and checks them again during injection. Healthy (no-fault) cases use `problem: healthy` with an empty `inject` map and `root_causes: []`; the runner skips injection and writes `is_anomaly: false` ground truth. Case identity is `scenario` + `problem` + `topo_size` + `inject`, plus the materialized `topo` / `igp` / `bgp_mode` / `rpki` profile for `isp`. ISP uses `topo` only inside benchmark rows; operators select ordinary ISP labs with `-s`. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 
 ```shell
 nika benchmark run --config benchmark/benchmark_selected.yaml
@@ -132,35 +132,36 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 |--------|------:|
 | Registered failure types | 74 |
 | Failure types represented in `benchmark_full.yaml` | 74 |
-| Full benchmark cases | 1,070 |
-| Selected cases | 122 |
+| Full benchmark cases | 1,104 |
+| Selected cases | 130 |
 
 ### Full matrix by scenario
 
 | Scenario | Cases |
 |----------|------:|
-| `isp` | 445 |
-| `campus_lan` | 108 |
-| `p4_dc_gateway` | 105 |
-| `dc_clos` | 99 |
-| `enterprise_branch` | 99 |
-| `p4_dc_fabric` | 81 |
-| `sdn_l3_clos` | 72 |
-| `k8s_lab` | 26 |
-| `llmd_lab` | 23 |
-| `min3clos` | 12 |
+| `isp` | 446 |
+| `campus_lan` | 114 |
+| `p4_dc_gateway` | 108 |
+| `dc_clos` | 105 |
+| `enterprise_branch` | 105 |
+| `p4_dc_fabric` | 84 |
+| `sdn_l3_clos` | 78 |
+| `k8s_lab` | 27 |
+| `llmd_lab` | 24 |
+| `min3clos` | 13 |
+
 
 ### Selected / release matrix by scenario
 
 | Scenario | Cases |
 |----------|------:|
-| `campus_lan` | 29 |
-| `dc_clos` | 13 |
-| `p4_dc_fabric` | 8 |
-| `p4_dc_gateway` | 8 |
-| `sdn_l3_clos` | 5 |
-| `enterprise_branch` | 5 |
-| `isp` | 54 |
+| `isp` | 55 |
+| `campus_lan` | 30 |
+| `dc_clos` | 15 |
+| `p4_dc_fabric` | 9 |
+| `p4_dc_gateway` | 9 |
+| `sdn_l3_clos` | 6 |
+| `enterprise_branch` | 6 |
 
 Release `0.1.0` still lists a `host_vpn_membership_missing` row on the legacy RIP VPN lab id. Loaders rewrite that id to `wireguard_peer_key_misconfiguration` on `enterprise_branch` with a Site Edge inject target. The same release still lists `link_fragmentation_disabled`; loaders rewrite it to `mtu_mismatch` and update `fault_type` in `root_causes`. The same release still names `p4_counter`; loaders rewrite that id to `p4_dc_fabric` with topo size `s`.
 
@@ -205,6 +206,24 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>link_capacity_bottleneck</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
 <tr>
 <td><code>link_detach</code></td>
 <td align="center">○</td>
@@ -441,7 +460,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -459,7 +478,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -681,16 +700,16 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>icmp_frag_needed_filter_misconfiguration</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -745,11 +764,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>ospf_acl_block</code></td>
@@ -759,7 +778,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1520,24 +1539,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 </tr>
 <tr>
-<td><code>sender_application_delay</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-</tr>
-<tr>
 <td><code>sender_resource_contention</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -1604,24 +1605,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 </tr>
 <tr>
-<td><code>link_bandwidth_throttling</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-</tr>
-<tr>
 <td><code>p4_ecn_threshold_misconfiguration</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1637,6 +1620,24 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tcp_receive_window_limited</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 </tbody>
@@ -1789,7 +1790,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -1798,7 +1799,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tbody>
 </table>
 
-When you add, remove, or retarget cases (new failure, new scenario, or a `TAGS` / registry change that changes compatibility), refresh this section in the same change.
+When you add, remove, or retarget cases (new failure, new scenario, or a `TAGS` / `COMPATIBLE_COLUMNS` / registry change that changes compatibility), refresh this section in the same change.
 
 ## Regeneration
 

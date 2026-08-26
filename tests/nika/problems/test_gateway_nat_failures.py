@@ -1,5 +1,5 @@
 from nika.net_env.p4_dc_gateway.l4_lb import L4GatewayState, bucket_for
-from nika.problems.prob_pool import get_problem_class
+from nika.problems.registry import get_problem_class
 from benchmark.inject_resolve import resolve_inject_params
 
 

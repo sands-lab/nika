@@ -14,12 +14,12 @@ from nika.net_env.sdn_l3_clos.topology_model import (
     dpid_for_leaf,
     dpid_for_spine,
 )
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     ProblemBase,
     build_verify_result,
 )
-from nika.problems.root_cause import node_resource
+from nika.problems.rca import node_resource
 
 
 def _device_id_for_switch(switch: str) -> str:

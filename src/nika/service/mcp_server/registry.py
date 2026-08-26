@@ -9,7 +9,9 @@ from typing import Literal
 from nika.config import MCP_SERVER_DIR
 
 Backend = Literal["kathara", "containerlab"]
-Role = Literal["host", "routing", "switch", "telemetry", "task", "kubernetes"]
+Role = Literal[
+    "host", "routing", "switch", "telemetry", "task", "kubernetes", "observability"
+]
 ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
@@ -49,6 +51,12 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         backend=None,
         role="host",
         module="common/pingmesh_server.py",
+    ),
+    "packet_capture_mcp_server": MCPServerSpec(
+        name="packet_capture_mcp_server",
+        backend=None,
+        role="observability",
+        module="common/packet_capture_server.py",
     ),
     "task_mcp_server": MCPServerSpec(
         name="task_mcp_server",
@@ -102,6 +110,7 @@ MCP_SERVER_PREFIXES: tuple[str, ...] = tuple(f"{name}_" for name in MCP_SERVER_S
 
 DIAGNOSIS_HOST_SERVER = "kathara_base_mcp_server"
 DIAGNOSIS_PINGMESH_SERVER = "pingmesh_mcp_server"
+DIAGNOSIS_PACKET_CAPTURE_SERVER = "packet_capture_mcp_server"
 SUBMISSION_SERVER = "task_mcp_server"
 K8S_MCP_SERVER = "k8s_mcp_server"
 
@@ -166,7 +175,11 @@ def select_diagnosis_servers(
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
     tokens = _scenario_tokens(scenario_name)
-    servers = [DIAGNOSIS_HOST_SERVER, DIAGNOSIS_PINGMESH_SERVER]
+    servers = [
+        DIAGNOSIS_HOST_SERVER,
+        DIAGNOSIS_PINGMESH_SERVER,
+        DIAGNOSIS_PACKET_CAPTURE_SERVER,
+    ]
 
     if backend == "containerlab" and tokens & ROUTING_KEYWORDS:
         servers.append("containerlab_srl_mcp_server")

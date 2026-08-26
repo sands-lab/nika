@@ -19,13 +19,15 @@ import yaml
 
 from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import list_all_net_envs, scenario_requires_topo_size
-from nika.problems.ground_truth import ground_truth_for_case
-from nika.problems.prob_pool import list_avail_problem_instances
-from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
-from nika.problems.topology_inventory import load_offline_net_env
-from nika.workflows.benchmark.compatibility import (
-    _PROBLEM_COLUMN_ALLOWLIST,
-    parse_column,
+from nika.problems.rca.materialize import ground_truth_for_case
+from nika.problems.registry import list_avail_problem_instances
+from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
+from nika.problems.rca.inventory import load_offline_net_env
+from nika.workflows.benchmark.healthy import (
+    HEALTHY_ISP_OPTIONS,
+    HEALTHY_PROBLEM,
+    SELECTED_HEALTHY_SCENARIOS,
+    is_healthy_case,
 )
 from nika.workflows.benchmark.isp_options import (
     ISP_SCENARIO,
@@ -120,7 +122,7 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "http_acl_block": "campus_lan",
     "icmp_acl_block": "campus_lan",
     "incast_traffic_network_limitation": "campus_lan",
-    "link_bandwidth_throttling": "dc_clos",
+    "link_capacity_bottleneck": "dc_clos",
     "link_detach": "dc_clos",
     "link_down": "dc_clos",
     "link_flap": "dc_clos",
@@ -151,10 +153,10 @@ SELECTED_SCENARIO_FOR_PROBLEM: dict[str, str] = {
     "nat_mapping_removed_without_drain": "enterprise_branch",
     "receiver_resource_contention": "campus_lan",
     "sdn_controller_crash": "sdn_l3_clos",
-    "sender_application_delay": "campus_lan",
-    "sender_resource_contention": "campus_lan",
+    "sender_resource_contention": "dc_clos",
     "southbound_port_block": "sdn_l3_clos",
     "southbound_port_mismatch": "sdn_l3_clos",
+    "tcp_receive_window_limited": "enterprise_branch",
     "web_dos_attack": "campus_lan",
     "wireguard_allowed_ips_misconfiguration": "enterprise_branch",
     "wireguard_peer_key_misconfiguration": "enterprise_branch",
@@ -174,6 +176,55 @@ FULL_ONLY_PROBLEMS: set[str] = {
 
 # Problems kept in the registry but excluded from working matrices.
 ORPHANED_PROBLEMS: set[str] = set()
+
+
+def _make_healthy_row(
+    scenario: str,
+    topo_size: str,
+    *,
+    isp_options: dict | None = None,
+) -> dict:
+    row: dict = {
+        "scenario": scenario,
+        "topo_size": topo_size or None,
+        "problem": HEALTHY_PROBLEM,
+        "inject": {},
+        "root_causes": [],
+    }
+    if scenario == ISP_SCENARIO:
+        options = dict(isp_options or HEALTHY_ISP_OPTIONS)
+        row.update(options)
+    elif isp_options:
+        row.update(isp_options)
+    return row
+
+
+def _iter_healthy_cases(*, selected: bool) -> list[dict]:
+    net_envs = list_all_net_envs()
+    rows: list[dict] = []
+    if selected:
+        scenarios = list(SELECTED_HEALTHY_SCENARIOS)
+        for scenario in scenarios:
+            if scenario not in net_envs:
+                raise ValueError(f"Unknown healthy scenario {scenario!r}")
+            if scenario == ISP_SCENARIO:
+                rows.append(
+                    _make_healthy_row(scenario, "s", isp_options=HEALTHY_ISP_OPTIONS)
+                )
+            else:
+                topo_size = "s" if scenario_requires_topo_size(scenario) else ""
+                rows.append(_make_healthy_row(scenario, topo_size))
+        return rows
+
+    for scenario in sorted(net_envs):
+        if scenario == ISP_SCENARIO:
+            rows.append(
+                _make_healthy_row(scenario, "s", isp_options=HEALTHY_ISP_OPTIONS)
+            )
+            continue
+        for topo_size in _topo_sizes_for_scenario(scenario):
+            rows.append(_make_healthy_row(scenario, topo_size))
+    return rows
 
 
 def _topo_sizes_for_scenario(scenario: str) -> list[str]:
@@ -244,10 +295,8 @@ def iter_full_cases(*, seed: int) -> list[dict]:
         for net_env_name, net_env_cls in net_envs.items():
             if not problem_tags.issubset(set(net_env_cls.TAGS)):
                 continue
-            allow = _PROBLEM_COLUMN_ALLOWLIST.get(prob_name)
-            if allow is not None and net_env_name not in {
-                parse_column(column)[0] for column in allow
-            }:
+            allowed_scenarios = problem_instance.compatible_scenarios()
+            if allowed_scenarios is not None and net_env_name not in allowed_scenarios:
                 continue
             isp_options = None
             if net_env_name == ISP_SCENARIO:
@@ -299,6 +348,7 @@ def iter_full_cases(*, seed: int) -> list[dict]:
                         isp_options=isp_options,
                     )
                 )
+    rows.extend(_iter_healthy_cases(selected=False))
     return rows
 
 
@@ -313,10 +363,8 @@ def _iter_selected_isp_cases(*, seed: int) -> list[dict]:
             continue
         if not set(problem_class.TAGS).issubset(isp_tags):
             continue
-        allow = _PROBLEM_COLUMN_ALLOWLIST.get(prob_name)
-        if allow is not None and ISP_SCENARIO not in {
-            parse_column(column)[0] for column in allow
-        }:
+        allowed_scenarios = problem_class.compatible_scenarios()
+        if allowed_scenarios is not None and ISP_SCENARIO not in allowed_scenarios:
             continue
         problem_tags = set(problem_class.TAGS)
         for topo_size in ("s", "m", "l"):
@@ -405,14 +453,19 @@ def iter_selected_cases(*, seed: int) -> list[dict]:
             )
         )
     rows.extend(_iter_selected_isp_cases(seed=seed))
+    rows.extend(_iter_healthy_cases(selected=True))
     return rows
 
 
 def _print_stats(label: str, rows: list[dict]) -> None:
     by_scenario = Counter(r["scenario"] for r in rows)
-    by_problem = Counter(r["problem"] for r in rows)
+    by_problem = Counter(
+        r["problem"] for r in rows if not is_healthy_case(r.get("problem"))
+    )
+    healthy_n = sum(1 for r in rows if is_healthy_case(r.get("problem")))
     print(
-        f"\n{label}: {len(rows)} cases, {len(by_problem)} problems, {len(by_scenario)} scenarios"
+        f"\n{label}: {len(rows)} cases, {len(by_problem)} problems, "
+        f"{len(by_scenario)} scenarios, {healthy_n} healthy"
     )
     for scenario, count in sorted(by_scenario.items(), key=lambda x: (-x[1], x[0])):
         print(f"  {scenario}: {count}")

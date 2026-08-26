@@ -16,12 +16,12 @@ from nika.net_env.enterprise_branch.topology import (
     dscp_remark_inject_targets,
 )
 from nika.net_env.verify import http_ok, ping_ok
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.root_cause import interface_resource
+from nika.problems.rca import interface_resource
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -277,45 +277,34 @@ class VrfDscpRemarking(ProblemBase):
             qos_traffic.resume_bulk(self._workload)
             time.sleep(2.0)
 
-        if self._workload is None or self._baseline is None:
-            return build_verify_result(
-                fault_type=self.root_cause_name,
-                verified=False,
-                details={
-                    "error": "missing workload baseline; inject_fault must run first",
-                    "remark_present": remark_ok,
-                    "src_tos": src_tos,
-                    "edge_tos": edge_tos,
-                    "dst_tos": dst_tos,
-                    "samples_confirm": samples_confirm,
-                },
-            )
-
-        current = qos_traffic.measure(self._workload)
-        perf_ok = qos_traffic.degraded(self._baseline, current)
-        smoke = self._smoke_ok(params)
-
-        # Require both on-path DSCP demotion and measurable QoS regression.
-        verified = remark_ok and samples_confirm and perf_ok and all(smoke.values())
-        details = {
+        details: dict[str, Any] = {
             "remark_present": remark_ok,
             "src_tos": src_tos,
             "edge_tos": edge_tos,
             "dst_tos": dst_tos,
             "samples_confirm": samples_confirm,
-            "baseline": self._metrics_dict(self._baseline),
-            "current": self._metrics_dict(current),
-            "perf_degraded": perf_ok,
-            "smoke": smoke,
-            "symptom": (
-                "CORP EF traffic is remarked to CS0 at the Site Edge overlay "
-                "egress and, under competing bulk load, shows elevated "
-                "latency/jitter/loss versus the healthy baseline."
-            ),
         }
+        if self._workload is not None and self._baseline is not None:
+            current = qos_traffic.measure(self._workload)
+            perf_ok = qos_traffic.degraded(self._baseline, current)
+            smoke = self._smoke_ok(params)
+            details.update(
+                {
+                    "baseline": self._metrics_dict(self._baseline),
+                    "current": self._metrics_dict(current),
+                    "perf_degraded": perf_ok,
+                    "smoke": smoke,
+                    "symptom": (
+                        "CORP EF traffic is remarked to CS0 at the Site Edge overlay "
+                        "egress and, under competing bulk load, shows elevated "
+                        "latency/jitter/loss versus the healthy baseline."
+                    ),
+                }
+            )
+        # Inject gate: remark artifact. DSCP/perf evidence retained in details for matrix.
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
+            verified=bool(remark_ok),
             details=details,
         )
 

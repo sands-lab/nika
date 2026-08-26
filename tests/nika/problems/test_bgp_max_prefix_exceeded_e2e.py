@@ -11,7 +11,7 @@ import pytest
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.isp.inject_targets import isp_inject_params
-from nika.problems.prob_pool import get_problem_class
+from nika.problems.registry import get_problem_class
 from nika.service.kathara import KatharaFRRAPI
 from nika.utils.session_store import SessionStore
 from nika.workflows.eval.session import run_eval_metrics
@@ -24,7 +24,6 @@ from tests.agent._assertions import (
 from tests.nika.workflows.integration import pipeline_case
 from tests.support.integration_base import IntegrationTestCase, OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
-    anthropic_api_key_available,
     deepseek_api_key_available,
     load_test_env,
 )
@@ -33,7 +32,7 @@ from tests.support.prerequisites import docker_available
 load_test_env()
 
 PROBLEM = "bgp_max_prefix_exceeded"
-ENV_ARGS = ["--topo", "abilene", "--igp", "isis", "--bgp-mode", "ebgp"]
+ENV_ARGS = ["--topo", "abilene", "--igp", "ospf", "--bgp-mode", "ebgp"]
 AGENT_MAX_STEPS = 40
 _BGP_TOOLS = (
     "frr_get_routing_state",
@@ -47,14 +46,14 @@ _BGP_TOOLS = (
 
 
 def _inject_params() -> dict[str, str]:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="isis"))
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
     bgp = compile_bgp_plan(isp_plan, "ebgp")
     assert bgp is not None
     return isp_inject_params(PROBLEM, isp_plan.inventory, bgp.inventory)
 
 
 def _abilene_nodes() -> frozenset[str]:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="isis"))
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
     routers = sorted(str(n["device"]) for n in isp_plan.inventory["nodes"])
     # Edge stubs are always attached for ISP Kathara labs.
     stubs = [f"pc_{r}" for r in routers]
@@ -66,7 +65,7 @@ def _diagnosis_tool_names(messages: list[dict]) -> list[str]:
 
     names: list[str] = []
     for entry in messages:
-        if entry.get("agent") != DIAGNOSIS:
+        if entry["phase"] != DIAGNOSIS:
             continue
         names.extend(n for n in _extract_tool_names(entry) if n)
     return names
@@ -241,15 +240,6 @@ class _BGPMaxPrefixAgentPipelineBase(OrderedPipelineTestCase):
 class TestBGPMaxPrefixExceededAgentDeepseek(_BGPMaxPrefixAgentPipelineBase):
     llm_provider = "deepseek"
     model = "deepseek-chat"
-
-
-@pytest.mark.skipif(
-    not (docker_available() and anthropic_api_key_available()),
-    reason="Docker and ANTHROPIC_API_KEY required for max-prefix agent e2e",
-)
-class TestBGPMaxPrefixExceededAgentAnthropic(_BGPMaxPrefixAgentPipelineBase):
-    llm_provider = "anthropic"
-    model = "claude-haiku-4-5"
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")

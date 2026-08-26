@@ -2,9 +2,9 @@
 
 from pydantic import BaseModel, Field
 
-from nika.problems.root_cause import node_resource
+from nika.problems.rca import node_resource
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
@@ -31,7 +31,11 @@ class Bmv2SwitchDown(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: Bmv2SwitchDownParams):
-        self.runtime.exec(params.host_name, "pkill simple_switch")
+        self.runtime.exec(
+            params.host_name,
+            "pkill -9 simple_switch 2>/dev/null || true; "
+            "pkill -9 simple_switch_grpc 2>/dev/null || true",
+        )
 
     def verify_fault(self, params: Bmv2SwitchDownParams) -> dict:
         """Verify simple_switch process is NOT running on the BMv2 switch."""

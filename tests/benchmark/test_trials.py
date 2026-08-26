@@ -195,9 +195,8 @@ class TestTrialHelpers:
                     "root_causes": [
                         {
                             "resource": {
-                                "kind": "interface",
-                                "node": "pc1",
-                                "name": "eth0",
+                                "kind": "link",
+                                "name": "pc1:eth0--router1:eth1",
                             },
                             "fault_type": "link_down",
                         }
@@ -212,7 +211,7 @@ class TestTrialHelpers:
                     "is_anomaly": True,
                     "root_causes": [
                         {
-                            "resource_id": "interface/pc1/eth0",
+                            "resource_id": "link/pc1:eth0--router1:eth1",
                             "fault_type": "link_down",
                         }
                     ],
@@ -800,7 +799,7 @@ class TestReleaseRunE2E:
                 model="mock-v1",
                 max_steps=20,
                 result_dir=str(result_dir),
-                case_timeout=600,
+                case_timeout=0,
                 check_images=False,
                 release=release,
             )
@@ -856,7 +855,79 @@ class TestReleaseRunE2E:
                 model="mock-v1",
                 max_steps=20,
                 result_dir=str(result_dir),
-                case_timeout=600,
+                case_timeout=0,
+                check_images=False,
+                release=release,
+            )
+            assert mocked_trial.call_count == 0
+
+
+@pytest.mark.skipif(
+    not docker_available(), reason="Docker required for agent_failed resume E2E"
+)
+class TestAgentFailedResumeDockerE2E:
+    """Real lab + forced agent failure must count; resume must not re-run."""
+
+    def test_agent_failed_trial_is_skipped_on_resume(self, tmp_path: Path) -> None:
+        source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
+        release = freeze_release(
+            version="agent-failed-e2e",
+            source_cases=source,
+            out_dir=tmp_path / "releases" / "agent-failed-e2e",
+        )
+        release = replace(release, defaults={**release.defaults, "n_trials": 1})
+        result_dir = tmp_path / "agent-failed-e2e-run"
+        runs_dir = tmp_path / "benchmark_runs"
+
+        with (
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                runs_dir,
+            ),
+            patch(
+                "nika.workflows.benchmark.run.start_agent",
+                side_effect=RuntimeError("forced agent failure for resume e2e"),
+            ),
+        ):
+            run_benchmark_from_release(
+                release_ref="agent-failed-e2e",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=20,
+                result_dir=str(result_dir),
+                case_timeout=0,
+                check_images=False,
+                release=release,
+            )
+
+        row = release.cases[0]
+        key = case_key_for_row(row)
+        trial_path = trial_dir(result_dir, key, 1)
+        assert is_valid_trial(trial_path)
+        run_meta = json.loads((trial_path / "run.json").read_text(encoding="utf-8"))
+        assert run_meta["outcome"] == "agent_failed"
+        assert run_meta["status"] == "finished"
+        assert (trial_path / "ground_truth.json").is_file()
+        assert not (trial_path / "submission.json").exists()
+
+        with (
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                runs_dir,
+            ),
+            patch("nika.workflows.benchmark.run._run_trial") as mocked_trial,
+        ):
+            run_benchmark_from_release(
+                release_ref="agent-failed-e2e",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=20,
+                result_dir=str(result_dir),
+                case_timeout=0,
                 check_images=False,
                 release=release,
             )

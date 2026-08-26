@@ -87,8 +87,8 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             require_diagnosis_tools=True,
             require_submission_tools=False,
         )
-        agents = {e["agent"] for e in messages}
-        assert DIAGNOSIS in agents
+        phases = {e["phase"] for e in messages}
+        assert DIAGNOSIS in phases
 
     def test_step_05_session_close(self) -> None:
         if type(self)._agent_run_failed:

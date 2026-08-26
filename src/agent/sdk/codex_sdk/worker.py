@@ -12,7 +12,11 @@ from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.cli.codex.codex_display import format_codex_event
 from agent.cli.codex.codex_worker import _build_mcp_toml, prepare_codex_subprocess_env
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
-from agent.utils.loggers import MessageLogger
+from agent.utils.loggers import (
+    MessageLogger,
+    PendingToolCallTracker,
+    tool_event_payload,
+)
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_codex_workspace
@@ -72,7 +76,8 @@ class CodexSdkWorker:
         self._stream_output = stream_output
         self.workspace = Path(session_dir) / "codex_sdk_workspace"
         self._codex_home = self.workspace / ".codex_home"
-        self._logger = MessageLogger(agent=phase, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
+        self._pending_tool_calls = PendingToolCallTracker()
 
     def _setup_workspace(self) -> None:
         self.workspace.mkdir(parents=True, exist_ok=True)
@@ -140,14 +145,14 @@ class CodexSdkWorker:
             ):
                 item = _unwrap_thread_item(payload.item)
                 if isinstance(item, McpToolCallThreadItem):
+                    item_id = getattr(item, "id", None)
                     self._logger.log(
                         "tool_start",
-                        {
-                            "tool": {"name": item.tool},
-                            "input": json.dumps(item.arguments, ensure_ascii=False)
-                            if item.arguments is not None
-                            else "{}",
-                        },
+                        self._pending_tool_calls.register(
+                            name=item.tool,
+                            input=item.arguments,
+                            tool_call_id=item_id,
+                        ),
                     )
                     self._log_codex_event(
                         {
@@ -168,12 +173,30 @@ class CodexSdkWorker:
                 items.append(payload.item)
                 if isinstance(item, McpToolCallThreadItem):
                     output = _mcp_result_text(item.result)
+                    item_id = getattr(item, "id", None)
+                    resolved = self._pending_tool_calls.resolve(
+                        name=item.tool,
+                        tool_call_id=item_id,
+                        input=item.arguments,
+                    )
+                    correlation = tool_event_payload(
+                        name=item.tool or resolved.get("name") or None,
+                        input=resolved.get("input") or item.arguments,
+                        tool_call_id=item_id,
+                    )
                     if item.error is not None:
-                        self._logger.log("tool_error", {"output": str(item.error)})
+                        self._logger.log(
+                            "tool_error",
+                            {**correlation, "output": str(item.error)},
+                        )
                     else:
                         self._logger.log(
                             "tool_end",
-                            {"output": output, "output_type": "tool_result"},
+                            {
+                                **correlation,
+                                "output": output,
+                                "output_type": "tool_result",
+                            },
                         )
                     self._log_codex_event(
                         {

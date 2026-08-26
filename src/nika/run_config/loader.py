@@ -91,6 +91,7 @@ def merge_cli(
     model: str | None = None,
     max_steps: int | None = None,
     reasoning_effort: str | None = None,
+    access_role: str | None = None,
     result_dir: str | None = None,
     judge_provider: str | None = None,
     judge_model: str | None = None,
@@ -124,6 +125,8 @@ def merge_cli(
         agent_overlay["max_steps"] = max_steps
     if reasoning_effort is not None:
         agent_overlay["reasoning_effort"] = reasoning_effort
+    if access_role is not None:
+        agent_overlay["access"] = {"role": access_role}
     if agent_overlay:
         overlay["agent"] = agent_overlay
 

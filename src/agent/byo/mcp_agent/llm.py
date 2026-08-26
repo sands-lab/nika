@@ -7,7 +7,11 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm_anthropic import AnthropicAugmentedLLM
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 
-from agent.utils.loggers import MessageLogger
+from agent.utils.loggers import (
+    MessageLogger,
+    PendingToolCallTracker,
+    tool_event_payload,
+)
 from agent.utils.usage import normalize_usage
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
 
@@ -64,6 +68,9 @@ class _NikaToolLoggingMixin:
         super().__init__(*args, **kwargs)
         self._nika_logger = nika_logger
         self._max_iterations_reached = False
+        self._pending_tool_calls: PendingToolCallTracker | None = (
+            PendingToolCallTracker() if nika_logger is not None else None
+        )
 
     @property
     def max_iterations_reached(self) -> bool:
@@ -72,14 +79,13 @@ class _NikaToolLoggingMixin:
     async def pre_tool_call(
         self, tool_call_id: str | None, request: CallToolRequest
     ) -> CallToolRequest | bool:
-        if self._nika_logger is not None:
-            self._nika_logger.log(
-                "tool_start",
-                {
-                    "tool": {"name": _short_tool_name(request.params.name)},
-                    "input": str(request.params.arguments),
-                },
+        if self._nika_logger is not None and self._pending_tool_calls is not None:
+            payload = self._pending_tool_calls.register(
+                name=_short_tool_name(request.params.name),
+                input=request.params.arguments,
+                tool_call_id=tool_call_id,
             )
+            self._nika_logger.log("tool_start", payload)
         return await super().pre_tool_call(tool_call_id=tool_call_id, request=request)
 
     async def post_tool_call(
@@ -88,13 +94,31 @@ class _NikaToolLoggingMixin:
         request: CallToolRequest,
         result: CallToolResult,
     ) -> CallToolResult:
-        if self._nika_logger is not None:
+        if self._nika_logger is not None and self._pending_tool_calls is not None:
+            tool_name = _short_tool_name(request.params.name)
+            resolved = self._pending_tool_calls.resolve(
+                name=tool_name,
+                tool_call_id=tool_call_id,
+                input=request.params.arguments,
+            )
+            correlation = tool_event_payload(
+                name=tool_name or resolved.get("name") or None,
+                input=resolved.get("input") or request.params.arguments,
+                tool_call_id=tool_call_id,
+            )
             if result.isError:
-                self._nika_logger.log("tool_error", {"error": str(result.content)})
+                self._nika_logger.log(
+                    "tool_error",
+                    {**correlation, "error": str(result.content)},
+                )
             else:
                 self._nika_logger.log(
                     "tool_end",
-                    {"output": str(result.content), "output_type": "CallToolResult"},
+                    {
+                        **correlation,
+                        "output": str(result.content),
+                        "output_type": "CallToolResult",
+                    },
                 )
         return await super().post_tool_call(
             tool_call_id=tool_call_id, request=request, result=result

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import FailureDomain, ProblemBase, build_verify_result
-from nika.problems.root_cause import node_resource
+from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
+from nika.problems.rca import node_resource
 from nika.problems.support.p4_gateway import (
     exhaust_lb_conn_table,
     lb_state,

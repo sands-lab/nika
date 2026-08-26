@@ -7,7 +7,7 @@ import random
 from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
-from nika.problems.prob_pool import list_avail_problem_instances
+from nika.problems.registry import list_avail_problem_instances
 
 DEFAULT_SEED = 42
 
@@ -73,25 +73,41 @@ def _first(items: list[str] | None) -> str | None:
     return items[0] if items else None
 
 
-def _routers_with_bgp_network(routers: list[str]) -> list[str]:
+def _enterprise_branch_corp_hosts(hosts: list[str]) -> list[str]:
+    """CORP/SERVER hosts on the overlay business path (exclude guest/iot)."""
+    corp = [
+        h for h in hosts if "_corp_pc" in h or h.endswith("_srv") or h.endswith("_srv2")
+    ]
+    if corp:
+        return corp
+    return [h for h in hosts if "_guest_pc" not in h and "_iot_pc" not in h]
+
+
+def _enterprise_branch_edge_routers(routers: list[str]) -> list[str]:
+    return [r for r in routers if r.endswith("_edge")] or list(routers)
+
+
+def _routers_with_bgp_network(routers: list[str], *, scenario: str = "") -> list[str]:
     """Routers that originate BGP ``network`` statements in Clos-style labs.
 
     Spines (and ``dc_clos`` super-spines without a client subnet) only peer and
     have no ``network`` lines, so commenting those out is a no-op. Prefer leaves;
     fall back to the full pool when the topology does not use leaf role names.
     """
+    if scenario == "enterprise_branch":
+        return _enterprise_branch_edge_routers(routers)
     advertisers = [r for r in routers if "leaf" in r]
     return advertisers or list(routers)
 
 
-def _routers_with_victim_hosts(routers: list[str]) -> list[str]:
+def _routers_with_victim_hosts(routers: list[str], *, scenario: str = "") -> list[str]:
     """Routers that have end hosts for ``resolve_victim_host()``.
 
     Clos spines / super-spines only connect to other routers, so blackhole /
     hijack / leak injectors that call ``resolve_victim_host`` fail on them.
     Prefer leaf routers when the topology uses that naming.
     """
-    return _routers_with_bgp_network(routers)
+    return _routers_with_bgp_network(routers, scenario=scenario)
 
 
 # Legacy host-level WireGuard peer names are unused; Site Edge VPN uses
@@ -206,6 +222,127 @@ def _choice_interface(
     return _default_interface(backend)
 
 
+def _first_iface(ifaces: list[str], fallback: str = "eth0") -> str:
+    if not ifaces:
+        return fallback
+    return sorted(ifaces, key=lambda name: (len(name), name))[0]
+
+
+def _resolve_path_mtu_target(
+    scenario: str,
+    net_env,
+    rng: random.Random,
+    routers: list[str],
+    backend: str,
+) -> dict[str, str]:
+    """Pick an intermediate L3 egress for real path-MTU reduction."""
+    ifaces_by_device = _device_interfaces(net_env)
+    params: dict[str, str] = {"mtu": "500"}
+
+    if scenario == "dc_clos":
+        # Lower MTU on the leaf host-facing egress that serves the default
+        # webserver probe target (unique hop; avoids SS ECMP bypass).
+        from nika.problems.rca.inventory import (
+            iter_link_termination_points,
+            parse_endpoint,
+        )
+
+        web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
+        host = None
+        intf = None
+        for web in web_hosts:
+            needle_prefix = f"{web}:"
+            for _key, tps in iter_link_termination_points(net_env):
+                endpoints = [str(ep) for ep in tps]
+                web_ep = next(
+                    (ep for ep in endpoints if ep.startswith(needle_prefix)), None
+                )
+                if web_ep is None or len(endpoints) != 2:
+                    continue
+                other = endpoints[0] if endpoints[1] == web_ep else endpoints[1]
+                peer_host, peer_intf = parse_endpoint(other)
+                if peer_host.startswith("leaf_router_"):
+                    host = peer_host
+                    intf = peer_intf
+                    break
+            if host is not None:
+                break
+        if host is None:
+            candidates = [n for n in routers if str(n).startswith("leaf_router_")]
+            host = (
+                "leaf_router_0_1"
+                if "leaf_router_0_1" in candidates
+                else _choice(rng, candidates, "leaf_router_0_0")
+            )
+            host_ifaces = ifaces_by_device.get(host) or ["eth0"]
+            ordered = sorted(host_ifaces, key=lambda name: (len(name), name))
+            intf = ordered[-1] if ordered else "eth0"
+        params.update(host_name=host, intf_name=intf or "eth0")
+        return params
+
+    if scenario == "campus_lan":
+        candidates = [
+            n for n in routers if "router_core" in n or "router_dist" in n
+        ] or list(routers)
+        host = _choice(
+            rng, candidates, candidates[0] if candidates else "router_core_1"
+        )
+        params.update(
+            host_name=host,
+            intf_name=_first_iface(ifaces_by_device.get(host) or [], "eth0"),
+        )
+        return params
+
+    if scenario == "enterprise_branch":
+        host = (
+            "br1_edge"
+            if "br1_edge" in routers
+            else _choice(rng, list(routers), "br1_edge")
+        )
+        host_ifaces = ifaces_by_device.get(host) or []
+        if "eth2" in host_ifaces:
+            intf = "eth2"
+        elif host_ifaces:
+            intf = host_ifaces[-1]
+        else:
+            intf = "eth2"
+        params.update(host_name=host, intf_name=intf)
+        return params
+
+    if scenario == "k8s_lab":
+        candidates = [
+            n for n in routers if "leaf" in str(n) or "spine" in str(n)
+        ] or list(routers)
+        host = _choice(rng, candidates, candidates[0] if candidates else "leaf_0_0")
+        params.update(
+            host_name=host,
+            intf_name=_first_iface(ifaces_by_device.get(host) or [], "eth0"),
+        )
+        return params
+
+    if scenario == "isp":
+        from nika.net_env.isp.inject_targets import isp_inject_params
+
+        inventory = getattr(net_env, "inventory", None)
+        if not isinstance(inventory, dict):
+            inventory = {}
+        link_params = isp_inject_params(
+            "link_capacity_bottleneck", inventory, inventory.get("bgp")
+        )
+        params.update(
+            host_name=str(link_params["host_name"]),
+            intf_name=str(link_params["intf_name"]),
+        )
+        return params
+
+    host = _choice(rng, list(routers), "router1")
+    params.update(
+        host_name=host,
+        intf_name=_choice_interface(rng, net_env, host, backend),
+    )
+    return params
+
+
 def _dns_record_targets(net_env, rng: random.Random) -> tuple[str, str]:
     urls = getattr(net_env, "web_urls", None) or []
     if urls:
@@ -223,13 +360,22 @@ def _dns_record_targets(net_env, rng: random.Random) -> tuple[str, str]:
 
 
 def _mac_conflict_pair(net_env, rng: random.Random) -> tuple[str, str]:
+    """Prefer two distinct endpoint hosts so L2 MAC conflict is observable."""
+    hosts = list(net_env.hosts or [])
+    servers = net_env.servers or {}
+    for bucket in servers.values():
+        for name in bucket or []:
+            if name not in hosts:
+                hosts.append(name)
+    if len(hosts) >= 2:
+        pair = _choice_distinct(rng, hosts, hosts[0])
+        return pair[0], pair[1]
     topo = net_env.get_topology()
     if topo:
         link = rng.choice(topo)
         device_a = link[0].split(":")[0]
         device_b = link[1].split(":")[0]
         return device_a, device_b
-    hosts = net_env.hosts or []
     pair = _choice_distinct(rng, hosts, "pc1")
     return pair[0], pair[1]
 
@@ -384,6 +530,27 @@ def _scenario_device_pools(scenario: str, net_env) -> dict[str, list[str]]:
             "web": web_pool or client_pool,
             "attacker_pool": client_pool,
         }
+    if scenario == "enterprise_branch":
+        corp_pool = _enterprise_branch_corp_hosts(hosts)
+        edge_pool = _enterprise_branch_edge_routers(routers)
+        hq_web = [h for h in corp_pool if h.startswith("hq_")] or corp_pool
+        br_attacker = [h for h in corp_pool if h.startswith("br1_")] or corp_pool
+        return {
+            "hosts": corp_pool,
+            "host1_pool": corp_pool,
+            "routers": edge_pool,
+            "edges": edge_pool,
+            "web": hq_web,
+            "attacker_pool": br_attacker,
+        }
+    if scenario == "campus_lan":
+        pc_pool = [h for h in hosts if h.startswith("pc_")] or hosts
+        return {
+            "hosts": pc_pool,
+            "host1_pool": pc_pool,
+            "web": pc_pool,
+            "attacker_pool": pc_pool,
+        }
     return {}
 
 
@@ -478,6 +645,18 @@ def resolve_inject_params(
         elif problem == "lb_pending_connection_update_race":
             params.update(learning_delay_ms="5", seed=str(seed))
 
+    elif problem == "icmp_frag_needed_filter_misconfiguration":
+        # Linux / FRR path: drop Frag Needed on an intermediate router.
+        mtu_target = _resolve_path_mtu_target(
+            scenario, net_env, rng, list(router_pool), backend
+        )
+        params["host_name"] = mtu_target["host_name"]
+
+    elif problem == "mtu_mismatch":
+        params.update(
+            _resolve_path_mtu_target(scenario, net_env, rng, list(router_pool), backend)
+        )
+
     elif scenario == "p4_dc_gateway" and problem in {
         "p4_tcam_entry_corruption",
         "silent_egress_packet_loss",
@@ -537,13 +716,43 @@ def resolve_inject_params(
             else:
                 params["int_mtu"] = "1480"
 
+    elif scenario == "isp" and problem in {
+        "link_down",
+        "link_flap",
+        "link_detach",
+        "link_capacity_bottleneck",
+        "link_packet_corruption",
+    }:
+        from nika.net_env.isp.inject_targets import (
+            isp_inject_params,
+            isp_link_symptom_targets,
+        )
+
+        inventory = getattr(net_env, "inventory", None)
+        if not isinstance(inventory, dict):
+            inventory = {}
+        bgp_inv = inventory.get("bgp")
+        params.update(isp_inject_params(problem, inventory, bgp_inv))
+        device = params.get("host_name")
+        iface = params.get("intf_name")
+        if device and iface:
+            params.update(isp_link_symptom_targets(inventory, device, iface))
+        if problem == "link_flap":
+            params["down_time"] = "5"
+            params["up_time"] = "5"
+        elif problem == "link_capacity_bottleneck":
+            params["rate"] = "10kbit"
+            params["burst"] = "64kb"
+            params["limit"] = "500kb"
+        elif problem == "link_packet_corruption":
+            params["corruption_percentage"] = "80"
+
     elif problem in {
         "link_down",
         "link_flap",
         "link_detach",
-        "mtu_mismatch",
         "link_packet_corruption",
-        "link_bandwidth_throttling",
+        "link_capacity_bottleneck",
         "host_missing_ip",
         "host_incorrect_ip",
         "host_incorrect_gateway",
@@ -580,25 +789,55 @@ def resolve_inject_params(
         elif scenario == "min3clos" and (problem.startswith("link_")):
             params["host_name"] = router0
             params["intf_name"] = _choice_interface(rng, net_env, router0, backend)
+        elif scenario == "enterprise_branch":
+            corp_src = (
+                "br1_corp_pc"
+                if "br1_corp_pc" in host_pool
+                else _first(host_pool) or host0
+            )
+            if problem.startswith("link_"):
+                params["host_name"] = corp_src
+                params["intf_name"] = "eth0"
+            else:
+                params["host_name"] = corp_src
+                if problem == "host_missing_ip":
+                    params["intf_name"] = _choice_interface(
+                        rng, net_env, corp_src, backend
+                    )
         else:
-            params["host_name"] = host0
+            if problem == "arp_cache_poisoning" and scenario in {
+                "p4_dc_fabric",
+                "sdn_l3_clos",
+                "min3clos",
+            }:
+                params["host_name"] = (
+                    "client_1_1" if "client_1_1" in host_pool else host0
+                )
+            else:
+                params["host_name"] = host0
             if problem.startswith("link_"):
                 params["intf_name"] = _choice_interface(rng, net_env, host0, backend)
             elif problem == "host_missing_ip":
                 params["intf_name"] = _choice_interface(rng, net_env, host0, backend)
         if problem == "link_flap":
-            params["down_time"] = "30"
-            params["up_time"] = "30"
-        if problem == "mtu_mismatch":
-            params["mtu"] = "100"
+            params["down_time"] = "5" if scenario == "enterprise_branch" else "30"
+            params["up_time"] = "5" if scenario == "enterprise_branch" else "30"
         if problem == "host_incorrect_netmask":
             params["netmask_prefix"] = "8"
-        if problem == "link_bandwidth_throttling":
-            params["rate"] = "30kbit"
+        if problem == "link_capacity_bottleneck":
+            params["rate"] = (
+                "10kbit"
+                if scenario in {"enterprise_branch", "sdn_l3_clos", "p4_dc_fabric"}
+                else "30kbit"
+            )
             params["burst"] = "64kb"
             params["limit"] = "500kb"
         if problem == "link_packet_corruption":
-            params["corruption_percentage"] = "60"
+            params["corruption_percentage"] = (
+                "80"
+                if scenario in {"sdn_l3_clos", "p4_dc_fabric", "enterprise_branch"}
+                else "60"
+            )
         if problem == "receiver_resource_contention":
             params["duration"] = "600"
 
@@ -625,7 +864,23 @@ def resolve_inject_params(
             )
 
     elif problem == "host_ip_conflict":
-        pair = _choice_distinct(rng, host_pool, host0)
+        conflict_pool = list(host_pool)
+        for bucket in (servers.get("web") or [], servers.get("dns") or []):
+            for name in bucket:
+                if name not in conflict_pool:
+                    conflict_pool.append(name)
+        if len(conflict_pool) < 2:
+            # Fall back to all declared hosts + web servers from inventory.
+            conflict_pool = list(
+                dict.fromkeys(
+                    list(hosts)
+                    + list(servers.get("web") or [])
+                    + list(servers.get("dns") or [])
+                )
+            )
+        pair = _choice_distinct(rng, conflict_pool, host0)
+        if pair[0] == pair[1] and len(conflict_pool) >= 2:
+            pair = [conflict_pool[0], conflict_pool[1]]
         params["host_name"] = pair[0]
         params["host_name_2"] = pair[1]
 
@@ -644,8 +899,12 @@ def resolve_inject_params(
             [h for h in host_pool if h != dhcp0] or host_pool,
             host0,
         )
+        if scenario == "campus_lan" and "pc_1_1_1_1" in host_pool:
+            client = "pc_1_1_1_1"
         params["host_name"] = dhcp0
         params["host_name_2"] = client
+        if scenario == "campus_lan" and problem == "dhcp_missing_subnet":
+            params["subnet"] = "10.1.1.0"
 
     elif problem in {"dhcp_spoofed_gateway", "dhcp_spoofed_dns", "dhcp_spoofed_subnet"}:
         client = _choice(
@@ -653,15 +912,18 @@ def resolve_inject_params(
             [h for h in host_pool if h != dhcp0] or host_pool,
             host0,
         )
+        if scenario == "campus_lan" and "pc_1_1_1_1" in host_pool:
+            client = "pc_1_1_1_1"
         params["host_name"] = dhcp0
         params["host_name_2"] = client
+        if scenario == "campus_lan" and problem == "dhcp_spoofed_subnet":
+            params["subnet"] = "10.1.1.0"
 
     elif problem == "wireguard_peer_key_misconfiguration":
         targets = _primary_hq_wg_targets(topo_size)
         if not targets:
             raise ValueError(
-                f"No primary HQ WireGuard peers for enterprise_branch "
-                f"topo_size={topo_size!r}"
+                f"No primary HQ WireGuard peers for enterprise_branch topo_size={topo_size!r}"
             )
         edge, iface = rng.choice(targets)
         params["host_name"] = edge
@@ -671,8 +933,7 @@ def resolve_inject_params(
         targets = _primary_hq_wg_targets(topo_size)
         if not targets:
             raise ValueError(
-                f"No primary HQ WireGuard peers for enterprise_branch "
-                f"topo_size={topo_size!r}"
+                f"No primary HQ WireGuard peers for enterprise_branch topo_size={topo_size!r}"
             )
         edge, iface = rng.choice(targets)
         spoke = edge[: -len("_edge")] if edge.endswith("_edge") else edge
@@ -680,8 +941,7 @@ def resolve_inject_params(
         target_prefix = _prefer_hq_server_prefix(remotes)
         if not target_prefix:
             raise ValueError(
-                f"No remote advertised prefixes for spoke {spoke!r} "
-                f"(topo_size={topo_size!r})"
+                f"No remote advertised prefixes for spoke {spoke!r} (topo_size={topo_size!r})"
             )
         params["host_name"] = edge
         params["intf_name"] = iface
@@ -691,8 +951,7 @@ def resolve_inject_params(
         targets = _dscp_remark_targets(topo_size)
         if not targets:
             raise ValueError(
-                f"No DSCP remark inject targets for enterprise_branch "
-                f"topo_size={topo_size!r}"
+                f"No DSCP remark inject targets for enterprise_branch topo_size={topo_size!r}"
             )
         target = rng.choice(targets)
         params["host_name"] = target.edge
@@ -703,14 +962,42 @@ def resolve_inject_params(
         params["corp_prefix"] = target.corp_prefix
 
     elif problem == "bgp_missing_route_advertisement":
-        advertise_pool = _routers_with_bgp_network(router_pool)
+        advertise_pool = _routers_with_bgp_network(router_pool, scenario=scenario)
         params["host_name"] = _choice(
             rng, advertise_pool, _first(advertise_pool) or router0
         )
 
     elif problem in _VICTIM_HOST_PROBLEMS:
-        victim_pool = _routers_with_victim_hosts(router_pool)
-        params["host_name"] = _choice(rng, victim_pool, _first(victim_pool) or router0)
+        if scenario == "isp":
+            from nika.net_env.isp.inject_targets import isp_inject_params
+
+            inventory = getattr(net_env, "inventory", None)
+            if not isinstance(inventory, dict):
+                inventory = {}
+            bgp_inv = inventory.get("bgp")
+            params.update(
+                isp_inject_params(
+                    problem,
+                    inventory,
+                    bgp_inv if isinstance(bgp_inv, dict) else None,
+                )
+            )
+        elif scenario == "enterprise_branch" and problem == "host_static_blackhole":
+            victim_pool = _routers_with_victim_hosts(router_pool, scenario=scenario)
+            params["host_name"] = (
+                "hq_edge"
+                if "hq_edge" in victim_pool
+                else (
+                    "br1_edge"
+                    if "br1_edge" in victim_pool
+                    else _first(victim_pool) or router0
+                )
+            )
+        else:
+            victim_pool = _routers_with_victim_hosts(router_pool, scenario=scenario)
+            params["host_name"] = _choice(
+                rng, victim_pool, _first(victim_pool) or router0
+            )
 
     elif problem in {
         "bgp_acl_block",
@@ -778,9 +1065,17 @@ def resolve_inject_params(
             assert bgp is not None
             bgp_inv = bgp.inventory
         params.update(first_ebgp_session(bgp_inv))
+        params["flood_count"] = "120"
 
     elif problem in {"arp_acl_block", "icmp_acl_block", "http_acl_block"}:
-        params["host_name"] = host0
+        if scenario == "enterprise_branch":
+            params["host_name"] = "br1_corp_pc" if "br1_corp_pc" in host_pool else host0
+        elif scenario == "k8s_lab":
+            params["host_name"] = "client" if "client" in host_pool else host0
+        elif scenario in {"p4_dc_fabric", "sdn_l3_clos", "min3clos"}:
+            params["host_name"] = "client_1_1" if "client_1_1" in host_pool else host0
+        else:
+            params["host_name"] = host0
 
     elif problem == "dns_port_blocked":
         params["host_name"] = dns0
@@ -809,6 +1104,24 @@ def resolve_inject_params(
         }:
             leaves = [n for n in bmv2 if str(n).startswith("leaf_")]
             params["host_name"] = _choice(rng, leaves, "leaf_1")
+        elif problem == "bmv2_switch_down" and scenario == "p4_dc_fabric":
+            leaves = [n for n in bmv2 if str(n).startswith("leaf_")]
+            params["host_name"] = (
+                "leaf_1" if "leaf_1" in leaves else _first(leaves) or "leaf_1"
+            )
+        elif (
+            problem in {"p4_table_entry_missing", "p4_table_entry_misconfig"}
+            and scenario == "p4_dc_fabric"
+        ):
+            leaves = [n for n in bmv2 if str(n).startswith("leaf_")]
+            params["host_name"] = (
+                "leaf_1" if "leaf_1" in leaves else _first(leaves) or "leaf_1"
+            )
+        elif problem == "p4runtime_pipeline_mismatch" and scenario == "p4_dc_fabric":
+            leaves = [n for n in bmv2 if str(n).startswith("leaf_")]
+            params["host_name"] = (
+                "leaf_1" if "leaf_1" in leaves else _first(leaves) or "leaf_1"
+            )
         else:
             params["host_name"] = _choice(rng, bmv2, host0)
 
@@ -846,9 +1159,67 @@ def resolve_inject_params(
                 host0,
                 pool=pools.get("attacker_pool"),
             )
+        elif scenario == "dc_clos":
+            # Keep victim, observer, and URL on one deterministic HTTP path.
+            params.update(
+                host_name="webserver0_pod0",
+                attacker_device="client_0",
+                observer_device="dns_pod0",
+                probe_url="http://10.0.1.2/small.bin",
+            )
+        elif scenario == "campus_lan":
+            params.update(
+                host_name="web_server_0",
+                attacker_device="pc_1_1_1_1",
+                observer_device="pc_2_1_1_1",
+                probe_url="http://10.200.0.3/",
+            )
+        elif scenario == "enterprise_branch":
+            params.update(
+                host_name="hq_srv",
+                attacker_device="br1_corp_pc",
+                observer_device="hq_corp_pc",
+                probe_url="http://10.0.20.2/small.bin",
+                attack_url="http://10.0.20.2/nika-dos-dir/",
+            )
+        elif scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
+            model = net_env.model
+            observer = model.client_endpoints()[0]
+            victim = next(
+                web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
+            )
+            attacker = next(
+                client
+                for client in reversed(model.client_endpoints())
+                if client.name != observer.name
+            )
+            params.update(
+                host_name=victim.name,
+                attacker_device=attacker.name,
+                observer_device=observer.name,
+                probe_url=f"http://{victim.ip}/",
+            )
+        elif scenario == "p4_dc_gateway":
+            model = net_env.model
+            victim = model.backend_pool[0]
+            observer = model.clients[0]
+            attacker = model.clients[-1]
+            params.update(
+                host_name=victim.name,
+                attacker_device=attacker.name,
+                observer_device=observer.name,
+                probe_url=model.vip_url,
+                attack_url=model.vip_url,
+            )
         else:
             params["host_name"] = web0
-            params["attacker_device"] = _pick_attacker(rng, hosts, web0, host0)
+            params["attacker_device"] = _pick_attacker(
+                rng,
+                hosts,
+                web0,
+                host0,
+                pool=pools.get("attacker_pool"),
+            )
 
     elif problem == "dns_lookup_latency":
         dns_target = dns0 if dns0 in _all_device_names(net_env) else host0
@@ -857,18 +1228,73 @@ def resolve_inject_params(
         params["delay_ms"] = "1000"
 
     elif problem == "incast_traffic_network_limitation":
-        web_pool = servers.get("web") or []
-        params["host_name"] = web0 if web0 in web_pool else host0
-        params["rate"] = "1mbit"
-        params["burst"] = "500kb"
-        params["limit"] = "500kb"
-        params["delay_ms"] = "20"
+        web_pool = pools.get("web") or servers.get("web") or []
+        if scenario == "enterprise_branch":
+            server_pool = [h for h in (pools.get("hosts") or []) if h.endswith("_srv")]
+            target = (
+                "hq_srv"
+                if "hq_srv" in server_pool
+                else (web0 if web0 in web_pool else host0)
+            )
+            params["host_name"] = target
+            params["rate"] = "256kbit"
+            params["burst"] = "128kb"
+            params["limit"] = "128kb"
+            params["delay_ms"] = "80"
+        else:
+            params["host_name"] = web0 if web0 in web_pool else host0
+            params["rate"] = "512kbit" if scenario == "enterprise_branch" else "1mbit"
+            params["burst"] = "256kb" if scenario == "enterprise_branch" else "500kb"
+            params["limit"] = "256kb" if scenario == "enterprise_branch" else "500kb"
+            params["delay_ms"] = (
+                "50" if scenario in {"campus_lan", "sdn_l3_clos"} else "20"
+            )
+        if scenario == "p4_dc_gateway":
+            params["delay_ms"] = "80"
+            params["rate"] = "512kbit"
 
-    elif problem in {"sender_resource_contention", "sender_application_delay"}:
-        web_pool = servers.get("web") or []
-        params["host_name"] = web0 if web0 in web_pool else host0
-        if problem == "sender_resource_contention":
-            params["duration"] = "600"
+    elif problem == "tcp_receive_window_limited":
+        # Fault the HTTP client (TCP receiver of server→client bulk download).
+        if scenario == "enterprise_branch":
+            params["host_name"] = (
+                "br1_corp_pc"
+                if "br1_corp_pc" in host_pool
+                else (_first(host_pool) or host0)
+            )
+            params["sender_host"] = "hq_srv"
+            params["sender_ip"] = "10.0.20.2"
+            params["small_url"] = "http://10.0.20.2/small.bin"
+            params["large_url"] = "http://10.0.20.2/large.bin"
+        else:
+            params["host_name"] = host0
+
+    elif problem == "sender_resource_contention":
+        # Prefer real HTTP servers over client pools that some scenarios label "web".
+        web_pool = list(servers.get("web") or []) or list(pools.get("web") or [])
+        if scenario == "enterprise_branch":
+            params["host_name"] = (
+                "hq_srv"
+                if "hq_srv" in web_pool
+                else (web0 if web0 in web_pool else (_first(web_pool) or host0))
+            )
+        elif scenario == "dc_clos":
+            params["host_name"] = (
+                "webserver0_pod0"
+                if "webserver0_pod0" in web_pool
+                else (_first(web_pool) or web0 or host0)
+            )
+            params["client_host"] = "client_0"
+            params["dst_ip"] = "10.0.1.2"
+            params["small_url"] = "http://web0.pod0/small.bin"
+            params["large_url"] = "http://web0.pod0/large.bin"
+            params["cpu_quota"] = "0.05"
+            params["stress_cpus"] = "16"
+            params["baseline_trials"] = "5"
+        else:
+            params["host_name"] = (
+                web0 if web0 in web_pool else (_first(web_pool) or host0)
+            )
+        params["duration"] = "900" if scenario == "enterprise_branch" else "600"
 
     elif problem in {"k8s_clusterip_routing_broken", "k8s_worker_apiserver_partition"}:
         k8s_nodes = pools.get("k8s_nodes") or []
@@ -902,11 +1328,64 @@ def resolve_inject_params(
             params["control_url"] = "http://datacenter.com/weather"
 
     elif problem == "load_balancer_overload":
-        params["host_name"] = lb0
-        params["duration"] = "300"
+        # Fixed capacity + HTTP surge on campus_lan NGINX VIP (web99.local).
+        # Workload knobs are fixed for reproducibility (not searched at runtime).
+        pc_pool = [h for h in host_pool if h.startswith("pc_")] or list(host_pool)
+        probe_client = (
+            "pc_1_1_1_1" if "pc_1_1_1_1" in pc_pool else _choice(rng, pc_pool, host0)
+        )
+        load_candidates = [h for h in pc_pool if h != probe_client]
+        if not load_candidates:
+            load_candidates = [probe_client]
+        # Prefer a second building PC when present so probe and load are separate.
+        load_hosts = []
+        for preferred in ("pc_2_1_1_1", "pc_3_1_1_1", "pc_1_2_1_1"):
+            if preferred in load_candidates and preferred not in load_hosts:
+                load_hosts.append(preferred)
+            if len(load_hosts) >= 2:
+                break
+        while len(load_hosts) < 2 and load_candidates:
+            pick = load_candidates[len(load_hosts) % len(load_candidates)]
+            if pick not in load_hosts:
+                load_hosts.append(pick)
+            else:
+                break
+        if not load_hosts:
+            load_hosts = [probe_client]
+        params.update(
+            host_name=lb0 if lb0 else "load_balancer",
+            client_host=probe_client,
+            load_client_hosts=",".join(load_hosts),
+            vip_url="http://web99.local/small",
+            control_url="http://web0.local/small",
+            backend_url="http://20.200.0.2/small",
+            backend_probe_host="load_balancer",
+            backend_cpu_host="backend_web_0",
+            cpu_quota="0.2",
+            concurrency="160",
+            load_workers="2",
+            warmup_sec="5",
+            probe_requests="60",
+            probe_concurrency="4",
+            duration_sec="300",
+        )
 
     else:
         params["host_name"] = host0
+
+    if scenario == "isp":
+        from nika.net_env.isp.inject_targets import enrich_isp_symptom_params
+
+        inventory = getattr(net_env, "inventory", None)
+        if not isinstance(inventory, dict):
+            inventory = {}
+        bgp_inv = inventory.get("bgp")
+        enrich_isp_symptom_params(
+            params,
+            problem,
+            inventory,
+            bgp_inv if isinstance(bgp_inv, dict) else None,
+        )
 
     return params
 
@@ -985,8 +1464,7 @@ def validate_benchmark_case(
 
         if not is_enterprise_branch_scenario(scenario):
             raise ValueError(
-                "wireguard_peer_key_misconfiguration requires enterprise_branch "
-                f"(got {scenario!r})"
+                f"wireguard_peer_key_misconfiguration requires enterprise_branch (got {scenario!r})"
             )
         eligible = _primary_hq_wg_targets(topo_size)
         pair = (host_name or "", intf_name or "")
@@ -1002,8 +1480,7 @@ def validate_benchmark_case(
 
         if not is_enterprise_branch_scenario(scenario):
             raise ValueError(
-                "wireguard_allowed_ips_misconfiguration requires enterprise_branch "
-                f"(got {scenario!r})"
+                f"wireguard_allowed_ips_misconfiguration requires enterprise_branch (got {scenario!r})"
             )
         eligible = _primary_hq_wg_targets(topo_size)
         pair = (host_name or "", intf_name or "")
@@ -1054,7 +1531,7 @@ def validate_benchmark_case(
 
     if problem == "bgp_missing_route_advertisement" and host_name:
         routers = net_env.routers or []
-        advertisers = _routers_with_bgp_network(routers)
+        advertisers = _routers_with_bgp_network(routers, scenario=scenario)
         # Enforce only when the topology distinguishes advertiser roles.
         if advertisers != list(routers) and host_name not in advertisers:
             raise ValueError(
@@ -1065,7 +1542,7 @@ def validate_benchmark_case(
 
     if problem in _VICTIM_HOST_PROBLEMS and host_name:
         routers = net_env.routers or []
-        eligible = _routers_with_victim_hosts(routers)
+        eligible = _routers_with_victim_hosts(routers, scenario=scenario)
         # Enforce only when the topology distinguishes leaf vs spine roles.
         if eligible != list(routers) and host_name not in eligible:
             raise ValueError(
@@ -1077,7 +1554,16 @@ def validate_benchmark_case(
     host_b = inject.get("host_name_2")
     if host_a and host_b and host_a == host_b:
         hosts = net_env.hosts or []
-        if problem == "host_ip_conflict" and len(hosts) >= 2:
+        server_hosts = []
+        for bucket in (net_env.servers or {}).values():
+            server_hosts.extend(bucket or [])
+        conflict_pool = list(dict.fromkeys(list(hosts) + server_hosts))
+        if problem == "host_ip_conflict" and len(conflict_pool) >= 2:
+            raise ValueError(
+                f"Inject devices host_name and host_name_2 must differ for {problem} "
+                f"on {scenario} when multiple hosts exist"
+            )
+        if problem == "mac_address_conflict" and len(conflict_pool) >= 2:
             raise ValueError(
                 f"Inject devices host_name and host_name_2 must differ for {problem} "
                 f"on {scenario} when multiple hosts exist"

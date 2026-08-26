@@ -28,7 +28,11 @@ import sys
 from pathlib import Path
 
 from agent.cli.codex.codex_display import format_codex_event
-from agent.utils.loggers import MessageLogger
+from agent.utils.loggers import (
+    MessageLogger,
+    PendingToolCallTracker,
+    tool_event_payload,
+)
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
@@ -218,8 +222,9 @@ class CodexWorker:
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "codex_workspace"
         self._codex_home = self.workspace / ".codex_home"
-        self._logger = MessageLogger(agent=phase, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._stream_output = stream_output
+        self._pending_tool_calls = PendingToolCallTracker()
 
     # ------------------------------------------------------------------
     # Workspace + isolated CODEX_HOME setup
@@ -520,20 +525,33 @@ class CodexWorker:
         item = event.get("item") or {}
         if item.get("type") == "mcp_tool_call":
             tool = str(item.get("tool", ""))
+            item_id = item.get("id")
             if event_type == "item.started":
                 arguments = item.get("arguments")
                 self._logger.log(
                     "tool_start",
-                    {
-                        "tool": {"name": tool},
-                        "input": json.dumps(arguments, ensure_ascii=False)
-                        if arguments is not None
-                        else "{}",
-                    },
+                    self._pending_tool_calls.register(
+                        name=tool,
+                        input=arguments,
+                        tool_call_id=item_id,
+                    ),
                 )
             elif event_type == "item.completed":
                 if item.get("error") is not None:
-                    self._logger.log("tool_error", {"output": str(item.get("error"))})
+                    resolved = self._pending_tool_calls.resolve(
+                        name=tool,
+                        tool_call_id=item_id,
+                        input=item.get("arguments"),
+                    )
+                    self._logger.log(
+                        "tool_error",
+                        tool_event_payload(
+                            name=tool or resolved.get("name") or None,
+                            input=resolved.get("input") or item.get("arguments"),
+                            tool_call_id=item_id,
+                            output=str(item.get("error")),
+                        ),
+                    )
                 else:
                     result = item.get("result")
                     if isinstance(result, dict):
@@ -549,9 +567,20 @@ class CodexWorker:
                             output = json.dumps(result, ensure_ascii=False)
                     else:
                         output = str(result or "")
+                    resolved = self._pending_tool_calls.resolve(
+                        name=tool,
+                        tool_call_id=item_id,
+                        input=item.get("arguments"),
+                    )
                     self._logger.log(
                         "tool_end",
-                        {"output": output, "output_type": "tool_result"},
+                        tool_event_payload(
+                            name=tool or resolved.get("name") or None,
+                            input=resolved.get("input") or item.get("arguments"),
+                            tool_call_id=item_id,
+                            output=output,
+                            output_type="tool_result",
+                        ),
                     )
 
         if self._stream_output:

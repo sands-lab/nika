@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.topology_inventory import interface_on
+from nika.problems.rca.inventory import interface_on, link_containing_endpoint
 from nika.runtime.base import RuntimeCapabilityError
 from nika.service.containerlab.host_tc import HostTcController
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
@@ -48,7 +48,9 @@ class LinkFailure(ProblemBase):
         self.faulty_intf = "eth0"
 
     def root_cause_resources(self, params: LinkFailureParams):
-        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+        return [
+            link_containing_endpoint(self.net_env, params.host_name, params.intf_name)
+        ]
 
     def inject_fault(self, params: LinkFailureParams):
         match self.lab_backend:
@@ -173,7 +175,9 @@ class LinkFlap(ProblemBase):
         self.faulty_intf = "eth0"
 
     def root_cause_resources(self, params: LinkFlapParams):
-        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+        return [
+            link_containing_endpoint(self.net_env, params.host_name, params.intf_name)
+        ]
 
     def inject_fault(self, params: LinkFlapParams):
         match self.lab_backend:
@@ -276,6 +280,138 @@ class LinkFlap(ProblemBase):
             )
             controller.stop_node_link_flap(params.host_name, intf)
             restored = not controller.link_flap_running(target)
+        return {
+            "verified": restored,
+            "details": {"host": params.host_name, "intf": intf},
+        }
+
+
+# ==========================================
+# Problem: Link capacity bottleneck (controller-side TBF)
+# ==========================================
+
+
+class LinkCapacityBottleneckParams(BaseModel):
+    """Parameters for injecting a link capacity bottleneck fault."""
+
+    host_name: str = Field(description="Target host name.")
+    intf_name: str = Field(default="eth0", description="Target interface name.")
+    rate: str = Field(default="200kbit", description="Bandwidth rate.")
+    burst: str = Field(default="64kb", description="TBF burst.")
+    limit: str = Field(default="500kb", description="TBF limit.")
+
+
+class LinkCapacityBottleneck(ProblemBase):
+    failure_domain = FailureDomain.LINK_INTERFACE
+    root_cause_name: str = "link_capacity_bottleneck"
+    TAGS: str = ["link"]
+
+    Params = LinkCapacityBottleneckParams
+
+    symptom_desc = "Users report slow throughput across a link."
+
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self.faulty_intf = "eth0"
+
+    def root_cause_resources(self, params: LinkCapacityBottleneckParams):
+        return [
+            link_containing_endpoint(self.net_env, params.host_name, params.intf_name)
+        ]
+
+    def inject_fault(self, params: LinkCapacityBottleneckParams):
+        match self.lab_backend:
+            case "kathara":
+                self._inject_capacity_kathara(params)
+            case "containerlab":
+                self._inject_capacity_containerlab(params)
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
+                )
+
+    def _inject_capacity_kathara(self, params: LinkCapacityBottleneckParams) -> None:
+        intf = _resolve_link_intf(params.intf_name, "kathara")
+        self.faulty_intf = intf
+        controller = KatharaVdeFaultProxy(self.runtime)
+        self._proxy = controller.insert(params.host_name, intf)
+        controller.set_tbf(
+            self._proxy, rate=params.rate, burst=params.burst, limit=params.limit
+        )
+
+    def _inject_capacity_containerlab(
+        self, params: LinkCapacityBottleneckParams
+    ) -> None:
+        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        self.faulty_intf = intf
+        self._host_veth = HostTcController(self.runtime).set_tbf(
+            params.host_name,
+            intf,
+            rate=params.rate,
+            burst=params.burst,
+            limit=params.limit,
+        )
+
+    def verify_fault(self, params: LinkCapacityBottleneckParams) -> dict:
+        """Verify the controller-side TBF without exposing it to lab nodes."""
+        match self.lab_backend:
+            case "kathara":
+                return self._verify_capacity_kathara(params)
+            case "containerlab":
+                return self._verify_capacity_containerlab(params)
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
+                )
+
+    def _verify_capacity_kathara(self, params: LinkCapacityBottleneckParams) -> dict:
+        intf = _resolve_link_intf(params.intf_name, "kathara")
+        controller = KatharaVdeFaultProxy(self.runtime)
+        proxy = getattr(self, "_proxy", None) or controller.discover(
+            params.host_name, intf
+        )
+        verified = proxy is not None and controller.tbf_configured(proxy)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "intf": intf},
+        )
+
+    def _verify_capacity_containerlab(
+        self, params: LinkCapacityBottleneckParams
+    ) -> dict:
+        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        controller = HostTcController(self.runtime)
+        peer = getattr(self, "_host_veth", None) or controller.peer_name(
+            params.host_name, intf
+        )
+        verified = "tbf" in controller.qdisc(peer).lower()
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "intf": intf},
+        )
+
+    def recover_fault(self, params: LinkCapacityBottleneckParams) -> dict:
+        """Remove controller-side capacity limiting and restore the logical link."""
+        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
+        if self.lab_backend == "kathara":
+            controller = KatharaVdeFaultProxy(self.runtime)
+            proxy = getattr(self, "_proxy", None) or controller.discover(
+                params.host_name, intf
+            )
+            if proxy is not None:
+                controller.remove(proxy)
+            restored = (
+                proxy is None or controller.discover(params.host_name, intf) is None
+            )
+        else:
+            controller = HostTcController(self.runtime)
+            peer = getattr(self, "_host_veth", None) or controller.peer_name(
+                params.host_name, intf
+            )
+            controller.clear(peer)
+            restored = "tbf" not in controller.qdisc(peer).lower()
         return {
             "verified": restored,
             "details": {"host": params.host_name, "intf": intf},

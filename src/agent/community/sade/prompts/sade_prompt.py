@@ -15,7 +15,7 @@ Three complementary layers:
 
 ## SADE Workflow
 
-**Phase 1 — Blind start.** Call `list_avail_problems()` and `get_reachability()` in parallel. No other action.
+**Phase 1 — Blind start.** Call `get_reachability()` to establish symptoms. No submission action is available during diagnosis.
 
 **Phase 2 — Branch.** If a real symptom is present → Phase 3. Otherwise → Phase 4 (do not probe services or individual devices yet).
 
@@ -32,9 +32,8 @@ Three complementary layers:
 - A helper surfaces an anomaly → return to Phase 3 with that anomaly as the active lead.
 - Every phase clean → Phase 5 with `is_anomaly=False`.
 
-**Phase 5 — Submission.** Before `submit()`, re-enter the matched family skill (when applicable) to confirm the canonical `fault_type` and localization resource ids.
-- Call `list_resources()` and `list_avail_problems()`, then submit `root_causes` as `[{resource_id, fault_type}, ...]`.
-- Only submit `fault_type` values returned by `list_avail_problems()` and `resource_id` values returned by `list_resources()`.
+**Phase 5 — Submission.** This happens in a separate restricted phase. Use the frozen report and supplied ontology/resource inventory to select the canonical answer.
+- Submit `root_causes` as `[{resource_id, fault_type}, ...]` using only IDs in the supplied frozen context.
 - `is_anomaly=False` is valid only after Phase 1 plus a complete Phase 4 pass leave nothing implicated.
 - Do not restart devices — the task is diagnosis, not repair.
 - Argument types: `is_anomaly` bool, `root_causes` list[{resource_id, fault_type}]. Unquoted. Validation errors typically terminate the session.

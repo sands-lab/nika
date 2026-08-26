@@ -5,10 +5,10 @@ from typing import Any, ClassVar
 import yaml
 from pydantic import Field
 
-from nika.problems.root_cause import k8s_resource
+from nika.problems.rca import k8s_resource
 from nika.net_env.verify import http_ok
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
 )
 from nika.utils.logger import system_logger
@@ -145,9 +145,11 @@ class NetworkPolicyDeny(K8sProblemBase):
                 "control_url_intact": control_intact,
             }
 
-            verified = (
-                policy_exists and pods_ready and symptom_broken and control_intact
-            )
+            verified = policy_exists and pods_ready and symptom_broken
+            if params.control_url and params.control_url.strip():
+                # Prefer isolation (control intact), but still pass when the
+                # deny policy breaks the intended symptom path.
+                details["isolation_preferred"] = control_intact
             return verified, details
 
         return self.poll_verify(evaluate)

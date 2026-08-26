@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     ProblemBase,
     build_verify_result,
 )
-from nika.problems.topology_inventory import interface_on
+from nika.problems.rca.inventory import interface_on
 
 
 class DNSLookupLatencyParams(BaseModel):

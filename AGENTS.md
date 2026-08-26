@@ -28,15 +28,16 @@ NIKA is a platform for managing, generating, and running executable benchmarks f
 * Keep scenarios minimal while retaining what is required to reproduce and diagnose their failures.
 * New failures subclass `ProblemBase`, define typed `Params`, `failure_domain`, and `root_cause_name`; add `symptom_desc` when needed.
 * Follow the taxonomy in `docs/failures.md`.
+* Failure registry: `src/nika/problems/registry.py`. Authoring base: `base.py`. RCA schema/inventory/materialize: `rca/`. Submission owner-kind policy: `ownership.py`.
 * Cross-domain failure helpers belong in `src/nika/problems/support/`; concrete registered failures do not.
 * Failures should represent root causes rather than symptoms.
 * Avoid telemetry or metadata that leaks ground truth.
 
 ## Benchmark contracts
 
-Scenario/failure compatibility uses `TAGS` subset matching.
+Scenario/failure compatibility uses `TAGS` subset matching, plus optional `COMPATIBLE_COLUMNS` on the failure when tags alone would match too broadly.
 
-Treat changes to `TAGS`, registries, compatibility, root-cause names, ground truth, or benchmark cases as benchmark contract changes.
+Treat changes to `TAGS`, `COMPATIBLE_COLUMNS`, registries, compatibility, root-cause names, ground truth, or benchmark cases as benchmark contract changes.
 
 After compatibility changes:
 

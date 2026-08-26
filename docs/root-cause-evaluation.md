@@ -2,7 +2,7 @@
 
 This reference is for maintainers who define failures, integrate troubleshooting agents, or evaluate submissions. It specifies the resource catalog, ground-truth format, submission contract, scoring, and benchmark label materialization.
 
-Implementation: [`root_cause.py`](../src/nika/problems/root_cause.py) defines the data model; [`topology_inventory.py`](../src/nika/problems/topology_inventory.py) builds the resource catalog; [`problem_base.py`](../src/nika/problems/problem_base.py) derives ground truth; [`task_server.py`](../src/nika/service/mcp_server/common/task_server.py) validates submissions; [`scoring.py`](../src/nika/evaluator/scoring.py) computes metrics; [`migrate.py`](../src/nika/workflows/benchmark/migrate.py) materializes labels in benchmark YAML.
+Implementation: [`rca/models.py`](../src/nika/problems/rca/models.py) defines the data model; [`rca/inventory.py`](../src/nika/problems/rca/inventory.py) builds the resource catalog; [`base.py`](../src/nika/problems/base.py) derives ground truth; [`ownership.py`](../src/nika/problems/ownership.py) defines submission owner-kind policy; [`task_server.py`](../src/nika/service/mcp_server/common/task_server.py) validates submissions; [`scoring.py`](../src/nika/evaluator/scoring.py) computes metrics; [`migrate.py`](../src/nika/workflows/benchmark/migrate.py) materializes labels in benchmark YAML.
 
 ## Root-cause contract
 
@@ -17,34 +17,36 @@ The resource catalog uses these canonical IDs:
 | --- | --- | --- |
 | Node | `node/{name}` | `node/pc1` |
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
+| Link | `link/{sorted node:intf joined by --}` | `link/pc1:eth0--router1:eth0` |
 | Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/Service/kube-system/kube-dns` |
+
+Owner kind follows the mutated catalog object. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the undirected link TP set. Interface removals, egress hooks, and queueing faults stay on `interface/...`.
 
 Benchmark YAML stores the parsed resource fields (`kind` / `node` / `name`, or the k8s fields) plus `fault_type`. NIKA derives `resource_id` from those fields when it scores, injects, or accepts a submit. Agent submissions may send either `resource_id` or the same resource fields; `submit` always writes the constructed `resource_id`.
 
 ```yaml
 root_causes:
   - resource:
-      kind: interface
-      node: pc1
-      name: eth0
+      kind: link
+      name: pc1:eth0--router1:eth0
     fault_type: link_down
 ```
 
-Healthy ground truth uses `is_anomaly: false` and an empty `root_causes` list. A multi-fault case contains one root-cause object for each injected fault source. Each object identifies the resource that the injector mutates. Symptoms and affected peers do not become root-cause labels.
+Healthy ground truth uses `is_anomaly: false` and an empty `root_causes` list. Benchmark YAML may include `problem: healthy` rows for no-fault control cases; those rows skip injection and persist the same healthy ground truth. A multi-fault case contains one root-cause object for each injected fault source. Each object identifies the resource that the injector mutates. Symptoms and affected peers do not become root-cause labels.
 
 ## Generate ground truth for a failure
 
-Each concrete `ProblemBase` subclass implements `root_cause_resources(params)` next to `inject_fault(params)`. Return catalog resources with the helpers in [`root_cause.py`](../src/nika/problems/root_cause.py) and [`topology_inventory.py`](../src/nika/problems/topology_inventory.py).
+Each concrete `ProblemBase` subclass implements `root_cause_resources(params)` next to `inject_fault(params)`. Return catalog resources with the helpers in [`rca/models.py`](../src/nika/problems/rca/models.py) and [`rca/inventory.py`](../src/nika/problems/rca/inventory.py).
 
 ```python
-from nika.problems.topology_inventory import interface_on
+from nika.problems.rca.inventory import link_containing_endpoint
 
 
 def root_cause_resources(self, params: MyFaultParams):
-    return [interface_on(self.net_env, params.host_name, params.intf_name)]
+    return [link_containing_endpoint(self.net_env, params.host_name, params.intf_name)]
 ```
 
-`ProblemBase.get_ground_truth()` combines each returned resource with the class `root_cause_name` (the failure ID / `fault_type`). Failure authors should not maintain a second root-cause table.
+For interface-owned faults, use `interface_on` instead. `ProblemBase.get_ground_truth()` combines each returned resource with the class `root_cause_name` (the failure ID / `fault_type`). Failure authors should not maintain a second root-cause table.
 
 The following paths derive labels from the same method:
 
@@ -59,7 +61,7 @@ Working matrices and frozen releases store materialized `root_causes` so reviewe
 
 During the submission phase, an agent uses the task MCP tools in this order:
 
-1. Call `list_resources()` to get the current lab's node and interface IDs. Kubernetes sessions also include live Service and NetworkPolicy IDs when the Kubernetes API is available.
+1. Call `list_resources()` to get the current lab's node, interface, and link IDs. Kubernetes sessions also include live Service and NetworkPolicy IDs when the Kubernetes API is available.
 2. Call `list_avail_problems()` to get the registered fault types.
 3. Call `submit()` with the selected pairs.
 
@@ -68,7 +70,7 @@ During the submission phase, an agent uses the task MCP tools in this order:
   "is_anomaly": true,
   "root_causes": [
     {
-      "resource_id": "interface/pc1/eth0",
+      "resource_id": "link/pc1:eth0--router1:eth0",
       "fault_type": "link_down"
     }
   ]

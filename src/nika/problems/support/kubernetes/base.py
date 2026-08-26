@@ -4,9 +4,8 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     ProblemBase,
-    ProblemGroundTruth,
     build_verify_result,
 )
 from nika.service.lab.k8s_api import K8sCommandError
@@ -100,17 +99,6 @@ class K8sProblemBase(ProblemBase):
         ref = f"{namespace}/{kind}/{name}" if namespace else f"{kind}/{name}"
         if ref not in self.k8s_objects:
             self.k8s_objects.append(ref)
-
-    def get_ground_truth(self) -> ProblemGroundTruth:
-        ground_truth = super().get_ground_truth()
-        objects = getattr(self, "k8s_objects", None) or []
-        if objects:
-            listed = ", ".join(objects)
-            detail = (ground_truth.detailed_cause or "").strip()
-            ground_truth.detailed_cause = (
-                f"{detail} Affected Kubernetes object(s): {listed}.".strip()
-            )
-        return ground_truth
 
     def poll_verify(
         self,

@@ -67,7 +67,7 @@ class DiagnosisPhaseAgent(BaseChatAgent):
         if not isinstance(task_description, str):
             task_description = str(task_description)
 
-        logger = MessageLogger(agent=DIAGNOSIS, session_dir=self._session_dir)
+        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self._session_dir)
         self._print_phase(DIAGNOSIS, "starting network fault analysis")
         logger.log(
             "agent_start", {"phase": DIAGNOSIS, "task_preview": task_description[:200]}
@@ -161,7 +161,7 @@ class SubmissionPhaseAgent(BaseChatAgent):
         if not isinstance(diagnosis_report, str):
             diagnosis_report = str(diagnosis_report)
 
-        logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
         self._print_phase(SUBMISSION, "recording structured result")
         logger.log("agent_start", {"phase": SUBMISSION})
 

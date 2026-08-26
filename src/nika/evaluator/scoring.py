@@ -10,7 +10,7 @@ from __future__ import annotations
 from pydantic import ValidationError
 
 from nika.evaluator.submissions import DetectionSubmission, RootCauseSubmission
-from nika.problems.root_cause import RootCause
+from nika.problems.rca import RootCause
 
 
 def score_detection(submission: dict, gt: dict) -> float:

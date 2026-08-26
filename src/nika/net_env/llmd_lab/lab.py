@@ -165,14 +165,11 @@ class LLMDInferenceCluster(NetworkEnvBase):
         self.lab.connect_machine_to_link("client", "A")
         all_machines["client"] = client
 
-        # Stage Helm into controller FS (busybox wget cannot fetch HTTPS).
+        # Inject Helm into controller FS from host cache (busybox wget cannot fetch HTTPS).
         helm_bin = _ensure_helm_binary()
-        helm_stage = Path(cur_path) / "controller" / "usr" / "local" / "bin"
-        helm_stage.mkdir(parents=True, exist_ok=True)
-        staged_helm = helm_stage / "helm"
-        if not staged_helm.is_file():
-            shutil.copy2(helm_bin, staged_helm)
-            staged_helm.chmod(0o755)
+        all_machines["controller"].create_file_from_path(
+            str(helm_bin), "/usr/local/bin/helm"
+        )
 
         # Load per-machine configuration directories and startup scripts
         for name, m in all_machines.items():

@@ -7,7 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from nika.problems.prob_pool import (
+from nika.problems.registry import (
     get_problem_instance,
     list_avail_problem_names,
     resolve_problem_name,
@@ -298,7 +298,7 @@ def inject_failure(
 
     gt = inject_problem.get_ground_truth()
     if expected_root_causes:
-        from nika.problems.ground_truth import assert_root_causes_match
+        from nika.problems.rca.materialize import assert_root_causes_match
 
         assert_root_causes_match(gt, expected_root_causes)
     session.write_gt(gt.model_dump(mode="json", exclude_none=True))

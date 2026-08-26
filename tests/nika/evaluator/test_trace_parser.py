@@ -23,7 +23,7 @@ class TraceParserTest:
             tmp_path,
             [
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "assistant",
                     "claude_event": {
                         "type": "assistant",
@@ -36,7 +36,7 @@ class TraceParserTest:
                     },
                 },
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "result",
                     "claude_event": {
                         "is_error": False,
@@ -50,7 +50,7 @@ class TraceParserTest:
                     },
                 },
                 {
-                    "agent": "submission",
+                    "phase": "submission",
                     "event": "result",
                     "claude_event": {
                         "is_error": False,
@@ -77,7 +77,7 @@ class TraceParserTest:
             tmp_path,
             [
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "result",
                     "claude_event": {
                         "is_error": False,
@@ -96,16 +96,16 @@ class TraceParserTest:
             tmp_path,
             [
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "llm_end",
                     "usage_metadata": {"input_tokens": 11, "output_tokens": 3},
                 },
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "llm_end",
                     "usage_metadata": {"input_tokens": 9, "output_tokens": 2},
                 },
-                {"agent": "diagnosis", "event": "tool_start"},
+                {"phase": "diagnosis", "event": "tool_start"},
             ],
         )
         metrics = AgentTraceParser(trace_path=path).parse_trace()
@@ -119,12 +119,12 @@ class TraceParserTest:
             tmp_path,
             [
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "turn.completed",
                     "codex_event": {"usage": {"input_tokens": 8, "output_tokens": 1}},
                 },
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "turn.completed",
                     "codex_event": {"usage": {"input_tokens": 4, "output_tokens": 2}},
                 },
@@ -142,7 +142,7 @@ class TraceParserTest:
             tmp_path,
             [
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "llm_end",
                     "usage_metadata": {
                         "input_tokens": 100,
@@ -161,7 +161,7 @@ class TraceParserTest:
             tmp_path,
             [
                 {
-                    "agent": "diagnosis",
+                    "phase": "diagnosis",
                     "event": "llm_end",
                     "usage_metadata": {
                         "prompt_tokens": 40,

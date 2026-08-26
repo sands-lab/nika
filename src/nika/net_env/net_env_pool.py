@@ -308,6 +308,60 @@ def scenario_tags(scenario_name: str) -> list[str]:
     return list(_require_scenario(scenario_name).tags)
 
 
+# Deploy variants shown as coverage-matrix columns for ``isp``.
+ISP_COVERAGE_CONFIGS: tuple[str, ...] = (
+    "isis",
+    "ospf",
+    "ibgp_rr",
+    "abilene-ebgp",
+    "abilene-ebgp-rpki",
+    "geant-ebgp-rpki",
+)
+
+_ISP_COVERAGE_BASE_TAGS: frozenset[str] = frozenset(
+    {"isp", "sndlib", "frr", "igp", "link", "icmp"}
+)
+
+
+def parse_column(column: str) -> tuple[str, str | None]:
+    """Return ``(scenario, config)`` for a coverage column id."""
+    if "/" in column:
+        scenario, _, config = column.partition("/")
+        return scenario, config
+    return column, None
+
+
+def coverage_columns() -> list[str]:
+    """Stable ordered list of coverage-matrix column ids."""
+    columns: list[str] = []
+    for name in sorted(list_all_net_envs()):
+        if name == "isp":
+            columns.extend(f"isp/{cfg}" for cfg in ISP_COVERAGE_CONFIGS)
+        else:
+            columns.append(name)
+    return columns
+
+
+def effective_tags(column: str) -> frozenset[str]:
+    """Tags exposed by one deployed scenario config (not class-level unions)."""
+    scenario, config = parse_column(column)
+    if scenario == "isp":
+        if config == "isis":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"isis"})
+        if config == "ospf":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf"})
+        if config == "ibgp_rr":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"isis", "bgp"})
+        if config == "abilene-ebgp":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp"})
+        if config == "abilene-ebgp-rpki":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "rpki"})
+        if config == "geant-ebgp-rpki":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "rpki"})
+        raise ValueError(f"Unknown isp config {config!r}")
+    return frozenset(scenario_tags(scenario))
+
+
 def scenario_supported_backends(scenario_name: str) -> list[str]:
     """Return backends supported by ``scenario_name``."""
     return list(_require_scenario(scenario_name).supported_backends)

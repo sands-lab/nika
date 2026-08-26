@@ -12,7 +12,7 @@ from nika.net_env.net_env_pool import (
     resolve_scenario_id,
     scenario_requires_topo_size,
 )
-from nika.problems.prob_pool import list_avail_problem_names
+from nika.problems.registry import list_avail_problem_names
 
 _SIZE_TOKENS = ("s", "m", "l")
 

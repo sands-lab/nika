@@ -26,6 +26,27 @@ class _SupportsBase(Protocol):
     def _require_machine_inventory(self) -> MachineInventory: ...
 
 
+def _static_lab_from_session(session_meta: dict | None, lab_name: str) -> "Lab | None":
+    """Rebuild immutable machine metadata when Kathara's live parser is transiently unavailable."""
+    if not session_meta or not session_meta.get("scenario_name"):
+        return None
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    params = dict(session_meta.get("scenario_params") or {})
+    params.pop("backend", None)
+    params.pop("lab_name", None)
+    params.pop("topology_file", None)
+    params.pop("runtime_workdir", None)
+    net_env = get_net_env_instance(
+        str(session_meta["scenario_name"]),
+        backend="kathara",
+        lab_name=lab_name,
+        **params,
+    )
+    net_env.load_machines()
+    return net_env.lab
+
+
 class KatharaBaseAPI(TCMixin):
     """
     Base interfaces to interact with the Kathara.
@@ -33,7 +54,15 @@ class KatharaBaseAPI(TCMixin):
 
     def __init__(self, lab_name: str, *, session_meta: dict | None = None):
         self.instance = Kathara.get_instance()
-        self.lab = self.instance.get_lab_from_api(lab_name=lab_name)
+        try:
+            self.lab = self.instance.get_lab_from_api(lab_name=lab_name)
+        except KeyError:
+            # A controller-owned VDE fault proxy temporarily replaces a Docker
+            # network.  Kathara's live-lab parser follows that network ID and
+            # can raise KeyError before returning the otherwise healthy lab.
+            # Commands only require the lab name; use the persisted scenario
+            # definition for machine metadata until the proxy is removed.
+            self.lab = _static_lab_from_session(session_meta, lab_name)
         if self.lab is None:
             raise ValueError(f"Lab {lab_name} not found.")
         self._resolved_shell_cache: dict[str, str] = {}

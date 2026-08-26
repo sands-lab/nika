@@ -19,6 +19,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | --- | --- | --- |
 | Compare registered agents, providers, and execution modes | [Agent implementation reference](agent-implementations.md) | Reference |
 | Implement and register a `TroubleshootingAgent` | [Custom agent integration](custom-agents.md) | How-to |
+| See which MCP servers a session mounts and how to use packet capture | [MCP servers](mcp-servers.md) | Reference |
 | Add reusable instructions for Claude or Codex agents | [Configure agent skills](agent-skills.md) | How-to |
 | Configure a community-maintained agent | [Community agent references](agents/community/README.md) | Reference |
 
@@ -54,7 +55,8 @@ uv run nika agent list
 | CLI and workflows | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/), [`workflows/`](../src/nika/workflows/) |
 | Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
 | Scenario validation | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |
-| Failure registry and labels | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py), [`root_cause.py`](../src/nika/problems/root_cause.py) |
+| Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/agent/registry.py) |
+| MCP server catalog and selection | [`mcp_server/registry.py`](../src/nika/service/mcp_server/registry.py), [`mcp_server/`](../src/nika/service/mcp_server/) |
 | Benchmark generation | [`generate_benchmark.py`](../benchmark/generate_benchmark.py), [`workflows/benchmark/`](../src/nika/workflows/benchmark/) |
 | Test suites | [`tests/`](../tests/) |

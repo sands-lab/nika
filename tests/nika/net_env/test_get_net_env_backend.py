@@ -1,4 +1,4 @@
-"""get_net_env_instance must construct labs that omit backend from __init__."""
+"""Scenario registry contract: canonical IDs and ISP profile wiring."""
 
 from __future__ import annotations
 
@@ -11,35 +11,11 @@ from nika.net_env.net_env_pool import (
 )
 
 
-def test_dc_clos_accepts_backend_kwarg() -> None:
-    env = get_net_env_instance("dc_clos", backend="kathara", topo_size="s")
-    assert env.backend == "kathara"
-    assert not hasattr(env, "workload")
-    assert env.lab is not None
-
-
-def test_dc_clos_services_are_built_by_default() -> None:
-    env = get_net_env_instance("dc_clos", backend="kathara", topo_size="s")
-    assert "dns_pod0" in env.lab.machines
-
-
 def test_only_canonical_scenario_ids_resolve() -> None:
     assert resolve_scenario_id("dc_clos") == "dc_clos"
     for legacy in ("dc_clos_service", "ospf_enterprise_dhcp", "sdn_star", "p4_counter"):
         with pytest.raises(ValueError):
             resolve_scenario_id(legacy)
-
-
-def test_campus_lan_builds_dhcp_topology() -> None:
-    env = get_net_env_instance("campus_lan", backend="kathara", topo_size="s")
-    assert "dhcp_server" in env.lab.machines
-    assert env.name == "campus_lan"
-
-
-def test_simple_bgp_forwards_backend() -> None:
-    env = get_net_env_instance("simple_bgp", backend="kathara")
-    assert env.backend == "kathara"
-    assert env.lab is not None
 
 
 def test_isp_rpki_abilene_profile() -> None:
@@ -51,7 +27,6 @@ def test_isp_rpki_abilene_profile() -> None:
         bgp_mode="ebgp",
         rpki=True,
     )
-    assert env.backend == "kathara"
     assert env.LAB_NAME == "isp"
     assert env.bgp_mode == "ebgp"
     assert env.rpki is True

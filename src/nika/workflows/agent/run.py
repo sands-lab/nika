@@ -26,7 +26,8 @@ logging.basicConfig(level=logging.INFO)
 
 
 def _gateway_policy_mode(agent_type: str) -> str:
-    return "unified" if agent_type == "community.sade" else "two_phase"
+    del agent_type
+    return "two_phase"
 
 
 def start_agent(

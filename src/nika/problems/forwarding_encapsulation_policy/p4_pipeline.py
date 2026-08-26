@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import FailureDomain, ProblemBase, build_verify_result
-from nika.problems.root_cause import node_resource
-from nika.problems.support.p4runtime import (
+from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
+from nika.problems.rca import node_resource
+from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     load_intent,
     lpm_prefix,
     other_group_id,

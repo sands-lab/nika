@@ -2,9 +2,12 @@
 
 from pydantic import BaseModel, Field
 
-from nika.problems.topology_inventory import interface_on, select_host_interface
+from nika.problems.rca.inventory import (
+    link_containing_endpoint,
+    select_host_interface,
+)
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
@@ -37,7 +40,7 @@ class LinkPacketCorruption(ProblemBase):
         intf = params.intf_name or select_host_interface(
             self.net_env, params.host_name, last=True
         )
-        return [interface_on(self.net_env, params.host_name, intf)]
+        return [link_containing_endpoint(self.net_env, params.host_name, intf)]
 
     def inject_fault(self, params: LinkPacketCorruptionParams):
         intf_name = self._target_intf(params.host_name, params.intf_name, last=True)

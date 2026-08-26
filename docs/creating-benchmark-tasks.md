@@ -2,15 +2,15 @@
 
 This guide is for NIKA contributors who add a network scenario, injectable failure, traffic source, or benchmark case. It follows the runtime and registry contracts used by the current implementation.
 
-Core contracts: [`NetworkEnvBase`](../src/nika/net_env/base.py), [`ProblemBase`](../src/nika/problems/problem_base.py), and the [`benchmark` workflows](../src/nika/workflows/benchmark/).
+Core contracts: [`NetworkEnvBase`](../src/nika/net_env/base.py), [`ProblemBase`](../src/nika/problems/base.py), and the [`benchmark` workflows](../src/nika/workflows/benchmark/).
 
 ## Understand the task model
 
 A benchmark case combines:
 
 - a network scenario from `src/nika/net_env/`
-- one injectable problem from `src/nika/problems/`
-- explicit injection parameters
+- either one injectable problem from `src/nika/problems/`, or the sentinel `problem: healthy` (no fault)
+- explicit injection parameters (empty for healthy cases)
 - optional traffic generated before or during troubleshooting
 - an agent run and evaluation output under `results/{session_id}/`
 
@@ -109,12 +109,12 @@ Each fault is a single `ProblemBase` subclass that implements injection, verific
 ```python
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
     ProblemBase,
     build_verify_result,
 )
-from nika.problems.topology_inventory import interface_on
+from nika.problems.rca.inventory import interface_on
 
 
 class MyFaultParams(BaseModel):
@@ -154,8 +154,8 @@ Notes:
 - Place the implementation under the matching subsystem directory.
 - `symptom_desc` is optional. When set, it becomes the registry description and ground-truth `detailed_cause`. When omitted, the registry description falls back to `root_cause_name`, while `detailed_cause` remains empty.
 - `inject_fault()` should mutate only the selected lab instance.
-- `verify_fault()` must prove the fault is active. Failed verification marks the injection as failed and stops the run.
-- Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
+- `verify_fault()` must prove the injection artifacts are present (nft/tc/config/process/quota). Failed verification marks the injection as failed and stops the run. Do not put slow network-impact probes in `verify_fault`; put those in the test-path API `tests.support.symptom.evaluate_symptom` (contracts under `tests/support/symptom/`).
+- Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`); use `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](root-cause-evaluation.md).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
 
 Verify the problem:
@@ -220,6 +220,11 @@ cases:
     inject:
       host_name: pc1
       intf_name: eth0
+  - scenario: my_scenario
+    topo_size: s
+    problem: healthy
+    inject: {}
+    root_causes: []
 ```
 
 When the new failure or scenario should enter the working matrices, regenerate them and refresh the failure × scenario tables in [Benchmark configuration](benchmark-configuration.md) in the same change:

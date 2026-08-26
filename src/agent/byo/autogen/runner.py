@@ -11,7 +11,11 @@ from autogen_core.models import ChatCompletionClient, ModelFamily
 from autogen_ext.models.anthropic import AnthropicChatCompletionClient
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-from agent.utils.loggers import MessageLogger
+from agent.utils.loggers import (
+    MessageLogger,
+    PendingToolCallTracker,
+    tool_event_payload,
+)
 from agent.utils.usage import normalize_usage
 from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
 from agent.utils.provider_env import (
@@ -218,6 +222,7 @@ async def run_logged_agent(
     """Run an AssistantAgent and log tool events to ``messages.jsonl``."""
     tool_rounds = 0
     final_text = ""
+    pending_tool_calls = PendingToolCallTracker()
 
     async for event in agent.run_stream(task=task):
         if isinstance(event, TaskResult):
@@ -234,19 +239,34 @@ async def run_logged_agent(
             for call in event.content:
                 logger.log(
                     "tool_start",
-                    {
-                        "tool": {"name": _short_tool_name(call.name)},
-                        "input": call.arguments,
-                    },
+                    pending_tool_calls.register(
+                        name=_short_tool_name(call.name),
+                        input=call.arguments,
+                        tool_call_id=call.id,
+                    ),
                 )
         elif isinstance(event, ToolCallExecutionEvent):
             for result in event.content:
+                tool_name = _short_tool_name(result.name)
+                resolved = pending_tool_calls.resolve(
+                    name=tool_name,
+                    tool_call_id=result.call_id,
+                )
+                correlation = tool_event_payload(
+                    name=tool_name or resolved.get("name") or None,
+                    input=resolved.get("input"),
+                    tool_call_id=result.call_id,
+                )
                 if result.is_error:
-                    logger.log("tool_error", {"error": str(result.content)})
+                    logger.log(
+                        "tool_error",
+                        {**correlation, "error": str(result.content)},
+                    )
                 else:
                     logger.log(
                         "tool_end",
                         {
+                            **correlation,
                             "output": str(result.content),
                             "output_type": "FunctionExecutionResult",
                         },

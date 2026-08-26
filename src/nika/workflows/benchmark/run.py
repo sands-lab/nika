@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
-from nika.problems.prob_pool import get_problem_instance
+from nika.problems.registry import get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
 from nika.workflows.agent.run import start_agent
@@ -24,6 +24,10 @@ from nika.workflows.benchmark.trials import (
     merge_run_config,
     scan_trials,
     trial_dir,
+)
+from nika.workflows.benchmark.healthy import (
+    is_healthy_case,
+    write_healthy_session_artifacts,
 )
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.release import (
@@ -69,6 +73,8 @@ def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     session = Session().load_running_session(session_id=session_id)
     for key, value in release_fields_for_session(release_meta).items():
         session.update_session(key, value)
+    if release_meta.get("fault_ontology"):
+        session.update_session("fault_ontology", release_meta["fault_ontology"])
 
 
 def _stamp_trial_meta(
@@ -95,6 +101,12 @@ def validate_inject_params(
     params: dict[str, str],
 ) -> None:
     """Raise ValueError if inject params do not satisfy the problem schema."""
+    if is_healthy_case(problem):
+        if params:
+            raise ValueError(
+                f"Healthy case {problem!r} does not accept inject parameters."
+            )
+        return
     if not params:
         raise ValueError(
             f"Missing inject parameters for {problem!r}. "
@@ -375,12 +387,15 @@ def run_single_case(
     try:
         if session_dir is None:
             session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
-        inject_failure(
-            problem_names=[problem],
-            session_id=session_id,
-            param_overrides=params,
-            expected_root_causes=expected_root_causes,
-        )
+        if is_healthy_case(problem):
+            write_healthy_session_artifacts(session_id)
+        else:
+            inject_failure(
+                problem_names=[problem],
+                session_id=session_id,
+                param_overrides=params,
+                expected_root_causes=expected_root_causes,
+            )
         gt_written = (session_dir / "ground_truth.json").is_file()
 
         row = benchmark_row_from_case(
@@ -703,6 +718,10 @@ def run_benchmark_trials(
     if not rows:
         print(f"No benchmark rows found in {benchmark_file}")
         return
+    release_meta = dict(release_meta or {})
+    release_meta["fault_ontology"] = sorted(
+        {str(row["problem"]) for row in rows if row.get("problem")}
+    )
 
     trials = expand_trials(rows, n_trials)
     results_root = resolve_results_root(result_dir)

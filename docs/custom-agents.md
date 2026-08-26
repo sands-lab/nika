@@ -23,9 +23,8 @@ await agent.run(task_description=session.task_description)
 
 Expected behavior:
 
-- run diagnosis using the Kathara MCP tools
-- call `list_resources` and `list_avail_problems` during the task MCP submission phase
-- call `submit` with catalog-backed `resource_id` and `fault_type` pairs before returning
+- run diagnosis using the session MCP tools
+- advance to the submission phase, then call `submit` with `resource_id` and `fault_type` pairs from the frozen submission context
 - write useful trace events to `results/{session_id}/messages.jsonl`
 - leave `submission.json` in the session directory through the task MCP `submit` tool
 
@@ -52,6 +51,7 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
+from nika.workflows.agent.submission import load_submission_context
 
 
 class MyAgent:
@@ -75,7 +75,7 @@ class MyAgent:
         return {"diagnosis_report": diagnosis}
 
     async def _diagnose(self, task_description: str) -> str:
-        logger = MessageLogger(agent=DIAGNOSIS, session_dir=self.session.session_dir)
+        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self.session.session_dir)
         logger.log("llm_start", {"messages": {"role": "user", "content": task_description}})
 
         config = load_session_mcp_config(self.session_id, self.session.scenario_name)
@@ -90,26 +90,23 @@ class MyAgent:
         return diagnosis
 
     async def _submit(self, diagnosis: str) -> None:
-        logger = MessageLogger(agent=SUBMISSION, session_dir=self.session.session_dir)
-        begin_submission_mcp_phase(self.session_id)
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self.session.session_dir)
+        begin_submission_mcp_phase(self.session_id, diagnosis)
 
         config = load_session_mcp_config(self.session_id, self.session.scenario_name)
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        resources = await tools["list_resources"].ainvoke({})
-        fault_types = await tools["list_avail_problems"].ainvoke({})
-
-        # Your model or framework must select values returned by these tools.
-        assert resources
-        assert fault_types
-
+        context = load_submission_context(self.session_id)
+        # Select resource_id and fault_type from context["resources"] and
+        # context["fault_ontology"] (owner-kind entries from ownership_entries;
+        # usually via your model or framework).
         submission = {
             "is_anomaly": True,
             "root_causes": [
                 {
-                    "resource_id": "interface/pc1/eth0",
-                    "fault_type": "link_down",
+                    "resource_id": context["resources"][0]["id"],
+                    "fault_type": context["fault_ontology"][0]["id"],
                 }
             ],
         }
@@ -148,17 +145,17 @@ from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_
 # Diagnosis (and submission after phase advance): all session servers
 config = load_session_mcp_config(session_id, scenario_name)
 
-# Before submission tools: advance gateway phase
-begin_submission_mcp_phase(session_id)
+# Before submission tools: freeze diagnosis and advance gateway phase
+begin_submission_mcp_phase(session_id, diagnosis_report)
 ```
 
 Common submission flow:
 
-1. Call `list_resources` and select one or more localization IDs.
-2. Call `list_avail_problems` and select the matching fault type for each resource.
+1. Call `begin_submission_mcp_phase(session_id, diagnosis_report)`.
+2. Read the frozen resource inventory and fault ontology from the submission context in the prompt (or `load_submission_context`).
 3. Call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
 
-The task server rejects IDs that are absent from either list. See the [root-cause ground truth and scoring reference](root-cause-evaluation.md) for the submit and scoring contract.
+The task server rejects IDs outside those catalogs. See [MCP servers](mcp-servers.md) for the server catalog and packet capture workflow, and [root-cause ground truth and scoring](root-cause-evaluation.md) for the submit contract.
 
 ## Write trace logs
 
@@ -168,7 +165,7 @@ Use `MessageLogger` for JSONL traces:
 from agent.utils.loggers import MessageLogger
 from agent.protocols import DIAGNOSIS
 
-logger = MessageLogger(agent=DIAGNOSIS, session_dir=session.session_dir)
+logger = MessageLogger(phase=DIAGNOSIS, session_dir=session.session_dir)
 logger.log("tool_start", {"tool": {"name": "ping_pair"}, "input": {"host_a": "pc1", "host_b": "pc2"}})
 logger.log("tool_end", {"output": "success"})
 ```
@@ -208,7 +205,7 @@ uv run nika benchmark run dc_clos -s s --problem link_down \
 - Agent class has `session_id` and `async run(task_description)`.
 - Registry maps a stable CLI id to the class.
 - Diagnosis uses MCP tools instead of direct Docker/Kathara duplication.
-- Submission selects IDs from `list_resources` and `list_avail_problems`, then uses the task MCP `submit` tool.
+- Submission selects IDs from the frozen submission context, then uses the task MCP `submit` tool.
 - `messages.jsonl` and `submission.json` appear in the session result directory.
 - `uv run nika benchmark run ... -a community.my_agent` completes for a small case.
 

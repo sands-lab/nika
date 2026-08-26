@@ -29,9 +29,13 @@ TEST_SKILLS_PROMPT_SUFFIX = dedent("""\
 SUBMIT_PROMPT_TEMPLATE = dedent("""\
     You are an expert network engineer.
     Your task is to submit the final diagnosis for this network problem.
-    Call list_resources() to see localization ids and list_avail_problems() to see fault types.
-    Then call submit() with is_anomaly and root_causes as [{resource_id, fault_type}, ...]
-    chosen from those two lists. Do not invent ids.
+    You are given a frozen diagnosis report, a fault ontology, and a canonical
+    resource inventory. Do not investigate again or revise the report. Call
+    submit() once with is_anomaly and root_causes as [{resource_id, fault_type}, ...]
+    chosen from that supplied context. Each fault_type must be an exact ontology
+    ``id`` (never an owner_kind or a natural-language alias), and each resource_id
+    must be an exact inventory id. Do not invent ids. For a healthy case submit
+    is_anomaly=false with an empty root_causes list. Do not call submit more than once.
     Rely only on the MCP tools available to you; do not execute arbitrary shell commands.\
 """).strip()
 

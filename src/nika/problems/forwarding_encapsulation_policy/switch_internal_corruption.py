@@ -2,9 +2,9 @@
 
 from pydantic import BaseModel, Field
 
-from nika.problems.problem_base import FailureDomain, ProblemBase, build_verify_result
-from nika.problems.root_cause import node_resource
-from nika.problems.topology_inventory import interfaces_for_node
+from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
+from nika.problems.rca import node_resource
+from nika.problems.rca.inventory import interfaces_for_node
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
 from traffic.burst import BurstTrafficGenerator

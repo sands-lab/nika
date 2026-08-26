@@ -118,7 +118,7 @@ class ClaudeWorker:
 
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "claude_workspace"
-        self._logger = MessageLogger(agent=phase, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._stream_output = stream_output
         self._mcp_config_path: Path | None = None
 

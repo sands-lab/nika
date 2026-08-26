@@ -7,9 +7,10 @@ from typing import Any
 
 import yaml
 
-from nika.problems.ground_truth import ground_truth_for_case
-from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
-from nika.problems.topology_inventory import load_offline_net_env
+from nika.problems.rca.materialize import ground_truth_for_case
+from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
+from nika.problems.rca.inventory import load_offline_net_env
 
 
 def _load_raw(path: Path) -> dict[str, Any]:
@@ -36,6 +37,18 @@ def materialize_case(
         raise ValueError("Benchmark case must be a mapping")
     scenario = str(row["scenario"])
     problem = str(row["problem"])
+    if is_healthy_case(problem):
+        out: dict[str, Any] = {
+            "scenario": scenario,
+            "topo_size": _topo_size(row) or None,
+            "problem": problem,
+            "inject": {},
+            "root_causes": [],
+        }
+        for key in ("topo", "igp", "bgp_mode", "rpki"):
+            if row.get(key) not in (None, "", "-"):
+                out[key] = row[key]
+        return out
     topo = _topo_size(row)
     isp_topo = row.get("topo")
     isp_igp = row.get("igp")

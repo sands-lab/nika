@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Literal
+from typing import Any, Literal
 
-from agent.protocols import DIAGNOSIS
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 PolicyMode = Literal["two_phase", "unified"]
 Phase = Literal["diagnosis", "submission"]
@@ -22,6 +22,9 @@ class GatewaySession:
     policy_mode: PolicyMode
     phase: Phase = DIAGNOSIS
     remote_upstreams: dict[str, str] = field(default_factory=dict)
+    session_dir: str = ""
+    access_policy: dict[str, Any] = field(default_factory=dict)
+    node_roles: dict[str, str] = field(default_factory=dict)
 
 
 def register_session(
@@ -30,6 +33,9 @@ def register_session(
     scenario_name: str = "",
     policy_mode: PolicyMode = "two_phase",
     remote_upstreams: dict[str, str] | None = None,
+    session_dir: str = "",
+    access_policy: dict[str, Any] | None = None,
+    node_roles: dict[str, str] | None = None,
 ) -> None:
     with _lock:
         _sessions[session_id] = GatewaySession(
@@ -38,6 +44,9 @@ def register_session(
             policy_mode=policy_mode,
             phase=DIAGNOSIS,
             remote_upstreams=dict(remote_upstreams or {}),
+            session_dir=session_dir,
+            access_policy=dict(access_policy or {}),
+            node_roles=dict(node_roles or {}),
         )
 
 
@@ -74,4 +83,8 @@ def advance_phase(session_id: str, phase: Phase) -> None:
         entry = _sessions.get(session_id)
         if entry is None:
             raise KeyError(f"MCP gateway session not registered: {session_id!r}")
+        if entry.phase == SUBMISSION and phase != SUBMISSION:
+            raise ValueError("MCP phase cannot move back from submission")
+        if entry.phase == DIAGNOSIS and phase != SUBMISSION:
+            raise ValueError("MCP phase must advance from diagnosis to submission")
         entry.phase = phase

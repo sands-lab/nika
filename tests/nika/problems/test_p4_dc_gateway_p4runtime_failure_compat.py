@@ -10,7 +10,7 @@ from nika.net_env.p4_dc_gateway.topology_model import (
     build_gateway_fabric_model,
 )
 from nika.net_env.verify import http_ok
-from nika.problems.prob_pool import get_problem_instance
+from nika.problems.registry import get_problem_instance
 from nika.runtime.factory import runtime_for_session
 from nika.workflows.failure.inject import inject_failure as inject_failure_workflow
 from tests.support.integration_base import IntegrationTestCase

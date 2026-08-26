@@ -304,6 +304,9 @@ def traffic_run(
                 "`web` traffic always blocks this CLI until interrupted; do not pass `--background`."
             )
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        if runtime_lab_name:
+            kwargs["lab_name"] = runtime_lab_name
         gen = WebBrowsingTrafficGenerator(
             scenario_name=scenario,
             request_delay_range=(request_delay_min, request_delay_max),
@@ -316,6 +319,9 @@ def traffic_run(
 
     if t == "od":
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        if runtime_lab_name:
+            kwargs["lab_name"] = runtime_lab_name
         net_env = get_net_env_instance(scenario, **kwargs)
         hosts = list(net_env.hosts)
 

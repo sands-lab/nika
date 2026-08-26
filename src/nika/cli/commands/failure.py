@@ -27,7 +27,7 @@ def _parse_set_options(raw_items: list[str] | None) -> dict[str, str]:
 @failure_app.command("list")
 def failure_list() -> None:
     """Print injectable problem ids."""
-    from nika.problems.prob_pool import list_avail_problem_names
+    from nika.problems.registry import list_avail_problem_names
 
     for name in sorted(list_avail_problem_names()):
         typer.echo(name)
@@ -68,7 +68,7 @@ def failure_describe(
     ),
 ) -> None:
     """Describe supported parameters for one failure type."""
-    from nika.problems.prob_pool import get_problem_class
+    from nika.problems.registry import get_problem_class
 
     cls = get_problem_class(problem)
     if cls is None:

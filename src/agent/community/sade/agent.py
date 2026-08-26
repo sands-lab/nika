@@ -36,9 +36,11 @@ from dotenv import load_dotenv
 
 from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
-from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.protocols import DIAGNOSIS
+from agent.utils.loggers import MessageLogger, tool_event_payload
+from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
+from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.submission_context import submission_prompt_context
+from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, skills_enabled
 from agent.utils.usage import normalize_usage
 
@@ -107,14 +109,21 @@ class SadeAgent:
         sdk_env = prepare_sade_sdk_env(
             session_id=self.session_id, provider=self.llm_provider
         )
-        msg_logger = MessageLogger(agent=AGENT_TAG, session_dir=self.session_dir)
+        msg_logger = MessageLogger(phase=AGENT_TAG, session_dir=self.session_dir)
         logger.info("sade: starting session %s", self.session_id)
 
+        from nika.service.mcp_server.registry import SUBMISSION_SERVER
+
+        diagnosis_servers = {
+            name: value
+            for name, value in self.mcp_servers.items()
+            if name != SUBMISSION_SERVER
+        }
         options_kwargs: dict[str, Any] = {
-            "system_prompt": SADE_PROMPT,
+            "system_prompt": SADE_PROMPT + "\nDo not submit during diagnosis.",
             "model": self.model,
             "cwd": str(PACKAGE_DIR),
-            "mcp_servers": self.mcp_servers,
+            "mcp_servers": diagnosis_servers,
             "max_turns": self.max_steps,
             "permission_mode": "bypassPermissions",
             "env": sdk_env,
@@ -141,6 +150,8 @@ class SadeAgent:
         in_tokens = 0
         out_tokens = 0
         turn_text: list[str] = []
+        tool_names_by_id: dict[str, str] = {}
+        tool_inputs_by_id: dict[str, str] = {}
 
         def _flush_turn() -> None:
             """Emit the accumulated assistant turn as one canonical ``llm_end``.
@@ -177,12 +188,15 @@ class SadeAgent:
                             # Emit the reasoning that led to this call, then the
                             # tool call (llm_end -> tool_start order, like NIKA).
                             _flush_turn()
+                            tool_names_by_id[block.id] = block.name
+                            tool_inputs_by_id[block.id] = str(block.input)
                             msg_logger.log(
                                 "tool_start",
-                                {
-                                    "tool": {"name": block.name},
-                                    "input": str(block.input),
-                                },
+                                tool_event_payload(
+                                    name=block.name,
+                                    input=block.input,
+                                    tool_call_id=block.id,
+                                ),
                             )
                             if "submit" in block.name:
                                 has_submitted = True
@@ -193,14 +207,26 @@ class SadeAgent:
                     )
                     for block in content:
                         if isinstance(block, ToolResultBlock):
+                            tool_name = tool_names_by_id.get(block.tool_use_id)
+                            tool_input = tool_inputs_by_id.get(block.tool_use_id)
+                            correlation = tool_event_payload(
+                                name=tool_name,
+                                input=tool_input,
+                                tool_call_id=block.tool_use_id,
+                            )
                             if block.is_error:
                                 msg_logger.log(
-                                    "tool_error", {"output": str(block.content)}
+                                    "tool_error",
+                                    {
+                                        **correlation,
+                                        "output": str(block.content),
+                                    },
                                 )
                             else:
                                 msg_logger.log(
                                     "tool_end",
                                     {
+                                        **correlation,
                                         "output": str(block.content),
                                         "output_type": "tool_result",
                                     },
@@ -246,10 +272,83 @@ class SadeAgent:
                     )
                     break
 
+        submission_result = await self._run_submission(sdk_env, result_text)
         return {
             "result": result_text,
+            "submission_result": submission_result,
             "has_submitted": has_submitted,
             "api_turns": api_turn_count,
             "in_tokens": in_tokens,
             "out_tokens": out_tokens,
         }
+
+    async def _run_submission(
+        self, sdk_env: dict[str, str], diagnosis_report: str
+    ) -> str:
+        """Run the same SADE agent instance with only the final submit tool."""
+        from nika.service.mcp_server.registry import SUBMISSION_SERVER
+
+        begin_submission_mcp_phase(self.session_id, diagnosis_report)
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self.session_dir)
+        options = ClaudeAgentOptions(
+            system_prompt=SUBMIT_PROMPT_TEMPLATE,
+            model=self.model,
+            cwd=str(PACKAGE_DIR),
+            mcp_servers={SUBMISSION_SERVER: self.mcp_servers[SUBMISSION_SERVER]},
+            max_turns=self.max_steps,
+            permission_mode="bypassPermissions",
+            env=sdk_env,
+        )
+        prompt = (
+            f"Based on the frozen diagnosis report: {diagnosis_report}\n"
+            f"{submission_prompt_context(self.session_id)}"
+        )
+        text = ""
+        tool_names_by_id: dict[str, str] = {}
+        tool_inputs_by_id: dict[str, str] = {}
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(prompt)
+            async for message in client.receive_messages():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            text += block.text
+                        elif isinstance(block, ToolUseBlock):
+                            tool_names_by_id[block.id] = block.name
+                            tool_inputs_by_id[block.id] = str(block.input)
+                            logger.log(
+                                "tool_start",
+                                tool_event_payload(
+                                    name=block.name,
+                                    input=block.input,
+                                    tool_call_id=block.id,
+                                ),
+                            )
+                elif isinstance(message, UserMessage):
+                    for block in (
+                        message.content if isinstance(message.content, list) else []
+                    ):
+                        if isinstance(block, ToolResultBlock):
+                            tool_name = tool_names_by_id.get(block.tool_use_id)
+                            tool_input = tool_inputs_by_id.get(block.tool_use_id)
+                            logger.log(
+                                "tool_end",
+                                tool_event_payload(
+                                    name=tool_name,
+                                    input=tool_input,
+                                    tool_call_id=block.tool_use_id,
+                                    output=str(block.content),
+                                    output_type="tool_result",
+                                ),
+                            )
+                elif isinstance(message, ResultMessage):
+                    text = message.result or text
+                    logger.log(
+                        "llm_end",
+                        {
+                            "text": text,
+                            "usage_metadata": normalize_usage(message.usage),
+                        },
+                    )
+                    break
+        return text

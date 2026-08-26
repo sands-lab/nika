@@ -40,7 +40,7 @@ def isp_config_for_problem(problem: str, problem_tags: set[str]) -> dict[str, An
             "rpki": True,
         }
     if problem == "bgp_max_prefix_exceeded":
-        return {"topo": "abilene", "igp": "isis", "bgp_mode": "ebgp", "rpki": False}
+        return {"topo": "abilene", "igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
     if "ospf" in problem_tags or problem.startswith("ospf_"):
         return {
             "topo": DEFAULT_TOPO,

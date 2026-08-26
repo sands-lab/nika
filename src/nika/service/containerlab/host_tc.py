@@ -95,6 +95,32 @@ class HostTcController:
         )
         return peer
 
+    def set_tbf(
+        self,
+        node: str,
+        intf: str,
+        rate: str,
+        burst: str,
+        limit: str,
+    ) -> str:
+        peer = self.peer_name(node, intf)
+        self._run(
+            "tc",
+            "qdisc",
+            "replace",
+            "dev",
+            peer,
+            "root",
+            "tbf",
+            "rate",
+            rate,
+            "burst",
+            burst,
+            "limit",
+            limit,
+        )
+        return peer
+
     def qdisc(self, peer: str) -> str:
         return self._run("tc", "qdisc", "show", "dev", peer)
 

@@ -1,99 +1,12 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.topology_inventory import interface_on, select_host_interface
-from nika.problems.problem_base import (
+from nika.problems.rca.inventory import interface_on
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
-from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
-
-# ==================================================================
-# Problem: High link packet corruption between devices causing performance degradation.
-# ==================================================================
-
-
-# ==================================================================
-# Problem: Bandwidth throttling on a link causing performance degradation.
-# ==================================================================
-
-
-class LinkBandwidthThrottlingParams(BaseModel):
-    """Parameters for injecting a bandwidth throttling fault."""
-
-    host_name: str = Field(description="Target host name.")
-    rate: str = Field(default="30kbit", description="Bandwidth rate.")
-    burst: str = Field(default="64kb", description="TBF burst.")
-    limit: str = Field(default="500kb", description="TBF limit.")
-
-
-class LinkBandwidthThrottling(ProblemBase):
-    failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
-    root_cause_name: str = "link_bandwidth_throttling"
-    TAGS: str = ["link"]
-
-    Params = LinkBandwidthThrottlingParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
-        self.scenario_name = scenario_name
-
-    def root_cause_resources(self, params: LinkBandwidthThrottlingParams):
-        intf = select_host_interface(self.net_env, params.host_name, last=False)
-        return [interface_on(self.net_env, params.host_name, intf)]
-
-    def inject_fault(self, params: LinkBandwidthThrottlingParams):
-        intf_name = self._target_intf(params.host_name, last=False)
-        self.runtime.tc_set_tbf(
-            params.host_name,
-            intf_name,
-            rate=params.rate,
-            burst=params.burst,
-            limit=params.limit,
-        )
-        od_dict: dict[str, dict[str, int]] = {}
-        mbps = 20
-        host_names = getattr(self.net_env, "hosts", None) or [
-            node
-            for node in self.runtime.list_nodes()
-            if any(key in node for key in ("client", "pc", "host"))
-        ]
-        for h in host_names:
-            if h != params.host_name:
-                od_dict.setdefault(h, {})
-                od_dict[h][params.host_name] = mbps
-        if od_dict and self.lab_backend == "kathara":
-            labels = self.runtime.start_background_od_traffic(
-                od_dict, interval=300, unit="M", udp=True
-            )
-            system_logger.info(
-                f"Started background traffic generation {labels} to amplify the bandwidth throttling effect."
-            )
-
-    def verify_fault(self, params: LinkBandwidthThrottlingParams) -> dict:
-        """Verify tc qdisc on the host's first interface has TBF (token bucket filter) configured."""
-        intf = self._target_intf(params.host_name, last=False)
-        verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
-        tc_output = self.runtime.tc_show_intf(params.host_name, intf).strip()
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "intf": intf, "tc_output": tc_output},
-        )
-
-    def _target_intf(self, host_name: str, *, last: bool) -> str:
-        match self.lab_backend:
-            case "containerlab":
-                return "e1-1"
-            case "kathara":
-                interfaces = self.runtime.get_host_interfaces(host_name)
-                return interfaces[-1] if last else interfaces[0]
-            case backend:
-                raise RuntimeCapabilityError(
-                    f"{type(self).__name__}: unsupported backend {backend!r}."
-                )
-
 
 # ==================================================================
 # Problem: incast traffic causing performance degradation.
@@ -145,16 +58,27 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         )
         od_dict: dict[str, dict[str, int]] = {}
         mbps = 20
-        for h in self.net_env.hosts:
+        host_pool = list(self.net_env.hosts or [])
+        if not host_pool:
+            servers = getattr(self.net_env, "servers", None) or {}
+            host_pool = list(servers.get("web") or [])
+        if not host_pool:
+            from nika.problems.support.probe_paths import get_probe_path
+
+            path = get_probe_path(self.scenario_name or "")
+            if path is not None:
+                host_pool = [h for h in (path.src_host, path.peer_host) if h]
+        for h in host_pool:
             if h != params.host_name:
                 od_dict.setdefault(h, {})
                 od_dict[h][params.host_name] = mbps
-        labels = self.runtime.start_background_od_traffic(
-            od_dict, interval=300, unit="M", udp=True
-        )
-        system_logger.info(
-            f"Started background traffic generation {labels} to amplify the network limitation effect."
-        )
+        if od_dict:
+            labels = self.runtime.start_background_od_traffic(
+                od_dict, interval=300, unit="M", udp=True
+            )
+            system_logger.info(
+                f"Started background traffic generation {labels} to amplify the network limitation effect."
+            )
 
     def verify_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:
         """Verify tc qdisc on eth0 has netem or tbf (incast network limitation)."""

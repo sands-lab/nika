@@ -521,7 +521,16 @@ class DCClos(NetworkEnvBase):
             )
 
         for web in tot_webservers:
-            web.cmd_list.append("nohup python3 -m http.server 80 &")
+            web.cmd_list.extend(
+                [
+                    "mkdir -p /var/www",
+                    "dd if=/dev/zero of=/var/www/small.bin bs=1024 count=16 "
+                    "status=none 2>/dev/null || true",
+                    "dd if=/dev/zero of=/var/www/large.bin bs=1M count=32 "
+                    "status=none 2>/dev/null || true",
+                    "cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &",
+                ]
+            )
             self.lab.create_file_from_list(
                 web.cmd_list,
                 f"{web.machine.name}.startup",

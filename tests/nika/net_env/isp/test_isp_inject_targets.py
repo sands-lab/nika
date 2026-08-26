@@ -23,9 +23,36 @@ def test_link_and_router_targets_polska() -> None:
     assert first_router(inv) == sorted(n["device"] for n in inv["nodes"])[0]
     params = isp_inject_params("link_down", inv)
     assert params == {"host_name": device, "intf_name": iface}
+    assert isp_inject_params("link_capacity_bottleneck", inv) == {
+        "host_name": device,
+        "intf_name": iface,
+    }
+    assert isp_inject_params("link_packet_corruption", inv) == {
+        "host_name": device,
+        "intf_name": iface,
+    }
     assert isp_inject_params("frr_service_down", inv) == {
         "host_name": first_router(inv)
     }
+
+
+def test_isp_link_symptom_targets_abilene() -> None:
+    from nika.net_env.isp.inject_targets import isp_link_symptom_targets
+    from nika.net_env.isp.kathara.lab import _stub_series_all_routers
+    from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
+
+    plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    attachment = attach_traffic_stubs(
+        plan,
+        _stub_series_all_routers(plan),
+        pop_node_ids=tuple(n.node_id for n in plan.nodes),
+    )
+    inv = attachment.plan.inventory
+    device, iface = first_link_endpoint(inv)
+    targets = isp_link_symptom_targets(inv, device, iface)
+    assert targets["symptom_host"].startswith("pc_")
+    assert targets["peer_host"].startswith("pc_")
+    assert targets["probe_dst_ip"].startswith("10.254.")
 
 
 def test_bgp_originator_and_hijack() -> None:

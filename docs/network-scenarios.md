@@ -121,7 +121,23 @@ Every Site Edge is dual-homed to both providers. SERVER stays one host per hub (
 
 Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class with a deep FIFO; CS0/BE is hard-capped with a deep byte-FIFO so competing bulk builds ~500ms standing delay. Per-size overlay egress capacity is `s` 8 mbit (EF 2), `m` 16 mbit (EF 3), `l` 32 mbit (EF 4). The lab does not start resident CORP QoS traffic; benchmark failures that need competition start ephemeral workloads during inject/verify.
 
-Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, and overlay-egress DSCP/QoS faults. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
+### Underlay WAN propagation delay
+
+Each Site Edge↔provider underlay attachment applies one-way `netem delay 20ms` on both PE ends. A branch→HQ path therefore sees about 40 ms one-way and about 80 ms RTT (plus WireGuard), with no added loss or jitter. Values come from the [Cisco Catalyst SD-WAN Small Branch Design Case Study](https://www.cisco.com/c/en/us/td/docs/solutions/CVD/SDWAN/cisco-sdwan-casestudy-smallbranch.html) (American GasCo):
+
+| Case-study evidence | Value | Lab use |
+| --- | --- | --- |
+| Table 22 Bulk-Data SLA | 300 ms RTT ceiling | Healthy lab RTT stays well below |
+| Table 23 `SLA_BUSINESS_DATA` | 400 ms RTT, 2% loss, 100 ms jitter | Business-data AAR ceiling; BFD metrics are RTT |
+| Table 22 Transactional-Data SLA | 50 ms RTT | Tighter interactive apps; bulk paths may exceed this |
+| Table 6 Type 1–2 site bandwidth | up to 50 / 150 Mbps | Matches overlay `s`/`m`/`l` = 8 / 16 / 32 mbit |
+| Geography | Atlanta HQ, southeastern US stores | Regional branch–DC path |
+
+This delay is scenario fidelity for WAN BDP. It is not part of any failure root cause.
+
+SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 KB) and `http://<server>/large.bin` (32 MB) for bulk-transfer probes. Host containers run privileged so TCP receive-buffer sysctls (`net.ipv4.tcp_rmem`, `tcp_moderate_rcvbuf`) are writable for receiver-window faults. Docker typically keeps `net.core.rmem_max` read-only; `tcp_rmem` max remains the effective TCP ceiling when it is below the host `rmem_max`.
+
+Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
 Legacy id `rip_small_internet_vpn` (and the short-lived `enterprise_branch_vpn`) resolve to this scenario. They are not listed by `nika env list`. Frozen release `0.1.0` still records the old RIP mini-Internet lab hash and host-VPN selected case; regenerate a release when you publish the new lab.
 
@@ -156,9 +172,7 @@ Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open v
 | `m` | 4 | 8 | 4 |
 | `l` | 8 | 16 | 4 |
 
-Deploy starts containers, waits for ONOS device discovery over live OpenFlow sessions, then installs proactive L3 flows and SELECT ECMP groups through the ONOS REST API so the controller keeps owning forwarding state. Controllers stay attached. Verification checks live OpenFlow sessions, topology consistency, addressing, cross-rack ICMP/HTTP, ECMP group shape, and controller vs OVS dataplane evidence.
-
-Diagnosis agents get `kathara_sdn_mcp_server`. Primary tool `sdn_get_fabric_state` aggregates ONOS topology/apps, live ONOS flow/group store, and observed OVS flows/groups/port/status (optional reachability and controller logs), keeping controller-live state separate from switch-observed state without ground-truth fault labels.
+Deploy starts containers, waits for ONOS device discovery over live OpenFlow sessions, then installs proactive L3 flows and SELECT ECMP groups through the ONOS REST API so the controller keeps owning forwarding state. Controllers stay attached. Verification checks live OpenFlow sessions, topology consistency, addressing, cross-rack ICMP/HTTP, ECMP group shape, and controller vs OVS dataplane evidence. Diagnosis tools for this lab are documented under [MCP servers](mcp-servers.md#sdn-kathara_sdn_mcp_server).
 
 ```shell
 uv run nika env run sdn_l3_clos -s s
@@ -191,9 +205,7 @@ Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA 
 | `m` | 4 | 8 | 4 |
 | `l` | 8 | 16 | 4 |
 
-Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs intent, same-rack and sparse cross-rack ICMP, HTTP to a remote web, and multi-flow ECMP counters on at least two spines.
-
-Diagnosis agents get `kathara_bmv2_mcp_server`. Tool `p4_get_runtime_state` returns the live pipeline, LPM entries, selector members and groups, counters, port and queue data, flow statistics, and ECN configuration.
+Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs intent, same-rack and sparse cross-rack ICMP, HTTP to a remote web, and multi-flow ECMP counters on at least two spines. Diagnosis tools for this lab are documented under [MCP servers](mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server).
 
 ```shell
 uv run nika env run p4_dc_fabric -s s
@@ -211,7 +223,7 @@ This benchmark scenario connects one external client to each gateway, fully mesh
 | `m` | 4 | 4 | 4 | 4 | 8 |
 | `l` | 8 | 8 | 8 | 8 | 16 |
 
-The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. The agent API filters the private table and register names. `int_query_telemetry` returns observed packet traces keyed by flow and packet ID and does not calculate an expected path.
+The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 and INT MCP tools for this lab are documented under [MCP servers](mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
 
 ```shell
 uv run nika env run p4_dc_gateway -s s
@@ -299,7 +311,7 @@ The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux con
 
 ## Kubernetes scenarios
 
-Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification and registers the Kubernetes MCP service for troubleshooting agents.
+Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](mcp-servers.md#kubernetes-k8s_mcp_server).
 
 ### `k8s_lab`
 

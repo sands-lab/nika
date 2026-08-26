@@ -1,7 +1,9 @@
 from pydantic import BaseModel, Field
 
-from nika.problems.root_cause import node_resource
-from nika.problems.problem_base import (
+import time
+
+from nika.problems.rca import node_resource
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
@@ -43,6 +45,28 @@ class BGPAclBlock(ProblemBase):
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "tcp sport 179 drop", family="inet"
                 )
+                self.runtime.exec(
+                    params.host_name,
+                    "vtysh -c 'clear ip bgp * soft' 2>/dev/null || true",
+                )
+                neighbor = self.runtime.exec(
+                    params.host_name,
+                    "vtysh -c 'show bgp summary' 2>/dev/null | awk 'NR==2 {print $1}'",
+                ).strip()
+                asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
+                if neighbor and asn:
+                    self.runtime.exec(
+                        params.host_name,
+                        f"vtysh -c 'configure terminal' -c 'router bgp {asn}' "
+                        f"-c 'neighbor {neighbor} shutdown' -c 'end' 2>/dev/null || true",
+                    )
+                    time.sleep(2)
+                    self.runtime.exec(
+                        params.host_name,
+                        f"vtysh -c 'configure terminal' -c 'router bgp {asn}' "
+                        f"-c 'no neighbor {neighbor} shutdown' -c 'end' 2>/dev/null || true",
+                    )
+                time.sleep(8)
             case backend:
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."

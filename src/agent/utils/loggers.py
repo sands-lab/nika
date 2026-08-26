@@ -4,9 +4,9 @@ Writes every LLM and tool event as a JSON line to::
 
     {session_dir}/messages.jsonl
 
-Each entry includes an ``agent`` field that identifies which agent produced
-the event, enabling the two phases (diagnosis / submission) to share a single
-file while remaining easily filterable.
+Both diagnosis and submission pipeline phases are persisted. The final
+submission is also represented by ``submission.json``; system events live in
+``nika.jsonl``.
 
 Extending
 ---------
@@ -30,27 +30,107 @@ from agent.utils.usage import normalize_usage
 MESSAGES_FILENAME = "messages.jsonl"
 
 
+MESSAGES_FILENAME = "messages.jsonl"
+
+
+def normalize_tool_input(value: Any) -> str:
+    """Serialize tool arguments for stable ``messages.jsonl`` correlation."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    except TypeError:
+        return str(value)
+
+
+def tool_event_payload(
+    *,
+    name: str | None = None,
+    input: Any = None,
+    tool_call_id: str | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    """Build a normalized tool event payload for ``messages.jsonl``."""
+    payload: dict[str, Any] = dict(fields)
+    if name:
+        payload["tool"] = {"name": name}
+    if input is not None:
+        payload["input"] = normalize_tool_input(input)
+    if tool_call_id:
+        payload["tool_call_id"] = str(tool_call_id)
+    return payload
+
+
+class PendingToolCallTracker:
+    """Correlate tool_start and tool_end when IDs are missing or only on one side."""
+
+    def __init__(self) -> None:
+        self._by_id: dict[str, dict[str, str]] = {}
+        self._queues: dict[str, list[dict[str, str]]] = {}
+
+    def register(
+        self,
+        *,
+        name: str,
+        input: Any = None,
+        tool_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        input_str = normalize_tool_input(input) if input is not None else ""
+        if tool_call_id:
+            self._by_id[str(tool_call_id)] = {"name": name, "input": input_str}
+        else:
+            self._queues.setdefault(name, []).append({"name": name, "input": input_str})
+        return tool_event_payload(name=name, input=input, tool_call_id=tool_call_id)
+
+    def resolve(
+        self,
+        *,
+        name: str | None = None,
+        tool_call_id: str | None = None,
+        input: Any = None,
+    ) -> dict[str, str]:
+        if tool_call_id and str(tool_call_id) in self._by_id:
+            return self._by_id.pop(str(tool_call_id))
+        if name and self._queues.get(name):
+            return self._queues[name].pop(0)
+        if input is not None:
+            return {"name": name or "", "input": normalize_tool_input(input)}
+        return {"name": name or "", "input": ""}
+
+
+def _resolve_tool_name(output: Any, kwargs: dict[str, Any]) -> str | None:
+    name = kwargs.get("name")
+    if name:
+        return str(name)
+    tool_name = getattr(output, "name", None)
+    if tool_name:
+        return str(tool_name)
+    return None
+
+
 class MessageLogger:
     """Writes structured JSONL message events for one agent phase.
 
     Parameters
     ----------
-    agent:
+    phase:
         Name tag written to every entry (e.g. :data:`~agent.protocols.DIAGNOSIS`).
     session_dir:
         Path to the session results directory (must already exist or be
         creatable).
     """
 
-    def __init__(self, agent: str, session_dir: str) -> None:
-        self.agent = agent
+    def __init__(self, phase: str, session_dir: str) -> None:
+        self.phase = phase
         self._path = Path(session_dir) / MESSAGES_FILENAME
         os.makedirs(session_dir, exist_ok=True)
 
     def log(self, event_type: str, payload: dict[str, Any]) -> None:
         entry = {
             "timestamp": datetime.now().isoformat(),
-            "agent": self.agent,
+            "phase": self.phase,
             "event": event_type,
             **payload,
         }
@@ -61,9 +141,10 @@ class MessageLogger:
 class AgentCallbackLogger(BaseCallbackHandler):
     """LangChain callback handler that delegates to ``MessageLogger``."""
 
-    def __init__(self, agent: str, session_dir: str) -> None:
+    def __init__(self, phase: str, session_dir: str) -> None:
         super().__init__()
-        self._logger = MessageLogger(agent=agent, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
+        self._pending_tool_calls = PendingToolCallTracker()
 
     def on_chat_model_start(
         self,
@@ -115,15 +196,53 @@ class AgentCallbackLogger(BaseCallbackHandler):
     def on_tool_start(
         self, serialized: dict[str, Any], input_str: str, **kwargs
     ) -> None:
-        self._logger.log("tool_start", {"tool": serialized, "input": input_str})
+        tool_name = str(serialized.get("name", ""))
+        payload = self._pending_tool_calls.register(
+            name=tool_name,
+            input=input_str,
+            tool_call_id=kwargs.get("tool_call_id"),
+        )
+        self._logger.log("tool_start", payload)
 
     def on_tool_end(self, output: ToolMessage, **kwargs) -> None:
-        if output.status == "error":
-            self._logger.log("tool_error", {"output": output})
+        tool_name = _resolve_tool_name(output, kwargs)
+        tool_call_id = kwargs.get("tool_call_id") or getattr(
+            output, "tool_call_id", None
+        )
+        resolved = self._pending_tool_calls.resolve(
+            name=tool_name,
+            tool_call_id=tool_call_id,
+            input=kwargs.get("inputs"),
+        )
+        correlation = tool_event_payload(
+            name=tool_name or resolved.get("name") or None,
+            input=resolved.get("input") or kwargs.get("inputs"),
+            tool_call_id=tool_call_id,
+        )
+        if getattr(output, "status", None) == "error":
+            self._logger.log("tool_error", {**correlation, "output": output})
             return
         self._logger.log(
-            "tool_end", {"output": output, "output_type": type(output).__name__}
+            "tool_end",
+            {
+                **correlation,
+                "output": output,
+                "output_type": type(output).__name__,
+            },
         )
 
     def on_tool_error(self, error, **kwargs) -> None:
-        self._logger.log("tool_error", {"error": str(error)})
+        tool_name = _resolve_tool_name(error, kwargs)
+        tool_call_id = kwargs.get("tool_call_id")
+        resolved = self._pending_tool_calls.resolve(
+            name=tool_name,
+            tool_call_id=tool_call_id,
+            input=kwargs.get("inputs"),
+        )
+        payload = tool_event_payload(
+            name=tool_name or resolved.get("name") or None,
+            input=resolved.get("input") or kwargs.get("inputs"),
+            tool_call_id=tool_call_id,
+            error=str(error),
+        )
+        self._logger.log("tool_error", payload)

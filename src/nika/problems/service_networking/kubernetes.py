@@ -6,7 +6,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
-from nika.problems.root_cause import (
+from nika.problems.rca import (
     UnresolvedRootCauseError,
     node_resource,
 )
@@ -15,7 +15,7 @@ from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 
 from nika.problems.support.kubernetes.node_filter import NodeFilter, NodeFilterError
 
-from nika.problems.problem_base import (
+from nika.problems.base import (
     FailureDomain,
 )
 from nika.utils.logger import system_logger

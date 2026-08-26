@@ -13,9 +13,13 @@ from benchmark.inject_resolve import resolve_inject_params
 from nika.net_env.sdn_l3_clos.topology_model import build_clos_fabric_model
 from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
 from nika.net_env.verify import http_ok, ping_ok
-from nika.problems.prob_pool import get_problem_instance, list_avail_problem_names
+from nika.problems.registry import (
+    compatible,
+    get_problem_instance,
+    list_avail_problem_names,
+)
+from tests.support.symptom import evaluate_symptom, get_symptom_contract
 from nika.runtime.factory import runtime_for_session
-from nika.workflows.benchmark.compatibility import compatible
 from nika.workflows.failure.inject import inject_failure as inject_failure_workflow
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
@@ -55,9 +59,11 @@ def _observable(
     verify_ok: bool,
     smoke_before: dict[str, bool],
     smoke_after: dict[str, bool],
+    runtime=None,
+    params: dict[str, Any] | None = None,
 ) -> bool:
-    if verify_ok and problem in DATAPLANE_MAY_STAY_UP:
-        # Injected control-plane evidence is enough; traffic often still works.
+    contract = get_symptom_contract(problem)
+    if contract.control_plane_only and verify_ok:
         return True
     if verify_ok and (
         smoke_before.get("cross_rack_ping") and not smoke_after.get("cross_rack_ping")
@@ -67,9 +73,23 @@ def _observable(
         smoke_before.get("cross_rack_http") and not smoke_after.get("cross_rack_http")
     ):
         return True
-    # verify_fault itself is the observability contract for many host/ACL faults
-    # that may not hit the sparse cross-rack smoke pair.
-    return verify_ok
+    if runtime is not None and params is not None and verify_ok:
+        from pydantic import create_model
+
+        param_model = create_model(
+            "CompatParams", **{k: (str, v) for k, v in params.items()}
+        )()
+        ok, _ = evaluate_symptom(
+            runtime,
+            problem,
+            param_model,
+            scenario=SCENARIO,
+            topo_size=TOPO_SIZE,
+            before=None,
+        )
+        if ok:
+            return True
+    return False
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
@@ -145,6 +165,8 @@ class SDNL3ClosFailureCompatTest(IntegrationTestCase):
                     verify_ok=verify_ok,
                     smoke_before=smoke_before,
                     smoke_after=smoke_after,
+                    runtime=runtime,
+                    params=params,
                 )
                 # Fresh lab per case is the recovery path for this matrix.
                 row["recovery_success"] = True

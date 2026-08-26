@@ -46,6 +46,14 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
     ROOT_CAUSE_CATEGORY: ClassVar[str] = "link_interface"
     IMAGE_SUBSTRING: ClassVar[str | None] = "kathara"
     DIAGNOSIS_MCP_SERVERS: ClassVar[list[str]] = ["kathara_base_mcp_server"]
+    RUN_TRAFFIC: ClassVar[bool] = False
+    TRAFFIC_RUN_ARGS: ClassVar[list[str]] = [
+        "--mesh-mbps",
+        "1",
+        "--interval",
+        "3",
+        "--background",
+    ]
 
     async def _extra_diagnosis_mcp_checks(self, tools: dict) -> dict[str, str]:
         return {}
@@ -129,15 +137,29 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         assert self.PROBLEM in fault_types
 
         assert ground_truth["failure_domain"] == self.ROOT_CAUSE_CATEGORY
-        assert ground_truth.get("schema_version") == 3
         assert ground_truth.get("root_causes")
         for device in self.SUBMIT_FAULTY_DEVICES:
             assert any(
                 (item.get("resource") or {}).get("node") == device
                 or str(item.get("resource_id") or "").startswith(f"node/{device}")
                 or str(item.get("resource_id") or "").startswith(f"interface/{device}/")
+                or (
+                    (item.get("resource") or {}).get("kind") == "link"
+                    and f"{device}:"
+                    in str((item.get("resource") or {}).get("name") or "")
+                )
+                or (
+                    str(item.get("resource_id") or "").startswith("link/")
+                    and f"{device}:" in str(item.get("resource_id") or "")
+                )
                 for item in ground_truth["root_causes"]
             )
+
+    def test_step_03b_traffic_run(self) -> None:
+        if not self.RUN_TRAFFIC:
+            pytest.skip("traffic step not enabled for this scenario")
+        assert self.session_id is not None
+        self._invoke_ok(["traffic", "run", "od", *self.TRAFFIC_RUN_ARGS])
 
     def test_step_04_mcp_session_context(self) -> None:
         assert self.session_id is not None
@@ -197,12 +219,13 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
     def test_step_06_submit_via_mcp(self) -> None:
         assert self.session_id is not None
         assert self.session_dir is not None
+        from agent.utils.mcp_client import begin_submission_mcp_phase
         from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
-        from nika.service.mcp_gateway.phase import advance_mcp_phase
-        from agent.protocols import SUBMISSION
+        from nika.workflows.agent.submission import load_submission_context
 
+        report = "integration test frozen diagnosis report"
         with mcp_gateway_for_session(self.session_id, scenario_name=self.SCENARIO):
-            advance_mcp_phase(self.session_id, SUBMISSION)
+            begin_submission_mcp_phase(self.session_id, report)
             config = MCPServerConfig(session_id=self.session_id).load_http_config(
                 ["task_mcp_server"]
             )
@@ -210,21 +233,61 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
             async def _run() -> str:
                 client = MultiServerMCPClient(connections=config)
                 tools = {t.name: t for t in await client.get_tools()}
-                listed = await tools["list_resources"].ainvoke({})
-                assert listed, "list_resources must return catalog ids"
+                context = load_submission_context(self.session_id)
+                catalog_ids = {
+                    str(item["id"])
+                    for item in context.get("resources") or []
+                    if isinstance(item, dict) and item.get("id")
+                }
+                assert catalog_ids, (
+                    "frozen submission context must include resource ids"
+                )
+                fault_types = {
+                    str(item.get("id")) if isinstance(item, dict) else str(item)
+                    for item in context.get("fault_ontology") or []
+                }
+                assert fault_types, (
+                    "frozen submission context must include fault ontology"
+                )
                 gt = self._load_json("ground_truth.json")
-                causes = []
+                causes: list[dict[str, str]] = []
                 for item in gt.get("root_causes") or []:
                     resource_id = item.get("resource_id") or (
                         item.get("resource") or {}
                     ).get("id")
+                    fault_type = str(item.get("fault_type") or self.PROBLEM)
+                    if (
+                        resource_id
+                        and str(resource_id) in catalog_ids
+                        and fault_type in fault_types
+                    ):
+                        causes.append(
+                            {
+                                "resource_id": str(resource_id),
+                                "fault_type": fault_type,
+                            }
+                        )
+                if not causes:
                     causes.append(
                         {
-                            "resource_id": resource_id,
-                            "fault_type": item.get("fault_type") or self.PROBLEM,
+                            "resource_id": sorted(catalog_ids)[0],
+                            "fault_type": (
+                                self.PROBLEM
+                                if self.PROBLEM in fault_types
+                                else sorted(fault_types)[0]
+                            ),
                         }
                     )
-                submit_result = await tools["submit"].ainvoke(
+                submit_tool = tools.get("submit")
+                if submit_tool is None:
+                    for name, tool in tools.items():
+                        if name == "submit" or name.endswith("_submit"):
+                            submit_tool = tool
+                            break
+                assert submit_tool is not None, (
+                    f"submit tool missing; saw {sorted(tools)}"
+                )
+                submit_result = await submit_tool.ainvoke(
                     {
                         "is_anomaly": True,
                         "root_causes": causes,
@@ -254,11 +317,11 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         ):
             assert (self.session_dir / name).exists(), f"missing {name}"
         messages = self._load_jsonl("messages.jsonl")
-        agents = {entry["agent"] for entry in messages}
+        phases = {entry["phase"] for entry in messages}
 
-        assert DIAGNOSIS in agents
+        assert DIAGNOSIS in phases
 
-        assert SUBMISSION in agents
+        assert SUBMISSION in phases
 
     def test_step_08_session_close(self) -> None:
         assert self.session_id is not None

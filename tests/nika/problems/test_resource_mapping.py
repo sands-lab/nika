@@ -2,22 +2,37 @@ from __future__ import annotations
 
 import pytest
 
-from nika.problems.ground_truth import (
+from nika.problems.rca.materialize import (
     build_ground_truth,
     build_multi_ground_truth,
     ground_truth_for_case,
 )
-from nika.problems.prob_pool import (
+from nika.problems.registry import (
     get_problem_class,
     list_avail_problem_instances,
     list_avail_problem_names,
 )
-from nika.problems.root_cause import UnresolvedRootCauseError
-from nika.problems.problem_base import FailureDomain
-
+from nika.problems.base import FailureDomain
+from nika.problems.rca import (
+    FaultResource,
+    RootCause,
+    UnresolvedRootCauseError,
+    canonical_root_causes,
+    healthy_ground_truth,
+    interface_resource,
+    link_resource,
+    node_resource,
+    resource_from_id,
+)
+from nika.problems.rca.inventory import (
+    canonical_link_name,
+    catalog_resources,
+    link_containing_endpoint,
+)
 
 EXPECTED_FAILURE_DOMAINS = {
     FailureDomain.LINK_INTERFACE: {
+        "link_capacity_bottleneck",
         "link_detach",
         "link_down",
         "link_flap",
@@ -93,13 +108,12 @@ EXPECTED_FAILURE_DOMAINS = {
     },
     FailureDomain.ENDPOINT_APPLICATION: {
         "receiver_resource_contention",
-        "sender_application_delay",
         "sender_resource_contention",
     },
     FailureDomain.TRAFFIC_QUEUEING_RESOURCE: {
         "incast_traffic_network_limitation",
-        "link_bandwidth_throttling",
         "p4_ecn_threshold_misconfiguration",
+        "tcp_receive_window_limited",
     },
     FailureDomain.SECURITY: {
         "arp_cache_poisoning",
@@ -187,20 +201,22 @@ class ResourceMappingTest:
             "silent_egress_packet_loss"
         )
 
-    def test_link_down_is_single_interface(self) -> None:
+    def test_link_down_is_undirected_link(self) -> None:
         env = _Env(("pc1:eth0", "router1:eth0"))
         resource = _resources(
             "link_down", {"host_name": "pc1", "intf_name": "eth0"}, env
         )
-        assert resource.id == "interface/pc1/eth0"
+        assert resource.kind == "link"
+        assert resource.id == "link/pc1:eth0--router1:eth0"
 
-    def test_link_quality_is_interface_even_on_lan(self) -> None:
+    def test_link_quality_is_link_even_on_lan(self) -> None:
         env = _Env(
             ("pc1:eth0", "pc2:eth0", "r1:eth0", "a:eth0", "b:eth0", "c:eth0", "d:eth0")
         )
         resource = _resources("link_packet_corruption", {"host_name": "pc1"}, env)
-        assert resource.kind == "interface"
-        assert resource.id.startswith("interface/pc1/")
+        assert resource.kind == "link"
+        assert resource.id.startswith("link/")
+        assert "pc1:eth0" in resource.name
 
     def test_device_forwarding_corruption_is_a_node(self) -> None:
         env = _Env(("spine_router_0_0:eth1", "leaf_router_0_0:eth0"))
@@ -263,7 +279,7 @@ class ResourceMappingTest:
 
     def test_resources_follow_inject_not_side_effects(self) -> None:
         env = _Env(("br1_edge:eth0", "hq_edge:eth0"))
-        from nika.problems.prob_pool import get_problem_class
+        from nika.problems.registry import get_problem_class
 
         cls = get_problem_class("host_vpn_membership_missing")
         assert cls is not None
@@ -305,7 +321,7 @@ class ResourceMappingTest:
 
     def test_build_ground_truth_one_object(self) -> None:
         env = _Env(("pc1:eth0", "r1:eth0"))
-        from nika.problems.prob_pool import get_problem_class
+        from nika.problems.registry import get_problem_class
 
         cls = get_problem_class("link_down")
         assert cls is not None
@@ -317,13 +333,12 @@ class ResourceMappingTest:
         assert len(gt.root_causes) == 1
         assert gt.root_causes[0].fault_type == "link_down"
         assert gt.root_causes[0].resource is not None
-        assert gt.root_causes[0].resource.node == "pc1"
-        assert gt.schema_version == 3
+        assert gt.root_causes[0].resource.id == "link/pc1:eth0--r1:eth0"
         assert gt.failure_domain == "link_interface"
 
     def test_multi_root_cause(self) -> None:
         env = _Env(("pc1:eth0", "r1:eth0"))
-        from nika.problems.prob_pool import get_problem_class
+        from nika.problems.registry import get_problem_class
 
         def _piece(name: str, params: dict):
             cls = get_problem_class(name)
@@ -363,4 +378,69 @@ class OfflineCaseTruthTest:
             params={"host_name": "pc1", "intf_name": "eth0"},
             scenario="simple_bgp",
         )
-        assert gt.root_causes[0].resource.id == "interface/pc1/eth0"
+        assert gt.root_causes[0].resource.id == "link/pc1:eth0--router1:eth1"
+
+
+class RootCauseSchemaContractTest:
+    """Ground-truth v3 schema contracts (canonical sort, healthy baseline)."""
+
+    def test_submit_shape_resource_id(self) -> None:
+        cause = RootCause(
+            resource_id="link/pc1:eth0--router1:eth0", fault_type="link_down"
+        )
+        assert cause.resource is not None
+        assert cause.resource.id == "link/pc1:eth0--router1:eth0"
+        assert cause.pair_key() == ("link/pc1:eth0--router1:eth0", "link_down")
+
+    def test_canonical_sort(self) -> None:
+        items = [
+            RootCause(resource=node_resource("b"), fault_type="host_missing_ip"),
+            RootCause(resource=node_resource("a"), fault_type="host_missing_ip"),
+        ]
+        dumped = canonical_root_causes(items)
+        assert dumped[0]["resource"] == {"kind": "node", "node": "a"}
+        assert dumped[1]["resource"] == {"kind": "node", "node": "b"}
+
+    def test_healthy_empty(self) -> None:
+        gt = healthy_ground_truth()
+        assert gt.is_anomaly is False
+        assert gt.root_causes == []
+        assert gt.failure_domain == ""
+
+    def test_resource_roundtrip(self) -> None:
+        original = interface_resource("leaf1", "e1-1")
+        parsed = FaultResource.model_validate(original.model_dump())
+        assert parsed.id == original.id
+
+    def test_resource_from_id_contract(self) -> None:
+        assert resource_from_id("node/pc1").id == "node/pc1"
+        assert resource_from_id("interface/pc1/eth0").id == "interface/pc1/eth0"
+        assert (
+            resource_from_id("link/pc1:eth0--router1:eth0").id
+            == "link/pc1:eth0--router1:eth0"
+        )
+
+
+class LinkInventoryHelpersTest:
+    def test_canonical_link_name_sorts_tps(self) -> None:
+        assert (
+            canonical_link_name(("router1:eth0", "pc1:eth0"))
+            == "pc1:eth0--router1:eth0"
+        )
+
+    def test_link_containing_endpoint_p2p(self) -> None:
+        env = _Env(("pc1:eth0", "router1:eth0"))
+        resource = link_containing_endpoint(env, "pc1", "eth0")
+        assert resource == link_resource("pc1:eth0--router1:eth0")
+
+    def test_link_containing_endpoint_missing(self) -> None:
+        env = _Env(("pc1:eth0", "router1:eth0"))
+        with pytest.raises(UnresolvedRootCauseError, match="No link contains"):
+            link_containing_endpoint(env, "ghost", "eth0")
+
+    def test_catalog_emits_links(self) -> None:
+        env = _Env(("pc1:eth0", "router1:eth0"))
+        ids = {item.id for item in catalog_resources(env)}
+        assert "link/pc1:eth0--router1:eth0" in ids
+        assert "interface/pc1/eth0" in ids
+        assert "node/pc1" in ids

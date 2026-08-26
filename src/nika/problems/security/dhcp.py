@@ -1,13 +1,42 @@
 import ipaddress
+import re
 
 from pydantic import BaseModel, Field
 
-from nika.problems.root_cause import node_resource
-from nika.problems.problem_base import (
+from nika.problems.rca import node_resource
+from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
+
+
+def _resolve_client_subnet(
+    runtime, client_host: str, dhcp_server: str | None = None
+) -> str:
+    """Derive client IPv4 network address for dhcpd option targeting."""
+    ip = runtime.get_host_ip(client_host, with_prefix=True)
+    if not ip:
+        for intf in ("eth0", "eth1"):
+            line = runtime.exec(
+                client_host,
+                f"ip -4 -o addr show dev {intf} scope global 2>/dev/null | head -1",
+            ).strip()
+            match = re.search(r"inet\s+(\S+)", line)
+            if match:
+                ip = match.group(1)
+                break
+    if not ip and dhcp_server:
+        conf = runtime.exec(
+            dhcp_server,
+            "awk '/^subnet /{print $2; exit}' /etc/dhcp/dhcpd.conf 2>/dev/null || true",
+        ).strip()
+        if conf:
+            return str(ipaddress.ip_address(conf))
+    if not ip:
+        raise ValueError(f"No IPv4 address on DHCP client {client_host}")
+    return str(ipaddress.ip_network(ip, strict=False).network_address)
+
 
 # ==================================================================
 # Problem: DHCP distributing spoofed gateway to hosts
@@ -33,11 +62,7 @@ class DHCPSpoofedGateway(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def _client_subnet(self, client_host: str) -> str:
-        return str(
-            ipaddress.ip_network(
-                self.runtime.get_host_ip(client_host, with_prefix=True), strict=False
-            ).network_address
-        )
+        return _resolve_client_subnet(self.runtime, client_host, "dhcp_server")
 
     def root_cause_resources(self, params: DHCPSpoofedGatewayParams):
         return [node_resource(params.host_name)]
@@ -75,7 +100,10 @@ class DHCPSpoofedDNSParams(BaseModel):
 
     host_name: str = Field(description="DHCP server host name.")
     host_name_2: str = Field(description="Affected client host name.")
-    wrong_dns: str = Field(default="8.8.8.8", description="Spoofed DNS IP.")
+    wrong_dns: str = Field(
+        default="192.0.2.1",
+        description="Spoofed DNS IP (TEST-NET; non-resolving).",
+    )
 
 
 class DHCPSpoofedDNS(ProblemBase):
@@ -91,11 +119,7 @@ class DHCPSpoofedDNS(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def _client_subnet(self, client_host: str) -> str:
-        return str(
-            ipaddress.ip_network(
-                self.runtime.get_host_ip(client_host, with_prefix=True), strict=False
-            ).network_address
-        )
+        return _resolve_client_subnet(self.runtime, client_host, "dhcp_server")
 
     def root_cause_resources(self, params: DHCPSpoofedDNSParams):
         return [node_resource(params.host_name)]
@@ -136,6 +160,10 @@ class DHCPSpoofedSubnetParams(BaseModel):
 
     host_name: str = Field(description="DHCP server host name.")
     host_name_2: str = Field(description="Affected client host name.")
+    subnet: str | None = Field(
+        default=None,
+        description="IPv4 network address to remove; derived from the client when omitted.",
+    )
 
 
 class DHCPSpoofedSubnet(ProblemBase):
@@ -150,11 +178,7 @@ class DHCPSpoofedSubnet(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def _client_subnet(self, client_host: str) -> str:
-        return str(
-            ipaddress.ip_network(
-                self.runtime.get_host_ip(client_host, with_prefix=True), strict=False
-            ).network_address
-        )
+        return _resolve_client_subnet(self.runtime, client_host, "dhcp_server")
 
     def root_cause_resources(self, params: DHCPSpoofedSubnetParams):
         return [node_resource(params.host_name)]
@@ -162,16 +186,17 @@ class DHCPSpoofedSubnet(ProblemBase):
     def inject_fault(self, params: DHCPSpoofedSubnetParams):
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        subnet = self._client_subnet(client_host)
+        subnet = params.subnet or self._client_subnet(client_host)
         self.deleted_subnet = subnet
         self.runtime.dhcp_delete_subnet(dhcp_server, subnet)
-        self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
 
     def verify_fault(self, params: DHCPSpoofedSubnetParams) -> dict:
         """Verify the target subnet has been removed from dhcpd.conf."""
         dhcp_server = params.host_name
-        subnet = getattr(self, "deleted_subnet", None) or self._client_subnet(
-            params.host_name_2
+        subnet = (
+            params.subnet
+            or getattr(self, "deleted_subnet", None)
+            or self._client_subnet(params.host_name_2)
         )
         sub_escaped = subnet.replace(".", "\\.")
         match_output = self.runtime.exec(

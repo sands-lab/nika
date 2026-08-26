@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.workflows.eval.session import build_eval_metrics_payload
 from nika.workflows.benchmark.resume import (
@@ -21,7 +22,7 @@ VALID_TRIAL_OUTCOMES = frozenset({"success", "agent_failed"})
 REQUIRED_TRIAL_ARTIFACTS = (
     "run.json",
     "ground_truth.json",
-    "messages.jsonl",
+    MESSAGES_FILENAME,
     "eval_metrics.json",
 )
 
@@ -145,12 +146,12 @@ def _restore_success_eval_metrics(path: Path) -> bool:
 
     gt = _read_json(path / "ground_truth.json")
     submission = _read_json(path / "submission.json")
-    messages_path = path / "messages.jsonl"
-    if gt is None or submission is None or not messages_path.is_file():
+    trajectory_path = path / MESSAGES_FILENAME
+    if gt is None or submission is None or not trajectory_path.is_file():
         return False
 
     try:
-        trace_metrics = AgentTraceParser(trace_path=str(messages_path)).parse_trace()
+        trace_metrics = AgentTraceParser(trace_path=str(trajectory_path)).parse_trace()
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         trace_metrics = {}
     payload = build_eval_metrics_payload(
