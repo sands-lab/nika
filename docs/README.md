@@ -9,6 +9,7 @@ Use this index to find the shortest path for your task. The root [`README.md`](.
 | Configure agents, labs, MCP, and benchmark runs | [Run configuration reference](configuration.md) |
 | Choose and deploy a lab | [Network scenario reference](network-scenarios.md) |
 | Load the Cisco XRd image for `iosxr_simple_bgp` | [Cisco IOS-XR (XRd) image setup](iosxr-xrd-setup.md) |
+| Build the RouterOS image for `routeros_simple_bgp` | [MikroTik RouterOS (vrnetlab) image setup](mikrotik-routeros-setup.md) |
 | Select and inject a fault | [Failure reference](failures.md) |
 | Use every CLI command and option | [CLI reference](cli-reference.md) |
 | Run labs on another host | [Remote lab execution](remote.md) |

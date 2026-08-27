@@ -434,7 +434,7 @@ class KatharaBaseAPI:
             image = machine_obj.get_image()
             if "p4" in image:
                 self.bmv2_switches.append(machine)
-            elif "frr" in image or "xrd" in image:
+            elif "frr" in image or "xrd" in image or "routeros" in image:
                 self.routers.append(machine)
             elif "base" in image or "nginx" in image or "wireguard" in image:
                 host_keys = ["pc", "client"]

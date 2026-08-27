@@ -154,6 +154,8 @@ def _mock_diagnosis_tool_calls(
             calls.append(("frr_show_ip_route", {"router_name": router}))
         elif router and "kathara_iosxr_mcp_server" in server_names:
             calls.append(("iosxr_show_route", {"router_name": router}))
+        elif router and "kathara_routeros_mcp_server" in server_names:
+            calls.append(("routeros_show_route", {"router_name": router}))
     return calls
 
 

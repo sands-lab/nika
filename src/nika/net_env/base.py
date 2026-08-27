@@ -55,7 +55,7 @@ class NetworkEnvBase:
             image = machine_obj.get_image()
             if "p4" in image:
                 self.bmv2_switches.append(machine)
-            elif "frr" in image or "xrd" in image:
+            elif "frr" in image or "xrd" in image or "routeros" in image:
                 self.routers.append(machine)
             elif "base" in image or "nginx" in image or "wireguard" in image:
                 host_keys = ["pc", "client"]
@@ -111,6 +111,10 @@ class NetworkEnvBase:
         topology = sorted(topology.items(), key=lambda x: x[0])
         topo_list = []
         for link, machines in topology:
+            # A link with a single endpoint (e.g. vrnetlab's reserved
+            # placeholder interface) isn't a pairwise connection to report.
+            if len(machines) < 2:
+                continue
             topo_list.append((machines[0], machines[1]))
         return topo_list
 

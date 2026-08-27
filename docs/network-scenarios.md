@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 16 scenario IDs. Fifteen use one backend; `isp` supports both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout registers 18 scenario IDs. Seventeen use one backend; `isp` supports both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -21,7 +21,7 @@ uv sync --extra kathara
 uv sync --extra containerlab
 ```
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `kathara/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image, see [Cisco IOS-XR (XRd) image setup](iosxr-xrd-setup.md).
+`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. `p4_int` needs the local `kathara/influxdb` image described under [P4 scenarios](#p4-scenarios). The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image, see [Cisco IOS-XR (XRd) image setup](iosxr-xrd-setup.md). `routeros_simple_bgp` needs a manually built RouterOS `vrnetlab` image, see [MikroTik RouterOS (vrnetlab) image setup](mikrotik-routeros-setup.md).
 
 ## Scenario catalog
 
@@ -33,6 +33,8 @@ uv sync --extra containerlab
 | `ospf_enterprise_dhcp` | Kathara | `-s s\|m\|l` | OSPF enterprise with DHCP, DNS, HTTP, and NGINX |
 | `rip_small_internet_vpn` | Kathara | `-s s\|m\|l` | RIP mini-Internet with a WireGuard overlay |
 | `simple_bgp` | Kathara | Fixed | Two FRR ASes with one host in each AS |
+| `iosxr_simple_bgp` | Kathara | Fixed | Two Cisco XRd ASes with one host in each AS |
+| `routeros_simple_bgp` | Kathara | Fixed | Two MikroTik RouterOS ASes with one host in each AS |
 | `sdn_star` | Kathara | `-s s\|m\|l` | POX and Open vSwitch star |
 | `sdn_clos` | Kathara | `-s s\|m\|l` | POX and Open vSwitch leaf-spine Clos |
 | `p4_bloom_filter` | Kathara | Fixed | BMv2 flow-counting Bloom filter pipeline |
@@ -152,6 +154,38 @@ pc1 -- router1 == eBGP == router2 -- pc2
 ```
 
 `pc1` uses `195.11.14.2/24`; `pc2` uses `200.1.1.2/24`. Each FRR router advertises its host-facing network. Use this small topology for fast BGP and end-to-end routing experiments. Verification checks the BGP session, routes, default gateway, and traffic between the hosts.
+
+### `iosxr_simple_bgp`
+
+`iosxr_simple_bgp` is the same fixed two-AS topology, rendered with Cisco XRd
+Control Plane routers instead of FRR:
+
+```text
+pc1 -- router1 == eBGP == router2 -- pc2
+```
+
+Addressing matches `simple_bgp`. Requires a manually loaded XRd image, see
+[Cisco IOS-XR (XRd) image setup](iosxr-xrd-setup.md). Use this scenario for
+IOS-XR-specific troubleshooting and diagnosis on a small, fast-booting
+topology. Verification checks the BGP session, routes, default gateway, and
+traffic between the hosts.
+
+### `routeros_simple_bgp`
+
+`routeros_simple_bgp` is the same fixed two-AS topology, rendered with
+MikroTik RouterOS routers instead of FRR:
+
+```text
+pc1 -- router1 == eBGP == router2 -- pc2
+```
+
+Addressing matches `simple_bgp`. Requires a manually built RouterOS
+`vrnetlab` image, see
+[MikroTik RouterOS (vrnetlab) image setup](mikrotik-routeros-setup.md). Each
+router boots a nested QEMU VM, so first boot is slower than the FRR and XRd
+variants. Use this scenario for RouterOS-specific troubleshooting and
+diagnosis. Verification checks the BGP session, routes, default gateway, and
+traffic between the hosts.
 
 ## SDN scenarios
 
