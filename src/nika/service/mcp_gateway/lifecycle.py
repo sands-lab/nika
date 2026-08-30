@@ -22,8 +22,6 @@ from nika.utils.net import pick_free_port
 
 ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
-ENV_GATEWAY_HOST = "NIKA_MCP_GATEWAY_HOST"
-ENV_GATEWAY_PORT = "NIKA_MCP_GATEWAY_PORT"
 
 SANDBOX_GATEWAY_BIND_HOST = "0.0.0.0"
 SANDBOX_GATEWAY_AGENT_HOST = "host.docker.internal"
@@ -98,9 +96,22 @@ def start_gateway(
 ) -> McpGatewayManager:
     """Start the MCP gateway and return its manager."""
     global _active_manager
-    bind_host = host or os.environ.get(ENV_GATEWAY_HOST, "127.0.0.1")
-    port_raw = port if port is not None else os.environ.get(ENV_GATEWAY_PORT, "0")
-    bind_port = pick_free_port(bind_host) if str(port_raw) == "0" else int(port_raw)
+    if host is None or port is None:
+        try:
+            from nika.run_config.loader import get_run_config
+
+            mcp = get_run_config().nika.mcp
+            if host is None:
+                host = mcp.gateway_host
+            if port is None:
+                port = int(mcp.gateway_port)
+        except Exception:  # noqa: BLE001
+            if host is None:
+                host = "127.0.0.1"
+            if port is None:
+                port = 0
+    bind_host = host
+    bind_port = pick_free_port(bind_host) if int(port) == 0 else int(port)
 
     manager = McpGatewayManager(host=bind_host, port=bind_port, backend=backend)
     manager.start()
@@ -116,22 +127,45 @@ def stop_gateway() -> None:
     with _manager_lock:
         manager = _active_manager
         _active_manager = None
-    backend = manager.backend if manager is not None else None
-    if manager is not None:
-        manager.stop()
-    reset_gateway_mcp_state(backend=backend)
-    os.environ.pop(ENV_GATEWAY_URL, None)
-    os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
-    clear_sessions()
+    _shutdown_manager(manager, clear_registry=True)
+
+
+def _shutdown_manager(
+    manager: McpGatewayManager | None,
+    *,
+    clear_registry: bool = False,
+) -> None:
+    """Stop *manager* without clobbering a sibling gateway in this process."""
+    global _active_manager
+    if manager is None:
+        if clear_registry:
+            reset_gateway_mcp_state()
+            os.environ.pop(ENV_GATEWAY_URL, None)
+            os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
+            clear_sessions()
+        return
+    with _manager_lock:
+        if _active_manager is manager:
+            _active_manager = None
+    manager.stop()
+    if os.environ.get(ENV_GATEWAY_URL) == manager.base_url:
+        os.environ.pop(ENV_GATEWAY_URL, None)
+        os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
+    reset_gateway_mcp_state(backend=manager.backend)
+    if clear_registry:
+        clear_sessions()
 
 
 def _resolve_session_backend(scenario_name: str) -> str | None:
     if not scenario_name:
         return None
     try:
-        from nika.net_env.net_env_pool import scenario_backend
+        from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
+        from nika.net_env.net_env_pool import resolve_scenario_backend
 
-        return scenario_backend(scenario_name)
+        return resolve_scenario_backend(
+            scenario_name, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
+        )
     except ValueError:
         return None
 
@@ -146,33 +180,23 @@ def mcp_gateway_for_session(
     port: int | None = None,
     sandbox: bool = False,
     sandbox_agent_host: str = SANDBOX_GATEWAY_AGENT_HOST,
+    backend: str | None = None,
 ) -> Iterator[McpGatewayManager]:
     """Start gateway, register *session_id*, expose URL via env, then clean up."""
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
-    backend = _resolve_session_backend(scenario_name)
-    manager = start_gateway(host=bind_host, port=port, backend=backend)
+    resolved_backend = backend or _resolve_session_backend(scenario_name)
+    manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
-    remote_upstreams: dict[str, str] = {}
-    if scenario_name:
-        from nika.service.mcp_gateway.k8s_upstream import (
-            K8S_MCP_SERVER_NAME,
-            resolve_k8s_mcp_upstream,
-            scenario_needs_k8s_mcp,
-        )
-
-        if scenario_needs_k8s_mcp(scenario_name):
-            remote_upstreams[K8S_MCP_SERVER_NAME] = resolve_k8s_mcp_upstream(session_id)
     register_session(
         session_id,
         scenario_name=scenario_name,
         policy_mode=policy_mode,
-        remote_upstreams=remote_upstreams,
     )
     try:
         yield manager
     finally:
         unregister_session(session_id)
-        stop_gateway()
+        _shutdown_manager(manager)

@@ -1,17 +1,42 @@
-"""Generate benchmark_full.yaml and benchmark_selected.yaml from prob_pool and net_env_pool."""
+"""Generate working benchmark YAML, or freeze a Dev/Test release from it.
+
+Default: write ``benchmark_full.yaml`` and ``benchmark_selected.yaml`` from the
+live problem and scenario registries. ``--release VERSION`` writes
+``benchmark/releases/VERSION`` from those files (Dev = selected, Test = held-out
+instances from full). It does not regenerate the working matrices.
+"""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import yaml
 
+from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import list_all_net_envs, scenario_requires_topo_size
+from nika.problems.ground_truth import ground_truth_for_case
 from nika.problems.prob_pool import list_avail_problem_instances
+from nika.problems.root_cause import UnresolvedRootCauseError, canonical_root_causes
+from nika.problems.topology_inventory import load_offline_net_env
+from nika.workflows.benchmark.load_config import load_benchmark_yaml
+from nika.workflows.benchmark.migrate import materialize_cases, write_cases_yaml
+from nika.workflows.benchmark.release import (
+    DEFAULTS_V1,
+    RESOURCES_V1,
+    SCORING_V2,
+    TOOLS_V1,
+    build_scenario_problem_pins,
+    collect_images_for_scenarios,
+    releases_dir,
+    verify_dev_test_isolation,
+    write_release_manifest,
+)
+from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, cur_path)
@@ -101,12 +126,25 @@ def _topo_sizes_for_scenario(scenario: str) -> list[str]:
 def _make_row(scenario: str, problem: str, topo_size: str, *, seed: int) -> dict:
     inject = resolve_inject_params(problem, scenario, topo_size, seed=seed)
     validate_benchmark_case(scenario, problem, inject, topo_size)
-    return {
+    row: dict = {
         "scenario": scenario,
         "topo_size": topo_size or None,
         "problem": problem,
         "inject": inject,
     }
+    try:
+        gt = ground_truth_for_case(
+            problem=problem,
+            params=inject,
+            scenario=scenario,
+            topo_size=topo_size,
+            net_env=load_offline_net_env(scenario, topo_size),
+        )
+        row["root_causes"] = canonical_root_causes(gt.root_causes)
+    except UnresolvedRootCauseError as exc:
+        row["root_causes_status"] = "unresolved"
+        row["root_causes_error"] = str(exc)
+    return row
 
 
 def iter_full_cases(*, seed: int) -> list[dict]:
@@ -183,17 +221,224 @@ def generate_benchmark(*, seed: int = DEFAULT_SEED) -> tuple[list[dict], list[di
     return full_rows, selected_rows
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate benchmark YAML configs.")
+HELDOUT_SEED = 43
+
+
+def _normalize_row(row: dict) -> dict:
+    topo = row.get("topo_size")
+    return {
+        "scenario": str(row["scenario"]),
+        "topo_size": None if topo in ("", None, "-") else str(topo),
+        "problem": str(row["problem"]),
+        "inject": {str(k): str(v) for k, v in (row.get("inject") or {}).items()},
+    }
+
+
+def _rank_candidate(dev: dict, cand: dict) -> tuple[int, int, str]:
+    """Lower is better: prefer different scenario, then topo, then stable id."""
+    same_scenario = 1 if cand["scenario"] == dev["scenario"] else 0
+    same_topo = (
+        1 if (cand.get("topo_size") or "") == (dev.get("topo_size") or "") else 0
+    )
+    key = (
+        f"{cand['scenario']}|{cand.get('topo_size') or ''}|"
+        f"{benchmark_row_fingerprint(cand)}"
+    )
+    return (same_scenario, same_topo, key)
+
+
+def select_heldout_cases(
+    *,
+    dev_cases: list[dict],
+    full_cases: list[dict],
+    heldout_seed: int = HELDOUT_SEED,
+) -> tuple[list[dict], list[str]]:
+    """Return (test_rows, fallback_problems)."""
+    full_by_problem: dict[str, list[dict]] = defaultdict(list)
+    for row in full_cases:
+        full_by_problem[str(row["problem"])].append(_normalize_row(row))
+
+    test_rows: list[dict] = []
+    fallbacks: list[str] = []
+
+    for dev_raw in dev_cases:
+        dev = _normalize_row(dev_raw)
+        problem = dev["problem"]
+        dev_fp = benchmark_row_fingerprint(dev)
+        candidates = [
+            c
+            for c in full_by_problem.get(problem, [])
+            if benchmark_row_fingerprint(c) != dev_fp
+        ]
+        if candidates:
+            candidates.sort(key=lambda c: _rank_candidate(dev, c))
+            test_rows.append(candidates[0])
+            continue
+
+        topo = "" if not dev.get("topo_size") else str(dev["topo_size"])
+        alt = None
+        for seed in range(heldout_seed, heldout_seed + 32):
+            inject = resolve_inject_params(problem, dev["scenario"], topo, seed=seed)
+            validate_benchmark_case(dev["scenario"], problem, inject, topo)
+            candidate = {
+                "scenario": dev["scenario"],
+                "topo_size": dev.get("topo_size"),
+                "problem": problem,
+                "inject": {str(k): str(v) for k, v in inject.items()},
+            }
+            if benchmark_row_fingerprint(candidate) != dev_fp:
+                alt = candidate
+                break
+        if alt is None:
+            from nika.net_env.net_env_pool import get_net_env_instance
+
+            env = get_net_env_instance(dev["scenario"])
+            machines = sorted(env.lab.machines.keys()) if env.lab else []
+            base_inject = dict(dev["inject"])
+            host_key = next(
+                (k for k in ("host_name", "attacker_device") if k in base_inject),
+                None,
+            )
+            if host_key is None or not machines:
+                raise RuntimeError(
+                    f"Cannot synthesize held-out instance for {problem!r} "
+                    f"on {dev['scenario']!r}"
+                )
+            for machine in machines:
+                if str(machine) == str(base_inject[host_key]):
+                    continue
+                trial = dict(base_inject)
+                trial[host_key] = str(machine)
+                validate_benchmark_case(dev["scenario"], problem, trial, topo)
+                candidate = {
+                    "scenario": dev["scenario"],
+                    "topo_size": dev.get("topo_size"),
+                    "problem": problem,
+                    "inject": trial,
+                }
+                if benchmark_row_fingerprint(candidate) != dev_fp:
+                    alt = candidate
+                    break
+        if alt is None:
+            raise RuntimeError(
+                f"Held-out fallback for {problem!r} still matches Dev fingerprint"
+            )
+        test_rows.append(alt)
+        fallbacks.append(problem)
+
+    verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_rows)
+    return test_rows, fallbacks
+
+
+def generate_release_splits(
+    *,
+    version: str,
+    selected_path: Path | None = None,
+    full_path: Path | None = None,
+    out_dir: Path | None = None,
+) -> Path:
+    selected_path = selected_path or (BENCHMARK_DIR / "benchmark_selected.yaml")
+    full_path = full_path or (BENCHMARK_DIR / "benchmark_full.yaml")
+    dest = out_dir or (releases_dir() / version)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    selected_raw = yaml.safe_load(selected_path.read_text(encoding="utf-8"))
+    if not isinstance(selected_raw, dict) or "cases" not in selected_raw:
+        raise ValueError(
+            f"Invalid selected YAML (missing top-level 'cases'): {selected_path}"
+        )
+
+    dev_path = dest / "dev.yaml"
+    dev_cases = materialize_cases(list(selected_raw.get("cases") or []))
+    write_cases_yaml(dev_path, seed=selected_raw.get("seed"), cases=dev_cases)
+    legacy = dest / "cases.yaml"
+    if legacy.is_file() and legacy.resolve() != dev_path.resolve():
+        legacy.unlink()
+
+    full_cases = load_benchmark_yaml(full_path)
+    test_identity, fallbacks = select_heldout_cases(
+        dev_cases=dev_cases, full_cases=full_cases
+    )
+    test_cases = materialize_cases(test_identity)
+    test_path = dest / "test.yaml"
+    write_cases_yaml(test_path, seed=HELDOUT_SEED, cases=test_cases)
+
+    dev_sha = hashlib.sha256(dev_path.read_bytes()).hexdigest()
+    test_sha = hashlib.sha256(test_path.read_bytes()).hexdigest()
+
+    scenarios = {row["scenario"] for row in dev_cases} | {
+        row["scenario"] for row in test_cases
+    }
+    problems = {row["problem"] for row in dev_cases}
+    pins = build_scenario_problem_pins(scenarios, problems)
+    images = {"required": collect_images_for_scenarios(scenarios)}
+    splits = {
+        "dev": {
+            "cases_file": "dev.yaml",
+            "case_count": len(dev_cases),
+            "cases_sha256": dev_sha,
+        },
+        "test": {
+            "cases_file": "test.yaml",
+            "case_count": len(test_cases),
+            "cases_sha256": test_sha,
+        },
+    }
+    digest = write_release_manifest(
+        dest,
+        version=version,
+        splits=splits,
+        defaults=dict(DEFAULTS_V1),
+        scoring=dict(SCORING_V2),
+        tools=dict(TOOLS_V1),
+        resources=dict(RESOURCES_V1),
+        images=images,
+        scenario_problem_pin=pins,
+    )
+
+    print(f"Wrote {dest}")
+    print(f"  dev:  {len(dev_cases)} cases sha256={dev_sha[:12]}…")
+    print(f"  test: {len(test_cases)} cases sha256={test_sha[:12]}…")
+    print(f"  benchmark_digest={digest}")
+    if fallbacks:
+        print(f"  seed={HELDOUT_SEED} inject fallbacks: {', '.join(fallbacks)}")
+    else:
+        print("  no inject-seed fallbacks needed")
+    return dest
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--seed",
         type=int,
         default=DEFAULT_SEED,
-        help=f"Global random seed for inject param selection (default: {DEFAULT_SEED})",
+        help=f"Inject seed for working matrices (default: {DEFAULT_SEED})",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--release",
+        metavar="VERSION",
+        default=None,
+        help=(
+            "Write benchmark/releases/VERSION from current working YAML. "
+            "Does not regenerate full/selected. Do not reuse 0.1.0."
+        ),
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        help="Release output directory (default: benchmark/releases/<version>)",
+    )
+    args = parser.parse_args(argv)
+    if args.out_dir is not None and args.release is None:
+        parser.error("--out-dir requires --release")
+    if args.release:
+        generate_release_splits(version=args.release, out_dir=args.out_dir)
+    else:
+        generate_benchmark(seed=args.seed)
+    return 0
 
 
 if __name__ == "__main__":
-    args = _parse_args()
-    generate_benchmark(seed=args.seed)
+    raise SystemExit(main())

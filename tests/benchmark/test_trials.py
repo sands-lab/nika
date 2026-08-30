@@ -27,6 +27,8 @@ from nika.workflows.benchmark.release import (
 )
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 from nika.workflows.benchmark.run import (
+    _finalize_timed_out_trial,
+    _require_submission,
     run_benchmark_from_release,
     run_benchmark_trials,
 )
@@ -122,9 +124,7 @@ class TestTrialHelpers:
             encoding="utf-8",
         )
 
-        _root, pending = scan_trials(
-            trials=trials, result_dir=tmp_path, resume=True
-        )
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=True)
         assert pending == [1]
         assert not incomplete.exists()
         assert done.exists()
@@ -133,12 +133,132 @@ class TestTrialHelpers:
         trials = expand_trials([ROW_A], n_trials=1)
         failed = trial_dir(tmp_path, trials[0].case_key, 1)
         _write_valid_trial(failed, outcome="agent_failed")
-        _root, pending = scan_trials(
-            trials=trials, result_dir=tmp_path, resume=True
-        )
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=True)
         assert pending == []
         assert failed.exists()
         assert is_valid_trial(failed)
+
+    def test_resume_heals_finished_without_outcome_success(
+        self, tmp_path: Path
+    ) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        _write_valid_trial(path, outcome="success")
+        run_meta = json.loads((path / "run.json").read_text(encoding="utf-8"))
+        del run_meta["outcome"]
+        (path / "run.json").write_text(json.dumps(run_meta), encoding="utf-8")
+        assert not is_valid_trial(path)
+
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=True)
+        assert pending == []
+        assert path.exists()
+        assert is_valid_trial(path)
+        healed = json.loads((path / "run.json").read_text(encoding="utf-8"))
+        assert healed["outcome"] == "success"
+
+    def test_resume_heals_finished_without_outcome_agent_failed(
+        self, tmp_path: Path
+    ) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        _write_valid_trial(path, outcome="agent_failed")
+        run_meta = json.loads((path / "run.json").read_text(encoding="utf-8"))
+        del run_meta["outcome"]
+        (path / "run.json").write_text(json.dumps(run_meta), encoding="utf-8")
+        assert not is_valid_trial(path)
+
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=True)
+        assert pending == []
+        assert path.exists()
+        healed = json.loads((path / "run.json").read_text(encoding="utf-8"))
+        assert healed["outcome"] == "agent_failed"
+        assert is_valid_trial(path)
+
+    @pytest.mark.parametrize("stored_outcome", [None, "success"])
+    def test_resume_recovers_solved_trial_interrupted_before_metrics(
+        self, tmp_path: Path, stored_outcome: str | None
+    ) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        path.mkdir(parents=True)
+        run_meta = {"session_id": path.name, "status": "finished"}
+        if stored_outcome is not None:
+            run_meta["outcome"] = stored_outcome
+        (path / "run.json").write_text(
+            json.dumps(run_meta),
+            encoding="utf-8",
+        )
+        (path / "ground_truth.json").write_text(
+            json.dumps(
+                {
+                    "is_anomaly": True,
+                    "root_causes": [
+                        {
+                            "resource": {
+                                "kind": "interface",
+                                "node": "pc1",
+                                "name": "eth0",
+                            },
+                            "fault_type": "link_down",
+                        }
+                    ],
+                    "faulty_devices": ["pc1"],
+                    "root_cause_name": ["link_down"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (path / "submission.json").write_text(
+            json.dumps(
+                {
+                    "is_anomaly": True,
+                    "root_causes": [
+                        {
+                            "resource_id": "interface/pc1/eth0",
+                            "fault_type": "link_down",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        # A hard kill may leave the final JSONL record truncated. Recovery of
+        # rule-based scores must not depend on a perfectly flushed trace.
+        (path / "messages.jsonl").write_text('{"event":', encoding="utf-8")
+
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=True)
+
+        assert pending == []
+        assert path.exists()
+        assert is_valid_trial(path)
+        run_meta = json.loads((path / "run.json").read_text(encoding="utf-8"))
+        assert run_meta["outcome"] == "success"
+        metrics = json.loads((path / "eval_metrics.json").read_text(encoding="utf-8"))
+        assert metrics["detection_score"] == 1.0
+        assert metrics["localization_accuracy"] == 1.0
+        assert metrics["rca_accuracy"] == 1.0
+
+    def test_resume_still_cleans_running_incomplete(self, tmp_path: Path) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        path.mkdir(parents=True)
+        (path / "run.json").write_text(
+            json.dumps({"session_id": path.name, "status": "running"}),
+            encoding="utf-8",
+        )
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=True)
+        assert pending == [0]
+        assert not path.exists()
+
+    def test_no_resume_wipes_slots_before_rerun(self, tmp_path: Path) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        _write_valid_trial(path, outcome="success")
+        assert path.exists()
+
+        _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=False)
+        assert pending == [0]
+        assert not path.exists()
 
     def test_merge_run_config_keeps_run_id(self) -> None:
         proposed = {
@@ -206,9 +326,7 @@ class TestTrialOrchestration:
             _write_valid_trial(path, outcome="success", session_id=trial.trial_id)
             written.append(str(path))
 
-        with patch(
-            "nika.workflows.benchmark.run._run_trial", side_effect=fake_trial
-        ):
+        with patch("nika.workflows.benchmark.run._run_trial", side_effect=fake_trial):
             run_benchmark_trials(
                 benchmark_file=str(cases),
                 agent_type="mock",
@@ -272,9 +390,7 @@ class TestTrialOrchestration:
             )
             _write_valid_trial(path, outcome="success", session_id=trial.trial_id)
 
-        with patch(
-            "nika.workflows.benchmark.run._run_trial", side_effect=fake_trial
-        ):
+        with patch("nika.workflows.benchmark.run._run_trial", side_effect=fake_trial):
             run_benchmark_trials(
                 benchmark_file=str(cases),
                 agent_type="mock",
@@ -294,7 +410,9 @@ class TestTrialOrchestration:
         result_dir = tmp_path / "run"
         trials = expand_trials([ROW_A], n_trials=1)
         failed = trial_dir(result_dir, trials[0].case_key, 1)
-        _write_valid_trial(failed, outcome="agent_failed", session_id=trials[0].trial_id)
+        _write_valid_trial(
+            failed, outcome="agent_failed", session_id=trials[0].trial_id
+        )
         original = (failed / "run.json").read_text(encoding="utf-8")
 
         with patch("nika.workflows.benchmark.run._run_trial") as mocked:
@@ -357,6 +475,13 @@ class TestTrialOrchestration:
 
 
 class TestAgentFailedFinalization:
+    def test_missing_submission_is_an_agent_failure(self, tmp_path: Path) -> None:
+        with pytest.raises(RuntimeError, match="without writing required submission"):
+            _require_submission(tmp_path)
+
+        (tmp_path / "submission.json").write_text("{}", encoding="utf-8")
+        _require_submission(tmp_path)
+
     def test_agent_failure_keeps_counted_trial(self, tmp_path: Path) -> None:
         result_dir = tmp_path / "run"
         trials = expand_trials([ROW_A], n_trials=1)
@@ -469,6 +594,47 @@ class TestAgentFailedFinalization:
         assert (session_path / "messages.jsonl").is_file()
         assert (session_path / "eval_metrics.json").is_file()
         assert not (session_path / "submission.json").exists()
+
+    def test_timeout_finalize_keeps_counted_trial(self, tmp_path: Path) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        trial = trials[0]
+        session_path = trial_dir(tmp_path, trial.case_key, trial.trial_index)
+        session_path.mkdir(parents=True)
+        (session_path / "run.json").write_text(
+            json.dumps(
+                {
+                    "session_id": trial.trial_id,
+                    "status": "running",
+                    "scenario_name": "simple_bgp",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (session_path / "ground_truth.json").write_text("{}", encoding="utf-8")
+
+        with (
+            patch("nika.workflows.benchmark.run.close_session"),
+            patch(
+                "nika.workflows.benchmark.run.run_eval_metrics",
+                side_effect=RuntimeError("no closed session"),
+            ),
+            patch(
+                "nika.workflows.benchmark.run.Session.load_closed_session",
+                side_effect=FileNotFoundError("gone"),
+            ),
+        ):
+            _finalize_timed_out_trial(
+                trial,
+                result_dir=str(tmp_path),
+                error=RuntimeError("case exceeded --case-timeout"),
+            )
+
+        assert is_valid_trial(session_path)
+        run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
+        assert run_meta["outcome"] == "agent_failed"
+        assert run_meta["status"] == "finished"
+        assert (session_path / "messages.jsonl").is_file()
+        assert (session_path / "eval_metrics.json").is_file()
 
 
 class TestReleaseRunMetadata:
@@ -599,7 +765,9 @@ class TestReleaseRunMetadata:
         assert progress["model"] == "mock-v1"
 
 
-@pytest.mark.skipif(not docker_available(), reason="Docker required for release run E2E")
+@pytest.mark.skipif(
+    not docker_available(), reason="Docker required for release run E2E"
+)
 class TestReleaseRunE2E:
     """Real Kathara + mock agent through ``run_benchmark_from_release`` (1 case × 2 trials)."""
 
@@ -649,7 +817,9 @@ class TestReleaseRunE2E:
         assert all(is_valid_trial(path) for path in trial_paths)
         trial_ids = set()
         for idx, trial_path in enumerate(trial_paths, start=1):
-            trial_meta = json.loads((trial_path / "run.json").read_text(encoding="utf-8"))
+            trial_meta = json.loads(
+                (trial_path / "run.json").read_text(encoding="utf-8")
+            )
             assert trial_meta["status"] == "finished"
             assert trial_meta["outcome"] in {"success", "agent_failed"}
             assert trial_meta.get("trial_index") == idx

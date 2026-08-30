@@ -4,20 +4,21 @@ splits:
   dev:
     cases_file: dev.yaml
     case_count: 56
-    cases_sha256: 1eea97e0e7ff37f0ba456d7f57b29d610e49a68d0376b7bf50e4c74d0543e766
+    cases_sha256: c3a217d42d2580722b0fc6e676f7aa8b50572382881d9cfc70eeae5b579c5629
   test:
     cases_file: test.yaml
     case_count: 56
-    cases_sha256: b1eb9cf457111313890b78f2f79a43f839cc70a04309e287c05bc4c25baeac3f
+    cases_sha256: 98441c92c560976a3fe216df5aeebce22170fcd223ebe6c5bb44ee84e329acc0
 default_split_for_release: test
-benchmark_digest: 0232d585d6ba0c0110ec615d9301e0a55d6c5f4b358b7e9f4845d5fa47fa51a6
+benchmark_digest: f80d926658b9dfc1a86bc2a58970668b35e7db3771f0d82a3a0bc360759c9bed
 defaults:
   case_timeout_sec: 2400
   n_trials: 3
 scoring:
-  id: rule-based-v1
-  description: detection accuracy; localization P/R/F1 on faulty_devices; RCA P/R/F1
-    on root_cause_name (nika.evaluator.scoring)
+  id: rule-based-v2
+  description: detection accuracy; joint RCA P/R/F1 and exact match on (resource.id,
+    fault_type); localization and fault-type submetrics; efficiency metrics remain
+    independent
   leaderboard_primary: rca_f1
   judge_allowed: false
 tools:
@@ -77,169 +78,169 @@ scenario_problem_pin:
   problems:
     arp_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py
-      sha256: 53b9831e1d74f4c76acc2656a0d242cc68e0b8e14cf9ea76abf33d16cfbbc6f8
+      sha256: 5147c0913a7b7a024694ae78a9377e5cf46f73155818012818689d82f79682f8
     arp_cache_poisoning:
       path: src/nika/problems/network_under_attack/arp.py
-      sha256: 518a6f0f6593276f99dcf5d37b06ff1693a2ed77ef55d7f290cf69266b7f88a2
+      sha256: 9948e8d5063620671737882fc4b8bff37d8ca460fc03e97edb83b5a413cc6b82
     bgp_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py
-      sha256: 53b9831e1d74f4c76acc2656a0d242cc68e0b8e14cf9ea76abf33d16cfbbc6f8
+      sha256: 5147c0913a7b7a024694ae78a9377e5cf46f73155818012818689d82f79682f8
     bgp_asn_misconfig:
       path: src/nika/problems/misconfigurations/bgp.py
-      sha256: f0f5649673b0fda46e2bffa33efd0275742fc8c86b84da1e4ab8adde56436aeb
+      sha256: 3ae32b52673df9faf64b3bef244d3f65bcaedd59e36c58dde1c65e6644a18cfd
     bgp_blackhole_route_leak:
       path: src/nika/problems/misconfigurations/bgp.py
-      sha256: f0f5649673b0fda46e2bffa33efd0275742fc8c86b84da1e4ab8adde56436aeb
+      sha256: 3ae32b52673df9faf64b3bef244d3f65bcaedd59e36c58dde1c65e6644a18cfd
     bgp_hijacking:
       path: src/nika/problems/network_under_attack/bgp.py
-      sha256: c675d39510ede8824cb4e9bfce6b06bd28301af293337754b05a8a1361a6e83b
+      sha256: e0750a1504e3a51b42b9d7d07f1bd1ceaf7f2cd61bebf961649a4c665440beb4
     bgp_missing_route_advertisement:
       path: src/nika/problems/misconfigurations/bgp.py
-      sha256: f0f5649673b0fda46e2bffa33efd0275742fc8c86b84da1e4ab8adde56436aeb
+      sha256: 3ae32b52673df9faf64b3bef244d3f65bcaedd59e36c58dde1c65e6644a18cfd
     bmv2_switch_down:
       path: src/nika/problems/network_node_error/swicth_router_failure.py
-      sha256: eaee742c972060d9a82729e2594ec0440d9f1af6e1a542e335cfba37fb9d8e30
+      sha256: b747ecfe8b40482c56f5b8381b636e5b45f616763d07d8b5f0af7d486aad6d22
     dhcp_missing_subnet:
       path: src/nika/problems/misconfigurations/dhcp.py
-      sha256: e10deaaa5cbe20a8f62413e9022b369d2598dd0fb0b26577f8dbeb7293e8a3b7
+      sha256: bdb119015226245ba82d193c926de31b0e0b13babf00e425ab345982ce4ff9a5
     dhcp_service_down:
       path: src/nika/problems/end_host_failure/service_failure.py
-      sha256: bf4f6f8088592e3821acbc3db5ab68841dcdfdcebdecad74e46df90e11ebf1a1
+      sha256: 7b3edfaf473743cf1ea16ff5556d02046b769b2181dd39120ca121c25e3047aa
     dhcp_spoofed_dns:
       path: src/nika/problems/network_under_attack/dhcp.py
-      sha256: f1e4920fb77f6c2d84e94720abc8afe11ae38dc0aaf08d1ec3958e0cddf2885f
+      sha256: 5d969207e347e041d7d08e48171eabc3c58b530d917ddb2de5bf566f603c9940
     dhcp_spoofed_gateway:
       path: src/nika/problems/network_under_attack/dhcp.py
-      sha256: f1e4920fb77f6c2d84e94720abc8afe11ae38dc0aaf08d1ec3958e0cddf2885f
+      sha256: 5d969207e347e041d7d08e48171eabc3c58b530d917ddb2de5bf566f603c9940
     dhcp_spoofed_subnet:
       path: src/nika/problems/network_under_attack/dhcp.py
-      sha256: f1e4920fb77f6c2d84e94720abc8afe11ae38dc0aaf08d1ec3958e0cddf2885f
+      sha256: 5d969207e347e041d7d08e48171eabc3c58b530d917ddb2de5bf566f603c9940
     dns_lookup_latency:
       path: src/nika/problems/resource_contention/service_issue.py
-      sha256: 72b6445c9cab35af97628d3a4ff532dc77480ab53dbb42eea7f4e025e9db5e69
+      sha256: 49bcf7ea29769700dce5ff3dfee6db8a113dec360c7e0cb838ba27d111a47112
     dns_port_blocked:
       path: src/nika/problems/misconfigurations/acl_error.py
-      sha256: 53b9831e1d74f4c76acc2656a0d242cc68e0b8e14cf9ea76abf33d16cfbbc6f8
+      sha256: 5147c0913a7b7a024694ae78a9377e5cf46f73155818012818689d82f79682f8
     dns_record_error:
       path: src/nika/problems/end_host_failure/dns.py
-      sha256: 5d07ab84beb3f0f6f5ae2efadce1afde54717b3fed15b14c337791bab6ffa7db
+      sha256: 1cd6d007d87dee956bcb7586e8692ecf95467ec0c7b5b9c8fd829f5c52e36e3d
     dns_service_down:
       path: src/nika/problems/end_host_failure/service_failure.py
-      sha256: bf4f6f8088592e3821acbc3db5ab68841dcdfdcebdecad74e46df90e11ebf1a1
+      sha256: 7b3edfaf473743cf1ea16ff5556d02046b769b2181dd39120ca121c25e3047aa
     flow_rule_loop:
       path: src/nika/problems/network_node_error/controller_issues.py
-      sha256: acf2e4d5cf9942cf1667c80cdaf4a01f9913a4375a10c07b9431109de7dda8b1
+      sha256: e7c57fc643f1eacda4cb835c5bf49179f296680dc93808715a67fbdabcc47218
     flow_rule_shadowing:
       path: src/nika/problems/network_node_error/controller_issues.py
-      sha256: acf2e4d5cf9942cf1667c80cdaf4a01f9913a4375a10c07b9431109de7dda8b1
+      sha256: e7c57fc643f1eacda4cb835c5bf49179f296680dc93808715a67fbdabcc47218
     frr_service_down:
       path: src/nika/problems/network_node_error/swicth_router_failure.py
-      sha256: eaee742c972060d9a82729e2594ec0440d9f1af6e1a542e335cfba37fb9d8e30
+      sha256: b747ecfe8b40482c56f5b8381b636e5b45f616763d07d8b5f0af7d486aad6d22
     host_crash:
       path: src/nika/problems/end_host_failure/host_failure.py
-      sha256: f68ffd9aecba4622bef51c69d9e2b1a957f1a66a0fc8c0a96dd53a163e1276a9
+      sha256: 5aa8760d43af42777182193cade22d937cc7048ec1b2b13fc84df21ff2661eb1
     host_incorrect_dns:
       path: src/nika/problems/end_host_failure/host_misconfig.py
-      sha256: 566fde606dec8063d624017da424f007baaa6807f359bb0343f1afca5d70427b
+      sha256: 408e3d48760c2255c209e5df7e085540da2d8ff3c577aee408ae42e598605a9b
     host_incorrect_gateway:
       path: src/nika/problems/end_host_failure/host_misconfig.py
-      sha256: 566fde606dec8063d624017da424f007baaa6807f359bb0343f1afca5d70427b
+      sha256: 408e3d48760c2255c209e5df7e085540da2d8ff3c577aee408ae42e598605a9b
     host_incorrect_ip:
       path: src/nika/problems/end_host_failure/host_misconfig.py
-      sha256: 566fde606dec8063d624017da424f007baaa6807f359bb0343f1afca5d70427b
+      sha256: 408e3d48760c2255c209e5df7e085540da2d8ff3c577aee408ae42e598605a9b
     host_incorrect_netmask:
       path: src/nika/problems/end_host_failure/host_misconfig.py
-      sha256: 566fde606dec8063d624017da424f007baaa6807f359bb0343f1afca5d70427b
+      sha256: 408e3d48760c2255c209e5df7e085540da2d8ff3c577aee408ae42e598605a9b
     host_ip_conflict:
       path: src/nika/problems/end_host_failure/host_misconfig.py
-      sha256: 566fde606dec8063d624017da424f007baaa6807f359bb0343f1afca5d70427b
+      sha256: 408e3d48760c2255c209e5df7e085540da2d8ff3c577aee408ae42e598605a9b
     host_missing_ip:
       path: src/nika/problems/end_host_failure/host_misconfig.py
-      sha256: 566fde606dec8063d624017da424f007baaa6807f359bb0343f1afca5d70427b
+      sha256: 408e3d48760c2255c209e5df7e085540da2d8ff3c577aee408ae42e598605a9b
     host_static_blackhole:
       path: src/nika/problems/misconfigurations/bgp.py
-      sha256: f0f5649673b0fda46e2bffa33efd0275742fc8c86b84da1e4ab8adde56436aeb
+      sha256: 3ae32b52673df9faf64b3bef244d3f65bcaedd59e36c58dde1c65e6644a18cfd
     host_vpn_membership_missing:
       path: src/nika/problems/end_host_failure/vpn.py
-      sha256: 8b3ce7d7525e0dee14efdbf1d9b1e6f941f571326036ab3bdcdf3d9308e95dc8
+      sha256: 7bb4bd42103231e691b6d92a0b250ebf0b0101e8c077cf3d1a9ec0c7f4f22ce2
     http_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py
-      sha256: 53b9831e1d74f4c76acc2656a0d242cc68e0b8e14cf9ea76abf33d16cfbbc6f8
+      sha256: 5147c0913a7b7a024694ae78a9377e5cf46f73155818012818689d82f79682f8
     icmp_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py
-      sha256: 53b9831e1d74f4c76acc2656a0d242cc68e0b8e14cf9ea76abf33d16cfbbc6f8
+      sha256: 5147c0913a7b7a024694ae78a9377e5cf46f73155818012818689d82f79682f8
     incast_traffic_network_limitation:
       path: src/nika/problems/resource_contention/link_issue.py
-      sha256: b23ddc73bd475ce1ca59271d639d8d3c0189f41e507aebff112640beb820a7d2
+      sha256: c2d6c626283b8cd165a1c8f5e018ee542e3f0163115ac7c6b2d2a7d93a07ec7d
     link_bandwidth_throttling:
       path: src/nika/problems/resource_contention/link_issue.py
-      sha256: b23ddc73bd475ce1ca59271d639d8d3c0189f41e507aebff112640beb820a7d2
+      sha256: c2d6c626283b8cd165a1c8f5e018ee542e3f0163115ac7c6b2d2a7d93a07ec7d
     link_detach:
       path: src/nika/problems/link_failure/link_failure.py
-      sha256: 1bb1ef1985c720dd9187ea460362335c65f0bfcfc746195a9f3f8fa5730b7ea3
+      sha256: f5d97a5eccdbfa2e75dc226dff0c5fdfd7c31516310f9a1b78bc25d68cd74c8a
     link_down:
       path: src/nika/problems/link_failure/link_failure.py
-      sha256: 1bb1ef1985c720dd9187ea460362335c65f0bfcfc746195a9f3f8fa5730b7ea3
+      sha256: f5d97a5eccdbfa2e75dc226dff0c5fdfd7c31516310f9a1b78bc25d68cd74c8a
     link_flap:
       path: src/nika/problems/link_failure/link_failure.py
-      sha256: 1bb1ef1985c720dd9187ea460362335c65f0bfcfc746195a9f3f8fa5730b7ea3
+      sha256: f5d97a5eccdbfa2e75dc226dff0c5fdfd7c31516310f9a1b78bc25d68cd74c8a
     link_fragmentation_disabled:
       path: src/nika/problems/link_failure/link_failure.py
-      sha256: 1bb1ef1985c720dd9187ea460362335c65f0bfcfc746195a9f3f8fa5730b7ea3
+      sha256: f5d97a5eccdbfa2e75dc226dff0c5fdfd7c31516310f9a1b78bc25d68cd74c8a
     link_high_packet_corruption:
       path: src/nika/problems/resource_contention/link_issue.py
-      sha256: b23ddc73bd475ce1ca59271d639d8d3c0189f41e507aebff112640beb820a7d2
+      sha256: c2d6c626283b8cd165a1c8f5e018ee542e3f0163115ac7c6b2d2a7d93a07ec7d
     load_balancer_overload:
       path: src/nika/problems/resource_contention/service_issue.py
-      sha256: 72b6445c9cab35af97628d3a4ff532dc77480ab53dbb42eea7f4e025e9db5e69
+      sha256: 49bcf7ea29769700dce5ff3dfee6db8a113dec360c7e0cb838ba27d111a47112
     mac_address_conflict:
       path: src/nika/problems/misconfigurations/mac.py
-      sha256: 4cd560ad874efd58e2e1b91694a87d546f0790ecb45e2a7c1af8fe46d11bd490
+      sha256: 74cba37d31d5f8b1eec45660f84f565096631fbf76e1a1a3a4066c4f02261620
     mpls_label_limit_exceeded:
       path: src/nika/problems/network_node_error/p4_pipeline_error.py
-      sha256: 38e1bb4c8a80a62483165997b01454be73d24814afe353236da3e603e2ba4075
+      sha256: 94b23037eea9a2e671c8be1e0cbc2e1ec0b954752418c7427de73d455db6d9aa
     ospf_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py
-      sha256: 53b9831e1d74f4c76acc2656a0d242cc68e0b8e14cf9ea76abf33d16cfbbc6f8
+      sha256: 5147c0913a7b7a024694ae78a9377e5cf46f73155818012818689d82f79682f8
     ospf_area_misconfiguration:
       path: src/nika/problems/misconfigurations/ospf.py
-      sha256: 90532c695c65a4edb6dbf4e988a27b97fc9a4773fc8422810fec485eedbecdfd
+      sha256: 5ec73b9e9322e74f90f60becb898a7ebadb06b1979242a02d457be7a7ba3bce8
     ospf_neighbor_missing:
       path: src/nika/problems/misconfigurations/ospf.py
-      sha256: 90532c695c65a4edb6dbf4e988a27b97fc9a4773fc8422810fec485eedbecdfd
+      sha256: 5ec73b9e9322e74f90f60becb898a7ebadb06b1979242a02d457be7a7ba3bce8
     p4_aggressive_detection_thresholds:
       path: src/nika/problems/misconfigurations/p4.py
-      sha256: fd17809665edabc23c7269916f12c2f121424fc76f75b3756365e921b64034f9
+      sha256: 3789ff397fc49469f400351f9455228dd9334effa2ea39ba4ddc043d1d53945f
     p4_compilation_error_parser_state:
       path: src/nika/problems/network_node_error/p4_pipeline_error.py
-      sha256: 38e1bb4c8a80a62483165997b01454be73d24814afe353236da3e603e2ba4075
+      sha256: 94b23037eea9a2e671c8be1e0cbc2e1ec0b954752418c7427de73d455db6d9aa
     p4_header_definition_error:
       path: src/nika/problems/network_node_error/p4_pipeline_error.py
-      sha256: 38e1bb4c8a80a62483165997b01454be73d24814afe353236da3e603e2ba4075
+      sha256: 94b23037eea9a2e671c8be1e0cbc2e1ec0b954752418c7427de73d455db6d9aa
     p4_table_entry_misconfig:
       path: src/nika/problems/network_node_error/p4_pipeline_error.py
-      sha256: 38e1bb4c8a80a62483165997b01454be73d24814afe353236da3e603e2ba4075
+      sha256: 94b23037eea9a2e671c8be1e0cbc2e1ec0b954752418c7427de73d455db6d9aa
     p4_table_entry_missing:
       path: src/nika/problems/network_node_error/p4_pipeline_error.py
-      sha256: 38e1bb4c8a80a62483165997b01454be73d24814afe353236da3e603e2ba4075
+      sha256: 94b23037eea9a2e671c8be1e0cbc2e1ec0b954752418c7427de73d455db6d9aa
     receiver_resource_contention:
       path: src/nika/problems/resource_contention/tcp_issue.py
-      sha256: 9e133d406bbcf7d0275283b5228a8d4bd403eb72045afc8cd9f9b5c673c00885
+      sha256: c5dae158e4821e626e9d4635233681a948e6e96f9d0210b036e4cbb287352b0d
     sdn_controller_crash:
       path: src/nika/problems/network_node_error/controller_issues.py
-      sha256: acf2e4d5cf9942cf1667c80cdaf4a01f9913a4375a10c07b9431109de7dda8b1
+      sha256: e7c57fc643f1eacda4cb835c5bf49179f296680dc93808715a67fbdabcc47218
     sender_application_delay:
       path: src/nika/problems/resource_contention/tcp_issue.py
-      sha256: 9e133d406bbcf7d0275283b5228a8d4bd403eb72045afc8cd9f9b5c673c00885
+      sha256: c5dae158e4821e626e9d4635233681a948e6e96f9d0210b036e4cbb287352b0d
     sender_resource_contention:
       path: src/nika/problems/resource_contention/tcp_issue.py
-      sha256: 9e133d406bbcf7d0275283b5228a8d4bd403eb72045afc8cd9f9b5c673c00885
+      sha256: c5dae158e4821e626e9d4635233681a948e6e96f9d0210b036e4cbb287352b0d
     southbound_port_block:
       path: src/nika/problems/network_node_error/controller_issues.py
-      sha256: acf2e4d5cf9942cf1667c80cdaf4a01f9913a4375a10c07b9431109de7dda8b1
+      sha256: e7c57fc643f1eacda4cb835c5bf49179f296680dc93808715a67fbdabcc47218
     southbound_port_mismatch:
       path: src/nika/problems/network_node_error/controller_issues.py
-      sha256: acf2e4d5cf9942cf1667c80cdaf4a01f9913a4375a10c07b9431109de7dda8b1
+      sha256: e7c57fc643f1eacda4cb835c5bf49179f296680dc93808715a67fbdabcc47218
     web_dos_attack:
       path: src/nika/problems/network_under_attack/web.py
-      sha256: a3528a3b6830bd62effe7c43beb8ae9d967090f34dcb6456767579f9aaff0e86
+      sha256: 94850aab7ed88e8267cb295ed17d0b232c72412f95a9a768325f1ed45cf38e15

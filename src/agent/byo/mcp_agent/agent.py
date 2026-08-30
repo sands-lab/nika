@@ -28,11 +28,15 @@ class McpAgent:
         model: str = "gpt-4.1-mini",
         max_steps: int = 20,
         *,
+        llm_provider: str,
+        reasoning_effort: str | None = None,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
         self.model = model
         self.max_steps = max_steps
+        self.llm_provider = llm_provider
+        self.reasoning_effort = reasoning_effort
         self._stream_output = stream_output
 
         session = Session()
@@ -48,6 +52,8 @@ class McpAgent:
             session_id=self.session_id,
             scenario_name=self._scenario_name,
             model=self.model,
+            provider=self.llm_provider,
+            reasoning_effort=self.reasoning_effort,
         )
         app = MCPApp(
             name="nika_mcp_agent", settings=settings, session_id=self.session_id
@@ -60,6 +66,8 @@ class McpAgent:
                 model=self.model,
                 max_steps=self.max_steps,
                 scenario_name=self._scenario_name,
+                llm_provider=self.llm_provider,
+                reasoning_effort=self.reasoning_effort,
                 stream_output=self._stream_output,
             )
             await workflow.initialize()

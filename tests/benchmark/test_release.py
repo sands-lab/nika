@@ -80,6 +80,11 @@ class TestFrozenRelease010:
         b = resolve_cases("nika-bench@0.1.0", split="dev")
         assert a == b
 
+    def test_cases_have_root_causes(self) -> None:
+        for split in ("dev", "test"):
+            cases = resolve_cases("0.1.0", split=split)
+            assert all(row.get("root_causes") for row in cases)
+
     def test_digest_changes_when_split_hash_changes(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")
         release = freeze_release(
@@ -87,6 +92,8 @@ class TestFrozenRelease010:
             source_cases=source,
             out_dir=tmp_path / "releases" / "mini",
         )
+        assert release.scoring["id"] == "rule-based-v2"
+        assert release.cases[0]["root_causes"]
         original = release.benchmark_digest
         new_digest = compute_benchmark_digest(
             splits={
@@ -220,7 +227,7 @@ class TestReleaseRunMetadata:
         assert job["case_count"] == 1
         assert job["n_trials"] == 3
         assert job["run_id"] == job["job_id"]
-        assert job["scoring"]["id"] == "rule-based-v1"
+        assert job["scoring"]["id"] == "rule-based-v2"
         assert "nika_git_commit" in job
         assert job["official"] is True
         assert (result_dir / "RELEASE.lock.json").is_file()
@@ -321,17 +328,31 @@ class TestReleaseDockerSmoke:
             model="mock-v1",
             max_steps=20,
             inject_params=row["inject"],
+            expected_root_causes=row.get("root_causes"),
             result_dir=str(result_root),
             release_meta=job,
         )
         return result_root
 
+    def _assert_solved(self, result_root: Path) -> None:
+        sessions = [
+            path
+            for path in result_root.iterdir()
+            if path.is_dir() and (path / "eval_metrics.json").is_file()
+        ]
+        assert sessions, f"no evaluated session under {result_root}"
+        metrics = json.loads((sessions[0] / "eval_metrics.json").read_text())
+        assert metrics["rca_f1"] == 1.0
+        assert (sessions[0] / "submission.json").is_file()
+
     def test_dev_smoke(self) -> None:
         result_root = self._run_one("dev")
         job = json.loads((result_root / JOB_FILENAME).read_text(encoding="utf-8"))
         assert job["split"] == "dev"
+        self._assert_solved(result_root)
 
     def test_test_smoke(self) -> None:
         result_root = self._run_one("test")
         job = json.loads((result_root / JOB_FILENAME).read_text(encoding="utf-8"))
         assert job["split"] == "test"
+        self._assert_solved(result_root)

@@ -5,6 +5,7 @@ from nika.problems.problem_base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.root_cause import node_resource
 
 # ==========================================
 # Problem: Host crash simulated by pausing a docker instance
@@ -27,8 +28,10 @@ class HostCrash(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: HostCrashParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: HostCrashParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.pause(params.host_name)
 
     def verify_fault(self, params: HostCrashParams) -> dict:

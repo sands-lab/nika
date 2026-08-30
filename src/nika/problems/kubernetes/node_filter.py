@@ -115,7 +115,9 @@ class NodeFilter:
             returncode = 1
         return stdout.strip(), returncode
 
-    def block_destination(self, target: str, *, protocol: str | None = None, port: int | None = None) -> None:
+    def block_destination(
+        self, target: str, *, protocol: str | None = None, port: int | None = None
+    ) -> None:
         self.block(DropSpec(target, protocol=protocol, port=port))
 
     def block(self, spec: DropSpec) -> None:
@@ -152,7 +154,9 @@ class NodeFilter:
         stdout, _ = self._exec(f"{IPTABLES_BINARY} -t raw -S 2>/dev/null")
         return stdout
 
-    def blocked(self, target: str, *, protocol: str | None = None, port: int | None = None) -> dict[str, bool]:
+    def blocked(
+        self, target: str, *, protocol: str | None = None, port: int | None = None
+    ) -> dict[str, bool]:
         return self.blocked_spec(DropSpec(target, protocol=protocol, port=port))
 
     def blocked_spec(self, spec: DropSpec) -> dict[str, bool]:

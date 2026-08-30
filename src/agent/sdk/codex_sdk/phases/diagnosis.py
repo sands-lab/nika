@@ -3,7 +3,7 @@
 from agent.sdk.codex_sdk.worker import CodexSdkWorker
 from agent.utils.skills import diagnosis_prompt_with_skills
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 
 class CodexSdkDiagnosisPhase:
@@ -15,6 +15,7 @@ class CodexSdkDiagnosisPhase:
         reasoning_effort: str | None = None,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
@@ -24,6 +25,7 @@ class CodexSdkDiagnosisPhase:
             session_dir=session_dir,
             phase=DIAGNOSIS,
             model=model,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
             scenario_name=scenario_name,
             system_prompt=diagnosis_prompt,

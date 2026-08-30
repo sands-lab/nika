@@ -138,6 +138,13 @@ def remote_start_net_env(
     result_dir: str | None = None,
     session_id: str | None = None,
     session_dir: str | None = None,
+    topo: str | None = None,
+    igp: str | None = None,
+    metric_strategy: str | None = None,
+    constant_metric: int | None = None,
+    bgp_mode: str | None = None,
+    backend: str | None = None,
+    device_profile: str | None = None,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -154,6 +161,13 @@ def remote_start_net_env(
             session_tag=session_tag,
             session_id=resolved_session_id,
             result_dir=None,  # remote uses its own results root
+            topo=topo,
+            igp=igp,
+            metric_strategy=metric_strategy,
+            constant_metric=constant_metric,
+            bgp_mode=bgp_mode,
+            backend=backend,
+            device_profile=device_profile,
         )
     )
     session = _mirror_session_locally(

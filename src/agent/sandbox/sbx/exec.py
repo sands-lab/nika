@@ -20,7 +20,6 @@ _INNER_ENV_ALLOWLIST = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
-        "NIKA_LLM_PROVIDER",
     }
 )
 _PATH_ENV_KEYS = frozenset({"CODEX_HOME", "CLAUDE_CONFIG_DIR"})
@@ -134,10 +133,12 @@ async def exec_in_sandbox(
     if not name:
         raise RuntimeError(f"{ENV_SBX_SANDBOX_NAME} is not set for sandbox execution")
 
+    from agent.sandbox.sbx.proxy import sbx_process_env
+
     argv = build_sbx_exec_command(name, command, cwd=cwd, env=env)
     return await asyncio.create_subprocess_exec(
         *argv,
-        env=os.environ.copy(),
+        env=sbx_process_env(),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

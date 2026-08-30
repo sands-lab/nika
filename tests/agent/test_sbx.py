@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -15,9 +16,14 @@ from agent.sandbox.sbx.credentials import (
     missing_credential_message,
     required_services_for_agent,
 )
-from agent.sandbox.sbx.exec import build_sbx_exec_command
+from agent.sandbox.sbx.client import ensure_sbx_daemon, run_sbx, run_sbx_checked
+from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
 from agent.sandbox.sbx.manager import SbxSandboxManager
-from agent.sandbox.sbx.proxy import ensure_sbx_proxy_config, resolve_sbx_upstream_proxy
+from agent.sandbox.sbx.proxy import (
+    ensure_sbx_proxy_config,
+    resolve_sbx_upstream_proxy,
+    sbx_process_env,
+)
 from agent.sandbox.sbx.wheels import (
     SDK_WHEEL_DIRNAME,
     install_sdk_wheels_in_sandbox,
@@ -106,6 +112,98 @@ def test_exec_command_forwards_custom_placeholder() -> None:
     assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
 
 
+def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
+    monkeypatch,
+) -> None:
+    """DeepSeek remap must not overwrite sbx-cs placeholders before sbx exec."""
+    from agent.cli.claude.config import prepare_claude_subprocess_env
+    from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+
+    monkeypatch.setenv(ENV_SBX_SANDBOX_NAME, "nika-test-sbx")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-real-deepseek")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sbx-cs-placeholder")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "sbx-cs-placeholder")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.deepseek.com/anthropic")
+
+    env = prepare_claude_subprocess_env(provider="deepseek")
+    assert env["ANTHROPIC_API_KEY"] == "sbx-cs-placeholder"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "sbx-cs-placeholder"
+    assert env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+    assert (
+        "DEEPSEEK_API_KEY" not in env
+        or env.get("DEEPSEEK_API_KEY") != "sk-real-deepseek"
+    )
+
+    command = build_sbx_exec_command(
+        "nika-test",
+        ["claude", "-p", "hi"],
+        env=env,
+    )
+    inner = command[-1]
+    assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
+    assert "ANTHROPIC_AUTH_TOKEN=sbx-cs-placeholder" in inner
+    assert "sk-real-deepseek" not in inner
+
+
+def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
+    manager = SbxSandboxManager(
+        SandboxConfig(
+            env_file=tmp_path / ".env",
+            keep_container=False,
+            cpus=None,
+            memory=None,
+            offline_sdk_wheels=False,
+        )
+    )
+
+    manager._bundle_agent_sources(tmp_path)
+
+    assert (tmp_path / "agent").is_dir()
+    assert not (tmp_path / "nika").exists()
+    assert not any((tmp_path / "agent").rglob("nika"))
+
+
+def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
+    """Bundled agent tree must import SDK entrypoints without installing nika."""
+    import subprocess
+    import sys
+
+    manager = SbxSandboxManager(
+        SandboxConfig(
+            env_file=tmp_path / ".env",
+            keep_container=False,
+            cpus=None,
+            memory=None,
+            offline_sdk_wheels=False,
+        )
+    )
+    manager._bundle_agent_sources(tmp_path)
+    workspace = tmp_path
+    # Simulate microVM: only workspace on path (agent package), no src/nika.
+    script = (
+        "import os, sys\n"
+        f"sys.path.insert(0, {str(workspace)!r})\n"
+        "os.environ['NIKA_SANDBOX_EXECUTION']='1'\n"
+        # Block accidental nika imports from the host install.
+        "sys.modules['nika'] = None\n"
+        "from agent.registry import create_agent\n"
+        "from agent.cli.claude import config as claude_config\n"
+        "from agent.sdk.codex_sdk import config as codex_config\n"
+        "assert hasattr(claude_config, 'prepare_claude_subprocess_env')\n"
+        "assert hasattr(codex_config, 'codex_sdk_local_auth_available')\n"
+        "print('ok')\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(workspace),
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "ok" in proc.stdout
+
+
 def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     from agent.sandbox.sbx.workspace import cleanup_workspace
 
@@ -138,6 +236,61 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     assert not (session_dir / "codex_sdk_workspace").exists()
 
 
+def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    session = SimpleNamespace(
+        session_id="sess-cleanup-failure",
+        session_dir=str(session_dir),
+        task_description="diagnose",
+        scenario_name="simple_bgp",
+        backend="kathara",
+    )
+    credentials = SimpleNamespace(sentinel_runtime_env=lambda: {})
+    manager = SbxSandboxManager(resolve_sandbox_config(keep_container=False))
+
+    with (
+        patch("agent.sandbox.sbx.manager.ensure_sbx_proxy_config"),
+        patch("agent.sandbox.sbx.manager.ensure_sbx_ready"),
+        patch("agent.sandbox.sbx.manager.ensure_llm_network_policy"),
+        patch(
+            "agent.sandbox.sbx.manager.ensure_sbx_credentials",
+            return_value=credentials,
+        ),
+        patch("agent.sandbox.sbx.manager.run_sbx_checked"),
+        patch("agent.sandbox.sbx.manager.run_sbx_optional"),
+        patch("agent.sandbox.sbx.manager.allow_mcp_gateway"),
+        patch(
+            "agent.sandbox.sbx.manager.deny_mcp_gateway",
+            side_effect=OSError("policy cleanup failed"),
+        ),
+        patch("agent.sandbox.sbx.manager.log_event"),
+    ):
+        with pytest.raises(OSError, match="policy cleanup failed"):
+            with manager.open_session(
+                session=session,
+                agent_type="cli.codex",
+                model="gpt-5-mini",
+                max_steps=10,
+                reasoning_effort=None,
+                llm_provider="openai",
+                mcp_gateway_agent_url="http://host.docker.internal:12345",
+                gateway_port=12345,
+                stream_output=False,
+            ) as sbx_session:
+                (sbx_session.workspace_dir / "messages.jsonl").write_text(
+                    "message\n", encoding="utf-8"
+                )
+                (sbx_session.workspace_dir / "submission.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+
+    assert (session_dir / "sandbox_manifest.json").is_file()
+    assert (session_dir / "messages.jsonl").read_text(encoding="utf-8") == "message\n"
+    assert (session_dir / "submission.json").is_file()
+    assert not (session_dir / ".sandbox_run").exists()
+
+
 def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("OPENAI_API_KEY=sk-openai\n", encoding="utf-8")
@@ -157,6 +310,8 @@ def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"openai"},
+            provider="openai",
+            agent_type="cli.codex",
         )
 
     run.assert_called_once()
@@ -167,7 +322,7 @@ def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
 def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "DEEPSEEK_API_KEY=tok\nNIKA_LLM_PROVIDER=deepseek\n",
+        "DEEPSEEK_API_KEY=tok\n",
         encoding="utf-8",
     )
     with (
@@ -181,7 +336,7 @@ def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
             return_value={"ANTHROPIC_API_KEY": "sbx-cs-anth"},
         ),
         patch("agent.sandbox.sbx.credentials.run_sbx_checked") as run,
-        patch.dict(os.environ, {"NIKA_LLM_PROVIDER": "deepseek"}, clear=True),
+        patch.dict(os.environ, {}, clear=True),
     ):
         plan = ensure_sbx_credentials(
             env_file=env_file,
@@ -215,6 +370,8 @@ def test_ensure_sbx_credentials_accepts_existing_oauth_secret(tmp_path) -> None:
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"openai"},
+            provider="openai",
+            agent_type="cli.codex",
         )
 
     run.assert_not_called()
@@ -243,6 +400,8 @@ def test_ensure_sbx_credentials_accepts_existing_anthropic_oauth_secret(
         plan = ensure_sbx_credentials(
             env_file=env_file,
             required_services={"anthropic"},
+            provider="anthropic",
+            agent_type="cli.claude",
         )
 
     run.assert_not_called()
@@ -290,6 +449,8 @@ def test_ensure_sbx_credentials_missing_raises_guidance(tmp_path) -> None:
         ensure_sbx_credentials(
             env_file=env_file,
             required_services={"openai"},
+            provider="openai",
+            agent_type="cli.codex",
         )
     assert "OPENAI_API_KEY" in missing_credential_message("openai")
     assert "/login" in missing_credential_message("anthropic")
@@ -324,19 +485,33 @@ def test_apply_codex_auth_sandbox_subscription_skips_auth_file(tmp_path) -> None
 
 
 def test_explicit_proxy_is_forwarded_to_sbx() -> None:
-    with patch.dict(
-        os.environ,
-        {"NIKA_SANDBOX_UPSTREAM_PROXY": "http://proxy.test:8080"},
-        clear=True,
-    ):
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
+    try:
         assert resolve_sbx_upstream_proxy() == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
 
 
 def test_proxy_from_main_env_file(tmp_path) -> None:
-    env_file = tmp_path / ".env"
-    env_file.write_text("NIKA_SANDBOX_UPSTREAM_PROXY=http://proxy.test:8080\n")
-    with patch.dict(os.environ, {}, clear=True):
-        assert resolve_sbx_upstream_proxy(env_file=env_file) == "http://proxy.test:8080"
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
+    try:
+        assert resolve_sbx_upstream_proxy() == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
 
 
 def test_ensure_sbx_proxy_config_no_op_without_upstream() -> None:
@@ -356,7 +531,7 @@ def test_ensure_sbx_proxy_config_warns_when_daemon_stays_down() -> None:
         patch("agent.sandbox.sbx.proxy.subprocess.run") as run,
         patch("agent.sandbox.sbx.proxy.subprocess.Popen") as popen,
         patch("agent.sandbox.sbx.proxy.time.sleep"),
-        patch("agent.sandbox.sbx.proxy._daemon_running", return_value=False),
+        patch("agent.sandbox.sbx.proxy.sbx_daemon_running", return_value=False),
         patch("agent.sandbox.sbx.proxy.logger.warning") as warning,
     ):
         run.return_value = type(
@@ -365,6 +540,152 @@ def test_ensure_sbx_proxy_config_warns_when_daemon_stays_down() -> None:
         ensure_sbx_proxy_config("http://proxy.test:8080")
     popen.assert_called_once()
     warning.assert_called_once()
+    stop_cmds = [
+        call.args[0]
+        for call in run.call_args_list
+        if call.args and call.args[0][:3] == ["sbx", "daemon", "stop"]
+    ]
+    assert stop_cmds == []
+
+
+def test_ensure_sbx_proxy_config_does_not_stop_running_daemon(
+    tmp_path, monkeypatch
+) -> None:
+    import agent.sandbox.sbx.proxy as proxy_mod
+
+    monkeypatch.setattr(proxy_mod, "_proxy_lock_path", lambda: tmp_path / "lock")
+    monkeypatch.setattr(proxy_mod, "_applied_proxy", None)
+    with (
+        patch("agent.sandbox.sbx.proxy.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.proxy.sbx_daemon_running", return_value=True),
+        patch("agent.sandbox.sbx.proxy._daemon_proxy_matches", return_value=False),
+        patch("agent.sandbox.sbx.proxy.subprocess.run") as run,
+        patch("agent.sandbox.sbx.proxy.subprocess.Popen") as popen,
+        patch("agent.sandbox.sbx.proxy.logger.warning") as warning,
+    ):
+        ensure_sbx_proxy_config("http://proxy.test:8080")
+    popen.assert_not_called()
+    assert not any(
+        call.args and call.args[0][:3] == ["sbx", "daemon", "stop"]
+        for call in run.call_args_list
+    )
+    warning.assert_called()
+
+
+def test_sbx_process_env_sets_https_proxy_when_unset() -> None:
+    env = sbx_process_env(upstream_proxy="http://proxy.test:8080")
+    assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+    assert env["HTTP_PROXY"] == "http://proxy.test:8080"
+    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    assert "host.docker.internal" in env["NO_PROXY"]
+
+
+def test_sbx_process_env_keeps_existing_https_proxy() -> None:
+    with patch.dict(
+        os.environ,
+        {
+            "HTTPS_PROXY": "http://already:9",
+        },
+        clear=True,
+    ):
+        env = sbx_process_env(upstream_proxy="http://proxy.test:8080")
+    assert env["HTTPS_PROXY"] == "http://already:9"
+    assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    assert "HTTP_PROXY" not in env or env.get("HTTP_PROXY") != "http://proxy.test:8080"
+
+
+def test_run_sbx_passes_host_proxy_env() -> None:
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
+    try:
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
+            patch("agent.sandbox.sbx.client.subprocess.run") as run,
+        ):
+            run.return_value = SimpleNamespace(returncode=0, stdout="", stderr="")
+            run_sbx(["ls"], check=False)
+        env = run.call_args.kwargs["env"]
+        assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+        assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
+
+
+def test_exec_in_sandbox_passes_host_proxy_env() -> None:
+    import asyncio
+
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
+        )
+    )
+
+    async def _run() -> dict[str, str]:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "NIKA_SBX_SANDBOX_NAME": "nika-test",
+                },
+                clear=True,
+            ),
+            patch("agent.sandbox.sbx.exec.asyncio.create_subprocess_exec") as create,
+        ):
+            create.return_value = SimpleNamespace()
+            await exec_in_sandbox(["claude", "-p", "hi"], sandbox_name="nika-test")
+        return create.call_args.kwargs["env"]
+
+    try:
+        env = asyncio.run(_run())
+        assert env["HTTPS_PROXY"] == "http://proxy.test:8080"
+        assert env["DOCKER_SANDBOXES_PROXY"] == "http://proxy.test:8080"
+    finally:
+        reset_run_config()
+
+
+def test_ensure_sbx_daemon_uses_status_not_ls() -> None:
+    with (
+        patch(
+            "agent.sandbox.sbx.proxy.sbx_daemon_running", return_value=True
+        ) as status,
+        patch("agent.sandbox.sbx.client.subprocess.run") as run,
+    ):
+        ensure_sbx_daemon()
+    status.assert_called()
+    run.assert_not_called()
+
+
+def test_run_sbx_checked_retries_hub_token_error() -> None:
+    fail = SimpleNamespace(
+        returncode=1,
+        stdout="",
+        stderr=(
+            "ERROR: token is unverifiable: error while executing keyfunc: "
+            'Get "https://login.docker.com/.well-known/jwks.json": '
+            "context deadline exceeded\n"
+        ),
+    )
+    ok = SimpleNamespace(returncode=0, stdout="created", stderr="")
+    with (
+        patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.client.subprocess.run", side_effect=[fail, ok]) as run,
+        patch("agent.sandbox.sbx.client.time.sleep") as sleep,
+        patch.dict(os.environ, {}, clear=True),
+    ):
+        result = run_sbx_checked(["create", "--name", "nika-test", "claude", "/tmp"])
+    assert result.returncode == 0
+    assert run.call_count == 2
+    sleep.assert_called_once_with(2.0)
 
 
 def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
@@ -436,28 +757,8 @@ def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
     assert resolve_sandbox_config().offline_sdk_wheels is False
 
     set_run_config(
-        RunConfig.model_validate(
-            {"nika": {"sandbox": {"offline_sdk_wheels": True}}}
-        )
+        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": True}}})
     )
     assert resolve_sandbox_config().offline_sdk_wheels is True
     assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False
     reset_run_config()
-
-
-def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
-    manager = SbxSandboxManager(
-        SandboxConfig(
-            env_file=tmp_path / ".env",
-            keep_container=False,
-            cpus=None,
-            memory=None,
-            offline_sdk_wheels=False,
-        )
-    )
-
-    manager._bundle_agent_sources(tmp_path)
-
-    assert (tmp_path / "agent").is_dir()
-    assert not (tmp_path / "nika").exists()
-    assert not any((tmp_path / "agent").rglob("nika"))

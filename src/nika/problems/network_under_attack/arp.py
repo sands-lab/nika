@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -32,8 +33,10 @@ class ArpCachePoisoning(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
+    def root_cause_resources(self, params: ArpCachePoisoningParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: ArpCachePoisoningParams):
-        self.set_faulty_devices([params.host_name])
         default_gateway = self.runtime.get_default_gateway(params.host_name)
         self.runtime.exec(
             params.host_name, f"arp -s {default_gateway} {params.fake_mac}"

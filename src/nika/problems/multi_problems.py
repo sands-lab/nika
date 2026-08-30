@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 
 from nika.problems.problem_base import (
@@ -21,7 +23,6 @@ class MultiFaultProblem(ProblemBase):
 
     def _refresh_aggregates(self) -> None:
         root_names: list[str] = []
-        devices: list[str] = []
         for fault in self.sub_faults:
             name = fault.root_cause_name
             if isinstance(name, str):
@@ -29,11 +30,7 @@ class MultiFaultProblem(ProblemBase):
                     root_names.append(name)
             else:
                 root_names.extend(name)
-            for device in fault.faulty_devices:
-                if device not in devices:
-                    devices.append(device)
         self.root_cause_name = root_names
-        self.set_faulty_devices(devices)
 
     async def _inject_fault_async(self) -> None:
         loop = asyncio.get_running_loop()
@@ -41,6 +38,15 @@ class MultiFaultProblem(ProblemBase):
             loop.run_in_executor(None, fault.inject_fault) for fault in self.sub_faults
         ]
         await asyncio.gather(*tasks)
+
+    def root_cause_resources(self, params=None):
+        from nika.problems.root_cause import FaultResource
+
+        resources: list[FaultResource] = []
+        for fault in self.sub_faults:
+            piece = fault.root_cause_resources(getattr(fault, "_resolved_params", None))
+            resources.extend(piece)
+        return resources
 
     def inject_fault(self, params=None) -> None:
         del params
@@ -75,14 +81,9 @@ class MultiFaultProblem(ProblemBase):
         )
 
     def get_ground_truth(self) -> ProblemGroundTruth:
+        from nika.problems.ground_truth import build_multi_ground_truth
+
         self._refresh_aggregates()
-        assert self.faulty_devices, (
-            "Faulty devices not set before building ground truth."
-        )
-        return ProblemGroundTruth(
-            is_anomaly=True,
-            faulty_devices=list(self.faulty_devices),
-            root_cause_category=str(self.root_cause_category),
-            root_cause_name=list(self.root_cause_name),
-            detailed_cause="",
+        return build_multi_ground_truth(
+            self.sub_faults, category=str(self.root_cause_category)
         )

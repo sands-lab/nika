@@ -15,6 +15,19 @@ SANDBOX_AGENT_TYPES = frozenset(
     }
 )
 
+_PROVIDER_REQUIRED = frozenset(
+    {
+        "byo.langgraph",
+        "byo.mcp_agent",
+        "byo.autogen",
+        "cli.codex",
+        "cli.claude",
+        "sdk.codex_sdk",
+        "sdk.claude_sdk",
+        "community.sade",
+    }
+)
+
 
 def create_agent(
     agent_type: str,
@@ -36,19 +49,22 @@ def create_agent(
             f"Agent {agent_type!r} can only run inside the Docker sandbox"
         )
 
+    if normalized_type in _PROVIDER_REQUIRED and not llm_provider:
+        raise ValueError(
+            f"{agent_type} requires an LLM provider: set agent.provider in "
+            "config/nika.yaml or pass -p/--provider."
+        )
+
     match normalized_type:
         case "byo.langgraph":
             from agent.byo.langgraph.react_agent import BasicReActAgent
 
-            if not llm_provider:
-                raise ValueError(
-                    "byo.langgraph agent requires an LLM provider: set NIKA_LLM_PROVIDER in .env or pass -p/--provider."
-                )
             return BasicReActAgent(
                 session_id=session_id,
                 llm_provider=llm_provider,
                 model=model,
                 max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
             )
         case "mock":
             from agent.mock.mock_agent import MockAgent
@@ -64,6 +80,7 @@ def create_agent(
             return ClaudeSdkAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 max_steps=max_steps,
                 stream_output=stream_output,
             )
@@ -73,6 +90,7 @@ def create_agent(
             return CodexSdkAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
@@ -82,6 +100,7 @@ def create_agent(
             return CodexCliAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
@@ -91,6 +110,7 @@ def create_agent(
             return ClaudeAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 stream_output=stream_output,
             )
         case "byo.mcp_agent":
@@ -99,7 +119,9 @@ def create_agent(
             return McpAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
         case "byo.autogen":
@@ -108,7 +130,9 @@ def create_agent(
             return AutogenAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
                 stream_output=stream_output,
             )
         case "community.sade":
@@ -117,6 +141,7 @@ def create_agent(
             return SadeAgent(
                 session_id=session_id,
                 model=model,
+                llm_provider=llm_provider,
                 max_steps=max_steps,
             )
         case _:

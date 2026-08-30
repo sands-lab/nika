@@ -20,6 +20,7 @@ _RUNNER = CliRunner()
 CLI_COMMAND_MODULES = [
     "nika.cli.commands.agent",
     "nika.cli.commands.benchmark",
+    "nika.cli.commands.config_cmd",
     "nika.cli.commands.env",
     "nika.cli.commands.evaluation",
     "nika.cli.commands.exec",
@@ -50,6 +51,9 @@ CLI_HELP_ARGS = [
     ["agent", "run", "--help"],
     ["benchmark", "--help"],
     ["benchmark", "run", "--help"],
+    ["config", "--help"],
+    ["config", "show", "--help"],
+    ["config", "migrate", "--help"],
     ["env", "--help"],
     ["env", "list", "--help"],
     ["env", "run", "--help"],

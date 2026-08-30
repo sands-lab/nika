@@ -26,7 +26,12 @@ def require_session_id() -> str:
 
 def get_session_meta() -> dict[str, Any]:
     session_id = require_session_id()
-    meta = SessionStore().get_session(session_id)
+    try:
+        meta = SessionStore().get_session(session_id)
+    except FileNotFoundError:
+        from nika.workflows.session.close import load_session_meta_for_close
+
+        meta = load_session_meta_for_close(session_id)
     if meta.get("status") != "running":
         raise ValueError(f"Session '{session_id}' is not running.")
     return meta

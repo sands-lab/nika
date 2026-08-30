@@ -1,80 +1,247 @@
-"""ASGI application for the in-node Kubernetes MCP server."""
+"""Host-side Kubernetes MCP server (in-process FastMCP for the gateway)."""
 
 from __future__ import annotations
 
-import os
-from contextlib import AsyncExitStack, asynccontextmanager
+import json
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
-from starlette.routing import Mount, Route
 
-from nika.service.k8s_mcp_server import DEFAULT_BIND, DEFAULT_PORT
 from nika.service.k8s_mcp_server.client import get_client
-from nika.service.k8s_mcp_server.tools import register_tools
+from nika.utils.errors import safe_tool
 
 SERVER_NAME = "k8s_mcp_server"
 
-
-def build_mcp() -> FastMCP:
-    mcp = FastMCP(SERVER_NAME)
-    register_tools(mcp)
-    return mcp
+mcp = FastMCP(name=SERVER_NAME, host="127.0.0.1", port=8000, log_level="INFO")
 
 
-def create_app() -> Starlette:
-    """Return Starlette app with ``/health`` and streamable MCP under ``/mcp``."""
-    mcp = build_mcp()
-    mcp_app = mcp.streamable_http_app()
+def _json(payload: Any) -> str:
+    return json.dumps(payload, default=str, indent=2)
 
-    async def health(_request: Request) -> JSONResponse:
-        try:
-            nodes = get_client().list_nodes()
-            return JSONResponse(
-                {
-                    "status": "ok",
-                    "server": SERVER_NAME,
-                    "ready_nodes": sum(1 for n in nodes if n.get("ready")),
-                    "node_count": len(nodes),
-                }
-            )
-        except Exception as exc:
-            return JSONResponse(
-                {"status": "error", "server": SERVER_NAME, "details": str(exc)},
-                status_code=503,
-            )
 
-    async def root(_request: Request) -> PlainTextResponse:
-        return PlainTextResponse(f"{SERVER_NAME} ok\n")
+@safe_tool
+@mcp.tool()
+def k8s_list_nodes() -> str:
+    """List Kubernetes nodes with Ready status, InternalIP, and conditions."""
+    return _json(get_client().list_nodes())
 
-    @asynccontextmanager
-    async def lifespan(_app: Starlette):
-        async with AsyncExitStack() as stack:
-            await stack.enter_async_context(mcp.session_manager.run())
-            yield
 
-    return Starlette(
-        routes=[
-            Route("/", root),
-            Route("/health", health),
-            # FastMCP streamable_http_app already exposes ``/mcp``.
-            Mount("/", app=mcp_app),
-        ],
-        lifespan=lifespan,
+@safe_tool
+@mcp.tool()
+def k8s_get_node(name: str) -> str:
+    """Get a full Kubernetes Node object by name.
+
+    Args:
+        name: Node name (e.g. controller, worker1).
+    """
+    return _json(get_client().get_node(name))
+
+
+@safe_tool
+@mcp.tool()
+def k8s_list_pods(
+    namespace: str = "",
+    selector: str = "",
+    field_selector: str = "",
+    all_namespaces: bool = False,
+) -> str:
+    """List pods with phase, node, restarts, and pod IP.
+
+    Args:
+        namespace: Namespace to query (ignored when all_namespaces is true).
+        selector: Label selector (e.g. app=word).
+        field_selector: Field selector (e.g. spec.nodeName=worker1).
+        all_namespaces: If true, list across all namespaces.
+    """
+    return _json(
+        get_client().list_pods(
+            namespace=namespace or None,
+            selector=selector or None,
+            field_selector=field_selector or None,
+            all_namespaces=all_namespaces,
+        )
     )
 
 
-def run(
-    *,
-    host: str | None = None,
-    port: int | None = None,
-) -> None:
-    import uvicorn
+@safe_tool
+@mcp.tool()
+def k8s_get_pod(name: str, namespace: str = "default") -> str:
+    """Get a full Pod object.
 
-    bind = host or os.environ.get("NIKA_K8S_MCP_BIND", DEFAULT_BIND)
-    listen_port = port
-    if listen_port is None:
-        listen_port = int(os.environ.get("NIKA_K8S_MCP_PORT", str(DEFAULT_PORT)))
-    uvicorn.run(create_app(), host=bind, port=listen_port, log_level="warning")
+    Args:
+        name: Pod name.
+        namespace: Pod namespace.
+    """
+    return _json(get_client().get_pod(name, namespace=namespace))
+
+
+@safe_tool
+@mcp.tool()
+def k8s_get_logs(
+    name: str,
+    namespace: str = "default",
+    container: str = "",
+    tail_lines: int = 200,
+    since_seconds: int = 0,
+    timeout_seconds: int = 30,
+) -> str:
+    """Fetch container logs for a pod.
+
+    Args:
+        name: Pod name.
+        namespace: Pod namespace.
+        container: Optional container name.
+        tail_lines: Number of trailing log lines.
+        since_seconds: Only logs newer than this many seconds (0 = all).
+        timeout_seconds: API request timeout.
+    """
+    return get_client().get_logs(
+        name,
+        namespace=namespace,
+        container=container or None,
+        tail_lines=tail_lines,
+        since_seconds=since_seconds or None,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+@safe_tool
+@mcp.tool()
+def k8s_list_events(
+    namespace: str = "",
+    field_selector: str = "",
+    all_namespaces: bool = False,
+    limit: int = 100,
+) -> str:
+    """List Kubernetes events.
+
+    Args:
+        namespace: Namespace (ignored when all_namespaces is true).
+        field_selector: Event field selector.
+        all_namespaces: List cluster-wide events.
+        limit: Max events to return.
+    """
+    return _json(
+        get_client().list_events(
+            namespace=namespace or None,
+            field_selector=field_selector or None,
+            all_namespaces=all_namespaces,
+            limit=limit,
+        )
+    )
+
+
+@safe_tool
+@mcp.tool()
+def k8s_list_services(
+    namespace: str = "",
+    all_namespaces: bool = False,
+) -> str:
+    """List Services with ClusterIP, selectors, and ports.
+
+    Args:
+        namespace: Namespace (ignored when all_namespaces is true).
+        all_namespaces: List across all namespaces.
+    """
+    return _json(
+        get_client().list_services(
+            namespace=namespace or None,
+            all_namespaces=all_namespaces,
+        )
+    )
+
+
+@safe_tool
+@mcp.tool()
+def k8s_get_endpoints(service: str, namespace: str = "default") -> str:
+    """Get EndpointSlice addresses and ClusterIP for a Service.
+
+    Args:
+        service: Service name.
+        namespace: Service namespace.
+    """
+    return _json(get_client().get_endpoints(service, namespace=namespace))
+
+
+@safe_tool
+@mcp.tool()
+def k8s_get_network_policies(
+    namespace: str = "",
+    name: str = "",
+    all_namespaces: bool = False,
+) -> str:
+    """List or get NetworkPolicy objects.
+
+    Args:
+        namespace: Namespace (ignored when all_namespaces is true).
+        name: Optional policy name for a full get.
+        all_namespaces: List cluster-wide policies.
+    """
+    return _json(
+        get_client().get_network_policies(
+            namespace=namespace or None,
+            name=name or None,
+            all_namespaces=all_namespaces,
+        )
+    )
+
+
+@safe_tool
+@mcp.tool()
+def k8s_dns_query(
+    pod: str,
+    query: str,
+    namespace: str = "default",
+    server: str = "",
+    timeout_seconds: int = 20,
+) -> str:
+    """Run a DNS lookup from inside an existing pod.
+
+    Args:
+        pod: Source pod name.
+        query: DNS name to resolve.
+        namespace: Pod namespace.
+        server: Optional DNS server IP (defaults to cluster DNS).
+        timeout_seconds: Exec timeout.
+    """
+    return _json(
+        get_client().dns_query(
+            pod,
+            query,
+            namespace=namespace,
+            server=server or None,
+            timeout_seconds=timeout_seconds,
+        )
+    )
+
+
+@safe_tool
+@mcp.tool()
+def k8s_check_connectivity(
+    pod: str,
+    target: str,
+    namespace: str = "default",
+    port: int = 0,
+    protocol: str = "tcp",
+    timeout_seconds: int = 15,
+) -> str:
+    """Probe TCP or HTTP connectivity from a pod to a target.
+
+    Args:
+        pod: Source pod name.
+        target: Destination host, ClusterIP, pod IP, or URL.
+        namespace: Source pod namespace.
+        port: Destination port (required for tcp).
+        protocol: ``tcp`` or ``http``.
+        timeout_seconds: Probe timeout.
+    """
+    return _json(
+        get_client().check_connectivity(
+            pod,
+            target,
+            namespace=namespace,
+            port=port or None,
+            protocol=protocol,
+            timeout_seconds=timeout_seconds,
+        )
+    )

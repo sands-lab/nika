@@ -15,7 +15,7 @@ from autogen_core import CancellationToken
 from agent.byo.autogen.phases.diagnosis import AutogenDiagnosisPhase
 from agent.byo.autogen.phases.submission import AutogenSubmissionPhase
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 _MAX_STEPS_MARKER = "ERROR_MAX_STEPS_REACHED"
 
@@ -31,6 +31,8 @@ class DiagnosisPhaseAgent(BaseChatAgent):
         model: str,
         max_steps: int,
         scenario_name: str,
+        llm_provider: str,
+        reasoning_effort: str | None = None,
         print_phase: Callable[[str, str], None],
     ) -> None:
         super().__init__(
@@ -43,6 +45,8 @@ class DiagnosisPhaseAgent(BaseChatAgent):
             model=model,
             max_steps=max_steps,
             scenario_name=scenario_name,
+            llm_provider=llm_provider,
+            reasoning_effort=reasoning_effort,
         )
         self._session_dir = session_dir
         self._print_phase = print_phase
@@ -121,6 +125,8 @@ class SubmissionPhaseAgent(BaseChatAgent):
         model: str,
         max_steps: int,
         scenario_name: str,
+        llm_provider: str,
+        reasoning_effort: str | None = None,
         print_phase: Callable[[str, str], None],
     ) -> None:
         super().__init__(
@@ -133,6 +139,8 @@ class SubmissionPhaseAgent(BaseChatAgent):
             model=model,
             max_steps=max_steps,
             scenario_name=scenario_name,
+            llm_provider=llm_provider,
+            reasoning_effort=reasoning_effort,
         )
         self._session_dir = session_dir
         self._print_phase = print_phase
@@ -185,6 +193,8 @@ async def run_troubleshooting_flow(
     max_steps: int,
     scenario_name: str,
     stream_output: bool,
+    llm_provider: str,
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Execute diagnosis → submission via AutoGen ``GraphFlow``."""
     print_phase = _make_print_phase(stream_output)
@@ -195,6 +205,8 @@ async def run_troubleshooting_flow(
         model=model,
         max_steps=max_steps,
         scenario_name=scenario_name,
+        llm_provider=llm_provider,
+        reasoning_effort=reasoning_effort,
         print_phase=print_phase,
     )
     submission_agent = SubmissionPhaseAgent(
@@ -203,6 +215,8 @@ async def run_troubleshooting_flow(
         model=model,
         max_steps=max_steps,
         scenario_name=scenario_name,
+        llm_provider=llm_provider,
+        reasoning_effort=reasoning_effort,
         print_phase=print_phase,
     )
 

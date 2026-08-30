@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from nika.evaluator.trace_parser import AgentTraceParser
+from nika.workflows.eval.session import build_eval_metrics_payload
 from nika.workflows.benchmark.resume import (
     benchmark_row_fingerprint,
     cleanup_benchmark_session,
@@ -135,6 +137,83 @@ def is_valid_trial(session_dir: str | Path) -> bool:
     return trial_has_required_artifacts(path, outcome=str(outcome))
 
 
+def _restore_success_eval_metrics(path: Path) -> bool:
+    """Rebuild metrics for a solved trial interrupted before evaluation finished."""
+    metrics_path = path / "eval_metrics.json"
+    if metrics_path.is_file():
+        return True
+
+    gt = _read_json(path / "ground_truth.json")
+    submission = _read_json(path / "submission.json")
+    messages_path = path / "messages.jsonl"
+    if gt is None or submission is None or not messages_path.is_file():
+        return False
+
+    try:
+        trace_metrics = AgentTraceParser(trace_path=str(messages_path)).parse_trace()
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        trace_metrics = {}
+    payload = build_eval_metrics_payload(
+        gt=gt,
+        submission=submission,
+        trace_metrics=trace_metrics,
+    )
+    try:
+        metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
+def heal_trial_outcome(session_dir: str | Path) -> bool:
+    """Repair solved trials missing final metrics or ``outcome``.
+
+    When ``status=finished``, rebuild missing metrics from a submission and
+    infer an outcome that a kill/timeout prevented from being persisted:
+
+    - ``success`` if ``submission.json`` is present
+    - ``agent_failed`` otherwise
+
+    Returns True when the directory is a valid counted trial afterwards.
+    """
+    path = Path(session_dir)
+    if is_valid_trial(path):
+        return True
+
+    run_meta = _read_json(path / "run.json")
+    if run_meta is None or run_meta.get("status") != "finished":
+        return False
+
+    outcome = run_meta.get("outcome")
+    if outcome == "success" and _restore_success_eval_metrics(path):
+        return is_valid_trial(path)
+    if outcome in VALID_TRIAL_OUTCOMES:
+        return trial_has_required_artifacts(path, outcome=str(outcome))
+
+    # Submission proves the agent completed its work. Recover metrics when a
+    # kill happened after submission but before evaluation/outcome persisted.
+    if (path / "submission.json").is_file() and not _restore_success_eval_metrics(path):
+        return False
+
+    for name in REQUIRED_TRIAL_ARTIFACTS:
+        if not (path / name).is_file():
+            return False
+
+    inferred = "success" if (path / "submission.json").is_file() else "agent_failed"
+    run_meta["outcome"] = inferred
+    run_meta["status"] = "finished"
+    try:
+        (path / "run.json").write_text(
+            json.dumps(run_meta, indent=2, default=str),
+            encoding="utf-8",
+        )
+    except OSError:
+        return False
+
+    print(f"Healed trial outcome={inferred} under {path}")
+    return is_valid_trial(path)
+
+
 def count_completed_trials(
     *,
     trials: list[Trial],
@@ -145,7 +224,7 @@ def count_completed_trials(
     completed = 0
     for trial in trials:
         path = trial_dir(results_root, trial.case_key, trial.trial_index)
-        if path.is_dir() and is_valid_trial(path):
+        if path.is_dir() and (is_valid_trial(path) or heal_trial_outcome(path)):
             completed += 1
     return completed
 
@@ -164,6 +243,17 @@ def scan_trials(
     total = len(trials)
 
     if not resume:
+        # Explicit re-run: wipe existing slots so init_session cannot leave a
+        # hybrid running run.json over old artifacts that resume would delete.
+        for trial in trials:
+            path = trial_dir(results_root, trial.case_key, trial.trial_index)
+            if path.exists():
+                run_meta = _read_json(path / "run.json") or {}
+                print(f"{trial.label} {trial.trial_id} clearing slot (--no-resume)")
+                cleanup_benchmark_session(
+                    str(run_meta.get("session_id") or path.name),
+                    path,
+                )
         return results_root, list(range(total))
 
     pending: list[int] = []
@@ -173,7 +263,7 @@ def scan_trials(
         path = trial_dir(results_root, trial.case_key, trial.trial_index)
         label = f"{trial.label} {trial.trial_id}"
 
-        if path.is_dir() and is_valid_trial(path):
+        if path.is_dir() and (is_valid_trial(path) or heal_trial_outcome(path)):
             completed += 1
             print(f"{label} skip (already complete: {path})")
             continue
@@ -181,7 +271,7 @@ def scan_trials(
         if path.exists():
             run_meta = _read_json(path / "run.json") or {}
             # Never delete a counted agent_failed / success trial.
-            if is_valid_trial(path):
+            if is_valid_trial(path) or heal_trial_outcome(path):
                 completed += 1
                 print(f"{label} skip (already complete: {path})")
                 continue

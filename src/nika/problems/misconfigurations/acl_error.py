@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -28,8 +29,10 @@ class BGPAclBlock(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: BGPAclBlockParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: BGPAclBlockParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "containerlab":
                 self.runtime.srl_add_bgp_acl_drop_179(params.host_name)
@@ -47,7 +50,6 @@ class BGPAclBlock(ProblemBase):
 
     def verify_fault(self, params: BGPAclBlockParams) -> dict:
         """Verify nftables or SRL ACL blocks TCP port 179 (BGP)."""
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "containerlab":
                 verified = self.runtime.srl_bgp_acl_drop_179_present(params.host_name)
@@ -95,8 +97,10 @@ class OSPFAclBlock(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: OSPFAclBlockParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: OSPFAclBlockParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.add_nft_drop_rule(
             params.host_name, "ip protocol ospf drop", family="inet"
         )
@@ -106,7 +110,6 @@ class OSPFAclBlock(ProblemBase):
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
         """Verify nftables has a rule blocking OSPF protocol."""
-        self.set_faulty_devices([params.host_name])
         nft_output = self.runtime.exec(
             params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()
@@ -140,14 +143,15 @@ class ARPAclBlock(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: ARPAclBlockParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: ARPAclBlockParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.add_nft_drop_rule(params.host_name, "drop", family="arp")
         self.runtime.exec(params.host_name, "ip neigh flush all")
 
     def verify_fault(self, params: ARPAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ARP traffic."""
-        self.set_faulty_devices([params.host_name])
         nft_output = self.runtime.exec(
             params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()
@@ -181,15 +185,16 @@ class IcmpAclBlock(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: IcmpAclBlockParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: IcmpAclBlockParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.add_nft_drop_rule(
             params.host_name, "ip protocol icmp drop", family="ip"
         )
 
     def verify_fault(self, params: IcmpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ICMP traffic."""
-        self.set_faulty_devices([params.host_name])
         nft_output = self.runtime.exec(
             params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()
@@ -223,15 +228,16 @@ class HttpAclBlock(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: HttpAclBlockParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: HttpAclBlockParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.add_nft_drop_rule(
             params.host_name, "tcp dport 80 drop", family="inet"
         )
 
     def verify_fault(self, params: HttpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking HTTP (port 80) traffic."""
-        self.set_faulty_devices([params.host_name])
         nft_output = self.runtime.exec(
             params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()
@@ -266,8 +272,10 @@ class DNSPortBlocked(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: DNSPortBlockedParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DNSPortBlockedParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.add_nft_drop_rule(
             params.host_name, "tcp dport 53 drop", family="inet"
         )
@@ -277,7 +285,6 @@ class DNSPortBlocked(ProblemBase):
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""
-        self.set_faulty_devices([params.host_name])
         nft_output = self.runtime.exec(
             params.host_name, "nft list ruleset 2>/dev/null"
         ).strip()

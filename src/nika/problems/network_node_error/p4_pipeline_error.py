@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     ProblemBase,
     RootCauseCategory,
@@ -177,8 +178,10 @@ class P4HeaderDefinitionError(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: P4HeaderDefinitionErrorParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: P4HeaderDefinitionErrorParams):
-        self.set_faulty_devices([params.host_name])
         p4_name = (
             params.p4_name
             if params.p4_name is not None
@@ -198,7 +201,6 @@ class P4HeaderDefinitionError(ProblemBase):
 
     def verify_fault(self, params: P4HeaderDefinitionErrorParams) -> dict:
         """Verify the P4 JSON is missing (compilation failed) or switch is not running."""
-        self.set_faulty_devices([params.host_name])
         p4_name = (
             params.p4_name
             if params.p4_name is not None
@@ -252,8 +254,10 @@ class P4CompilationErrorParserState(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: P4CompilationErrorParserStateParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: P4CompilationErrorParserStateParams):
-        self.set_faulty_devices([params.host_name])
         p4_name = (
             params.p4_name
             if params.p4_name is not None
@@ -270,7 +274,6 @@ class P4CompilationErrorParserState(ProblemBase):
 
     def verify_fault(self, params: P4CompilationErrorParserStateParams) -> dict:
         """Verify the P4 JSON is missing (compilation failed) or switch is not running."""
-        self.set_faulty_devices([params.host_name])
         p4_name = (
             params.p4_name
             if params.p4_name is not None
@@ -321,8 +324,10 @@ class P4TableEntryMissing(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self._cleared_table: str | None = None
 
+    def root_cause_resources(self, params: P4TableEntryMissingParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: P4TableEntryMissingParams):
-        self.set_faulty_devices([params.host_name])
         table_name = _find_table_with_entries(self.runtime, params.host_name)
         _cli_run(self.runtime, params.host_name, f"table_clear {table_name}")
         self._cleared_table = table_name
@@ -332,7 +337,6 @@ class P4TableEntryMissing(ProblemBase):
 
     def verify_fault(self, params: P4TableEntryMissingParams) -> dict:
         """Verify the forwarding table has no match entries."""
-        self.set_faulty_devices([params.host_name])
         table_name = self._cleared_table or _find_table_with_entries(
             self.runtime, params.host_name
         )
@@ -378,8 +382,10 @@ class P4TableEntryMisconfig(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self._misconfig_details: dict | None = None
 
+    def root_cause_resources(self, params: P4TableEntryMisconfigParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: P4TableEntryMisconfigParams):
-        self.set_faulty_devices([params.host_name])
         self._misconfig_details = _misconfigure_first_table_entry(
             self.runtime, params.host_name
         )
@@ -390,7 +396,6 @@ class P4TableEntryMisconfig(ProblemBase):
 
     def verify_fault(self, params: P4TableEntryMisconfigParams) -> dict:
         """Verify a table entry action was modified via simple_switch_CLI."""
-        self.set_faulty_devices([params.host_name])
         if self._misconfig_details:
             table_name = self._misconfig_details["table_name"]
             handle = self._misconfig_details["entry_handle"]
@@ -438,8 +443,10 @@ class P4MPLSLabelLimitExceeded(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: P4MPLSLabelLimitExceededParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: P4MPLSLabelLimitExceededParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(
             params.host_name,
             "cp mpls.p4 mpls.p4.bak && "
@@ -454,7 +461,6 @@ class P4MPLSLabelLimitExceeded(ProblemBase):
 
     def verify_fault(self, params: P4MPLSLabelLimitExceededParams) -> dict:
         """Verify CONST_MAX_LABELS was changed to 2 and the JSON may be missing."""
-        self.set_faulty_devices([params.host_name])
         const_check = self.runtime.exec(
             params.host_name,
             "grep 'CONST_MAX_LABELS 2' mpls.p4 2>/dev/null && echo found || echo absent",

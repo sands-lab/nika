@@ -186,7 +186,7 @@ def merge_cli(
         agent = merged.get("agent") or {}
         agent_type = str(agent.get("type") or "byo.langgraph")
         provider = str(agent.get("provider") or "openai")
-        from nika.utils.provider_env import AGENT_PROVIDERS, SUPPORTED_PROVIDERS
+        from agent.utils.provider_env import AGENT_PROVIDERS, SUPPORTED_PROVIDERS
 
         allowed = AGENT_PROVIDERS.get(
             agent_type.lower(), frozenset(SUPPORTED_PROVIDERS)

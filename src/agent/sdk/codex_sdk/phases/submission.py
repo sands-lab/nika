@@ -2,7 +2,7 @@
 
 from agent.sdk.codex_sdk.worker import CodexSdkWorker
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 
 
 class CodexSdkSubmissionPhase:
@@ -13,6 +13,7 @@ class CodexSdkSubmissionPhase:
         model: str = "gpt-5.4-mini",
         reasoning_effort: str | None = None,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self._worker = CodexSdkWorker(
@@ -20,6 +21,7 @@ class CodexSdkSubmissionPhase:
             session_dir=session_dir,
             phase=SUBMISSION,
             model=model,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
             system_prompt=SUBMIT_PROMPT_TEMPLATE,
             stream_output=stream_output,

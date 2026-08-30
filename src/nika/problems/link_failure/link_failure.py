@@ -7,6 +7,7 @@ from nika.problems.problem_base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.topology_inventory import interface_on
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -48,8 +49,10 @@ class LinkFailure(ProblemBase):
         self.down_time = 1
         self.up_time = 1
 
+    def root_cause_resources(self, params: LinkFailureParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+
     def inject_fault(self, params: LinkFailureParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "kathara":
                 self._inject_link_down_kathara(params)
@@ -131,8 +134,10 @@ class LinkFlap(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
 
+    def root_cause_resources(self, params: LinkFlapParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+
     def inject_fault(self, params: LinkFlapParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "kathara":
                 self._inject_link_flap_kathara(params)
@@ -258,8 +263,10 @@ class LinkDetach(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
 
+    def root_cause_resources(self, params: LinkDetachParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+
     def inject_fault(self, params: LinkDetachParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "kathara":
                 self._inject_link_detach_kathara(params)
@@ -281,9 +288,7 @@ class LinkDetach(ProblemBase):
     def _inject_link_detach(self, params: LinkDetachParams, intf_name: str) -> None:
         self.faulty_intf = intf_name
         self.runtime.exec(params.host_name, f"ip link del {intf_name}")
-        system_logger.info(
-            f"Injected link detach on {params.host_name}:{intf_name}"
-        )
+        system_logger.info(f"Injected link detach on {params.host_name}:{intf_name}")
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
         """Verify the link-detach fault is active by confirming the interface no longer exists."""
@@ -350,8 +355,10 @@ class LinkFrag(ProblemBase):
     def _frag_drop_rule_args(mtu: int) -> str:
         return f"-m length --length {int(mtu)}:65535 -j DROP"
 
+    def root_cause_resources(self, params: LinkFragParams):
+        return [interface_on(self.net_env, params.host_name, "eth0")]
+
     def inject_fault(self, params: LinkFragParams):
-        self.set_faulty_devices([params.host_name])
         match self.lab_backend:
             case "kathara":
                 self._inject_link_frag_kathara(params)

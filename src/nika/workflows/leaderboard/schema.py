@@ -30,6 +30,9 @@ SCORE_METRIC_KEYS = (
     "rca_precision",
     "rca_recall",
     "rca_f1",
+    "fault_type_precision",
+    "fault_type_recall",
+    "fault_type_f1",
 )
 
 TRACE_METRIC_KEYS = (

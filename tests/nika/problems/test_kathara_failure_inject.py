@@ -61,6 +61,10 @@ class HostIncorrectDNSVerifyTest(PerTestEnvTestCase):
         self._inject_failure("host_incorrect_dns")
         self._assert_failure_injected("host_incorrect_dns")
 
+    def test_dns_port_blocked(self) -> None:
+        self._inject_failure("dns_port_blocked")
+        self._assert_failure_injected("dns_port_blocked")
+
 
 class OSPFMisconfigVerifyTest(PerTestEnvTestCase):
     SCENARIO = "ospf_enterprise_static"
@@ -73,6 +77,10 @@ class OSPFMisconfigVerifyTest(PerTestEnvTestCase):
     def test_ospf_neighbor_missing(self) -> None:
         self._inject_failure("ospf_neighbor_missing")
         self._assert_failure_injected("ospf_neighbor_missing")
+
+    def test_ospf_acl_block(self) -> None:
+        self._inject_failure("ospf_acl_block")
+        self._assert_failure_injected("ospf_acl_block")
 
 
 class BGPMisconfigVerifyTest(PerTestEnvTestCase):
@@ -264,6 +272,10 @@ class StressVerifyTest(PerTestEnvTestCase):
     def test_load_balancer_overload(self) -> None:
         self._inject_failure("load_balancer_overload")
         self._assert_failure_injected("load_balancer_overload")
+
+    def test_sender_application_delay(self) -> None:
+        self._inject_failure("sender_application_delay")
+        self._assert_failure_injected("sender_application_delay")
 
 
 class DNSLookupLatencyVerifyTest(PerTestEnvTestCase):

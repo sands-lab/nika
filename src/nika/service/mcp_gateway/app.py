@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from nika.runtime.extras import raise_missing_extra
-from nika.service.mcp_gateway.constants import PHASES
+from agent.protocols import PHASES
 from nika.service.mcp_gateway.middleware import (
     PhaseGateMiddleware,
     _empty_mcp,
@@ -50,6 +50,7 @@ _MCP_MODULE_ATTRS: dict[str, tuple[str, str]] = {
         "nika.service.mcp_server.containerlab.srl_server",
         "mcp",
     ),
+    "k8s_mcp_server": ("nika.service.k8s_mcp_server.server", "mcp"),
 }
 
 

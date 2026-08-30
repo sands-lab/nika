@@ -34,8 +34,13 @@ def derive_wrong_gateway(runtime: LabRuntime, host: str) -> str:
 
 
 def resolve_victim_host(runtime: LabRuntime, router: str) -> str:
-    """Pick the first sorted client host connected to a router."""
-    connected = runtime.get_connected_devices(router)
+    """Pick a victim device connected to ``router``.
+
+    Prefer client/pc/host names; otherwise any connected peer that is not an
+    obvious fabric switch role. On router-only labs (e.g. ISP city
+    slugs), fall back to the lexicographically first connected peer.
+    """
+    connected = list(runtime.get_connected_devices(router))
     client_hosts = sorted(
         dev for dev in connected if any(key in dev for key in ("client", "pc", "host"))
     )
@@ -46,9 +51,12 @@ def resolve_victim_host(runtime: LabRuntime, router: str) -> str:
         for dev in connected
         if not any(key in dev for key in ("switch", "router", "leaf", "spine"))
     )
-    if not hosts:
-        raise ValueError(f"No victim host found for router {router}")
-    return hosts[0]
+    if hosts:
+        return hosts[0]
+    peers = sorted(dev for dev in connected if dev and dev != router)
+    if peers:
+        return peers[0]
+    raise ValueError(f"No victim host found for router {router}")
 
 
 def resolve_victim_host_ip(
@@ -58,6 +66,14 @@ def resolve_victim_host_ip(
     victim = resolve_victim_host(runtime, router)
     iface = "eth1" if any(key in victim for key in ("client", "pc")) else "eth0"
     ip = runtime.get_host_ip(victim, iface, with_prefix=with_prefix)
+    if ip is None:
+        # Prefer the iface facing ``router`` when eth0 is not the peering link.
+        for candidate in runtime.get_host_interfaces(victim):
+            if candidate == "lo":
+                continue
+            ip = runtime.get_host_ip(victim, candidate, with_prefix=with_prefix)
+            if ip is not None:
+                break
     if ip is None:
         ip = runtime.get_host_ip(victim, with_prefix=with_prefix)
     if ip is None:

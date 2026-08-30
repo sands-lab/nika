@@ -39,7 +39,7 @@ from agent.cli.claude.config import (
 from agent.utils.loggers import MessageLogger
 from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 
 # k8s MCP tool results can emit stream-json lines well above asyncio's 64KiB default.
@@ -80,11 +80,13 @@ class ClaudeWorker:
     session_dir:
         Absolute path to the session results directory.
     phase:
-        One of :data:`~agent.utils.phases.PHASES` (``diagnosis`` or ``submission``).
+        One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
-        reads from ``ANTHROPIC_MODEL`` and related env vars (see
-        :func:`~agent.cli.claude.config.default_claude_model`).
+        requires ``agent.models.claude`` / ``-m`` (see
+        :func:`~agent.cli.claude.config.resolve_claude_model`).
+    llm_provider:
+        Active LLM provider for credential mapping.
     timeout:
         Hard timeout in seconds for the subprocess (default 600 s).
     scenario_name:
@@ -101,6 +103,7 @@ class ClaudeWorker:
         timeout: int = 600,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         if phase not in PHASES:
@@ -108,11 +111,13 @@ class ClaudeWorker:
 
         self.session_id = session_id
         self.phase = phase
+        self.llm_provider = llm_provider
         self.model = resolve_claude_model(model)
         self.timeout = timeout
         self.scenario_name = scenario_name
 
-        self.workspace = Path(session_dir) / "claude_workspace"
+        self.session_dir = Path(session_dir)
+        self.workspace = self.session_dir / "claude_workspace"
         self._logger = MessageLogger(agent=phase, session_dir=session_dir)
         self._stream_output = stream_output
         self._mcp_config_path: Path | None = None
@@ -132,6 +137,7 @@ class ClaudeWorker:
         servers = load_session_mcp_config(
             self.session_id,
             self.scenario_name,
+            session_dir=self.session_dir,
         )
 
         self._logger.log(
@@ -155,11 +161,11 @@ class ClaudeWorker:
         """
         self._setup_workspace()
 
-        env = prepare_claude_subprocess_env()
+        env = prepare_claude_subprocess_env(provider=self.llm_provider)
         # API-key / token mode needs --bare so Claude uses env credentials
         # (including set-custom placeholders) instead of prompting for /login.
         # Subscription / OAuth mode must not use --bare.
-        bare = use_bare_claude_mode()
+        bare = use_bare_claude_mode(provider=self.llm_provider)
 
         assert self._mcp_config_path is not None
         cmd = [

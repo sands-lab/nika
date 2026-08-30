@@ -11,7 +11,7 @@ from agent.byo.mcp_agent.config import session_server_names
 from agent.byo.mcp_agent.phases.diagnosis import McpDiagnosisPhase
 from agent.byo.mcp_agent.phases.submission import McpSubmissionPhase
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 
 class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
@@ -25,6 +25,8 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
         model: str,
         max_steps: int,
         scenario_name: str,
+        llm_provider: str,
+        reasoning_effort: str | None = None,
         stream_output: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -34,6 +36,8 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
         self._model = model
         self._max_steps = max_steps
         self._scenario_name = scenario_name
+        self._llm_provider = llm_provider
+        self._reasoning_effort = reasoning_effort
         self._stream_output = stream_output
         self._server_names = session_server_names(scenario_name)
 
@@ -70,6 +74,8 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
             model=self._model,
             max_steps=self._max_steps,
             server_names=self._server_names,
+            llm_provider=self._llm_provider,
+            reasoning_effort=self._reasoning_effort,
         )
         try:
             report, is_max_steps_reached = await phase.run(task_description)
@@ -110,6 +116,8 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
             model=self._model,
             max_steps=self._max_steps,
             server_names=self._server_names,
+            llm_provider=self._llm_provider,
+            reasoning_effort=self._reasoning_effort,
         )
         try:
             result = await phase.run(diagnosis_report)

@@ -7,7 +7,7 @@ from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import harden_mcp_tools
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 from nika.utils.session import Session
 
 load_dotenv()
@@ -22,6 +22,7 @@ class SubmissionPhase:
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
         scenario_name: str = "",
+        reasoning_effort: str | None = None,
     ):
         session = Session()
         session.load_running_session(session_id=session_id)
@@ -32,7 +33,11 @@ class SubmissionPhase:
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
 
-        self.llm = load_model(llm_provider=llm_provider, model=model)
+        self.llm = load_model(
+            llm_provider=llm_provider,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
 
     async def load_tools(self):
         self.tools: list[StructuredTool] = await self.client.get_tools()

@@ -9,6 +9,8 @@ from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from agent.sandbox.redact import redact_text
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.sandbox.session_dir import resolve_agent_session_dir
+from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
+from agent.utils.mcp_client import load_session_mcp_config
 
 
 def test_sandbox_logs_and_commands_redact_secrets() -> None:
@@ -44,6 +46,42 @@ def test_sandbox_mcp_servers_use_gateway_and_session_header() -> None:
     )
 
 
+def test_host_bridge_uses_sandbox_localhost_policy_resource() -> None:
+    assert (
+        mcp_policy_resource_from_url("http://host.docker.internal:40207/mcp")
+        == "localhost:40207"
+    )
+
+
+def test_session_manifest_mcp_config_wins_over_process_environment(tmp_path) -> None:
+    baked = {
+        "task_mcp_server": {
+            "transport": "http",
+            "url": "http://host.docker.internal:40207/mcp/task_mcp_server/mcp",
+        }
+    }
+    (tmp_path / "sandbox_manifest.json").write_text(
+        json.dumps({"mcp_servers": baked}),
+        encoding="utf-8",
+    )
+
+    with patch.dict(
+        os.environ,
+        {
+            "NIKA_SANDBOX_EXECUTION": "1",
+            "NIKA_MCP_GATEWAY_AGENT_URL": "http://localhost:59999",
+        },
+        clear=False,
+    ):
+        actual = load_session_mcp_config(
+            "sess-1",
+            "simple_bgp",
+            session_dir=tmp_path,
+        )
+
+    assert actual == baked
+
+
 def test_sdk_session_fields_are_read_from_sandbox_manifest(tmp_path) -> None:
     (tmp_path / "sandbox_manifest.json").write_text(
         json.dumps({"scenario_name": "simple_bgp"}),
@@ -69,7 +107,4 @@ def test_resolve_agent_session_dir_uses_sandbox_run_for_cli_exec() -> None:
         },
         clear=True,
     ):
-        assert (
-            resolve_agent_session_dir("/tmp/results/session")
-            == "/tmp/.sandbox_run"
-        )
+        assert resolve_agent_session_dir("/tmp/results/session") == "/tmp/.sandbox_run"

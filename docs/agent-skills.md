@@ -1,6 +1,8 @@
-# Agent Skills
+# Configure agent skills
 
-NIKA supports reusable **agent skills** for Claude Code and Codex agents. A skill is a directory with a `SKILL.md` file that teaches the agent a structured troubleshooting workflow.
+This guide is for agent implementers who attach reusable troubleshooting instructions to Claude Code or Codex agents. A skill is a directory containing a `SKILL.md` file.
+
+Implementation: [`utils/skills.py`](../src/agent/utils/skills.py) prepares skill workspaces; [`agent/skills/`](../src/agent/skills/) stores the shared library.
 
 Skills are optional. Enable or disable them with `nika.enable_skills` in `config/nika.yaml` (default: `true`).
 
@@ -22,7 +24,8 @@ The shared library lives at [`src/agent/skills/`](../src/agent/skills/):
 
 ```
 src/agent/skills/
-├── skills/                 # canonical skill sources
+├── skills/                 # canonical skill sources (loaded by default)
+├── test_skills/            # integration-only skills (not loaded by default)
 │   └── nika-test-skill/
 ├── .claude/
 │   ├── CLAUDE.md           # skill index for Claude Code
@@ -33,6 +36,8 @@ src/agent/skills/
 
 Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace.
 
+`nika-test-skill` lives under `test_skills/` and is **not** loaded into agents by default. Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
+
 ## Configuration
 
 ```yaml
@@ -40,7 +45,7 @@ nika:
   enable_skills: true
 ```
 
-`NIKA_ENABLE_SKILLS` remains an internal one-process override for sandbox workers and tests; normal runs should use the YAML setting.
+Set `nika.enable_skills` in `config/nika.yaml`. Agents read that setting at runtime and do not accept a separate skills environment-variable override.
 
 ## Writing a custom skill
 
@@ -75,7 +80,7 @@ Place the skill under the canonical tree:
 src/agent/skills/skills/my-link-skill/SKILL.md
 ```
 
-Symlinks under `.claude/skills/` and `.agents/skills/` already point at `skills/`, so new directories are picked up automatically.
+Symlinks under `.claude/skills/` and `.agents/skills/` point at `skills/`, so both agent families discover a new directory there.
 
 ### 3. Register in `CLAUDE.md` (recommended)
 
@@ -119,11 +124,11 @@ Or implicitly when the task matches the skill description.
 
 ## Advanced example: SADE
 
-[`community.sade`](../src/agent/community/sade/README.md) ships a 15-skill fault-family library with phase-gated prompts, `CLAUDE.md` routing, and the `h.py` helper launcher. It uses the same Claude Code mechanism but keeps its own `.claude/` tree under the SADE package directory.
+[`community.sade`](agents/community/sade.md) ships a 15-skill fault-family library with phase-gated prompts, `CLAUDE.md` routing, and the `h.py` helper launcher. It uses the same Claude Code mechanism but keeps its own `.claude/` tree under the SADE package directory.
 
 Use SADE as a reference for large skill libraries; use `src/agent/skills/` for shared or project-specific additions.
 
 ## Code reference
 
 - Shared helpers: [`src/agent/utils/skills.py`](../src/agent/utils/skills.py)
-- Test skill: [`src/agent/skills/skills/nika-test-skill/SKILL.md`](../src/agent/skills/skills/nika-test-skill/SKILL.md)
+- Test skill (opt-in): [`src/agent/skills/test_skills/nika-test-skill/SKILL.md`](../src/agent/skills/test_skills/nika-test-skill/SKILL.md)

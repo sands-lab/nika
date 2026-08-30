@@ -1,8 +1,10 @@
-# Custom Agents
+# Integrate a custom agent
 
-This guide shows how to implement an agent that runs through `nika agent run` and participates in benchmark runs.
+This guide is for agent developers who want an implementation to run through `nika agent run` and participate in benchmark runs.
 
-## Contract
+Core contracts: [`protocols.py`](../src/agent/protocols.py) defines the interface, and [`registry.py`](../src/agent/registry.py) registers CLI names.
+
+## Implement the agent contract
 
 Every agent must satisfy `agent.protocols.TroubleshootingAgent`:
 
@@ -22,12 +24,12 @@ await agent.run(task_description=session.task_description)
 Expected behavior:
 
 - run diagnosis using the Kathara MCP tools
-- run submission using the task MCP tools
-- call `submit` before returning
+- call `list_resources` and `list_avail_problems` during the task MCP submission phase
+- call `submit` with catalog-backed `resource_id` and `fault_type` pairs before returning
 - write useful trace events to `results/{session_id}/messages.jsonl`
 - leave `submission.json` in the session directory through the task MCP `submit` tool
 
-## Recommended Structure
+## Use the recommended structure
 
 Place new implementations under `src/agent/community/<name>/` unless they are project-maintained backends.
 
@@ -48,7 +50,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
 
@@ -95,12 +97,21 @@ class MyAgent:
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        await tools["list_avail_problems"].ainvoke({})
+        resources = await tools["list_resources"].ainvoke({})
+        fault_types = await tools["list_avail_problems"].ainvoke({})
+
+        # Your model or framework must select values returned by these tools.
+        assert resources
+        assert fault_types
 
         submission = {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": ["link_down"],
+            "root_causes": [
+                {
+                    "resource_id": "interface/pc1/eth0",
+                    "fault_type": "link_down",
+                }
+            ],
         }
         logger.log("tool_start", {"tool": {"name": "submit"}, "input": submission})
         output = await tools["submit"].ainvoke(submission)
@@ -109,7 +120,7 @@ class MyAgent:
 
 Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/cli/`, or `src/agent/sdk/` packages as framework-specific references.
 
-## Register The Agent
+## Register the agent
 
 Add the agent id to `src/agent/registry.py`:
 
@@ -127,7 +138,7 @@ case "community.my_agent":
 
 If the agent needs custom environment variables, resolve them in `config.py` and keep registry construction small.
 
-## MCP Access
+## Configure MCP access
 
 NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helpers:
 
@@ -143,17 +154,19 @@ begin_submission_mcp_phase(session_id)
 
 Common submission flow:
 
-1. call `list_avail_problems`
-2. choose one or more root-cause ids
-3. call `submit` with `is_anomaly`, `faulty_devices`, and `root_cause_name`
+1. Call `list_resources` and select one or more localization IDs.
+2. Call `list_avail_problems` and select the matching fault type for each resource.
+3. Call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
 
-## Logging
+The task server rejects IDs that are absent from either list. See the [root-cause ground truth and scoring reference](root-cause-evaluation.md) for the submit and scoring contract.
+
+## Write trace logs
 
 Use `MessageLogger` for JSONL traces:
 
 ```python
 from agent.utils.loggers import MessageLogger
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 logger = MessageLogger(agent=DIAGNOSIS, session_dir=session.session_dir)
 logger.log("tool_start", {"tool": {"name": "ping_pair"}, "input": {"host_a": "pc1", "host_b": "pc2"}})
@@ -162,7 +175,7 @@ logger.log("tool_end", {"output": "success"})
 
 For LangChain-based agents, use `AgentCallbackLogger` instead of manual event logging.
 
-## Run Locally
+## Run locally
 
 Use the mock agent first to validate the lab and task:
 
@@ -190,16 +203,16 @@ uv run nika benchmark run simple_bgp --problem link_down \
   -a community.my_agent -m <model> -n 20
 ```
 
-## Checklist
+## Validate the integration
 
 - Agent class has `session_id` and `async run(task_description)`.
 - Registry maps a stable CLI id to the class.
 - Diagnosis uses MCP tools instead of direct Docker/Kathara duplication.
-- Submission uses the task MCP `submit` tool.
+- Submission selects IDs from `list_resources` and `list_avail_problems`, then uses the task MCP `submit` tool.
 - `messages.jsonl` and `submission.json` appear in the session result directory.
 - `uv run nika benchmark run ... -a community.my_agent` completes for a small case.
 
-## Skills
+## Add agent skills
 
 Claude Code and Codex agents can load reusable skill libraries during the **diagnosis** phase. See **[Agent Skills](agent-skills.md)** for:
 
@@ -207,4 +220,4 @@ Claude Code and Codex agents can load reusable skill libraries during the **diag
 - the `nika.enable_skills` run-config setting
 - how to author `SKILL.md` files and register them in `CLAUDE.md`
 
-SADE (`community.sade`) ships a separate 15-skill library; see [`src/agent/community/sade/README.md`](../src/agent/community/sade/README.md).
+SADE (`community.sade`) ships a separate 15-skill library. See the [SADE community agent reference](agents/community/sade.md).

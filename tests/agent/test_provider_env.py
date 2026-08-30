@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     build_agent_subprocess_env,
@@ -24,6 +24,59 @@ def test_validate_provider_rejects_unsupported_combo() -> None:
         validate_provider_for_agent("cli.claude", "openai")
     with pytest.raises(ValueError, match="not supported"):
         validate_provider_for_agent("cli.codex", "anthropic")
+    assert validate_provider_for_agent("byo.langgraph", "anthropic") == "anthropic"
+    assert validate_provider_for_agent("byo.mcp_agent", "anthropic") == "anthropic"
+    assert validate_provider_for_agent("byo.autogen", "anthropic") == "anthropic"
+
+
+def test_anthropic_maps_credentials_for_byo_agents() -> None:
+    for agent_type in ("byo.langgraph", "byo.mcp_agent", "byo.autogen"):
+        mapped = map_provider_credentials(
+            agent_type=agent_type,
+            provider="anthropic",
+            sources={
+                "ANTHROPIC_API_KEY": "sk-ant",
+                "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+            },
+        )
+        assert mapped["ANTHROPIC_API_KEY"] == "sk-ant"
+        assert mapped["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+
+
+def test_anthropic_uses_yaml_custom_base_url_when_unset() -> None:
+    mapped = map_provider_credentials(
+        agent_type="byo.mcp_agent",
+        provider="anthropic",
+        sources={
+            "ANTHROPIC_API_KEY": "sk-ant",
+            "NIKA_CUSTOM_BASE_URL": "https://gateway.example/anthropic",
+        },
+    )
+    assert mapped["ANTHROPIC_BASE_URL"] == "https://gateway.example/anthropic"
+
+
+def test_openai_uses_yaml_custom_base_url_when_unset() -> None:
+    mapped = map_provider_credentials(
+        agent_type="byo.langgraph",
+        provider="openai",
+        sources={
+            "OPENAI_API_KEY": "sk-openai",
+            "NIKA_CUSTOM_BASE_URL": "https://openrouter.ai/api/v1",
+        },
+    )
+    assert mapped["OPENAI_BASE_URL"] == "https://openrouter.ai/api/v1"
+
+
+def test_anthropic_official_omits_base_url() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.claude",
+        provider="anthropic",
+        sources={"ANTHROPIC_API_KEY": "sk-ant"},
+    )
+    assert mapped["ANTHROPIC_API_KEY"] == "sk-ant"
+    assert "ANTHROPIC_BASE_URL" not in mapped
+    assert "OPENAI_API_KEY" not in mapped
+    assert "DEEPSEEK_API_KEY" not in mapped
 
 
 def test_deepseek_maps_to_openai_compat_for_langgraph() -> None:
@@ -120,4 +173,27 @@ def test_provider_env_context_restores_os_environ() -> None:
         with provider_env_context(agent_type="byo.autogen", provider="deepseek"):
             assert os.environ["OPENAI_API_KEY"] == "sk-ds"
             assert os.environ["OPENAI_BASE_URL"] == DEEPSEEK_OPENAI_BASE_URL
+            assert (
+                "NIKA_LLM_PROVIDER" not in os.environ
+                or os.environ.get("NIKA_LLM_PROVIDER") != "deepseek"
+            )
         assert os.environ["OPENAI_API_KEY"] == before_openai
+
+
+def test_provider_env_context_sets_anthropic_for_byo() -> None:
+    with patch.dict(
+        os.environ,
+        {
+            "ANTHROPIC_API_KEY": "sk-ant",
+            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+            "OPENAI_API_KEY": "sk-openai",
+        },
+        clear=False,
+    ):
+        with provider_env_context(agent_type="byo.mcp_agent", provider="anthropic"):
+            assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant"
+            assert (
+                os.environ["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+            )
+            assert "OPENAI_API_KEY" not in os.environ
+            assert os.environ.get("NIKA_LLM_PROVIDER") != "anthropic"

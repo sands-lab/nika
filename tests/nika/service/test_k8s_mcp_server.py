@@ -1,14 +1,22 @@
-"""Unit tests for Kubernetes MCP server selection and helpers."""
+"""Unit tests for Kubernetes MCP server selection and session-scoped client."""
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from nika.service.k8s_mcp_server.client import K8sClient
-from nika.service.mcp_gateway.k8s_upstream import container_ipv4, k8s_mcp_upstream_url
-from nika.service.mcp_gateway.remote_proxy import _upstream_url
+import pytest
+
+from nika.service.k8s_mcp_server.client import (
+    K8sClient,
+    get_client,
+    reset_client,
+    resolve_kubeconfig_path,
+)
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 from nika.service.mcp_server.registry import (
     K8S_MCP_SERVER,
     select_diagnosis_servers,
@@ -22,50 +30,84 @@ class TestK8sMcpSelection:
         assert "kathara_frr_mcp_server" in servers
         assert "kathara_base_mcp_server" in servers
 
+    def test_llmd_lab_includes_k8s_mcp(self) -> None:
+        servers = select_diagnosis_servers("llmd_lab", backend="kathara")
+        assert K8S_MCP_SERVER in servers
+
     def test_simple_bgp_excludes_k8s_mcp(self) -> None:
         servers = select_diagnosis_servers("simple_bgp", backend="kathara")
         assert K8S_MCP_SERVER not in servers
 
+    def test_kubectl_only_skips_k8s_mcp(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NIKA_K8S_ACCESS", raising=False)
+        reset_run_config()
+        set_run_config(
+            RunConfig.model_validate({"nika": {"k8s": {"access": "kubectl_only"}}})
+        )
+        try:
+            servers = select_diagnosis_servers("k8s_lab", backend="kathara")
+            assert K8S_MCP_SERVER not in servers
+        finally:
+            reset_run_config()
 
-class TestUpstreamHelpers:
-    def test_container_ipv4_from_networks(self) -> None:
-        container = SimpleNamespace(
-            attrs={
-                "NetworkSettings": {
-                    "Networks": {"bridge": {"IPAddress": "172.17.0.5"}},
-                    "IPAddress": "",
-                }
-            },
-            name="controller",
-        )
-        assert container_ipv4(container) == "172.17.0.5"
 
-    def test_upstream_url_preserves_mcp_path(self) -> None:
-        assert (
-            _upstream_url("http://172.17.0.5:18765", "/mcp", "")
-            == "http://172.17.0.5:18765/mcp"
-        )
-        assert (
-            _upstream_url("http://172.17.0.5:18765", "/mcp", "sessionId=1")
-            == "http://172.17.0.5:18765/mcp?sessionId=1"
-        )
+class TestResolveKubeconfig:
+    def test_prefers_metadata_path(self, tmp_path: Path) -> None:
+        kube = tmp_path / "kubeconfig.yaml"
+        kube.write_text("apiVersion: v1\n", encoding="utf-8")
+        meta = {
+            "session_id": "s1",
+            "metadata": {"kubeconfig_path": str(kube)},
+        }
+        assert resolve_kubeconfig_path(meta) == kube
 
-    def test_k8s_mcp_upstream_url(self) -> None:
-        container = SimpleNamespace(
-            attrs={
-                "NetworkSettings": {
-                    "Networks": {"kathara": {"IPAddress": "10.10.0.2"}},
-                }
-            },
-            name="c",
-        )
-        with patch(
-            "nika.service.mcp_gateway.k8s_upstream.get_machine_container",
-            return_value=container,
+    def test_falls_back_to_runtime_workdir(self, tmp_path: Path) -> None:
+        kube = tmp_path / "kubeconfig.yaml"
+        kube.write_text("apiVersion: v1\n", encoding="utf-8")
+        meta = {
+            "session_id": "s1",
+            "runtime_workdir": str(tmp_path),
+            "metadata": {},
+        }
+        assert resolve_kubeconfig_path(meta) == kube
+
+
+class TestSessionScopedClient:
+    def test_get_client_caches_per_session(self, tmp_path: Path) -> None:
+        reset_client()
+        kube_a = tmp_path / "a.yaml"
+        kube_b = tmp_path / "b.yaml"
+        kube_a.write_text("apiVersion: v1\n", encoding="utf-8")
+        kube_b.write_text("apiVersion: v1\n", encoding="utf-8")
+
+        def meta_for(session_id: str, kube: Path) -> dict:
+            return {
+                "session_id": session_id,
+                "status": "running",
+                "metadata": {"kubeconfig_path": str(kube)},
+            }
+
+        with (
+            patch(
+                "nika.service.k8s_mcp_server.client.require_session_id",
+                side_effect=["sess-a", "sess-a", "sess-b"],
+            ),
+            patch(
+                "nika.service.k8s_mcp_server.client.get_session_meta",
+                side_effect=[
+                    meta_for("sess-a", kube_a),
+                    meta_for("sess-b", kube_b),
+                ],
+            ),
         ):
-            assert (
-                k8s_mcp_upstream_url(lab_name="k8s_lab__x") == "http://10.10.0.2:18765"
-            )
+            c1 = get_client()
+            c2 = get_client()
+            c3 = get_client()
+        assert c1 is c2
+        assert c1 is not c3
+        assert c1.kubeconfig == str(kube_a)
+        assert c3.kubeconfig == str(kube_b)
+        reset_client()
 
 
 class TestK8sClientHelpers:

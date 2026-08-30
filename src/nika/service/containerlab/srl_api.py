@@ -162,7 +162,9 @@ class SRLAPIMixin:
     ) -> None:
         self.srl_add_blackhole_static(device_name, prefix)
 
-    def srl_withdraw_bgp_prefix(self: SupportsSRL, device_name: str, prefix: str) -> None:
+    def srl_withdraw_bgp_prefix(
+        self: SupportsSRL, device_name: str, prefix: str
+    ) -> None:
         """Stop exporting ``prefix`` to BGP peers via an export routing-policy."""
         network = ipaddress.ip_network(prefix, strict=False)
         prefix_str = str(network)
@@ -175,11 +177,15 @@ class SRLAPIMixin:
             f"/network-instance default protocols bgp group {NIKA_BGP_EXPORT_GROUP} export-policy [{NIKA_BGP_WITHDRAW}]",
         )
 
-    def srl_bgp_prefix_withdrawn(self: SupportsSRL, device_name: str, prefix: str) -> bool:
+    def srl_bgp_prefix_withdrawn(
+        self: SupportsSRL, device_name: str, prefix: str
+    ) -> bool:
         """Return True when export-policy blocks ``prefix`` from BGP export."""
         network = ipaddress.ip_network(prefix, strict=False)
         prefix_str = str(network)
-        policy_output = self.srl_exec_cli(device_name, "info from running routing-policy")
+        policy_output = self.srl_exec_cli(
+            device_name, "info from running routing-policy"
+        )
         bgp_output = self.srl_exec_cli(
             device_name, "info from running network-instance default protocols bgp"
         )

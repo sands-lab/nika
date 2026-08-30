@@ -1,1 +1,11 @@
 ip address add 200.0.0.6/24 dev eth0
+
+# Wait for a default route (bridged iface may still be attaching).
+for _ in $(seq 1 60); do
+  ip route show default 2>/dev/null | grep -q . && break
+  sleep 1
+done
+
+# Signal the container entrypoint to exec k3s as PID1 (see issue #38).
+mkdir -p /var/run
+touch /var/run/nika-net-ready

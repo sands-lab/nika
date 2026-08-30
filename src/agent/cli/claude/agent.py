@@ -9,10 +9,10 @@ Two-phase pipeline via ``claude -p`` subprocesses (no LangGraph).
   (``claude -p`` with the task MCP server; calls ``submit()`` to record
   a structured result)
 
-Authentication uses ``NIKA_LLM_PROVIDER`` with ``ANTHROPIC_API_KEY``,
-``DEEPSEEK_API_KEY``, or ``NIKA_CUSTOM_*`` (mapped for the subprocess only),
-or ``claude auth login``.  See :mod:`agent.cli.claude.config` and
-``src/agent/README.md``.
+Authentication uses ``agent.provider`` (``-p`` / config/nika.yaml) with
+``ANTHROPIC_API_KEY``, ``DEEPSEEK_API_KEY``, or ``NIKA_CUSTOM_*`` (mapped for
+the subprocess only), or ``claude auth login``.  See
+:mod:`agent.cli.claude.config` and ``docs/agent-implementations.md``.
 
 Select with ``nika agent run -a cli.claude``.
 """
@@ -26,7 +26,7 @@ from agent.cli.claude.config import resolve_claude_model
 from agent.cli.claude.phases.diagnosis import ClaudeDiagnosisPhase
 from agent.cli.claude.phases.submission import ClaudeSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
 
@@ -39,7 +39,10 @@ class ClaudeAgent:
         NIKA session identifier.
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
-        reads from environment (see :func:`~agent.cli.claude.config.default_claude_model`).
+        requires ``agent.models.claude`` / ``-m`` (see
+        :func:`~agent.cli.claude.config.resolve_claude_model`).
+    llm_provider:
+        Active LLM provider (``anthropic``, ``deepseek``, ``custom``).
     """
 
     def __init__(
@@ -47,9 +50,11 @@ class ClaudeAgent:
         session_id: str,
         model: str | None = None,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
+        self.llm_provider = llm_provider
         self.model = resolve_claude_model(model)
         self._stream_output = stream_output
 
@@ -64,6 +69,7 @@ class ClaudeAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=self.model,
+            llm_provider=llm_provider,
             scenario_name=scenario_name,
             stream_output=stream_output,
         )
@@ -71,6 +77,7 @@ class ClaudeAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=self.model,
+            llm_provider=llm_provider,
             stream_output=stream_output,
         )
 

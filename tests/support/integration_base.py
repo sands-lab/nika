@@ -35,6 +35,27 @@ def _parse_env_run_args(extra_args: list[str] | None) -> dict[str, Any]:
         if arg in ("-s", "--size") and i + 1 < len(args):
             kwargs["topo_size"] = args[i + 1]
             i += 2
+        elif arg == "--topo" and i + 1 < len(args):
+            kwargs["topo"] = args[i + 1]
+            i += 2
+        elif arg == "--igp" and i + 1 < len(args):
+            kwargs["igp"] = args[i + 1]
+            i += 2
+        elif arg == "--metric-strategy" and i + 1 < len(args):
+            kwargs["metric_strategy"] = args[i + 1]
+            i += 2
+        elif arg == "--constant-metric" and i + 1 < len(args):
+            kwargs["constant_metric"] = int(args[i + 1])
+            i += 2
+        elif arg == "--bgp-mode" and i + 1 < len(args):
+            kwargs["bgp_mode"] = args[i + 1]
+            i += 2
+        elif arg == "--backend" and i + 1 < len(args):
+            kwargs["backend"] = args[i + 1]
+            i += 2
+        elif arg == "--device-profile" and i + 1 < len(args):
+            kwargs["device_profile"] = args[i + 1]
+            i += 2
         elif arg == "--no-redeploy":
             kwargs["redeploy"] = False
             i += 1
@@ -208,6 +229,17 @@ class IntegrationMixin:
         matching = [row for row in failures if row.get("problem_name") == problem]
         assert matching, f"No failure record for {problem}"
         assert matching[-1].get("status") == "injected"
+        session_row = SessionStore().get_session(sid)
+        gt_path = Path(session_row["session_dir"]) / "ground_truth.json"
+        gt = json.loads(gt_path.read_text(encoding="utf-8"))
+        assert gt.get("schema_version") == 2
+        assert gt.get("root_causes"), f"missing root_causes for {problem}"
+        assert problem in (gt.get("root_cause_name") or [])
+        for item in gt["root_causes"]:
+            resource_id = item.get("resource_id") or (item.get("resource") or {}).get(
+                "id", ""
+            )
+            assert resource_id.startswith(("node/", "interface/", "k8s/")), resource_id
 
 
 IntegrationTestCase = IntegrationMixin

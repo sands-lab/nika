@@ -5,6 +5,7 @@ from typing import Any, ClassVar
 import yaml
 from pydantic import Field
 
+from nika.problems.root_cause import k8s_resource
 from nika.net_env.verify import http_ok
 from nika.problems.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.problem_base import RootCauseCategory
@@ -74,9 +75,12 @@ class NetworkPolicyDeny(K8sProblemBase):
         "whole stay healthy. The pods themselves remain Running and Ready."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "network_policy"]
-    FAULTY_DEVICE_POLICY: ClassVar[str] = "control_plane"
 
     Params = NetworkPolicyDenyParams
+
+    def root_cause_resources(self, params: NetworkPolicyDenyParams):
+        name = params.policy_name or DEFAULT_POLICY_NAME
+        return [k8s_resource("NetworkPolicy", name, namespace=params.namespace)]
 
     def inject_fault(self, params: NetworkPolicyDenyParams) -> None:
         k8s = self.runtime.lab_api
@@ -87,7 +91,6 @@ class NetworkPolicyDeny(K8sProblemBase):
         )
         k8s.kubectl_apply_manifest(control, manifest)
 
-        self.set_faulty_devices(self.faulty_devices_for(params))
         self.k8s_namespace = params.namespace
         self.record_k8s_object(
             "NetworkPolicy", params.policy_name, namespace=params.namespace

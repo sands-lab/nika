@@ -7,7 +7,7 @@ YAML frontmatter (`name`, `description`) and workflow instructions.
 
 | Skill | When to use |
 |-------|-------------|
-| `nika-test-skill` | Integration-test only — invoke at the start of every session to confirm skill loading |
+| _(none yet)_ | Add skills under `skills/` |
 
 ## Authoring
 

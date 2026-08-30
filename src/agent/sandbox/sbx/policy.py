@@ -7,6 +7,7 @@ import re
 import subprocess
 from urllib.parse import urlparse
 
+from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
 from agent.sandbox.sbx.client import (
     SBX_BIN,
     ensure_sbx_ready,
@@ -40,6 +41,10 @@ def mcp_policy_resource_from_url(url: str, *, fallback_port: int | None = None) 
     """Build ``host:port`` from an MCP gateway URL (local or remote)."""
     parsed = urlparse(url)
     host = parsed.hostname or "localhost"
+    # Docker Sandboxes exposes the host bridge through a localhost policy
+    # resource even though clients address it as host.docker.internal.
+    if host == SANDBOX_GATEWAY_HOST_BRIDGE:
+        host = "localhost"
     if parsed.port is not None:
         port = parsed.port
     elif fallback_port is not None:

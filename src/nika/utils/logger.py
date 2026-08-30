@@ -22,6 +22,7 @@ import logging
 import os
 import threading
 from datetime import datetime
+from pathlib import Path
 
 _session_dir: str | None = None
 _session_events_path: str | None = None
@@ -86,8 +87,17 @@ def refresh_logger() -> logging.Logger:
         return system_logger
 
 
-def bind_session_dir(session_dir: str) -> None:
-    """Attach per-session events.jsonl handler; call once session_dir is known."""
+def bind_session_dir(session_dir: str | Path) -> None:
+    """Attach per-session events.jsonl handler; call once session_dir is known.
+
+    Accepts only ``str`` / ``Path``. Mocks that implement ``os.PathLike`` via
+    auto ``__fspath__`` are rejected (they resolve to junk CWD paths).
+    """
+    if not isinstance(session_dir, (str, Path)):
+        raise TypeError(
+            f"session_dir must be str or Path, got {type(session_dir).__name__}"
+        )
+    session_dir = str(session_dir)
     global _session_dir, _session_events_path
     with _logger_lock:
         os.makedirs(session_dir, exist_ok=True)

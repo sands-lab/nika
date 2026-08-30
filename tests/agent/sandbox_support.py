@@ -9,8 +9,6 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import pytest
-
 from agent.sandbox.config import sandbox_gateway_agent_host
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
@@ -31,10 +29,6 @@ from nika.service.mcp_gateway.lifecycle import (
 )
 
 SECURITY_PROBE_SCRIPT = Path(__file__).resolve().parent / "security_probe.sh"
-
-SANDBOX_E2E_SUPERSEDED = pytest.mark.skip(
-    reason="Sandbox E2E is covered by tests/agent/test_sandbox_agents.py",
-)
 
 
 def docker_available() -> bool:

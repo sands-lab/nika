@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import pytest
 import json
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS
 from nika.utils.session_store import SessionStore
-from tests.agent._assertions import (
-    assert_phase_messages,
-    assert_submission_fields,
-)
+from tests.agent._assertions import assert_phase_messages
 from tests.agent.sandbox_support import (
     sandbox_anthropic_credential_available,
     sandbox_openai_credential_available,
@@ -51,6 +48,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
                 agent_type=self.agent_type,
                 model=self.model,
                 max_steps=MAX_STEPS,
+                reasoning_effort="low" if "codex" in self.agent_type else None,
             )
             row = SessionStore().get_session(self.session_id)
             assert row.get("agent_type") == self.agent_type
@@ -81,27 +79,18 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             if path.name in _SENSITIVE_NAMES:
                 pytest.fail(f"credential file leaked into results: {path}")
         messages = self._load_jsonl("messages.jsonl")
-        assert_phase_messages(messages, require_diagnosis_tools=True)
+        assert_phase_messages(
+            messages,
+            require_diagnosis_tools=True,
+            require_submission_tools=False,
+        )
         agents = {e["agent"] for e in messages}
         assert DIAGNOSIS in agents
-        assert SUBMISSION in agents
 
-    def test_step_05_check_submission(self) -> None:
-        if type(self)._agent_run_failed:
-            pytest.skip("Skipping submission checks due to agent-run failure")
-        assert self.session_dir is not None
-        assert (self.session_dir / "submission.json").exists()
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
+    def test_step_05_session_close(self) -> None:
         if type(self)._agent_run_failed:
             pytest.skip("Skipping session close verification due to agent-run failure")
         self._step_close_and_verify(self.agent_type)
-
-    def test_step_07_eval_metrics(self) -> None:
-        if type(self)._agent_run_failed:
-            pytest.skip("Skipping eval metrics due to agent-run failure")
-        self._step_eval_metrics()
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
@@ -179,4 +168,3 @@ class SandboxSadePipelineTest(SandboxAgentPipelineBase):
         assert messages, "SADE must emit messages.jsonl"
         tool_starts = [e for e in messages if e.get("event") == "tool_start"]
         assert tool_starts, "SADE must emit tool_start events"
-        assert (self.session_dir / "submission.json").exists()

@@ -38,6 +38,7 @@ class _OSPFEnterpriseVerifyBase(SharedSessionTestCase):
         super().__init_subclass__(**kwargs)
         if cls is not _OSPFEnterpriseVerifyBase:
             cls.__test__ = True
+
     CORE_ROUTERS = ("router_core_1", "router_core_2", "router_core_3")
     ACCESS_SWITCHES = ("switch_access_1_1_1", "switch_access_2_1_1")
     HOSTS = ("pc_1_1_1_1", "pc_2_1_1_1")

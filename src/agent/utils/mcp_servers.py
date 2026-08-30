@@ -9,11 +9,6 @@ from datetime import timedelta
 from langchain_core.tools import ToolException
 
 from agent.sandbox.config import ENV_GATEWAY_AGENT_URL, ENV_GATEWAY_URL
-from nika.service.mcp_server.registry import (
-    MCP_SERVER_SPECS,
-    SUBMISSION_SERVER,
-    select_diagnosis_servers,
-)
 
 __all__ = [
     "MCPServerConfig",
@@ -25,6 +20,19 @@ __all__ = [
 ]
 
 SESSION_HEADER = "NIKA-Session-Id"
+
+
+def select_diagnosis_servers(
+    scenario_name: str,
+    *,
+    backend: str | None = None,
+) -> list[str]:
+    """Lazy re-export so SDK sandboxes can import this module without ``nika``."""
+    from nika.service.mcp_server.registry import (
+        select_diagnosis_servers as _select,
+    )
+
+    return _select(scenario_name, backend=backend)
 
 
 def session_http_headers(session_id: str) -> dict[str, str]:
@@ -50,6 +58,8 @@ def select_session_servers(
     backend: str | None = None,
 ) -> list[str]:
     """Return all MCP server names for a troubleshooting session."""
+    from nika.service.mcp_server.registry import SUBMISSION_SERVER
+
     servers = select_diagnosis_servers(
         scenario_name,
         backend=backend,
@@ -59,22 +69,32 @@ def select_session_servers(
     return servers
 
 
-# Read timeout for MCP client requests (seconds; 0 disables).
-# Without it the mcp ClientSession waits FOREVER on a lost response — the
-# observed failure mode: a benchmark run frozen for days with the server's
-# "Processing request of type ListToolsRequest" as the last log line.
-MCP_READ_TIMEOUT_ENV = "NIKA_MCP_READ_TIMEOUT"
+# A read timeout prevents a lost MCP response from blocking the full benchmark case.
+# A value of 0 disables the timeout.
 DEFAULT_MCP_READ_TIMEOUT_SECONDS = 120.0
+
+
+def mcp_read_timeout_seconds() -> float | None:
+    """Return the MCP read timeout in seconds, or ``None`` when disabled.
+
+    LangGraph, AutoGen, and mcp-agent share this value. Older
+    ``langchain-mcp-adapters`` releases may not support ``session_kwargs``.
+    """
+    try:
+        from nika.run_config.loader import get_run_config
+
+        seconds = float(get_run_config().nika.mcp.read_timeout_sec)
+    except Exception:  # noqa: BLE001 - sandbox / early import
+        seconds = DEFAULT_MCP_READ_TIMEOUT_SECONDS
+    if seconds <= 0:
+        return None
+    return seconds
 
 
 @functools.lru_cache(maxsize=1)
 def _mcp_read_timeout() -> timedelta | None:
-    raw = os.getenv(MCP_READ_TIMEOUT_ENV, "").strip()
-    try:
-        seconds = float(raw) if raw else DEFAULT_MCP_READ_TIMEOUT_SECONDS
-    except ValueError:
-        seconds = DEFAULT_MCP_READ_TIMEOUT_SECONDS
-    if seconds <= 0:
+    seconds = mcp_read_timeout_seconds()
+    if seconds is None:
         return None
     if not _adapter_supports_session_kwargs():
         print(
@@ -87,8 +107,7 @@ def _mcp_read_timeout() -> timedelta | None:
 
 
 def _adapter_supports_session_kwargs() -> bool:
-    """Feature-detect session_kwargs so an older adapter lib does not choke
-    on an unknown connection key."""
+    """Return whether the installed adapter accepts ``session_kwargs``."""
     for module_name in (
         "langchain_mcp_adapters.sessions",
         "langchain_mcp_adapters.client",
@@ -154,6 +173,8 @@ class MCPServerConfig:
         self.session_id = session_id
 
     def _build_http_entry(self, name: str) -> dict:
+        from nika.service.mcp_server.registry import MCP_SERVER_SPECS
+
         if name not in MCP_SERVER_SPECS:
             raise KeyError(f"Unknown MCP server: {name!r}")
         base = _gateway_base_url()
@@ -171,6 +192,8 @@ class MCPServerConfig:
 
     def load_http_config(self, server_names: list[str]) -> dict:
         """Return HTTP MCP client config for *server_names*."""
+        from nika.service.mcp_server.registry import MCP_SERVER_SPECS
+
         return {
             name: self._build_http_entry(name)
             for name in server_names
@@ -192,6 +215,8 @@ class MCPServerConfig:
 
     # Backward-compatible aliases used in tests and docs during migration.
     def load_config(self, if_submit: bool = False) -> dict:
+        from nika.service.mcp_server.registry import MCP_SERVER_SPECS, SUBMISSION_SERVER
+
         if if_submit:
             return self.load_http_config([SUBMISSION_SERVER])
         names = [n for n, spec in MCP_SERVER_SPECS.items() if spec.role != "task"]

@@ -6,6 +6,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from agent.sandbox.config import (
     ENV_GATEWAY_AGENT_URL,
@@ -15,7 +16,7 @@ from agent.sandbox.config import (
 )
 from agent.sandbox.manifest import manifest_mcp_servers
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 
 SESSION_HEADER = "NIKA-Session-Id"
 
@@ -25,8 +26,13 @@ def load_session_mcp_config(
     scenario_name: str,
     *,
     backend: str | None = None,
+    session_dir: str | Path | None = None,
 ) -> dict:
     """Return session-scoped HTTP MCP config (phase filtering is gateway-side)."""
+    if session_dir is not None:
+        baked = manifest_mcp_servers(session_dir)
+        if baked is not None:
+            return baked
     if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
         session_dir = os.environ.get(ENV_SESSION_DIR, "").strip()
         if session_dir:

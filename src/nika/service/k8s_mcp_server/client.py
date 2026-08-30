@@ -1,23 +1,63 @@
-"""Kubernetes Python client helpers for the in-node MCP server."""
+"""Session-scoped Kubernetes client for the host-side MCP server."""
 
 from __future__ import annotations
 
 import json
 import os
 import shlex
+import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from kubernetes.stream import stream
 
+from nika.service.mcp_server.session_context import get_session_meta, require_session_id
+
 DEFAULT_KUBECONFIG = "/etc/rancher/k3s/k3s.yaml"
-DEFAULT_APISERVER = "https://127.0.0.1:6443"
 
 
 def _as_json(payload: Any) -> str:
     return json.dumps(payload, default=str, indent=2)
+
+
+def resolve_kubeconfig_path(meta: dict[str, Any] | None = None) -> Path:
+    """Return the host kubeconfig path for the bound session."""
+    session_meta = meta if meta is not None else get_session_meta()
+    metadata = session_meta.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    raw = metadata.get("kubeconfig_path")
+    if raw:
+        path = Path(str(raw))
+        if path.is_file():
+            return path
+
+    workdir = session_meta.get("runtime_workdir") or (
+        session_meta.get("scenario_params") or {}
+    ).get("runtime_workdir")
+    if workdir:
+        path = Path(str(workdir)) / "kubeconfig.yaml"
+        if path.is_file():
+            return path
+
+    lab_name = session_meta.get("lab_name") or (
+        session_meta.get("scenario_params") or {}
+    ).get("lab_name")
+    if lab_name:
+        from nika.config import RUNTIME_DIR
+
+        path = Path(RUNTIME_DIR) / "kathara" / str(lab_name) / "kubeconfig.yaml"
+        if path.is_file():
+            return path
+
+    raise FileNotFoundError(
+        f"No kubeconfig.yaml for session {session_meta.get('session_id')!r}. "
+        "Ensure post_deploy wrote the host kubeconfig for this k8s lab."
+    )
 
 
 class K8sClient:
@@ -26,13 +66,23 @@ class K8sClient:
     def __init__(
         self,
         *,
-        kubeconfig: str | None = None,
+        kubeconfig: str | Path | None = None,
         apiserver: str | None = None,
     ) -> None:
-        self.kubeconfig = kubeconfig or os.environ.get("KUBECONFIG", DEFAULT_KUBECONFIG)
-        self.apiserver = apiserver or os.environ.get(
-            "NIKA_K8S_APISERVER", DEFAULT_APISERVER
+        self.kubeconfig = str(
+            kubeconfig
+            if kubeconfig is not None
+            else os.environ.get("KUBECONFIG", DEFAULT_KUBECONFIG)
         )
+        if apiserver is not None:
+            self.apiserver = apiserver
+        else:
+            try:
+                from nika.run_config.loader import get_run_config
+
+                self.apiserver = get_run_config().nika.k8s.apiserver
+            except Exception:  # noqa: BLE001
+                self.apiserver = None
         self._loaded = False
 
     def _ensure_loaded(self) -> None:
@@ -43,7 +93,8 @@ class K8sClient:
             config_file=self.kubeconfig,
             client_configuration=configuration,
         )
-        configuration.host = self.apiserver
+        if self.apiserver:
+            configuration.host = self.apiserver
         configuration.verify_ssl = False
         self._api_client = client.ApiClient(configuration)
         self._core = client.CoreV1Api(self._api_client)
@@ -420,9 +471,6 @@ class K8sClient:
         proto = protocol.lower()
         if proto == "http":
             url = target if "://" in target else f"http://{target}"
-            if port and "://" in url and url.count(":") < 2:
-                # host without explicit port — leave as-is unless target is host only
-                pass
             cmd = (
                 f"wget -q -O - --timeout={timeout_seconds} {shlex.quote(url)} "
                 f"|| curl -sS -m {timeout_seconds} {shlex.quote(url)}"
@@ -446,16 +494,27 @@ class K8sClient:
         return result
 
 
-_CLIENT: K8sClient | None = None
+_CLIENTS: dict[str, K8sClient] = {}
+_CLIENTS_LOCK = threading.Lock()
 
 
 def get_client() -> K8sClient:
-    global _CLIENT
-    if _CLIENT is None:
-        _CLIENT = K8sClient()
-    return _CLIENT
+    """Return a K8sClient for the currently bound MCP session (cached by session_id)."""
+    session_id = require_session_id()
+    with _CLIENTS_LOCK:
+        cached = _CLIENTS.get(session_id)
+        if cached is not None:
+            return cached
+        kubeconfig = resolve_kubeconfig_path()
+        client_obj = K8sClient(kubeconfig=kubeconfig)
+        _CLIENTS[session_id] = client_obj
+        return client_obj
 
 
-def reset_client() -> None:
-    global _CLIENT
-    _CLIENT = None
+def reset_client(session_id: str | None = None) -> None:
+    """Drop cached clients (all, or one session)."""
+    with _CLIENTS_LOCK:
+        if session_id is None:
+            _CLIENTS.clear()
+            return
+        _CLIENTS.pop(session_id, None)

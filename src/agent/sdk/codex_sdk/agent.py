@@ -12,7 +12,7 @@ from typing import Any
 from agent.sdk.codex_sdk.phases.diagnosis import CodexSdkDiagnosisPhase
 from agent.sdk.codex_sdk.phases.submission import CodexSdkSubmissionPhase
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 
 
 class CodexSdkAgent:
@@ -24,10 +24,12 @@ class CodexSdkAgent:
         model: str = "gpt-5.4-mini",
         reasoning_effort: str | None = None,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
         self.model = model
+        self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
         self._stream_output = stream_output
 
@@ -37,6 +39,7 @@ class CodexSdkAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=model,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
             scenario_name=scenario_name,
             stream_output=stream_output,
@@ -45,6 +48,7 @@ class CodexSdkAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=model,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
             stream_output=stream_output,
         )

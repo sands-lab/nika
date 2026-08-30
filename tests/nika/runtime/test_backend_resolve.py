@@ -86,22 +86,74 @@ class BackendResolveTest:
 
     def test_start_net_env_infers_containerlab_for_min3clos(self) -> None:
         from unittest.mock import patch
+
         from nika.workflows.env.start import start_net_env
 
-        with patch("nika.workflows.env.start.get_net_env_instance") as mock_env:
-            mock_env.return_value.lab_exists.return_value = True
-            mock_env.return_value.name = "min3clos__tag"
-            mock_env.return_value.deploy = lambda: None
-            mock_env.return_value.undeploy = lambda: None
-            with patch(
-                "nika.workflows.env.start.verify_lab_with_retry", return_value=None
-            ):
-                with patch("nika.workflows.env.start.Session") as mock_session_cls:
-                    session = mock_session_cls.return_value
-                    start_net_env("min3clos", None)
-                    _, kwargs = mock_env.call_args
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("nika.workflows.env.start.get_net_env_instance") as mock_env:
+                mock_env.return_value.lab_exists.return_value = True
+                mock_env.return_value.name = "min3clos__tag"
+                mock_env.return_value.deploy = lambda: None
+                mock_env.return_value.undeploy = lambda: None
+                with patch(
+                    "nika.workflows.env.start.verify_lab_with_retry", return_value=None
+                ):
+                    with patch("nika.workflows.env.start.Session") as mock_session_cls:
+                        session = mock_session_cls.return_value
+                        # Real path required: MagicMock.session_dir is PathLike and
+                        # would mkdir MagicMock/Session().session_dir/<id> under CWD.
+                        session.session_dir = str(Path(tmp) / "session")
+                        start_net_env("min3clos", None)
+                        _, kwargs = mock_env.call_args
 
-                    assert kwargs.get("backend") == "containerlab"
-                    init_kwargs = session.init_session.call_args.kwargs
+                        assert kwargs.get("backend") == "containerlab"
+                        init_kwargs = session.init_session.call_args.kwargs
 
-                    assert init_kwargs.get("backend") == "containerlab"
+                        assert init_kwargs.get("backend") == "containerlab"
+
+    def test_start_net_env_defaults_isp_to_kathara(self) -> None:
+        from unittest.mock import patch
+
+        from nika.workflows.env.start import start_net_env
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("nika.workflows.env.start.get_net_env_instance") as mock_env:
+                mock_env.return_value.lab_exists.return_value = True
+                mock_env.return_value.name = "isp__tag"
+                mock_env.return_value.deploy = lambda: None
+                mock_env.return_value.undeploy = lambda: None
+                with patch(
+                    "nika.workflows.env.start.verify_lab_with_retry", return_value=None
+                ):
+                    with patch("nika.workflows.env.start.Session") as mock_session_cls:
+                        session = mock_session_cls.return_value
+                        session.session_dir = str(Path(tmp) / "session")
+                        start_net_env("isp", None)
+                        _, kwargs = mock_env.call_args
+                        assert kwargs.get("backend") == "kathara"
+                        init_kwargs = session.init_session.call_args.kwargs
+                        assert init_kwargs.get("backend") == "kathara"
+
+    def test_start_net_env_isp_containerlab(self) -> None:
+        from unittest.mock import patch
+
+        from nika.workflows.env.start import start_net_env
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("nika.workflows.env.start.get_net_env_instance") as mock_env:
+                mock_env.return_value.lab_exists.return_value = True
+                mock_env.return_value.name = "isp__tag"
+                mock_env.return_value.deploy = lambda: None
+                mock_env.return_value.undeploy = lambda: None
+                mock_env.return_value._ensure_runtime_files = lambda: None
+                with patch(
+                    "nika.workflows.env.start.verify_lab_with_retry", return_value=None
+                ):
+                    with patch("nika.workflows.env.start.Session") as mock_session_cls:
+                        session = mock_session_cls.return_value
+                        session.session_dir = str(Path(tmp) / "session")
+                        start_net_env("isp", None, backend="containerlab")
+                        _, kwargs = mock_env.call_args
+                        assert kwargs.get("backend") == "containerlab"
+                        init_kwargs = session.init_session.call_args.kwargs
+                        assert init_kwargs.get("backend") == "containerlab"

@@ -1,10 +1,12 @@
 # Leaderboard submission
 
-Submit an official release run to [`sands-lab/nika-leaderboard`](https://github.com/sands-lab/nika-leaderboard).
+This how-to is for benchmark operators who submit an official release run to [`sands-lab/nika-leaderboard`](https://github.com/sands-lab/nika-leaderboard).
 
-**Prerequisites:** finished `nika benchmark run --release …`, and authenticated [`gh`](https://cli.github.com/) (`gh auth login` or `GH_TOKEN`, `repo` scope). No manual fork/clone/commit.
+Implementation: [`workflows/leaderboard/`](../src/nika/workflows/leaderboard/) builds, validates, and submits packages.
 
-## Steps
+**Prerequisites:** a finished `nika benchmark run --release …` and authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope).
+
+## Submit a release run
 
 ```shell
 nika benchmark run --release 0.1.0 --result_dir results/my-run -a <agent> -m <model>
@@ -22,8 +24,9 @@ nika leaderboard submit results/my-run/YYYYMMDD_slug
 # optional: --draft --title "..." --body "..." --repo sands-lab/nika-leaderboard
 ```
 
-`pack` writes `{result_dir}/{YYYYMMDD}_{slug}/` (slug from `metadata.info.name`; override with `--out`).  
-`submit` validates (unless `--skip-validate`), pushes to `submissions/<release_version>/{YYYYMMDD}_{slug}/`, and opens a PR. CI re-validates packages under `submissions/`.
+`pack` writes `{result_dir}/{YYYYMMDD}_{slug}/` (slug from `metadata.info.name`; override with `--out`). `submit` validates (unless `--skip-validate`), pushes to `submissions/<release_version>/{YYYYMMDD}_{slug}/`, and opens a PR. CI re-validates packages under `submissions/`.
+
+Agents submit `(resource_id, fault_type)` pairs. Scoring is `rule-based-v2` (set metrics on those pairs). The package field `identity.yaml` `schema_version: "2"` is the leaderboard pack format.
 
 ## Package layout
 
@@ -39,8 +42,7 @@ nika leaderboard submit results/my-run/YYYYMMDD_slug
     trials/{trial_id}/result.json
 ```
 
-Remote path: `submissions/<release_version>/{YYYYMMDD}_{slug}/`.  
-Traces and per-case run artifacts are not included; integrity uses `source_run_sha256` and the frozen `benchmark.digest`.
+Remote path: `submissions/<release_version>/{YYYYMMDD}_{slug}/`. Traces and per-case run artifacts are not included; integrity uses `source_run_sha256` and the frozen `benchmark.digest`.
 
 ### Per-trial `result.json` (schema 2)
 
@@ -85,7 +87,7 @@ Field notes:
 
 Short system description, authors, and links to code / report / site (if any).
 
-## Validation
+## Validate a package
 
 - Schema `2`; identity matches the in-tree frozen release
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (failures count as 0 in means)
@@ -93,7 +95,7 @@ Short system description, authors, and links to code / report / site (if any).
 - No secrets or absolute paths in package text
 - Schema `1` packages must be re-packed; they are rejected by current validate
 
-## PR checklist
+## Check the pull request
 
 - [ ] Official release run; local `nika leaderboard validate` passed
 - [ ] Required metadata fields filled; README describes the system

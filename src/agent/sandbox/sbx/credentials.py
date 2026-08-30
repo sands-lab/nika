@@ -1,11 +1,10 @@
-"""Sync API credentials into the sbx secret store (no host auth file copies).
+"""Sync API credentials into the sbx secret store without copying auth files.
 
-Only the active agent + ``NIKA_LLM_PROVIDER`` credentials are read from ``.env``.
+NIKA reads only the active agent and provider credentials from ``.env``.
 Claude/DeepSeek API-key mode uses ``sbx secret set-custom`` so credentials never
 enter the microVM. Codex uses OpenAI via the built-in ``openai`` service
-(``OPENAI_API_KEY`` or OAuth), or mapped DeepSeek/custom keys. Subscription /
-OAuth still uses built-in ``openai`` / ``anthropic`` services with interactive
-host login.
+(``OPENAI_API_KEY`` or OAuth), or mapped DeepSeek and custom keys. Interactive
+host login stores subscription credentials in the built-in services.
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from agent.sandbox.sbx.client import (
     run_sbx_checked,
     sbx_available,
 )
-from nika.utils.provider_env import (
+from agent.utils.provider_env import (
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
@@ -84,8 +83,6 @@ class SbxCredentialPlan:
     def sentinel_runtime_env(self) -> dict[str, str]:
         """Env vars for the sandbox (placeholders / sentinels only)."""
         env: dict[str, str] = {}
-        if self.provider:
-            env["NIKA_LLM_PROVIDER"] = self.provider
         if self.openai_api_key_mode:
             if self.third_party_openai:
                 env["OPENAI_API_KEY"] = self.custom_placeholders.get(
@@ -96,9 +93,14 @@ class SbxCredentialPlan:
             else:
                 env["OPENAI_API_KEY"] = PROXY_MANAGED_SENTINEL
         if self.third_party_anthropic:
-            env["ANTHROPIC_API_KEY"] = self.custom_placeholders.get(
+            placeholder = self.custom_placeholders.get(
                 "ANTHROPIC_API_KEY", PROXY_MANAGED_SENTINEL
             )
+            # DeepSeek Claude Code docs use ANTHROPIC_AUTH_TOKEN; sbx set-custom
+            # is registered for ANTHROPIC_API_KEY. Export the same placeholder
+            # under both names so Claude CLI/SDK can auth either way.
+            env["ANTHROPIC_API_KEY"] = placeholder
+            env["ANTHROPIC_AUTH_TOKEN"] = placeholder
             env["ANTHROPIC_BASE_URL"] = (
                 self.anthropic_base_url or DEEPSEEK_ANTHROPIC_BASE_URL
             )
@@ -113,10 +115,13 @@ def required_services_for_agent(agent_type: str) -> frozenset[str]:
     return _AGENT_REQUIRED_SERVICES.get(agent_type, frozenset())
 
 
-def _active_provider(provider: str | None = None) -> str:
-    if provider and provider.strip():
-        return provider.strip().lower()
-    return (os.environ.get("NIKA_LLM_PROVIDER") or "").strip().lower()
+def _require_provider(provider: str | None) -> str:
+    if not provider or not str(provider).strip():
+        raise ValueError(
+            "Missing LLM provider for sandbox credentials: set agent.provider "
+            "in config/nika.yaml or pass -p/--provider."
+        )
+    return str(provider).strip().lower()
 
 
 def _credential_sources(
@@ -137,7 +142,6 @@ def _credential_sources(
         "CUSTOM_API_BASE",
         "CUSTOM_API_KEY",
         "NIKA_CUSTOM_MODEL",
-        "NIKA_LLM_PROVIDER",
     ):
         value = os.environ.get(key, "").strip()
         if value:
@@ -149,9 +153,8 @@ def _credential_sources(
     mapped = map_provider_credentials(
         agent_type=agent_type, provider=provider, sources=merged
     )
-    # Keep only mapped credentials + non-secret provider markers
+    # Keep mapped credentials and non-secret custom endpoint fields.
     allowed = set(mapped) | {
-        "NIKA_LLM_PROVIDER",
         ENV_CUSTOM_BASE_URL,
         ENV_CUSTOM_API_KEY,
         "NIKA_CUSTOM_MODEL",
@@ -215,9 +218,10 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
     if service == SERVICE_OPENAI:
         return (
             "Missing Docker Sandboxes credential for Codex.\n"
-            "API key: set OPENAI_API_KEY (or DEEPSEEK_API_KEY / NIKA_CUSTOM_* "
-            f"with NIKA_LLM_PROVIDER={provider or 'openai|deepseek|custom'}) "
-            "in the repo-root .env.\n"
+            "API key: set OPENAI_API_KEY or DEEPSEEK_API_KEY in the repository-root "
+            ".env. For a custom endpoint, set agent.custom.base_url and optional "
+            "NIKA_CUSTOM_API_KEY. Set agent.provider to "
+            f"{provider or 'openai|deepseek|custom'} in config/nika.yaml.\n"
             "ChatGPT / Codex subscription: run "
             "`sbx secret set -g openai --oauth` once on the host.\n"
             "See docs/agent-sandbox.md and "
@@ -226,10 +230,10 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
     if service == SERVICE_ANTHROPIC:
         return (
             "Missing Docker Sandboxes credential for Claude.\n"
-            "Native Anthropic: set ANTHROPIC_API_KEY.\n"
-            "DeepSeek: set DEEPSEEK_API_KEY and NIKA_LLM_PROVIDER=deepseek.\n"
-            "Custom proxy: set NIKA_CUSTOM_BASE_URL (+ optional NIKA_CUSTOM_API_KEY) "
-            "and NIKA_LLM_PROVIDER=custom.\n"
+            "Native Anthropic: set ANTHROPIC_API_KEY and agent.provider: anthropic.\n"
+            "DeepSeek: set DEEPSEEK_API_KEY and agent.provider: deepseek.\n"
+            "Custom proxy: set NIKA_CUSTOM_API_KEY (optional) with "
+            "agent.custom.base_url and agent.provider: custom in config/nika.yaml.\n"
             "Claude subscription: authenticate with `/login` inside Claude Code "
             "so the anthropic secret is stored on the host "
             "(see https://docs.docker.com/ai/sandboxes/agents/claude-code/).\n"
@@ -286,7 +290,7 @@ def ensure_sbx_credentials(
         raise RuntimeError("sbx is required for sandbox credential sync")
 
     required = frozenset(required_services or ())
-    prov = _active_provider(provider)
+    prov = _require_provider(provider)
     sources = _credential_sources(env_file, provider=prov, agent_type=agent_type)
     base_url = _anthropic_base_url(sources, prov)
     openai_base = _openai_base_url(sources, prov)
@@ -372,17 +376,15 @@ def ensure_sbx_credentials(
 
 
 def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
-    provider = _active_provider()
-    if provider in ("openai", "deepseek", "custom") and provider:
-        from nika.utils.provider_env import has_provider_credentials
-
-        if has_provider_credentials(provider):
-            return True
     if os.environ.get(ENV_OPENAI_API_KEY, "").strip():
+        return True
+    if os.environ.get(ENV_DEEPSEEK_API_KEY, "").strip():
+        return True
+    if resolve_custom_api_key():
         return True
     if env_file is not None:
         sources = _credential_sources(
-            env_file, provider=provider or "openai", agent_type="cli.codex"
+            env_file, provider="openai", agent_type="cli.codex"
         )
         if _openai_secret_value(sources):
             return True
@@ -397,22 +399,17 @@ def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
 
 
 def sbx_anthropic_credential_available(*, env_file: Path | None = None) -> bool:
-    provider = _active_provider()
-    if provider in ("anthropic", "deepseek", "custom"):
-        from nika.utils.provider_env import has_provider_credentials
-
-        if has_provider_credentials(provider):
-            return True
     if (
         os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
         or os.environ.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
         or os.environ.get(ENV_DEEPSEEK_API_KEY, "").strip()
+        or resolve_custom_api_key()
     ):
         return True
     if env_file is not None:
         sources = _credential_sources(
             env_file,
-            provider=provider or "anthropic",
+            provider="anthropic",
             agent_type="cli.claude",
         )
         if _anthropic_secret_value(sources):
@@ -437,9 +434,8 @@ def anthropic_subscription_mode(*, env_file: Path | None = None) -> bool:
     ):
         return False
     if env_file is not None:
-        provider = _active_provider() or "anthropic"
         sources = _credential_sources(
-            env_file, provider=provider, agent_type="cli.claude"
+            env_file, provider="anthropic", agent_type="cli.claude"
         )
         if _anthropic_secret_value(sources):
             return False

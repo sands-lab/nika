@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from nika.service.mcp_gateway.constants import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.service.mcp_gateway.session_registry import get_session
 from nika.service.mcp_server.registry import MCP_SERVER_SPECS, SUBMISSION_SERVER
 

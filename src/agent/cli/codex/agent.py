@@ -24,7 +24,7 @@ from typing import Any
 from agent.cli.codex.phases.diagnosis import CodexCliDiagnosisPhase
 from agent.cli.codex.phases.submission import CodexCliSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session import Session
 
 
@@ -37,6 +37,8 @@ class CodexCliAgent:
         NIKA session identifier.
     model:
         Codex model name forwarded to ``codex exec -m`` (default ``"gpt-5.4-mini"``).
+    llm_provider:
+        Active LLM provider (``openai``, ``deepseek``, ``custom``).
     reasoning_effort:
         Codex ``model_reasoning_effort`` override (``none``, ``minimal``, ``low``,
         ``medium``, ``high``, ``xhigh``).  When omitted, Codex uses its default.
@@ -48,10 +50,12 @@ class CodexCliAgent:
         model: str = "gpt-5.4-mini",
         reasoning_effort: str | None = None,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
         self.model = model
+        self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
         self._stream_output = stream_output
 
@@ -66,6 +70,7 @@ class CodexCliAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=model,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
             scenario_name=scenario_name,
             stream_output=stream_output,
@@ -74,6 +79,7 @@ class CodexCliAgent:
             session_id=session_id,
             session_dir=self.session_dir,
             model=model,
+            llm_provider=llm_provider,
             reasoning_effort=reasoning_effort,
             stream_output=stream_output,
         )

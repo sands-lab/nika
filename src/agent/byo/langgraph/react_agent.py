@@ -15,7 +15,7 @@ from agent.byo.langgraph.phases.diagnosis import DiagnosisPhase
 from agent.byo.langgraph.phases.submission import SubmissionPhase
 from agent.utils.loggers import AgentCallbackLogger, MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.logger import system_logger
 from nika.utils.session import Session
 
@@ -23,10 +23,6 @@ load_dotenv()
 
 
 logging.basicConfig(level=logging.INFO)
-
-
-def _env_flag_enabled(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 class AgentState(TypedDict):
@@ -50,11 +46,13 @@ class BasicReActAgent:
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
         max_steps: int = 20,
+        reasoning_effort: str | None = None,
     ):
         self.session_id = session_id
         self.max_steps = max_steps
         self.llm_provider = llm_provider
         self.model = model
+        self.reasoning_effort = reasoning_effort
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
         self.session_dir = self.session.session_dir
@@ -66,6 +64,7 @@ class BasicReActAgent:
             llm_provider=llm_provider,
             model=model,
             scenario_name=self.session.scenario_name,
+            reasoning_effort=reasoning_effort,
         )
         asyncio.run(diagnosis_phase.load_tools())
         self._diagnosis_runner = diagnosis_phase.get_agent()
@@ -110,11 +109,9 @@ class BasicReActAgent:
             obs = get_run_config().nika.observability
             enabled = bool(obs.langfuse_enabled)
             if obs.langfuse_host:
-                import os
-
                 os.environ.setdefault("LANGFUSE_HOST", obs.langfuse_host)
         except Exception:
-            enabled = _env_flag_enabled("NIKA_LANGFUSE_ENABLED")
+            enabled = False
         if not enabled:
             return None
 
@@ -184,6 +181,7 @@ class BasicReActAgent:
             llm_provider=self.llm_provider,
             model=self.model,
             scenario_name=self.session.scenario_name,
+            reasoning_effort=self.reasoning_effort,
         )
         await submission_phase.load_tools()
         submission_runner = submission_phase.get_agent()

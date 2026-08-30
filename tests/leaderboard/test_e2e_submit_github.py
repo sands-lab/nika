@@ -80,7 +80,7 @@ def _minimal_live_package(tmp_path: Path) -> Path:
                     "cases_sha256": "0" * 64,
                     "case_count": 1,
                     "n_trials": 1,
-                    "scoring_id": "rule-based-v1",
+                    "scoring_id": "rule-based-v2",
                     "leaderboard_primary": "rca_f1",
                 },
                 "run": {

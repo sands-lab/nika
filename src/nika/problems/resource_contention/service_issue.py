@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
+from nika.problems.topology_inventory import interface_on
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -30,8 +32,10 @@ class DNSLookupLatency(ProblemBase):
     def __init__(self, scenario_name: str = "dc_clos_service", **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: DNSLookupLatencyParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+
     def inject_fault(self, params: DNSLookupLatencyParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.tc_set_netem(
             params.host_name, params.intf_name, delay_ms=params.delay_ms
         )
@@ -76,8 +80,10 @@ class LoadBalancerOverload(ProblemBase):
     def __init__(self, scenario_name: str = "load_balancer", **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    def root_cause_resources(self, params: LoadBalancerOverloadParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: LoadBalancerOverloadParams):
-        self.set_faulty_devices([params.host_name])
         self.runtime.exec(
             params.host_name,
             f"nohup stress-ng --cpu 0 --cpu-load 100 --iomix 0 --sock 0 --hdd 2 --vm 0 --vm-bytes 75% --timeout {params.duration} </dev/null >/dev/null 2>&1 &",

@@ -22,6 +22,13 @@ class EnvStartRequest(BaseModel):
     session_tag: str | None = None
     session_id: str | None = None
     result_dir: str | None = None
+    topo: str | None = None
+    igp: str | None = None
+    metric_strategy: str | None = None
+    constant_metric: int | None = None
+    bgp_mode: str | None = None
+    backend: str | None = None
+    device_profile: str | None = None
 
 
 class EnvStartResponse(BaseModel):

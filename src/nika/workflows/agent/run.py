@@ -19,7 +19,7 @@ from nika.utils.agent_config import (
     resolve_reasoning_effort,
 )
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
-from nika.utils.provider_env import provider_env_context
+from agent.utils.provider_env import provider_env_context
 from nika.utils.session import Session
 
 logging.basicConfig(level=logging.INFO)
@@ -147,6 +147,7 @@ def start_agent(
                 policy_mode=_gateway_policy_mode(agent_type),  # type: ignore[arg-type]
                 sandbox=use_sandbox,
                 sandbox_agent_host=sandbox_gateway_agent_host(),
+                backend=getattr(session, "backend", None),
             ) as gateway_manager:
                 if use_sandbox:
                     if not sbx_available():

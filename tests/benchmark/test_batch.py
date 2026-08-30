@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import NamedTuple
 import yaml
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session_id import resolve_session_tag
 from nika.utils.session_store import SESSIONS_DIR, SessionStore
 from tests.benchmark.helpers import inject_params_from_benchmark_yaml

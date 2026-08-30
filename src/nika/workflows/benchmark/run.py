@@ -14,12 +14,13 @@ from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.prob_pool import get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
-from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
 from nika.workflows.benchmark.trials import (
     Trial,
     count_completed_trials,
     expand_trials,
+    heal_trial_outcome,
+    is_valid_trial,
     merge_run_config,
     scan_trials,
     trial_dir,
@@ -49,7 +50,7 @@ from nika.workflows.benchmark.resume import (
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import eval_results, run_eval_metrics
 from nika.workflows.failure.inject import inject_failure
-from nika.workflows.session.close import close_session
+from nika.workflows.session.close import close_session, load_session_meta_for_close
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
 
@@ -129,9 +130,53 @@ def _ensure_messages_file(session_dir: Path) -> None:
         path.write_text("", encoding="utf-8")
 
 
+def _require_submission(session_dir: Path) -> None:
+    """Treat an agent return without a submission as an agent failure."""
+    submission_path = session_dir / "submission.json"
+    if not submission_path.is_file():
+        raise RuntimeError(
+            f"Agent completed without writing required submission: {submission_path}"
+        )
+
+
+def _ensure_placeholder_eval_metrics(session_dir: Path) -> None:
+    metrics_path = session_dir / "eval_metrics.json"
+    if metrics_path.exists():
+        return
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "detection_score": -1.0,
+                "localization_accuracy": -1.0,
+                "localization_precision": -1.0,
+                "localization_recall": -1.0,
+                "localization_f1": -1.0,
+                "rca_accuracy": -1.0,
+                "rca_precision": -1.0,
+                "rca_recall": -1.0,
+                "rca_f1": -1.0,
+                "in_tokens": None,
+                "out_tokens": None,
+                "steps": None,
+                "tool_calls": None,
+                "tool_errors": None,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _set_trial_outcome(session_dir: Path, *, outcome: str) -> None:
     run_path = session_dir / RUN_FILENAME
-    run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+    if not run_path.is_file():
+        return
+    try:
+        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    if not isinstance(run_meta, dict):
+        return
     run_meta["outcome"] = outcome
     run_meta["status"] = "finished"
     run_path.write_text(json.dumps(run_meta, indent=2, default=str), encoding="utf-8")
@@ -146,11 +191,14 @@ def _finalize_agent_failed_trial(
 ) -> None:
     """Mark a post-inject failure as a counted ``agent_failed`` trial."""
     try:
-        close_session(session_id=session_id, undeploy=True)
+        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
     except Exception as cleanup_error:  # noqa: BLE001 - best effort
         print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
 
     _ensure_messages_file(session_dir)
+    # Stamp outcome immediately after close so a later kill during metrics
+    # still leaves a recoverable counted trial for resume.
+    _set_trial_outcome(session_dir, outcome="agent_failed")
     try:
         run_eval_metrics(session_id=session_id, result_dir=result_dir)
     except Exception as eval_error:  # noqa: BLE001 - still record failure
@@ -158,30 +206,7 @@ def _finalize_agent_failed_trial(
             f"WARNING: could not write eval metrics for agent_failed "
             f"trial {session_id}: {eval_error}"
         )
-        metrics_path = session_dir / "eval_metrics.json"
-        if not metrics_path.exists():
-            metrics_path.write_text(
-                json.dumps(
-                    {
-                        "detection_score": -1.0,
-                        "localization_accuracy": -1.0,
-                        "localization_precision": -1.0,
-                        "localization_recall": -1.0,
-                        "localization_f1": -1.0,
-                        "rca_accuracy": -1.0,
-                        "rca_precision": -1.0,
-                        "rca_recall": -1.0,
-                        "rca_f1": -1.0,
-                        "in_tokens": None,
-                        "out_tokens": None,
-                        "steps": None,
-                        "tool_calls": None,
-                        "tool_errors": None,
-                    },
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
+        _ensure_placeholder_eval_metrics(session_dir)
 
     try:
         session = Session().load_closed_session(
@@ -193,11 +218,67 @@ def _finalize_agent_failed_trial(
     except Exception:  # noqa: BLE001 - fall back to direct file write
         _set_trial_outcome(session_dir, outcome="agent_failed")
         run_path = session_dir / RUN_FILENAME
-        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-        run_meta["agent_error"] = str(error)
-        run_path.write_text(
-            json.dumps(run_meta, indent=2, default=str), encoding="utf-8"
+        try:
+            run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+            run_meta["agent_error"] = str(error)
+            run_path.write_text(
+                json.dumps(run_meta, indent=2, default=str), encoding="utf-8"
+            )
+        except Exception:  # noqa: BLE001 - best effort
+            pass
+
+
+def _finalize_timed_out_trial(
+    trial: Trial,
+    *,
+    result_dir: str | None,
+    error: BaseException,
+) -> None:
+    """After a watchdog kill, keep a counted trial when GT was already written."""
+    results_root = resolve_results_root(result_dir)
+    session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
+    if not (session_dir / "ground_truth.json").is_file():
+        return
+    print(
+        f"[{trial.trial_id}] finalizing timed-out trial as agent_failed under {session_dir}"
+    )
+    _finalize_agent_failed_trial(
+        session_id=trial.trial_id,
+        session_dir=session_dir,
+        result_dir=result_dir,
+        error=error,
+    )
+
+
+def _close_and_eval_success(
+    *,
+    session_id: str,
+    session_dir: Path,
+    result_dir: str | None,
+) -> None:
+    """Close, stamp ``outcome=success`` ASAP, then write eval metrics."""
+    try:
+        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
+    except FileNotFoundError:
+        # Already closed by another path; still stamp + evaluate.
+        pass
+    _ensure_messages_file(session_dir)
+    _set_trial_outcome(session_dir, outcome="success")
+    try:
+        run_eval_metrics(session_id=session_id, result_dir=result_dir)
+    except Exception as eval_error:  # noqa: BLE001 - outcome already stamped
+        print(
+            f"WARNING: could not write eval metrics for success "
+            f"trial {session_id}: {eval_error}"
         )
+        _ensure_placeholder_eval_metrics(session_dir)
+    try:
+        closed = Session().load_closed_session(
+            session_id=session_id, result_dir=result_dir
+        )
+        closed.update_run_meta("outcome", "success")
+    except Exception:  # noqa: BLE001 - disk already stamped
+        _set_trial_outcome(session_dir, outcome="success")
 
 
 def run_single_case(
@@ -216,6 +297,7 @@ def run_single_case(
     trial_id: str | None = None,
     trial_index: int | None = None,
     case_key: str | None = None,
+    expected_root_causes: list | None = None,
 ) -> tuple[str, Path]:
     """Run one benchmark case (env → inject → agent → close + metrics).
 
@@ -269,12 +351,17 @@ def run_single_case(
         session_id=trial_id,
         session_dir=predetermined_dir,
     )
-    session_dir = Path(SessionStore().get_session(session_id)["session_dir"])
+    session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
 
     try:
+        if session_dir is None:
+            session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
         inject_failure(
-            problem_names=[problem], session_id=session_id, param_overrides=params
+            problem_names=[problem],
+            session_id=session_id,
+            param_overrides=params,
+            expected_root_causes=expected_root_causes,
         )
         gt_written = (session_dir / "ground_truth.json").is_file()
 
@@ -305,16 +392,26 @@ def run_single_case(
             session_id=session_id,
             stream_output=False,
         )
+        _require_submission(session_dir)
 
-        eval_results(session_id=session_id)
-        _ensure_messages_file(session_dir)
-        try:
-            closed = Session().load_closed_session(
-                session_id=session_id, result_dir=result_dir
+        if trial_id:
+            # Batch trials: close then stamp outcome before metrics so a kill
+            # mid-eval still leaves a counted success for --resume.
+            _close_and_eval_success(
+                session_id=session_id,
+                session_dir=session_dir,
+                result_dir=result_dir,
             )
-            closed.update_run_meta("outcome", "success")
-        except Exception:  # noqa: BLE001 - still mark outcome on disk
-            _set_trial_outcome(session_dir, outcome="success")
+        else:
+            eval_results(session_id=session_id)
+            _ensure_messages_file(session_dir)
+            try:
+                closed = Session().load_closed_session(
+                    session_id=session_id, result_dir=result_dir
+                )
+                closed.update_run_meta("outcome", "success")
+            except Exception:  # noqa: BLE001 - still mark outcome on disk
+                _set_trial_outcome(session_dir, outcome="success")
     except BaseException as exc:
         # Batch runs ( --config / --release): post-inject failures become
         # counted agent_failed outcomes. Bare single-case CLI (no trial_id)
@@ -333,7 +430,7 @@ def run_single_case(
             return session_id, session_dir
 
         try:
-            close_session(session_id=session_id, undeploy=True)
+            close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
             print(f"cleaned up failed session {session_id} (lab undeployed)")
         except Exception as cleanup_error:  # noqa: BLE001 - best effort
             print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
@@ -410,6 +507,11 @@ def _run_trial(
         scenario=row["scenario"],
         topo_size=row.get("topo_size") or "",
         inject_params=row["inject"],
+        expected_root_causes=(
+            None
+            if row.get("root_causes_status") == "unresolved"
+            else row.get("root_causes")
+        ),
         release_meta=release_meta,
         agent_type=agent_type,
         llm_provider=llm_provider,
@@ -463,18 +565,29 @@ def _run_trial_with_timeout(
         if proc.is_alive():
             proc.kill()
             proc.join(5)
-        raise RuntimeError(
+        timeout_error = RuntimeError(
             f"[{trial.trial_id}] case exceeded --case-timeout ({case_timeout}s) "
             "and was killed. Its lab may be leaked — check `nika session ps`."
         )
+        _finalize_timed_out_trial(trial, result_dir=result_dir, error=timeout_error)
+        raise timeout_error
     if proc.is_alive():
         proc.terminate()
         proc.join(15)
         raise RuntimeError(f"[{trial.trial_id}] trial worker did not exit")
     if proc.exitcode not in (0, None):
-        raise RuntimeError(
+        # Worker may have finalized agent_failed already; if not and GT exists,
+        # count the crash as agent_failed so resume does not delete progress.
+        crash_error = RuntimeError(
             f"[{trial.trial_id}] trial worker exited with code {proc.exitcode}"
         )
+        results_root = resolve_results_root(result_dir)
+        session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
+        if (session_dir / "ground_truth.json").is_file() and not (
+            is_valid_trial(session_dir) or heal_trial_outcome(session_dir)
+        ):
+            _finalize_timed_out_trial(trial, result_dir=result_dir, error=crash_error)
+        raise crash_error
 
 
 def _run_trials_batch(
@@ -671,9 +784,7 @@ def run_benchmark_trials(
         if not failures and still_pending:
             # agent_failed trials count as complete; remaining pending means
             # incomplete artifacts after the pass.
-            failures = [
-                f"incomplete trial {trials[i].trial_id}" for i in still_pending
-            ]
+            failures = [f"incomplete trial {trials[i].trial_id}" for i in still_pending]
 
     _, final_pending = scan_trials(
         trials=trials,
@@ -689,7 +800,6 @@ def run_benchmark_trials(
         )
         for message in failures:
             print(f"  - {message.splitlines()[0]}")
-
 
 
 def run_benchmark_from_release(

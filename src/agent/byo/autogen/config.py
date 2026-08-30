@@ -8,20 +8,30 @@ from autogen_ext.tools.mcp import (
 )
 
 from agent.utils.mcp_client import load_session_mcp_config
+from agent.utils.mcp_servers import mcp_read_timeout_seconds
 
 
 def to_mcp_params(server: dict) -> StdioServerParams | StreamableHttpServerParams:
     transport = server.get("transport", "stdio")
+    read_timeout = mcp_read_timeout_seconds()
+    # Autogen Stdio uses float seconds; HTTP uses timeout + sse_read_timeout.
     if transport == "http":
-        return StreamableHttpServerParams(
-            url=server["url"],
-            headers=dict(server.get("headers") or {}),
-        )
-    return StdioServerParams(
-        command=server["command"],
-        args=server.get("args", []),
-        env=server.get("env"),
-    )
+        kwargs: dict = {
+            "url": server["url"],
+            "headers": dict(server.get("headers") or {}),
+        }
+        if read_timeout is not None:
+            kwargs["timeout"] = read_timeout
+            kwargs["sse_read_timeout"] = read_timeout
+        return StreamableHttpServerParams(**kwargs)
+    kwargs = {
+        "command": server["command"],
+        "args": server.get("args", []),
+        "env": server.get("env"),
+    }
+    if read_timeout is not None:
+        kwargs["read_timeout_seconds"] = float(read_timeout)
+    return StdioServerParams(**kwargs)
 
 
 def session_server_configs(session_id: str, scenario_name: str) -> dict:

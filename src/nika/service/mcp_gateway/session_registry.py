@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import Literal
 
-from nika.service.mcp_gateway.constants import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 
 PolicyMode = Literal["two_phase", "unified"]
 Phase = Literal["diagnosis", "submission"]

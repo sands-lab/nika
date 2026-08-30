@@ -52,6 +52,17 @@ SCORING_V1 = {
     "judge_allowed": False,
 }
 
+SCORING_V2 = {
+    "id": "rule-based-v2",
+    "description": (
+        "detection accuracy; joint RCA P/R/F1 and exact match on "
+        "(resource.id, fault_type); localization and fault-type submetrics; "
+        "efficiency metrics remain independent"
+    ),
+    "leaderboard_primary": "rca_f1",
+    "judge_allowed": False,
+}
+
 TOOLS_V1 = {
     "policy_id": "diagnosis-servers-v1",
     "allowed_mcp_servers": [
@@ -357,7 +368,7 @@ def load_release_from_dir(
     cases = load_benchmark_yaml(cases_path)
     cases_sha256 = _sha256_file(cases_path)
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
-    scoring = dict(manifest.get("scoring") or SCORING_V1)
+    scoring = dict(manifest.get("scoring") or SCORING_V2)
     tools = dict(manifest.get("tools") or TOOLS_V1)
     resources = dict(manifest.get("resources") or RESOURCES_V1)
     images = dict(manifest.get("images") or {"required": []})
@@ -753,6 +764,51 @@ def write_release_manifest(
     return digest
 
 
+def rebuild_release_manifest(
+    dest: Path,
+    *,
+    scoring: dict[str, Any] | None = None,
+) -> str:
+    """Rewrite ``RELEASE.yaml`` from on-disk split YAML, current pins, and scoring."""
+    dest = Path(dest)
+    manifest_path = dest / "RELEASE.yaml"
+    existing = _load_manifest(manifest_path) if manifest_path.is_file() else {}
+    version = str(existing.get("version") or dest.name)
+    defaults = dict(existing.get("defaults") or DEFAULTS_V1)
+    tools = dict(existing.get("tools") or TOOLS_V1)
+    resources = dict(existing.get("resources") or RESOURCES_V1)
+
+    splits: dict[str, Any] = {}
+    all_cases: list[dict[str, Any]] = []
+    for name in VALID_SPLITS:
+        path = dest / f"{name}.yaml"
+        if not path.is_file():
+            continue
+        cases = load_benchmark_yaml(path)
+        all_cases.extend(cases)
+        splits[name] = {
+            "cases_file": f"{name}.yaml",
+            "case_count": len(cases),
+            "cases_sha256": _sha256_file(path),
+        }
+    if not splits:
+        raise ReleaseError(f"No split YAML files under {dest}")
+
+    scenarios = {row["scenario"] for row in all_cases}
+    problems = {row["problem"] for row in all_cases}
+    return write_release_manifest(
+        dest,
+        version=version,
+        splits=splits,
+        defaults=defaults,
+        scoring=dict(scoring or SCORING_V2),
+        tools=tools,
+        resources=resources,
+        images={"required": collect_images_for_scenarios(scenarios)},
+        scenario_problem_pin=build_scenario_problem_pins(scenarios, problems),
+    )
+
+
 def freeze_release(
     *,
     version: str = DEFAULT_RELEASE_VERSION,
@@ -760,24 +816,29 @@ def freeze_release(
     out_dir: Path | None = None,
 ) -> BenchmarkRelease:
     """Create a minimal single-split (dev) release for tests / local experiments."""
+    from nika.workflows.benchmark.migrate import materialize_cases, write_cases_yaml
+
     source = source_cases or (BENCHMARK_DIR / "benchmark_selected.yaml")
     dest = out_dir or (releases_dir() / version)
     dest.mkdir(parents=True, exist_ok=True)
 
-    cases_raw = source.read_text(encoding="utf-8")
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or "cases" not in raw:
+        raise ReleaseError(f"Invalid source cases YAML: {source}")
+    cases = materialize_cases(list(raw.get("cases") or []))
     cases_path = dest / "dev.yaml"
-    cases_path.write_text(cases_raw, encoding="utf-8")
-    cases = load_benchmark_yaml(cases_path)
+    write_cases_yaml(cases_path, seed=raw.get("seed"), cases=cases)
+    loaded = load_benchmark_yaml(cases_path)
     cases_sha256 = _sha256_file(cases_path)
 
-    scenarios = {row["scenario"] for row in cases}
-    problems = {row["problem"] for row in cases}
+    scenarios = {row["scenario"] for row in loaded}
+    problems = {row["problem"] for row in loaded}
     pins = build_scenario_problem_pins(scenarios, problems)
     images = {"required": collect_images_for_scenarios(scenarios)}
     splits = {
         "dev": {
             "cases_file": "dev.yaml",
-            "case_count": len(cases),
+            "case_count": len(loaded),
             "cases_sha256": cases_sha256,
         }
     }
@@ -786,7 +847,7 @@ def freeze_release(
         version=version,
         splits=splits,
         defaults=dict(DEFAULTS_V1),
-        scoring=dict(SCORING_V1),
+        scoring=dict(SCORING_V2),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=images,

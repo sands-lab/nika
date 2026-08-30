@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -19,17 +18,17 @@ if TYPE_CHECKING:
     from docker.models.containers import Container
 
     from nika.net_env.base import NetworkEnvBase
+    from nika.run_config.schema import LabSettings
 
-# Lab lifecycle robustness knobs (env-overridable).
-# Deploy: transient host failures (e.g. Docker/systemd cgroup timeouts under
-# container churn) are retried after cleaning the partial deploy; readiness is
-# verified by polling instead of hoping a fixed sleep was long enough.
-DEPLOY_ATTEMPTS = int(os.getenv("NIKA_DEPLOY_ATTEMPTS", "3"))
-DEPLOY_READY_TIMEOUT_SEC = float(os.getenv("NIKA_DEPLOY_READY_TIMEOUT", "90"))
-DEPLOY_SETTLE_SEC = float(os.getenv("NIKA_DEPLOY_SETTLE", "5"))
-# Undeploy: verify the lab's containers are actually gone (a silently leaked
-# lab keeps burning CPU and skews later runs).
-UNDEPLOY_VERIFY_TIMEOUT_SEC = float(os.getenv("NIKA_UNDEPLOY_VERIFY_TIMEOUT", "30"))
+
+def _lab_settings() -> LabSettings:
+    from nika.run_config.loader import get_run_config
+    from nika.run_config.schema import LabSettings as _LabSettings
+
+    try:
+        return get_run_config().nika.lab
+    except Exception:  # noqa: BLE001
+        return _LabSettings()
 
 
 class KatharaRuntime(LabRuntime):
@@ -115,7 +114,8 @@ class KatharaRuntime(LabRuntime):
             time.sleep(2.0)
         raise RuntimeError(
             f"Lab {self.lab_name}: only {running}/{expected} machines running "
-            f"after {timeout:.0f}s (raise NIKA_DEPLOY_READY_TIMEOUT on slow hosts)"
+            f"after {timeout:.0f}s (raise nika.lab.deploy_ready_timeout_sec "
+            "in config/nika.yaml on slow hosts)"
         )
 
     def deploy(self) -> None:
@@ -125,27 +125,28 @@ class KatharaRuntime(LabRuntime):
             return
         self._net_env._ensure_docker_images()
 
+        lab = _lab_settings()
+        attempts = lab.deploy_attempts
         last_error: Exception | None = None
-        for attempt in range(1, DEPLOY_ATTEMPTS + 1):
+        for attempt in range(1, attempts + 1):
             try:
                 Kathara.get_instance().deploy_lab(lab=self._net_env.lab)
-                self._wait_deploy_ready(DEPLOY_READY_TIMEOUT_SEC)
-                # short settle so services inside the containers can boot
-                time.sleep(DEPLOY_SETTLE_SEC)
+                self._wait_deploy_ready(lab.deploy_ready_timeout_sec)
+                # Give container services time to start after Docker reports readiness.
+                time.sleep(lab.deploy_settle_sec)
                 return
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc
                 print(
                     f"Deploy of lab {self.lab_name} failed "
-                    f"(attempt {attempt}/{DEPLOY_ATTEMPTS}): {exc}"
+                    f"(attempt {attempt}/{attempts}): {exc}"
                 )
-                # Clean the partial deploy before retrying, or the retry
-                # collides with half-started containers.
+                # Remove partial containers before the next deployment attempt.
                 self.destroy()
-                if attempt < DEPLOY_ATTEMPTS:
+                if attempt < attempts:
                     time.sleep(5.0 * attempt)
         raise RuntimeError(
-            f"Lab {self.lab_name} failed to deploy after {DEPLOY_ATTEMPTS} attempts"
+            f"Lab {self.lab_name} failed to deploy after {attempts} attempts"
         ) from last_error
 
     def destroy(self) -> None:
@@ -155,7 +156,7 @@ class KatharaRuntime(LabRuntime):
         except Exception as exc:
             print(f"Error undeploying lab {self.lab_name}: {exc}")
 
-        deadline = time.monotonic() + UNDEPLOY_VERIFY_TIMEOUT_SEC
+        deadline = time.monotonic() + _lab_settings().undeploy_verify_timeout_sec
         retried = False
         while time.monotonic() < deadline:
             leftover = self._running_machine_count()

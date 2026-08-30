@@ -1,17 +1,8 @@
 """Commands for running diagnosis agents."""
 
-import os
-
 import typer
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
-from agent.sandbox.config import (
-    ENV_SANDBOX_CPUS,
-    ENV_SANDBOX_KEEP,
-    ENV_SANDBOX_MEMORY,
-    ENV_SANDBOX_OFFLINE_SDK_WHEELS,
-    ENV_SANDBOX_UPSTREAM_PROXY,
-)
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     load_run_config,
@@ -93,7 +84,10 @@ def agent_list() -> None:
     typer.echo("llm_providers:")
     for provider in SUPPORTED_LLM_PROVIDERS:
         typer.echo(f"  {provider}")
-    typer.echo("reasoning_effort (cli.codex, sdk.codex_sdk):")
+    typer.echo(
+        "reasoning_effort (byo.langgraph, byo.mcp_agent, byo.autogen, "
+        "cli.codex, sdk.codex_sdk):"
+    )
     for level in REASONING_EFFORT_LEVELS:
         typer.echo(f"  {level}")
 
@@ -128,7 +122,11 @@ def agent_run(
         None,
         "-e",
         "--reasoning-effort",
-        help="Codex model_reasoning_effort: none, minimal, low, medium, high, xhigh.",
+        help=(
+            "Reasoning effort for byo agents (openai/custom; anthropic on "
+            "langgraph), cli.codex, and sdk.codex_sdk: none, minimal, low, "
+            "medium, high, xhigh. byo.mcp_agent supports none/low/medium/high."
+        ),
     ),
     run_config: str | None = typer.Option(
         None,
@@ -207,9 +205,6 @@ def agent_run(
         sandbox_upstream_proxy=sandbox_upstream_proxy,
     )
 
-    if sandbox_upstream_proxy:
-        os.environ[ENV_SANDBOX_UPSTREAM_PROXY] = sandbox_upstream_proxy
-
     if problem is not None:
         if session_id is not None:
             raise typer.BadParameter(
@@ -276,11 +271,6 @@ def _run_one_shot(
         resolve_default_inject_params,
     )
 
-    if reasoning_effort is not None:
-        from nika.utils.agent_config import ENV_CODEX_REASONING_EFFORT
-
-        os.environ[ENV_CODEX_REASONING_EFFORT] = reasoning_effort
-
     try:
         scenario, topo_size, problem_name = parse_task_label(problem_label)
         overrides = _parse_set_options(sets)
@@ -293,15 +283,6 @@ def _run_one_shot(
         validate_inject_params(problem_name, scenario, topo_size, inject_params)
     except (FileNotFoundError, ValueError, ImportError) as exc:
         raise typer.BadParameter(str(exc)) from exc
-
-    if sandbox_keep_container:
-        os.environ[ENV_SANDBOX_KEEP] = "1"
-    if sandbox_cpus is not None:
-        os.environ[ENV_SANDBOX_CPUS] = sandbox_cpus
-    if sandbox_memory is not None:
-        os.environ[ENV_SANDBOX_MEMORY] = sandbox_memory
-    if sandbox_offline_sdk_wheels:
-        os.environ[ENV_SANDBOX_OFFLINE_SDK_WHEELS] = "1"
 
     try:
         run_single_case(

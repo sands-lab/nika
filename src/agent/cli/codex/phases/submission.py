@@ -7,7 +7,7 @@ a structured result based on the diagnosis report.
 
 from agent.cli.codex.codex_worker import CodexWorker
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
-from agent.utils.phases import SUBMISSION
+from agent.protocols import SUBMISSION
 
 
 class CodexCliSubmissionPhase:
@@ -21,6 +21,8 @@ class CodexCliSubmissionPhase:
         Absolute path to the session results directory.
     model:
         Codex model name (e.g. ``"gpt-5.4-mini"``).
+    llm_provider:
+        Active LLM provider forwarded to the Codex worker.
     reasoning_effort:
         Optional Codex ``model_reasoning_effort`` override.
     timeout:
@@ -35,6 +37,7 @@ class CodexCliSubmissionPhase:
         reasoning_effort: str | None = None,
         timeout: int = 300,
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         self._worker = CodexWorker(
@@ -44,6 +47,7 @@ class CodexCliSubmissionPhase:
             model=model,
             reasoning_effort=reasoning_effort,
             timeout=timeout,
+            llm_provider=llm_provider,
             stream_output=stream_output,
         )
 

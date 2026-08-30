@@ -5,11 +5,25 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+import time
 from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
 SBX_BIN = "sbx"
+_HUB_TOKEN_MARKERS = ("token is unverifiable", "jwks.json")
+_HUB_RETRY_DELAYS_S = (2.0, 4.0)
+
+
+def _sbx_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    from agent.sandbox.sbx.proxy import sbx_process_env
+
+    return sbx_process_env(env)
+
+
+def _is_hub_token_error(stderr: str) -> bool:
+    text = stderr.lower()
+    return any(marker in text for marker in _HUB_TOKEN_MARKERS)
 
 
 def sbx_authenticated() -> bool:
@@ -20,6 +34,7 @@ def sbx_authenticated() -> bool:
     try:
         proc = subprocess.run(
             [SBX_BIN, "policy", "ls"],
+            env=_sbx_env(),
             capture_output=True,
             text=True,
             check=False,
@@ -41,23 +56,18 @@ def sbx_authenticated() -> bool:
 
 def ensure_sbx_daemon() -> None:
     """Start the sbx daemon when it is not already running."""
-    # Fast path: avoid ``daemon start``, which may hang after "already running".
-    try:
-        probe = subprocess.run(
-            [SBX_BIN, "ls"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15,
-        )
-        if probe.returncode == 0:
-            return
-    except subprocess.TimeoutExpired:
-        pass
+    from agent.sandbox.sbx.proxy import sbx_daemon_running
 
+    # ``sbx ls`` talks to Docker Hub; use daemon status so a Hub timeout
+    # cannot look like a dead daemon and race a second ``daemon start``.
+    if sbx_daemon_running():
+        return
+
+    env = _sbx_env()
     try:
         proc = subprocess.run(
             [SBX_BIN, "daemon", "start"],
+            env=env,
             capture_output=True,
             text=True,
             check=False,
@@ -73,24 +83,12 @@ def ensure_sbx_daemon() -> None:
         combined = f"{exc.stdout or ''}\n{exc.stderr or ''}".lower()
         if "already running" in combined:
             return
-        # Confirm daemon is usable despite a hung start CLI.
-        try:
-            probe = subprocess.run(
-                [SBX_BIN, "ls"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=15,
-            )
-        except subprocess.TimeoutExpired as probe_exc:
-            raise RuntimeError(
-                "Timed out starting sbx daemon and could not verify it is up."
-            ) from probe_exc
-        if probe.returncode != 0:
-            raise RuntimeError(
-                "Timed out starting sbx daemon:\n"
-                f"stdout:\n{exc.stdout or ''}\nstderr:\n{exc.stderr or ''}"
-            ) from exc
+        if sbx_daemon_running():
+            return
+        raise RuntimeError(
+            "Timed out starting sbx daemon:\n"
+            f"stdout:\n{exc.stdout or ''}\nstderr:\n{exc.stderr or ''}"
+        ) from exc
 
 
 def ensure_sbx_policy_initialized(preset: str = "balanced") -> None:
@@ -210,7 +208,7 @@ def run_sbx(
         check=check,
         capture_output=capture_output,
         text=text,
-        env=env,
+        env=_sbx_env(env),
         input=input_text,
     )
 
@@ -226,20 +224,29 @@ def run_sbx_checked(
     env: dict[str, str] | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    proc = run_sbx(
-        args,
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        input_text=input_text,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"sbx {_redact_sbx_argv(args)} failed (code {proc.returncode}):\n"
-            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    proc: subprocess.CompletedProcess[str] | None = None
+    for attempt, delay_s in enumerate((0.0, *_HUB_RETRY_DELAYS_S)):
+        if delay_s:
+            time.sleep(delay_s)
+        proc = run_sbx(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            input_text=input_text,
         )
-    return proc
+        if proc.returncode == 0:
+            return proc
+        if attempt >= len(_HUB_RETRY_DELAYS_S) or not _is_hub_token_error(
+            proc.stderr or ""
+        ):
+            break
+    assert proc is not None
+    raise RuntimeError(
+        f"sbx {_redact_sbx_argv(args)} failed (code {proc.returncode}):\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
 def stream_sbx(
@@ -255,5 +262,5 @@ def stream_sbx(
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        env=env,
+        env=_sbx_env(env),
     )

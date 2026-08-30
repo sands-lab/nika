@@ -23,7 +23,6 @@ isolated, per-session workspace.  It handles:
 
 import asyncio
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -33,9 +32,9 @@ from agent.utils.loggers import MessageLogger
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import prepare_codex_workspace
-from nika.utils.provider_env import build_agent_subprocess_env
+from agent.utils.provider_env import build_agent_subprocess_env
 
 REASONING_EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh")
 DEFAULT_STALL_TIMEOUT_S = 300
@@ -45,12 +44,17 @@ RECONNECT_STALL_TIMEOUT_S = 120
 def prepare_codex_subprocess_env(
     *,
     codex_home: str | Path,
-    provider: str | None = None,
+    provider: str,
     agent_type: str = "cli.codex",
     base: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Minimal env for ``codex exec`` with provider-mapped credentials only."""
-    prov = (provider or os.environ.get("NIKA_LLM_PROVIDER") or "openai").strip().lower()
+    if not provider or not str(provider).strip():
+        raise ValueError(
+            "Missing LLM provider: set agent.provider in config/nika.yaml "
+            "or pass -p/--provider."
+        )
+    prov = str(provider).strip().lower()
     env = build_agent_subprocess_env(agent_type=agent_type, provider=prov, base=base)
     env["CODEX_HOME"] = str(codex_home)
     return env
@@ -106,15 +110,21 @@ def _reconnect_transport_failed(event: dict) -> bool:
 def _build_mcp_toml(servers: dict) -> str:
     """Serialise an MCP server dict (from MCPServerConfig) as TOML."""
     lines: list[str] = [
-        "experimental_use_rmcp_client = true",
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
+        "",
+        "[sandbox_workspace_write]",
+        "network_access = true",
         "",
     ]
     for name, srv in servers.items():
         lines.append(f"[mcp_servers.{name}]")
         if srv.get("transport") == "http":
             lines.append(f'url = "{srv["url"]}"')
+            # A troubleshooting run without its MCP tools can appear to finish
+            # normally while producing no submission.  Make that startup
+            # failure explicit instead of letting Codex continue tool-less.
+            lines.append("required = true")
             lines.append('default_tools_approval_mode = "approve"')
             headers: dict = srv.get("headers") or {}
             if headers:
@@ -151,7 +161,7 @@ class CodexWorker:
     session_dir:
         Absolute path to the session results directory.
     phase:
-        One of :data:`~agent.utils.phases.PHASES` (``diagnosis`` or ``submission``).
+        One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
         Codex model name forwarded to ``codex exec -m``.
     reasoning_effort:
@@ -163,6 +173,8 @@ class CodexWorker:
         Kill the subprocess when no productive Codex events arrive for this
         many seconds (default 300 s).  After reconnect exhaustion the limit
         drops to :data:`RECONNECT_STALL_TIMEOUT_S`.
+    llm_provider:
+        Active LLM provider for credential mapping.
     scenario_name:
         Used by :func:`~agent.utils.mcp_servers.select_diagnosis_servers` to pick relevant servers.
         Ignored for the submission phase (which always uses the task server).
@@ -179,6 +191,7 @@ class CodexWorker:
         stall_timeout: int = DEFAULT_STALL_TIMEOUT_S,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         stream_output: bool = True,
     ) -> None:
         if phase not in PHASES:
@@ -194,6 +207,7 @@ class CodexWorker:
         self.session_id = session_id
         self.phase = phase
         self.model = model
+        self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
         self.timeout = timeout
         self.stall_timeout = stall_timeout
@@ -201,7 +215,8 @@ class CodexWorker:
         self._reconnect_failure_at: float | None = None
         self._last_progress_at: float | None = None
 
-        self.workspace = Path(session_dir) / "codex_workspace"
+        self.session_dir = Path(session_dir)
+        self.workspace = self.session_dir / "codex_workspace"
         self._codex_home = self.workspace / ".codex_home"
         self._logger = MessageLogger(agent=phase, session_dir=session_dir)
         self._stream_output = stream_output
@@ -235,6 +250,7 @@ class CodexWorker:
         servers = load_session_mcp_config(
             self.session_id,
             self.scenario_name,
+            session_dir=self.session_dir,
         )
 
         self._logger.log(
@@ -261,7 +277,10 @@ class CodexWorker:
         output_file.unlink(missing_ok=True)
 
         # Provider-mapped credentials only; override CODEX_HOME for isolation.
-        env = prepare_codex_subprocess_env(codex_home=self._codex_home)
+        env = prepare_codex_subprocess_env(
+            codex_home=self._codex_home,
+            provider=self.llm_provider,
+        )
 
         cmd = ["codex", "exec"]
         if self.reasoning_effort is not None:

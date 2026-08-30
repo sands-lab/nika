@@ -63,8 +63,11 @@ def _assert_sandbox_session(session_path: Path, *, agent_type: str) -> None:
             pytest.fail(f"credential file leaked into results: {path}")
 
     assert (session_path / "messages.jsonl").is_file()
-    assert (session_path / "submission.json").is_file()
     assert (session_path / "eval_metrics.json").is_file()
+
+    run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
+    assert run_meta["outcome"] == "success"
+    assert (session_path / "submission.json").is_file()
 
     metrics = json.loads((session_path / "eval_metrics.json").read_text())
     for field in (

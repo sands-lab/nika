@@ -73,13 +73,12 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         role="telemetry",
         module="kathara/telemetry_server.py",
     ),
-    # In-node Kubernetes MCP (controller process; gateway reverse-proxies)
+    # Host-side Kubernetes MCP (session kubeconfig → published API port)
     "k8s_mcp_server": MCPServerSpec(
         name="k8s_mcp_server",
         backend="kathara",
         role="kubernetes",
         module="k8s_mcp_server",
-        remote=True,
     ),
     # Containerlab — specialised device APIs
     "containerlab_srl_mcp_server": MCPServerSpec(
@@ -135,6 +134,21 @@ def _resolve_diagnosis_backend(
     return "kathara"
 
 
+def _k8s_mcp_enabled() -> bool:
+    """Return whether Kubernetes MCP should be registered for agents."""
+    try:
+        from nika.run_config.loader import get_run_config
+
+        access = (get_run_config().nika.k8s.access or "auto").strip().lower()
+    except Exception:  # noqa: BLE001 - config may be unavailable in sandbox
+        access = "auto"
+    if access == "kubectl_only":
+        return False
+    if access in {"auto", "mcp", ""}:
+        return True
+    return access != "kubectl_only"
+
+
 def select_diagnosis_servers(
     scenario_name: str,
     *,
@@ -154,7 +168,7 @@ def select_diagnosis_servers(
         servers.append("kathara_bmv2_mcp_server")
     if tokens & TELEMETRY_KEYWORDS:
         servers.append("kathara_telemetry_mcp_server")
-    if tokens & KUBERNETES_KEYWORDS:
+    if tokens & KUBERNETES_KEYWORDS and _k8s_mcp_enabled():
         servers.append(K8S_MCP_SERVER)
 
     return servers

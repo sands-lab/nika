@@ -38,8 +38,9 @@ from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.phases import DIAGNOSIS
+from agent.protocols import DIAGNOSIS
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, skills_enabled
+from agent.utils.usage import normalize_usage
 
 from .config import prepare_sade_sdk_env
 from .prompts.sade_prompt import SADE_PROMPT
@@ -72,22 +73,6 @@ SADE_REMINDER = (
 )
 
 
-def _usage_metadata(usage: dict[str, Any] | None) -> dict[str, int]:
-    """Map an Anthropic per-turn usage dict to the langchain-style fields the
-    NIKA trace parser reads from ``llm_end`` (``usage_metadata.input_tokens`` /
-    ``output_tokens``). Input counts cached + uncached prompt tokens.
-    """
-    u = usage or {}
-    return {
-        "input_tokens": (
-            u.get("input_tokens", 0)
-            + u.get("cache_creation_input_tokens", 0)
-            + u.get("cache_read_input_tokens", 0)
-        ),
-        "output_tokens": u.get("output_tokens", 0),
-    }
-
-
 class SadeAgent:
     """SADE: phase-gated Claude Code agent with the 15-skill library.
 
@@ -102,11 +87,13 @@ class SadeAgent:
         session_id: str,
         model: str = "claude-sonnet-4-6",
         max_steps: int = 20,
-        **_: Any,
+        *,
+        llm_provider: str,
     ) -> None:
         self.session_id = session_id
         self.model = model
         self.max_steps = max_steps
+        self.llm_provider = llm_provider
         self.session_dir, scenario_name = resolve_sdk_session_fields(session_id)
 
         self.mcp_servers = to_sdk_mcp_servers(
@@ -117,7 +104,9 @@ class SadeAgent:
         )
 
     async def run(self, task_description: str) -> dict[str, Any]:
-        sdk_env = prepare_sade_sdk_env(session_id=self.session_id)
+        sdk_env = prepare_sade_sdk_env(
+            session_id=self.session_id, provider=self.llm_provider
+        )
         msg_logger = MessageLogger(agent=AGENT_TAG, session_dir=self.session_dir)
         logger.info("sade: starting session %s", self.session_id)
 
@@ -205,7 +194,9 @@ class SadeAgent:
                     for block in content:
                         if isinstance(block, ToolResultBlock):
                             if block.is_error:
-                                msg_logger.log("tool_error", {"output": str(block.content)})
+                                msg_logger.log(
+                                    "tool_error", {"output": str(block.content)}
+                                )
                             else:
                                 msg_logger.log(
                                     "tool_end",
@@ -235,12 +226,14 @@ class SadeAgent:
                 elif isinstance(message, ResultMessage):
                     _flush_turn()  # flush any trailing assistant text
                     result_text = message.result or ""
-                    md = _usage_metadata(message.usage)
+                    md = normalize_usage(message.usage)
                     in_tokens = md["input_tokens"]
                     out_tokens = md["output_tokens"]
                     # Final `llm_end`: the agent's result text + the authoritative
                     # cumulative token usage (the parser sums usage_metadata).
-                    msg_logger.log("llm_end", {"text": result_text, "usage_metadata": md})
+                    msg_logger.log(
+                        "llm_end", {"text": result_text, "usage_metadata": md}
+                    )
                     logger.info(
                         "sade: session complete - stop_reason=%s, submitted=%s, "
                         "api_turns=%s, sdk_turns=%s, in_tokens=%s, out_tokens=%s",

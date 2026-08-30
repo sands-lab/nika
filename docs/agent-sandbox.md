@@ -1,6 +1,8 @@
-# Agent Sandbox Execution
+# Run agents in Docker Sandboxes
 
-NIKA runs every non-BYO production agent inside **[Docker Sandboxes](https://docs.docker.com/ai/sandboxes/)** (`sbx` microVMs). The network lab, MCP gateway, and orchestration stay on the host; only the LLM agent process runs in the microVM. `byo.*` agents remain host-executed.
+This guide is for operators who run NIKA's CLI, SDK, or SADE agents in **[Docker Sandboxes](https://docs.docker.com/ai/sandboxes/)** (`sbx` microVMs). The network lab, MCP gateway, and orchestration stay on the host. The LLM agent process runs in the microVM. `byo.*` agents run on the host.
+
+Implementation: [`sandbox/runner.py`](../src/agent/sandbox/runner.py) executes agents, and [`sandbox/manifest.py`](../src/agent/sandbox/manifest.py) defines the staged workspace manifest.
 
 ## How it works
 
@@ -55,9 +57,9 @@ Host (NIKA orchestration)          sbx microVM (agent-only)
                                        lab interaction: MCP HTTP only
 ```
 
-Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (manifest + skills). `ground_truth.json` stays on the host and is never mounted into the microVM. After the run, only standardized session artifacts (`messages.jsonl`, `submission.json`, plus `sandbox_manifest.json`) are copied back; `.sandbox_run` and agent CLI/SDK workspaces are discarded.
+Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (manifest and skills). `ground_truth.json` stays on the host and does not mount into the microVM. After the run, NIKA copies the standard session artifacts (`messages.jsonl`, `submission.json`, and `sandbox_manifest.json`) back and discards `.sandbox_run` plus the agent workspaces.
 
-**Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows only that session’s `localhost:{port}`; peer gateway ports are blocked. Parallel benchmark batches (`--batch-size N`) run one subprocess per case so gateways never share a process.
+**Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark batches (`--batch-size N`) run one subprocess per case, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
 
 **Sandbox boundary:** SDK sandboxes do **not** bundle `nika/` source. The host writes MCP HTTP endpoints into `sandbox_manifest.json` (`mcp_servers`); the in-sandbox runner loads agent code, prompts/skills, and (when enabled) SDK wheels only.
 
@@ -83,7 +85,7 @@ uv run nika agent run -a sdk.claude_sdk --sandbox-offline-sdk-wheels ...
 
 ### Authentication
 
-Credentials follow Docker Sandboxes [credential isolation](https://docs.docker.com/ai/sandboxes/security/credentials/): the real secret stays on the host; the sandbox only sees a sentinel or placeholder. **NIKA never copies** `~/.codex/auth.json` or `~/.claude/.credentials.json` into the workspace.
+Credentials follow Docker Sandboxes [credential isolation](https://docs.docker.com/ai/sandboxes/security/credentials/): the secret stays on the host, and the sandbox sees a sentinel or placeholder. NIKA does not copy `~/.codex/auth.json` or `~/.claude/.credentials.json` into the workspace.
 
 #### API keys (automatic)
 
@@ -129,13 +131,13 @@ Confirm with `sbx secret ls`. Global secrets apply when a sandbox is created; re
 | `--sandbox-keep-container` | Keep the sandbox after agent exit (debug) |
 | `--sandbox-cpus` / `--sandbox-memory` | Resource limits |
 | `--sandbox-offline-sdk-wheels` | Host-cached wheels for SDK/SADE |
-| `--sandbox-proxy` | Upstream proxy for sbx daemon |
+| `--sandbox-proxy` | Upstream proxy for the sbx daemon and host `sbx` CLI (Docker Hub auth) |
 
-Credentials always come from the repo-root `.env` (no separate sandbox env file).
+Credentials come from the repository-root `.env`; NIKA has no separate sandbox environment file.
 
-## FAQ / corner cases
+## Troubleshoot sandbox runs
 
-### Sandbox cannot reach LLM APIs (Usually useful for Chinese users)
+### Sandbox cannot reach an LLM API
 
 The outbound proxy is optional and off by default. If OpenAI (or another API) fails inside the sandbox, set it in `config/nika.yaml`:
 
@@ -146,6 +148,8 @@ nika:
 ```
 
 Or pass `--sandbox-proxy` on the CLI.
+
+NIKA also sets `HTTPS_PROXY` on host `sbx` subprocesses from that URL when `HTTPS_PROXY` is unset, so `sbx create` / `sbx exec` can fetch `https://login.docker.com/.well-known/jwks.json`. If Docker Hub token refresh still times out, confirm the proxy can reach `login.docker.com`, then run `sbx login`.
 
 ## Testing
 
@@ -159,10 +163,10 @@ uv run pytest tests/agent/test_sandbox_security.py -v
 # Cross-sandbox MCP port isolation (unit + sbx peer-gateway probe)
 uv run pytest tests/agent/test_sandbox_isolation.py -v
 
-# E2E — five sandbox agents (Codex needs OPENAI_API_KEY; Claude/SADE need DEEPSEEK_API_KEY)
+# E2E: five sandbox agents (Codex needs OPENAI_API_KEY; Claude/SADE need DEEPSEEK_API_KEY)
 uv run pytest tests/agent/test_sandbox_agents.py -v
 
 uv run pytest tests/benchmark/test_sandbox_benchmark.py -v
 ```
 
-For the full test matrix and prerequisites, see [tests/README.md](../tests/README.md).
+For the full test matrix and prerequisites, see the [testing guide](testing.md).

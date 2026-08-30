@@ -9,8 +9,9 @@ from agent.sdk.claude_sdk.config import prepare_claude_sdk_env
 from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.utils.phases import PHASES, SUBMISSION
+from agent.protocols import PHASES, SUBMISSION
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
+from agent.utils.usage import normalize_usage
 
 logger = logging.getLogger(__name__)
 
@@ -25,18 +26,6 @@ def _normalize_tool_name(name: str) -> str:
     return name
 
 
-def _usage_metadata(usage: dict[str, Any] | None) -> dict[str, int]:
-    u = usage or {}
-    return {
-        "input_tokens": (
-            u.get("input_tokens", 0)
-            + u.get("cache_creation_input_tokens", 0)
-            + u.get("cache_read_input_tokens", 0)
-        ),
-        "output_tokens": u.get("output_tokens", 0),
-    }
-
-
 class ClaudeSdkWorker:
     """Drive one troubleshooting phase via ``claude-agent-sdk``."""
 
@@ -49,6 +38,7 @@ class ClaudeSdkWorker:
         max_steps: int = 20,
         scenario_name: str = "",
         *,
+        llm_provider: str,
         system_prompt: str,
     ) -> None:
         if phase not in PHASES:
@@ -58,6 +48,7 @@ class ClaudeSdkWorker:
         self.session_dir = session_dir
         self.phase = phase
         self.model = model
+        self.llm_provider = llm_provider
         self.max_steps = max_steps
         self.scenario_name = scenario_name
         self.system_prompt = system_prompt
@@ -92,7 +83,9 @@ class ClaudeSdkWorker:
             ) from exc
 
         mcp_servers = self._load_mcp_servers()
-        sdk_env = prepare_claude_sdk_env(session_id=self.session_id)
+        sdk_env = prepare_claude_sdk_env(
+            session_id=self.session_id, provider=self.llm_provider
+        )
 
         self._logger.log(
             "mcp_config",
@@ -185,7 +178,7 @@ class ClaudeSdkWorker:
                     elif isinstance(message, ResultMessage):
                         _flush_turn()
                         result_text = message.result or ""
-                        md = _usage_metadata(message.usage)
+                        md = normalize_usage(message.usage)
                         self._logger.log(
                             "llm_end", {"text": result_text, "usage_metadata": md}
                         )

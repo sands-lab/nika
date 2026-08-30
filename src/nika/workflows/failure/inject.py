@@ -1,7 +1,6 @@
 """Inject configured faults for the current session and write ground truth."""
 
 import json
-import os
 import time
 from datetime import datetime
 from enum import Enum
@@ -15,8 +14,17 @@ from nika.utils.logger import bind_session_dir, log_error_event, log_event
 from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 
-VERIFY_MAX_ATTEMPTS = int(os.getenv("NIKA_VERIFY_MAX_ATTEMPTS", "3"))
-VERIFY_RETRY_DELAY_SEC = float(os.getenv("NIKA_VERIFY_RETRY_DELAY_SEC", "5"))
+
+def _failure_verify_settings() -> tuple[int, float]:
+    try:
+        from nika.run_config.loader import get_run_config
+
+        lab = get_run_config().nika.lab
+        return int(lab.failure_verify_max_attempts), float(
+            lab.failure_verify_retry_delay_sec
+        )
+    except Exception:  # noqa: BLE001
+        return 3, 5.0
 
 
 def _json_safe(value: Any) -> Any:
@@ -58,17 +66,18 @@ def _extract_injection_params(problem: Any) -> dict[str, Any]:
 
 
 def _verify_with_retry(inject_problem: Any, fault_params: Any | None) -> dict[str, Any]:
-    """Run verify_fault with retries for transient container state."""
+    """Retry ``verify_fault`` while container state settles."""
+    max_attempts, retry_delay = _failure_verify_settings()
     last_result: dict[str, Any] = {"verified": False}
-    for attempt in range(1, VERIFY_MAX_ATTEMPTS + 1):
+    for attempt in range(1, max_attempts + 1):
         if fault_params is not None:
             last_result = inject_problem.verify_fault(params=fault_params)
         else:
             last_result = inject_problem.verify_fault()
         if last_result.get("verified", False):
             return last_result
-        if attempt < VERIFY_MAX_ATTEMPTS:
-            time.sleep(VERIFY_RETRY_DELAY_SEC)
+        if attempt < max_attempts:
+            time.sleep(retry_delay)
     return last_result
 
 
@@ -77,6 +86,7 @@ def inject_failure(
     *,
     session_id: str | None = None,
     param_overrides: dict[str, str] | None = None,
+    expected_root_causes: list | None = None,
 ) -> None:
     """Inject faults for ``problem_names`` into the lab for the running session."""
     from nika.remote.config import is_remote_enabled
@@ -245,14 +255,13 @@ def inject_failure(
         )
         hint = ""
         if "[TIMEOUT]" in json.dumps(verify_payload):
-            # The verifier's container exec timed out — the fault may well be
-            # injected; the CHECK could not run (container slow/not ready).
+            # Distinguish a verifier timeout from evidence that injection failed.
             hint = (
                 " NOTE: the verification command itself timed out inside the "
                 "container ('[TIMEOUT]' in details) — this is usually a "
                 "transient readiness/load issue, not a bad case: retry the "
-                "case, or raise NIKA_VERIFY_MAX_ATTEMPTS / "
-                "NIKA_VERIFY_RETRY_DELAY_SEC."
+                "case, or raise nika.lab.failure_verify_max_attempts / "
+                "nika.lab.failure_verify_retry_delay_sec in config/nika.yaml."
             )
         raise RuntimeError(
             f"Failure injection verification failed for {problem_names}: "
@@ -289,7 +298,12 @@ def inject_failure(
     task_description = inject_problem.get_task_description()
     session.update_session("task_description", task_description)
 
-    session.write_gt(inject_problem.get_ground_truth().model_dump())
+    gt = inject_problem.get_ground_truth()
+    if expected_root_causes:
+        from nika.problems.ground_truth import assert_root_causes_match
+
+        assert_root_causes_match(gt, expected_root_causes)
+    session.write_gt(gt.model_dump(mode="json", exclude_none=True))
     log_event(
         "ground_truth_saved",
         f"Ground truth saved for session {session.session_id}.",

@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from nika.utils.provider_env import AGENT_PROVIDERS, validate_provider_for_agent
+from agent.utils.provider_env import AGENT_PROVIDERS, validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):
@@ -41,6 +41,82 @@ class JudgeSettings(BaseModel):
     model: str = "gpt-5-mini"
 
 
+class K8sSettings(BaseModel):
+    """How agents reach Kubernetes labs (host kubeconfig / MCP)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # auto|mcp: register k8s_mcp_server for agents
+    # kubectl_only: power-user host kubectl; skip k8s MCP registration
+    access: str = "auto"
+    apiserver: str | None = None
+
+    @field_validator("access")
+    @classmethod
+    def _access_mode(cls, value: str) -> str:
+        normalized = (value or "auto").strip().lower()
+        allowed = {"auto", "mcp", "kubectl_only"}
+        if normalized not in allowed:
+            raise ValueError(f"nika.k8s.access must be one of {sorted(allowed)}")
+        return normalized
+
+
+class LabSettings(BaseModel):
+    """Control deployment, startup, teardown, and fault verification timing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    deploy_attempts: int = 3
+    deploy_ready_timeout_sec: float = 90.0
+    deploy_settle_sec: float = 5.0
+    undeploy_verify_timeout_sec: float = 30.0
+    ready_max_wait_sec: float = 180.0
+    ready_retry_delay_sec: float = 5.0
+    failure_verify_max_attempts: int = 3
+    failure_verify_retry_delay_sec: float = 5.0
+
+    @field_validator(
+        "deploy_attempts",
+        "failure_verify_max_attempts",
+    )
+    @classmethod
+    def _positive_int(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("must be >= 1")
+        return value
+
+    @field_validator(
+        "deploy_ready_timeout_sec",
+        "deploy_settle_sec",
+        "undeploy_verify_timeout_sec",
+        "ready_max_wait_sec",
+        "ready_retry_delay_sec",
+        "failure_verify_retry_delay_sec",
+    )
+    @classmethod
+    def _non_negative_float(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("must be >= 0")
+        return value
+
+
+class McpSettings(BaseModel):
+    """Control MCP client timeouts and gateway binding."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    read_timeout_sec: float = 120.0
+    gateway_host: str = "127.0.0.1"
+    gateway_port: int = 0
+
+    @field_validator("gateway_port")
+    @classmethod
+    def _gateway_port_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("nika.mcp.gateway_port must be >= 0")
+        return value
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -50,6 +126,9 @@ class NikaSettings(BaseModel):
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)
+    k8s: K8sSettings = Field(default_factory=K8sSettings)
+    lab: LabSettings = Field(default_factory=LabSettings)
+    mcp: McpSettings = Field(default_factory=McpSettings)
 
 
 class AgentModels(BaseModel):
@@ -72,6 +151,29 @@ class CustomModelSettings(BaseModel):
     model: str | None = None
 
 
+class AgentLlmSettings(BaseModel):
+    """Control request timeout and retries for the LangGraph model factory."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    timeout_sec: float = 300.0
+    max_retries: int = 2
+
+    @field_validator("timeout_sec")
+    @classmethod
+    def _timeout_non_negative(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("agent.llm.timeout_sec must be >= 0")
+        return value
+
+    @field_validator("max_retries")
+    @classmethod
+    def _retries_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("agent.llm.max_retries must be >= 0")
+        return value
+
+
 class AgentSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -82,6 +184,7 @@ class AgentSettings(BaseModel):
     reasoning_effort: str | None = None
     models: AgentModels = Field(default_factory=AgentModels)
     custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
+    llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
 
     @field_validator("max_steps")
     @classmethod
@@ -97,7 +200,7 @@ class BenchmarkSettings(BaseModel):
     release: str | None = None
     split: str | None = None
     batch_size: int = 1
-    case_timeout_sec: int = 0
+    case_timeout_sec: int = 2400
     continue_on_error: bool = False
     retry_passes: int = 0
     resume: bool = True

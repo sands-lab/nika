@@ -2,6 +2,7 @@ import ipaddress
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -38,10 +39,12 @@ class DHCPSpoofedGateway(ProblemBase):
             ).network_address
         )
 
+    def root_cause_resources(self, params: DHCPSpoofedGatewayParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DHCPSpoofedGatewayParams):
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        self.set_faulty_devices([dhcp_server, client_host])
         subnet = self._client_subnet(client_host)
         wrong_gw = ".".join(subnet.split(".")[:3] + ["254"])
         self.runtime.dhcp_set_option_routers(dhcp_server, subnet, wrong_gw)
@@ -95,10 +98,12 @@ class DHCPSpoofedDNS(ProblemBase):
             ).network_address
         )
 
+    def root_cause_resources(self, params: DHCPSpoofedDNSParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DHCPSpoofedDNSParams):
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        self.set_faulty_devices([dhcp_server, client_host])
         subnet = self._client_subnet(client_host)
         self.runtime.dhcp_set_option_dns(dhcp_server, subnet, params.wrong_dns)
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
@@ -153,10 +158,12 @@ class DHCPSpoofedSubnet(ProblemBase):
             ).network_address
         )
 
+    def root_cause_resources(self, params: DHCPSpoofedSubnetParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DHCPSpoofedSubnetParams):
         dhcp_server = params.host_name
         client_host = params.host_name_2
-        self.set_faulty_devices([dhcp_server, client_host])
         subnet = self._client_subnet(client_host)
         self.deleted_subnet = subnet
         self.runtime.dhcp_delete_subnet(dhcp_server, subnet)

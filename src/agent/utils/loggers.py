@@ -25,6 +25,8 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.outputs.generation import Generation
 
+from agent.utils.usage import normalize_usage
+
 MESSAGES_FILENAME = "messages.jsonl"
 
 
@@ -34,7 +36,7 @@ class MessageLogger:
     Parameters
     ----------
     agent:
-        Name tag written to every entry (e.g. :data:`~agent.utils.phases.DIAGNOSIS`).
+        Name tag written to every entry (e.g. :data:`~agent.protocols.DIAGNOSIS`).
     session_dir:
         Path to the session results directory (must already exist or be
         creatable).
@@ -93,7 +95,10 @@ class AgentCallbackLogger(BaseCallbackHandler):
                     payload["invalid_tool_calls"] = getattr(
                         message, "invalid_tool_calls", None
                     )
-                    payload["usage_metadata"] = getattr(message, "usage_metadata", None)
+                    raw_usage = getattr(message, "usage_metadata", None)
+                    payload["usage_metadata"] = (
+                        normalize_usage(raw_usage) if raw_usage else None
+                    )
             self._logger.log("llm_end", payload)
         except Exception as exc:
             import traceback

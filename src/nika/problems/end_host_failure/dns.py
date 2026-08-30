@@ -2,6 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from nika.problems.root_cause import node_resource
 from nika.problems.problem_base import (
     RootCauseCategory,
     build_verify_result,
@@ -41,8 +42,10 @@ class DNSRecordError(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self._wrong_ip: str | None = None
 
+    def root_cause_resources(self, params: DNSRecordErrorParams):
+        return [node_resource(params.host_name)]
+
     def inject_fault(self, params: DNSRecordErrorParams):
-        self.set_faulty_devices([params.host_name])
         wrong_ip = params.wrong_ip or self.runtime.get_host_ip(self.net_env.hosts[0])
         self._wrong_ip = wrong_ip
         right_ip = self.runtime.get_host_ip(params.host_name)

@@ -1,60 +1,119 @@
-# NIKA run configuration (versioned, non-secret).
+# NIKA run configuration.
 # Copy to config/nika.yaml or run: nika config migrate
 # Precedence: CLI flags > this file > built-in defaults
 # Credentials stay in the repo-root .env
 
-version: 1
-
 nika:
+  # Parent directory for run artifacts.
   result_dir: results
+  # Load shared Claude and Codex skills.
   enable_skills: true
   remote:
+    # Send lab operations to a remote NIKA server.
     enabled: false
+    # Remote NIKA server URL.
     url: null
+    # Reserved remote artifact path.
     artifact_root: null
   sandbox:
+    # Keep the sandbox after the agent exits.
     keep: false
+    # Sandbox CPU limit.
     cpus: null
+    # Sandbox memory limit, such as 8g.
     memory: null
+    # Install SDK agents from cached wheels.
     offline_sdk_wheels: false
+    # Proxy used by sandboxd and sbx commands.
     upstream_proxy: null
   observability:
+    # Enable Langfuse for byo.langgraph.
     langfuse_enabled: false
+    # Langfuse API endpoint.
     langfuse_host: https://cloud.langfuse.com
   judge:
+    # Provider used by nika eval judge.
     provider: openai
+    # Model used by nika eval judge.
     model: gpt-5-mini
+  lab:
+    # Kathara deployment attempts.
+    deploy_attempts: 3
+    # Seconds to wait for Kathara machines.
+    deploy_ready_timeout_sec: 90
+    # Seconds for container services to settle.
+    deploy_settle_sec: 5
+    # Seconds to wait for Kathara teardown.
+    undeploy_verify_timeout_sec: 30
+    # Default seconds for scenario startup checks.
+    ready_max_wait_sec: 180
+    # Delay between scenario startup checks.
+    ready_retry_delay_sec: 5
+    # Fault verification attempts.
+    failure_verify_max_attempts: 3
+    # Delay between fault verification attempts.
+    failure_verify_retry_delay_sec: 5
+  mcp:
+    # MCP request timeout; 0 disables it.
+    read_timeout_sec: 120
+    # MCP gateway bind address.
+    gateway_host: "127.0.0.1"
+    # MCP gateway port; 0 selects a free port.
+    gateway_port: 0
 
 agent:
-  # byo.langgraph | byo.mcp_agent | byo.autogen | cli.codex | cli.claude |
-  # community.sade | sdk.claude_sdk | sdk.codex_sdk
+  # Agent implementation from `nika agent list`.
   type: byo.langgraph
-  # openai | anthropic | deepseek | custom (must match agent capabilities)
+  # LLM provider supported by the selected agent.
   provider: openai
+  # Model override shared by all agent types.
   model: null
+  # Maximum agent steps or turns per phase.
   max_steps: 20
+  # Reasoning level; accepted values depend on the agent.
   reasoning_effort: null
+  llm:
+    # LangGraph LLM request timeout in seconds.
+    timeout_sec: 300
+    # LangGraph LLM retry count.
+    max_retries: 2
   models:
+    # Model for byo.langgraph.
     langgraph: gpt-5-mini
-    mcp_agent: gpt-4.1-mini
-    autogen: gpt-4.1-mini
-    codex: gpt-5.4-mini
-    codex_sdk: null
-    claude: null
-    claude_sdk: null
-    sade: null
+    # Model for byo.mcp_agent.
+    mcp_agent: gpt-5-mini
+    # Model for byo.autogen.
+    autogen: gpt-5-mini
+    # Model for cli.codex.
+    codex: gpt-5-mini
+    # Model for cli.claude.
+    claude: claude-haiku-4-5
+    # Model for sdk.codex_sdk.
+    codex_sdk: gpt-5-mini
+    # Model for sdk.claude_sdk.
+    claude_sdk: claude-haiku-4-5
+    # Model for community.sade.
+    sade: claude-haiku-4-5
   custom:
-    # Used when provider: custom (OpenRouter, Ollama, vLLM, ...)
+    # Custom endpoint; also overrides the OpenAI or Anthropic base URL.
     base_url: null
+    # Model fallback for provider: custom.
     model: null
 
 benchmark:
-  # Run knobs only — case lists still come from --release / --config (cases YAML)
+  # Frozen benchmark release.
   release: null
+  # Release split, such as dev or test.
   split: null
+  # Trials to run at the same time.
   batch_size: 1
-  case_timeout_sec: 0
+  # Per-trial timeout in seconds; 0 disables it.
+  case_timeout_sec: 2400
+  # Continue after a failed trial.
   continue_on_error: false
+  # Extra passes over failed or incomplete trials.
   retry_passes: 0
+  # Reuse completed trial slots.
   resume: true
+  # Optional tag added to session IDs.
   session_tag: null

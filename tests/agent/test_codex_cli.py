@@ -13,21 +13,10 @@ from agent.cli.codex.codex_worker import (
     _is_productive_codex_event,
     _reconnect_transport_failed,
 )
-from agent.utils.phases import DIAGNOSIS, SUBMISSION
-from nika.utils.session_store import SessionStore
-from tests.agent._assertions import assert_submission_fields
-from tests.agent.sandbox_support import SANDBOX_E2E_SUPERSEDED
-from tests.support.integration_base import OrderedPipelineTestCase
-from tests.support.integration_pipeline import (
-    ClabCommonPipelineSteps,
-    CommonPipelineSteps,
-    _min3clos_prerequisites,
-    codex_cli_available,
-    load_test_env,
-)
+from agent.protocols import DIAGNOSIS
+from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
-CODEX_MODEL = "gpt-5.4-mini"
 
 
 class CodexMcpTomlTest:
@@ -45,6 +34,9 @@ class CodexMcpTomlTest:
         )
         assert 'approval_policy = "never"' in toml
         assert 'sandbox_mode = "workspace-write"' in toml
+        assert "[sandbox_workspace_write]" in toml
+        assert "network_access = true" in toml
+        assert "experimental_use_rmcp_client" not in toml
         assert 'default_tools_approval_mode = "approve"' in toml
         assert "[mcp_servers.kathara_base_mcp_server]" in toml
         assert 'NIKA_SESSION_ID = "sess-123"' in toml
@@ -60,6 +52,17 @@ class CodexMcpTomlTest:
             }
         )
         assert toml.count('default_tools_approval_mode = "approve"') == 2
+
+    def test_requires_http_servers(self) -> None:
+        toml = _build_mcp_toml(
+            {
+                "task_mcp_server": {
+                    "transport": "http",
+                    "url": "http://host.docker.internal:12345/mcp/task/mcp",
+                }
+            }
+        )
+        assert "required = true" in toml
 
 
 class CodexProgressDetectionTest:
@@ -95,6 +98,7 @@ class CodexProgressDetectionTest:
             session_id="sess-123",
             session_dir="/tmp/sess-123",
             phase="diagnosis",
+            llm_provider="openai",
         )
         loop = asyncio.new_event_loop()
         now = loop.time()
@@ -118,6 +122,7 @@ class CodexWorkerConfigTest:
                 session_dir="/tmp/sess-123",
                 phase=DIAGNOSIS,
                 reasoning_effort="turbo",
+                llm_provider="openai",
             )
 
 
@@ -174,132 +179,3 @@ class CodexDisplayTest:
 
     def test_unknown_event_returns_none(self) -> None:
         assert format_codex_event({"type": "some_unknown_type"}) is None
-
-
-@SANDBOX_E2E_SUPERSEDED
-@pytest.mark.skipif(
-    not codex_cli_available(), reason="Codex CLI and OpenAI credentials required"
-)
-class CodexCliAgentPipelineTest(CommonPipelineSteps, OrderedPipelineTestCase):
-    """Full pipeline with the Codex CLI agent."""
-
-    def test_step_01_start_env(self) -> None:
-        self._step_start_env()
-
-    def test_step_02_inject_failure(self) -> None:
-        self._step_inject_failure()
-
-    def test_step_03_run_cli_agent(self) -> None:
-        assert self.session_id is not None
-        self._run_agent(
-            agent_type="cli.codex", model=CODEX_MODEL, max_steps=20
-        )
-        row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "cli.codex"
-
-    def test_step_04_check_workspace_and_messages(self) -> None:
-        assert self.session_dir is not None
-        workspace = self.session_dir / "codex_workspace"
-        assert workspace.is_dir()
-        assert (workspace / ".git").is_dir()
-        assert (workspace / ".codex_home").is_dir()
-        config_text = (workspace / ".codex_home" / "config.toml").read_text(
-            encoding="utf-8"
-        )
-        assert "NIKA-Session-Id" in config_text
-        assert self.session_id in config_text
-        assert "[mcp_servers." in config_text
-        assert 'default_tools_approval_mode = "approve"' in config_text
-        diag_output = workspace / "diagnosis_output.txt"
-        assert diag_output.exists()
-        assert diag_output.stat().st_size > 0
-        messages = self._load_jsonl("messages.jsonl")
-        agents = {e["agent"] for e in messages}
-        assert DIAGNOSIS in agents
-        assert SUBMISSION in agents
-        mcp_events = [e for e in messages if e.get("event") == "mcp_config"]
-        diag_mcp = next((e for e in mcp_events if e.get("agent") == DIAGNOSIS), None)
-        assert diag_mcp is not None
-        servers = diag_mcp.get("servers", [])
-        assert "kathara_base_mcp_server" in servers
-        assert "kathara_frr_mcp_server" in servers
-        assert "kathara_bmv2_mcp_server" not in servers
-        assert "kathara_telemetry_mcp_server" not in servers
-        sub_mcp = next((e for e in mcp_events if e.get("agent") == SUBMISSION), None)
-        assert sub_mcp is not None
-        assert "task_mcp_server" in sub_mcp.get("servers", [])
-        start_events = [e for e in messages if e.get("event") == "subprocess_start"]
-        assert len(start_events) >= 2
-        codex_events = [e for e in messages if "codex_event" in e]
-        assert len(codex_events) > 0
-        rendered_count = sum(
-            (1 for e in codex_events if format_codex_event(e["codex_event"]))
-        )
-        assert rendered_count > 0
-
-    def test_step_05_check_submission(self) -> None:
-        assert self.session_dir is not None
-        assert (self.session_dir / "submission.json").exists()
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("cli.codex")
-
-    def test_step_07_eval_metrics(self) -> None:
-        self._step_eval_metrics()
-
-
-@SANDBOX_E2E_SUPERSEDED
-@pytest.mark.skipif(
-    not (_min3clos_prerequisites() and codex_cli_available()),
-    reason="containerlab/gnmic/Docker or Codex CLI credentials not available",
-)
-class CodexClabPipelineTest(ClabCommonPipelineSteps, OrderedPipelineTestCase):
-    """Full containerlab pipeline with the Codex CLI agent."""
-
-    def test_step_01_start_env(self) -> None:
-        self._step_start_env()
-
-    def test_step_02_inject_failure(self) -> None:
-        self._step_inject_failure()
-
-    def test_step_03_run_cli_agent(self) -> None:
-        assert self.session_id is not None
-        self._run_agent(
-            agent_type="cli.codex", model=CODEX_MODEL, max_steps=20
-        )
-        row = SessionStore().get_session(self.session_id)
-        assert row.get("agent_type") == "cli.codex"
-
-    def test_step_04_check_workspace_and_messages(self) -> None:
-        assert self.session_dir is not None
-        workspace = self.session_dir / "codex_workspace"
-        assert workspace.is_dir()
-        config_text = (workspace / ".codex_home" / "config.toml").read_text(
-            encoding="utf-8"
-        )
-        assert "NIKA-Session-Id" in config_text
-        assert self.session_id in config_text
-        assert "[mcp_servers.kathara_base_mcp_server]" in config_text
-        assert "[mcp_servers.kathara_frr_mcp_server]" not in config_text
-        messages = self._load_jsonl("messages.jsonl")
-        agents = {e["agent"] for e in messages}
-        assert DIAGNOSIS in agents
-        assert SUBMISSION in agents
-        mcp_events = [e for e in messages if e.get("event") == "mcp_config"]
-        diag_mcp = next((e for e in mcp_events if e.get("agent") == DIAGNOSIS), None)
-        assert diag_mcp is not None
-        servers = diag_mcp.get("servers", [])
-        assert "kathara_base_mcp_server" in servers
-        assert "kathara_frr_mcp_server" not in servers
-
-    def test_step_05_check_submission(self) -> None:
-        assert self.session_dir is not None
-        assert (self.session_dir / "submission.json").exists()
-        assert_submission_fields(self.session_dir)
-
-    def test_step_06_session_close(self) -> None:
-        self._step_close_and_verify("cli.codex")
-
-    def test_step_07_eval_metrics(self) -> None:
-        self._step_eval_metrics()
