@@ -1,0 +1,38 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: web_dos_attack
+  cases:
+  - topo_size: s
+    inject:
+      attacker_device: client_0
+      host_name: webserver0_pod0
+      observer_device: dns_pod0
+      probe_url: http://10.0.1.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: webserver0_pod0
+      fault_type: web_dos_attack
+  - topo_size: m
+    inject:
+      attacker_device: client_0
+      host_name: webserver0_pod0
+      observer_device: dns_pod0
+      probe_url: http://10.0.1.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: webserver0_pod0
+      fault_type: web_dos_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_0
+      host_name: webserver0_pod0
+      observer_device: dns_pod0
+      probe_url: http://10.0.1.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: webserver0_pod0
+      fault_type: web_dos_attack

@@ -11,7 +11,7 @@ import shutil
 
 import pytest
 
-from nika.service.mcp_server.mcp_session_context import SESSION_ID_ENV
+from nika.mcp.session_context import SESSION_ID_ENV
 from nika.workflows.env.start import start_net_env
 from nika.workflows.session.close import close_session
 from nika.utils.session_id import resolve_session_tag
@@ -37,11 +37,26 @@ SIMPLE_BGP_FAILURES = (
 )
 
 CAMPUS_LAN_FAILURES = (
+    "link_flap",
+    "link_packet_corruption",
+    "link_capacity_bottleneck",
     "host_incorrect_dns",
     "ospf_neighbor_missing",
     "dhcp_service_down",
     "dns_port_blocked",
     "mtu_mismatch",
+)
+
+ENTERPRISE_BRANCH_LINK_FAILURES = (
+    "link_flap",
+    "link_packet_corruption",
+    "link_capacity_bottleneck",
+)
+
+P4_GATEWAY_LINK_FAILURES = (
+    "link_flap",
+    "link_packet_corruption",
+    "link_capacity_bottleneck",
 )
 
 MIN3CLOS_FAILURES = (
@@ -54,7 +69,6 @@ MIN3CLOS_FAILURES = (
     "bgp_asn_misconfig",
     "bgp_missing_route_advertisement",
     "host_static_blackhole",
-    "bgp_blackhole_route_leak",
     "bgp_hijacking",
 )
 
@@ -92,6 +106,22 @@ def _kathara_cases():
             problem,
             resolve_inject_params("campus_lan", problem, topo_size="s"),
             id=f"kathara-campus_lan-{problem}",
+        )
+    for problem in ENTERPRISE_BRANCH_LINK_FAILURES:
+        yield pytest.param(
+            "enterprise_branch",
+            ["-s", "s"],
+            problem,
+            resolve_inject_params("enterprise_branch", problem, topo_size="s"),
+            id=f"kathara-enterprise_branch-{problem}",
+        )
+    for problem in P4_GATEWAY_LINK_FAILURES:
+        yield pytest.param(
+            "p4_dc_gateway",
+            ["-s", "s"],
+            problem,
+            resolve_inject_params("p4_dc_gateway", problem, topo_size="s"),
+            id=f"kathara-p4_dc_gateway-{problem}",
         )
 
 

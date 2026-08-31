@@ -29,7 +29,6 @@ from nika.workflows.leaderboard.meta_input import (
 )
 from nika.workflows.leaderboard.pack import pack_leaderboard_submission
 from nika.workflows.leaderboard.schema import (
-    FILES_FILENAME,
     IDENTITY_FILENAME,
     METADATA_FILENAME,
     METRICS_FILENAME,
@@ -44,10 +43,10 @@ def _mini_cases_yaml(path: Path) -> Path:
         "seed": 42,
         "cases": [
             {
-                "scenario": "simple_bgp",
-                "topo_size": None,
+                "scenario": "dc_clos",
+                "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "pc1", "intf_name": "eth0"},
+                "inject": {"host_name": "client_0", "intf_name": "eth0"},
             }
         ],
     }
@@ -75,9 +74,8 @@ def _freeze_mini_release(
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=release.images,
-        scenario_problem_pin=release.scenario_problem_pin,
     )
-    return load_release_from_dir(dest, split="dev", verify_digest=True)
+    return load_release_from_dir(dest, split="dev")
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -115,7 +113,6 @@ def _write_mocked_trial(
         run_meta["benchmark_run_id"] = release_meta.get("run_id")
         run_meta["benchmark_id"] = release_meta.get("benchmark_id")
         run_meta["benchmark_version"] = release_meta.get("version")
-        run_meta["benchmark_digest"] = release_meta.get("benchmark_digest")
         run_meta["benchmark_split"] = release_meta.get("split")
     _write_json(session_dir / "run.json", run_meta)
     _write_json(
@@ -255,7 +252,6 @@ class TestReleaseRunToLeaderboardPackE2E:
             assert job["model"] == "mock-v1"
             assert job["n_trials"] == 2
             assert job["case_count"] == 1
-            assert job["benchmark_digest"] == release.benchmark_digest
             assert (result_dir / "RELEASE.lock.json").is_file()
 
             expected = expand_trials(release.cases, release.n_trials)
@@ -277,16 +273,16 @@ class TestReleaseRunToLeaderboardPackE2E:
         assert package.parent == result_dir.resolve()
         assert (package / METADATA_FILENAME).is_file()
         assert (package / README_FILENAME).is_file()
-        assert (package / FILES_FILENAME).is_file()
         assert (package / RESULTS_DIRNAME / IDENTITY_FILENAME).is_file()
         assert (package / RESULTS_DIRNAME / METRICS_FILENAME).is_file()
 
         identity = yaml.safe_load(
             (package / RESULTS_DIRNAME / IDENTITY_FILENAME).read_text(encoding="utf-8")
         )
-        assert identity["schema_version"] == "3"
+        assert identity["schema_version"] == "4"
         assert identity["benchmark"]["version"] == release.version
-        assert identity["benchmark"]["digest"] == release.benchmark_digest
+        assert "digest" not in identity["benchmark"]
+        assert "cases_sha256" not in identity["benchmark"]
         assert identity["benchmark"]["n_trials"] == 2
         assert identity["run"]["official"] is True
         assert identity["run"]["agent_type"] == "mock"
@@ -336,9 +332,7 @@ class TestReleaseRunToLeaderboardPackE2E:
             "nika.workflows.benchmark.release.RELEASES_DIR",
             tmp_path / "releases",
         ):
-            report = validate_leaderboard_submission(
-                package, source_result_dir=result_dir
-            )
+            report = validate_leaderboard_submission(package)
         assert report.ok, report.errors
 
     def test_cli_template_then_pack_submission(
@@ -438,8 +432,6 @@ class TestReleaseRunToLeaderboardPackE2E:
                 "leaderboard",
                 "validate",
                 str(package),
-                "--source-result-dir",
-                str(result_dir),
             ],
         )
         assert validate_result.exit_code == 0, validate_result.output

@@ -2,32 +2,91 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from nika.config import SESSIONS_DIR
 from nika.utils.session_index import SessionIndex
 from nika.workflows.session.close import close_session
 
 
-def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
-    payload = {
+from nika.workflows.benchmark.multi_fault import row_problems
+
+
+def _fingerprint_inject(row: dict[str, Any]) -> dict[str, Any]:
+    inject = row.get("inject") or {}
+    problems = row_problems(row)
+    if len(problems) > 1:
+        nested: dict[str, dict[str, str]] = {}
+        for problem in problems:
+            piece = inject.get(problem) if isinstance(inject, dict) else {}
+            if isinstance(piece, dict):
+                nested[problem] = {str(k): str(v) for k, v in sorted(piece.items())}
+        return nested
+    if isinstance(inject, dict) and any(isinstance(v, dict) for v in inject.values()):
+        return {
+            str(k): str(v) for k, v in sorted(inject.items()) if not isinstance(v, dict)
+        }
+    return {str(k): str(v) for k, v in sorted(inject.items())}
+
+
+def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
+    """Stable identity fields for one catalog/case row (names + deploy params)."""
+    return {
         "scenario": row["scenario"],
         "problem": row["problem"],
+        "problems": row_problems(row),
         "topo_size": row.get("topo_size") or "",
         "topo": row.get("topo") or "",
         "igp": row.get("igp") or "",
         "bgp_mode": row.get("bgp_mode") or "",
         "rpki": bool(row.get("rpki", False)),
-        "inject": {
-            str(k): str(v) for k, v in sorted((row.get("inject") or {}).items())
-        },
+        "backend": row.get("backend") or "",
+        "device_profile": row.get("device_profile") or "",
+        "inject": _fingerprint_inject(row),
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+
+
+def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
+    """Canonical identity string for equality / Dev-Test isolation checks."""
+    return json.dumps(
+        benchmark_row_identity(row),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+
+
+def benchmark_option_id(row: dict[str, Any]) -> str:
+    """Return a readable, stable identity for one catalog option."""
+    identity: list[tuple[str, Any]] = [
+        ("scenario", row["scenario"]),
+        ("topo_size", row.get("topo_size") or ""),
+    ]
+    identity.extend(
+        (key, row[key])
+        for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile")
+        if key in row
+    )
+    identity.append(("problem", row["problem"]))
+    identity.extend(
+        (f"inject.{key}", value)
+        for key, value in sorted((row.get("inject") or {}).items())
+    )
+
+    def component(key: str, value: Any) -> str:
+        if value in (None, ""):
+            text = "-"
+        elif isinstance(value, bool):
+            text = str(value).lower()
+        else:
+            text = str(value)
+        return f"{quote(key, safe='-._~')}={quote(text, safe='-._~')}"
+
+    return "__".join(component(key, value) for key, value in identity)
 
 
 def benchmark_row_from_case(
@@ -40,6 +99,8 @@ def benchmark_row_from_case(
     igp: str | None = None,
     bgp_mode: str | None = None,
     rpki: bool | None = None,
+    backend: str | None = None,
+    device_profile: str | None = None,
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "scenario": scenario,
@@ -55,6 +116,10 @@ def benchmark_row_from_case(
         row["bgp_mode"] = bgp_mode
     if rpki is not None:
         row["rpki"] = bool(rpki)
+    if backend:
+        row["backend"] = backend
+    if device_profile:
+        row["device_profile"] = device_profile
     return row
 
 

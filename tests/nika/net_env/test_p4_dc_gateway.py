@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from types import SimpleNamespace
 
-from benchmark.inject_resolve import resolve_inject_params
+from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from traffic.burst import build_burst_flows, flow_id_for_five_tuple
 from nika.net_env.p4_dc_gateway.control import build_gateway_intent
 from nika.net_env.p4_dc_gateway.topology_model import (
@@ -145,14 +145,14 @@ def test_agent_bmv2_api_hides_private_fault_state(monkeypatch) -> None:
         return "1: lo: <LOOPBACK>"
 
     monkeypatch.setattr(api, "exec_cmd", _exec)
-    state = api.p4_get_runtime_state("gateway_1")
-    assert "internal_fault" not in __import__("json").dumps(state)
+    state = api.p4rt_exec("read --switch gateway_1")
+    assert "internal_fault" not in state
 
 
 def test_p4_mcp_servers_expose_only_live_interfaces() -> None:
-    from nika.service.mcp_server.kathara import bmv2_server, telemetry_server
+    from nika.mcp.servers.kathara import bmv2_server, telemetry_server
 
-    assert set(bmv2_server.mcp._tool_manager._tools) == {"p4_get_runtime_state"}
+    assert set(bmv2_server.mcp._tool_manager._tools) == {"p4rt_exec"}
     assert set(telemetry_server.mcp._tool_manager._tools) == {"int_query_telemetry"}
 
 

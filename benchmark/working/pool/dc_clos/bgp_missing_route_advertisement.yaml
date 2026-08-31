@@ -1,0 +1,341 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: s
+    inject:
+      host_name: leaf_router_0_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    inject:
+      host_name: leaf_router_0_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_0_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_0_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_0_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_2
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_0_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_3
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_1_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_2
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    inject:
+      host_name: leaf_router_1_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_3
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_2
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_3
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_4
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_5
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_5
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_6
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_6
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_7
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_7
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_2
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_3
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_4
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_5
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_5
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_6
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_6
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_1_7
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_1_7
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_2
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_3
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_4
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_5
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_5
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_6
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_6
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_2_7
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_2_7
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_1
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_2
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_3
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_4
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_5
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_5
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_6
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_6
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: l
+    inject:
+      host_name: leaf_router_3_7
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_3_7
+      fault_type: bgp_missing_route_advertisement

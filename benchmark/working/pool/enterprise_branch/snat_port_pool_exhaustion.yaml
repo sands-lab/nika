@@ -1,0 +1,41 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: snat_port_pool_exhaustion
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      port_end: '40063'
+      port_start: '40000'
+      public_ip: 198.18.1.10
+      source_prefix: 10.1.40.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: snat_port_pool_exhaustion
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      port_end: '40063'
+      port_start: '40000'
+      public_ip: 198.18.1.10
+      source_prefix: 10.1.40.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: snat_port_pool_exhaustion
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      port_end: '40063'
+      port_start: '40000'
+      public_ip: 198.18.1.10
+      source_prefix: 10.1.40.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: snat_port_pool_exhaustion

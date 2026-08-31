@@ -536,10 +536,16 @@ class DCClos(NetworkEnvBase):
                 f"{web.machine.name}.startup",
             )
 
-    def verify_lab(self) -> dict:
-        from nika.net_env.dc_clos.verify import (
-            verify_dc_clos_lab,
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.dc_clos.verify import verify_dc_clos_lab_startup
+
+        return verify_dc_clos_lab_startup(
+            self._build_runtime(),
+            scenario_name=self.LAB_NAME,
         )
+
+    def verify_lab(self) -> dict:
+        from nika.net_env.dc_clos.verify import verify_dc_clos_lab
 
         return verify_dc_clos_lab(
             self._build_runtime(),

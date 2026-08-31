@@ -171,6 +171,29 @@ def _ecmp_multi_path(
     return ok, details
 
 
+def verify_p4_dc_fabric_lab_startup(
+    runtime: LabRuntime,
+    *,
+    scenario_name: str,
+    model: ClosFabricModel,
+) -> dict[str, Any]:
+    expected_nodes = (
+        ["fabric_mgr"] + model.spines + model.leaves + [e.name for e in model.endpoints]
+    )
+    p4_ok, p4_details = _p4runtime_consistent(runtime, model, sample=True)
+    checks: dict[str, bool] = {
+        "nodes_deployed": nodes_deployed(runtime, expected_nodes),
+        "bmv2_grpc_ready": _grpc_ready(runtime, model.leaves[:2] + model.spines[:1]),
+        "p4runtime_consistent": p4_ok,
+    }
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+        details={"p4runtime": p4_details},
+    )
+
+
 def verify_p4_dc_fabric_lab(
     runtime: LabRuntime,
     *,

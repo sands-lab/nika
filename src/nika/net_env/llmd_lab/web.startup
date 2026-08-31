@@ -1,0 +1,6 @@
+ip address add 200.0.0.8/24 dev eth0
+
+# HTTP endpoint for application-layer faults (receiver contention, ACL, probes).
+mkdir -p /var/www
+printf 'nika\n' > /var/www/index.html
+cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &

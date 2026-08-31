@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,17 +12,15 @@ import yaml
 from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     ReleaseError,
-    compute_benchmark_digest,
     freeze_release,
+    is_deprecated_release,
     load_release,
     parse_release_ref,
     preflight_release,
     resolve_cases,
     verify_dev_test_isolation,
 )
-from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 from nika.workflows.benchmark.run import run_benchmark_from_release
-from tests.support.prerequisites import docker_available
 
 
 def _mini_cases_yaml(path: Path) -> Path:
@@ -31,10 +28,10 @@ def _mini_cases_yaml(path: Path) -> Path:
         "seed": 42,
         "cases": [
             {
-                "scenario": "simple_bgp",
-                "topo_size": None,
+                "scenario": "dc_clos",
+                "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "pc1", "intf_name": "eth0"},
+                "inject": {"host_name": "client_0", "intf_name": "eth0"},
             }
         ],
     }
@@ -42,50 +39,33 @@ def _mini_cases_yaml(path: Path) -> Path:
     return path
 
 
-class TestFrozenRelease010:
-    def test_dev_and_test_counts(self) -> None:
-        dev = load_release("0.1.0", split="dev")
-        test = load_release("0.1.0", split="test")
-        assert dev.case_count == 56
-        assert test.case_count == 56
-        assert int(dev.splits["dev"]["case_count"]) == 56
-        assert int(test.splits["test"]["case_count"]) == 56
-        assert "case_digests" not in dev.manifest
-        assert dev.benchmark_digest == test.benchmark_digest
-        assert dev.n_trials == 3
-        assert test.n_trials == 3
+class TestDeprecatedRelease010:
+    def test_is_marked_deprecated(self) -> None:
+        assert is_deprecated_release("0.1.0")
+        assert is_deprecated_release(" 0.1.0 ")
+        assert not is_deprecated_release("mini")
 
-    def test_heldout_isolation(self) -> None:
-        dev = resolve_cases("0.1.0", split="dev")
-        test = resolve_cases("0.1.0", split="test")
-        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
-        assert {r["problem"] for r in dev} == {r["problem"] for r in test}
-        assert len({r["problem"] for r in test}) == 56
-        # Same problem, different instance.
-        by_dev = {r["problem"]: r for r in dev}
-        for row in test:
-            assert benchmark_row_fingerprint(row) != benchmark_row_fingerprint(
-                by_dev[row["problem"]]
+    def test_load_raises_deprecated(self) -> None:
+        with pytest.raises(ReleaseError, match="deprecated"):
+            load_release("0.1.0", split="dev")
+        with pytest.raises(ReleaseError, match="deprecated"):
+            resolve_cases("0.1.0", split="test")
+
+    def test_nika_alias_still_parses_but_load_rejects(self) -> None:
+        assert parse_release_ref("nika@0.1") == ("nika-bench", "0.1.0")
+        with pytest.raises(ReleaseError, match="deprecated"):
+            load_release("nika@0.1", split="test")
+
+    def test_sha256_ref_rejected(self) -> None:
+        with pytest.raises(ReleaseError, match="Digest-based"):
+            load_release(
+                "nika-bench@sha256:226d3209e3c3c46aade8c37ecd989642ae73692f0d9f149995954553e41474d1",
+                split="dev",
             )
 
-    def test_nika_alias_and_short_version(self) -> None:
-        assert parse_release_ref("nika@0.1") == ("nika-bench", "0.1.0")
-        a = load_release("nika@0.1", split="test")
-        b = load_release("0.1.0", split="test")
-        assert a.benchmark_digest == b.benchmark_digest
-        assert a.cases == b.cases
 
-    def test_resolve_cases_is_deterministic(self) -> None:
-        a = resolve_cases("0.1.0", split="dev")
-        b = resolve_cases("nika-bench@0.1.0", split="dev")
-        assert a == b
-
-    def test_cases_have_root_causes(self) -> None:
-        for split in ("dev", "test"):
-            cases = resolve_cases("0.1.0", split=split)
-            assert all(row.get("root_causes") for row in cases)
-
-    def test_digest_changes_when_split_hash_changes(self, tmp_path: Path) -> None:
+class TestFreezeRelease:
+    def test_freeze_writes_versioned_manifest(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")
         release = freeze_release(
             version="mini",
@@ -94,30 +74,26 @@ class TestFrozenRelease010:
         )
         assert release.scoring["id"] == "rule-based"
         assert release.cases[0]["root_causes"]
-        original = release.benchmark_digest
-        new_digest = compute_benchmark_digest(
-            splits={
-                "dev": {
-                    "case_count": 1,
-                    "cases_sha256": "0" * 64,
-                }
-            },
-            defaults=release.defaults,
-            scoring=release.scoring,
-            tools=release.tools,
-            resources=release.resources,
-            images=release.images,
-            scenario_problem_pin=release.scenario_problem_pin,
+        assert release.version == "mini"
+        assert release.case_count == 1
+        manifest = yaml.safe_load(
+            (release.root / "RELEASE.yaml").read_text(encoding="utf-8")
         )
-        assert new_digest != original
+        assert "benchmark_digest" not in manifest
+        assert "scenario_problem_pin" not in manifest
+        assert "cases_sha256" not in manifest["splits"]["dev"]
+        assert manifest["splits"]["dev"]["case_count"] == 1
 
-    def test_sha256_ref_resolves(self) -> None:
-        release = load_release("0.1.0", split="dev")
-        by_digest = load_release(
-            f"nika-bench@sha256:{release.benchmark_digest}", split="dev"
-        )
-        assert by_digest.version == release.version
-        assert by_digest.benchmark_digest == release.benchmark_digest
+    def test_semantic_context_overlap_is_rejected(self) -> None:
+        base = {
+            "scenario": "dc_clos",
+            "topo_size": "s",
+            "problem": "link_down",
+        }
+        dev = [{**base, "inject": {"host_name": "pc_0_0", "intf_name": "eth0"}}]
+        test = [{**base, "inject": {"host_name": "pc_0_1", "intf_name": "eth0"}}]
+        with pytest.raises(ReleaseError, match="semantic isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
 
     def test_preflight_missing_scenario(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")
@@ -223,7 +199,8 @@ class TestReleaseRunMetadata:
         assert job["benchmark_id"] == "nika-bench"
         assert job["version"] == "mini"
         assert job["split"] == "dev"
-        assert job["benchmark_digest"] == release.benchmark_digest
+        assert "benchmark_digest" not in job
+        assert "cases_sha256" not in job
         assert job["case_count"] == 1
         assert job["n_trials"] == 3
         assert job["run_id"] == job["job_id"]
@@ -278,73 +255,15 @@ class TestReleaseRunMetadata:
         assert run_trials.call_args.kwargs["case_timeout"] == 60
         assert "run_judge" not in run_trials.call_args.kwargs
 
-
-@pytest.mark.skipif(not docker_available(), reason="Docker required for smoke")
-class TestReleaseDockerSmoke:
-    """Real Kathara smoke: one lightweight case from Dev and Test."""
-
-    _LIGHT = frozenset({"simple_bgp"})
-
-    def _pick_light_row(self, split: str) -> dict:
-        rows = resolve_cases("0.1.0", split=split)
-        for row in rows:
-            if row["scenario"] in self._LIGHT:
-                return row
-        return rows[0]
-
-    def _run_one(self, split: str) -> Path:
-        row = self._pick_light_row(split)
-        result_root = Path(tempfile.mkdtemp(prefix=f"nika-release-{split}-"))
-        from nika.workflows.benchmark.release import (
-            build_job_metadata,
-            load_release,
-            write_job_metadata,
-        )
-        from nika.workflows.benchmark.run import run_single_case
-
-        release = load_release("0.1.0", split=split, verify_digest=True)
-        job = build_job_metadata(
-            release,
-            agent_type="mock",
-            model="mock-v1",
-            case_timeout_sec=2400,
-            official=True,
-        )
-        write_job_metadata(result_root, job)
-        run_single_case(
-            problem=row["problem"],
-            scenario=row["scenario"],
-            topo_size=row.get("topo_size") or "",
-            agent_type="mock",
-            llm_provider=None,
-            model="mock-v1",
-            max_steps=20,
-            inject_params=row["inject"],
-            expected_root_causes=row.get("root_causes"),
-            result_dir=str(result_root),
-            release_meta=job,
-        )
-        return result_root
-
-    def _assert_solved(self, result_root: Path) -> None:
-        sessions = [
-            path
-            for path in result_root.iterdir()
-            if path.is_dir() and (path / "eval_metrics.json").is_file()
-        ]
-        assert sessions, f"no evaluated session under {result_root}"
-        metrics = json.loads((sessions[0] / "eval_metrics.json").read_text())
-        assert metrics["rca_f1"] == 1.0
-        assert (sessions[0] / "submission.json").is_file()
-
-    def test_dev_smoke(self) -> None:
-        result_root = self._run_one("dev")
-        job = json.loads((result_root / JOB_FILENAME).read_text(encoding="utf-8"))
-        assert job["split"] == "dev"
-        self._assert_solved(result_root)
-
-    def test_test_smoke(self) -> None:
-        result_root = self._run_one("test")
-        job = json.loads((result_root / JOB_FILENAME).read_text(encoding="utf-8"))
-        assert job["split"] == "test"
-        self._assert_solved(result_root)
+    def test_run_deprecated_release_rejected(self, tmp_path: Path) -> None:
+        with pytest.raises(ReleaseError, match="deprecated"):
+            run_benchmark_from_release(
+                release_ref="0.1.0",
+                split="test",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=None,
+                result_dir=str(tmp_path / "results"),
+                check_images=False,
+            )

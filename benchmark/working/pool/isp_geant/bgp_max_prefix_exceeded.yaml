@@ -1,0 +1,25 @@
+scenario:
+  name: isp_geant
+failure:
+  fault_type: bgp_max_prefix_exceeded
+  cases:
+  - topo_size: m
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      flood_count: '120'
+      neighbor_ip: 10.0.0.35
+      peer_name: nl1_nl
+      receiver_name: de1_de
+    root_causes:
+    - resource:
+        kind: node
+        node: de1_de
+      fault_type: bgp_max_prefix_exceeded
+    - resource:
+        kind: node
+        node: nl1_nl
+      fault_type: bgp_max_prefix_exceeded

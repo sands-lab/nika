@@ -19,17 +19,13 @@ import docker
 from docker.types import IPAMConfig
 
 from nika.runtime.base import RuntimeCapabilityError
-
-
-@dataclass(frozen=True)
-class _Endpoint:
-    node: str
-    intf: str
-    number: int
-    mac: str
-    mtu: int
-    addresses: tuple[str, ...]
-    routes: tuple[dict, ...] = ()
+from nika.runtime.kathara.interface_snapshot import (
+    LinkAttachmentState,
+    capture_link_state,
+    restart_bmv2_dataplane,
+    restore_link_state,
+)
+from nika.runtime.spec import NodeIdentity
 
 
 @dataclass(frozen=True)
@@ -37,8 +33,8 @@ class VdeFaultProxyState:
     """Opaque controller-side reference to an inserted proxy."""
 
     key: str
-    endpoint: _Endpoint
-    peer: _Endpoint
+    endpoint: LinkAttachmentState
+    peer: LinkAttachmentState
     original_network_id: str
     lan_a_id: str
     lan_b_id: str
@@ -52,6 +48,7 @@ class KatharaVdeFaultProxy:
         self.runtime = runtime
         self._lab = runtime._net_env.lab
         self._client = docker.from_env()
+        self._bmv2_restarted: set[str] = set()
 
     def insert(self, node: str, intf: str) -> VdeFaultProxyState:
         endpoint, peer, original = self._endpoints(node, intf)
@@ -86,6 +83,7 @@ class KatharaVdeFaultProxy:
             lan_b_id=lan_b.id,
             proxy_id=proxy.id,
         )
+        self._bmv2_restarted = set()
         try:
             # Docker's ``none`` network mode forbids connecting an additional
             # network.  Start on the ordinary bridge, then detach it before
@@ -104,7 +102,7 @@ class KatharaVdeFaultProxy:
                 f"fp-{key}-a",
                 endpoint.mac,
             )
-            self._restore_endpoint(endpoint)
+            self._restore_and_post(endpoint)
             self._connect(
                 self.runtime.get_container(peer.node),
                 lan_b,
@@ -112,7 +110,9 @@ class KatharaVdeFaultProxy:
                 f"fp-{key}-b",
                 peer.mac,
             )
-            self._restore_endpoint(peer)
+            self._restore_and_post(peer)
+            self._finalize_port_reconnect()
+            self._await_routing_stability(state.endpoint, state.peer)
             self.verify_identity(state)
             return state
         except Exception:
@@ -123,21 +123,32 @@ class KatharaVdeFaultProxy:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(
             [
-                "tc",
-                "qdisc",
-                "replace",
-                "dev",
-                "eth1",
-                "root",
-                "netem",
-                "corrupt",
-                f"{percentage}%",
+                "tc", "qdisc", "replace", "dev", "eth1", "root", "netem",
+                "corrupt", f"{percentage}%",
             ]
         )
         if result.exit_code:
             raise RuntimeCapabilityError(
                 f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
             )
+
+    def set_netem_corrupt_bidirectional(
+        self, state: VdeFaultProxyState, percentage: int
+    ) -> None:
+        """Apply corrupt netem on both bridge ports for symmetric RTT impact."""
+        proxy = self._client.containers.get(state.proxy_id)
+        for dev in ("eth0", "eth1"):
+            result = proxy.exec_run(
+                [
+                    "tc", "qdisc", "replace", "dev", dev, "root", "netem",
+                    "corrupt", f"{percentage}%",
+                ]
+            )
+            if result.exit_code:
+                raise RuntimeCapabilityError(
+                    f"could not configure controller-side VDE proxy on {dev}: "
+                    f"{result.output.decode(errors='ignore')}"
+                )
 
     def set_netem_loss(self, state: VdeFaultProxyState, percentage: int) -> None:
         proxy = self._client.containers.get(state.proxy_id)
@@ -163,6 +174,16 @@ class KatharaVdeFaultProxy:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
         return result.exit_code == 0 and b"netem" in result.output.lower()
+
+    def netem_corrupt_configured(self, state: VdeFaultProxyState) -> bool:
+        proxy = self._client.containers.get(state.proxy_id)
+        result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
+        output = result.output.lower()
+        return (
+            result.exit_code == 0
+            and b"netem" in output
+            and b"corrupt" in output
+        )
 
     def set_tbf(
         self,
@@ -199,6 +220,26 @@ class KatharaVdeFaultProxy:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
         return result.exit_code == 0 and b"tbf" in result.output.lower()
+
+    def tbf_overlimits(self, state: VdeFaultProxyState) -> int | None:
+        """Return summed overlimits/dropped counters from the proxy TBF qdisc."""
+        proxy = self._client.containers.get(state.proxy_id)
+        result = proxy.exec_run(["tc", "-s", "qdisc", "show", "dev", "eth1"])
+        if result.exit_code != 0:
+            return None
+        output = result.output.decode(errors="ignore")
+        if "tbf" not in output.lower():
+            return None
+        total = 0
+        found = False
+        for line in output.splitlines():
+            lower = line.lower()
+            if "overlimits" in lower or "dropped" in lower:
+                found = True
+                for token in line.replace(",", " ").split():
+                    if token.isdigit():
+                        total += int(token)
+        return total if found else 0
 
     def start_link_flap(
         self, state: VdeFaultProxyState, down_time: int, up_time: int
@@ -280,6 +321,7 @@ done
     ) -> None:
         try:
             self.stop_link_flap(state)
+            self._bmv2_restarted = set()
             original = self._client.networks.get(state.original_network_id)
             for endpoint, lan_id in (
                 (state.endpoint, state.lan_a_id),
@@ -293,7 +335,9 @@ done
                 self._connect(
                     container, original, endpoint.number, "restored", endpoint.mac
                 )
-                self._restore_endpoint(endpoint)
+                self._restore_and_post(endpoint)
+            self._finalize_port_reconnect()
+            self._await_routing_stability(state.endpoint, state.peer)
             self.verify_identity(state)
         except Exception:
             if not suppress_errors:
@@ -354,6 +398,69 @@ done
                 # A lab endpoint may still be attached while teardown is underway.
                 pass
 
+    def _restore_and_post(self, state: LinkAttachmentState) -> None:
+        restore_link_state(self.runtime, state)
+        self._post_restore_endpoint(state)
+
+    def _post_restore_endpoint(self, state: LinkAttachmentState) -> None:
+        identity = self._node_identity(state.node)
+        if identity is None:
+            return
+        caps = identity.capabilities
+        # Snapshot restore already replays DHCP-assigned addresses/routes.
+        # dhclient -r would release them immediately after restore.
+        if "dhcp_client" in caps and not state.addresses:
+            self.runtime.renew_dhcp_leases([state.node], state.intf)
+        if "bmv2" in caps:
+            restart_bmv2_dataplane(self.runtime, state.node)
+            self._bmv2_restarted.add(state.node)
+        if "frr" in caps or "bgp" in caps:
+            self.runtime.exec(
+                state.node,
+                "vtysh -c 'clear ip bgp * soft' 2>/dev/null || true",
+                timeout=30,
+            )
+
+    def _await_routing_stability(
+        self, *endpoints: LinkAttachmentState
+    ) -> None:
+        """Give FRR-controlled routers time to re-evaluate moved interfaces."""
+        frr_nodes = [
+            state.node
+            for state in endpoints
+            if self._node_identity(state.node) is not None
+            and (
+                "frr" in self._node_identity(state.node).capabilities
+                or "bgp" in self._node_identity(state.node).capabilities
+            )
+        ]
+        if not frr_nodes:
+            return
+        for _ in range(30):
+            ready = True
+            for node in frr_nodes:
+                output = self.runtime.exec(
+                    node,
+                    "vtysh -c 'show bgp summary' 2>/dev/null || true",
+                    timeout=15,
+                )
+                if "Established" not in output:
+                    ready = False
+                    break
+            if ready:
+                return
+            time.sleep(2)
+
+    def _finalize_port_reconnect(self) -> None:
+        if not self._bmv2_restarted:
+            return
+        self.runtime._net_env.reconcile_dataplane_after_port_reconnect(
+            self.runtime, sorted(self._bmv2_restarted)
+        )
+
+    def _node_identity(self, node: str) -> NodeIdentity | None:
+        return self.runtime._net_env.machine_identities.get(node)
+
     def _endpoints(self, node: str, intf: str):
         try:
             number = int(intf.removeprefix("eth"))
@@ -378,9 +485,9 @@ done
             ) from exc
         original = self._network_for_interface(node, number)
         return (
-            self._capture_endpoint(node, intf, number),
-            self._capture_endpoint(
-                peer_name, f"eth{peer_interface.num}", peer_interface.num
+            capture_link_state(self.runtime, node, intf, number),
+            capture_link_state(
+                self.runtime, peer_name, f"eth{peer_interface.num}", peer_interface.num
             ),
             original,
         )
@@ -452,106 +559,6 @@ done
                         "could not normalize VDE proxy interface names"
                     )
 
-    def _capture_endpoint(self, node: str, intf: str, number: int) -> _Endpoint:
-        info = self._link_info(node, intf)
-        return _Endpoint(
-            node,
-            intf,
-            number,
-            info["address"],
-            info["mtu"],
-            self._addresses(node, intf),
-            self._routes(node, intf),
-        )
-
-    def _routes(self, node: str, intf: str) -> tuple[dict, ...]:
-        """Capture non-kernel routes that would be dropped when the NIC is moved."""
-        try:
-            rows = json.loads(self.runtime.exec(node, "ip -j route show"))
-        except json.JSONDecodeError:
-            return ()
-        kept: list[dict] = []
-        for row in rows:
-            if row.get("dev") != intf:
-                continue
-            # Address install recreates proto-kernel link routes.
-            if row.get("protocol") == "kernel" and row.get("scope") == "link":
-                continue
-            kept.append(row)
-        return tuple(kept)
-
-    @staticmethod
-    def _route_replace_cmd(row: dict, intf: str) -> str:
-        dst = row.get("dst") or "default"
-        parts = ["ip", "route", "replace", str(dst)]
-        gateway = row.get("gateway")
-        if gateway:
-            parts.extend(["via", str(gateway)])
-        parts.extend(["dev", intf])
-        metric = row.get("metric")
-        if metric is not None:
-            parts.extend(["metric", str(metric)])
-        prefsrc = row.get("prefsrc")
-        if prefsrc:
-            parts.extend(["src", str(prefsrc)])
-        return " ".join(parts)
-
-    def _restore_endpoint(self, endpoint: _Endpoint) -> None:
-        """Rename the new VDE NIC and restore the interface's L3 state."""
-        for _ in range(10):
-            try:
-                links = json.loads(self.runtime.exec(endpoint.node, "ip -j link"))
-            except json.JSONDecodeError:
-                time.sleep(0.5)
-                continue
-            matching = next(
-                (
-                    item
-                    for item in links
-                    if item.get("address", "").lower() == endpoint.mac.lower()
-                ),
-                None,
-            )
-            if matching is None:
-                time.sleep(0.5)
-                continue
-            current = matching["ifname"]
-            if current != endpoint.intf:
-                self.runtime.exec(
-                    endpoint.node,
-                    f"ip link set dev {current} name {endpoint.intf}",
-                )
-            self.runtime.exec(
-                endpoint.node, f"ip link set dev {endpoint.intf} mtu {endpoint.mtu}"
-            )
-            self.runtime.exec(endpoint.node, f"ip link set dev {endpoint.intf} up")
-            for address in endpoint.addresses:
-                self.runtime.exec(
-                    endpoint.node, f"ip address replace {address} dev {endpoint.intf}"
-                )
-            for row in endpoint.routes:
-                self.runtime.exec(
-                    endpoint.node, self._route_replace_cmd(row, endpoint.intf)
-                )
-            return
-        raise RuntimeCapabilityError(
-            f"VDE proxy did not attach {endpoint.node}:{endpoint.intf}"
-        )
-
-    def _addresses(self, node: str, intf: str) -> tuple[str, ...]:
-        output = self.runtime.exec(node, f"ip -j address show dev {intf}")
-        try:
-            addresses = json.loads(output)[0].get("addr_info", [])
-        except (IndexError, json.JSONDecodeError) as exc:
-            raise RuntimeCapabilityError(
-                f"could not inspect addresses for {node}:{intf}"
-            ) from exc
-        return tuple(
-            f"{item['local']}/{item['prefixlen']}"
-            for item in addresses
-            if item.get("family") in {"inet", "inet6"} and item.get("local")
-        )
-
     def _link_info(self, node: str, intf: str) -> dict:
         for _ in range(10):
             output = self.runtime.exec(node, f"ip -j link show dev {intf}")
@@ -561,7 +568,7 @@ done
                 time.sleep(0.5)
         raise RuntimeCapabilityError(f"could not inspect {node}:{intf}")
 
-    def _key(self, endpoint: _Endpoint) -> str:
+    def _key(self, endpoint: LinkAttachmentState) -> str:
         return hashlib.blake2s(
             f"{self.runtime.lab_name}:{endpoint.node}:{endpoint.intf}".encode(),
             digest_size=8,

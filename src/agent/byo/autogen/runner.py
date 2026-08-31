@@ -17,7 +17,7 @@ from agent.utils.loggers import (
     tool_event_payload,
 )
 from agent.utils.usage import normalize_usage
-from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
+from nika.mcp.registry import MCP_SERVER_PREFIXES
 from agent.utils.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,

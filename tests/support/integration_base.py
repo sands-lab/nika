@@ -12,7 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from nika.cli.main import app
-from nika.service.mcp_server.mcp_session_context import SESSION_ID_ENV, get_lab_name
+from nika.mcp.session_context import SESSION_ID_ENV, get_lab_name
 from nika.utils.session_id import (
     TEST_SESSION_TAG,
     resolve_session_tag,
@@ -145,6 +145,18 @@ class IntegrationMixin:
             [problem], session_id=sid, param_overrides=inject_params
         )
 
+    def _inject_multi_failure(
+        self,
+        problems: list[str],
+        params: dict[str, dict[str, str]],
+        *,
+        session_id: str | None = None,
+    ) -> None:
+        sid = session_id or getattr(self, "session_id", None)
+        if sid is None:
+            raise ValueError("session_id is required")
+        inject_failure_workflow(problems, session_id=sid, param_overrides=params)
+
     def _run_agent(
         self,
         *,
@@ -246,6 +258,31 @@ class IntegrationMixin:
             assert resource_id.startswith(("node/", "interface/", "link/", "k8s/")), (
                 resource_id
             )
+
+    def _assert_multi_failure_injected(
+        self, problems: list[str], session_id: str | None = None
+    ) -> None:
+        sid = session_id or getattr(self, "session_id", None)
+        if sid is None:
+            raise ValueError("session_id is required")
+        failures = SessionStore().list_failure_injections(session_id=sid)
+        injected = {
+            row.get("problem_name")
+            for row in failures
+            if row.get("status") == "injected"
+        }
+        for problem in problems:
+            assert problem in injected, f"No injected failure record for {problem}"
+        session_row = SessionStore().get_session(sid)
+        gt_path = Path(session_row["session_dir"]) / "ground_truth.json"
+        gt = json.loads(gt_path.read_text(encoding="utf-8"))
+        assert gt.get("is_anomaly") is True
+        assert gt.get("failure_domain") == "multiple_faults"
+        root_causes = gt.get("root_causes") or []
+        assert len(root_causes) >= len(problems)
+        fault_types = {item.get("fault_type") for item in root_causes}
+        for problem in problems:
+            assert problem in fault_types
 
 
 IntegrationTestCase = IntegrationMixin

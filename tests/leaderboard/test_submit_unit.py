@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -41,22 +40,17 @@ def _write_minimal_package(root: Path, *, version: str = "0.1.0") -> Path:
         encoding="utf-8",
     )
     (root / "README.md").write_text("# Unit Agent\n", encoding="utf-8")
-    (root / "files.json").write_text(
-        json.dumps({"source_run_sha256": "abc", "package": {}}) + "\n",
-        encoding="utf-8",
-    )
     results = root / "results"
     results.mkdir()
     (results / "identity.yaml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": "3",
+                "schema_version": "4",
                 "benchmark": {
                     "id": "nika-bench",
                     "version": version,
-                    "digest": "d" * 64,
+                    "ref": f"nika-bench@{version}",
                     "split": "test",
-                    "cases_sha256": "c" * 64,
                     "case_count": 1,
                     "n_trials": 1,
                     "scoring_id": "rule-based",
@@ -67,7 +61,7 @@ def _write_minimal_package(root: Path, *, version: str = "0.1.0") -> Path:
                     "official": True,
                     "agent_type": "mock",
                     "model": "mock",
-                    "n_trials": 1,
+                    "case_timeout_sec": 2400,
                 },
             },
             sort_keys=False,

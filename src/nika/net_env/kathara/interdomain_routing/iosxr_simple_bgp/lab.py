@@ -211,6 +211,15 @@ class IosXrSimpleBGP(NetworkEnvBase):
             )
         super().deploy()
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.verify import (
+            verify_iosxr_simple_bgp_lab_startup,
+        )
+
+        return verify_iosxr_simple_bgp_lab_startup(
+            self._build_runtime(), scenario_name=self.LAB_NAME
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.verify import (
             verify_iosxr_simple_bgp_lab,

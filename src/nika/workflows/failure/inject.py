@@ -124,11 +124,6 @@ def inject_failure(
     session_meta = {k: v for k, v in session.__dict__.items() if k != "store"}
     scenario_params.setdefault("backend", resolve_backend(session_meta))
     overrides = dict(param_overrides or {})
-    if overrides and len(resolved_names) != 1:
-        raise ValueError(
-            "When using --set parameters, inject exactly one problem at a time."
-        )
-
     inject_problem = get_problem_instance(
         problem_names=resolved_names,
         scenario_name=session.scenario_name,
@@ -156,6 +151,13 @@ def inject_failure(
         sub_faults = list(getattr(inject_problem, "sub_faults"))
         for idx, problem_name in enumerate(resolved_names):
             sub_problem = sub_faults[idx] if idx < len(sub_faults) else inject_problem
+            params_snapshot = _extract_injection_params(sub_problem)
+            if isinstance(fault_params, object) and hasattr(fault_params, "sub_params"):
+                parsed = getattr(fault_params, "sub_params", {}).get(problem_name)
+                if parsed is not None:
+                    params_snapshot["resolved_params"] = _json_safe(
+                        parsed.model_dump(exclude_none=True)
+                    )
             failure_id = store.create_failure_injection(
                 {
                     "session_id": session.session_id,
@@ -163,7 +165,7 @@ def inject_failure(
                     **sub_problem.taxonomy_metadata(),
                     "scenario_name": session.scenario_name,
                     "lab_name": session.lab_name,
-                    "injection_params": _extract_injection_params(sub_problem),
+                    "injection_params": params_snapshot,
                     "status": "pending",
                     "start_time": now_ts,
                 }

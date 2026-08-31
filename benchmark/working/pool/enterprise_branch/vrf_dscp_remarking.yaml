@@ -1,0 +1,593 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: vrf_dscp_remarking
+  cases:
+  - topo_size: s
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br1_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br1
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br1
+      fault_type: vrf_dscp_remarking
+  - topo_size: s
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br2_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br2
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br2
+      fault_type: vrf_dscp_remarking
+  - topo_size: s
+    inject:
+      corp_prefix: 10.1.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br1_edge
+      intf_name: wg_hq
+      src_host: br1_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: s
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br1_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br1
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br1
+      fault_type: vrf_dscp_remarking
+  - topo_size: s
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br2_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br2
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br2
+      fault_type: vrf_dscp_remarking
+  - topo_size: s
+    inject:
+      corp_prefix: 10.2.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br2_edge
+      intf_name: wg_hq
+      src_host: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br1_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br1
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br1
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br2_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br2
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br2
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br3_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br3
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br3
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br4_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br4
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br4
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.1.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br1_edge
+      intf_name: wg_hq
+      src_host: br1_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br1_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br1
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br1
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br2_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br2
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br2
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br3_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br3
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br3
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br4_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br4
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br4
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.2.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br2_edge
+      intf_name: wg_hq
+      src_host: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.3.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br3_edge
+      intf_name: wg_hq
+      src_host: br3_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: m
+    inject:
+      corp_prefix: 10.4.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br4_edge
+      intf_name: wg_hq
+      src_host: br4_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br1_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br1
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br1
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br2_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br2
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br2
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br3_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br3
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br3
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br4_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br4
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br4
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br5_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br5
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br5
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br6_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br6
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br6
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br7_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br7
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br7
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.0.10.0/24
+      direction: lan_to_overlay
+      dst_host: br8_corp_pc
+      host_name: hq_edge
+      intf_name: wg_br8
+      src_host: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: wg_br8
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.1.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br1_edge
+      intf_name: wg_hq
+      src_host: br1_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br1_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br1
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br1
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br2_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br2
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br2
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br3_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br3
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br3
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br4_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br4
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br4
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br5_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br5
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br5
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br6_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br6
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br6
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br7_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br7
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br7
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.10.10.0/24
+      direction: lan_to_overlay
+      dst_host: br8_corp_pc
+      host_name: dc2_edge
+      intf_name: wg_br8
+      src_host: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: wg_br8
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.2.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br2_edge
+      intf_name: wg_hq
+      src_host: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.3.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br3_edge
+      intf_name: wg_hq
+      src_host: br3_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.4.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br4_edge
+      intf_name: wg_hq
+      src_host: br4_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.5.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br5_edge
+      intf_name: wg_hq
+      src_host: br5_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.6.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br6_edge
+      intf_name: wg_hq
+      src_host: br6_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.7.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br7_edge
+      intf_name: wg_hq
+      src_host: br7_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking
+  - topo_size: l
+    inject:
+      corp_prefix: 10.8.10.0/24
+      direction: lan_to_overlay
+      dst_host: hq_corp_pc
+      host_name: br8_edge
+      intf_name: wg_hq
+      src_host: br8_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: wg_hq
+      fault_type: vrf_dscp_remarking

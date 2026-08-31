@@ -10,5 +10,5 @@ class KatharaPipelineIntegrationTest(pipeline_case.PipelineCaseBase):
     EXPECTED_NODES = frozenset({"pc1", "pc2", "router1", "router2"})
     EXEC_PROBE_HOST = "pc1"
     SUBMIT_FAULTY_DEVICES = ["pc1"]
-    IMAGE_SUBSTRING = "kathara"
+    IMAGE_SUBSTRING = "nika"
     RUN_TRAFFIC = True

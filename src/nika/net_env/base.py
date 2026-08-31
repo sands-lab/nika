@@ -177,6 +177,18 @@ class NetworkEnvBase:
         """Run once the lab is deployed and verified."""
         return
 
+    def reconcile_dataplane_after_port_reconnect(
+        self, runtime: LabRuntime, nodes: list[str]
+    ) -> None:
+        """Re-apply controller-managed forwarding after a switch port was moved."""
+        return
+
+    def preload_workload_images(self) -> None:
+        """Import cached in-cluster images into k3s nodes when a cache is present."""
+        from nika.net_env.utils.k8s_workload_cache import preload_workload_images
+
+        preload_workload_images(self)
+
     def undeploy(self):
         """Undeploy the lab"""
         runtime = self.runtime or self._build_runtime()

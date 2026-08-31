@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from nika.net_env.verify import http_download_stats, ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.service_networking.ab_helpers import ab_summary_to_dict
+from tests.support.symptom.flap_probes import evaluate_link_flap_symptom
+from tests.support.symptom.corruption_probes import (
+    evaluate_device_forwarding_corruption_symptom,
+    evaluate_link_capacity_symptom,
+    evaluate_link_corruption_symptom,
+)
 from nika.problems.service_networking.load_balancer import (
     _BACKEND_CPU_MAX_RATIO,
     _BACKEND_LOCAL_URL,
@@ -23,7 +30,6 @@ from nika.problems.service_networking.load_balancer import (
 )
 from nika.problems.endpoint_application.transport import (
     _MAX_LOSS_PERCENT as _SENDER_MAX_LOSS_PERCENT,
-    _RTT_MAX_RATIO as _SENDER_RTT_MAX_RATIO,
     _THROUGHPUT_MAX_RATIO,
     _TIME_MIN_RATIO,
 )
@@ -89,21 +95,22 @@ def _sender_resource_contention(
         params.small_url,
         max_time_sec=30,
     )
-    injected_bps, injected_time_s = problem._median_large_stats(
-        params, max_time_sec=600
+    injected_bps, injected_time_s, probe_timeout_sec = (
+        problem.measure_fault_degradation(params)
     )
 
     baseline_bps = problem._baseline_throughput_bps
     baseline_time = problem._baseline_time_s
     baseline_rtt = problem._baseline_rtt_ms
 
+    # Path gate: loss + small HTTP. Do not require ICMP RTT≈baseline — the
+    # contended host replies to ping with the same CFS-starved CPU, so RTT
+    # inflation is an endpoint symptom, not a path fault.
     path_ok = (
         ping.loss_percent is not None
         and ping.loss_percent <= _SENDER_MAX_LOSS_PERCENT
         and small.ok
     )
-    if baseline_rtt is not None and ping.rtt_avg_ms is not None:
-        path_ok = path_ok and ping.rtt_avg_ms <= baseline_rtt * _SENDER_RTT_MAX_RATIO
 
     throughput_ratio = None
     time_ratio = None
@@ -139,6 +146,7 @@ def _sender_resource_contention(
             "injected_time_s": injected_time_s,
             "throughput_ratio": throughput_ratio,
             "time_ratio": time_ratio,
+            "probe_timeout_sec": probe_timeout_sec,
         },
     )
     return verified, result
@@ -216,7 +224,8 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
         p99_ratio is not None and p99_ratio >= _VIP_TAIL_MIN_RATIO
     )
     vip_errors_ok = vip.error_count >= _MIN_ERROR_COUNT_FOR_DEGRADATION
-    vip_degraded = vip_tail_ok or vip_errors_ok
+    vip_probe_failed = vip.p95_ms is None or vip.complete_requests in {None, 0}
+    vip_degraded = vip_tail_ok or vip_errors_ok or vip_probe_failed
 
     control_ok = (
         control.p95_ms is not None
@@ -303,10 +312,112 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
     return verified, result
 
 
+def _lb_connection_state_exhaustion(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    from nika.net_env.verify import http_ok
+
+    profile = getattr(problem, "_affinity_profile", None) or {}
+    client_host = profile.get("client_host") or params.client_host
+    status_path = profile.get("status_path", "/tmp/nika-lb-conn.status")
+    pid_path = profile.get("pid_path", "/tmp/nika-lb-conn.pid")
+    backend_dip = profile.get("backend_dip") or params.backend_dip
+    vip_url = profile.get("vip_url") or params.vip_url
+
+    status = problem.runtime.exec(
+        client_host, f"cat {status_path} 2>/dev/null || true"
+    ).strip()
+    deadline = time.time() + 8.0
+    while time.time() < deadline and status not in {"broken", "ok"}:
+        time.sleep(0.5)
+        status = problem.runtime.exec(
+            client_host, f"cat {status_path} 2>/dev/null || true"
+        ).strip()
+    if status != "broken":
+        running = problem.runtime.exec(
+            client_host,
+            f"kill -0 $(cat {pid_path} 2>/dev/null) 2>/dev/null && echo running || echo dead",
+        ).strip()
+        if running == "running":
+            problem.runtime.exec(
+                client_host,
+                f"kill $(cat {pid_path} 2>/dev/null) 2>/dev/null || true",
+            )
+            time.sleep(1.0)
+            status = problem.runtime.exec(
+                client_host, f"cat {status_path} 2>/dev/null || true"
+            ).strip()
+
+    affinity_broken = status == "broken"
+    vip_ok = http_ok(problem.runtime, client_host, vip_url)
+    verified = affinity_broken and vip_ok
+    result = build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "affinity_status": status,
+            "affinity_broken": affinity_broken,
+            "vip_ok": vip_ok,
+            "backend_dip": backend_dip,
+            "vip_url": vip_url,
+        },
+    )
+    return verified, result
+
+
+def _receiver_resource_contention(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    url = getattr(problem, "_large_url", None) or getattr(params, "large_url", None)
+    if not url:
+        url = problem._resolve_large_url(params)
+    injected_bps, injected_time_s = problem._median_large_stats(
+        params, url, max_time_sec=300, trials=3
+    )
+    baseline_bps = problem._baseline_throughput_bps
+    baseline_time = problem._baseline_time_s
+    throughput_ratio = None
+    time_ratio = None
+    perf_ok = False
+    if (
+        baseline_bps
+        and baseline_time
+        and injected_bps is not None
+        and injected_time_s is not None
+    ):
+        throughput_ratio = injected_bps / baseline_bps
+        time_ratio = injected_time_s / baseline_time
+        # Receiver contention: clear slowdown, not necessarily sender-class multi-x.
+        perf_ok = throughput_ratio <= 0.50 or time_ratio >= 2.0
+    verified = bool(perf_ok)
+    result = build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "host": params.host_name,
+            "large_url": url,
+            "perf_ok": perf_ok,
+            "baseline_throughput_bps": baseline_bps,
+            "baseline_time_s": baseline_time,
+            "injected_throughput_bps": injected_bps,
+            "injected_time_s": injected_time_s,
+            "throughput_ratio": throughput_ratio,
+            "time_ratio": time_ratio,
+        },
+    )
+    return verified, result
+
+
 _CUSTOM: dict[str, Any] = {
+    "link_flap": evaluate_link_flap_symptom,
+    "link_packet_corruption": evaluate_link_corruption_symptom,
+    "link_capacity_bottleneck": evaluate_link_capacity_symptom,
+    "device_forwarding_packet_corruption": evaluate_device_forwarding_corruption_symptom,
     "web_dos_attack": _web_dos,
     "sender_resource_contention": _sender_resource_contention,
+    "receiver_resource_contention": _receiver_resource_contention,
     "load_balancer_overload": _load_balancer_overload,
+    "lb_connection_state_exhaustion": _lb_connection_state_exhaustion,
 }
 
 

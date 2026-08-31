@@ -21,6 +21,7 @@ class TcpSynFloodAttackParams(BaseModel):
 class TcpSynFloodAttack(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name = "tcp_syn_flood_attack"
+    description = "TCP SYN flood attack against a target service."
     symptom_desc = (
         "Deterministic SYN-only flows create half-open pressure on one HTTP service."
     )

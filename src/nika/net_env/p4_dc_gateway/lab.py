@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import textwrap
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -209,9 +210,23 @@ class P4DcGateway(NetworkEnvBase):
 
         reconcile_gateway(self._build_runtime(), self.model)
 
+    def startup_verify_lab(self) -> dict:
+        from .verify import verify_p4_dc_gateway_lab_startup
+
+        return verify_p4_dc_gateway_lab_startup(
+            self._build_runtime(), self.LAB_NAME, self.model
+        )
+
     def verify_lab(self) -> dict:
         from .verify import verify_p4_dc_gateway_lab
 
         return verify_p4_dc_gateway_lab(
             self._build_runtime(), self.LAB_NAME, self.model
         )
+
+    def reconcile_dataplane_after_port_reconnect(
+        self, runtime: LabRuntime, nodes: list[str]
+    ) -> None:
+        from .apply import reconcile_gateway
+
+        reconcile_gateway(runtime, self.model)

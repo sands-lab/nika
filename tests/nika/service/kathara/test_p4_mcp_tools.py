@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-from nika.service.mcp_server.kathara import bmv2_server, telemetry_server
-from nika.service.kathara.bmv2_api import KatharaBMv2API
-from nika.service.mcp_server.common import host_server
+from nika.mcp.servers.kathara import bmv2_server, telemetry_server
+from nika.service.kathara.bmv2_api import KatharaBMv2API, _sanitize_p4rt_payload
+from nika.mcp.servers.common import host_server
 
 
 @pytest.mark.asyncio
@@ -18,14 +18,8 @@ async def test_p4_mcp_tool_schemas() -> None:
         tool.name: tool for tool in await telemetry_server.mcp.list_tools()
     }
 
-    assert set(bmv2_tools) == {"p4_get_runtime_state"}
-    assert bmv2_tools["p4_get_runtime_state"].inputSchema["properties"] == {
-        "switch_name": {
-            "anyOf": [{"type": "string"}, {"type": "null"}],
-            "default": None,
-            "title": "Switch Name",
-        }
-    }
+    assert set(bmv2_tools) == {"p4rt_exec"}
+    assert set(bmv2_tools["p4rt_exec"].inputSchema["properties"]) == {"args"}
     assert set(telemetry_tools) == {"int_query_telemetry"}
     schema = telemetry_tools["int_query_telemetry"].inputSchema
     assert schema["required"] == ["start_time"]
@@ -43,22 +37,22 @@ async def test_p4_mcp_tool_schemas() -> None:
     } == set(schema["properties"])
 
 
-def test_p4_get_runtime_state_tool_calls_session_api(monkeypatch) -> None:
-    calls: list[tuple[str, str | None]] = []
+def test_p4rt_exec_tool_calls_session_api(monkeypatch) -> None:
+    calls: list[tuple[str, str]] = []
 
     class FakeAPI:
         def __init__(self, lab_name: str) -> None:
             self.lab_name = lab_name
 
-        def p4_get_runtime_state(self, switch_name: str | None = None) -> dict:
-            calls.append((self.lab_name, switch_name))
-            return {"switches": {"gateway_1": {"pipeline": {"ok": True}}}}
+        def p4rt_exec(self, args: str) -> str:
+            calls.append((self.lab_name, args))
+            return json.dumps({"switches": {"gateway_1": {"pipeline": {"ok": True}}}})
 
     monkeypatch.setattr(bmv2_server, "get_lab_name", lambda: "p4_dc_gateway_test")
     monkeypatch.setattr(bmv2_server, "KatharaBMv2API", FakeAPI)
 
-    result = json.loads(bmv2_server.p4_get_runtime_state("gateway_1"))
-    assert calls == [("p4_dc_gateway_test", "gateway_1")]
+    result = json.loads(bmv2_server.p4rt_exec("read --switch gateway_1"))
+    assert calls == [("p4_dc_gateway_test", "read --switch gateway_1")]
     assert result["switches"]["gateway_1"]["pipeline"]["ok"] is True
 
 
@@ -113,56 +107,36 @@ def test_int_query_telemetry_tool_forwards_filters(monkeypatch) -> None:
     ]
 
 
-def test_p4_runtime_state_omits_zero_counters_and_compacts_ports(monkeypatch) -> None:
+def test_p4rt_exec_sanitizes_private_fault_registers(monkeypatch) -> None:
     api = KatharaBMv2API.__new__(KatharaBMv2API)
-    api.lab = type("Lab", (), {"name": "p4_dc_gateway_test"})()
     manager_state = {
         "switches": {
             "gateway_1": {
                 "pipeline": {"ok": True},
-                "counters": {
-                    "ingress": {
-                        "0": {"packets": 0, "bytes": 0},
-                        "3": {"packets": 4, "bytes": 512},
-                    }
+                "registers": {
+                    "queue_occupancy": {"1": 4},
+                    "internal_fault_loss_threshold": {"1": 2},
                 },
-                "registers": {"queue_occupancy": {"0": 0, "3": 7}},
-                "runtime_config": {"ecn_config": []},
             }
         }
     }
-    links = [
-        {"ifname": "lo", "operstate": "UNKNOWN", "mtu": 65536},
-        {
-            "ifname": "eth2",
-            "operstate": "UP",
-            "mtu": 1500,
-            "stats64": {
-                "rx": {"packets": 10, "bytes": 1000, "errors": 0, "dropped": 0},
-                "tx": {"packets": 8, "bytes": 800, "errors": 0, "dropped": 1},
-            },
-        },
-    ]
 
     def _exec(_host: str, command: str, **_kwargs) -> str:
-        if "p4rt_manager.py" in command:
-            return json.dumps(manager_state)
-        return json.dumps(links)
+        assert "p4rt_manager.py" in command
+        assert "read --switch gateway_1" in command
+        return json.dumps(manager_state)
 
     monkeypatch.setattr(api, "exec_cmd", _exec)
-    state = api.p4_get_runtime_state("gateway_1")["switches"]["gateway_1"]
+    payload = json.loads(api.p4rt_exec("read --switch gateway_1"))
+    assert "internal_fault" not in json.dumps(payload)
+    assert payload["switches"]["gateway_1"]["registers"]["queue_occupancy"]["1"] == 4
 
-    assert state["counters"] == {"ingress": {"3": {"packets": 4, "bytes": 512}}}
-    assert state["queue_statistics"] == {"occupancy": {"3": 7}}
-    assert state["ports"] == [
-        {
-            "name": "eth2",
-            "state": "UP",
-            "mtu": 1500,
-            "rx": {"packets": 10, "bytes": 1000, "errors": 0, "dropped": 0},
-            "tx": {"packets": 8, "bytes": 800, "errors": 0, "dropped": 1},
-        }
-    ]
+
+def test_sanitize_p4rt_payload_drops_internal_fault_keys() -> None:
+    cleaned = _sanitize_p4rt_payload(
+        {"ok": True, "internal_fault_x": 1, "nested": {"internal_fault_y": 2, "z": 3}}
+    )
+    assert cleaned == {"ok": True, "nested": {"z": 3}}
 
 
 def test_get_tc_statistics_works_with_kathara_base_api(monkeypatch) -> None:

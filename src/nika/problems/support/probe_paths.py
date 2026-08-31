@@ -75,11 +75,11 @@ _SCENARIO_PROBE_PATHS: dict[str, ProbePath] = {
         peer_host="client_2",
     ),
     "min3clos": ProbePath(
-        src_host="client_1_1",
-        dst_ip="10.0.2.11",
-        http_url="http://10.0.2.11/",
-        control_plane_host="leaf_1",
-        peer_host="client_2_1",
+        src_host="client1",
+        dst_ip="10.0.0.27",
+        http_url=None,
+        control_plane_host="leaf1",
+        peer_host="client2",
     ),
     "k8s_lab": ProbePath(
         src_host="client",
@@ -90,22 +90,15 @@ _SCENARIO_PROBE_PATHS: dict[str, ProbePath] = {
     ),
     "llmd_lab": ProbePath(
         src_host="client",
-        dst_ip="10.0.0.2",
-        http_url="http://10.0.0.2/",
+        dst_ip="200.0.0.8",
+        http_url="http://200.0.0.8/",
         control_plane_host="controller",
-    ),
-    "isp": ProbePath(
-        src_host="pc_atlam5",
-        dst_ip="10.254.0.6",
-        control_plane_host="atlam5",
-        peer_host="pc_atlang",
+        peer_host="web",
     ),
 }
 
 
 def get_probe_path(scenario: str, *, topo_size: str = "s") -> ProbePath | None:
-    if scenario.startswith("isp/"):
-        scenario = "isp"
     dynamic = _resolve_dynamic_probe_path(scenario, topo_size)
     if dynamic is not None:
         return dynamic
@@ -155,12 +148,39 @@ def _resolve_dynamic_probe_path(scenario: str, topo_size: str) -> ProbePath | No
                 control_plane_host="gateway_1",
                 peer_host=peer.name if peer else None,
             )
-        if scenario == "isp":
+        from nika.workflows.benchmark.isp_options import (
+            is_isp_scenario,
+            isp_topo_from_scenario,
+        )
+
+        if is_isp_scenario(scenario):
             from nika.net_env.isp.igp import IspConfig, compile_isp_plan
             from nika.net_env.isp.inject_targets import isp_default_probe_path
+            from nika.net_env.isp.traffic.models import (
+                TrafficInterval,
+                TrafficMatrixSeries,
+            )
+            from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
 
-            plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
-            return isp_default_probe_path(plan.inventory)
+            plan = compile_isp_plan(
+                IspConfig(topology=isp_topo_from_scenario(scenario), igp="ospf")
+            )
+            # Stub hosts are required for isp_default_probe_path (inventory hosts).
+            stub_series = TrafficMatrixSeries(
+                topology=plan.topology_name,
+                source="demands",
+                intervals=(TrafficInterval(index=0, duration_sec=5, flows=()),),
+                sample_period_sec=5,
+                unit_note="stub-layout only",
+                path=None,
+            )
+            attachment = attach_traffic_stubs(
+                plan,
+                stub_series,
+                pop_node_ids=tuple(n.node_id for n in plan.nodes),
+                render_frr=False,
+            )
+            return isp_default_probe_path(attachment.plan.inventory)
     except Exception:  # noqa: BLE001
         return None
     return None

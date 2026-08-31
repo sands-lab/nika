@@ -1,0 +1,38 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: web_dos_attack
+  cases:
+  - topo_size: s
+    inject:
+      attacker_device: pc_1_1_1_1
+      host_name: web_server_0
+      observer_device: pc_2_1_1_1
+      probe_url: http://10.200.0.3/
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: web_dos_attack
+  - topo_size: m
+    inject:
+      attacker_device: pc_1_1_1_1
+      host_name: web_server_0
+      observer_device: pc_2_1_1_1
+      probe_url: http://10.200.0.3/
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: web_dos_attack
+  - topo_size: l
+    inject:
+      attacker_device: pc_1_1_1_1
+      host_name: web_server_0
+      observer_device: pc_2_1_1_1
+      probe_url: http://10.200.0.3/
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: web_dos_attack

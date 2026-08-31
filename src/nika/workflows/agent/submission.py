@@ -12,16 +12,20 @@ from agent.utils.loggers import MESSAGES_FILENAME
 from nika.problems.ownership import ownership_entries
 from nika.problems.registry import list_avail_problem_names
 from nika.problems.rca.inventory import catalog_resources, load_offline_net_env
-from nika.service.mcp_gateway.session_registry import get_session
+from nika.mcp.gateway.session_registry import get_session
 from nika.utils.session_store import SessionStore
+from nika.workflows.benchmark.healthy import is_healthy_case
 
 
 def _case_ontology(row: dict[str, Any]) -> list[str]:
     metadata = row.get("metadata") or {}
     values = row.get("fault_ontology") or metadata.get("fault_ontology")
     if isinstance(values, list) and all(isinstance(value, str) for value in values):
-        return sorted(set(values))
-    return sorted(set(list_avail_problem_names()))
+        names = values
+    else:
+        names = list_avail_problem_names()
+    # ``healthy`` is a benchmark sentinel, not a registered fault type.
+    return sorted({name for name in names if not is_healthy_case(name)})
 
 
 def _trajectory_path(session_id: str) -> Path:

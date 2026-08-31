@@ -1,18 +1,24 @@
 from __future__ import annotations
 
 import pytest
-from nika.net_env.dc_clos.verify import verify_dc_clos_lab
+from nika.net_env.dc_clos.verify import verify_dc_clos_lab, verify_dc_clos_lab_startup
 from nika.net_env.enterprise_branch.verify import (
     verify_enterprise_branch_lab,
+    verify_enterprise_branch_lab_startup,
 )
-from nika.net_env.k8s_lab.verify import verify_k8s_lab
-from nika.net_env.llmd_lab.verify import verify_llmd_lab
+from nika.net_env.k8s_lab.verify import verify_k8s_lab, verify_k8s_lab_startup
+from nika.net_env.llmd_lab.verify import verify_llmd_lab, verify_llmd_lab_startup
+from nika.net_env.net_env_pool import get_net_env_instance
 from nika.net_env.sdn_l3_clos.topology_model import build_clos_fabric_model
-from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
+from nika.net_env.sdn_l3_clos.verify import (
+    verify_sdn_l3_clos_lab,
+    verify_sdn_l3_clos_lab_startup,
+)
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.net_env import assert_verify_success
 from tests.support.prerequisites import docker_available
+from tests.support.scenario_evaluate import evaluate_scenario
 from tests.support.simple_bgp.verify import verify_simple_bgp_lab
 
 ALL_NODES = {
@@ -164,6 +170,8 @@ class FakeRuntime:
             )
         if command == "systemctl is-active frr":
             return "active"
+        if command == "pgrep -x bgpd":
+            return "123"
         if command in {"systemctl is-active named", "systemctl is-active apache2"}:
             return "active"
         if command == "pgrep -x simple_switch":
@@ -266,6 +274,12 @@ class FakeRuntime:
             return "\n".join(
                 (f"node{idx} Ready control-plane 1m v1.0" for idx in range(6))
             )
+        if command == "kubectl get ns word-ns -o jsonpath={.status.phase}":
+            return "Active"
+        if command == "kubectl get ns weather-ns -o jsonpath={.status.phase}":
+            return "Active"
+        if command == "kubectl get ns llm-d -o jsonpath={.status.phase}":
+            return "Active"
         if "jsonpath={.status.loadBalancer.ingress[0].ip}" in command:
             return "101.0.0.1"
         if command == "kubectl get pods -n metallb-system --no-headers":
@@ -286,8 +300,68 @@ class KatharaVerifyUnitTest:
     def test_simple_bgp_verify_passes(self) -> None:
         assert_verify_success(verify_simple_bgp_lab(FakeRuntime(), scenario_name="x"))
 
+    def test_dc_clos_startup_verify_passes(self) -> None:
+        assert_verify_success(verify_dc_clos_lab_startup(FakeRuntime(), scenario_name="x"))
+
     def test_dc_clos_verify_passes(self) -> None:
         assert_verify_success(verify_dc_clos_lab(FakeRuntime(), scenario_name="x"))
+
+    def test_dc_clos_startup_bgp_failure(self) -> None:
+        result = verify_dc_clos_lab_startup(
+            FakeRuntime(
+                overrides={
+                    (
+                        "super_spine_router_0",
+                        "vtysh -c 'show bgp summary'",
+                    ): "failed to connect to bgpd"
+                }
+            ),
+            scenario_name="x",
+        )
+        assert not result["verified"]
+        assert not result["checks"]["super_spine_bgp_established"]
+
+    def test_sdn_l3_clos_startup_verify_passes(self) -> None:
+        model = build_clos_fabric_model("s")
+        assert_verify_success(
+            verify_sdn_l3_clos_lab_startup(
+                FakeRuntime(), scenario_name="sdn_l3_clos", model=model
+            )
+        )
+
+    def test_k8s_startup_verify_passes(self) -> None:
+        assert_verify_success(verify_k8s_lab_startup(FakeRuntime(), scenario_name="x"))
+
+    def test_llmd_startup_verify_passes(self) -> None:
+        assert_verify_success(verify_llmd_lab_startup(FakeRuntime(), scenario_name="x"))
+
+    def test_enterprise_branch_startup_verify_passes(self) -> None:
+        from nika.net_env.enterprise_branch.topology import build_topo_spec
+
+        spec = build_topo_spec("s")
+        assert_verify_success(
+            verify_enterprise_branch_lab_startup(
+                FakeRuntime(),
+                scenario_name="enterprise_branch",
+                topo_size="s",
+                spec=spec,
+            )
+        )
+
+    def test_enterprise_branch_startup_frr_failure(self) -> None:
+        from nika.net_env.enterprise_branch.topology import build_topo_spec
+
+        spec = build_topo_spec("s")
+        result = verify_enterprise_branch_lab_startup(
+            FakeRuntime(
+                overrides={("hq_edge", "pgrep -x bgpd"): ""},
+            ),
+            scenario_name="enterprise_branch",
+            topo_size="s",
+            spec=spec,
+        )
+        assert not result["verified"]
+        assert not result["checks"]["hq_edge_frr"]
 
     def test_enterprise_branch_verify_passes(self) -> None:
         from nika.net_env.enterprise_branch.topology import (
@@ -359,6 +433,16 @@ class KatharaVerifyUnitTest:
 
         assert not result["checks"]["nodes_deployed"]
 
+    def test_k8s_startup_not_ready_fails(self) -> None:
+        result = verify_k8s_lab_startup(
+            FakeRuntime(
+                overrides={("controller", "kubectl get nodes --no-headers"): ""}
+            ),
+            scenario_name="x",
+        )
+        assert not result["verified"]
+        assert not result["checks"]["k3s_nodes_ready"]
+
     def test_k8s_not_ready_fails(self) -> None:
         result = verify_k8s_lab(
             FakeRuntime(
@@ -425,5 +509,14 @@ class KatharaScenarioVerifyIntegrationTest(IntegrationTestCase):
                 nodes = set(runtime_for_session(row).list_nodes())
                 for node in expected_nodes:
                     assert node in nodes
+
+                kwargs = self._scenario_kwargs(session_id)
+                net_env = get_net_env_instance(
+                    scenario,
+                    backend=resolve_backend(row),
+                    **kwargs,
+                )
+                ok, result = evaluate_scenario(net_env)
+                assert ok is True, result
             finally:
                 self._close_session(session_id)

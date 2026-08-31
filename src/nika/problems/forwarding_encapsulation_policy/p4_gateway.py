@@ -24,12 +24,12 @@ _FRAG_NEEDED_COLUMNS = frozenset(
         "campus_lan",
         "enterprise_branch",
         "k8s_lab",
-        "isp/isis",
-        "isp/ospf",
-        "isp/ibgp_rr",
-        "isp/abilene-ebgp",
-        "isp/abilene-ebgp-rpki",
-        "isp/geant-ebgp-rpki",
+        "isp_abilene/isis",
+        "isp_abilene/ospf",
+        "isp_abilene/ibgp_rr",
+        "isp_abilene_ebgp_rpki",
+        "isp_geant_ebgp_rpki",
+        "isp_abilene_ebgp_rtbh",
     }
 )
 
@@ -44,6 +44,7 @@ class IcmpFragNeededFilterMisconfigurationParams(BaseModel):
 class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "icmp_frag_needed_filter_misconfiguration"
+    description = "ICMP Fragmentation Needed messages are filtered."
     symptom_desc = (
         "ICMP Fragmentation Needed is filtered, so PMTUD cannot shrink the path "
         "MTU and large transfers stall while small packets still work."
@@ -88,9 +89,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 "icmp-frag-needed" in output,
                 {"gateway": params.host_name, "output": output[:200]},
             )
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
+        nft_output = self.runtime.list_nft_ruleset(params.host_name)
         verified = "frag-needed" in nft_output or (
             "destination-unreachable" in nft_output and "drop" in nft_output
         )
@@ -112,6 +111,7 @@ class P4TcamEntryCorruptionParams(BaseModel):
 class P4TcamEntryCorruption(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "p4_tcam_entry_corruption"
+    description = "A forwarding/TCAM entry is silently corrupted for one flow."
     symptom_desc = "One destination flow stops after a switch whose P4Runtime state remains healthy."
     TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
@@ -148,6 +148,7 @@ class IntInsufficientMtuHeadroomParams(BaseModel):
 class IntInsufficientMtuHeadroom(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "int_insufficient_mtu_headroom"
+    description = "INT encapsulation lacks sufficient MTU headroom."
     symptom_desc = "Near-MTU watched packets cannot carry the fixed INT-MX header."
     TAGS = ["p4_runtime", "int", "telemetry", "http"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})

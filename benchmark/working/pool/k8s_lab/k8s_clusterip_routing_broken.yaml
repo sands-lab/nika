@@ -1,0 +1,53 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: k8s_clusterip_routing_broken
+  cases:
+  - inject:
+      control_node: controller
+      node_name: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_clusterip_routing_broken
+  - inject:
+      control_node: controller
+      node_name: worker1
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_clusterip_routing_broken
+  - inject:
+      control_node: controller
+      node_name: worker2
+    root_causes:
+    - resource:
+        kind: node
+        node: worker2
+      fault_type: k8s_clusterip_routing_broken
+  - inject:
+      control_node: controller
+      node_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: worker3
+      fault_type: k8s_clusterip_routing_broken
+  - inject:
+      control_node: controller
+      node_name: worker4
+    root_causes:
+    - resource:
+        kind: node
+        node: worker4
+      fault_type: k8s_clusterip_routing_broken
+  - inject:
+      control_node: controller
+      node_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker5
+      fault_type: k8s_clusterip_routing_broken

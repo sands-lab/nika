@@ -1,0 +1,25 @@
+scenario:
+  name: isp_abilene
+failure:
+  fault_type: bgp_max_prefix_exceeded
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      flood_count: '120'
+      neighbor_ip: 10.0.0.21
+      peer_name: losang
+      receiver_name: hstnng
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: bgp_max_prefix_exceeded
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_max_prefix_exceeded

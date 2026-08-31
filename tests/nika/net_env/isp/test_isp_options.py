@@ -15,7 +15,6 @@ from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 def test_isp_config_does_not_select_rpki_for_max_prefix() -> None:
     cfg = isp_config_for_problem("bgp_max_prefix_exceeded", {"bgp", "isp"})
     assert cfg == {
-        "topo": "abilene",
         "igp": "ospf",
         "bgp_mode": "ebgp",
         "rpki": False,
@@ -25,7 +24,6 @@ def test_isp_config_does_not_select_rpki_for_max_prefix() -> None:
 def test_isp_config_rpki_default() -> None:
     cfg = isp_config_for_problem("bgp_rpki_invalid_route_leak", {"rpki"})
     assert cfg == {
-        "topo": "abilene",
         "igp": "ospf",
         "bgp_mode": "ebgp",
         "rpki": True,
@@ -34,19 +32,16 @@ def test_isp_config_rpki_default() -> None:
 
 def test_isp_config_ospf_and_bgp() -> None:
     assert isp_config_for_problem("ospf_neighbor_missing", {"ospf"}) == {
-        "topo": "polska",
         "igp": "ospf",
         "bgp_mode": "none",
         "rpki": False,
     }
     assert isp_config_for_problem("bgp_asn_misconfig", {"bgp"}) == {
-        "topo": "polska",
         "igp": "isis",
         "bgp_mode": "ibgp_rr",
         "rpki": False,
     }
     assert isp_config_for_problem("link_down", {"link"}) == {
-        "topo": "polska",
         "igp": "isis",
         "bgp_mode": "none",
         "rpki": False,
@@ -70,48 +65,67 @@ def test_isp_column_suffix() -> None:
     )
 
 
-def test_normalize_isp_rpki_keeps_isp_scenario() -> None:
+def test_normalize_isp_rpki_named_scenario() -> None:
     row = normalize_benchmark_row(
         {
-            "scenario": "isp",
+            "scenario": "isp_abilene_ebgp_rpki",
             "problem": "bgp_rpki_invalid_route_leak",
             "topo_size": None,
             "inject": {"host_name": "kscyng"},
-            "topo": "abilene",
-            "igp": "ospf",
-            "bgp_mode": "ebgp",
-            "rpki": True,
         }
     )
-    assert row["scenario"] == "isp"
-    assert row["topo"] == "abilene"
-    assert row["igp"] == "ospf"
-    assert row["bgp_mode"] == "ebgp"
-    assert row["rpki"] is True
+    assert row["scenario"] == "isp_abilene_ebgp_rpki"
+    assert row["topo_size"] == "s"
+    assert "igp" not in row
+    assert "bgp_mode" not in row
+    assert "rpki" not in row
 
 
-def test_normalize_legacy_isp_topology_infers_its_size() -> None:
+def test_normalize_isp_base_infers_fixed_size() -> None:
     row = normalize_benchmark_row(
         {
-            "scenario": "isp",
+            "scenario": "isp_geant",
             "problem": "link_down",
             "topo_size": None,
             "inject": {"host_name": "router_a", "intf_name": "eth0"},
-            "topo": "geant",
+            "igp": "ospf",
+            "bgp_mode": "none",
+            "rpki": False,
         }
     )
     assert row["topo_size"] == "m"
+    assert row["igp"] == "ospf"
+    assert row["bgp_mode"] == "none"
+    assert row["rpki"] is False
 
 
-def test_normalize_rejects_isp_topology_in_the_wrong_size_tier() -> None:
-    with pytest.raises(ValueError, match="belongs to size 'm', not 's'"):
+def test_normalize_rejects_isp_wrong_fixed_size() -> None:
+    with pytest.raises(ValueError, match="fixed topo_size"):
         normalize_benchmark_row(
             {
-                "scenario": "isp",
+                "scenario": "isp_geant",
                 "problem": "link_down",
                 "topo_size": "s",
                 "inject": {"host_name": "router_a", "intf_name": "eth0"},
-                "topo": "geant",
+                "igp": "ospf",
+                "bgp_mode": "none",
+                "rpki": False,
+            }
+        )
+
+
+def test_normalize_rejects_topo_field_on_isp() -> None:
+    with pytest.raises(ValueError, match="omit topo"):
+        normalize_benchmark_row(
+            {
+                "scenario": "isp_abilene",
+                "problem": "link_down",
+                "topo_size": "s",
+                "inject": {"host_name": "router_a", "intf_name": "eth0"},
+                "topo": "abilene",
+                "igp": "ospf",
+                "bgp_mode": "none",
+                "rpki": False,
             }
         )
 
@@ -143,11 +157,10 @@ def test_normalize_rejects_isp_options_on_non_isp() -> None:
 
 def test_fingerprint_includes_isp_options() -> None:
     base = {
-        "scenario": "isp",
+        "scenario": "isp_abilene",
         "problem": "bgp_max_prefix_exceeded",
-        "topo_size": "",
+        "topo_size": "s",
         "inject": {"receiver_name": "nyc", "peer_name": "chicago"},
-        "topo": "abilene",
         "igp": "isis",
         "bgp_mode": "ebgp",
         "rpki": False,

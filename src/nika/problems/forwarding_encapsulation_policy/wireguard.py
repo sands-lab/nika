@@ -83,6 +83,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
+    description = "WireGuard peer public key is incorrect."
     TAGS: str = ["vpn"]
     Params = WireGuardPeerKeyMisconfigParams
     symptom_desc = (
@@ -267,6 +268,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "wireguard_allowed_ips_misconfiguration"
+    description = "WireGuard AllowedIPs omits a required remote prefix."
     TAGS: str = ["vpn"]
     Params = WireGuardAllowedIpsMisconfigParams
     symptom_desc = (

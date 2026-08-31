@@ -1,0 +1,35 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: host_ip_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_0
+      host_name_2: dns_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    inject:
+      host_name: webserver1_pod1
+      host_name_2: webserver2_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: webserver2_pod0
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    inject:
+      host_name: client_2
+      host_name_2: dns_pod1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod1
+        name: eth0
+      fault_type: host_ip_conflict

@@ -60,6 +60,7 @@ class FlowRuleShadowingParams(BaseModel):
 class FlowRuleShadowing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "flow_rule_shadowing"
+    description = "A higher-priority SDN rule shadows intended forwarding."
     TAGS: str = ["sdn"]
 
     Params = FlowRuleShadowingParams
@@ -120,6 +121,7 @@ class FlowRuleLoopParams(BaseModel):
 class FlowRuleLoop(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "flow_rule_loop"
+    description = "SDN flow rules create a forwarding loop."
     TAGS: str = ["sdn"]
 
     Params = FlowRuleLoopParams

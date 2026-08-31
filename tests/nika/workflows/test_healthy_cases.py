@@ -7,11 +7,10 @@ import pytest
 from nika.config import BENCHMARK_DIR
 from nika.workflows.benchmark.healthy import (
     HEALTHY_PROBLEM,
-    SELECTED_HEALTHY_SCENARIOS,
     is_healthy_case,
 )
 from nika.workflows.benchmark.load_config import (
-    load_benchmark_yaml,
+    load_benchmark_input,
     normalize_benchmark_row,
 )
 
@@ -65,7 +64,7 @@ def test_normalize_healthy_isp_requires_profile() -> None:
     with pytest.raises(ValueError, match="explicit deploy options"):
         normalize_benchmark_row(
             {
-                "scenario": "isp",
+                "scenario": "isp_abilene",
                 "topo_size": "s",
                 "problem": HEALTHY_PROBLEM,
                 "inject": {},
@@ -73,11 +72,27 @@ def test_normalize_healthy_isp_requires_profile() -> None:
         )
 
 
-def test_selected_yaml_includes_one_healthy_per_scenario() -> None:
-    rows = load_benchmark_yaml(BENCHMARK_DIR / "benchmark_selected.yaml")
+def test_candidate_catalog_includes_healthy_scenarios() -> None:
+    pool = BENCHMARK_DIR / "working" / "pool"
+    rows = load_benchmark_input(pool)
     healthy = [row for row in rows if is_healthy_case(row["problem"])]
-    assert len(healthy) == len(SELECTED_HEALTHY_SCENARIOS)
-    assert {row["scenario"] for row in healthy} == set(SELECTED_HEALTHY_SCENARIOS)
+    scenarios = {row["scenario"] for row in healthy}
+    assert "campus_lan" in scenarios
+    assert "dc_clos" in scenarios
+    assert "enterprise_branch" in scenarios
+    assert "isp_abilene" in scenarios
+    assert "isp_abilene_ebgp_rtbh" in scenarios
+    assert "isp_abilene_ebgp_rpki" in scenarios
+    assert "k8s_lab" in scenarios
+    assert "llmd_lab" in scenarios
+    assert "min3clos" in scenarios
+    assert "p4_dc_fabric" in scenarios
+    assert "p4_dc_gateway" in scenarios
+    assert "sdn_l3_clos" in scenarios
+    assert "isp" not in scenarios
+    assert "isp_ebgp_rtbh" not in scenarios
+    assert not (pool / "isp").is_dir()
+    assert not (pool / "isp_ebgp_rtbh").is_dir()
     for row in healthy:
         assert row["inject"] == {}
         assert row["root_causes"] == []

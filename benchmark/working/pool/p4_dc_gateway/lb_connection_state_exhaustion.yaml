@@ -1,0 +1,50 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: lb_connection_state_exhaustion
+  cases:
+  - topo_size: s
+    inject:
+      attacker_device: client_2
+      backend_dip: 10.0.1.11
+      capacity: '256'
+      client_host: client_1
+      host_name: gateway_1
+      seed: '42'
+      syn_timeout_sec: '10'
+      vip_url: http://20.0.0.1:80/
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_connection_state_exhaustion
+  - topo_size: m
+    inject:
+      attacker_device: client_4
+      backend_dip: 10.0.1.11
+      capacity: '256'
+      client_host: client_1
+      host_name: gateway_1
+      seed: '42'
+      syn_timeout_sec: '10'
+      vip_url: http://20.0.0.1:80/
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_connection_state_exhaustion
+  - topo_size: l
+    inject:
+      attacker_device: client_8
+      backend_dip: 10.0.1.11
+      capacity: '256'
+      client_host: client_1
+      host_name: gateway_1
+      seed: '42'
+      syn_timeout_sec: '10'
+      vip_url: http://20.0.0.1:80/
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_connection_state_exhaustion

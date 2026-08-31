@@ -50,7 +50,19 @@ def owner_kind_for_fault(fault_type: str) -> str:
 
 
 def ownership_entries(fault_types: list[str]) -> list[dict[str, str]]:
-    return [
-        {"id": fault_type, "owner_kind": owner_kind_for_fault(fault_type)}
-        for fault_type in sorted(set(fault_types))
-    ]
+    entries: list[dict[str, str]] = []
+    for fault_type in sorted(set(fault_types)):
+        cls = get_problem_class(fault_type)
+        if cls is None:
+            raise KeyError(f"Unknown fault type: {fault_type!r}")
+        # Prefer the explicit class description only. Do not fall back to
+        # symptom_desc / META text, which can leak probe differentials.
+        description = (getattr(cls, "description", None) or "").strip()
+        entries.append(
+            {
+                "id": fault_type,
+                "description": description or fault_type,
+                "owner_kind": owner_kind_for_fault(fault_type),
+            }
+        )
+    return entries

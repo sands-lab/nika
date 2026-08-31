@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import agent.byo.mcp_agent._bootstrap  # noqa: F401
+
 from mcp_agent.agents.agent import Agent
 
 from agent.byo.mcp_agent.config import _mcp_reasoning_effort, build_mcp_request_params

@@ -1,0 +1,50 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: incast_traffic_network_limitation
+  cases:
+  - topo_size: s
+    inject:
+      burst: 64kb
+      delay_ms: '400'
+      host_name: hq_srv
+      limit: 64kb
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_srv
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: m
+    inject:
+      burst: 64kb
+      delay_ms: '400'
+      host_name: hq_srv
+      limit: 64kb
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_srv
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: l
+    inject:
+      burst: 64kb
+      delay_ms: '400'
+      host_name: hq_srv
+      limit: 64kb
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_srv
+        name: eth0
+      fault_type: incast_traffic_network_limitation

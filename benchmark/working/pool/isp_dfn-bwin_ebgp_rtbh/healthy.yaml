@@ -1,0 +1,7 @@
+scenario:
+  name: isp_dfn-bwin_ebgp_rtbh
+healthy:
+  variants:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr

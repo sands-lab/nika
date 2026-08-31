@@ -35,12 +35,12 @@ _MTU_MISMATCH_COLUMNS = frozenset(
         "campus_lan",
         "enterprise_branch",
         "k8s_lab",
-        "isp/isis",
-        "isp/ospf",
-        "isp/ibgp_rr",
-        "isp/abilene-ebgp",
-        "isp/abilene-ebgp-rpki",
-        "isp/geant-ebgp-rpki",
+        "isp_abilene/isis",
+        "isp_abilene/ospf",
+        "isp_abilene/ibgp_rr",
+        "isp_abilene_ebgp_rpki",
+        "isp_geant_ebgp_rpki",
+        "isp_abilene_ebgp_rtbh",
     }
 )
 
@@ -61,6 +61,7 @@ class MtuMismatchParams(BaseModel):
 class MtuMismatch(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "mtu_mismatch"
+    description = "Path MTU is misconfigured on an intermediate hop."
     TAGS: list[str] = ["link", "icmp"]
     COMPATIBLE_COLUMNS = _MTU_MISMATCH_COLUMNS
 
@@ -103,6 +104,14 @@ class MtuMismatch(ProblemBase):
     def _set_mtu(self, host: str, intf: str, mtu: int) -> None:
         self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
 
+    @staticmethod
+    def _skip_peer_mtu(peer_host: str) -> bool:
+        # Lowering MTU on k3s eth0 breaks the node dataplane so even small
+        # DF pings to the controller fail (k8s_lab / llmd_lab).
+        if peer_host == "controller":
+            return True
+        return peer_host.startswith("worker")
+
     def _inject_mtu_mismatch(self, params: MtuMismatchParams) -> None:
         self.mtu = params.mtu
         self._set_mtu(params.host_name, params.intf_name, params.mtu)
@@ -110,13 +119,19 @@ class MtuMismatch(ProblemBase):
         self._peer = peer
         if peer is not None:
             peer_host, peer_intf = peer
-            try:
-                self._set_mtu(peer_host, peer_intf, params.mtu)
-            except Exception as exc:  # noqa: BLE001
-                system_logger.warning(
-                    f"Peer MTU set skipped for {peer_host}:{peer_intf}: {exc}"
+            if self._skip_peer_mtu(peer_host):
+                system_logger.info(
+                    f"Peer MTU set skipped for k3s node {peer_host}:{peer_intf}"
                 )
                 self._peer = None
+            else:
+                try:
+                    self._set_mtu(peer_host, peer_intf, params.mtu)
+                except Exception as exc:  # noqa: BLE001
+                    system_logger.warning(
+                        f"Peer MTU set skipped for {peer_host}:{peer_intf}: {exc}"
+                    )
+                    self._peer = None
         system_logger.info(
             f"Injected path MTU mismatch on {params.host_name}:{params.intf_name} "
             f"(mtu={params.mtu})"

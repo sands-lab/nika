@@ -1,0 +1,71 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: load_balancer_overload
+  cases:
+  - topo_size: s
+    inject:
+      backend_cpu_host: backend_web_0
+      backend_probe_host: load_balancer
+      backend_url: http://20.200.0.2/small
+      client_host: pc_1_1_1_1
+      concurrency: '160'
+      control_url: http://web0.local/small
+      cpu_quota: '0.2'
+      duration_sec: '300'
+      host_name: load_balancer
+      load_client_hosts: pc_2_1_1_1
+      load_workers: '2'
+      probe_concurrency: '4'
+      probe_requests: '60'
+      vip_url: http://web99.local/small
+      warmup_sec: '5'
+    root_causes:
+    - resource:
+        kind: node
+        node: load_balancer
+      fault_type: load_balancer_overload
+  - topo_size: m
+    inject:
+      backend_cpu_host: backend_web_0
+      backend_probe_host: load_balancer
+      backend_url: http://20.200.0.2/small
+      client_host: pc_1_1_1_1
+      concurrency: '160'
+      control_url: http://web0.local/small
+      cpu_quota: '0.2'
+      duration_sec: '300'
+      host_name: load_balancer
+      load_client_hosts: pc_2_1_1_1
+      load_workers: '2'
+      probe_concurrency: '4'
+      probe_requests: '60'
+      vip_url: http://web99.local/small
+      warmup_sec: '5'
+    root_causes:
+    - resource:
+        kind: node
+        node: load_balancer
+      fault_type: load_balancer_overload
+  - topo_size: l
+    inject:
+      backend_cpu_host: backend_web_0
+      backend_probe_host: load_balancer
+      backend_url: http://20.200.0.2/small
+      client_host: pc_1_1_1_1
+      concurrency: '160'
+      control_url: http://web0.local/small
+      cpu_quota: '0.2'
+      duration_sec: '300'
+      host_name: load_balancer
+      load_client_hosts: pc_2_1_1_1
+      load_workers: '2'
+      probe_concurrency: '4'
+      probe_requests: '60'
+      vip_url: http://web99.local/small
+      warmup_sec: '5'
+    root_causes:
+    - resource:
+        kind: node
+        node: load_balancer
+      fault_type: load_balancer_overload

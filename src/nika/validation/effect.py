@@ -336,7 +336,9 @@ def _faulty_runtime_report(
 ) -> ValidationReport | None:
     if getattr(problem, "lab_backend", None) != "kathara":
         return None
-    if contract.scenario != "isp":
+    from nika.workflows.benchmark.isp_options import is_isp_scenario
+
+    if not is_isp_scenario(contract.scenario):
         return None
     from nika.net_env.isp.kathara.verify import verify_isp_contract
 
@@ -348,7 +350,11 @@ def _faulty_runtime_report(
 def _faulty_batfish_report(
     problem: Any, contract: ValidationContract, root: Any
 ) -> ValidationReport | None:
-    if getattr(problem, "lab_backend", None) != "kathara" or contract.scenario != "isp":
+    from nika.workflows.benchmark.isp_options import is_isp_scenario
+
+    if getattr(problem, "lab_backend", None) != "kathara" or not is_isp_scenario(
+        contract.scenario
+    ):
         return None
     from nika.validation.batfish.service import ensure_batfish_service
     from nika.validation.batfish.snapshot import build_isp_snapshot

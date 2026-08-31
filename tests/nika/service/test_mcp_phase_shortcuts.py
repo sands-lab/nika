@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from nika.service.mcp_gateway.policy import is_server_allowed
-from nika.service.mcp_gateway.session_registry import (
+from nika.mcp.gateway.policy import is_server_allowed
+from nika.mcp.gateway.session_registry import (
     advance_phase,
     clear_sessions,
     register_session,

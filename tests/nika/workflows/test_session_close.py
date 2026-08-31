@@ -242,7 +242,7 @@ def test_update_session_keeps_document_on_lookup_path(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_mcp_session_meta_falls_back_to_run_json(tmp_path: Path, monkeypatch) -> None:
-    from nika.service.mcp_server.session_context import get_session_meta
+    from nika.mcp.session_context import get_session_meta
 
     session_id = "simple_bgp__link_down__feedface__t01"
     results_root = tmp_path / "results"

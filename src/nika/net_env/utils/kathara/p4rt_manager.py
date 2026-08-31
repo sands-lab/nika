@@ -419,6 +419,40 @@ def exact_fields_entity(
     return update
 
 
+def exact_fields_delete_entity(
+    index: P4InfoIndex,
+    table_name: str,
+    fields: dict[str, int | str],
+):
+    """Build a DELETE for an exact-match gateway runtime table entry."""
+    entity = p4runtime_pb2.Entity()
+    entry = entity.table_entry
+    entry.table_id = index.table_id(table_name)
+    for field, value in fields.items():
+        match = entry.match.add()
+        match.field_id = index.match_field_id(table_name, field)
+        width = index.match_field_bitwidth(table_name, field)
+        match.exact.value = (
+            encode_ipv4(value) if isinstance(value, str) else encode_u(value, width)
+        )
+    update = p4runtime_pb2.Update()
+    update.type = p4runtime_pb2.Update.DELETE
+    update.entity.CopyFrom(entity)
+    return update
+
+
+def _lb_conn_fields(
+    src_addr: str, src_port: int, dst_addr: str, dst_port: int
+) -> dict[str, int | str]:
+    return {
+        "srcAddr": src_addr,
+        "dstAddr": dst_addr,
+        "protocol": 6,
+        "srcPort": src_port,
+        "dstPort": dst_port,
+    }
+
+
 def connect(switch: dict[str, Any]) -> SwitchClient:
     return SwitchClient(switch["address"], int(switch["device_id"]))
 
@@ -1103,22 +1137,68 @@ def cmd_gateway_lb(args: argparse.Namespace) -> None:
 
         updates: list[p4runtime_pb2.Update] = []
         if args.kind == "exhaust":
-            for offset in range(args.capacity):
+            offset_start = int(args.offset_start)
+            for offset in range(offset_start, offset_start + args.capacity):
                 updates.append(
                     exact_fields_entity(
                         index,
                         "lb_conn_table",
-                        {
-                            "srcAddr": "192.0.2.10",
-                            "dstAddr": vip["ip"],
-                            "protocol": 6,
-                            "srcPort": 20000 + offset,
-                            "dstPort": int(vip["port"]),
-                        },
+                        _lb_conn_fields(
+                            "192.0.2.10",
+                            20000 + offset,
+                            vip["ip"],
+                            int(vip["port"]),
+                        ),
                         "set_lb_dip",
                         {"dip": backends[0]["dip"]},
                     )
                 )
+        elif args.kind == "learn":
+            if not all(
+                value is not None
+                for value in (
+                    args.src_addr,
+                    args.src_port,
+                    args.dst_addr,
+                    args.dst_port,
+                    args.dip,
+                )
+            ):
+                raise ValueError("learn requires --src-addr --src-port --dst-addr --dst-port --dip")
+            updates.append(
+                exact_fields_entity(
+                    index,
+                    "lb_conn_table",
+                    _lb_conn_fields(
+                        args.src_addr,
+                        int(args.src_port),
+                        args.dst_addr,
+                        int(args.dst_port),
+                    ),
+                    "set_lb_dip",
+                    {"dip": args.dip},
+                )
+            )
+        elif args.kind == "delete-conn":
+            if not all(
+                value is not None
+                for value in (args.src_addr, args.src_port, args.dst_addr, args.dst_port)
+            ):
+                raise ValueError(
+                    "delete-conn requires --src-addr --src-port --dst-addr --dst-port"
+                )
+            updates.append(
+                exact_fields_delete_entity(
+                    index,
+                    "lb_conn_table",
+                    _lb_conn_fields(
+                        args.src_addr,
+                        int(args.src_port),
+                        args.dst_addr,
+                        int(args.dst_port),
+                    ),
+                )
+            )
         elif args.kind == "unsafe-update":
             updates.append(
                 exact_fields_entity(
@@ -1230,9 +1310,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_lb = sub.add_parser("gateway-lb")
     p_lb.add_argument("--switch", required=True)
     p_lb.add_argument(
-        "--kind", required=True, choices=("state", "exhaust", "unsafe-update")
+        "--kind",
+        required=True,
+        choices=("state", "exhaust", "unsafe-update", "learn", "delete-conn"),
     )
     p_lb.add_argument("--capacity", type=int, default=256)
+    p_lb.add_argument("--offset-start", type=int, default=0)
+    p_lb.add_argument("--src-addr")
+    p_lb.add_argument("--src-port", type=int)
+    p_lb.add_argument("--dst-addr")
+    p_lb.add_argument("--dst-port", type=int)
+    p_lb.add_argument("--dip")
     p_lb.set_defaults(func=cmd_gateway_lb)
     return parser
 

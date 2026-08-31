@@ -20,8 +20,8 @@
 
 ## 📰 News
 
-- **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`; existing installations with operational `.env` keys can run [`nika config migrate`](docs/cli-reference.md#nika-config).
-- **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
+- **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`; existing installations with operational `.env` keys can run [`nika config migrate`](docs/operations/cli-reference.md#nika-config).
+- **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/benchmarks/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
 
 ## ❓ What is NIKA?
 
@@ -50,7 +50,7 @@ NIKA combines two components:
 
 ### Network incidents
 
-NIKA constructs benchmark incidents from recurring failure mechanisms. The [failure taxonomy](docs/failures.md) uses a network-subsystem domain plus orthogonal cause, symptom, scope, temporal, and impact metadata. Failure IDs and injection behavior remain stable across taxonomy changes.
+NIKA constructs benchmark incidents from recurring failure mechanisms. The [failure taxonomy](docs/operations/failures.md) uses a network-subsystem domain plus orthogonal cause, symptom, scope, temporal, and impact metadata. Failure IDs and injection behavior remain stable across taxonomy changes.
 
 | Failure domain | Registered failure types | Working-matrix cases |
 | --- | ---: | ---: |
@@ -64,21 +64,21 @@ NIKA constructs benchmark incidents from recurring failure mechanisms. The [fail
 | Traffic, Queueing & Resource | 4 | 72 |
 | **Total** | **75** | **1,090** |
 
-Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata and injection parameter schema. The [failure reference](docs/failures.md#registered-failures) lists all 75 IDs with their injection and verification contracts.
+Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata and injection parameter schema. The [failure reference](docs/operations/failures.md#registered-failures) lists all 75 IDs with their injection and verification contracts.
 
 
 ## ✨ Features
 
 - **Network emulators**: NIKA attaches to state-of-the-art network emulators as backends. Are you a [Kathará](https://www.kathara.org) or [Containerlab](https://containerlab.dev) user? You can use NIKA with both.
 - **Pre-built incident scenarios**: Running your evals is quite simple: start any of the pre-built network scenarios in the NIKA benchmark, with automatic incident replay and evaluation mechanisms.
-- **Bring any AI agent**: You can use our default agents (Claude Code, Codex, LangGraph), or plug your custom AI agent harness, see [Agent integration workflow](docs/custom-agents.md).
-- **Agent sandboxing**: Agents run in isolated environments, with controlled access to the network, filesystem and telemetry tools, see [Agent sandboxing](docs/agent-sandbox.md).
+- **Bring any AI agent**: You can use our default agents (Claude Code, Codex, LangGraph), or plug your custom AI agent harness, see [Agent integration workflow](docs/agents/custom-agents.md).
+- **Agent sandboxing**: Agents run in isolated environments, with controlled access to the network, filesystem and telemetry tools, see [Agent sandboxing](docs/operations/agent-sandbox.md).
 - **YAML-based fault injection**: Failures can be customized via a declarative interface: `nika failure describe`, and later `--set key=value`.
 - **MCP network telemetry**: Pingmesh server, InfluxDB network telemetry and CLI access to routers and switches.
 - **Multi-session**: Run isolated sessions in parallel to speed up your evaluations.
-- **Remote execution mode**: Run the emulated network and telemetry MCP gateways on any remote server, see [NIKA Remote](docs/remote.md).
+- **Remote execution mode**: Run the emulated network and telemetry MCP gateways on any remote server, see [NIKA Remote](docs/operations/remote.md).
 - **Reproducibility and leaderboard**: Refer to the frozen `nika-bench` releases, and submit your results to our up-to-date leaderboard.
-- **NIKA SDK**: For users who wish to extend with new failure cases using NIKA's APIs for traffic generation and fault injection, see [Creating benchmark tasks](docs/creating-benchmark-tasks.md).
+- **NIKA SDK**: For users who wish to extend with new failure cases using NIKA's APIs for traffic generation and fault injection, see [Creating benchmark tasks](docs/development/creating-benchmark-tasks.md).
 
 
 ## 📦 Installation
@@ -120,7 +120,7 @@ cp config/nika.example.yaml config/nika.yaml
 nika config show
 ```
 
-If an existing `.env` contains operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/configuration.md) for precedence, defaults, and validation rules.
+If an existing `.env` contains operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/operations/configuration.md) for precedence, defaults, and validation rules.
 
 **Provider** — use a built-in provider (`openai` / `anthropic` / `deepseek`). Put the matching API key in `.env`, and set `agent.provider` in YAML:
 
@@ -149,8 +149,8 @@ agent:
 
 ### Remote Deployments:
 
-- **Agent Sandboxing**: See the [agent sandbox guide](docs/agent-sandbox.md) for sandboxed execution requirements.
-- **Remote Mode**: This is useful if you do not want to install an emulation backend on your machine, or/and if you want to scale the emulated network to many virtual nodes on a high-capacity server, while running the agent locally. Please follow [Remote Agent Mode](docs/remote.md) documentation for more details.
+- **Agent Sandboxing**: See the [agent sandbox guide](docs/operations/agent-sandbox.md) for sandboxed execution requirements.
+- **Remote Mode**: Use [remote lab execution](docs/operations/remote.md) to run the emulated network and telemetry MCP gateways on a separate server while the agent runs locally.
 
 ## 🚀 Quick start
 
@@ -167,12 +167,12 @@ That deploys the lab, injects the fault, runs the agent, closes the session, and
 To run a frozen benchmark release:
 
 ```shell
-nika benchmark run --release 0.1.0 --result_dir results/my-run --batch-size 4
+nika benchmark run --release 0.2.0 --split test --result_dir results/my-run --batch-size 4
 nika eval summary --result_dir results/my-run
 ```
 
 
-For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](docs/cli-reference.md).
+For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](docs/operations/cli-reference.md).
 
 ## 📖 Learn more
 
@@ -181,23 +181,23 @@ Pick the path that matches what you're trying to do:
 **🏁 I want to run the benchmark, any agent**
 
 1. [Quick start](#-quick-start) — end-to-end task run or frozen release.
-2. [Run configuration](docs/configuration.md): YAML settings, credentials, defaults, and migration.
-3. [CLI reference](docs/cli-reference.md): `nika` commands, sessions, and result paths.
-4. [Leaderboard submission](docs/leaderboard-submission.md)
+2. [Run configuration](docs/operations/configuration.md): YAML settings, credentials, defaults, and migration.
+3. [CLI reference](docs/operations/cli-reference.md): `nika` commands, sessions, and result paths.
+4. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md)
 
 **🔌 I want to connect my own agent**
 
-1. [Built-in agents](docs/agent-implementations.md) — built-in agents and configuration, for reference implementations.
-2. [Agent integration workflow](docs/custom-agents.md) — agent contract and integration workflow.
-3. [Agent skills](docs/agent-skills.md) — reusable troubleshooting knowledge you can attach to an agent.
-4. [Agent sandboxing](docs/agent-sandbox.md) — isolated microVM execution.
+1. [Built-in agents](docs/agents/agent-implementations.md): built-in agents and configuration.
+2. [Agent integration workflow](docs/agents/custom-agents.md): agent contract and integration workflow.
+3. [Agent skills](docs/agents/agent-skills.md): reusable troubleshooting knowledge you can attach to an agent.
+4. [Agent sandboxing](docs/operations/agent-sandbox.md): isolated microVM execution.
 
 **🌐 I want to create a new network scenario**
 
-1. [Creating benchmark tasks](docs/creating-benchmark-tasks.md)
-2. [Network scenario reference](docs/network-scenarios.md)
-3. [Failure reference](docs/failures.md)
-4. [Testing guide](docs/testing.md)
+1. [Creating benchmark tasks](docs/development/creating-benchmark-tasks.md)
+2. [Network scenario reference](docs/operations/network-scenarios.md)
+3. [Failure reference](docs/operations/failures.md)
+4. [Testing guide](docs/development/testing.md)
 
 
 ## Network management benchmarks

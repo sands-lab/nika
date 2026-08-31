@@ -117,6 +117,36 @@ def _sparse_cross_rack_http(runtime: LabRuntime, model: ClosFabricModel) -> bool
     return http_ok(runtime, src.name, f"http://{dst.ip}/")
 
 
+def verify_sdn_l3_clos_lab_startup(
+    runtime: LabRuntime,
+    *,
+    scenario_name: str,
+    model: ClosFabricModel,
+) -> dict[str, Any]:
+    expected_nodes = (
+        ["onos", "fabric_mgr"]
+        + model.spines
+        + model.leaves
+        + [e.name for e in model.endpoints]
+    )
+    checks: dict[str, bool] = {
+        "nodes_deployed": nodes_deployed(runtime, expected_nodes),
+        "onos_link_up": link_up(runtime, "onos"),
+        "onos_process": (
+            bool(exec_or_empty(runtime, "onos", "pgrep -af java").strip())
+            or bool(exec_or_empty(runtime, "onos", "pgrep -af onos").strip())
+            or process_running(runtime, "onos", "java")
+        ),
+        "ovs_switches_ready": _ovs_ready(runtime, model.spines[:1] + model.leaves[:2]),
+        "of_sessions": _of_sessions_ok(runtime, model),
+    }
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+    )
+
+
 def verify_sdn_l3_clos_lab(
     runtime: LabRuntime,
     *,

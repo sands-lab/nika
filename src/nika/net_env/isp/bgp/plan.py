@@ -54,6 +54,8 @@ class BgpNodePlan:
     rov_reject_invalid: bool = False
     rpki_cache: tuple[str, int] | None = None  # (ip, port)
     export_deny_prefixes: tuple[str, ...] = ()
+    rtbh_import_policy: bool = False
+    ebgp_outbound_route_maps: tuple[tuple[str, str], ...] = ()  # (neighbor_ip, map)
 
 
 @dataclass(frozen=True)
@@ -74,17 +76,29 @@ def compile_bgp_plan(
     mode: IspBgpMode | str | None = DEFAULT_BGP_MODE,
     *,
     rpki: bool = False,
+    rtbh: bool = False,
 ) -> BgpPlan | None:
     """Build a BGP plan from a NIKA preset, or None when mode is none.
 
     ``rpki=True`` overlays the offline RPKI/ROV profile onto eBGP.
+    ``rtbh=True`` overlays the RTBH community blackhole profile onto eBGP.
     """
     resolved = normalize_bgp_mode(
         mode if isinstance(mode, str) or mode is None else mode
     )
+    if rpki and rtbh:
+        raise BgpConfigError(
+            "RPKI and RTBH profiles are mutually exclusive.",
+            topology=isp_plan.topology_name,
+        )
     if rpki and resolved != "ebgp":
         raise BgpConfigError(
             f"RPKI capability requires bgp_mode 'ebgp' (got {resolved!r}).",
+            topology=isp_plan.topology_name,
+        )
+    if rtbh and resolved != "ebgp":
+        raise BgpConfigError(
+            f"RTBH capability requires bgp_mode 'ebgp' (got {resolved!r}).",
             topology=isp_plan.topology_name,
         )
     if resolved == "none":
@@ -102,6 +116,10 @@ def compile_bgp_plan(
             from nika.net_env.isp.bgp.rpki_profile import apply_rpki_profile
 
             return apply_rpki_profile(plan)
+        if rtbh:
+            from nika.net_env.isp.bgp.rtbh_profile import apply_rtbh_profile
+
+            return apply_rtbh_profile(plan)
         return plan
     raise BgpConfigError(f"Unsupported bgp_mode {resolved!r}.")
 

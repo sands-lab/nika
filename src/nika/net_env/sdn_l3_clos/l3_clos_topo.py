@@ -327,6 +327,15 @@ class SDNL3Clos(NetworkEnvBase):
 
         reconcile_fabric(self._build_runtime(), self.model, wait_onos=True)
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab_startup
+
+        return verify_sdn_l3_clos_lab_startup(
+            self._build_runtime(),
+            scenario_name=self.LAB_NAME,
+            model=self.model,
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
 

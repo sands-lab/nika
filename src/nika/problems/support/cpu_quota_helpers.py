@@ -69,6 +69,23 @@ def set_nano_cpus(runtime: "LabRuntime", host: str, nano_cpus: int) -> None:
     host_config = container.attrs.get("HostConfig") or {}
     has_nano = int(host_config.get("NanoCpus") or 0) != 0
 
+    if nano_cpus == 0:
+        # Cannot mix NanoCPUs with CpuPeriod/CpuQuota in one update. Clear
+        # NanoCPUs alone; Docker treats 0 as unlimited for that field.
+        if has_nano:
+            _update_container_resources(container, {"NanoCPUs": 0})
+            container.reload()
+            host_config = container.attrs.get("HostConfig") or {}
+            has_nano = int(host_config.get("NanoCpus") or 0) != 0
+        if not has_nano:
+            period, quota = nano_cpus_to_cfs(0)
+            try:
+                container.update(cpu_period=period, cpu_quota=quota)
+            except Exception:
+                # Some runtimes already have no CFS quota; ignore.
+                pass
+        return
+
     if has_nano or nano_cpus > 0:
         # Prefer NanoCPUs whenever the container already uses it, or when
         # applying a positive limit (matches Kathara create-time caps).

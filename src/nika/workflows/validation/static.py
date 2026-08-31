@@ -53,8 +53,10 @@ def run_static_validation(
 
 def _supports_batfish(net_env: Any, contract: ValidationContract) -> bool:
     """Return whether the built-in Batfish snapshot adapter supports this run."""
+    from nika.workflows.benchmark.isp_options import is_isp_scenario
+
     return (
-        contract.scenario == "isp"
+        is_isp_scenario(contract.scenario)
         and getattr(net_env, "backend", None) == "kathara"
         and getattr(net_env, "device_profile", None) == "frr"
         and all(

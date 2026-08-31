@@ -136,20 +136,15 @@ class CliSmokeTest:
             assert enabled.exit_code == 0, enabled.output
             assert mocked.call_args.kwargs["static_validation"] is True
 
-    def test_benchmark_run_requires_config_or_release(self) -> None:
-        """Bare ``nika benchmark run`` has no default suite."""
-        result = _RUNNER.invoke(app, ["benchmark", "run"])
-        assert result.exit_code != 0
-        combined = f"{result.output}\n{result.stderr or ''}"
-        assert "--config" in combined
-        assert "--release" in combined
-
-        result_dir_only = _RUNNER.invoke(
-            app, ["benchmark", "run", "--result_dir", "results/tmp"]
+    def test_benchmark_run_defaults_to_candidate_catalog(self) -> None:
+        with patch(
+            "nika.cli.commands.benchmark.run_benchmark_from_yaml"
+        ) as run_from_yaml:
+            result = _RUNNER.invoke(app, ["benchmark", "run"])
+        assert result.exit_code == 0, result.output
+        assert run_from_yaml.call_args.kwargs["benchmark_file"].endswith(
+            "benchmark/working/pool"
         )
-        assert result_dir_only.exit_code != 0
-        combined_dir = f"{result_dir_only.output}\n{result_dir_only.stderr or ''}"
-        assert "no default" in combined_dir.lower() or "--release" in combined_dir
 
         both = _RUNNER.invoke(
             app,
@@ -157,7 +152,7 @@ class CliSmokeTest:
                 "benchmark",
                 "run",
                 "--config",
-                "benchmark/benchmark_selected.yaml",
+                "benchmark/working/pool",
                 "--release",
                 "0.1.0",
             ],

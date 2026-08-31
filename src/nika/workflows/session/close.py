@@ -262,21 +262,47 @@ def _stop_session_record(
 
     backend = resolve_backend(session_meta)
     net_env_kwargs: dict = {"backend": backend}
-    if getattr(session, "scenario_topo_size", None) is not None:
+    from nika.net_env.isp.identity import is_isp_named_special, is_isp_scenario
+
+    # ISP scenarios bake topology into the scenario ID and reject topo_size.
+    if (
+        getattr(session, "scenario_topo_size", None) is not None
+        and not is_isp_scenario(scenario)
+    ):
         net_env_kwargs["topo_size"] = session.scenario_topo_size
     if getattr(session, "lab_name", None):
         net_env_kwargs["lab_name"] = session.lab_name
     scenario_params = getattr(session, "scenario_params", None) or {}
     if not scenario_params and isinstance(session_meta.get("scenario_params"), dict):
         scenario_params = session_meta["scenario_params"]
-    for key in (
-        "topo",
+    param_keys = (
         "igp",
         "metric_strategy",
         "constant_metric",
         "bgp_mode",
         "device_profile",
-    ):
+    )
+    if is_isp_named_special(scenario):
+        param_keys = ("device_profile",)
+    elif is_isp_scenario(scenario):
+        # Topology comes from deploy_defaults; do not re-pass topo.
+        param_keys = (
+            "igp",
+            "metric_strategy",
+            "constant_metric",
+            "bgp_mode",
+            "device_profile",
+        )
+    else:
+        param_keys = (
+            "topo",
+            "igp",
+            "metric_strategy",
+            "constant_metric",
+            "bgp_mode",
+            "device_profile",
+        )
+    for key in param_keys:
         if key in scenario_params and scenario_params[key] is not None:
             net_env_kwargs[key] = scenario_params[key]
     if backend == "containerlab":

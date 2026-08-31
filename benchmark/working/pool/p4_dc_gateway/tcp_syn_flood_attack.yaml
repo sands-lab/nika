@@ -1,0 +1,201 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: tcp_syn_flood_attack
+  cases:
+  - topo_size: s
+    inject:
+      attacker_device: client_1
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.2.11
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: tcp_syn_flood_attack
+  - topo_size: s
+    inject:
+      attacker_device: client_2
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.2.11
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: tcp_syn_flood_attack
+  - topo_size: m
+    inject:
+      attacker_device: client_1
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.1.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: tcp_syn_flood_attack
+  - topo_size: m
+    inject:
+      attacker_device: client_2
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.1.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: tcp_syn_flood_attack
+  - topo_size: m
+    inject:
+      attacker_device: client_3
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.1.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: tcp_syn_flood_attack
+  - topo_size: m
+    inject:
+      attacker_device: client_4
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.1.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_1
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_2
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_3
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_4
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_5
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_5
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_6
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_6
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_7
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_7
+      fault_type: tcp_syn_flood_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_8
+      duration: '60'
+      flows: '40'
+      rate_pps: '100'
+      seed: '42'
+      target_ip: 10.0.4.12
+      target_port: '80'
+    root_causes:
+    - resource:
+        kind: node
+        node: client_8
+      fault_type: tcp_syn_flood_attack

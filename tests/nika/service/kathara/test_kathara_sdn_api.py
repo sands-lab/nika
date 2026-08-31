@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from nika.service.kathara.sdn_api import KatharaSdnAPI
-from nika.service.mcp_server.registry import select_diagnosis_servers
+from nika.mcp.registry import select_diagnosis_servers
 
 
 def test_sdn_l3_clos_selects_sdn_mcp_server() -> None:
@@ -14,45 +14,24 @@ def test_sdn_l3_clos_selects_sdn_mcp_server() -> None:
     assert "kathara_bmv2_mcp_server" not in servers
 
 
-def test_get_fabric_state_aggregates_sections() -> None:
+def test_sdn_onos_rest_and_ovs_exec() -> None:
     api = KatharaSdnAPI.__new__(KatharaSdnAPI)
     api.lab = MagicMock()
-    api.lab.machines = {
-        "leaf_1": MagicMock(),
-        "spine_1": MagicMock(),
-        "client_1_1": MagicMock(),
-        "onos": MagicMock(),
-        "fabric_mgr": MagicMock(),
-    }
-    for name, machine in api.lab.machines.items():
-        machine.get_image.return_value = (
-            "kathara/sdn" if name.startswith(("leaf_", "spine_")) else "nika/base"
-        )
 
     def _exec(host: str, command: str, timeout: float = 15) -> str:
-        if "/onos/v1/flows" in command and "/groups" not in command:
-            return '{"flows":[{"deviceId":"of:0000000000001001","priority":40000}]}'
-        if "/onos/v1/groups" in command:
-            return '{"groups":[{"deviceId":"of:0000000000001001","id":4098}]}'
-        if "/onos/v1/devices" in command or "/onos/v1/links" in command:
-            return '{"devices":[],"links":[],"hosts":[]}'
-        if "/onos/v1/hosts" in command:
-            return '{"hosts":[]}'
-        if "/onos/v1/applications" in command:
-            return '{"applications":[]}'
+        if "/onos/v1/devices" in command:
+            return '{"devices":[{"id":"of:1"}]}'
+        if "ovs-ofctl" in command:
+            return "OFPST_FLOW reply"
         return "ok"
 
     with patch.object(KatharaSdnAPI, "exec_cmd", side_effect=_exec):
-        state = api.sdn_get_fabric_state("s", switch_name="leaf_1")
+        rest = api.sdn_onos_rest("/onos/v1/devices")
+        ovs = api.sdn_ovs_exec(
+            "leaf_1", "ovs-ofctl -O OpenFlow13 dump-flows leaf_1"
+        )
 
-    assert set(state) >= {
-        "onos_topology",
-        "controller_apps",
-        "controller_programmed_intent",
-        "controller_live_state",
-        "switch_observed_state",
-    }
-    intent = state["controller_live_state"]
-    assert intent["source"] == "onos_live"
-    assert "leaf_1" in state["switch_observed_state"]
-    assert all(f.get("deviceId") == "of:0000000000001001" for f in intent["flows"])
+    assert rest["path"] == "/onos/v1/devices"
+    assert rest["body"]["devices"][0]["id"] == "of:1"
+    assert ovs["switch"] == "leaf_1"
+    assert "OFPST_FLOW" in ovs["output"]

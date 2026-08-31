@@ -60,6 +60,7 @@ class VrfDscpRemarking(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "vrf_dscp_remarking"
+    description = "VRF edge incorrectly remarks high-priority DSCP."
     TAGS: list[str] = ["vpn"]
     Params = VrfDscpRemarkingParams
     symptom_desc = (

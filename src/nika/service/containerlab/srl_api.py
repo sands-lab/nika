@@ -11,6 +11,7 @@ NIKA_BGP_ACL = "nika_bgp_block"
 NIKA_BGP_WITHDRAW = "nika_bgp_withdraw"
 NIKA_BGP_WITHDRAW_PFX = "nika_bgp_withdraw_pfx"
 NIKA_BGP_EXPORT_GROUP = "clos01"
+NIKA_BLACKHOLE_NHG = "nika_blackhole"
 
 # Containerlab maps SRL YANG interfaces to Linux veth names in the netns.
 _SRL_SUBIF_TO_LINUX: dict[str, str] = {
@@ -122,14 +123,39 @@ class SRLAPIMixin:
     def srl_add_blackhole_static(
         self: SupportsSRL, device_name: str, prefix: str
     ) -> None:
-        self.exec_cmd(device_name, f"ip route replace blackhole {prefix}")
+        """Install a dataplane blackhole static route in network-instance default.
+
+        Linux ``ip route blackhole`` only affects the SRL host netns and does not
+        drop traffic forwarded by the NOS FIB; use an SRL next-hop-group instead.
+        """
+        prefix_str = str(ipaddress.ip_network(prefix, strict=False))
+        self._srl_candidate(
+            device_name,
+            f"/network-instance default next-hop-groups group {NIKA_BLACKHOLE_NHG} "
+            "admin-state enable",
+            f"/network-instance default next-hop-groups group {NIKA_BLACKHOLE_NHG} "
+            "blackhole",
+            f"/network-instance default static-routes route {prefix_str} "
+            f"next-hop-group {NIKA_BLACKHOLE_NHG}",
+            f"/network-instance default static-routes route {prefix_str} "
+            "admin-state enable",
+            # Prefer over BGP (default preference 170) so the discard wins.
+            f"/network-instance default static-routes route {prefix_str} preference 1",
+        )
 
     def srl_blackhole_static_present(
         self: SupportsSRL, device_name: str, prefix: str
     ) -> bool:
-        output = self.exec_cmd(device_name, "ip route show")
-        prefix_base = prefix.split("/")[0]
-        return prefix_base in output and "blackhole" in output.lower()
+        prefix_str = str(ipaddress.ip_network(prefix, strict=False))
+        routes = self.srl_exec_cli(
+            device_name, "info from running network-instance default static-routes"
+        )
+        nhg = self.srl_exec_cli(
+            device_name,
+            "info from running network-instance default next-hop-groups "
+            f"group {NIKA_BLACKHOLE_NHG}",
+        )
+        return prefix_str in routes and "blackhole" in nhg.lower()
 
     def srl_advertise_prefix(self: SupportsSRL, device_name: str, prefix: str) -> None:
         """Advertise ``prefix`` by attaching it to a dedicated loopback interface."""

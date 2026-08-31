@@ -30,7 +30,9 @@ class BGPHijackingParams(BaseModel):
 class BGPHijacking(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name: str = "bgp_hijacking"
+    description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
+    supported_backends = ("kathara",)
 
     Params = BGPHijackingParams
 

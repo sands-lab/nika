@@ -1,0 +1,13 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: receiver_resource_contention
+  cases:
+  - inject:
+      duration: '600'
+      host_name: client
+    root_causes:
+    - resource:
+        kind: node
+        node: client
+      fault_type: receiver_resource_contention

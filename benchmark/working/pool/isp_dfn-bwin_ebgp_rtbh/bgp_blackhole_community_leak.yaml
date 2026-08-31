@@ -1,0 +1,18 @@
+scenario:
+  name: isp_dfn-bwin_ebgp_rtbh
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: frankfurt
+      peer_host: pc_frankfurt
+      probe_dst_ip: 198.51.100.1
+      symptom_host: hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: bgp_blackhole_community_leak

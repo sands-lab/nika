@@ -15,7 +15,7 @@ Three complementary layers:
 
 ## SADE Workflow
 
-**Phase 1 — Blind start.** Call `get_reachability()` to establish symptoms. No submission action is available during diagnosis.
+**Phase 1 — Blind start.** Establish symptoms with targeted probes: `ping_pair`, `traceroute`, and/or `run_pingmesh_snapshot`. No submission action is available during diagnosis.
 
 **Phase 2 — Branch.** If a real symptom is present → Phase 3. Otherwise → Phase 4 (do not probe services or individual devices yet).
 
@@ -39,12 +39,11 @@ Three complementary layers:
 - Argument types: `is_anomaly` bool, `root_causes` list[{resource_id, fault_type}]. Unquoted. Validation errors typically terminate the session.
 
 ## What qualifies as a real symptom
-**Yes:** `loss_percent > 0` in `get_reachability`; ping or curl timeout, connection refused, TCP RST, ICMP unreachable; DNS NXDOMAIN, SERVFAIL, or a wrong answer for a name the topology declares resolvable; HTTP non-2xx/3xx where traffic should succeed; any device or path explicitly flagged by a helper.
+**Yes:** packet loss or failure in `ping_pair` / pingmesh anomalies; ping or curl timeout, connection refused, TCP RST, ICMP unreachable; DNS NXDOMAIN, SERVFAIL, or a wrong answer for a name the topology declares resolvable; HTTP non-2xx/3xx where traffic should succeed; any device or path explicitly flagged by a helper.
 
-**Needs confirmation before promoting (do NOT enter a fault-family skill yet):** a `get_reachability` row with `status="unknown"` and null tx/rx/loss. The harness resolves the destination name before pinging, so a name-resolution failure (DNS misconfig, missing record, wrong resolver, faulty/crashed name server, transient lookup error) produces this exact pattern even when the underlying L3 path is healthy. Re-test the same src→dst with a direct-IP probe — `exec_shell(src, "ping -c2 <dst-ip>")` using the IP from the same `get_reachability` payload — before treating it as a symptom. Outcomes:
-- Direct-IP ping succeeds with 0% loss → the unknown row is a name-resolution artifact, not a path fault. Treat the failure as a service-layer symptom (resolver/DNS/host-ip identity) and route accordingly; do NOT enter routing/link/L1-L2 skills on this signal alone.
+**Needs confirmation before promoting (do NOT enter a fault-family skill yet):** a hostname-based probe that fails while the underlying L3 path may still be healthy (DNS misconfig, missing record, wrong resolver, faulty/crashed name server, transient lookup error). Re-test the same src→dst with a direct-IP probe — `exec_shell(src, "ping -c2 <dst-ip>")` — before treating it as a path symptom. Outcomes:
+- Direct-IP ping succeeds with 0% loss → treat the failure as a service-layer symptom (resolver/DNS/host-ip identity); do NOT enter routing/link/L1-L2 skills on this signal alone.
 - Direct-IP ping shows real loss/timeout/unreachable → promote to a real symptom and continue Phase 3 with the matching family.
-This rule is topology-agnostic: any `status="unknown"` row in any lab must be confirmed by a direct-IP probe before driving family selection.
 
 **No (on their own):** latency or throughput without comparison against `baseline-behavior-skill` or a healthy peer; `systemctl inactive` while `ss`/`ps` confirm the service is listening and responding; a service running under an unexpected binary that still answers; configuration that "looks wrong" but breaks no observed traffic; any single observation unconfirmed by a differential or baseline check.
 

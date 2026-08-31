@@ -1,0 +1,41 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: web_dos_attack
+  cases:
+  - topo_size: s
+    inject:
+      attack_url: http://10.0.20.2/nika-dos-dir/
+      attacker_device: br1_corp_pc
+      host_name: hq_srv
+      observer_device: hq_corp_pc
+      probe_url: http://10.0.20.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: web_dos_attack
+  - topo_size: m
+    inject:
+      attack_url: http://10.0.20.2/nika-dos-dir/
+      attacker_device: br1_corp_pc
+      host_name: hq_srv
+      observer_device: hq_corp_pc
+      probe_url: http://10.0.20.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: web_dos_attack
+  - topo_size: l
+    inject:
+      attack_url: http://10.0.20.2/nika-dos-dir/
+      attacker_device: br1_corp_pc
+      host_name: hq_srv
+      observer_device: hq_corp_pc
+      probe_url: http://10.0.20.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: web_dos_attack

@@ -1,0 +1,35 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: p4_tcam_entry_corruption
+  cases:
+  - topo_size: s
+    inject:
+      control_source: client_2
+      host_name: spine_1
+      target_ip: 10.0.1.12
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: p4_tcam_entry_corruption
+  - topo_size: m
+    inject:
+      control_source: client_2
+      host_name: gateway_3
+      target_ip: 10.0.4.11
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_3
+      fault_type: p4_tcam_entry_corruption
+  - topo_size: l
+    inject:
+      control_source: client_2
+      host_name: gateway_4
+      target_ip: 10.0.3.12
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_4
+      fault_type: p4_tcam_entry_corruption

@@ -33,6 +33,7 @@ class DNSRecordError(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "dns_record_error"
 
+    description = "DNS returns an incorrect record for a name."
     symptom_desc = "Some hosts cannot access external websites."
     TAGS: str = ["dns"]
 
@@ -46,7 +47,14 @@ class DNSRecordError(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSRecordErrorParams):
-        wrong_ip = params.wrong_ip or self.runtime.get_host_ip(self.net_env.hosts[0])
+        if params.wrong_ip:
+            wrong_ip = params.wrong_ip
+        else:
+            fallback_host = params.host_name
+            hosts = getattr(self.net_env, "hosts", None) or []
+            if hosts and hosts[0]:
+                fallback_host = hosts[0]
+            wrong_ip = self.runtime.get_host_ip(fallback_host)
         self._wrong_ip = wrong_ip
         right_ip = self.runtime.get_host_ip(params.host_name)
 

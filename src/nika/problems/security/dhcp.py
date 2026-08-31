@@ -54,6 +54,7 @@ class DHCPSpoofedGateway(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name: str = "dhcp_spoofed_gateway"
 
+    description = "DHCP distributes a spoofed default gateway."
     TAGS: str = ["dhcp"]
 
     Params = DHCPSpoofedGatewayParams
@@ -110,6 +111,7 @@ class DHCPSpoofedDNS(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name: str = "dhcp_spoofed_dns"
 
+    description = "DHCP distributes a spoofed DNS server option."
     symptom_desc = "Some hosts can not access webservices."
     TAGS: str = ["dhcp"]
 
@@ -170,6 +172,7 @@ class DHCPSpoofedSubnet(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name: str = "dhcp_spoofed_subnet"
 
+    description = "DHCP subnet configuration is spoofed or removed for clients."
     TAGS: str = ["dhcp"]
 
     Params = DHCPSpoofedSubnetParams

@@ -18,6 +18,7 @@ from nika.net_env.isp.bgp.plan import BgpPlan
 from nika.net_env.isp.igp.plan import IspPlan, active_igp_links, igp_components
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
 from nika.net_env.verify import (
+    bounded_parallel_map,
     build_lab_verify_result,
     exec_or_empty,
     host_has_ipv4,
@@ -26,6 +27,49 @@ from nika.net_env.verify import (
     service_active,
 )
 from nika.runtime.base import LabRuntime
+
+
+def verify_isp_lab_startup(
+    runtime: LabRuntime,
+    *,
+    plan: IspPlan,
+    scenario_name: str,
+    bgp_plan: BgpPlan | None = None,
+    traffic: IspTrafficAttachment | None = None,
+) -> dict[str, Any]:
+    """Bounded readiness: deployment, FRR, IGP adjacency, and BGP sessions."""
+    expected = [node.device_name for node in plan.nodes]
+    if traffic is not None:
+        expected.extend(h.host_name for h in traffic.hosts)
+    if bgp_plan is not None and bgp_plan.inventory.get("rpki"):
+        rtr = bgp_plan.inventory.get("rpki_rtr") or {}
+        machine = rtr.get("machine")
+        if machine:
+            expected.append(str(machine))
+    check_functions = {
+        "nodes_deployed": lambda: nodes_deployed(runtime, expected),
+        "frr_active": lambda: _frr_active(runtime, plan),
+        "igp_adjacencies": lambda: _igp_adjacencies_ok(runtime, plan),
+    }
+    if bgp_plan is not None:
+        check_functions["bgp_sessions"] = lambda: _bgp_sessions_ok(runtime, bgp_plan)
+    checks = dict(
+        zip(
+            check_functions,
+            bounded_parallel_map(lambda fn: fn(), check_functions.values()),
+            strict=True,
+        )
+    )
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+        details={
+            "topology_name": plan.topology_name,
+            "igp": plan.igp,
+            "bgp_mode": bgp_plan.mode if bgp_plan is not None else "none",
+        },
+    )
 
 
 def verify_isp_lab(
@@ -45,14 +89,12 @@ def verify_isp_lab(
         machine = rtr.get("machine")
         if machine:
             expected.append(str(machine))
-    checks: dict[str, bool] = {
-        "nodes_deployed": nodes_deployed(runtime, expected),
-        "frr_active": all(
-            service_active(runtime, node.device_name, "frr") for node in plan.nodes
-        ),
-        "igp_adjacencies": _igp_adjacencies_ok(runtime, plan),
-        "loopbacks_reachable": _loopbacks_reachable(runtime, plan),
-        "inventory_addresses": _inventory_addresses_ok(runtime, plan),
+    check_functions = {
+        "nodes_deployed": lambda: nodes_deployed(runtime, expected),
+        "frr_active": lambda: _frr_active(runtime, plan),
+        "igp_adjacencies": lambda: _igp_adjacencies_ok(runtime, plan),
+        "loopbacks_reachable": lambda: _loopbacks_reachable(runtime, plan),
+        "inventory_addresses": lambda: _inventory_addresses_ok(runtime, plan),
     }
     details: dict[str, Any] = {
         "topology_name": plan.topology_name,
@@ -67,23 +109,46 @@ def verify_isp_lab(
         ),
     }
     if traffic is not None:
-        checks["stub_hosts_addressed"] = _stub_hosts_addressed_ok(runtime, traffic)
-        checks["stub_gateway_reachable"] = _stub_gateway_ok(runtime, traffic)
-        checks["stub_remote_reachable"] = _stub_remote_ok(runtime, traffic)
+        check_functions["stub_hosts_addressed"] = lambda: _stub_hosts_addressed_ok(
+            runtime, traffic
+        )
+        check_functions["stub_gateway_reachable"] = lambda: _stub_gateway_ok(
+            runtime, traffic
+        )
+        check_functions["stub_remote_reachable"] = lambda: _stub_remote_ok(
+            runtime, traffic
+        )
         details["hosts"] = plan.inventory.get("hosts")
     if bgp_plan is not None:
-        checks["bgp_sessions"] = _bgp_sessions_ok(runtime, bgp_plan)
-        checks["bgp_prefixes_originated"] = _bgp_prefixes_originated_ok(
+        check_functions["bgp_sessions"] = lambda: _bgp_sessions_ok(runtime, bgp_plan)
+        check_functions["bgp_prefixes_originated"] = lambda: (
+            _bgp_prefixes_originated_ok(runtime, bgp_plan)
+        )
+        check_functions["bgp_prefixes_propagated"] = lambda: (
+            _bgp_prefixes_propagated_ok(runtime, bgp_plan)
+        )
+        check_functions["bgp_infra_denied"] = lambda: _bgp_infra_denied_ok(
             runtime, bgp_plan
         )
-        checks["bgp_prefixes_propagated"] = _bgp_prefixes_propagated_ok(
-            runtime, bgp_plan
-        )
-        checks["bgp_infra_denied"] = _bgp_infra_denied_ok(runtime, bgp_plan)
         if bgp_plan.inventory.get("rpki"):
-            checks["rpki_rtr_connected"] = _rpki_rtr_ok(runtime, bgp_plan)
-            checks["rpki_leak_absent"] = _rpki_leak_absent_ok(runtime, bgp_plan)
+            check_functions["rpki_rtr_connected"] = lambda: _rpki_rtr_ok(
+                runtime, bgp_plan
+            )
+            check_functions["rpki_leak_absent"] = lambda: _rpki_leak_absent_ok(
+                runtime, bgp_plan
+            )
+        if bgp_plan.inventory.get("rtbh"):
+            check_functions["rtbh_baseline_healthy"] = lambda: (
+                _rtbh_baseline_healthy_ok(runtime, bgp_plan, traffic)
+            )
         details["bgp"] = bgp_plan.inventory
+    checks = dict(
+        zip(
+            check_functions,
+            bounded_parallel_map(lambda fn: fn(), check_functions.values()),
+            strict=True,
+        )
+    )
     if contract is not None:
         report = verify_isp_contract(runtime, contract=contract, plan=plan)
         checks["contract_required_intents"] = report.status == "passed"
@@ -337,22 +402,32 @@ def _igp_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     return False
 
 
+def _frr_active(runtime: LabRuntime, plan: IspPlan) -> bool:
+    return all(
+        bounded_parallel_map(
+            lambda node: service_active(runtime, node.device_name, "frr"),
+            plan.nodes,
+        )
+    )
+
+
 def _isis_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     degree: dict[str, int] = defaultdict(int)
     for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
-    for node in plan.nodes:
+
+    def node_ok(node) -> bool:
         need = degree[node.device_name]
         if need == 0:
-            continue
+            return True
         output = exec_or_empty(
             runtime, node.device_name, "vtysh -c 'show isis neighbor'", timeout=20
         )
         up = sum(1 for line in output.splitlines() if _isis_up(line))
-        if up < need:
-            return False
-    return True
+        return up >= need
+
+    return all(bounded_parallel_map(node_ok, plan.nodes))
 
 
 def _isis_up(line: str) -> bool:
@@ -365,10 +440,11 @@ def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
-    for node in plan.nodes:
+
+    def node_ok(node) -> bool:
         need = degree[node.device_name]
         if need == 0:
-            continue
+            return True
         output = exec_or_empty(
             runtime,
             node.device_name,
@@ -380,9 +456,9 @@ def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
             fields = line.split()
             if any(field.startswith("Full") for field in fields):
                 full += 1
-        if full < need:
-            return False
-    return True
+        return full >= need
+
+    return all(bounded_parallel_map(node_ok, plan.nodes))
 
 
 def _loopbacks_reachable(runtime: LabRuntime, plan: IspPlan) -> bool:
@@ -398,6 +474,7 @@ def _loopbacks_reachable(runtime: LabRuntime, plan: IspPlan) -> bool:
         adj[link.endpoint_a].append((link.endpoint_b, loopback[link.endpoint_b]))
         adj[link.endpoint_b].append((link.endpoint_a, loopback[link.endpoint_a]))
 
+    probes: list[tuple[str, str]] = []
     for component in igp_components(plan):
         root = component[0]
         seen = {root}
@@ -407,17 +484,20 @@ def _loopbacks_reachable(runtime: LabRuntime, plan: IspPlan) -> bool:
             for peer, peer_lo in sorted(adj[device]):
                 if peer in seen:
                     continue
-                if not ping_ok(runtime, device, peer_lo, count=1):
-                    return False
+                probes.append((device, peer_lo))
                 seen.add(peer)
                 queue.append(peer)
         if seen != set(component):
             return False
-    return True
+    return all(
+        bounded_parallel_map(
+            lambda probe: ping_ok(runtime, probe[0], probe[1], count=1), probes
+        )
+    )
 
 
 def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
-    for node in plan.nodes:
+    def node_ok(node) -> bool:
         if not host_has_ipv4(runtime, node.device_name, node.loopback, intf="lo"):
             return False
         backbone = [i for i in node.interfaces if not i.passive]
@@ -427,7 +507,9 @@ def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
                 runtime, node.device_name, iface.address, intf=iface.name
             ):
                 return False
-    return True
+        return True
+
+    return all(bounded_parallel_map(node_ok, plan.nodes))
 
 
 def _stub_hosts_addressed_ok(
@@ -477,14 +559,16 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     needed: dict[str, set[str]] = defaultdict(set)
     for sess in bgp_plan.sessions:
         needed[sess.local_device].add(sess.remote_ip)
-    for device, peers in needed.items():
+
+    def device_ok(item: tuple[str, set[str]]) -> bool:
+        device, peers = item
         output = exec_or_empty(
             runtime, device, "vtysh -c 'show bgp summary'", timeout=20
         )
         established = _bgp_established_peers(output)
-        if not peers.issubset(established):
-            return False
-    return True
+        return peers.issubset(established)
+
+    return all(bounded_parallel_map(device_ok, needed.items()))
 
 
 def _bgp_established_peers(summary: str) -> set[str]:
@@ -587,6 +671,53 @@ def _bgp_table_has_infra(table: str, deny_prefix: str) -> bool:
         elif "/" in net and net.startswith("10."):
             return True
     return False
+
+
+def _rtbh_baseline_healthy_ok(
+    runtime: LabRuntime,
+    bgp_plan: BgpPlan,
+    traffic: IspTrafficAttachment | None,
+) -> bool:
+    """Healthy RTBH lab: no community tag, no discard forwarding, observer can ping."""
+    prefix = str(bgp_plan.inventory.get("target_prefix") or "")
+    community = str(bgp_plan.inventory.get("blackhole_community") or "")
+    ping_addr = str(bgp_plan.inventory.get("target_ping_address") or "")
+    provider = str(bgp_plan.inventory.get("rtbh_provider_device") or "")
+    observer = str(bgp_plan.inventory.get("data_plane_observer_host") or "")
+    discard_nh = str(bgp_plan.inventory.get("discard_next_hop") or "")
+    if not prefix or not community or not ping_addr or not provider:
+        return False
+
+    route_out = exec_or_empty(
+        runtime,
+        provider,
+        f"vtysh -c 'show bgp ipv4 unicast {prefix}'",
+        timeout=20,
+    )
+    if community in route_out and "Community" in route_out:
+        # Ignore incidental matches in unrelated output; require community attribute.
+        comm_lines = [
+            line
+            for line in route_out.splitlines()
+            if "community" in line.lower() and community in line
+        ]
+        if comm_lines:
+            return False
+
+    fib_out = exec_or_empty(
+        runtime,
+        provider,
+        f"vtysh -c 'show ip route {prefix}'",
+        timeout=20,
+    )
+    if discard_nh and discard_nh in fib_out and "blackhole" in fib_out.lower():
+        return False
+    if "Null0" in fib_out and prefix.split("/")[0] in fib_out:
+        return False
+
+    if traffic is not None and observer:
+        return ping_ok(runtime, observer, ping_addr, count=3)
+    return True
 
 
 def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:

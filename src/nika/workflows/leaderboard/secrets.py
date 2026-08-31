@@ -77,7 +77,6 @@ def scan_value_for_issues(value: Any, *, label: str) -> list[str]:
 def scan_package_dir(submission_dir: Path) -> list[str]:
     """Scan metadata/README/results JSON+YAML under a submission package."""
     from nika.workflows.leaderboard.schema import (
-        FILES_FILENAME,
         IDENTITY_FILENAME,
         METADATA_FILENAME,
         METRICS_FILENAME,
@@ -91,7 +90,6 @@ def scan_package_dir(submission_dir: Path) -> list[str]:
     targets = [
         submission_dir / METADATA_FILENAME,
         submission_dir / README_FILENAME,
-        submission_dir / FILES_FILENAME,
         submission_dir / RESULTS_DIRNAME / IDENTITY_FILENAME,
         submission_dir / RESULTS_DIRNAME / METRICS_FILENAME,
     ]

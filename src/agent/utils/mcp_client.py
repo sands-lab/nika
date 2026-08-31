@@ -66,7 +66,7 @@ def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> N
     use_http = False
     if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
         if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
-            from nika.service.mcp_gateway.phase import advance_mcp_phase
+            from nika.mcp.gateway.phase import advance_mcp_phase
 
             advance_mcp_phase(session_id, SUBMISSION)
             return
@@ -109,6 +109,6 @@ def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> N
             ) from exc
         return
 
-    from nika.service.mcp_gateway.phase import advance_mcp_phase
+    from nika.mcp.gateway.phase import advance_mcp_phase
 
     advance_mcp_phase(session_id, SUBMISSION)

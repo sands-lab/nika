@@ -184,9 +184,8 @@ def test_kathara_ospf_static_then_runtime_pipeline(tmp_path) -> None:
     session_id = None
     try:
         session_id = start_net_env(
-            "isp",
+            "isp_pdh",
             None,
-            topo="pdh",
             igp="ospf",
             bgp_mode="none",
             result_dir=str(tmp_path),
@@ -213,9 +212,8 @@ def test_kathara_ospf_defaults_to_runtime_validation_only(tmp_path) -> None:
     session_id = None
     try:
         session_id = start_net_env(
-            "isp",
+            "isp_pdh",
             None,
-            topo="pdh",
             igp="ospf",
             bgp_mode="none",
             result_dir=str(tmp_path),

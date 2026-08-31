@@ -7,7 +7,7 @@ The agent mirrors the two-phase architecture of BasicReActAgent:
 Uses the session's ground truth and live lab device names (not hardcoded
 ``pc1``/``pc2``), so it works across release topologies.
 
-Test-only. See ``docs/testing.md``.
+Test-only. See ``docs/development/testing.md``.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.utils.loggers import tool_event_payload
 from agent.utils.mcp_servers import select_diagnosis_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
@@ -156,7 +157,7 @@ def _mock_diagnosis_tool_calls(
     devices: list[str],
     preferred: list[str],
 ) -> list[tuple[str, dict[str, Any]]]:
-    calls: list[tuple[str, dict[str, Any]]] = [("get_reachability", {})]
+    calls: list[tuple[str, dict[str, Any]]] = []
     if "pingmesh_mcp_server" in server_names:
         calls.append(("run_pingmesh_snapshot", {}))
 
@@ -165,6 +166,10 @@ def _mock_diagnosis_tool_calls(
         host_a, host_b = pair
         calls.append(("ping_pair", {"host_a": host_a, "host_b": host_b}))
         calls.append(("exec_shell", {"host_name": host_a, "command": "hostname"}))
+    elif devices:
+        calls.append(
+            ("ping_pair", {"host_a": devices[0], "host_b": devices[0], "count": 1})
+        )
 
     if backend == "containerlab":
         router = _pick_router(devices) or (preferred[0] if preferred else None)
@@ -173,7 +178,9 @@ def _mock_diagnosis_tool_calls(
     else:
         router = _pick_router(devices) or (preferred[0] if preferred else None)
         if router and "kathara_frr_mcp_server" in server_names:
-            calls.append(("frr_get_routing_state", {"device": router}))
+            calls.append(
+                ("frr_exec", {"router_name": router, "command": "show ip bgp summary"})
+            )
             calls.append(("frr_show_ip_route", {"router_name": router}))
         elif router and "kathara_iosxr_mcp_server" in server_names:
             calls.append(("iosxr_show_route", {"router_name": router}))

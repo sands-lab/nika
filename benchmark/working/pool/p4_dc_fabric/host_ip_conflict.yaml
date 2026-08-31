@@ -1,0 +1,35 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: host_ip_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_1_1
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    inject:
+      host_name: client_1_3
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    inject:
+      host_name: client_5_2
+      host_name_2: web_14
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_14
+        name: eth0
+      fault_type: host_ip_conflict

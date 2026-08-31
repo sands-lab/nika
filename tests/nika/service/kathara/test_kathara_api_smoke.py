@@ -17,19 +17,6 @@ class KatharaSimpleBgpApiSmoke(KatharaScenarioApiSmokeTest):
     SCENARIO = "simple_bgp"
     PROBE_HOST = "pc1"
 
-    def test_runtime_list_nodes_and_exec(self) -> None:
-        runtime = self._runtime()
-        nodes = runtime.list_nodes()
-        assert nodes
-        assert self.PROBE_HOST in nodes
-        out = runtime.exec(self.PROBE_HOST, "hostname", timeout=15)
-        assert out.strip()
-
-    def test_host_api_reachability(self) -> None:
-        api = self._host_api()
-        cfg = api.get_host_net_config(self.PROBE_HOST)
-        assert cfg
-
 
 @pytest.mark.integration
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
@@ -37,16 +24,3 @@ class KatharaCampusLanApiSmoke(KatharaScenarioApiSmokeTest):
     SCENARIO = "campus_lan"
     ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s"]
     PROBE_HOST = CAMPUS_PROBE
-
-    def test_runtime_list_nodes_and_exec(self) -> None:
-        runtime = self._runtime()
-        nodes = runtime.list_nodes()
-        assert nodes
-        assert self.PROBE_HOST in nodes
-        out = runtime.exec(self.PROBE_HOST, "hostname", timeout=15)
-        assert out.strip()
-
-    def test_host_api_reachability(self) -> None:
-        api = self._host_api()
-        cfg = api.get_host_net_config(self.PROBE_HOST)
-        assert cfg

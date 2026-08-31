@@ -23,6 +23,7 @@ class MacAddressConflictParams(BaseModel):
 class MacAddressConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "mac_address_conflict"
+    description = "Two hosts share the same MAC address."
     TAGS: str = ["mac"]
 
     Params = MacAddressConflictParams

@@ -242,6 +242,15 @@ class P4DcFabric(NetworkEnvBase):
 
         reconcile_fabric(self._build_runtime(), self.model)
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab_startup
+
+        return verify_p4_dc_fabric_lab_startup(
+            self._build_runtime(),
+            scenario_name=self.LAB_NAME,
+            model=self.model,
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab
 
@@ -250,3 +259,10 @@ class P4DcFabric(NetworkEnvBase):
             scenario_name=self.LAB_NAME,
             model=self.model,
         )
+
+    def reconcile_dataplane_after_port_reconnect(
+        self, runtime: LabRuntime, nodes: list[str]
+    ) -> None:
+        from nika.net_env.p4_dc_fabric.fabric_manager import reconcile_fabric
+
+        reconcile_fabric(runtime, self.model)

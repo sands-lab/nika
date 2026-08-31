@@ -64,6 +64,7 @@ class HostMissingIPParams(BaseModel):
 class HostMissingIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_missing_ip"
+    description = "Host interface has no IP address."
     TAGS: str = ["pc"]
 
     Params = HostMissingIPParams
@@ -126,6 +127,7 @@ class HostIPConflictParams(BaseModel):
 class HostIPConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_ip_conflict"
+    description = "Two hosts are configured with the same IP address."
     TAGS: str = ["pc"]
 
     Params = HostIPConflictParams
@@ -185,6 +187,7 @@ class HostIncorrectIPParams(BaseModel):
 class HostIncorrectIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_incorrect_ip"
+    description = "Host IP address is incorrect."
     TAGS: str = ["pc"]
 
     Params = HostIncorrectIPParams
@@ -273,6 +276,7 @@ class HostIncorrectGatewayParams(BaseModel):
 class HostIncorrectGateway(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_incorrect_gateway"
+    description = "Host default gateway is incorrect."
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectGatewayParams
@@ -340,6 +344,7 @@ class HostIncorrectNetmaskParams(BaseModel):
 class HostIncorrectNetmask(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_incorrect_netmask"
+    description = "Host netmask/prefix length is incorrect."
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectNetmaskParams
@@ -411,6 +416,7 @@ class HostIncorrectDNSParams(BaseModel):
 class HostIncorrectDNS(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_incorrect_dns"
+    description = "Host is configured with an incorrect DNS resolver."
     TAGS: str = ["dns"]
 
     Params = HostIncorrectDNSParams

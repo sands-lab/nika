@@ -70,11 +70,13 @@ class NetworkPolicyDenyParams(K8sParams):
 class NetworkPolicyDeny(K8sProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "k8s_networkpolicy_deny"
+    description = "Kubernetes NetworkPolicy denies ingress to selected pods."
     symptom_desc = (
         "Only the pods selected by a NetworkPolicy lose inbound connectivity — "
         "their route through the ingress/gateway starts failing or timing out — "
         "while sibling routes, the rest of the namespace, and the cluster as a "
-        "whole stay healthy. The pods themselves remain Running and Ready."
+        "whole stay healthy. The pods themselves remain Running (Ready may go "
+        "false when kubelet HTTP probes are also subject to the deny policy)."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "network_policy"]
 
@@ -121,6 +123,11 @@ class NetworkPolicyDeny(K8sProblemBase):
             pods = k8s.k8s_pods(
                 control, namespace=params.namespace, selector=params.pod_selector
             )
+            # Deny-all-ingress under kube-router often blocks kubelet HTTP
+            # probes too, so Ready can flap; Running is the durable signal.
+            pods_running = bool(pods) and all(
+                (pod.get("phase") or "") == "Running" for pod in pods
+            )
             pods_ready = bool(pods) and all(pod["ready"] for pod in pods)
 
             symptom_broken = not http_ok(
@@ -138,6 +145,7 @@ class NetworkPolicyDeny(K8sProblemBase):
                 "policy_name": params.policy_name,
                 "policy_exists": policy_exists,
                 "target_pod_count": len(pods),
+                "target_pods_running": pods_running,
                 "target_pods_ready": pods_ready,
                 "symptom_url": params.symptom_url,
                 "symptom_broken": symptom_broken,
@@ -145,11 +153,39 @@ class NetworkPolicyDeny(K8sProblemBase):
                 "control_url_intact": control_intact,
             }
 
-            verified = policy_exists and pods_ready and symptom_broken
+            verified = policy_exists and pods_running and symptom_broken
             if params.control_url and params.control_url.strip():
                 # Prefer isolation (control intact), but still pass when the
                 # deny policy breaks the intended symptom path.
                 details["isolation_preferred"] = control_intact
             return verified, details
+
+        return self.poll_verify(evaluate)
+
+    def recover_fault(self, params: NetworkPolicyDenyParams) -> dict:
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        name = params.policy_name or DEFAULT_POLICY_NAME
+        k8s.kubectl(
+            control,
+            f"delete networkpolicy {name} -n {params.namespace} --ignore-not-found",
+        )
+
+        def evaluate() -> tuple[bool, dict[str, Any]]:
+            policy_exists = k8s.k8s_object_exists(
+                control,
+                "networkpolicy",
+                name,
+                namespace=params.namespace,
+            )
+            symptom_ok = http_ok(self.runtime, params.symptom_host, params.symptom_url)
+            details: dict[str, Any] = {
+                "namespace": params.namespace,
+                "policy_name": name,
+                "policy_exists": policy_exists,
+                "symptom_url": params.symptom_url,
+                "symptom_ok": symptom_ok,
+            }
+            return (not policy_exists) and symptom_ok, details
 
         return self.poll_verify(evaluate)

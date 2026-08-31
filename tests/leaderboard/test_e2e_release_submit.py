@@ -81,7 +81,7 @@ def test_release_pack_validate_submit_mocked(tmp_path: Path, monkeypatch) -> Non
             result_dir,
             submission_dir=staging,
         )
-        report = validate_leaderboard_submission(package, source_result_dir=result_dir)
+        report = validate_leaderboard_submission(package)
         assert report.ok, report.errors
 
         monkeypatch.setattr(

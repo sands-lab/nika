@@ -42,7 +42,6 @@ from nika.net_env.isp.traffic import (
     attach_traffic_stubs,
     remap_inventory_ifaces_to_srl,
 )
-from nika.topology.sndlib.catalog import topology_for_size
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.spec import LabSpec
 
@@ -72,7 +71,7 @@ class Isp(ContainerlabNetworkEnv):
 
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
+    TOPO_SIZE = None
     TAGS = [
         "isp",
         "sndlib",
@@ -99,13 +98,33 @@ class Isp(ContainerlabNetworkEnv):
         rpki: bool = False,
         device_profile: str | None = None,
         topo_size: str | None = None,
+        scenario_id: str | None = None,
         **kwargs,
     ):
         kwargs.pop("traffic_mode", None)
         kwargs.pop("traffic_scale", None)
+        kwargs.pop("rtbh", None)
         super().__init__(backend=kwargs.pop("backend", "containerlab"), **kwargs)
 
-        self.topo = topo if topo is not None else topology_for_size(topo_size or "s")
+        if topo_size is not None:
+            raise ValueError(
+                "ISP topology identity is the scenario name "
+                "(e.g. isp_abilene); do not pass topo_size."
+            )
+        if topo is None:
+            raise ValueError(
+                "ISP requires an explicit topo (supplied by scenario deploy_defaults)."
+            )
+        self.topo = topo
+        if scenario_id is not None:
+            self.scenario_id = scenario_id
+        elif isinstance(topo, str) and not str(topo).endswith(".xml"):
+            self.scenario_id = f"isp_{topo}"
+        else:
+            raise ValueError(
+                "ISP requires scenario_id when topo is a path/XML file "
+                "(e.g. scenario_id='isp_abilene')."
+            )
         self.igp = igp
         self.metric_strategy = metric_strategy
         self.constant_metric = constant_metric
@@ -116,8 +135,8 @@ class Isp(ContainerlabNetworkEnv):
         )
         if self.rpki:
             raise ValueError(
-                "RPKI capability is Kathara/FRR-only; use "
-                "`nika env run isp --bgp-mode ebgp --rpki --backend kathara`."
+                "RPKI capability is Kathara/FRR-only; use a named RPKI scenario "
+                "with --backend kathara (e.g. isp_abilene_ebgp_rpki)."
             )
         profile_raw = device_profile or default_device_profile("containerlab")
         self.device_profile = normalize_device_profile(profile_raw)
@@ -149,8 +168,9 @@ class Isp(ContainerlabNetworkEnv):
         self.inventory["device_profile"] = self.device_profile
         self.inventory["backend"] = "containerlab"
 
+        self.name = self.scenario_id
         self._mgmt_ipv4 = self._assign_mgmt_ips()
-        self._clab_doc = self._build_clab_document(lab_name=self.LAB_NAME)
+        self._clab_doc = self._build_clab_document(lab_name=self.scenario_id)
 
         node_n = len(self.plan.nodes)
         link_n = len(self.plan.links)
@@ -267,7 +287,7 @@ class Isp(ContainerlabNetworkEnv):
             raise ValueError("Lab name is required before deploy.")
         self.runtime_workdir = RUNTIME_DIR / "containerlab" / lab_name
         self.runtime_workdir.mkdir(parents=True, exist_ok=True)
-        self.topology_file = self.runtime_workdir / f"{self.LAB_NAME}.clab.yml"
+        self.topology_file = self.runtime_workdir / f"{self.scenario_id}.clab.yml"
 
         doc = self._build_clab_document(lab_name=lab_name)
         self.topology_file.write_text(
@@ -495,6 +515,17 @@ exit "$FAILED"
             ]
         )
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.isp.containerlab.verify import verify_isp_srl_lab_startup
+
+        return verify_isp_srl_lab_startup(
+            self._build_runtime(),
+            plan=self.plan,
+            bgp_plan=self.bgp_plan,
+            traffic=self.traffic,
+            scenario_name=self.scenario_id,
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.isp.containerlab.verify import verify_isp_srl_lab
 
@@ -503,5 +534,5 @@ exit "$FAILED"
             plan=self.plan,
             bgp_plan=self.bgp_plan,
             traffic=self.traffic,
-            scenario_name=self.LAB_NAME,
+            scenario_name=self.scenario_id,
         )

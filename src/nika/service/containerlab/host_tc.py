@@ -80,6 +80,74 @@ class HostTcController:
         )
         return peer
 
+    def set_netem_corrupt_bidirectional(
+        self, node: str, intf: str, peer_node: str, peer_intf: str, percentage: int
+    ) -> tuple[str, str]:
+        """Apply corrupt netem on both host veth peers of a point-to-point link."""
+        host_peer = self.set_netem_corrupt(node, intf, percentage)
+        peer_veth = self.peer_name(peer_node, peer_intf)
+        if peer_veth != host_peer:
+            self._run(
+                "tc",
+                "qdisc",
+                "replace",
+                "dev",
+                peer_veth,
+                "root",
+                "netem",
+                "corrupt",
+                f"{percentage}%",
+            )
+        return host_peer, peer_veth
+
+    def set_link_down(self, node: str, intf: str) -> tuple[str, str]:
+        """Bring down a link so endpoints report operstate down.
+
+        Prefer the host-side veth peer (carrier loss). Fall back to setting the
+        interface down inside the node namespace when no host peer exists.
+        """
+        try:
+            peer = self.peer_name(node, intf)
+        except RuntimeCapabilityError:
+            self.set_node_link_down(node, intf)
+            return "node_intf", f"{node}:{intf}"
+        self._run("ip", "link", "set", "dev", peer, "down")
+        return "host_peer", peer
+
+    def set_node_link_down(self, node: str, intf: str) -> None:
+        pid = self._container_pid(node)
+        self._run(
+            "nsenter",
+            "-t",
+            str(pid),
+            "-n",
+            "ip",
+            "link",
+            "set",
+            "dev",
+            intf,
+            "down",
+        )
+
+    def set_node_link_up(self, node: str, intf: str) -> None:
+        pid = self._container_pid(node)
+        self._run(
+            "nsenter",
+            "-t",
+            str(pid),
+            "-n",
+            "ip",
+            "link",
+            "set",
+            "dev",
+            intf,
+            "up",
+        )
+
+    def link_peer_down(self, peer: str) -> bool:
+        output = self._run("ip", "link", "show", "dev", peer).lower()
+        return "state down" in output
+
     def set_netem_loss(self, node: str, intf: str, percentage: int) -> str:
         peer = self.peer_name(node, intf)
         self._run(

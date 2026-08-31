@@ -410,9 +410,15 @@ def _run_sndlib(
     from traffic.sndlib_replay import SndlibTrafficReplayer
     from nika.net_env.isp.traffic import resolve_traffic_series
     from nika.net_env.isp.traffic.models import DEFAULT_TRAFFIC_SCALE
+    from nika.net_env.isp.identity import (
+        is_isp_scenario,
+        isp_topo_from_scenario,
+    )
 
-    if scenario != "isp":
-        raise typer.BadParameter("sndlib traffic replay requires scenario 'isp'.")
+    if not is_isp_scenario(scenario):
+        raise typer.BadParameter(
+            "sndlib traffic replay requires an ISP scenario (e.g. isp_abilene)."
+        )
 
     traffic_mode = (mode or "demands").strip().lower()
     if traffic_mode not in ("demands", "dynamic"):
@@ -452,7 +458,11 @@ def _run_sndlib(
         kwargs.update(_net_env_kwargs_for_scenario(scenario, size_resolved))
 
     net_env = get_net_env_instance(scenario, **kwargs)
-    topo = params.get("topo") or getattr(net_env, "topo", None) or "polska"
+    topo = (
+        params.get("topo")
+        or getattr(net_env, "topo", None)
+        or isp_topo_from_scenario(scenario)
+    )
     series = resolve_traffic_series(topo, traffic_mode)
     if series is None:
         raise typer.BadParameter("Could not resolve SNDlib traffic series.")

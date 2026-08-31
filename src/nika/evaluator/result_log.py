@@ -86,7 +86,9 @@ def missing_summary_artifacts(session_dir: Path) -> list[str]:
 def resolve_failure_metadata(run_meta: dict) -> dict[str, str | None]:
     resolved = {"failure_domain": run_meta.get("failure_domain")}
     problem_names = run_meta.get("problem_names") or []
-    if len(problem_names) == 1:
+    if len(problem_names) > 1:
+        resolved["failure_domain"] = resolved.get("failure_domain") or "multiple_faults"
+    elif len(problem_names) == 1:
         problem = get_problem_class(problem_names[0])
         if problem is not None:
             for key, value in problem.taxonomy_metadata().items():
@@ -97,6 +99,8 @@ def resolve_failure_metadata(run_meta: dict) -> dict[str, str | None]:
 def _primary_problem(run_meta: dict) -> str | None:
     names = run_meta.get("problem_names")
     if isinstance(names, list) and names:
+        if len(names) > 1:
+            return "+".join(str(name) for name in names)
         return str(names[0])
     if isinstance(names, str) and names.strip():
         return names.strip()

@@ -1,0 +1,291 @@
+scenario:
+  name: isp_geant
+failure:
+  fault_type: host_static_blackhole
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: at1_at
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: be1_be
+    root_causes:
+    - resource:
+        kind: node
+        node: be1_be
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ch1_ch
+    root_causes:
+    - resource:
+        kind: node
+        node: ch1_ch
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cz1_cz
+    root_causes:
+    - resource:
+        kind: node
+        node: cz1_cz
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: de1_de
+    root_causes:
+    - resource:
+        kind: node
+        node: de1_de
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: es1_es
+    root_causes:
+    - resource:
+        kind: node
+        node: es1_es
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: fr1_fr
+    root_causes:
+    - resource:
+        kind: node
+        node: fr1_fr
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: gr1_gr
+    root_causes:
+    - resource:
+        kind: node
+        node: gr1_gr
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hr1_hr
+    root_causes:
+    - resource:
+        kind: node
+        node: hr1_hr
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu1_hu
+    root_causes:
+    - resource:
+        kind: node
+        node: hu1_hu
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ie1_ie
+    root_causes:
+    - resource:
+        kind: node
+        node: ie1_ie
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: il1_il
+    root_causes:
+    - resource:
+        kind: node
+        node: il1_il
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: it1_it
+    root_causes:
+    - resource:
+        kind: node
+        node: it1_it
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lu1_lu
+    root_causes:
+    - resource:
+        kind: node
+        node: lu1_lu
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nl1_nl
+    root_causes:
+    - resource:
+        kind: node
+        node: nl1_nl
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ny1_ny
+    root_causes:
+    - resource:
+        kind: node
+        node: ny1_ny
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pl1_pl
+    root_causes:
+    - resource:
+        kind: node
+        node: pl1_pl
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pt1_pt
+    root_causes:
+    - resource:
+        kind: node
+        node: pt1_pt
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: se1_se
+    root_causes:
+    - resource:
+        kind: node
+        node: se1_se
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: si1_si
+    root_causes:
+    - resource:
+        kind: node
+        node: si1_si
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sk1_sk
+    root_causes:
+    - resource:
+        kind: node
+        node: sk1_sk
+      fault_type: host_static_blackhole
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: uk1_uk
+    root_causes:
+    - resource:
+        kind: node
+        node: uk1_uk
+      fault_type: host_static_blackhole

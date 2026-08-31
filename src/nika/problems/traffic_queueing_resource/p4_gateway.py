@@ -19,6 +19,7 @@ class P4EcnThresholdMisconfigurationParams(BaseModel):
 class P4EcnThresholdMisconfiguration(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
     root_cause_name = "p4_ecn_threshold_misconfiguration"
+    description = "ECN marking threshold is misconfigured (marking too late)."
     symptom_desc = (
         "TCP incast builds a deeper queue because CE marking starts too late."
     )

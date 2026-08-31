@@ -1,0 +1,56 @@
+scenario:
+  name: isp_nobel-eu
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: warsaw
+      peer_host: pc_warsaw
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: amsterdam
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zagreb
+      peer_host: pc_zagreb
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.114.1
+      symptom_host: amsterdam
+    root_causes:
+    - resource:
+        kind: node
+        node: zagreb
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zurich
+      peer_host: pc_zurich
+      prefix: 203.0.115.0/24
+      probe_dst_ip: 203.0.115.1
+      symptom_host: amsterdam
+    root_causes:
+    - resource:
+        kind: node
+        node: zurich
+      fault_type: bgp_missing_route_advertisement

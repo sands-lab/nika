@@ -22,15 +22,14 @@ spec:
     spec:
       containers:
       - name: routing-sidecar
-        image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.8.0
+        image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0
         imagePullPolicy: IfNotPresent
         args:
         - --port=8000
         - --vllm-port=8200
         - --kv-connector=nixlv2
         - --secure-proxy=false
-        - --inference-pool-name=llm-d-pd
-        - --inference-pool-namespace=llm-d
+        - --inference-pool=llm-d/llm-d-pd
         ports:
         - name: http
           containerPort: 8000

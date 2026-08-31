@@ -1,0 +1,311 @@
+scenario:
+  name: isp_polska
+failure:
+  fault_type: link_down
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bialystok
+      intf_name: eth0
+      peer_host: pc_gdansk
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_bialystok
+    root_causes:
+    - resource:
+        kind: link
+        name: bialystok:eth0--gdansk:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bialystok
+      intf_name: eth1
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_bialystok
+    root_causes:
+    - resource:
+        kind: link
+        name: bialystok:eth1--warsaw:eth3
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bialystok
+      intf_name: eth2
+      peer_host: pc_rzeszow
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_bialystok
+    root_causes:
+    - resource:
+        kind: link
+        name: bialystok:eth2--rzeszow:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bydgoszcz
+      intf_name: eth0
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_bydgoszcz
+    root_causes:
+    - resource:
+        kind: link
+        name: bydgoszcz:eth0--warsaw:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bydgoszcz
+      intf_name: eth1
+      peer_host: pc_kolobrzeg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_bydgoszcz
+    root_causes:
+    - resource:
+        kind: link
+        name: bydgoszcz:eth1--kolobrzeg:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bydgoszcz
+      intf_name: eth2
+      peer_host: pc_poznan
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_bydgoszcz
+    root_causes:
+    - resource:
+        kind: link
+        name: bydgoszcz:eth2--poznan:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: gdansk
+      intf_name: eth0
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_gdansk
+    root_causes:
+    - resource:
+        kind: link
+        name: gdansk:eth0--warsaw:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: gdansk
+      intf_name: eth1
+      peer_host: pc_kolobrzeg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_gdansk
+    root_causes:
+    - resource:
+        kind: link
+        name: gdansk:eth1--kolobrzeg:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: katowice
+      intf_name: eth0
+      peer_host: pc_wroclaw
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_katowice
+    root_causes:
+    - resource:
+        kind: link
+        name: katowice:eth0--wroclaw:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: katowice
+      intf_name: eth1
+      peer_host: pc_krakow
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_katowice
+    root_causes:
+    - resource:
+        kind: link
+        name: katowice:eth1--krakow:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: katowice
+      intf_name: eth2
+      peer_host: pc_lodz
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_katowice
+    root_causes:
+    - resource:
+        kind: link
+        name: katowice:eth2--lodz:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kolobrzeg
+      intf_name: eth2
+      peer_host: pc_szczecin
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_kolobrzeg
+    root_causes:
+    - resource:
+        kind: link
+        name: kolobrzeg:eth2--szczecin:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: krakow
+      intf_name: eth1
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_krakow
+    root_causes:
+    - resource:
+        kind: link
+        name: krakow:eth1--warsaw:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: krakow
+      intf_name: eth2
+      peer_host: pc_rzeszow
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_krakow
+    root_causes:
+    - resource:
+        kind: link
+        name: krakow:eth2--rzeszow:eth0
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lodz
+      intf_name: eth1
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_lodz
+    root_causes:
+    - resource:
+        kind: link
+        name: lodz:eth1--warsaw:eth4
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lodz
+      intf_name: eth2
+      peer_host: pc_wroclaw
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_lodz
+    root_causes:
+    - resource:
+        kind: link
+        name: lodz:eth2--wroclaw:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: poznan
+      intf_name: eth1
+      peer_host: pc_wroclaw
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_poznan
+    root_causes:
+    - resource:
+        kind: link
+        name: poznan:eth1--wroclaw:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: poznan
+      intf_name: eth2
+      peer_host: pc_szczecin
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_poznan
+    root_causes:
+    - resource:
+        kind: link
+        name: poznan:eth2--szczecin:eth1
+      fault_type: link_down

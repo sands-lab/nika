@@ -1,0 +1,481 @@
+scenario:
+  name: isp_nobel-eu
+failure:
+  fault_type: bgp_hijacking
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: amsterdam
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: amsterdam
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: athens
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: athens
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: barcelona
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: barcelona
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: belgrade
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: belgrade
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: berlin
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bordeaux
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bordeaux
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: brussels
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: brussels
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: budapest
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: budapest
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: copenhagen
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: copenhagen
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dublin
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: dublin
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: frankfurt
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: glasgow
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: glasgow
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hamburg
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: london
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: london
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lyon
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lyon
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: madrid
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: madrid
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: milan
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: milan
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: munich
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: munich
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: oslo
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: oslo
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: paris
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: paris
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: prague
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: prague
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: rome
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: rome
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: stockholm
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: stockholm
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: strasbourg
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: strasbourg
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: vienna
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: vienna
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: warsaw
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zagreb
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: zagreb
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zurich
+      peer_host: pc_amsterdam
+      probe_dst_ip: 198.18.0.1
+      symptom_host: athens
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: zurich
+      fault_type: bgp_hijacking

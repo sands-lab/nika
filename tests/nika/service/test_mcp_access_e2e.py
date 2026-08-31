@@ -12,8 +12,8 @@ from agent.utils.mcp_client import begin_submission_mcp_phase
 from agent.utils.mcp_servers import MCPServerConfig
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
-from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
-from nika.service.mcp_server.registry import (
+from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.mcp.registry import (
     DIAGNOSIS_HOST_SERVER,
     SUBMISSION_SERVER,
 )

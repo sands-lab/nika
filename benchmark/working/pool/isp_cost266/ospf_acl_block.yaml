@@ -1,0 +1,486 @@
+scenario:
+  name: isp_cost266
+failure:
+  fault_type: ospf_acl_block
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: amsterdam
+    root_causes:
+    - resource:
+        kind: node
+        node: amsterdam
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: athens
+    root_causes:
+    - resource:
+        kind: node
+        node: athens
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: barcelona
+    root_causes:
+    - resource:
+        kind: node
+        node: barcelona
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: belgrade
+    root_causes:
+    - resource:
+        kind: node
+        node: belgrade
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: birmingham
+    root_causes:
+    - resource:
+        kind: node
+        node: birmingham
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bordeaux
+    root_causes:
+    - resource:
+        kind: node
+        node: bordeaux
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: brussels
+    root_causes:
+    - resource:
+        kind: node
+        node: brussels
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: budapest
+    root_causes:
+    - resource:
+        kind: node
+        node: budapest
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: copenhagen
+    root_causes:
+    - resource:
+        kind: node
+        node: copenhagen
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dublin
+    root_causes:
+    - resource:
+        kind: node
+        node: dublin
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dusseldorf
+    root_causes:
+    - resource:
+        kind: node
+        node: dusseldorf
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: glasgow
+    root_causes:
+    - resource:
+        kind: node
+        node: glasgow
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: helsinki
+    root_causes:
+    - resource:
+        kind: node
+        node: helsinki
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lisbon
+    root_causes:
+    - resource:
+        kind: node
+        node: lisbon
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: london
+    root_causes:
+    - resource:
+        kind: node
+        node: london
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lyon
+    root_causes:
+    - resource:
+        kind: node
+        node: lyon
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: madrid
+    root_causes:
+    - resource:
+        kind: node
+        node: madrid
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: marseille
+    root_causes:
+    - resource:
+        kind: node
+        node: marseille
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: milan
+    root_causes:
+    - resource:
+        kind: node
+        node: milan
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: munich
+    root_causes:
+    - resource:
+        kind: node
+        node: munich
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: oslo
+    root_causes:
+    - resource:
+        kind: node
+        node: oslo
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: palermo
+    root_causes:
+    - resource:
+        kind: node
+        node: palermo
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: paris
+    root_causes:
+    - resource:
+        kind: node
+        node: paris
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: prague
+    root_causes:
+    - resource:
+        kind: node
+        node: prague
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: rome
+    root_causes:
+    - resource:
+        kind: node
+        node: rome
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: seville
+    root_causes:
+    - resource:
+        kind: node
+        node: seville
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sofia
+    root_causes:
+    - resource:
+        kind: node
+        node: sofia
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: stockholm
+    root_causes:
+    - resource:
+        kind: node
+        node: stockholm
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: strasbourg
+    root_causes:
+    - resource:
+        kind: node
+        node: strasbourg
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: vienna
+    root_causes:
+    - resource:
+        kind: node
+        node: vienna
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zagreb
+    root_causes:
+    - resource:
+        kind: node
+        node: zagreb
+      fault_type: ospf_acl_block
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zurich
+    root_causes:
+    - resource:
+        kind: node
+        node: zurich
+      fault_type: ospf_acl_block

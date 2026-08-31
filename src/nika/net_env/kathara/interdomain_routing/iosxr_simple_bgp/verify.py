@@ -18,10 +18,6 @@ from nika.runtime.base import LabRuntime
 
 
 def _iosxr_interface_up(runtime: LabRuntime, router: str, interface: str) -> bool:
-    # nika's exec wrapping (ShellResolver.wrap_shell_command) escapes double
-    # quotes for a context where they don't need it, splitting a
-    # double-quoted xr_cli argument into several stray tokens. Single quotes
-    # round-trip correctly, so xr_cli's argument is quoted with those instead.
     output = exec_or_empty(runtime, router, "/pkg/bin/xr_cli 'show ip interface brief'")
     pattern = re.compile(rf"{re.escape(interface)}\s+\S+\s+Up\s+Up")
     return bool(pattern.search(output))
@@ -39,6 +35,22 @@ def _iosxr_bgp_established(
         if fields and fields[-1].isdigit():
             established += 1
     return established >= min_neighbors
+
+
+def verify_iosxr_simple_bgp_lab_startup(
+    runtime: LabRuntime, *, scenario_name: str
+) -> dict[str, Any]:
+    expected = ("router1", "router2", "pc1", "pc2")
+    checks = {
+        "nodes_deployed": nodes_deployed(runtime, expected),
+        "router1_bgp_established": _iosxr_bgp_established(runtime, "router1"),
+        "pc1_gateway_reachable": ping_ok(runtime, "pc1", "195.11.14.1"),
+    }
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+    )
 
 
 def verify_iosxr_simple_bgp_lab(

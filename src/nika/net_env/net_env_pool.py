@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from nika.net_env.base import NetworkEnvBase
+from nika.topology.sndlib.catalog import (
+    SNDLIB_TOPOLOGY_NAMES,
+    topology_size_for_name,
+)
 from nika.utils.dependencies import raise_missing_extra, require_backend_extra
 
 
@@ -33,6 +37,8 @@ class NetEnvSpec:
     # Optional per-backend overrides; when absent, ``module``/``class_name`` apply
     # to every supported backend (single-binding scenarios).
     backend_bindings: Mapping[str, BackendEnvBinding] | None = None
+    # Merged into ``get_net_env_instance`` kwargs (caller values win).
+    deploy_defaults: Mapping[str, Any] | None = None
 
     @property
     def LAB_NAME(self) -> str:
@@ -59,6 +65,32 @@ class NetEnvSpec:
         if self.backend_bindings and backend in self.backend_bindings:
             return self.backend_bindings[backend]
         return BackendEnvBinding(module=self.module, class_name=self.class_name)
+
+
+_ISP_BASE_TAGS: tuple[str, ...] = (
+    "isp",
+    "sndlib",
+    "frr",
+    "isis",
+    "ospf",
+    "bgp",
+    "igp",
+    "link",
+    "icmp",
+    "srl",
+    "containerlab",
+)
+
+_ISP_BACKEND_BINDINGS: dict[str, BackendEnvBinding] = {
+    "kathara": BackendEnvBinding(
+        module="nika.net_env.isp.kathara.lab",
+        class_name="Isp",
+    ),
+    "containerlab": BackendEnvBinding(
+        module="nika.net_env.isp.containerlab.lab",
+        class_name="Isp",
+    ),
+}
 
 
 DC_CLOS_SCENARIO = "dc_clos"
@@ -177,36 +209,88 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         tags=("arp", "link", "bgp", "icmp", "iosxr", "pc"),
         supported_backends=("kathara",),
     ),
-    "isp": NetEnvSpec(
-        lab_name="isp",
-        module="nika.net_env.isp.kathara.lab",
-        class_name="Isp",
+    "isp_abilene_ebgp_rtbh": NetEnvSpec(
+        lab_name="isp_abilene_ebgp_rtbh",
+        module="nika.net_env.isp.specials.rtbh",
+        class_name="IspAbileneEbgpRtbh",
         tags=(
             "isp",
             "sndlib",
             "frr",
-            "isis",
             "ospf",
             "bgp",
+            "ebgp",
+            "rtbh",
+            "igp",
+            "link",
+            "icmp",
+        ),
+        supported_backends=("kathara",),
+        topo_size="s",
+        deploy_defaults={"topo": "abilene", "scenario_id": "isp_abilene_ebgp_rtbh"},
+    ),
+    "isp_dfn-bwin_ebgp_rtbh": NetEnvSpec(
+        lab_name="isp_dfn-bwin_ebgp_rtbh",
+        module="nika.net_env.isp.specials.rtbh",
+        class_name="IspDfnBwinEbgpRtbh",
+        tags=(
+            "isp",
+            "sndlib",
+            "frr",
+            "ospf",
+            "bgp",
+            "ebgp",
+            "rtbh",
+            "igp",
+            "link",
+            "icmp",
+        ),
+        supported_backends=("kathara",),
+        topo_size="s",
+        deploy_defaults={
+            "topo": "dfn-bwin",
+            "scenario_id": "isp_dfn-bwin_ebgp_rtbh",
+        },
+    ),
+    "isp_abilene_ebgp_rpki": NetEnvSpec(
+        lab_name="isp_abilene_ebgp_rpki",
+        module="nika.net_env.isp.specials.rpki",
+        class_name="IspAbileneEbgpRpki",
+        tags=(
+            "isp",
+            "sndlib",
+            "frr",
+            "ospf",
+            "bgp",
+            "ebgp",
             "rpki",
             "igp",
             "link",
             "icmp",
-            "srl",
-            "containerlab",
         ),
-        supported_backends=("kathara", "containerlab"),
-        topo_size=["s", "m", "l"],
-        backend_bindings={
-            "kathara": BackendEnvBinding(
-                module="nika.net_env.isp.kathara.lab",
-                class_name="Isp",
-            ),
-            "containerlab": BackendEnvBinding(
-                module="nika.net_env.isp.containerlab.lab",
-                class_name="Isp",
-            ),
-        },
+        supported_backends=("kathara",),
+        topo_size="s",
+        deploy_defaults={"topo": "abilene", "scenario_id": "isp_abilene_ebgp_rpki"},
+    ),
+    "isp_geant_ebgp_rpki": NetEnvSpec(
+        lab_name="isp_geant_ebgp_rpki",
+        module="nika.net_env.isp.specials.rpki",
+        class_name="IspGeantEbgpRpki",
+        tags=(
+            "isp",
+            "sndlib",
+            "frr",
+            "ospf",
+            "bgp",
+            "ebgp",
+            "rpki",
+            "igp",
+            "link",
+            "icmp",
+        ),
+        supported_backends=("kathara",),
+        topo_size="m",
+        deploy_defaults={"topo": "geant", "scenario_id": "isp_geant_ebgp_rpki"},
     ),
     "min3clos": NetEnvSpec(
         lab_name="min3clos",
@@ -267,6 +351,21 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     ),
 }
 
+# Flattened SNDlib ISP topologies: one scenario ID per graph (shared Isp class).
+for _topo_name in SNDLIB_TOPOLOGY_NAMES:
+    _scenario_id = f"isp_{_topo_name}"
+    _NET_ENV_SPECS[_scenario_id] = NetEnvSpec(
+        lab_name=_scenario_id,
+        module="nika.net_env.isp.kathara.lab",
+        class_name="Isp",
+        tags=_ISP_BASE_TAGS,
+        supported_backends=("kathara", "containerlab"),
+        topo_size=topology_size_for_name(_topo_name),
+        backend_bindings=_ISP_BACKEND_BINDINGS,
+        deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
+    )
+del _topo_name, _scenario_id
+
 _CLASS_CACHE: dict[tuple[str, str], type[NetworkEnvBase]] = {}
 
 
@@ -315,18 +414,25 @@ def scenario_tags(scenario_name: str) -> list[str]:
     return list(_require_scenario(scenario_name).tags)
 
 
-# Deploy variants shown as coverage-matrix columns for ``isp``.
+# Deploy variants shown as coverage-matrix columns for representative ISP configs.
 ISP_COVERAGE_CONFIGS: tuple[str, ...] = (
     "isis",
     "ospf",
     "ibgp_rr",
-    "abilene-ebgp",
-    "abilene-ebgp-rpki",
-    "geant-ebgp-rpki",
+    "ebgp",
 )
 
 _ISP_COVERAGE_BASE_TAGS: frozenset[str] = frozenset(
     {"isp", "sndlib", "frr", "igp", "link", "icmp"}
+)
+
+# Representative base topologies used for protocol-variant coverage columns.
+# Other SNDlib ``isp_<topo>`` IDs are omitted from the matrix (same capability
+# surface); named specials still appear as their own columns.
+_ISP_COVERAGE_SCENARIOS: tuple[str, ...] = (
+    "isp_abilene",
+    "isp_france",
+    "isp_pioro40",
 )
 
 
@@ -340,10 +446,14 @@ def parse_column(column: str) -> tuple[str, str | None]:
 
 def coverage_columns() -> list[str]:
     """Stable ordered list of coverage-matrix column ids."""
+    from nika.net_env.isp.identity import is_isp_base_topology
+
     columns: list[str] = []
     for name in sorted(list_all_net_envs()):
-        if name == "isp":
-            columns.extend(f"isp/{cfg}" for cfg in ISP_COVERAGE_CONFIGS)
+        if name in _ISP_COVERAGE_SCENARIOS:
+            columns.extend(f"{name}/{cfg}" for cfg in ISP_COVERAGE_CONFIGS)
+        elif is_isp_base_topology(name):
+            continue
         else:
             columns.append(name)
     return columns
@@ -352,20 +462,16 @@ def coverage_columns() -> list[str]:
 def effective_tags(column: str) -> frozenset[str]:
     """Tags exposed by one deployed scenario config (not class-level unions)."""
     scenario, config = parse_column(column)
-    if scenario == "isp":
+    if scenario in _ISP_COVERAGE_SCENARIOS and config is not None:
         if config == "isis":
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"isis"})
         if config == "ospf":
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf"})
         if config == "ibgp_rr":
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"isis", "bgp"})
-        if config == "abilene-ebgp":
-            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp"})
-        if config == "abilene-ebgp-rpki":
-            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "rpki"})
-        if config == "geant-ebgp-rpki":
-            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "rpki"})
-        raise ValueError(f"Unknown isp config {config!r}")
+        if config == "ebgp":
+            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "ebgp"})
+        raise ValueError(f"Unknown isp config {config!r} for {scenario!r}")
     return frozenset(scenario_tags(scenario))
 
 
@@ -415,13 +521,15 @@ def scenario_backend(scenario_name: str) -> str:
 
 
 def get_net_env_instance(
-    scenario_name: str, *, backend: str = "kathara", **kwargs
+    scenario_name: str, *, backend: str | None = None, **kwargs
 ) -> NetworkEnvBase:
     """Get an instance of the specified network environment.
 
     Args:
         scenario_name: A registered canonical scenario ID.
         backend: Lab runtime backend (``kathara`` or ``containerlab``).
+            When omitted, single-backend scenarios use their only supported
+            backend; multi-backend scenarios default to ``kathara``.
 
     Returns:
         An instance of the specified network environment.
@@ -430,11 +538,17 @@ def get_net_env_instance(
         ValueError: If the specified network environment is not found or backend unsupported.
     """
     canonical = resolve_scenario_id(scenario_name)
-    resolved = resolve_scenario_backend(canonical, backend=backend)
+    resolved = resolve_scenario_backend(
+        canonical,
+        backend=backend,
+        default_when_ambiguous="kathara",
+    )
     cls = _load_net_env_class(canonical, backend=resolved)
-    lab_name = kwargs.pop("lab_name", None)
-    topology_file = kwargs.pop("topology_file", None)
-    runtime_workdir = kwargs.pop("runtime_workdir", None)
+    spec = _require_scenario(canonical)
+    merged: dict[str, Any] = {**(spec.deploy_defaults or {}), **kwargs}
+    lab_name = merged.pop("lab_name", None)
+    topology_file = merged.pop("topology_file", None)
+    runtime_workdir = merged.pop("runtime_workdir", None)
     # Many Kathara lab ``__init__`` signatures omit ``backend`` (and ``**kwargs``).
     # Pass it only when accepted; always assign afterward so ``instance.backend``
     # matches the resolved runtime backend.
@@ -442,7 +556,7 @@ def get_net_env_instance(
     accepts_backend = "backend" in init_params or any(
         p.kind == inspect.Parameter.VAR_KEYWORD for p in init_params.values()
     )
-    instance = cls(backend=resolved, **kwargs) if accepts_backend else cls(**kwargs)
+    instance = cls(backend=resolved, **merged) if accepts_backend else cls(**merged)
     instance.backend = resolved
     if lab_name:
         instance.name = lab_name
@@ -470,6 +584,14 @@ def scenario_requires_topo_size(scenario_name: str) -> bool:
     """Return True if this scenario's lab expects an explicit topo size (s/m/l)."""
     topo_size = _require_scenario(scenario_name).topo_size
     return isinstance(topo_size, list)
+
+
+def scenario_fixed_topo_size(scenario_name: str) -> str | None:
+    """Return baked ``s``/``m``/``l`` metadata when the scenario is not size-scalable."""
+    topo_size = _require_scenario(scenario_name).topo_size
+    if isinstance(topo_size, str) and topo_size in {"s", "m", "l"}:
+        return topo_size
+    return None
 
 
 def scenario_source_path(scenario_name: str) -> Path:

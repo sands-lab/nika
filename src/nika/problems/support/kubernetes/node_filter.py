@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from typing import Any
 
 FILTER_COMMENT = "nika-k8s-svc-block"
+# raw PREROUTING/OUTPUT catch locally generated ClusterIP traffic before kube-proxy
+# DNAT. filter FORWARD/INPUT catch overlay-decapped packets to pod IPs that skip
+# the host's raw PREROUTING (flannel VXLAN on k3s).
 IPTABLES_CHAINS = ("PREROUTING", "OUTPUT")
+IPTABLES_FILTER_CHAINS = ("INPUT", "FORWARD", "OUTPUT")
 IPTABLES_BINARY = "iptables"
 FILTER_TIMEOUT_SEC: float = 30.0
 WGET_BINARY = "wget"
@@ -132,27 +136,33 @@ class NodeFilter:
                 f"{', '.join(missing)}. Current ruleset: {self.rules_dump()[:500]!r}"
             )
 
-    def _block_with_iptables(self, spec: DropSpec) -> None:
+    def _install_rule(self, table: str, chain: str, spec: DropSpec) -> None:
         binary = IPTABLES_BINARY
+        commented = spec.iptables_args(comment=FILTER_COMMENT)
+        # The comment module is optional in stripped images: fall back to a
+        # plain rule when it is unavailable.
+        _, returncode = self._exec(
+            f"{binary} -t {table} -C {chain} {commented} 2>/dev/null || "
+            f"{binary} -t {table} -I {chain} 1 {commented}"
+        )
+        if returncode == 0:
+            return
+        rule = spec.iptables_args()
+        self._exec(
+            f"{binary} -t {table} -C {chain} {rule} 2>/dev/null || "
+            f"{binary} -t {table} -I {chain} 1 {rule}"
+        )
+
+    def _block_with_iptables(self, spec: DropSpec) -> None:
         for chain in IPTABLES_CHAINS:
-            commented = spec.iptables_args(comment=FILTER_COMMENT)
-            # The comment module is optional in stripped images: fall back to a
-            # plain rule when it is unavailable.
-            _, returncode = self._exec(
-                f"{binary} -t raw -C {chain} {commented} 2>/dev/null || "
-                f"{binary} -t raw -I {chain} 1 {commented}"
-            )
-            if returncode == 0:
-                continue
-            rule = spec.iptables_args()
-            self._exec(
-                f"{binary} -t raw -C {chain} {rule} 2>/dev/null || "
-                f"{binary} -t raw -I {chain} 1 {rule}"
-            )
+            self._install_rule("raw", chain, spec)
+        for chain in IPTABLES_FILTER_CHAINS:
+            self._install_rule("filter", chain, spec)
 
     def rules_dump(self) -> str:
-        stdout, _ = self._exec(f"{IPTABLES_BINARY} -t raw -S 2>/dev/null")
-        return stdout
+        raw, _ = self._exec(f"{IPTABLES_BINARY} -t raw -S 2>/dev/null")
+        filt, _ = self._exec(f"{IPTABLES_BINARY} -t filter -S 2>/dev/null")
+        return f"{raw}\n{filt}"
 
     def blocked(
         self, target: str, *, protocol: str | None = None, port: int | None = None
@@ -160,13 +170,22 @@ class NodeFilter:
         return self.blocked_spec(DropSpec(target, protocol=protocol, port=port))
 
     def blocked_spec(self, spec: DropSpec) -> dict[str, bool]:
-        return {
-            chain.lower(): self._iptables_chain_blocks(chain, spec)
+        blocked = {
+            chain.lower(): self._iptables_chain_blocks("raw", chain, spec)
             for chain in IPTABLES_CHAINS
         }
+        blocked.update(
+            {
+                f"filter_{chain.lower()}": self._iptables_chain_blocks(
+                    "filter", chain, spec
+                )
+                for chain in IPTABLES_FILTER_CHAINS
+            }
+        )
+        return blocked
 
-    def _iptables_chain_blocks(self, chain: str, spec: DropSpec) -> bool:
-        stdout, _ = self._exec(f"{IPTABLES_BINARY} -t raw -S {chain} 2>/dev/null")
+    def _iptables_chain_blocks(self, table: str, chain: str, spec: DropSpec) -> bool:
+        stdout, _ = self._exec(f"{IPTABLES_BINARY} -t {table} -S {chain} 2>/dev/null")
         return any(spec.matches_iptables_line(line) for line in stdout.splitlines())
 
     def tcp_reachable(self, address: str, port: int) -> bool | None:

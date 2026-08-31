@@ -104,7 +104,7 @@ def test_handle_env_start_forwards_static_validation() -> None:
             return_value={"session_id": "sess-static"},
         ),
     ):
-        handle_env_start(EnvStartRequest(scenario="isp", static_validation=True))
+        handle_env_start(EnvStartRequest(scenario="isp_abilene", static_validation=True))
     assert start.call_args.kwargs["static_validation"] is True
 
 

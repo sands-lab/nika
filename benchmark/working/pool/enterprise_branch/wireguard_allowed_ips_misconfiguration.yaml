@@ -1,0 +1,159 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: wireguard_allowed_ips_misconfiguration
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: wg_hq
+      target_prefix: 10.0.20.0/24
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: wg_hq
+      fault_type: wireguard_allowed_ips_misconfiguration

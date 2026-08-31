@@ -1,0 +1,47 @@
+scenario:
+  name: isp_abilene_ebgp_rtbh
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: losang
+      peer_host: pc_losang
+      prefix: 198.51.101.0/24
+      probe_dst_ip: 198.51.101.1
+      symptom_host: hstnng
+    root_causes:
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nycmng
+      peer_host: pc_nycmng
+      prefix: 198.51.102.0/24
+      probe_dst_ip: 198.51.102.1
+      symptom_host: washng
+    root_causes:
+    - resource:
+        kind: node
+        node: nycmng
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washng
+      peer_host: pc_washng
+      prefix: 198.51.100.0/24
+      probe_dst_ip: 198.51.100.1
+      symptom_host: nycmng
+    root_causes:
+    - resource:
+        kind: node
+        node: washng
+      fault_type: bgp_missing_route_advertisement

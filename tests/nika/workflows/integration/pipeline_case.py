@@ -159,7 +159,10 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         if not self.RUN_TRAFFIC:
             pytest.skip("traffic step not enabled for this scenario")
         assert self.session_id is not None
-        self._invoke_ok(["traffic", "run", "od", *self.TRAFFIC_RUN_ARGS])
+        lab_name = str(self._session_row(self.session_id)["lab_name"])
+        self._invoke_ok(
+            ["traffic", "run", "od", "--lab", lab_name, *self.TRAFFIC_RUN_ARGS]
+        )
 
     def test_step_04_mcp_session_context(self) -> None:
         assert self.session_id is not None
@@ -167,7 +170,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         prev = os.environ.get("NIKA_SESSION_ID")
         try:
             os.environ["NIKA_SESSION_ID"] = self.session_id
-            from nika.service.mcp_server.mcp_session_context import (
+            from nika.mcp.session_context import (
                 get_lab_name,
                 get_session_dir,
                 require_session_id,
@@ -186,7 +189,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
 
     def test_step_05_diagnosis_mcp_tools(self) -> None:
         assert self.session_id is not None
-        from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
+        from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 
         with mcp_gateway_for_session(self.session_id, scenario_name=self.SCENARIO):
             mcp_config = MCPServerConfig(session_id=self.session_id)
@@ -195,7 +198,13 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
             async def _run() -> dict:
                 client = MultiServerMCPClient(connections=diagnosis_config)
                 tools = {t.name: t for t in await client.get_tools()}
-                reach = await tools["get_reachability"].ainvoke({})
+                ping = await tools["ping_pair"].ainvoke(
+                    {
+                        "host_a": self.EXEC_PROBE_HOST,
+                        "host_b": self.EXEC_PROBE_HOST,
+                        "count": 1,
+                    }
+                )
                 host_cfg = await tools["get_host_net_config"].ainvoke(
                     {"host_name": self.EXEC_PROBE_HOST}
                 )
@@ -204,7 +213,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
                 )
                 extra = await self._extra_diagnosis_mcp_checks(tools)
                 return {
-                    "reachability": str(reach),
+                    "ping_pair": str(ping),
                     "host_net_config": str(host_cfg),
                     "exec_shell": str(exec_out),
                     **extra,
@@ -220,7 +229,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
         assert self.session_id is not None
         assert self.session_dir is not None
         from agent.utils.mcp_client import begin_submission_mcp_phase
-        from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
+        from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
         from nika.workflows.agent.submission import load_submission_context
 
         report = "integration test frozen diagnosis report"

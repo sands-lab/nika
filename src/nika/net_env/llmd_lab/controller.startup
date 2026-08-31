@@ -13,6 +13,12 @@ touch /var/run/nika-net-ready
 kubectl api-versions &> /dev/null
 while [[ $? != 0 ]]; do sleep 1; kubectl api-versions &> /dev/null; done
 
+# Wait for the host-side preload orchestrator to finish all k3s nodes.
+for _ in $(seq 1 900); do
+  [ -f /var/run/nika-images-preloaded ] && break
+  sleep 1
+done
+
 # Helm is staged onto the controller by lab.py (k3s busybox wget has no HTTPS).
 chmod +x /usr/local/bin/helm 2>/dev/null || true
 if [ ! -x /usr/local/bin/helm ]; then
@@ -32,21 +38,41 @@ kubectl apply -f /k8s/gateway-api-inference.yaml
 
 AGENTGATEWAY_VERSION=v1.1.0
 
-helm upgrade --install agentgateway-crds \
-  oci://cr.agentgateway.dev/charts/agentgateway-crds \
-  --namespace agentgateway-system \
-  --create-namespace \
-  --version ${AGENTGATEWAY_VERSION}
+if [ -f "/helm-charts/agentgateway-crds-${AGENTGATEWAY_VERSION}.tgz" ]; then
+  helm upgrade --install agentgateway-crds \
+    "/helm-charts/agentgateway-crds-${AGENTGATEWAY_VERSION}.tgz" \
+    --namespace agentgateway-system \
+    --create-namespace \
+    --version ${AGENTGATEWAY_VERSION}
+else
+  helm upgrade --install agentgateway-crds \
+    oci://cr.agentgateway.dev/charts/agentgateway-crds \
+    --namespace agentgateway-system \
+    --create-namespace \
+    --version ${AGENTGATEWAY_VERSION}
+fi
 
-helm upgrade --install agentgateway \
-  oci://cr.agentgateway.dev/charts/agentgateway \
-  --namespace agentgateway-system \
-  --create-namespace \
-  --version ${AGENTGATEWAY_VERSION} \
-  --set inferenceExtension.enabled=true
+if [ -f "/helm-charts/agentgateway-${AGENTGATEWAY_VERSION}.tgz" ]; then
+  helm upgrade --install agentgateway \
+    "/helm-charts/agentgateway-${AGENTGATEWAY_VERSION}.tgz" \
+    --namespace agentgateway-system \
+    --create-namespace \
+    --version ${AGENTGATEWAY_VERSION} \
+    --set inferenceExtension.enabled=true
+else
+  helm upgrade --install agentgateway \
+    oci://cr.agentgateway.dev/charts/agentgateway \
+    --namespace agentgateway-system \
+    --create-namespace \
+    --version ${AGENTGATEWAY_VERSION} \
+    --set inferenceExtension.enabled=true
+fi
 
 kubectl wait -n agentgateway-system --for=condition=ready pod --all --timeout 24h
 
 for f in $(ls /k8s/pd-*.yaml | sort); do
   kubectl apply -f "$f"
 done
+
+kubectl wait -n llm-d --for=condition=ready pod -l app=llm-d-epp --timeout 24h
+kubectl wait -n llm-d --for=condition=ready pod -l app=llm-d-pd --timeout 24h

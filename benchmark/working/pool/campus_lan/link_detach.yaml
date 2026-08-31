@@ -1,0 +1,2355 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: link_detach
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dhcp_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dhcp_server
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: load_balancer
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: load_balancer
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: pc_2_1_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_core_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_core_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_core_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_core_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_core_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_core_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: server_access_router
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: server_access_router
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: server_access_router
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: server_access_router
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dhcp_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dhcp_server
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: load_balancer
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: load_balancer
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_1_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_1_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_1_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_2_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_2_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_2_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_1_2_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_1_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_1_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_1_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_1_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_2_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_2_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_2_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: pc_2_2_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_core_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_2_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: router_dist_2_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: server_access_router
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: server_access_router
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: server_access_router
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: server_access_router
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dhcp_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dhcp_server
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: load_balancer
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: load_balancer
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_1_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_2_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_3_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_1_4_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_4_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_1_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_1_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_2_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_3_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_3_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_1_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_1_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_1_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_1_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_2_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_2_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_2_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_2_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_3_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_3_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_3_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_3_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_3_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_3_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_4_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_4_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_4_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_4_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: pc_2_4_4_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_2_4_4_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_1
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_2
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_2
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_core_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_3
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_3
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_3
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_3
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_3
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_4
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_4
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_4
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_1_4
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_1_4
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_3
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_3
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_3
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_3
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_3
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_4
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_4
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_4
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: router_dist_2_4
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_dist_2_4
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: server_access_router
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: server_access_router
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: server_access_router
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: server_access_router
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: server_access_router
+        name: eth4
+      fault_type: link_detach

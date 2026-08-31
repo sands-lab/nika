@@ -13,7 +13,7 @@ from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.workflows.eval.session import build_eval_metrics_payload
 from nika.workflows.benchmark.resume import (
-    benchmark_row_fingerprint,
+    benchmark_row_identity,
     cleanup_benchmark_session,
 )
 
@@ -38,12 +38,34 @@ def sanitize_token(value: str) -> str:
     return cleaned.strip("._-") or "case"
 
 
+def _inject_case_key_parts(inject: Any) -> list[str]:
+    if not isinstance(inject, dict):
+        return []
+    parts: list[str] = []
+    for key, value in sorted(inject.items()):
+        if isinstance(value, dict):
+            for nested_key, nested_value in sorted(value.items()):
+                parts.append(sanitize_token(f"{key}-{nested_key}-{nested_value}"))
+        else:
+            parts.append(sanitize_token(f"{key}-{value}"))
+    return parts
+
+
 def case_key_for_row(row: dict[str, Any]) -> str:
-    """Stable filesystem-safe case id: ``{scenario}__{problem}__{fp8}``."""
-    fp = benchmark_row_fingerprint(row)
-    scenario = sanitize_token(str(row["scenario"]))
-    problem = sanitize_token(str(row["problem"]))
-    return f"{scenario}__{problem}__{fp[:8]}"
+    """Stable filesystem-safe case id from scenario / problem / deploy params."""
+    identity = benchmark_row_identity(row)
+    parts = [
+        sanitize_token(str(identity["scenario"])),
+        sanitize_token(str(identity["problem"])),
+    ]
+    for key in ("topo_size", "topo", "igp", "bgp_mode", "backend", "device_profile"):
+        value = identity.get(key) or ""
+        if value != "":
+            parts.append(sanitize_token(str(value)))
+    if identity.get("rpki"):
+        parts.append("rpki")
+    parts.extend(_inject_case_key_parts(identity.get("inject")))
+    return "__".join(parts)
 
 
 def trial_dirname(case_key: str, trial_index: int) -> str:
@@ -298,9 +320,7 @@ def scan_trials(
 _RUN_IDENTITY_FIELDS = (
     "benchmark_id",
     "version",
-    "benchmark_digest",
     "split",
-    "cases_sha256",
     "agent_type",
     "model",
     "llm_provider",

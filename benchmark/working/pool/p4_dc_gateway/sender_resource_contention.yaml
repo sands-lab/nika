@@ -1,0 +1,32 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: sender_resource_contention
+  cases:
+  - topo_size: s
+    inject:
+      duration: '600'
+      host_name: service_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: service_1_2
+      fault_type: sender_resource_contention
+  - topo_size: m
+    inject:
+      duration: '600'
+      host_name: service_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: service_2_2
+      fault_type: sender_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: service_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: service_2_1
+      fault_type: sender_resource_contention

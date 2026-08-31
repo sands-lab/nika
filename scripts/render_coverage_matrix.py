@@ -1,8 +1,8 @@
 """Render failure × scenario coverage as HTML tables for docs.
 
-Compatibility is scenario-scoped (and ISP deploy-variant scoped), not whether
-``benchmark_full.yaml`` sampled that column. Release membership overlays
-``benchmark/releases/0.1.0`` (dev + test).
+Compatibility is scenario-scoped (and ISP deploy-variant scoped). Catalog
+generation applies target validation after this capability check. Release membership overlays
+``benchmark/releases/0.2.0`` (Dev + Test).
 
 Tables use two real header rows (scenario, then config). Cells: blank =
 incompatible, ``○`` = compatible, ``●`` = compatible and in release.
@@ -24,16 +24,16 @@ from nika.config import BENCHMARK_DIR, REPO_ROOT
 from nika.net_env.net_env_pool import coverage_columns, parse_column
 from nika.problems.registry import compatible, list_avail_problem_instances
 from nika.problems.base import FailureDomain
-from nika.workflows.benchmark.isp_options import ISP_SCENARIO, isp_column_suffix
+from nika.workflows.benchmark.isp_options import is_isp_base_topology, isp_column_suffix
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
 
-DOCS_PATH = REPO_ROOT / "docs" / "benchmark-configuration.md"
+DOCS_PATH = REPO_ROOT / "docs" / "benchmarks" / "benchmark-configuration.md"
 SECTION_START = "## Coverage matrix (scenario × failure)"
 SECTION_END = "## Regeneration"
-DEFAULT_RELEASE = BENCHMARK_DIR / "releases" / "0.1.0"
+DEFAULT_RELEASE = BENCHMARK_DIR / "releases" / "0.2.0"
 
-# Same order as docs/failures.md.
+# Same order as docs/operations/failures.md.
 DOMAIN_ORDER: tuple[FailureDomain, ...] = (
     FailureDomain.LINK_INTERFACE,
     FailureDomain.ROUTING_CONTROL_PLANE,
@@ -67,7 +67,9 @@ SCENARIO_DISPLAY: dict[str, str] = {
     "p4_dc_fabric": "p4_dc_fabric",
     "sdn_l3_clos": "sdn_l3_clos",
     "min3clos": "min3clos",
-    "isp": "isp",
+    "isp_abilene": "isp_abilene",
+    "isp_france": "isp_france",
+    "isp_pioro40": "isp_pioro40",
 }
 
 MARK_COMPATIBLE = "○"
@@ -76,10 +78,10 @@ MARK_RELEASE = "●"
 
 def _column_label(row: dict) -> str:
     scenario = str(row["scenario"])
-    if scenario == ISP_SCENARIO:
+    if is_isp_base_topology(scenario):
         return (
-            f"{ISP_SCENARIO}/"
-            f"{isp_column_suffix(topo=row.get('topo'), igp=row.get('igp'), bgp_mode=row.get('bgp_mode'))}"
+            f"{scenario}/"
+            f"{isp_column_suffix(igp=row.get('igp'), bgp_mode=row.get('bgp_mode'), rpki=row.get('rpki'))}"
         )
     return scenario
 
@@ -236,11 +238,10 @@ def render_section(*, release_dir: Path) -> str:
     return (
         f"{SECTION_START}\n"
         "\n"
-        "Cells mark **capability**, not whether `benchmark_full.yaml` sampled "
-        "that config. A failure is compatible when its tags and deploy "
+        "Cells mark **capability**. A failure is compatible when its tags and deploy "
         "constraints match the scenario and ISP `topo`/`igp`/`bgp_mode` "
-        "profile. `benchmark_full.yaml` remains a "
-        "one-config-per-failure runnable sample. Release membership comes from "
+        "profile. Candidate generation then validates semantic inject targets. "
+        "Release membership comes from "
         f"`benchmark/releases/{release_name}/` (dev + test).\n"
         "\n"
         "Each table has two header rows: scenario, then config (when the "

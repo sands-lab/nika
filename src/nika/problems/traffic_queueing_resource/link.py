@@ -17,15 +17,24 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
     """Parameters for injecting an incast traffic network limitation fault."""
 
     host_name: str = Field(description="Target web server host name.")
-    rate: str = Field(default="1mbit", description="Bandwidth rate.")
-    burst: str = Field(default="500kb", description="TBF burst.")
-    limit: str = Field(default="500kb", description="TBF limit.")
-    delay_ms: int = Field(default=20, description="Netem delay milliseconds.")
+    rate: str = Field(default="256kbit", description="Bandwidth rate.")
+    burst: str = Field(default="128kb", description="TBF burst.")
+    limit: str = Field(default="128kb", description="TBF limit.")
+    delay_ms: int = Field(default=300, description="Netem delay milliseconds.")
+    probe_dst_ip: str | None = Field(
+        default=None,
+        description="ICMP-reachable IP of the inject host for path RTT symptom checks.",
+    )
+    observer_device: str | None = Field(
+        default=None,
+        description="Optional probe source host for path symptom checks.",
+    )
 
 
 class IncastTrafficNetworkLimitation(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
     root_cause_name: str = "incast_traffic_network_limitation"
+    description = "Incast traffic exceeds available network capacity."
     TAGS: str = ["http"]
 
     Params = IncastTrafficNetworkLimitationParams
@@ -86,6 +95,32 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         verified = self.runtime.tc_qdisc_contains(
             params.host_name, "eth0", "netem"
         ) or self.runtime.tc_qdisc_contains(params.host_name, "eth0", "tbf")
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "tc_output": tc_output},
+        )
+
+    def recover_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:
+        """Clear eth0 qdisc and stop background iperf used to amplify incast."""
+        hosts = set(self.net_env.hosts or [])
+        servers = getattr(self.net_env, "servers", None) or {}
+        hosts.update(servers.get("web") or [])
+        hosts.add(params.host_name)
+        for host in hosts:
+            try:
+                self.runtime.exec(host, "pkill -f 'iperf3' >/dev/null 2>&1 || true")
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            self.runtime.tc_clear_intf(params.host_name, "eth0")
+        except Exception:  # noqa: BLE001
+            pass
+        tc_output = self.runtime.tc_show_intf(params.host_name, "eth0").strip()
+        verified = not (
+            self.runtime.tc_qdisc_contains(params.host_name, "eth0", "netem")
+            or self.runtime.tc_qdisc_contains(params.host_name, "eth0", "tbf")
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,

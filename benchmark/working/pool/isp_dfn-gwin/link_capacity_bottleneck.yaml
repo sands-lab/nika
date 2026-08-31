@@ -1,0 +1,945 @@
+scenario:
+  name: isp_dfn-gwin
+failure:
+  fault_type: link_capacity_bottleneck
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_erlangen
+      probe_dst_ip: 10.254.0.6
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth0--erlangen:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth1--essen:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth2--frankfurt:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth3--hamburg:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth4--hannover:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth5--koeln:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth6--leipzig:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth7--muenchen:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth8--stuttgart:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth1--essen:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth2--frankfurt:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth3--hamburg:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth4--hannover:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth5--koeln:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth6--leipzig:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth7--muenchen:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth8--stuttgart:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth2--frankfurt:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth3--hamburg:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth4--hannover:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth5--koeln:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth6--leipzig:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth7--muenchen:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth8--stuttgart:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth3--hamburg:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth4--hannover:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth5--ip:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth6--koeln:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth7--leipzig:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth8--muenchen:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: eth9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth9--stuttgart:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth4--hannover:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth5--koeln:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth6--leipzig:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth7--muenchen:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth8--stuttgart:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth5--ip:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth6--koeln:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth7--leipzig:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth8--muenchen:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: eth9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth9--stuttgart:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: koeln
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth6--leipzig:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: koeln
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth7--muenchen:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: koeln
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth8--stuttgart:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: leipzig
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth7--muenchen:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: leipzig
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth8--stuttgart:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: muenchen
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:eth8--stuttgart:eth8
+      fault_type: link_capacity_bottleneck

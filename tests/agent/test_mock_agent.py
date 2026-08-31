@@ -36,9 +36,9 @@ def test_diagnosis_calls_use_lab_hosts_not_hardcoded_pc() -> None:
         preferred=["pc_2_1_1_1"],
     )
     by_name = {name: args for name, args in calls}
-    assert "get_reachability" in by_name
     assert by_name["ping_pair"]["host_a"] == "pc_2_1_1_1"
     assert by_name["ping_pair"]["host_b"] == "pc_2_1_1_1"
+    assert by_name["frr_exec"]["router_name"] == "router_dist_2_1"
     assert by_name["frr_show_ip_route"]["router_name"] == "router_dist_2_1"
     assert "pc1" not in str(calls)
     assert "pc2" not in str(calls)

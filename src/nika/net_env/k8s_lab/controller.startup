@@ -19,6 +19,12 @@ touch /var/run/nika-net-ready
 kubectl api-versions &> /dev/null
 while [[ $? != 0 ]]; do sleep 1; kubectl api-versions &> /dev/null; done
 
+# Wait for the host-side preload orchestrator to finish all k3s nodes.
+for _ in $(seq 1 900); do
+  [ -f /var/run/nika-images-preloaded ] && break
+  sleep 1
+done
+
 # Start MetalLB
 kubectl apply -f /k8s/metallb-frr.yaml
 
@@ -53,3 +59,6 @@ kubectl wait -n weather-ns --for=condition=ready pod -l app=weatherdb --timeout 
 kubectl apply -f /shared/deploy_app.yaml
 kubectl apply -f /shared/svc.yaml
 kubectl apply -f /shared/ing.yaml
+
+kubectl wait -n word-ns --for=condition=ready pod -l app=word --timeout 24h
+kubectl wait -n weather-ns --for=condition=ready pod -l app=weather --timeout 24h

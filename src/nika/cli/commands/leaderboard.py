@@ -82,19 +82,11 @@ def leaderboard_validate(
         ...,
         help="Leaderboard submission package directory.",
     ),
-    source_result_dir: Optional[str] = typer.Option(
-        None,
-        "--source-result-dir",
-        help="Optional original release-run directory to re-check run.json sha256.",
-    ),
 ) -> None:
     """Validate a leaderboard submission package locally."""
     from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
-    report = validate_leaderboard_submission(
-        submission_dir,
-        source_result_dir=source_result_dir,
-    )
+    report = validate_leaderboard_submission(submission_dir)
     for warning in report.warnings:
         typer.secho(f"warning: {warning}", fg=typer.colors.YELLOW, err=True)
     if report.ok:

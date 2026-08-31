@@ -78,6 +78,9 @@ _SCENARIO_PEER_HOST: dict[str, dict[str, str]] = {
     "k8s_lab": {
         "client": "as2r1",
     },
+    "llmd_lab": {
+        "client": "web",
+    },
 }
 
 _SCENARIO_NAME_URL: dict[str, str] = {
@@ -158,13 +161,30 @@ def _resolve_path(
         dst_ip = f"{base}.2"
     old_ip = _params_get(params, "original_ip") or path.old_ip
     http_url = _params_get(params, "probe_url") or path.http_url
+    # Silent destination drop (p4_tcam_entry_corruption): probe the corrupted
+    # target, not the scenario default VIP which remains reachable.
+    target_ip = _params_get(params, "target_ip")
+    if target_ip:
+        dst_ip = target_ip
+        http_url = f"http://{target_ip}/"
+    control_source = _params_get(params, "control_source")
+    if (
+        control_source
+        and not explicit_observer
+        and not _params_get(params, "symptom_host")
+    ):
+        src_host = control_source
     return ProbePath(
         src_host=src_host,
         dst_ip=dst_ip,
         http_url=http_url,
         symptom_url=_params_get(params, "symptom_url") or path.symptom_url,
         control_url=_params_get(params, "control_url") or path.control_url,
-        control_plane_host=_params_get(params, "host_name") or path.control_plane_host,
+        control_plane_host=(
+            _params_get(params, "host_name")
+            or _params_get(params, "receiver_name")
+            or path.control_plane_host
+        ),
         ping_count=path.ping_count,
         gray_ping_count=path.gray_ping_count,
         http_name_url=name_url,
@@ -195,9 +215,16 @@ def _resolve_blackhole_path(
         or base.dst_ip
     )
     if not dst_ip and stored and "/" in stored:
-        net = stored.split("/", 1)[0]
-        base_octets = net.rsplit(".", 1)[0]
-        dst_ip = f"{base_octets}.2"
+        try:
+            network = ipaddress.ip_network(stored, strict=False)
+            hosts_in_net = list(network.hosts())
+            dst_ip = str(
+                hosts_in_net[-1] if hosts_in_net else network.network_address + 1
+            )
+        except ValueError:
+            net = stored.split("/", 1)[0]
+            base_octets = net.rsplit(".", 1)[0]
+            dst_ip = f"{base_octets}.2"
     if not src:
         connected = runtime.get_connected_devices(router) or []
         for candidate in connected:
@@ -251,6 +278,41 @@ def _onlink_probe_dst(
     if not hosts:
         return fallback_dst
     return str(hosts[min(10, len(hosts) - 1)])
+
+
+_CLUSTER_DNS_NAME = "kubernetes.default.svc.cluster.local"
+
+
+def _cluster_dns_ok(
+    runtime: LabRuntime,
+    host: str,
+    name: str = _CLUSTER_DNS_NAME,
+    *,
+    server: str | None = None,
+) -> bool:
+    """True when DNS resolves ``name`` (k3s busybox nslookup)."""
+    server_arg = f" {server}" if server else ""
+    output = exec_or_empty(
+        runtime,
+        host,
+        f"nslookup {name}{server_arg} 2>/dev/null || "
+        f"busybox nslookup {name}{server_arg} 2>/dev/null || true",
+        timeout=12,
+    )
+    lowered = output.lower()
+    if any(
+        token in lowered
+        for token in (
+            "can't find",
+            "can't resolve",
+            "nxdomain",
+            "no servers could be reached",
+            "timed out",
+            "connection timed out",
+        )
+    ):
+        return False
+    return "name:" in lowered
 
 
 def run_probe_snapshot(
@@ -370,22 +432,21 @@ def run_probe_snapshot(
         )
         snap.extra["bits_per_second"] = bps
         snap.extra["peer_ip"] = peer_ip
+        # Always sample TBF counters: iperf may be absent on stubs while the
+        # capacity fault still shapes traffic on the inject router.
+        inject_host = _params_get(params, "host_name") if params is not None else None
+        intf = _params_get(params, "intf_name") if params is not None else None
+        check_host = inject_host or src
+        check_intf = intf or "eth0"
         if bps is None:
-            # Fallback: burst UDP toward peer and require TBF overlimits/drops.
-            inject_host = (
-                _params_get(params, "host_name") if params is not None else None
-            )
-            intf = _params_get(params, "intf_name") if params is not None else None
-            check_host = inject_host or src
-            check_intf = intf or "eth0"
             runtime.exec(
                 src,
                 f"timeout 2s bash -c 'while true; do printf %01024d 1; done "
                 f"| nc -u -w1 {peer_ip} 9' >/dev/null 2>&1 || true",
                 timeout=8,
             )
-            overlimits = tbf_overlimits(runtime, check_host, check_intf)
-            snap.extra["tbf_overlimits"] = overlimits
+        overlimits = tbf_overlimits(runtime, check_host, check_intf)
+        snap.extra["tbf_overlimits"] = overlimits
         return snap
     if probe_kind == "route_get_onlink":
         onlink_dst = path.dst_ip
@@ -432,11 +493,51 @@ def run_probe_snapshot(
             snap.symptom_ok = http_ok(runtime, src, path.symptom_url)
         if path.control_url:
             snap.control_ok = http_ok(runtime, src, path.control_url)
+        # CoreDNS isolation: host nslookup against the Service ClusterIP from the
+        # filtered node (src is rewritten to a CoreDNS host in evaluate_symptom /
+        # pre_inject). Prefer this over kubectl-exec pod probes — distroless llm-d
+        # images and nested quoting make pod DNS flaky, while verify_fault already
+        # covers the workload-pod signal.
+        if snap.symptom_ok is None and _params_get(params, "dns_service"):
+            control = _params_get(params, "control_node") or "controller"
+            k8s = getattr(runtime, "lab_api", None)
+            dns_ns = _params_get(params, "dns_namespace") or "kube-system"
+            dns_svc = _params_get(params, "dns_service") or "kube-dns"
+            cluster_ip = exec_or_empty(
+                runtime,
+                control,
+                f"kubectl get svc {dns_svc} -n {dns_ns} "
+                "-o jsonpath={.spec.clusterIP} 2>/dev/null || true",
+                timeout=20,
+            ).strip()
+            if k8s is not None and cluster_ip and hasattr(k8s, "k8s_host_dns_ok"):
+                snap.symptom_ok = k8s.k8s_host_dns_ok(src, cluster_ip)
+            else:
+                snap.symptom_ok = _cluster_dns_ok(
+                    runtime, src, server=cluster_ip or None
+                )
+            # Leave control_ok unset: isolation compare treats missing control as
+            # intact. An external dst_ip ping from a k3s node is not a meaningful
+            # sibling path for DNS isolation.
         return snap
     if probe_kind == "control_plane_bgp" and path.control_plane_host:
-        snap.control_plane_ok = frr_bgp_has_established_session(
-            runtime, path.control_plane_host
-        )
+        neighbor_ip = _params_get(params, "neighbor_ip") if params is not None else None
+        if neighbor_ip:
+            # Session-scoped faults (e.g. max-prefix) leave other peers Established.
+            neighbor_out = exec_or_empty(
+                runtime,
+                path.control_plane_host,
+                f"vtysh -c 'show bgp neighbors {neighbor_ip}' 2>/dev/null || true",
+                timeout=20,
+            )
+            snap.control_plane_ok = any(
+                "bgp state" in line.lower() and "established" in line.lower()
+                for line in neighbor_out.splitlines()
+            )
+        else:
+            snap.control_plane_ok = frr_bgp_has_established_session(
+                runtime, path.control_plane_host
+            )
         return snap
     if probe_kind == "control_plane_ospf" and path.control_plane_host:
         output = runtime.exec(

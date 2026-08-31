@@ -50,8 +50,10 @@ def _c(
 _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "link_down": _c("link_down", "unreachable", "path_ping"),
     "link_detach": _c("link_detach", "unreachable", "path_ping"),
-    "link_flap": _c("link_flap", "loss", "path_ping_loss", loss_min=5.0),
-    "link_packet_corruption": _c("link_packet_corruption", "loss", "path_ping_loss"),
+    "link_flap": _c("link_flap", "loss", "custom"),
+    "link_packet_corruption": _c(
+        "link_packet_corruption", "degradation", "custom"
+    ),
     "silent_egress_packet_loss": _c(
         "silent_egress_packet_loss", "gray", "artifact_only"
     ),
@@ -59,14 +61,14 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "bgp_max_prefix_exceeded": _c(
         "bgp_max_prefix_exceeded", "control_plane", "control_plane_bgp"
     ),
-    "bgp_blackhole_route_leak": _c(
-        "bgp_blackhole_route_leak", "unreachable", "artifact_only"
+    "bgp_blackhole_community_leak": _c(
+        "bgp_blackhole_community_leak", "unreachable", "path_ping"
     ),
     "bgp_rpki_invalid_route_leak": _c(
         "bgp_rpki_invalid_route_leak", "control_plane", "path_ping"
     ),
     "bgp_missing_route_advertisement": _c(
-        "bgp_missing_route_advertisement", "control_plane", "artifact_only"
+        "bgp_missing_route_advertisement", "unreachable", "path_ping"
     ),
     "frr_service_down": _c("frr_service_down", "control_plane", "control_plane_bgp"),
     "ospf_area_misconfiguration": _c(
@@ -76,7 +78,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "ospf_neighbor_missing", "control_plane", "control_plane_ospf"
     ),
     "device_forwarding_packet_corruption": _c(
-        "device_forwarding_packet_corruption", "gray", "path_http"
+        "device_forwarding_packet_corruption", "gray", "custom"
     ),
     "mtu_mismatch": _c("mtu_mismatch", "unreachable", "path_mtu_frag_needed"),
     "arp_acl_block": _c("arp_acl_block", "unreachable", "path_ping"),
@@ -86,7 +88,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "icmp_acl_block": _c("icmp_acl_block", "unreachable", "path_ping"),
     "http_acl_block": _c("http_acl_block", "unreachable", "path_http"),
     "dns_port_blocked": _c("dns_port_blocked", "unreachable", "path_http"),
-    "bmv2_switch_down": _c("bmv2_switch_down", "unreachable", "path_ping"),
+    "bmv2_switch_down": _c("bmv2_switch_down", "unreachable", "path_http"),
     "flow_rule_loop": _c("flow_rule_loop", "unreachable", "artifact_only"),
     "flow_rule_shadowing": _c("flow_rule_shadowing", "unreachable", "artifact_only"),
     "host_static_blackhole": _c("host_static_blackhole", "unreachable", "path_ping"),
@@ -115,7 +117,9 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "p4_table_resource_exhaustion": _c(
         "p4_table_resource_exhaustion", "unreachable", "artifact_only"
     ),
-    "p4_tcam_entry_corruption": _c("p4_tcam_entry_corruption", "gray", "path_http"),
+    "p4_tcam_entry_corruption": _c(
+        "p4_tcam_entry_corruption", "unreachable", "path_http"
+    ),
     "int_insufficient_mtu_headroom": _c(
         "int_insufficient_mtu_headroom", "unreachable", "artifact_only"
     ),
@@ -131,10 +135,12 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     ),
     "load_balancer_overload": _c("load_balancer_overload", "degradation", "custom"),
     "lb_connection_state_exhaustion": _c(
-        "lb_connection_state_exhaustion", "gray", "path_http"
+        "lb_connection_state_exhaustion", "gray", "custom"
     ),
+    # Unsafe pool update is evidenced by P4Runtime VIP/pool state (verify_fault);
+    # VIP HTTP remains reachable, so path_http+gray_loss is the wrong probe.
     "lb_pending_connection_update_race": _c(
-        "lb_pending_connection_update_race", "gray", "path_http"
+        "lb_pending_connection_update_race", "gray", "artifact_only"
     ),
     "snat_port_pool_exhaustion": _c(
         "snat_port_pool_exhaustion", "unreachable", "artifact_only"
@@ -170,7 +176,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "k8s_coredns_isolated": _c("k8s_coredns_isolated", "isolation", "isolation_http"),
     "dns_lookup_latency": _c("dns_lookup_latency", "latency", "http_by_name"),
     "receiver_resource_contention": _c(
-        "receiver_resource_contention", "degradation", "degradation_http"
+        "receiver_resource_contention", "degradation", "custom"
     ),
     "sender_resource_contention": _c(
         "sender_resource_contention", "degradation", "custom"
@@ -179,7 +185,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "incast_traffic_network_limitation", "degradation", "path_ping_loss"
     ),
     "link_capacity_bottleneck": _c(
-        "link_capacity_bottleneck", "degradation", "iperf_throughput"
+        "link_capacity_bottleneck", "degradation", "custom"
     ),
     "tcp_receive_window_limited": _c(
         "tcp_receive_window_limited", "degradation", "artifact_only"

@@ -162,23 +162,20 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
 
 @pytest.mark.unit
 def test_isp_backend_resolution() -> None:
-    assert scenario_supported_backends("isp") == ["kathara", "containerlab"]
+    assert scenario_supported_backends("isp_abilene") == ["kathara", "containerlab"]
     assert (
-        resolve_scenario_backend("isp", default_when_ambiguous="kathara") == "kathara"
+        resolve_scenario_backend("isp_abilene", default_when_ambiguous="kathara") == "kathara"
     )
     with pytest.raises(ValueError, match="pass --backend"):
-        resolve_scenario_backend("isp")
+        resolve_scenario_backend("isp_abilene")
 
 
 @pytest.mark.unit
 def test_clab_rejects_kathara_only_rpki_mode() -> None:
-    with pytest.raises(ValueError, match="Kathara"):
+    with pytest.raises(ValueError, match="backend"):
         get_net_env_instance(
-            "isp",
+            "isp_abilene_ebgp_rpki",
             backend="containerlab",
-            topo="abilene",
-            bgp_mode="ebgp",
-            rpki=True,
             device_profile="nokia_srlinux",
         )
 
@@ -213,5 +210,5 @@ def test_verify_success_isis() -> None:
     )
     plan = compile_isp_plan(IspConfig(topology="polska", igp="isis"), topology=topo)
     devices = {n.device_name for n in plan.nodes}
-    result = verify_isp_lab(_FakeRuntime(nodes=devices), plan=plan, scenario_name="isp")
+    result = verify_isp_lab(_FakeRuntime(nodes=devices), plan=plan, scenario_name="isp_abilene")
     assert result["verified"]

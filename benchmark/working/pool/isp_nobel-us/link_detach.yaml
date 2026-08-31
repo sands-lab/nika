@@ -1,0 +1,383 @@
+scenario:
+  name: isp_nobel-us
+failure:
+  fault_type: link_detach
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ann_arbor
+      intf_name: eth0
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: interface
+        node: ann_arbor
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ann_arbor
+      intf_name: eth1
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: interface
+        node: ann_arbor
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ann_arbor
+      intf_name: eth2
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: interface
+        node: ann_arbor
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlanta
+      intf_name: eth0
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: interface
+        node: atlanta
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlanta
+      intf_name: eth1
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: interface
+        node: atlanta
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: boulder
+      intf_name: eth0
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: interface
+        node: boulder
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: boulder
+      intf_name: eth1
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: interface
+        node: boulder
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: boulder
+      intf_name: eth2
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: interface
+        node: boulder
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: houston
+      intf_name: eth0
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: interface
+        node: houston
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: houston
+      intf_name: eth2
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: interface
+        node: houston
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ithaca
+      intf_name: eth0
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: interface
+        node: ithaca
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ithaca
+      intf_name: eth2
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: interface
+        node: ithaca
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lincoln
+      intf_name: eth0
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_lincoln
+    root_causes:
+    - resource:
+        kind: interface
+        node: lincoln
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: palo_alto
+      intf_name: eth0
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: interface
+        node: palo_alto
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: palo_alto
+      intf_name: eth1
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: interface
+        node: palo_alto
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: palo_alto
+      intf_name: eth2
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: interface
+        node: palo_alto
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pittsburgh
+      intf_name: eth1
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: interface
+        node: pittsburgh
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pittsburgh
+      intf_name: eth2
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: interface
+        node: pittsburgh
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: princeton
+      intf_name: eth2
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_princeton
+    root_causes:
+    - resource:
+        kind: interface
+        node: princeton
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: san_diego
+      intf_name: eth2
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_san_diego
+    root_causes:
+    - resource:
+        kind: interface
+        node: san_diego
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: seattle
+      intf_name: eth0
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_seattle
+    root_causes:
+    - resource:
+        kind: interface
+        node: seattle
+        name: eth0
+      fault_type: link_detach

@@ -261,7 +261,7 @@ class CodexWorker:
         # current phase.  The gateway enforces this too, but excluding the
         # task server here keeps the diagnosis prompt and tool inventory free
         # of submission-only fault catalog metadata.
-        from nika.service.mcp_server.registry import SUBMISSION_SERVER
+        from nika.mcp.registry import SUBMISSION_SERVER
 
         if self.phase == SUBMISSION:
             servers = {

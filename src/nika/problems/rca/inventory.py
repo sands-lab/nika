@@ -219,22 +219,38 @@ def load_offline_net_env(
     igp: str | None = None,
     bgp_mode: str | None = None,
     rpki: bool | None = None,
+    backend: str | None = None,
+    device_profile: str | None = None,
 ):
     """Instantiate a scenario without deploying, for GT generation and migration."""
-    kwargs: dict = {}
-    if topo_size:
-        kwargs["topo_size"] = topo_size
-    if topo is not None:
-        kwargs["topo"] = topo
-    if igp is not None:
-        kwargs["igp"] = igp
-    if bgp_mode is not None:
-        kwargs["bgp_mode"] = bgp_mode
-    if rpki is not None:
-        kwargs["rpki"] = bool(rpki)
-    kwargs["backend"] = resolve_scenario_backend(
-        scenario, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
+    from nika.net_env.isp.identity import (
+        is_isp_named_special,
+        is_isp_scenario,
     )
+
+    kwargs: dict = {}
+    # ISP scenarios bake topology into the scenario ID and reject topo_size.
+    if topo_size and not is_isp_scenario(scenario):
+        kwargs["topo_size"] = topo_size
+    if topo is not None and not is_isp_scenario(scenario):
+        kwargs["topo"] = topo
+    if is_isp_named_special(scenario):
+        # Fixed protocol profile; ignore optional overrides.
+        pass
+    else:
+        if igp is not None:
+            kwargs["igp"] = igp
+        if bgp_mode is not None:
+            kwargs["bgp_mode"] = bgp_mode
+        if rpki is not None:
+            kwargs["rpki"] = bool(rpki)
+    kwargs["backend"] = resolve_scenario_backend(
+        scenario,
+        backend=backend,
+        default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP,
+    )
+    if device_profile is not None:
+        kwargs["device_profile"] = device_profile
     net_env = get_net_env_instance(scenario, **kwargs)
     if getattr(net_env, "lab", None) is not None:
         net_env.load_machines()

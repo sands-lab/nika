@@ -18,7 +18,7 @@ from nika.remote.protocol import (
     PolicyMode,
     SessionContainersResponse,
 )
-from nika.service.mcp_gateway.lifecycle import (
+from nika.mcp.gateway.lifecycle import (
     McpGatewayManager,
     SANDBOX_GATEWAY_BIND_HOST,
     mcp_gateway_for_session,

@@ -29,7 +29,6 @@ pytestmark = [
 
 def _minimal_live_package(tmp_path: Path) -> Path:
     """Package used only to exercise git/PR plumbing (skip_validate=True)."""
-    import json
 
     import yaml
 
@@ -62,22 +61,17 @@ def _minimal_live_package(tmp_path: Path) -> Path:
         "# NIKA live submit E2E\n\nTemporary draft PR; will be closed by CI.\n",
         encoding="utf-8",
     )
-    (root / "files.json").write_text(
-        json.dumps({"source_run_sha256": "e2e", "package": {}}) + "\n",
-        encoding="utf-8",
-    )
     results = root / "results"
     results.mkdir()
     (results / "identity.yaml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": "3",
+                "schema_version": "4",
                 "benchmark": {
                     "id": "nika-bench",
                     "version": "0.1.0",
-                    "digest": "0" * 64,
+                    "ref": "nika-bench@0.1.0",
                     "split": "test",
-                    "cases_sha256": "0" * 64,
                     "case_count": 1,
                     "n_trials": 1,
                     "scoring_id": "rule-based",
@@ -88,7 +82,7 @@ def _minimal_live_package(tmp_path: Path) -> Path:
                     "official": True,
                     "agent_type": "mock",
                     "model": "mock",
-                    "n_trials": 1,
+                    "case_timeout_sec": 2400,
                 },
             },
             sort_keys=False,

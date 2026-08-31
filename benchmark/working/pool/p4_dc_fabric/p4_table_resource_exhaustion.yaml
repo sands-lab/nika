@@ -1,0 +1,229 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: p4_table_resource_exhaustion
+  cases:
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: s
+    inject:
+      host_name: leaf_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: s
+    inject:
+      host_name: leaf_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_3
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: s
+    inject:
+      host_name: leaf_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_4
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_3
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_4
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_5
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_5
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_6
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_6
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_7
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_7
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: m
+    inject:
+      host_name: leaf_8
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_8
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_10
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_10
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_11
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_11
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_12
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_12
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_13
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_13
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_14
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_14
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_15
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_15
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_16
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_16
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_3
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_4
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_5
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_6
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_7
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_8
+      fault_type: p4_table_resource_exhaustion
+  - topo_size: l
+    inject:
+      host_name: leaf_9
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_9
+      fault_type: p4_table_resource_exhaustion

@@ -66,11 +66,19 @@ class CoreDNSIsolationParams(K8sParams):
             "before they arrive, so a VIP-only rule would not match them."
         ),
     )
+    symptom_host: str = Field(
+        default="",
+        description=(
+            "Cluster node used to probe name resolution. Empty keeps the scenario "
+            "default probe host (the external client does not use CoreDNS)."
+        ),
+    )
 
 
 class CoreDNSIsolation(K8sProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "k8s_coredns_isolated"
+    description = "Path to cluster DNS (CoreDNS) is isolated/blocked."
     symptom_desc = (
         "Applications cannot resolve Kubernetes service names such as "
         "*.svc.cluster.local and report DNS timeouts, while communication by IP "
@@ -225,6 +233,13 @@ class CoreDNSIsolation(K8sProblemBase):
                 control, namespace=params.dns_namespace, selector=params.dns_selector
             )
             pods_ready = bool(dns_pods) and all(pod["ready"] for pod in dns_pods)
+            workload_dns_ok = k8s.k8s_pod_dns_ok(control)
+            if workload_dns_ok is None:
+                # Distroless llm-d images cannot nslookup; probe from the
+                # CoreDNS node so the OUTPUT drop is on-path.
+                workload_dns_ok = k8s.k8s_host_dns_ok(
+                    devices[0], destinations["cluster_ip"]
+                )
 
             details: dict[str, Any] = {
                 "target_devices": devices,
@@ -239,9 +254,10 @@ class CoreDNSIsolation(K8sProblemBase):
                 "coredns_metrics_reachable": metrics_reachable,
                 "coredns_pods_ready": pods_ready,
                 "coredns_pod_count": len(dns_pods),
+                "workload_dns_ok": workload_dns_ok,
             }
 
-            verified = rules_installed and pods_ready
+            verified = rules_installed and pods_ready and workload_dns_ok is False
             return verified, details
 
         def check() -> tuple[bool, dict[str, Any]]:

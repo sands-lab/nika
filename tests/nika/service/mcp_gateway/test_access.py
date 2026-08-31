@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nika.service.mcp_gateway.access import decide_diagnosis_access
+from nika.mcp.gateway.access import decide_diagnosis_access
 
 
 def test_role_policy_restricts_tool_and_node_role() -> None:
@@ -26,8 +26,8 @@ def test_role_policy_restricts_tool_and_node_role() -> None:
     assert denied.reason == "node_not_allowed"
     assert not decide_diagnosis_access(
         policy=policy,
-        tool_name="get_reachability",
-        arguments={},
+        tool_name="ping_pair",
+        arguments={"host_a": "router1", "host_b": "pc1"},
         node_roles=roles,
     ).allowed
 

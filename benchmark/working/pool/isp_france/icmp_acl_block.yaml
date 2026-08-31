@@ -1,0 +1,330 @@
+scenario:
+  name: isp_france
+failure:
+  fault_type: icmp_acl_block
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n01
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n01
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n02
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n02
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n03
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n03
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n04
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n04
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n05
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n05
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n06
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n06
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n07
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n07
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n08
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n08
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n09
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n09
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n10
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n10
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n11
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n11
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n12
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n12
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n13
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n13
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n14
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n14
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n15
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n15
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n16
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n16
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n17
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n17
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n18
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n18
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n19
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n19
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n20
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n20
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n21
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n21
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n22
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n22
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n23
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n23
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n24
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n24
+      fault_type: icmp_acl_block
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_n25
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_n25
+      fault_type: icmp_acl_block

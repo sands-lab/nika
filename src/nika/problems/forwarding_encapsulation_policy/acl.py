@@ -10,6 +10,17 @@ from nika.problems.base import (
 )
 from nika.runtime.base import RuntimeCapabilityError
 
+
+def _verify_nft_drop(problem: ProblemBase, host_name: str, match_token: str) -> dict:
+    nft_output = problem.runtime.list_nft_ruleset(host_name)
+    verified = match_token in nft_output and "drop" in nft_output
+    return build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={"host": host_name, "nft_snippet": nft_output},
+    )
+
+
 # ==================================================================
 # Problem: BGP Access Policy Misconfiguration - ACL blocking BGP traffic
 # ==================================================================
@@ -24,12 +35,11 @@ class BGPAclBlockParams(BaseModel):
 class BGPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "bgp_acl_block"
+    description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
+    supported_backends = ("kathara", "containerlab")
 
     Params = BGPAclBlockParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: BGPAclBlockParams):
         return [node_resource(params.host_name)]
@@ -83,9 +93,7 @@ class BGPAclBlock(ProblemBase):
                     details={"host": params.host_name, "srl_acl": verified},
                 )
             case "kathara":
-                nft_output = self.runtime.exec(
-                    params.host_name, "nft list ruleset 2>/dev/null"
-                ).strip()
+                nft_output = self.runtime.list_nft_ruleset(params.host_name)
                 verified = "tcp dport 179" in nft_output and "drop" in nft_output
                 return build_verify_result(
                     fault_type=self.root_cause_name,
@@ -112,12 +120,10 @@ class OSPFAclBlockParams(BaseModel):
 class OSPFAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "ospf_acl_block"
+    description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
 
     Params = OSPFAclBlockParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: OSPFAclBlockParams):
         return [node_resource(params.host_name)]
@@ -126,21 +132,10 @@ class OSPFAclBlock(ProblemBase):
         self.runtime.add_nft_drop_rule(
             params.host_name, "ip protocol ospf drop", family="inet"
         )
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol ospf drop", family="inet"
-        )
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
         """Verify nftables has a rule blocking OSPF protocol."""
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        verified = "ospf" in nft_output and "drop" in nft_output
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "nft_snippet": nft_output},
-        )
+        return _verify_nft_drop(self, params.host_name, "ospf")
 
 
 # ==================================================================
@@ -157,31 +152,35 @@ class ARPAclBlockParams(BaseModel):
 class ARPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "arp_acl_block"
+    description = "ARP is blocked by an ACL."
     TAGS: str = ["arp"]
+    # k8s_lab / llmd_lab client images lack nftables and cannot apt-install offline.
+    COMPATIBLE_COLUMNS = frozenset(
+        {
+            "campus_lan",
+            "dc_clos",
+            "enterprise_branch",
+            "sdn_l3_clos",
+            "p4_dc_fabric",
+            "p4_dc_gateway",
+            "iosxr_simple_bgp",
+        }
+    )
 
     Params = ARPAclBlockParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: ARPAclBlockParams):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: ARPAclBlockParams):
         self.runtime.add_nft_drop_rule(params.host_name, "drop", family="arp")
+        # Clos/P4 startups install nud permanent GW neigh; flush all leaves those.
+        self.runtime.exec(params.host_name, "ip neigh flush nud permanent")
         self.runtime.exec(params.host_name, "ip neigh flush all")
 
     def verify_fault(self, params: ARPAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ARP traffic."""
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        verified = "arp" in nft_output and "drop" in nft_output
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "nft_snippet": nft_output},
-        )
+        return _verify_nft_drop(self, params.host_name, "arp")
 
 
 # ==================================================================
@@ -198,12 +197,10 @@ class IcmpAclBlockParams(BaseModel):
 class IcmpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "icmp_acl_block"
+    description = "ICMP is blocked by an ACL."
     TAGS: str = ["icmp"]
 
     Params = IcmpAclBlockParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: IcmpAclBlockParams):
         return [node_resource(params.host_name)]
@@ -215,15 +212,7 @@ class IcmpAclBlock(ProblemBase):
 
     def verify_fault(self, params: IcmpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ICMP traffic."""
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        verified = "icmp" in nft_output and "drop" in nft_output
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "nft_snippet": nft_output},
-        )
+        return _verify_nft_drop(self, params.host_name, "icmp")
 
 
 # ==================================================================
@@ -240,12 +229,10 @@ class HttpAclBlockParams(BaseModel):
 class HttpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "http_acl_block"
+    description = "HTTP traffic is blocked by an ACL."
     TAGS: str = ["http", "pc"]
 
     Params = HttpAclBlockParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: HttpAclBlockParams):
         return [node_resource(params.host_name)]
@@ -257,15 +244,7 @@ class HttpAclBlock(ProblemBase):
 
     def verify_fault(self, params: HttpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking HTTP (port 80) traffic."""
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        verified = "tcp dport 80" in nft_output and "drop" in nft_output
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "nft_snippet": nft_output},
-        )
+        return _verify_nft_drop(self, params.host_name, "tcp dport 80")
 
 
 # ==================================================================
@@ -283,12 +262,10 @@ class DNSPortBlocked(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "dns_port_blocked"
 
+    description = "DNS service port is blocked."
     TAGS: str = ["dns", "http"]
 
     Params = DNSPortBlockedParams
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: DNSPortBlockedParams):
         return [node_resource(params.host_name)]
@@ -303,12 +280,4 @@ class DNSPortBlocked(ProblemBase):
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        verified = "dport 53" in nft_output and "drop" in nft_output
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "nft_snippet": nft_output},
-        )
+        return _verify_nft_drop(self, params.host_name, "dport 53")

@@ -33,7 +33,14 @@ class _StubRuntime(LabRuntime):
 
     def exec(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         self.calls.append((node, cmd))
-        return self._responses.get((node, cmd), "")
+        if (node, cmd) in self._responses:
+            return self._responses[(node, cmd)]
+        # Default: nft availability probe used by NFTableMixin.add_nft_drop_rule.
+        if "echo OK" in cmd and "echo MISSING" in cmd:
+            return "OK\n"
+        if "apt-get install" in cmd and "nftables" in cmd:
+            return ""
+        return ""
 
     def get_container(self, node: str):
         container = MagicMock()

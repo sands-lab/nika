@@ -1,74 +1,76 @@
-"""Host-side tshark inspection for stored capture artifacts."""
+"""Container-side tshark inspection for capture files on lab nodes."""
 
 from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
-from pathlib import Path
+import shlex
 from typing import Any
 
+from nika.runtime.base import LabRuntime
 from nika.service.packet_capture.limits import clamp_inspect_limit, default_limits
 from nika.service.packet_capture.models import InspectView
 from nika.service.packet_capture.protocol_fields import extract_protocol_fields
 
 
 class TsharkNotFoundError(RuntimeError):
-    """Raised when the host tshark binary is unavailable."""
+    """Raised when a lab node has no tshark binary available."""
 
 
-def require_tshark() -> str:
-    path = shutil.which("tshark")
+def require_tshark(runtime: LabRuntime, device: str) -> str:
+    output = runtime.exec(device, "command -v tshark || true", timeout=5)
+    path = output.strip()
     if not path:
         raise TsharkNotFoundError(
-            "tshark is not installed on the NIKA host. Install wireshark-common/tshark to inspect captures."
+            f"Node {device!r} has no tshark installed for capture inspection. "
+            "Use a nika/base or nika/frr node, or rebuild lab images with tshark."
         )
     return path
 
 
-def tshark_version() -> str | None:
-    path = shutil.which("tshark")
-    if not path:
-        return None
-    try:
-        output = subprocess.check_output(
-            [path, "-v"],
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=5,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return None
+def tshark_version(runtime: LabRuntime, device: str) -> str | None:
+    output = runtime.exec(
+        device,
+        "tshark -v 2>&1 | head -n 1 || true",
+        timeout=5,
+    )
     return output.strip().splitlines()[0] if output.strip() else None
 
 
-def _run_tshark(args: list[str], *, timeout: float = 60.0) -> str:
-    tshark = require_tshark()
-    try:
-        return subprocess.check_output(
-            [tshark, *args],
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise RuntimeError(exc.output.strip() or str(exc)) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("tshark timed out during capture inspection") from exc
+def _run_tshark(
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
+    args: list[str],
+    *,
+    timeout: float = 60.0,
+) -> str:
+    require_tshark(runtime, device)
+    quoted = " ".join(shlex.quote(part) for part in args)
+    output = runtime.exec(device, f"tshark {quoted} 2>/dev/null", timeout=timeout)
+    if output.startswith("[TIMEOUT]"):
+        raise RuntimeError("tshark timed out during capture inspection")
+    return output
 
 
-def count_packets(pcap_path: Path, display_filter: str | None = None) -> int:
-    args = ["-r", str(pcap_path), "-T", "fields", "-e", "frame.number"]
+def count_packets(
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
+    display_filter: str | None = None,
+) -> int:
+    args = ["-r", remote_path, "-T", "fields", "-e", "frame.number"]
     if display_filter:
         args.extend(["-Y", display_filter])
-    output = _run_tshark(args)
+    output = _run_tshark(runtime, device, remote_path, args)
     numbers = [line.strip() for line in output.splitlines() if line.strip()]
     return len(numbers)
 
 
 def inspect_capture(
-    pcap_path: Path,
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
     *,
     view: str,
     display_filter: str | None = None,
@@ -83,9 +85,9 @@ def inspect_capture(
     if view_name is InspectView.PROTOCOL and not protocol:
         raise ValueError("protocol is required for protocol view")
 
-    total = count_packets(pcap_path, display_filter)
+    total = count_packets(runtime, device, remote_path, display_filter)
     if view_name is InspectView.SUMMARY:
-        data = _inspect_summary(pcap_path, display_filter)
+        data = _inspect_summary(runtime, device, remote_path, display_filter)
         return _envelope(
             view=view_name.value,
             data=data,
@@ -96,7 +98,7 @@ def inspect_capture(
         )
 
     if view_name is InspectView.EXPERT:
-        data = _inspect_expert(pcap_path, display_filter)
+        data = _inspect_expert(runtime, device, remote_path, display_filter)
         items = data.get("items", [])
         return _envelope(
             view=view_name.value,
@@ -109,7 +111,9 @@ def inspect_capture(
 
     if view_name is InspectView.PROTOCOL:
         items, returned, truncated = _inspect_protocol(
-            pcap_path,
+            runtime,
+            device,
+            remote_path,
             protocol=protocol,
             display_filter=display_filter,
             limit=page_size,
@@ -125,7 +129,9 @@ def inspect_capture(
         )
 
     items, returned, truncated = _inspect_packets(
-        pcap_path,
+        runtime,
+        device,
+        remote_path,
         display_filter=display_filter,
         limit=page_size,
         offset=offset,
@@ -159,33 +165,40 @@ def _envelope(
     }
 
 
-def _inspect_summary(pcap_path: Path, display_filter: str | None) -> dict[str, Any]:
-    args = ["-r", str(pcap_path), "-q", "-z", "io,phs"]
+def _inspect_summary(
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
+    display_filter: str | None,
+) -> dict[str, Any]:
+    args = ["-r", remote_path, "-q", "-z", "io,phs"]
     if display_filter:
         args.extend(["-Y", display_filter])
-    phs_output = _run_tshark(args)
+    phs_output = _run_tshark(runtime, device, remote_path, args)
     protocols = _parse_io_phs(phs_output)
 
-    conv_args = ["-r", str(pcap_path), "-q", "-z", "conv,ip"]
+    conv_args = ["-r", remote_path, "-q", "-z", "conv,ip"]
     if display_filter:
         conv_args.extend(["-Y", display_filter])
-    conv_output = _run_tshark(conv_args)
+    conv_output = _run_tshark(runtime, device, remote_path, conv_args)
     conversations = _parse_conversations(conv_output)
 
-    time_args = ["-r", str(pcap_path), "-T", "fields", "-e", "frame.time_epoch"]
+    time_args = ["-r", remote_path, "-T", "fields", "-e", "frame.time_epoch"]
     if display_filter:
         time_args.extend(["-Y", display_filter])
     times = [
-        float(value) for value in _run_tshark(time_args).splitlines() if value.strip()
+        float(value)
+        for value in _run_tshark(runtime, device, remote_path, time_args).splitlines()
+        if value.strip()
     ]
     time_range = None
     if times:
         time_range = {"start_epoch": min(times), "end_epoch": max(times)}
 
-    endpoint_args = ["-r", str(pcap_path), "-q", "-z", "endpoints,ip"]
+    endpoint_args = ["-r", remote_path, "-q", "-z", "endpoints,ip"]
     if display_filter:
         endpoint_args.extend(["-Y", display_filter])
-    endpoint_output = _run_tshark(endpoint_args)
+    endpoint_output = _run_tshark(runtime, device, remote_path, endpoint_args)
     endpoints = _parse_endpoints(endpoint_output)
 
     return {
@@ -193,7 +206,7 @@ def _inspect_summary(pcap_path: Path, display_filter: str | None) -> dict[str, A
         "endpoints": endpoints,
         "conversations": conversations,
         "time_range": time_range,
-        "tshark_version": tshark_version(),
+        "tshark_version": tshark_version(runtime, device),
         "include_payload": default_limits().include_payload,
     }
 
@@ -258,7 +271,9 @@ def _parse_conversations(output: str) -> list[dict[str, Any]]:
 
 
 def _inspect_packets(
-    pcap_path: Path,
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
     *,
     display_filter: str | None,
     limit: int,
@@ -266,7 +281,7 @@ def _inspect_packets(
 ) -> tuple[list[dict[str, Any]], int, bool]:
     args = [
         "-r",
-        str(pcap_path),
+        remote_path,
         "-T",
         "fields",
         "-E",
@@ -292,7 +307,7 @@ def _inspect_packets(
     ]
     if display_filter:
         args.extend(["-Y", display_filter])
-    output = _run_tshark(args)
+    output = _run_tshark(runtime, device, remote_path, args)
     rows = []
     for line in output.splitlines():
         if not line.strip():
@@ -317,7 +332,9 @@ def _inspect_packets(
 
 
 def _inspect_protocol(
-    pcap_path: Path,
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
     *,
     protocol: str,
     display_filter: str | None,
@@ -327,10 +344,10 @@ def _inspect_protocol(
     filter_expr = (
         protocol if not display_filter else f"({display_filter}) and {protocol}"
     )
-    args = ["-r", str(pcap_path), "-T", "json"]
+    args = ["-r", remote_path, "-T", "json"]
     if filter_expr:
         args.extend(["-Y", filter_expr])
-    raw = _run_tshark(args, timeout=90.0)
+    raw = _run_tshark(runtime, device, remote_path, args, timeout=90.0)
     packets = json.loads(raw or "[]")
     page = packets[offset : offset + limit]
     normalized = [extract_protocol_fields(protocol, packet) for packet in page]
@@ -338,11 +355,16 @@ def _inspect_protocol(
     return normalized, len(normalized), truncated
 
 
-def _inspect_expert(pcap_path: Path, display_filter: str | None) -> dict[str, Any]:
-    args = ["-r", str(pcap_path), "-q", "-z", "expert"]
+def _inspect_expert(
+    runtime: LabRuntime,
+    device: str,
+    remote_path: str,
+    display_filter: str | None,
+) -> dict[str, Any]:
+    args = ["-r", remote_path, "-q", "-z", "expert"]
     if display_filter:
         args.extend(["-Y", display_filter])
-    output = _run_tshark(args)
+    output = _run_tshark(runtime, device, remote_path, args)
     items: list[dict[str, str]] = []
     for line in output.splitlines():
         line = line.strip()

@@ -43,10 +43,16 @@ class CampusLan(NetworkEnvBase):
         if getattr(self, "lab", None) is not None:
             self.lab.name = self.LAB_NAME
 
-    def verify_lab(self) -> dict:
-        from nika.net_env.campus_lan.verify import (
-            verify_campus_lan_lab,
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.campus_lan.verify import verify_campus_lan_lab_startup
+
+        return verify_campus_lan_lab_startup(
+            self._build_runtime(),
+            scenario_name=self.LAB_NAME,
         )
+
+    def verify_lab(self) -> dict:
+        from nika.net_env.campus_lan.verify import verify_campus_lan_lab
 
         return verify_campus_lan_lab(
             self._build_runtime(),

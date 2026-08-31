@@ -33,6 +33,14 @@ class LLMDLabUnitTest:
 
         assert "client" in inst.hosts
 
+    def test_has_web_service(self) -> None:
+        """llmd_lab must expose a dedicated web service for HTTP faults."""
+        inst = self._inst()
+
+        assert "web" in (inst.servers or {}).get("web", [])
+        assert "web" in inst.lab.machines
+        assert inst.lab.machines["web"].get_image() == "nika/base"
+
     def test_all_k3s_nodes_are_bridged(self) -> None:
         """All k3s nodes must have bridged=True for internet access."""
         inst = self._inst()

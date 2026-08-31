@@ -14,7 +14,7 @@ from nika.config import resolve_results_root
 from nika.remote.client import RemoteClient
 from nika.remote.config import load_remote_config
 from nika.remote.protocol import EnvStartRequest, FailureInjectRequest, PolicyMode
-from nika.service.mcp_gateway.lifecycle import (
+from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     ENV_GATEWAY_URL,
 )

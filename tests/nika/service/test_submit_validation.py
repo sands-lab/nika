@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nika.service.mcp_server.common.task_server import validate_root_cause_choices
+from nika.mcp.servers.common.task_server import validate_root_cause_choices
 
 _LINK_ID = "link/pc1:eth0--router1:eth0"
 

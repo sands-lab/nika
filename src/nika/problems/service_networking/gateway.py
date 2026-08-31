@@ -2,19 +2,77 @@
 
 from __future__ import annotations
 
+import base64
+import time
+from urllib.parse import urlparse
+
 from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.support.p4_gateway import (
+    delete_lb_conn,
     exhaust_lb_conn_table,
+    learn_lb_conn,
     lb_state,
     unsafe_lb_pool_update,
 )
 
+_AFFINITY_SCRIPT = r"""import socket
+import sys
+import time
+
+port = int(sys.argv[1])
+vip = sys.argv[2]
+vport = int(sys.argv[3])
+status_path = sys.argv[4]
+try:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("", port))
+    sock.settimeout(2.0)
+    sock.connect((vip, vport))
+    request = (
+        b"GET / HTTP/1.1\r\nHost: "
+        + vip.encode()
+        + b"\r\nConnection: keep-alive\r\n\r\n"
+    )
+    sock.sendall(request)
+    sock.recv(4096)
+    deadline = time.time() + 45
+    while time.time() < deadline:
+        try:
+            sock.sendall(request)
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise OSError("connection closed")
+        except OSError:
+            with open(status_path, "w", encoding="utf-8") as handle:
+                handle.write("broken")
+            sys.exit(1)
+        time.sleep(0.5)
+    with open(status_path, "w", encoding="utf-8") as handle:
+        handle.write("ok")
+except Exception:
+    with open(status_path, "w", encoding="utf-8") as handle:
+        handle.write("broken")
+    sys.exit(1)
+"""
+
+
+def _parse_vip(vip_url: str) -> tuple[str, int]:
+    parsed = urlparse(vip_url)
+    host = parsed.hostname or "20.0.0.1"
+    port = parsed.port or 80
+    return host, port
+
 
 class LbConnectionStateExhaustionParams(BaseModel):
     host_name: str = Field(default="gateway_1")
+    client_host: str = Field(default="client_1")
+    vip_url: str = Field(default="http://20.0.0.1/")
+    backend_dip: str = Field(default="10.0.1.11")
+    attacker_device: str | None = Field(default=None)
     capacity: int = Field(default=256, ge=32, le=256)
     syn_timeout_sec: int = Field(default=10, ge=1)
     seed: int = Field(default=1)
@@ -23,6 +81,7 @@ class LbConnectionStateExhaustionParams(BaseModel):
 class LbConnectionStateExhaustion(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
     root_cause_name = "lb_connection_state_exhaustion"
+    description = "Load-balancer connection-state table is exhausted."
     symptom_desc = "SYN-only state exhausts the gateway ConnTable; pool churn then breaks evicted legitimate connections."
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbConnectionStateExhaustionParams
@@ -31,12 +90,87 @@ class LbConnectionStateExhaustion(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: LbConnectionStateExhaustionParams):
-        self._state = exhaust_lb_conn_table(
-            self.runtime, params.host_name, params.capacity
+        vip_ip, vip_port = _parse_vip(params.vip_url)
+        client_ip = self.runtime.get_host_ip(params.client_host, with_prefix=False)
+        src_port = 41000 + (params.seed % 900)
+        status_path = "/tmp/nika-lb-conn.status"
+        pid_path = "/tmp/nika-lb-conn.pid"
+        self.runtime.exec(
+            params.client_host,
+            f"rm -f {status_path} {pid_path}",
         )
-        # A pool update after the real table reaches capacity makes unmatched
-        # packets select the replacement backend.
+
+        learn_lb_conn(
+            self.runtime,
+            params.host_name,
+            src_addr=client_ip,
+            src_port=src_port,
+            dst_addr=vip_ip,
+            dst_port=vip_port,
+            dip=params.backend_dip,
+        )
+
+        script_path = "/tmp/nika-lb-affinity.py"
+        encoded = base64.b64encode(_AFFINITY_SCRIPT.encode()).decode()
+        self.runtime.exec(
+            params.client_host,
+            f"printf '%s' {encoded} | base64 -d > {script_path}",
+        )
+        self.runtime.exec(
+            params.client_host,
+            f"python3 {script_path} {src_port} {vip_ip} {vip_port} {status_path} "
+            f">/tmp/nika-lb-conn.log 2>&1 & echo $! > {pid_path}",
+            timeout=10,
+        )
+        time.sleep(0.5)
+
+        fake_count = params.capacity - 1
+        exhaust_lb_conn_table(
+            self.runtime, params.host_name, fake_count, offset_start=0
+        )
+        delete_lb_conn(
+            self.runtime,
+            params.host_name,
+            src_addr=client_ip,
+            src_port=src_port,
+            dst_addr=vip_ip,
+            dst_port=vip_port,
+        )
+        exhaust_lb_conn_table(
+            self.runtime, params.host_name, 1, offset_start=fake_count
+        )
         self._update = unsafe_lb_pool_update(self.runtime, params.host_name)
+
+        if params.attacker_device:
+            syn_duration = min(params.syn_timeout_sec, 5)
+            self.runtime.exec(
+                params.attacker_device,
+                f"timeout {syn_duration}s hping3 -S -p {vip_port} -i u10000 "
+                f"{vip_ip} >/dev/null 2>&1 || true",
+                timeout=syn_duration + 5,
+            )
+
+        time.sleep(min(2.0, float(params.syn_timeout_sec)))
+        deadline = time.time() + float(params.syn_timeout_sec)
+        while time.time() < deadline:
+            status = self.runtime.exec(
+                params.client_host,
+                f"cat {status_path} 2>/dev/null || true",
+            ).strip()
+            if status == "broken":
+                break
+            time.sleep(0.5)
+        self._affinity_profile = {
+            "client_host": params.client_host,
+            "client_ip": client_ip,
+            "src_port": src_port,
+            "vip_ip": vip_ip,
+            "vip_port": vip_port,
+            "vip_url": params.vip_url,
+            "backend_dip": params.backend_dip,
+            "status_path": status_path,
+            "pid_path": pid_path,
+        }
 
     def verify_fault(self, params: LbConnectionStateExhaustionParams) -> dict:
         state = lb_state(self.runtime, params.host_name)
@@ -58,6 +192,7 @@ class LbPendingConnectionUpdateRaceParams(BaseModel):
 class LbPendingConnectionUpdateRace(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
     root_cause_name = "lb_pending_connection_update_race"
+    description = "Pending connection races an unsafe load-balancer pool update."
     symptom_desc = "An unsafe DIP pool update changes the selected backend before a pending connection reaches ConnTable."
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbPendingConnectionUpdateRaceParams
@@ -89,6 +224,7 @@ class SnatPortPoolExhaustionParams(BaseModel):
 class SnatPortPoolExhaustion(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
     root_cause_name = "snat_port_pool_exhaustion"
+    description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
     Params = SnatPortPoolExhaustionParams
@@ -136,6 +272,7 @@ class NatMappingRemovedWithoutDrainParams(BaseModel):
 class NatMappingRemovedWithoutDrain(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
     root_cause_name = "nat_mapping_removed_without_drain"
+    description = "NAT mapping is removed before active flows drain."
     symptom_desc = (
         "An active SNAT address is removed without draining its conntrack mappings."
     )

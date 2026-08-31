@@ -1,0 +1,29 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: s
+    inject:
+      host_name: router_core_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: router_core_2
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: router_core_2
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: icmp_frag_needed_filter_misconfiguration

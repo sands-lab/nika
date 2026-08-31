@@ -1,0 +1,215 @@
+scenario:
+  name: isp_abilene_ebgp_rpki
+failure:
+  fault_type: link_down
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+      intf_name: eth0
+      peer_host: pc_atlang
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_atlam5
+    root_causes:
+    - resource:
+        kind: link
+        name: atlam5:eth0--atlang:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+      intf_name: eth1
+      peer_host: pc_hstnng
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_atlang
+    root_causes:
+    - resource:
+        kind: link
+        name: atlang:eth1--hstnng:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+      intf_name: eth2
+      peer_host: pc_iplsng
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_atlang
+    root_causes:
+    - resource:
+        kind: link
+        name: atlang:eth2--iplsng:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+      intf_name: eth3
+      peer_host: pc_washng
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_atlang
+    root_causes:
+    - resource:
+        kind: link
+        name: atlang:eth3--washng:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: chinng
+      intf_name: eth0
+      peer_host: pc_iplsng
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_chinng
+    root_causes:
+    - resource:
+        kind: link
+        name: chinng:eth0--iplsng:eth1
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: chinng
+      intf_name: eth1
+      peer_host: pc_nycmng
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_chinng
+    root_causes:
+    - resource:
+        kind: link
+        name: chinng:eth1--nycmng:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dnvrng
+      intf_name: eth0
+      peer_host: pc_kscyng
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_dnvrng
+    root_causes:
+    - resource:
+        kind: link
+        name: dnvrng:eth0--kscyng:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dnvrng
+      intf_name: eth1
+      peer_host: pc_snvang
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_dnvrng
+    root_causes:
+    - resource:
+        kind: link
+        name: dnvrng:eth1--snvang:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dnvrng
+      intf_name: eth2
+      peer_host: pc_sttlng
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_dnvrng
+    root_causes:
+    - resource:
+        kind: link
+        name: dnvrng:eth2--sttlng:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+      intf_name: eth1
+      peer_host: pc_kscyng
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hstnng
+    root_causes:
+    - resource:
+        kind: link
+        name: hstnng:eth1--kscyng:eth1
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+      intf_name: eth2
+      peer_host: pc_losang
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hstnng
+    root_causes:
+    - resource:
+        kind: link
+        name: hstnng:eth2--losang:eth0
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: iplsng
+      intf_name: eth2
+      peer_host: pc_kscyng
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_iplsng
+    root_causes:
+    - resource:
+        kind: link
+        name: iplsng:eth2--kscyng:eth2
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: losang
+      intf_name: eth1
+      peer_host: pc_snvang
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_losang
+    root_causes:
+    - resource:
+        kind: link
+        name: losang:eth1--snvang:eth1
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nycmng
+      intf_name: eth1
+      peer_host: pc_washng
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_nycmng
+    root_causes:
+    - resource:
+        kind: link
+        name: nycmng:eth1--washng:eth1
+      fault_type: link_down
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: snvang
+      intf_name: eth2
+      peer_host: pc_sttlng
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_snvang
+    root_causes:
+    - resource:
+        kind: link
+        name: snvang:eth2--sttlng:eth1
+      fault_type: link_down

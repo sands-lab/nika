@@ -58,6 +58,7 @@ class DHCPMissingSubnet(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "dhcp_missing_subnet"
 
+    description = "DHCP server is missing a subnet configuration."
     TAGS: str = ["dhcp"]
 
     Params = DHCPMissingSubnetParams

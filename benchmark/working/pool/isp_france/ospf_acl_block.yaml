@@ -1,0 +1,330 @@
+scenario:
+  name: isp_france
+failure:
+  fault_type: ospf_acl_block
+  cases:
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n01
+    root_causes:
+    - resource:
+        kind: node
+        node: n01
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n02
+    root_causes:
+    - resource:
+        kind: node
+        node: n02
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n03
+    root_causes:
+    - resource:
+        kind: node
+        node: n03
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n04
+    root_causes:
+    - resource:
+        kind: node
+        node: n04
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n05
+    root_causes:
+    - resource:
+        kind: node
+        node: n05
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n06
+    root_causes:
+    - resource:
+        kind: node
+        node: n06
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n07
+    root_causes:
+    - resource:
+        kind: node
+        node: n07
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n08
+    root_causes:
+    - resource:
+        kind: node
+        node: n08
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n09
+    root_causes:
+    - resource:
+        kind: node
+        node: n09
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+    root_causes:
+    - resource:
+        kind: node
+        node: n10
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+    root_causes:
+    - resource:
+        kind: node
+        node: n11
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n12
+    root_causes:
+    - resource:
+        kind: node
+        node: n12
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+    root_causes:
+    - resource:
+        kind: node
+        node: n13
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+    root_causes:
+    - resource:
+        kind: node
+        node: n14
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n15
+    root_causes:
+    - resource:
+        kind: node
+        node: n15
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+    root_causes:
+    - resource:
+        kind: node
+        node: n16
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+    root_causes:
+    - resource:
+        kind: node
+        node: n17
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+    root_causes:
+    - resource:
+        kind: node
+        node: n18
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n19
+    root_causes:
+    - resource:
+        kind: node
+        node: n19
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n20
+    root_causes:
+    - resource:
+        kind: node
+        node: n20
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n21
+    root_causes:
+    - resource:
+        kind: node
+        node: n21
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n22
+    root_causes:
+    - resource:
+        kind: node
+        node: n22
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+    root_causes:
+    - resource:
+        kind: node
+        node: n23
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n24
+    root_causes:
+    - resource:
+        kind: node
+        node: n24
+      fault_type: ospf_acl_block
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n25
+    root_causes:
+    - resource:
+        kind: node
+        node: n25
+      fault_type: ospf_acl_block

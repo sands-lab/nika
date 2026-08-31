@@ -23,7 +23,7 @@ from agent.sandbox.sbx.policy import (
     sanitize_sandbox_name,
 )
 from agent.sandbox.sbx.workspace import prepare_workspace
-from nika.service.mcp_gateway.lifecycle import (
+from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
 )

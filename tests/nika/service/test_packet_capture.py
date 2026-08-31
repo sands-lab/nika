@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import struct
 import time
 from pathlib import Path
 from typing import ClassVar
@@ -12,14 +11,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nika.runtime.factory import runtime_for_session
-from nika.service.mcp_gateway.access import TOOL_NODE_ARGUMENTS
-from nika.service.mcp_gateway.app import _MCP_MODULE_ATTRS
-from nika.service.mcp_server.registry import (
+from nika.mcp.gateway.access import TOOL_NODE_ARGUMENTS
+from nika.mcp.gateway.app import _MCP_MODULE_ATTRS
+from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
     select_diagnosis_servers,
 )
 from nika.service.packet_capture import inspect
-from nika.service.packet_capture.artifact import artifact_file_path, read_meta
+from nika.service.packet_capture.artifact import meta_path, read_meta
 from nika.service.packet_capture.limits import (
     HARD_INSPECT_PAGE_SIZE,
     HARD_MAX_DURATION_SEC,
@@ -30,7 +29,7 @@ from nika.service.packet_capture.limits import (
 from nika.service.packet_capture.manager import CaptureManager
 from nika.service.packet_capture.protocol_fields import extract_protocol_fields
 from tests.support.integration_base import SharedSessionTestCase
-from tests.support.prerequisites import commands_available, docker_available
+from tests.support.prerequisites import docker_available
 
 
 # --- limits -----------------------------------------------------------------
@@ -159,29 +158,18 @@ class TestProtocolFields:
 # --- inspect ----------------------------------------------------------------
 
 
-def _write_minimal_pcap(path: Path) -> None:
-    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
-    frame = b"\x00" * 14
-    packet_header = struct.pack("<IIII", 0, 0, len(frame), len(frame))
-    path.write_bytes(global_header + packet_header + frame)
-
-
-@pytest.fixture
-def sample_pcap(tmp_path: Path) -> Path:
-    path = tmp_path / "sample.pcap"
-    _write_minimal_pcap(path)
-    return path
-
-
 class TestInspectCapture:
-    def test_packets_view_reports_truncation(self, sample_pcap: Path) -> None:
+    def test_packets_view_reports_truncation(self) -> None:
+        runtime = MagicMock()
         with patch.object(inspect, "_run_tshark") as mock_tshark:
             mock_tshark.side_effect = [
                 "1\n",
                 "1|0.0|14|Ethernet|||||",
             ]
             payload = inspect.inspect_capture(
-                sample_pcap,
+                runtime,
+                "pc1",
+                "/tmp/nika-capture-abc.pcapng",
                 view="packets",
                 limit=1,
                 offset=0,
@@ -192,14 +180,21 @@ class TestInspectCapture:
         assert payload["truncated"] is False
         assert payload["data"]["packets"][0]["protocol"] == "Ethernet"
 
-    def test_protocol_view_requires_protocol(self, sample_pcap: Path) -> None:
+    def test_protocol_view_requires_protocol(self) -> None:
+        runtime = MagicMock()
         with pytest.raises(ValueError, match="protocol is required"):
-            inspect.inspect_capture(sample_pcap, view="protocol")
+            inspect.inspect_capture(
+                runtime,
+                "pc1",
+                "/tmp/nika-capture-abc.pcapng",
+                view="protocol",
+            )
 
-    def test_missing_tshark_raises(self, sample_pcap: Path) -> None:
-        with patch.object(inspect.shutil, "which", return_value=None):
-            with pytest.raises(inspect.TsharkNotFoundError):
-                inspect.require_tshark()
+    def test_missing_tshark_raises(self) -> None:
+        runtime = MagicMock()
+        runtime.exec.return_value = ""
+        with pytest.raises(inspect.TsharkNotFoundError):
+            inspect.require_tshark(runtime, "pc1")
 
 
 # --- registry / gateway -----------------------------------------------------
@@ -226,7 +221,6 @@ class TestPacketCaptureRegistry:
 class FakeRuntime:
     def __init__(self) -> None:
         self.commands: list[tuple[str, str]] = []
-        self._archive = b"pcap-bytes"
 
     def exec(self, node: str, command: str, timeout: float = 10) -> str:
         self.commands.append((node, command))
@@ -234,6 +228,10 @@ class FakeRuntime:
             return ""
         if "command -v tcpdump" in command:
             return "/usr/bin/tcpdump"
+        if "command -v tshark" in command:
+            return "/usr/bin/tshark"
+        if "tshark -v" in command:
+            return "TShark 4.0.0"
         if "echo $! >" in command and "nohup" in command:
             return ""
         if command.startswith("cat /tmp/nika-capture-"):
@@ -244,27 +242,11 @@ class FakeRuntime:
             return "2"
         if "dumpcap -v" in command:
             return ""
+        if "test -f" in command and "echo yes" in command:
+            return "yes"
         if command == "sleep 0.5":
             return ""
         return ""
-
-    def get_container(self, node: str):
-        container = MagicMock()
-
-        def _get_archive(path: str):
-            import io
-            import tarfile
-
-            buf = io.BytesIO()
-            with tarfile.open(fileobj=buf, mode="w") as tar:
-                info = tarfile.TarInfo(name=Path(path).name)
-                info.size = len(self._archive)
-                tar.addfile(info, io.BytesIO(self._archive))
-            buf.seek(0)
-            return buf, {}
-
-        container.get_archive.side_effect = _get_archive
-        return container
 
 
 class TestCaptureLifecycle:
@@ -281,7 +263,7 @@ class TestCaptureLifecycle:
         assert first["status"] == "running"
         assert read_meta(str(tmp_path), first["capture_id"])["device"] == "client1"
 
-    def test_stop_persists_artifact_and_meta(self, tmp_path: Path) -> None:
+    def test_stop_persists_meta_without_local_pcap(self, tmp_path: Path) -> None:
         runtime = FakeRuntime()
         manager = CaptureManager(session_dir=str(tmp_path), runtime=runtime)
         started = manager.start(device="router1", interface="eth0")
@@ -291,17 +273,21 @@ class TestCaptureLifecycle:
 
         assert stopped["packet_count"] == 2
         assert stopped["captured_bytes"] == 11
+        assert stopped["artifact"]["device"] == "router1"
         assert (
-            artifact_file_path(str(tmp_path), capture_id).read_bytes() == b"pcap-bytes"
+            stopped["artifact"]["remote_path"]
+            == f"/tmp/nika-capture-{capture_id}.pcapng"
         )
+        assert stopped["artifact"]["tshark_version"] == "TShark 4.0.0"
         meta = json.loads(
             (tmp_path / "packet_captures" / capture_id / "meta.json").read_text()
         )
         assert meta["status"] == "stopped"
-        assert meta["sha256"]
+        assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
         assert (
-            stopped["artifact"]["path"]
-            == f"packet_captures/{capture_id}/capture.pcapng"
+            not meta_path(str(tmp_path), capture_id)
+            .parent.joinpath("capture.pcapng")
+            .exists()
         )
 
     def test_inspect_requires_stopped_capture(self, tmp_path: Path) -> None:
@@ -317,10 +303,6 @@ class TestCaptureLifecycle:
 
 @pytest.mark.integration
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
-@pytest.mark.skipif(
-    not commands_available("tshark"),
-    reason="tshark not installed on host",
-)
 class PacketCaptureLiveE2ETest(SharedSessionTestCase):
     """Exercise CaptureManager against a real Kathara simple_bgp lab."""
 
@@ -346,10 +328,11 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert self.CAPTURE_HOST in runtime.list_nodes()
         tools = runtime.exec(
             self.CAPTURE_HOST,
-            "command -v tcpdump; command -v dumpcap || true",
+            "command -v tcpdump; command -v dumpcap || true; command -v tshark || true",
             timeout=10,
         )
         assert "tcpdump" in tools or "dumpcap" in tools, tools
+        assert "tshark" in tools, tools
 
         started = manager.start(
             device=self.CAPTURE_HOST,
@@ -372,19 +355,20 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         stopped = manager.stop(capture_id)
         assert stopped["packet_count"] >= 1, stopped
         assert stopped["captured_bytes"] > 0, stopped
-        assert stopped["artifact"]["sha256"]
-        assert stopped["artifact"]["path"] == (
-            f"packet_captures/{capture_id}/capture.pcapng"
+        assert stopped["artifact"]["device"] == self.CAPTURE_HOST
+        assert (
+            stopped["artifact"]["remote_path"]
+            == f"/tmp/nika-capture-{capture_id}.pcapng"
         )
-
-        pcap = artifact_file_path(str(session_dir), capture_id)
-        assert pcap.is_file() and pcap.stat().st_size > 0
 
         meta = read_meta(str(session_dir), capture_id)
         assert meta["status"] == "stopped"
         assert meta["device"] == self.CAPTURE_HOST
-        assert meta["sha256"] == stopped["artifact"]["sha256"]
+        assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
         assert "ground_truth" not in json.dumps(meta)
+        assert not (
+            session_dir / "packet_captures" / capture_id / "capture.pcapng"
+        ).exists()
 
         inspected = manager.inspect(
             capture_id,
@@ -431,7 +415,60 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         stop_b = manager.stop(second["capture_id"])
         assert stop_a["packet_count"] >= 1, stop_a
         assert stop_b["packet_count"] >= 1, stop_b
+        assert stop_a["artifact"]["remote_path"].startswith("/tmp/nika-capture-")
+        assert stop_b["artifact"]["remote_path"].startswith("/tmp/nika-capture-")
 
-        session_dir = Path(self._session_row(self.session_id)["session_dir"])
-        assert artifact_file_path(str(session_dir), first["capture_id"]).is_file()
-        assert artifact_file_path(str(session_dir), second["capture_id"]).is_file()
+    def test_all_inspect_views_and_container_pcap_persistence(self) -> None:
+        """Verify pcap stays on the node and every inspect view works in Docker."""
+        manager = self._manager()
+        runtime = self._runtime()
+
+        started = manager.start(
+            device=self.CAPTURE_HOST,
+            interface=self.CAPTURE_IFACE,
+            capture_filter="icmp",
+            max_duration_sec=15,
+            max_packets=100,
+        )
+        capture_id = started["capture_id"]
+
+        time.sleep(0.5)
+        runtime.exec(
+            self.CAPTURE_HOST,
+            f"ping -c 3 -W 2 {self.PING_TARGET}",
+            timeout=15,
+        )
+
+        stopped = manager.stop(capture_id)
+        remote_path = stopped["artifact"]["remote_path"]
+        assert stopped["packet_count"] >= 1, stopped
+
+        exists = runtime.exec(
+            self.CAPTURE_HOST,
+            f"test -f {remote_path} && wc -c < {remote_path}",
+            timeout=10,
+        )
+        size = int(exists.strip().splitlines()[-1])
+        assert size > 0, exists
+        assert size == stopped["captured_bytes"], (size, stopped)
+
+        protocol = manager.inspect(
+            capture_id,
+            view="protocol",
+            protocol="icmp",
+            limit=10,
+        )
+        assert protocol["returned"] >= 1, protocol
+        assert protocol["data"]["protocol"] == "icmp"
+
+        expert = manager.inspect(capture_id, view="expert")
+        assert "items" in expert["data"]
+
+        missing = manager.inspect(
+            capture_id,
+            view="packets",
+            display_filter="icmp and frame.number > 99999",
+            limit=10,
+        )
+        assert missing["returned"] == 0
+        assert missing["total_available"] == 0

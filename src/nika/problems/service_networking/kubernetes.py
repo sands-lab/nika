@@ -66,6 +66,7 @@ def _as_port(value: Any) -> int | None:
 class ClusterIPRoutingBroken(K8sProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
     root_cause_name: str = "k8s_clusterip_routing_broken"
+    description = "Kubernetes ClusterIP forwarding is broken on a node."
     symptom_desc = (
         "Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, "
         "including in-cluster DNS, while direct pod-IP traffic from the same node "

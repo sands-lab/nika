@@ -1,0 +1,38 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: s
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth2
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth2
+      fault_type: mtu_mismatch
+  - topo_size: m
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth4
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth4
+      fault_type: mtu_mismatch
+  - topo_size: l
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth8
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth8
+      fault_type: mtu_mismatch

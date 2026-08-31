@@ -1,0 +1,75 @@
+scenario:
+  name: isp_geant_ebgp_rpki
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: es1_es
+      peer_host: pc_es1_es
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: es1_es
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: es1_es
+      peer_host: pc_es1_es
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: es1_es
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nl1_nl
+      peer_host: pc_nl1_nl
+      prefix: 198.51.101.0/24
+      probe_dst_ip: 198.51.101.1
+      symptom_host: de1_de
+    root_causes:
+    - resource:
+        kind: node
+        node: nl1_nl
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: se1_se
+      peer_host: pc_se1_se
+      prefix: 198.51.102.0/24
+      probe_dst_ip: 198.51.102.1
+      symptom_host: de1_de
+    root_causes:
+    - resource:
+        kind: node
+        node: se1_se
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: uk1_uk
+      peer_host: pc_uk1_uk
+      prefix: 198.51.100.0/24
+      probe_dst_ip: 198.51.100.1
+      symptom_host: fr1_fr
+    root_causes:
+    - resource:
+        kind: node
+        node: uk1_uk
+      fault_type: bgp_missing_route_advertisement

@@ -147,6 +147,33 @@ def _emit_int_probe(runtime: LabRuntime, model: GatewayFabricModel) -> None:
     )
 
 
+def verify_p4_dc_gateway_lab_startup(
+    runtime: LabRuntime, scenario_name: str, model: GatewayFabricModel
+) -> dict:
+    expected = model.fabric_switches() + [item.name for item in model.endpoints]
+    expected += ["fabric_mgr", "collector"]
+    switches_up = all(
+        process_running(runtime, switch, "simple_switch_grpc")
+        for switch in model.fabric_switches()
+    )
+    try:
+        observed = run_manager(runtime, "read", timeout=180)
+    except Exception:
+        observed = {}
+    p4runtime, p4runtime_details = _p4runtime_consistent(observed, model)
+    checks = {
+        "nodes": nodes_deployed(runtime, expected),
+        "bmv2": switches_up,
+        "p4runtime": p4runtime,
+    }
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+        details={"p4runtime": p4runtime_details},
+    )
+
+
 def verify_p4_dc_gateway_lab(
     runtime: LabRuntime, scenario_name: str, model: GatewayFabricModel
 ) -> dict:

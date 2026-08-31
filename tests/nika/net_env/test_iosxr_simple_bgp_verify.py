@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.verify import (
     verify_iosxr_simple_bgp_lab,
+    verify_iosxr_simple_bgp_lab_startup,
 )
 from tests.support.net_env import assert_verify_success
 
@@ -31,6 +32,12 @@ class FakeRuntime:
         if command == "ip route show default":
             return "default via 195.11.14.1 dev eth0"
         return ""
+
+
+def test_iosxr_simple_bgp_startup_verify_passes() -> None:
+    assert_verify_success(
+        verify_iosxr_simple_bgp_lab_startup(FakeRuntime(), scenario_name="x")
+    )
 
 
 def test_iosxr_simple_bgp_verify_passes() -> None:

@@ -20,6 +20,7 @@ class SilentEgressPacketLossParams(BaseModel):
 class SilentEgressPacketLoss(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
     root_cause_name = "silent_egress_packet_loss"
+    description = "Egress silently drops a subset of packets."
     symptom_desc = (
         "A deterministic packet subset disappears on one healthy egress interface."
     )

@@ -32,6 +32,7 @@ class FrrDown(ProblemBase):
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name: str = "frr_service_down"
+    description = "FRR routing daemon is unavailable."
     TAGS: str = ["frr"]
 
     Params = FrrDownParams

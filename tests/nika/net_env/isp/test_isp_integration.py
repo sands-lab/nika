@@ -74,13 +74,14 @@ class IspDockerTest(IntegrationTestCase):
         plan = compile_isp_plan(
             IspConfig(topology=topo_name, igp=igp)  # type: ignore[arg-type]
         )
+        scenario = f"isp_{topo_name}"
         session_id = self._start_env(
-            "isp",
-            ["--topo", topo_name, "--igp", igp],
+            scenario,
+            ["--igp", igp],
         )
         lab_name = None
         try:
-            row = self._assert_session_ready(session_id, "isp")
+            row = self._assert_session_ready(session_id, scenario)
             lab_name = row["lab_name"]
             assert resolve_backend(row) == "kathara"
             params = row.get("scenario_params") or {}
@@ -106,8 +107,7 @@ class IspDockerTest(IntegrationTestCase):
 
             # Re-verify with live Isp instance (includes stub host checks).
             env = get_net_env_instance(
-                "isp",
-                topo=topo_name,
+                scenario,
                 igp=igp,
                 lab_name=lab_name,
             )
@@ -122,11 +122,10 @@ class IspDockerTest(IntegrationTestCase):
             self._close_session(session_id)
             if lab_name:
                 env = get_net_env_instance(
-                    "isp",
-                    topo=topo_name,
-                    igp=igp,
-                    lab_name=lab_name,
-                )
+                scenario,
+                igp=igp,
+                lab_name=lab_name,
+            )
                 assert not env.lab_exists()
 
     @pytest.mark.parametrize("bgp_mode", ALL_BGP_MODES)
@@ -137,13 +136,14 @@ class IspDockerTest(IntegrationTestCase):
         isp_plan = compile_isp_plan(IspConfig(topology=topo_name))
         bgp_plan = compile_bgp_plan(isp_plan, bgp_mode)
         assert bgp_plan is not None
+        scenario = f"isp_{topo_name}"
         session_id = self._start_env(
-            "isp",
-            ["--topo", topo_name, "--igp", "isis", "--bgp-mode", bgp_mode],
+            scenario,
+            ["--igp", "isis", "--bgp-mode", bgp_mode],
         )
         lab_name = None
         try:
-            row = self._assert_session_ready(session_id, "isp")
+            row = self._assert_session_ready(session_id, scenario)
             lab_name = row["lab_name"]
             params = row.get("scenario_params") or {}
             assert params.get("bgp_mode") == bgp_mode
@@ -152,9 +152,8 @@ class IspDockerTest(IntegrationTestCase):
                 expected_properties={"reachability", "isolation", "adjacency"},
             )
             env = get_net_env_instance(
-                "isp",
-                topo=topo_name,
-                igp="isis",
+                    scenario,
+                    igp="isis",
                 bgp_mode=bgp_mode,
                 lab_name=lab_name,
             )
@@ -169,8 +168,7 @@ class IspDockerTest(IntegrationTestCase):
             self._close_session(session_id)
             if lab_name:
                 env = get_net_env_instance(
-                    "isp",
-                    topo=topo_name,
+                    scenario,
                     igp="isis",
                     bgp_mode=bgp_mode,
                     lab_name=lab_name,
@@ -179,17 +177,16 @@ class IspDockerTest(IntegrationTestCase):
 
     def test_abilene_ospf_ebgp_respects_as_boundaries(self) -> None:
         session_id = self._start_env(
-            "isp",
-            ["--topo", "abilene", "--igp", "ospf", "--bgp-mode", "ebgp"],
+            "isp_abilene",
+            ["--igp", "ospf", "--bgp-mode", "ebgp"],
         )
         lab_name = None
         try:
-            row = self._assert_session_ready(session_id, "isp")
+            row = self._assert_session_ready(session_id, "isp_abilene")
             lab_name = row["lab_name"]
             env = get_net_env_instance(
-                "isp",
-                topo="abilene",
-                igp="ospf",
+                    "isp_abilene",
+                    igp="ospf",
                 bgp_mode="ebgp",
                 lab_name=lab_name,
             )
@@ -205,8 +202,7 @@ class IspDockerTest(IntegrationTestCase):
             self._close_session(session_id)
             if lab_name:
                 env = get_net_env_instance(
-                    "isp",
-                    topo="abilene",
+                    "isp_abilene",
                     igp="ospf",
                     bgp_mode="ebgp",
                     lab_name=lab_name,
@@ -245,17 +241,15 @@ class IspDockerTest(IntegrationTestCase):
 
         with pytest.raises(RuntimeError, match="Lab verification failed"):
             start_net_env(
-                "isp",
+                "isp_pdh",
                 None,
-                topo="pdh",
                 igp="isis",
                 session_tag=resolve_session_tag(context="test"),
             )
 
         assert "lab_name" in lab_name_box
         env = original_get(
-            "isp",
-            topo="pdh",
+            "isp_pdh",
             igp="isis",
             lab_name=lab_name_box["lab_name"],
         )
@@ -327,11 +321,10 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         from nika.net_env.isp.traffic import resolve_traffic_series, series_to_od_dicts
 
         env = get_net_env_instance(
-            "isp",
-            topo=topo_name,
-            igp="isis",
-            lab_name=row["lab_name"],
-        )
+                scenario,
+                igp="isis",
+                lab_name=row["lab_name"],
+            )
         kwargs = {}
         if cache_root is not None:
             kwargs["cache_root"] = cache_root
@@ -419,18 +412,18 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
 
     @pytest.mark.parametrize("topo_name", TRAFFIC_TOPOS)
     def test_demands_replay(self, topo_name: str) -> None:
+        scenario = f"isp_{topo_name}"
         session_id = self._start_env(
-            "isp",
-            ["--topo", topo_name, "--igp", "isis"],
+            scenario,
+            ["--igp", "isis"],
         )
         try:
-            row = self._assert_session_ready(session_id, "isp")
+            row = self._assert_session_ready(session_id, scenario)
             runtime = runtime_for_session(row)
             assert any(n.startswith("pc_") for n in runtime.list_nodes())
 
             env = get_net_env_instance(
-                "isp",
-                topo=topo_name,
+                scenario,
                 igp="isis",
                 lab_name=row["lab_name"],
             )
@@ -456,12 +449,13 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         cache_root = tmp_path / ".nika_cache"
         self._write_dynamic_fixture(topo_name, cache_root)
 
+        scenario = f"isp_{topo_name}"
         session_id = self._start_env(
-            "isp",
-            ["--topo", topo_name, "--igp", "isis"],
+            scenario,
+            ["--igp", "isis"],
         )
         try:
-            row = self._assert_session_ready(session_id, "isp")
+            row = self._assert_session_ready(session_id, scenario)
             payload = self._replay_and_assert_live(
                 row=row,
                 topo_name=topo_name,
@@ -488,8 +482,6 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
             "containerlab",
             "--device-profile",
             "nokia_srlinux",
-            "--topo",
-            topo,
             "--igp",
             "isis",
             "--bgp-mode",
@@ -498,9 +490,8 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
 
     def _get_env(self, row: dict, topo: str):
         return get_net_env_instance(
-            "isp",
+            f"isp_{topo}",
             backend="containerlab",
-            topo=topo,
             igp="isis",
             bgp_mode="ibgp_rr",
             device_profile="nokia_srlinux",
@@ -551,9 +542,9 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
 
     @pytest.mark.parametrize("topo", REPR_TOPOS)
     def test_repr_topo_verify_tools_traffic_inject(self, topo: str) -> None:
-        session_id = self._start_env("isp", self._env_args(topo))
+        session_id = self._start_env(f"isp_{topo}", self._env_args(topo))
         try:
-            row = self._assert_session_ready(session_id, "isp")
+            row = self._assert_session_ready(session_id, scenario)
             assert resolve_backend(row) == "containerlab"
             env = self._get_env(row, topo)
             assert_verify_success(env.verify_lab())
@@ -586,10 +577,11 @@ class IspSampledFailureInjectTest(IntegrationTestCase):
             assert bgp is not None
             bgp_inv = bgp.inventory
         params = isp_inject_params(problem, isp_plan.inventory, bgp_inv)
-        env_args = ["--topo", topo, "--igp", igp, "--bgp-mode", bgp_mode]
-        session_id = self._start_env("isp", env_args)
+        scenario = f"isp_{topo}"
+        env_args = ["--igp", igp, "--bgp-mode", bgp_mode]
+        session_id = self._start_env(scenario, env_args)
         try:
-            self._assert_session_ready(session_id, "isp")
+            self._assert_session_ready(session_id, scenario)
             self._inject_failure(problem, params, session_id=session_id)
             self._assert_failure_injected(problem, session_id=session_id)
         finally:

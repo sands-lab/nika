@@ -1,0 +1,248 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: link_packet_corruption
+  cases:
+  - inject:
+      corruption_percentage: '8'
+      host_name: as1r1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: as1r1:eth0--dc_exit:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: as1r1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: as1r1:eth1--as2r1:eth1
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: as2r1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: as2r1:eth0--client:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: controller
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: controller:eth0--leaf_1_1:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_1:eth0--spine_1_1:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_1:eth1--spine_1_2:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_1:eth2--spine_2_1:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_1:eth3--spine_2_2:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_2:eth0--spine_1_1:eth3
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_2:eth1--spine_1_2:eth3
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_2:eth2--spine_2_1:eth3
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: core_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: core_1_2:eth3--spine_2_2:eth3
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: dc_exit
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: dc_exit:eth1--leaf_2_1:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: dc_exit
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc_exit:eth2--leaf_2_2:eth2
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_1:eth0--spine_1_1:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_1:eth1--spine_1_2:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_1:eth3--worker1:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_1:eth4--worker2:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_2:eth0--spine_1_1:eth1
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_2:eth1--spine_1_2:eth1
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_2:eth2--worker3:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_2:eth3--worker4:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_1_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1_2:eth4--worker5:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2_1:eth0--spine_2_1:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_2_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2_1:eth1--spine_2_2:eth0
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2_2:eth0--spine_2_1:eth1
+      fault_type: link_packet_corruption
+  - inject:
+      corruption_percentage: '8'
+      host_name: leaf_2_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2_2:eth1--spine_2_2:eth1
+      fault_type: link_packet_corruption

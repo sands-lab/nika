@@ -1,0 +1,7 @@
+scenario:
+  name: enterprise_branch
+healthy:
+  variants:
+  - topo_size: s
+  - topo_size: m
+  - topo_size: l

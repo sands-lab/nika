@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nika.service.k8s_mcp_server.client import (
+from nika.mcp.k8s.client import (
     K8sClient,
     get_client,
     reset_client,
@@ -17,7 +17,7 @@ from nika.service.k8s_mcp_server.client import (
 )
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
-from nika.service.mcp_server.registry import (
+from nika.mcp.registry import (
     K8S_MCP_SERVER,
     select_diagnosis_servers,
 )
@@ -89,11 +89,11 @@ class TestSessionScopedClient:
 
         with (
             patch(
-                "nika.service.k8s_mcp_server.client.require_session_id",
+                "nika.mcp.k8s.client.require_session_id",
                 side_effect=["sess-a", "sess-a", "sess-b"],
             ),
             patch(
-                "nika.service.k8s_mcp_server.client.get_session_meta",
+                "nika.mcp.k8s.client.get_session_meta",
                 side_effect=[
                     meta_for("sess-a", kube_a),
                     meta_for("sess-b", kube_b),

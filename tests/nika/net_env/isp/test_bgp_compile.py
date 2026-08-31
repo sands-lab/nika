@@ -162,6 +162,43 @@ def test_geant_ebgp_rpki_profile() -> None:
     assert asn_of[inv["non_rov_observer"]] == 65001
 
 
+def test_abilene_ebgp_rtbh_profile() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    plan = compile_bgp_plan(isp_plan, "ebgp", rtbh=True)
+    assert plan is not None
+    inv = plan.inventory
+    assert inv.get("rtbh") is True
+    leaker = inv.get("leaker_device")
+    provider = inv.get("rtbh_provider_device")
+    origin = inv.get("legitimate_origin_device")
+    assert leaker and provider and origin
+    assert inv.get("target_prefix") == "198.51.100.0/24"
+    assert inv.get("blackhole_community") == "65003:666"
+    assert inv.get("leaker_to_rtbh_neighbor_ip")
+    provider_node = next(n for n in plan.nodes if n.device_name == provider)
+    assert provider_node.rtbh_import_policy
+    frag = render_bgp_frr_fragment(provider_node, plan)
+    assert "community-list standard BH-SIGNAL permit 65003:666" in frag
+    assert "match community BH-SIGNAL" in frag
+    assert "set ip next-hop 192.0.2.1" in frag
+    leaker_node = next(n for n in plan.nodes if n.device_name == leaker)
+    assert leaker_node.ebgp_outbound_route_maps
+    leak_frag = render_bgp_frr_fragment(leaker_node, plan)
+    assert "route-map BGP-OUT-TO-65003 permit 10" in leak_frag
+    assert "set local-preference 200" in frag
+
+
+def test_dfn_bwin_ebgp_rtbh_profile() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="dfn-bwin", igp="ospf"))
+    plan = compile_bgp_plan(isp_plan, "ebgp", rtbh=True)
+    assert plan is not None
+    inv = plan.inventory
+    assert inv.get("rtbh") is True
+    assert inv.get("leaker_device")
+    assert inv.get("rtbh_provider_device")
+    assert inv.get("leaker_to_rtbh_neighbor_ip")
+
+
 def test_rpki_flag_enables_profile() -> None:
     isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
     with_rpki = compile_bgp_plan(isp_plan, "ebgp", rpki=True)

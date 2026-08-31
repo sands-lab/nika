@@ -629,6 +629,19 @@ class EnterpriseBranch(NetworkEnvBase):
         for host in self._hosts.values():
             self.lab.create_file_from_list(host.cmd_list, f"{host.name}.startup")
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.enterprise_branch.verify import (
+            verify_enterprise_branch_lab_startup,
+        )
+
+        return verify_enterprise_branch_lab_startup(
+            self._build_runtime(),
+            scenario_name=self.LAB_NAME,
+            topo_size=self.topo_size,
+            built_tunnels=self.built_tunnels,
+            spec=self.spec,
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.enterprise_branch.verify import (
             verify_enterprise_branch_lab,
@@ -640,39 +653,4 @@ class EnterpriseBranch(NetworkEnvBase):
             topo_size=self.topo_size,
             built_tunnels=self.built_tunnels,
             spec=self.spec,
-        )
-
-    def startup_verify_lab(self) -> dict:
-        """Run a bounded readiness check before benchmark injection.
-
-        The full verifier probes every tenant, route and tunnel.  Running it on
-        every retry makes large labs spend longer than the configured startup
-        window in one verification pass.
-        """
-        from nika.net_env.enterprise_branch.addressing import (
-            edge_name_for,
-        )
-        from nika.net_env.verify import (
-            build_lab_verify_result,
-            exec_or_empty,
-            host_has_ipv4,
-            nodes_deployed,
-        )
-
-        runtime = self._build_runtime()
-        hq_corp = next(lan for lan in self.spec.sites["hq"].lans if lan.role == "corp")
-        checks = {
-            "nodes_deployed": nodes_deployed(runtime, self.spec.all_node_names()),
-            "hq_corp_ipv4": host_has_ipv4(runtime, hq_corp.host_name, "10.0.10.2"),
-            "hq_edge_frr": bool(
-                exec_or_empty(
-                    runtime, edge_name_for("hq"), "pgrep -x bgpd", timeout=10
-                ).strip()
-            ),
-        }
-        return build_lab_verify_result(
-            scenario_name=self.LAB_NAME,
-            verified=all(checks.values()),
-            checks=checks,
-            details={"startup_check": True, "topo_size": self.topo_size},
         )

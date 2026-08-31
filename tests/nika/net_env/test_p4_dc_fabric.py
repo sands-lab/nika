@@ -24,7 +24,7 @@ from nika.net_env.p4_dc_fabric.topology_model import (
 )
 from nika.net_env.net_env_pool import list_all_net_envs
 from nika.problems.forwarding_encapsulation_policy.p4_runtime import _BLACKHOLE_P4
-from nika.service.mcp_server.registry import select_diagnosis_servers
+from nika.mcp.registry import select_diagnosis_servers
 from tests.support.prerequisites import docker_image_available
 
 
@@ -88,7 +88,7 @@ def test_scenario_registered() -> None:
     assert "10.0.1." in model.web_urls[0]
 
 
-def test_p4_get_runtime_state_is_live_only() -> None:
+def test_p4rt_exec_is_live_only() -> None:
     from unittest.mock import patch
 
     from nika.service.kathara.bmv2_api import KatharaBMv2API
@@ -101,7 +101,7 @@ def test_p4_get_runtime_state_is_live_only() -> None:
         return "1: lo: <LOOPBACK>"
 
     with patch.object(KatharaBMv2API, "exec_cmd", side_effect=_exec):
-        state = api.p4_get_runtime_state("leaf_1")
+        state = json.loads(api.p4rt_exec("read --switch leaf_1"))
 
     assert "switches" in state
     assert state["switches"]["leaf_1"]["pipeline"] == {"ok": True}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from agent.utils.mcp_servers import select_session_servers, session_http_headers
-from nika.service.mcp_server.registry import MCP_SERVER_SPECS
+from nika.mcp.registry import MCP_SERVER_SPECS
 
 
 def build_sandbox_mcp_servers(

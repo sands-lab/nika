@@ -47,8 +47,8 @@ int switch_bitflip(struct __sk_buff *skb) {
     flow = mix(mix(flow, src_port), dst_port);
     seq = ((__u32)tcp[4] << 24) | ((__u32)tcp[5] << 16) |
           ((__u32)tcp[6] << 8) | tcp[7];
-    /* Affect half the stable five-tuples and one sixteenth of their packets. */
-    if (flow & 1 || (mix(flow, seq >> 8) & 15))
+    /* Affect three quarters of stable five-tuples and one eighth of their packets. */
+    if (flow & 3 || (mix(flow, seq >> 8) & 7))
         return TC_ACT_OK;
     if (bpf_skb_load_bytes(skb, payload_off + 32, &byte, 1))
         return TC_ACT_OK;

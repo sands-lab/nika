@@ -12,6 +12,7 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.net_env.verify import http_ok
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     ecmp_target as _ecmp_target,
     load_blackhole_pipeline,
@@ -19,6 +20,7 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     lpm_capacity,
     run_manager,
 )
+from nika.problems.support.probe_paths import get_probe_path
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -34,6 +36,7 @@ class P4ActionSelectorMemberMisconfigParams(BaseModel):
 class P4ActionSelectorMemberMisconfig(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "p4_action_selector_member_misconfig"
+    description = "A P4 ActionSelector member is misconfigured."
     TAGS = ["p4", "p4_runtime"]
     Params = P4ActionSelectorMemberMisconfigParams
 
@@ -115,6 +118,7 @@ class P4EcmpGroupMemberMissingParams(BaseModel):
 class P4EcmpGroupMemberMissing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "p4_ecmp_group_member_missing"
+    description = "A member is missing from a P4 ECMP group."
     TAGS = ["p4", "p4_runtime"]
     Params = P4EcmpGroupMemberMissingParams
 
@@ -191,8 +195,18 @@ class P4RuntimePipelineMismatchParams(BaseModel):
 class P4RuntimePipelineMismatch(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "p4runtime_pipeline_mismatch"
+    description = "Loaded P4 pipeline does not match the intended program."
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePipelineMismatchParams
+
+    def _expected_pipeline_name(self) -> str:
+        if self.scenario_name == "p4_dc_gateway":
+            from nika.net_env.p4_dc_gateway.topology_model import PIPELINE_NAME
+
+            return PIPELINE_NAME
+        from nika.net_env.p4_dc_fabric.topology_model import PIPELINE_NAME
+
+        return PIPELINE_NAME
 
     def root_cause_resources(self, params: P4RuntimePipelineMismatchParams):
         return [node_resource(params.host_name)]
@@ -210,6 +224,11 @@ class P4RuntimePipelineMismatch(ProblemBase):
             p4info=p4info,
             json_path=json_path,
         )
+        set_error = result.get("set_error")
+        if set_error:
+            raise RuntimeError(
+                f"set-pipeline failed on {params.host_name}: {set_error}"
+            )
         logger.info("Loaded mismatched pipeline on %s: %s", params.host_name, result)
 
     def verify_fault(self, params: P4RuntimePipelineMismatchParams) -> dict:
@@ -218,9 +237,10 @@ class P4RuntimePipelineMismatch(ProblemBase):
         )
         switch = (observed.get("switches") or {}).get(params.host_name) or {}
         pipeline = switch.get("pipeline") or {}
-        name = str(pipeline.get("pipeline_name") or "")
+        name = str(pipeline.get("pipeline_name") or "").lower()
+        expected = self._expected_pipeline_name().lower()
         mismatched = (
-            "fabric" not in name.lower()
+            name != expected
             or not (switch.get("ipv4_lpm"))
             or not observed.get("ok", True)
         )
@@ -242,6 +262,7 @@ class P4RuntimePartialWriteParams(BaseModel):
 class P4RuntimePartialWrite(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "p4runtime_partial_write"
+    description = "A P4Runtime update was only partially applied."
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePartialWriteParams
 
@@ -256,7 +277,7 @@ class P4RuntimePartialWrite(ProblemBase):
         intent = load_intent(self.runtime)
         prefix, *_rest = _ecmp_target(intent, params.host_name)
         self._prefix = prefix
-        run_manager(
+        result = run_manager(
             self.runtime,
             "partial-write",
             "--switch",
@@ -264,6 +285,22 @@ class P4RuntimePartialWrite(ProblemBase):
             "--prefix",
             prefix,
         )
+        if not result.get("ok"):
+            raise RuntimeError(
+                f"partial-write failed on {params.host_name} prefix {prefix}: {result}"
+            )
+
+    def _light_http_symptom(self) -> tuple[bool, dict]:
+        topo_size = getattr(self.net_env, "topo_size", None) or "s"
+        path = get_probe_path(self.scenario_name or "", topo_size=str(topo_size))
+        if path is None or not path.http_url:
+            return True, {"skipped": True, "reason": "no_probe_path"}
+        http_ok_val = http_ok(self.runtime, path.src_host, path.http_url)
+        return (not http_ok_val), {
+            "observer": path.src_host,
+            "http_url": path.http_url,
+            "http_ok": http_ok_val,
+        }
 
     def verify_fault(self, params: P4RuntimePartialWriteParams) -> dict:
         intent = load_intent(self.runtime)
@@ -276,14 +313,20 @@ class P4RuntimePartialWrite(ProblemBase):
         ) or []
         present = any(e.get("prefix") == prefix for e in entries)
         remaining = len(entries)
+        artifact_ok = (not present) and remaining > 0
+        symptom_ok, symptom_details = self._light_http_symptom()
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=(not present) and remaining > 0,
+            verified=artifact_ok and symptom_ok,
             details={
-                "host": params.host_name,
-                "prefix": prefix,
-                "present": present,
-                "remaining_lpm": remaining,
+                "artifact": {
+                    "verified": artifact_ok,
+                    "host": params.host_name,
+                    "prefix": prefix,
+                    "present": present,
+                    "remaining_lpm": remaining,
+                },
+                "symptom": {"verified": symptom_ok, **symptom_details},
             },
         )
 
@@ -295,6 +338,7 @@ class P4TableResourceExhaustionParams(BaseModel):
 class P4TableResourceExhaustion(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "p4_table_resource_exhaustion"
+    description = "A P4 table has exhausted its capacity."
     TAGS = ["p4", "p4_runtime"]
     Params = P4TableResourceExhaustionParams
 

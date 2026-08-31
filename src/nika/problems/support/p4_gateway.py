@@ -52,10 +52,13 @@ def set_icmp_frag_needed_filter(runtime: LabRuntime, switch: str) -> str:
     return _config(runtime, switch, "icmp-frag-needed")
 
 
-def _lb(
-    runtime: LabRuntime, switch: str, kind: str, *, capacity: int | None = None
-) -> dict:
-    option = f" --capacity {capacity}" if capacity is not None else ""
+def _lb(runtime: LabRuntime, switch: str, kind: str, **options: object) -> dict:
+    option_parts = [
+        f"--{name.replace('_', '-')} {shlex.quote(str(value))}"
+        for name, value in options.items()
+        if value is not None
+    ]
+    option = f" {' '.join(option_parts)}" if option_parts else ""
     output = runtime.exec(
         "fabric_mgr",
         "python3 /opt/nika/p4rt_manager.py gateway-lb "
@@ -68,8 +71,62 @@ def _lb(
     return payload
 
 
-def exhaust_lb_conn_table(runtime: LabRuntime, switch: str, capacity: int) -> dict:
-    return _lb(runtime, switch, "exhaust", capacity=capacity)
+def exhaust_lb_conn_table(
+    runtime: LabRuntime,
+    switch: str,
+    capacity: int,
+    *,
+    offset_start: int = 0,
+) -> dict:
+    return _lb(
+        runtime,
+        switch,
+        "exhaust",
+        capacity=capacity,
+        offset_start=offset_start,
+    )
+
+
+def learn_lb_conn(
+    runtime: LabRuntime,
+    switch: str,
+    *,
+    src_addr: str,
+    src_port: int,
+    dst_addr: str,
+    dst_port: int,
+    dip: str,
+) -> dict:
+    return _lb(
+        runtime,
+        switch,
+        "learn",
+        src_addr=src_addr,
+        src_port=src_port,
+        dst_addr=dst_addr,
+        dst_port=dst_port,
+        dip=dip,
+    )
+
+
+def delete_lb_conn(
+    runtime: LabRuntime,
+    switch: str,
+    *,
+    src_addr: str,
+    src_port: int,
+    dst_addr: str,
+    dst_port: int,
+) -> dict:
+    return _lb(
+        runtime,
+        switch,
+        "delete-conn",
+        src_addr=src_addr,
+        src_port=src_port,
+        dst_addr=dst_addr,
+        dst_port=dst_port,
+    )
 
 
 def unsafe_lb_pool_update(runtime: LabRuntime, switch: str) -> dict:

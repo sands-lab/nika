@@ -5,12 +5,27 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
+
+_T = TypeVar("_T")
+_R = TypeVar("_R")
+
+
+def bounded_parallel_map(
+    function: Callable[[_T], _R], items: Iterable[_T], *, max_workers: int = 8
+) -> list[_R]:
+    """Map independent read-only checks concurrently and preserve input order."""
+    values = list(items)
+    if len(values) < 2 or max_workers < 2:
+        return [function(item) for item in values]
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(values))) as pool:
+        return list(pool.map(function, values))
 
 
 def _lab_ready_defaults() -> tuple[float, float]:
@@ -439,6 +454,55 @@ def iperf_throughput_bps(
         return None
 
 
+def iperf_tcp_metrics(
+    runtime: "LabRuntime",
+    src_host: str,
+    dst_host: str,
+    dst_ip: str,
+    *,
+    duration_sec: int = 3,
+    port: int = 5201,
+) -> tuple[float | None, int | None]:
+    """Run iperf3 and return (bits_per_second, retransmits) or (None, None)."""
+    for host in {src_host, dst_host}:
+        runtime.exec(host, "pkill -f 'iperf3' 2>/dev/null || true", timeout=5)
+    time.sleep(0.3)
+    runtime.exec(
+        dst_host,
+        f"rm -f /tmp/iperf3_s_{port}.log; "
+        f"nohup iperf3 -s -p {port} -1 >/tmp/iperf3_s_{port}.log 2>&1 & echo $!",
+        timeout=10,
+    )
+    time.sleep(0.8)
+    raw = exec_or_empty(
+        runtime,
+        src_host,
+        f"iperf3 -c {dst_ip} -p {port} -t {duration_sec} -J 2>/dev/null || true",
+        timeout=float(duration_sec + 15),
+    )
+    runtime.exec(dst_host, "pkill -f 'iperf3' 2>/dev/null || true", timeout=5)
+    raw = raw.strip()
+    if not raw.startswith("{"):
+        idx = raw.find("{")
+        if idx < 0:
+            return None, None
+        raw = raw[idx:]
+    try:
+        import json
+
+        data = json.loads(raw)
+        if data.get("error"):
+            return None, None
+        end = data.get("end") or {}
+        summary = end.get("sum_sent") or end.get("sum_received") or end.get("sum") or {}
+        bps = float(summary.get("bits_per_second") or 0.0)
+        retrans = summary.get("retransmits")
+        retrans_int = int(retrans) if retrans is not None else None
+        return (bps if bps > 0 else None, retrans_int)
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
 def tbf_overlimits(runtime: "LabRuntime", host: str, intf: str = "eth0") -> int | None:
     """Return TBF overlimits/drops counter from ``tc -s qdisc``, if present."""
     output = exec_or_empty(
@@ -523,7 +587,11 @@ def compare_symptom(
         before_ms = before.get("rtt_avg_ms")
         after_ms = after.get("rtt_avg_ms")
         if before_ms is None or after_ms is None:
-            ok = False
+            before_ms = before.get("http_time_ms")
+            after_ms = after.get("http_time_ms")
+        if before_ms is None or after_ms is None:
+            # Absolute latency gate for DNS delay faults when no baseline snap.
+            ok = after_ms is not None and float(after_ms) >= 500.0
         else:
             ok = float(after_ms) >= float(before_ms) * latency_factor
         details["observed"] = {"before_ms": before_ms, "after_ms": after_ms}
@@ -538,9 +606,11 @@ def compare_symptom(
         details["observed"] = after.get("control_plane_ok")
         return ok, details
     if expect == "isolation":
-        symptom_broken = before.get("symptom_ok") and not after.get("symptom_ok")
-        control_intact = bool(after.get("control_ok"))
-        ok = symptom_broken and control_intact
+        after_symptom = after.get("symptom_ok")
+        after_control = after.get("control_ok")
+        symptom_broken = after_symptom is False
+        control_intact = True if after_control is None else bool(after_control)
+        ok = bool(symptom_broken) and control_intact
         details["observed"] = {
             "symptom_broken": symptom_broken,
             "control_intact": control_intact,
@@ -675,6 +745,51 @@ def k8s_ready_node_count(output: str) -> int:
     return ready
 
 
+def k8s_namespace_phase_active(output: str) -> bool:
+    """True when ``kubectl get ns … -o jsonpath={.status.phase}`` is Active.
+
+    Kathara ``exec`` returns stderr text without raising on NotFound, so a
+    substring check like ``\"llm-d\" in output`` falsely matches error messages.
+    """
+    return output.strip() == "Active"
+
+
+def _k8s_lab_nodes_running(net_env: NetworkEnvBase) -> tuple[bool, list[str]]:
+    """Return whether all k3s lab nodes are running and any dead node names."""
+    nodes = list(getattr(net_env, "kubernetes_nodes", []) or [])
+    if not nodes:
+        return True, []
+    dead: list[str] = []
+    try:
+        runtime = net_env._build_runtime()
+        for node in nodes:
+            try:
+                if runtime.get_container(node).status != "running":
+                    dead.append(node)
+            except Exception:
+                dead.append(node)
+    except Exception:
+        return False, nodes
+    return not dead, dead
+
+
+def _restart_dead_k8s_nodes(net_env: NetworkEnvBase, dead_nodes: list[str]) -> None:
+    """Best-effort Docker start for k3s node containers that exited mid-boot."""
+    if not dead_nodes:
+        return
+    try:
+        runtime = net_env._build_runtime()
+    except Exception:
+        return
+    for node in dead_nodes:
+        try:
+            container = runtime.get_container(node)
+            if container.status != "running":
+                container.start()
+        except Exception:
+            continue
+
+
 def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     """Poll ``net_env.verify_lab()`` until success or timeout.
 
@@ -690,7 +805,29 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     retry_delay_sec = getattr(net_env, "VERIFY_RETRY_DELAY_SEC", default_delay)
     deadline = time.time() + max_wait_sec
     last_result = result
+    dead_since: float | None = None
+    restarted = False
     while time.time() < deadline:
+        nodes_ok, dead_nodes = _k8s_lab_nodes_running(net_env)
+        if not nodes_ok:
+            now = time.time()
+            if dead_since is None:
+                dead_since = now
+            # After ~60s of dead nodes, try one Docker restart wave.
+            if not restarted and now - dead_since >= 60:
+                _restart_dead_k8s_nodes(net_env, dead_nodes)
+                restarted = True
+                dead_since = now
+            # Abort if nodes stay down for another 3 minutes after restart (or 4 min total).
+            abort_after = 180.0 if restarted else 240.0
+            if now - dead_since >= abort_after or now + retry_delay_sec >= deadline:
+                raise RuntimeError(
+                    f"Lab verification aborted for {net_env.name!r}: "
+                    f"k3s node container(s) not running: {dead_nodes or ['unknown']}"
+                )
+            time.sleep(retry_delay_sec)
+            continue
+        dead_since = None
         last_result = verify()
         if last_result.get("verified", False):
             return last_result

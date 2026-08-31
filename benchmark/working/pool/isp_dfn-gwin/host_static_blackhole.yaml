@@ -1,0 +1,291 @@
+scenario:
+  name: isp_dfn-gwin
+failure:
+  fault_type: host_static_blackhole
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: erlangen
+    root_causes:
+    - resource:
+        kind: node
+        node: erlangen
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: essen
+    root_causes:
+    - resource:
+        kind: node
+        node: essen
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: hannover
+    root_causes:
+    - resource:
+        kind: node
+        node: hannover
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: ip
+    root_causes:
+    - resource:
+        kind: node
+        node: ip
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: koeln
+    root_causes:
+    - resource:
+        kind: node
+        node: koeln
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: leipzig
+    root_causes:
+    - resource:
+        kind: node
+        node: leipzig
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: muenchen
+    root_causes:
+    - resource:
+        kind: node
+        node: muenchen
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: stuttgart
+    root_causes:
+    - resource:
+        kind: node
+        node: stuttgart
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: erlangen
+    root_causes:
+    - resource:
+        kind: node
+        node: erlangen
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: essen
+    root_causes:
+    - resource:
+        kind: node
+        node: essen
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hannover
+    root_causes:
+    - resource:
+        kind: node
+        node: hannover
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ip
+    root_causes:
+    - resource:
+        kind: node
+        node: ip
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: koeln
+    root_causes:
+    - resource:
+        kind: node
+        node: koeln
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: leipzig
+    root_causes:
+    - resource:
+        kind: node
+        node: leipzig
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: muenchen
+    root_causes:
+    - resource:
+        kind: node
+        node: muenchen
+      fault_type: host_static_blackhole
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: stuttgart
+    root_causes:
+    - resource:
+        kind: node
+        node: stuttgart
+      fault_type: host_static_blackhole

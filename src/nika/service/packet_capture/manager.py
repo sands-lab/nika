@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import shlex
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from nika.runtime.base import LabRuntime
 from nika.service.packet_capture import artifact, capture_backend, inspect
@@ -74,13 +74,6 @@ class CaptureManager:
             pid_path=meta.pid_path,
             remote_path=meta.remote_path,
         )
-        local_path, digest = artifact.store_artifact(
-            self.runtime,
-            session_dir=self.session_dir,
-            capture_id=capture_id,
-            device=meta.device,
-            remote_path=meta.remote_path,
-        )
         stopped_at = datetime.now(timezone.utc).isoformat()
         meta.status = "stopped"
         meta.stopped_at = stopped_at
@@ -88,13 +81,9 @@ class CaptureManager:
         meta.captured_bytes = stats.captured_bytes
         meta.dropped_packets = stats.dropped_packets
         meta.dumpcap_version = stats.dumpcap_version
-        meta.tshark_version = inspect.tshark_version()
-        meta.sha256 = digest
-        meta.artifact_path = str(
-            Path("packet_captures") / capture_id / "capture.pcapng"
-        )
+        meta.tshark_version = inspect.tshark_version(self.runtime, meta.device)
         artifact.write_meta(self.session_dir, meta.to_dict())
-        return self._stop_payload(meta, local_path=local_path)
+        return self._stop_payload(meta)
 
     def inspect(
         self,
@@ -111,16 +100,25 @@ class CaptureManager:
             raise RuntimeError(
                 f"Capture {capture_id!r} is not stopped yet; call packet_capture_stop first"
             )
-        pcap_path = artifact.artifact_file_path(self.session_dir, capture_id)
-        if not pcap_path.is_file():
-            raise FileNotFoundError(f"Capture artifact missing for {capture_id!r}")
+        quoted_remote = shlex.quote(meta.remote_path)
+        exists = self.runtime.exec(
+            meta.device,
+            f"test -f {quoted_remote} && echo yes || echo no",
+            timeout=5,
+        ).strip()
+        if exists != "yes":
+            raise FileNotFoundError(
+                f"Capture file missing on {meta.device!r}: {meta.remote_path}"
+            )
 
         if display_filter and display_filter not in meta.inspect_display_filters:
             meta.inspect_display_filters.append(display_filter)
             artifact.write_meta(self.session_dir, meta.to_dict())
 
         payload = inspect.inspect_capture(
-            pcap_path,
+            self.runtime,
+            meta.device,
+            meta.remote_path,
             view=view,
             display_filter=display_filter,
             protocol=protocol,
@@ -131,20 +129,18 @@ class CaptureManager:
         return payload
 
     @staticmethod
-    def _stop_payload(meta: CaptureMeta, local_path: Path | None = None) -> dict:
+    def _stop_payload(meta: CaptureMeta) -> dict:
         duration_sec = 0.0
         if meta.started_at and meta.stopped_at:
             start = datetime.fromisoformat(meta.started_at)
             stop = datetime.fromisoformat(meta.stopped_at)
             duration_sec = max(0.0, (stop - start).total_seconds())
         artifact_info = {
-            "path": meta.artifact_path,
-            "sha256": meta.sha256,
+            "device": meta.device,
+            "remote_path": meta.remote_path,
             "dumpcap_version": meta.dumpcap_version,
             "tshark_version": meta.tshark_version,
         }
-        if local_path is not None:
-            artifact_info["local_path"] = str(local_path)
         return {
             "capture_id": meta.capture_id,
             "packet_count": meta.packet_count or 0,

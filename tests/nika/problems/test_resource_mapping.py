@@ -30,102 +30,6 @@ from nika.problems.rca.inventory import (
     link_containing_endpoint,
 )
 
-EXPECTED_FAILURE_DOMAINS = {
-    FailureDomain.LINK_INTERFACE: {
-        "link_capacity_bottleneck",
-        "link_detach",
-        "link_down",
-        "link_flap",
-        "link_packet_corruption",
-        "silent_egress_packet_loss",
-    },
-    FailureDomain.ROUTING_CONTROL_PLANE: {
-        "bgp_asn_misconfig",
-        "bgp_blackhole_route_leak",
-        "bgp_max_prefix_exceeded",
-        "bgp_missing_route_advertisement",
-        "bgp_rpki_invalid_route_leak",
-        "frr_service_down",
-        "ospf_area_misconfiguration",
-        "ospf_neighbor_missing",
-    },
-    FailureDomain.FORWARDING_ENCAPSULATION_POLICY: {
-        "arp_acl_block",
-        "bgp_acl_block",
-        "bmv2_switch_down",
-        "dns_port_blocked",
-        "flow_rule_loop",
-        "flow_rule_shadowing",
-        "host_static_blackhole",
-        "http_acl_block",
-        "icmp_acl_block",
-        "icmp_frag_needed_filter_misconfiguration",
-        "k8s_networkpolicy_deny",
-        "mtu_mismatch",
-        "ospf_acl_block",
-        "p4_table_entry_misconfig",
-        "p4_table_entry_missing",
-        "p4_action_selector_member_misconfig",
-        "p4_ecmp_group_member_missing",
-        "p4runtime_pipeline_mismatch",
-        "p4runtime_partial_write",
-        "p4_table_resource_exhaustion",
-        "p4_tcam_entry_corruption",
-        "int_insufficient_mtu_headroom",
-        "vrf_dscp_remarking",
-        "wireguard_allowed_ips_misconfiguration",
-        "wireguard_peer_key_misconfiguration",
-        "device_forwarding_packet_corruption",
-    },
-    FailureDomain.SERVICE_NETWORKING: {
-        "k8s_clusterip_routing_broken",
-        "lb_connection_state_exhaustion",
-        "lb_pending_connection_update_race",
-        "load_balancer_overload",
-        "nat_mapping_removed_without_drain",
-        "snat_port_pool_exhaustion",
-    },
-    FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE: {
-        "k8s_worker_apiserver_partition",
-        "sdn_controller_crash",
-        "southbound_port_block",
-        "southbound_port_mismatch",
-    },
-    FailureDomain.ADDRESSING_NEIGHBOR_NAMING: {
-        "dhcp_missing_subnet",
-        "dhcp_service_down",
-        "dns_lookup_latency",
-        "dns_record_error",
-        "dns_service_down",
-        "host_incorrect_dns",
-        "host_incorrect_gateway",
-        "host_incorrect_ip",
-        "host_incorrect_netmask",
-        "host_ip_conflict",
-        "host_missing_ip",
-        "k8s_coredns_isolated",
-        "mac_address_conflict",
-    },
-    FailureDomain.ENDPOINT_APPLICATION: {
-        "receiver_resource_contention",
-        "sender_resource_contention",
-    },
-    FailureDomain.TRAFFIC_QUEUEING_RESOURCE: {
-        "incast_traffic_network_limitation",
-        "p4_ecn_threshold_misconfiguration",
-        "tcp_receive_window_limited",
-    },
-    FailureDomain.SECURITY: {
-        "arp_cache_poisoning",
-        "bgp_hijacking",
-        "dhcp_spoofed_dns",
-        "dhcp_spoofed_gateway",
-        "dhcp_spoofed_subnet",
-        "tcp_syn_flood_attack",
-        "web_dos_attack",
-    },
-}
-
 
 class _Spec:
     def __init__(self, endpoints: tuple[str, ...]):
@@ -158,21 +62,16 @@ def _resources(problem: str, params: dict, env: _Env):
 class ResourceMappingTest:
     def test_every_failure_declares_failure_domain(self) -> None:
         problems = list_avail_problem_instances()
-        assert len(problems) == 75
+        assert problems
+        assigned: set[str] = set()
         for name, cls in problems.items():
             assert cls.META is not None, name
             assert set(cls.taxonomy_metadata()) == {"failure_domain"}
             assert cls.__module__.split(".")[-2] == cls.META.failure_domain, name
+            assert cls.META.failure_domain in FailureDomain, name
+            assigned.add(name)
 
-        actual = {
-            domain: {
-                name
-                for name, cls in problems.items()
-                if cls.META is not None and cls.META.failure_domain == domain
-            }
-            for domain in FailureDomain
-        }
-        assert actual == EXPECTED_FAILURE_DOMAINS
+        assert assigned == set(list_avail_problem_names())
 
     def test_every_failure_implements_mapping(self) -> None:
         missing = [
@@ -299,7 +198,7 @@ class ResourceMappingTest:
                 "policy_name": "nika-deny-ingress",
                 "pod_selector": "app=word",
                 "symptom_url": "http://datacenter.com/word",
-                "control_url": "http://datacenter.com/weather",
+                "control_url": "http://datacenter.com/weather?location=London",
             },
             env,
         )

@@ -1,0 +1,35 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: dns_record_error
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dns_server
+      target_domain: local
+      target_website: web99
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_record_error
+  - topo_size: m
+    inject:
+      host_name: dns_server
+      target_domain: local
+      target_website: web1
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_record_error
+  - topo_size: l
+    inject:
+      host_name: dns_server
+      target_domain: local
+      target_website: web3
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_record_error

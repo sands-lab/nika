@@ -29,11 +29,11 @@ from nika.net_env.isp.profiles import (
     normalize_device_profile,
     validate_backend_profile,
 )
-from nika.topology.sndlib.catalog import topology_size_for_name
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
     resolve_scenario_backend,
     resolve_scenario_id,
+    scenario_fixed_topo_size,
     scenario_requires_topo_size,
 )
 from nika.net_env.verify import verify_lab_with_retry
@@ -46,12 +46,15 @@ from nika.utils.logger import (
 )
 from nika.utils.session import Session
 from nika.utils.session_id import make_session_id
+from nika.net_env.isp.identity import (
+    is_isp_base_topology,
+    is_isp_named_special,
+    is_isp_scenario,
+)
 from nika.workflows.validation.static import (
     STATIC_VALIDATION_FILENAME,
     run_static_validation,
 )
-
-ISP_SCENARIO = "isp"
 
 
 def _normalize_topo_size(raw: str | None) -> Literal["s", "m", "l"] | None:
@@ -86,22 +89,42 @@ def _resolve_isp_kwargs(
         "device_profile": device_profile,
     }
     any_provided = any(value is not None for value in provided.values())
-    if scenario != ISP_SCENARIO:
+
+    if is_isp_named_special(scenario):
+        if any_provided:
+            raise ValueError(
+                f"Scenario '{scenario}' uses a fixed protocol profile; omit "
+                "--topo/--igp/--metric-strategy/--constant-metric/--bgp-mode/"
+                "--rpki/--device-profile."
+            )
+        return {}
+
+    if not is_isp_base_topology(scenario):
         if any_provided:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
                 "--metric-strategy/--constant-metric/--bgp-mode/--rpki/"
                 "--device-profile; those flags are only valid for "
-                f"'{ISP_SCENARIO}'."
+                "ISP topology scenarios (e.g. isp_abilene)."
             )
         return {}
+
+    if topo is not None:
+        raise ValueError(
+            f"Scenario '{scenario}' bakes topology into the scenario name; "
+            "omit --topo."
+        )
+    if rpki:
+        raise ValueError(
+            "RPKI requires a named scenario "
+            "(isp_abilene_ebgp_rpki or isp_geant_ebgp_rpki); omit --rpki."
+        )
 
     resolved_backend = resolve_scenario_backend(
         scenario,
         backend=backend,
         default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP,
     )
-    resolved_topo = topo
     resolved_igp = igp if igp is not None else DEFAULT_IGP
     resolved_strategy = (
         metric_strategy if metric_strategy is not None else DEFAULT_METRIC_STRATEGY
@@ -110,7 +133,6 @@ def _resolve_isp_kwargs(
         constant_metric if constant_metric is not None else DEFAULT_CONSTANT_METRIC
     )
     raw_bgp = bgp_mode if bgp_mode is not None else DEFAULT_BGP_MODE
-    resolved_rpki = bool(rpki) if rpki is not None else False
     try:
         resolved_bgp = normalize_bgp_mode(raw_bgp)
     except BgpConfigError as exc:
@@ -119,10 +141,6 @@ def _resolve_isp_kwargs(
         raise ValueError(
             f"Unsupported bgp_mode {resolved_bgp!r}; expected one of {ISP_BGP_MODES}."
         )
-    if resolved_rpki and resolved_bgp != "ebgp":
-        raise ValueError(f"--rpki requires --bgp-mode ebgp (got {resolved_bgp!r}).")
-    if resolved_rpki and resolved_backend != "kathara":
-        raise ValueError("RPKI capability is Kathara/FRR-only; use --backend kathara.")
     if resolved_igp not in SUPPORTED_IGPS:
         raise ValueError(
             f"Unsupported IGP {resolved_igp!r}; expected one of {SUPPORTED_IGPS}."
@@ -148,12 +166,11 @@ def _resolve_isp_kwargs(
         raise ValueError(str(exc)) from exc
 
     return {
-        **({"topo": resolved_topo} if resolved_topo is not None else {}),
         "igp": resolved_igp,
         "metric_strategy": resolved_strategy,
         "constant_metric": resolved_metric,
         "bgp_mode": resolved_bgp,
-        "rpki": resolved_rpki,
+        "rpki": False,
         "device_profile": resolved_profile,
     }
 
@@ -212,8 +229,6 @@ def start_net_env(
         )
 
     size = _normalize_topo_size(topo_size)
-    if canonical == ISP_SCENARIO and size is None:
-        size = topology_size_for_name(topo) if topo is not None else "s"
     if scenario_requires_topo_size(canonical) and size is None:
         raise ValueError(
             f"Scenario '{scenario}' requires an explicit topology size (-s s|m|l)."
@@ -222,6 +237,8 @@ def start_net_env(
         raise ValueError(
             f"Scenario '{scenario}' does not use topology sizes; omit -s/--size."
         )
+    # Fixed ISP scenarios still record s/m/l metadata for session/sampling.
+    recorded_size = size if size is not None else scenario_fixed_topo_size(canonical)
 
     isp_kwargs = _resolve_isp_kwargs(
         canonical,
@@ -235,7 +252,7 @@ def start_net_env(
         backend=backend,
     )
 
-    default_backend = DEFAULT_BACKEND_FOR_ISP if canonical == ISP_SCENARIO else None
+    default_backend = DEFAULT_BACKEND_FOR_ISP if is_isp_scenario(canonical) else None
     resolved_backend = resolve_scenario_backend(
         canonical,
         backend=backend,
@@ -254,7 +271,8 @@ def start_net_env(
         session_tag=session_tag, suffix=suffix
     )
     net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
-    if size is not None:
+    # Do not pass topo_size into ISP labs (topology is baked into scenario ID).
+    if size is not None and not is_isp_scenario(canonical):
         net_env_kwargs["topo_size"] = size
     net_env = get_net_env_instance(
         canonical, backend=resolved_backend, **net_env_kwargs
@@ -266,8 +284,10 @@ def start_net_env(
 
     session = Session()
     scenario_params: dict = {"lab_name": net_env.name, "backend": resolved_backend}
-    if size is not None:
-        scenario_params["topo_size"] = size
+    if recorded_size is not None:
+        scenario_params["topo_size"] = recorded_size
+    if is_isp_scenario(canonical):
+        scenario_params["topo"] = getattr(net_env, "topo", None)
     scenario_params.update(isp_kwargs)
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
@@ -276,7 +296,7 @@ def start_net_env(
         session_id=resolved_session_id,
         scenario_name=canonical,
         lab_name=net_env.name,
-        scenario_topo_size=size,
+        scenario_topo_size=recorded_size,
         scenario_params=scenario_params,
         result_dir=result_dir,
         session_dir=session_dir,
@@ -337,6 +357,34 @@ def start_net_env(
         elif not net_env.lab_exists():
             net_env.deploy()
 
+        if hasattr(net_env, "preload_workload_images"):
+            try:
+                net_env.preload_workload_images()
+            except Exception as preload_exc:  # noqa: BLE001 - fallback to network pulls
+                log_error_event(
+                    "env_preload_failed",
+                    f"Workload image preload failed for {scenario} ({net_env.name}): {preload_exc}",
+                    scenario=scenario,
+                    session_id=resolved_session_id,
+                    lab_name=net_env.name,
+                    error=str(preload_exc),
+                    error_type=type(preload_exc).__name__,
+                )
+
+        if hasattr(net_env, "sync_client_hosts"):
+            try:
+                net_env.sync_client_hosts()
+            except Exception as sync_exc:  # noqa: BLE001 - verify will retry sync
+                log_error_event(
+                    "env_sync_hosts_failed",
+                    f"Client hosts sync failed for {scenario} ({net_env.name}): {sync_exc}",
+                    scenario=scenario,
+                    session_id=resolved_session_id,
+                    lab_name=net_env.name,
+                    error=str(sync_exc),
+                    error_type=type(sync_exc).__name__,
+                )
+
         verify_result = verify_lab_with_retry(net_env)
         if verify_result is not None:
             validation_payload = (verify_result.get("details") or {}).get("validation")
@@ -389,7 +437,7 @@ def start_net_env(
                 f"Failed to start network environment: {scenario} ({resolved_session_id}): {exc}",
                 scenario=scenario,
                 backend=resolved_backend,
-                topo_size=size,
+                topo_size=recorded_size,
                 session_id=resolved_session_id,
                 lab_name=net_env.name,
                 error=str(exc),
@@ -401,7 +449,7 @@ def start_net_env(
                 f"Interrupted while starting network environment: {scenario} ({resolved_session_id}): {type(exc).__name__}",
                 scenario=scenario,
                 backend=resolved_backend,
-                topo_size=size,
+                topo_size=recorded_size,
                 session_id=resolved_session_id,
                 lab_name=net_env.name,
                 error=str(exc) or type(exc).__name__,
@@ -428,10 +476,10 @@ def start_net_env(
 
     log_event(
         "env_start",
-        f"Started network environment: {scenario} (backend={resolved_backend}, size={size}) — session {resolved_session_id}, lab {net_env.name}",
+        f"Started network environment: {scenario} (backend={resolved_backend}, size={recorded_size}) — session {resolved_session_id}, lab {net_env.name}",
         scenario=scenario,
         backend=resolved_backend,
-        topo_size=size,
+        topo_size=recorded_size,
         session_id=resolved_session_id,
         lab_name=net_env.name,
         metadata=getattr(net_env, "metadata", None) or metadata,

@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
-from functools import lru_cache
-from typing import Any
-
-from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import (
     list_all_net_envs,
     resolve_scenario_id,
     scenario_requires_topo_size,
 )
 from nika.problems.registry import list_avail_problem_names
+from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 
 _SIZE_TOKENS = ("s", "m", "l")
 
@@ -61,7 +57,7 @@ def resolve_default_inject_params(
     overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Resolve default inject params for a task label."""
-    params = dict(_load_resolve_inject_params()(problem, scenario, topo_size or ""))
+    params = dict(resolve_inject_params(problem, scenario, topo_size or ""))
     if overrides:
         params.update(overrides)
     return params
@@ -76,19 +72,3 @@ def _iter_label_triples() -> list[tuple[str, str, str]]:
             else:
                 triples.append((scenario, problem, ""))
     return triples
-
-
-@lru_cache(maxsize=1)
-def _load_resolve_inject_params() -> Any:
-    path = BENCHMARK_DIR / "inject_resolve.py"
-    if not path.is_file():
-        raise FileNotFoundError(f"Missing inject resolver at {path}")
-    spec = importlib.util.spec_from_file_location("nika_benchmark_inject_resolve", path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load inject resolver from {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    fn = getattr(module, "resolve_inject_params", None)
-    if fn is None:
-        raise ImportError(f"{path} has no resolve_inject_params")
-    return fn

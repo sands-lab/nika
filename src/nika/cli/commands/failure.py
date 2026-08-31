@@ -46,7 +46,10 @@ def failure_inject(
     sets: list[str] | None = typer.Option(
         None,
         "--set",
-        help="Override injection parameters as key=value. Repeat the flag for multiple values.",
+        help=(
+            "Override injection parameters as key=value. For multiple problems use "
+            "problem.field=value (e.g. mtu_mismatch.host_name=leaf1)."
+        ),
     ),
 ) -> None:
     """Inject one or more faults for the current session."""

@@ -1,0 +1,12 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: icmp_frag_needed_filter_misconfiguration

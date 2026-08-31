@@ -15,6 +15,8 @@ from nika.run_config.legacy import warn_legacy_operational_env
 from nika.utils.agent_config import apply_custom_provider_env
 from nika.workflows.benchmark.release import (
     ReleaseError,
+    freeze_split_release,
+    is_deprecated_release,
     list_releases,
     load_release,
     normalize_split,
@@ -23,6 +25,7 @@ from nika.workflows.benchmark.release import (
     resolve_release_dir,
 )
 from nika.workflows.benchmark.run import (
+    default_benchmark_yaml_path,
     run_benchmark_from_release,
     run_benchmark_from_yaml,
     run_single_case,
@@ -75,14 +78,19 @@ def benchmark_releases() -> None:
         return
     failures = 0
     for version in versions:
+        if is_deprecated_release(version):
+            typer.secho(
+                f"DEPRECATED {version}: retained for provenance; not runnable",
+                fg=typer.colors.YELLOW,
+            )
+            continue
         try:
             split = _default_split_for_version(version)
-            release = load_release(version, split=split, verify_digest=True)
+            release = load_release(version, split=split)
             preflight_release(release, check_images=True)
             typer.echo(
                 f"OK {release.ref}  cases={release.case_count}  "
-                f"n_trials={release.n_trials}  "
-                f"digest={release.benchmark_digest}"
+                f"n_trials={release.n_trials}"
             )
         except ReleaseError as exc:
             failures += 1
@@ -197,7 +205,7 @@ def benchmark_run(
         "--case-timeout",
         help=(
             "Batch mode: hard per-case watchdog in seconds. "
-            "Defaults from run config / release when omitted."
+            "Defaults from run config when omitted."
         ),
     ),
     continue_on_error: bool | None = typer.Option(
@@ -219,8 +227,8 @@ def benchmark_run(
 ) -> None:
     """Run a frozen release, an ad-hoc YAML batch, or a single case.
 
-    Batch mode requires explicit ``--config`` or ``--release`` (no bare default),
-    unless ``benchmark.release`` is set in the run config.
+    With no explicit mode or configured release, batch mode runs the generated
+    benchmark candidate catalog.
     """
     warn_legacy_operational_env()
     cfg = load_run_config(run_config)
@@ -322,10 +330,7 @@ def benchmark_run(
         )
 
     if config is None and resolved_release is None:
-        raise typer.BadParameter(
-            "Pass --config PATH or --release REF "
-            "(e.g. --release 0.1.0), or set benchmark.release in config/nika.yaml."
-        )
+        config = Path(default_benchmark_yaml_path())
 
     if config is not None:
         run_benchmark_from_yaml(
@@ -367,15 +372,87 @@ def benchmark_run(
             resume=resolved_resume,
             session_tag=resolved_session_tag,
             case_timeout=(
-                case_timeout
-                if case_timeout is not None
-                else (bench.case_timeout_sec or None)
+                case_timeout if case_timeout is not None else bench.case_timeout_sec
             ),
             continue_on_error=resolved_continue,
             retry_passes=resolved_retry,
         )
     except (ReleaseError, ValueError) as exc:
         _exit_release_error(exc)
+
+
+@benchmark_app.command("generate")
+def benchmark_generate(
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Pool directory (default: benchmark/working/pool).",
+    ),
+) -> None:
+    """Generate the executable candidate pool under ``benchmark/working/pool``."""
+    from nika.workflows.benchmark.generate import generate_candidate_catalog
+
+    catalog_dir, report = generate_candidate_catalog(out_path=output)
+    typer.echo(
+        f"Generated {report['summary']['candidate_files']} candidate files "
+        f"({report['summary']['concrete_inject_options']} inject options) → {catalog_dir}"
+    )
+
+
+@benchmark_app.command("select")
+def benchmark_select(
+    pool: Path | None = typer.Option(
+        None,
+        "--pool",
+        help="Candidate pool directory (default: benchmark/working/pool).",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Selected cases path (default: benchmark/working/cases.yaml).",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Selection random seed."),
+    skip_audit: bool = typer.Option(
+        False,
+        "--skip-audit",
+        help="Skip pool audit gate (not recommended).",
+    ),
+) -> None:
+    """Select a compact subset from the audited candidate pool."""
+    from nika.workflows.benchmark.select_catalog import write_selected_catalog
+
+    try:
+        coverage = write_selected_catalog(
+            pool=pool,
+            output=output,
+            seed=seed,
+            skip_audit=skip_audit,
+        )
+    except ValueError as exc:
+        _exit_release_error(exc)
+    summary = coverage["summary"]
+    typer.echo("selected benchmark")
+    for key, value in summary.items():
+        typer.echo(f"  {key}: {value}")
+    typer.echo(f"Wrote {coverage['output']}")
+
+
+@benchmark_app.command("freeze")
+def benchmark_freeze(
+    version: str = typer.Option(..., "--version", help="Immutable release version."),
+    source: Path = typer.Option(
+        Path("benchmark/working/release-candidate"),
+        "--source",
+        help="Validated directory containing dev.yaml and test.yaml.",
+    ),
+) -> None:
+    """Freeze a validated Dev/Test candidate as a benchmark release."""
+    try:
+        release = freeze_split_release(version=version, source_dir=source)
+        preflight_release(release, check_images=False)
+    except (ReleaseError, ValueError) as exc:
+        _exit_release_error(exc)
+    typer.echo(f"Frozen {release.ref} under {release.root}")
 
 
 @benchmark_app.command("migrate")

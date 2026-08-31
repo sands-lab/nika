@@ -24,6 +24,7 @@ class OSPFAreaMisconfigParams(BaseModel):
 class OSPFAreaMisconfig(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name: str = "ospf_area_misconfiguration"
+    description = "OSPF area is misconfigured between neighbors."
     effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
@@ -105,6 +106,7 @@ class OSPFNeighborMissingParams(BaseModel):
 class OSPFNeighborMissing(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name: str = "ospf_neighbor_missing"
+    description = "Expected OSPF neighbor adjacency is missing."
     effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]

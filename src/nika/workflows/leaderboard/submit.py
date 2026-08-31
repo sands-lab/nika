@@ -90,7 +90,7 @@ def _default_pr_body(package_dir: Path, remote_path: str) -> str:
         f"- Package path: `{remote_path}`\n\n"
         f"Opened by `nika leaderboard submit`.\n\n"
         f"Please follow the PR checklist in "
-        f"https://github.com/sands-lab/nika/blob/main/docs/leaderboard-submission.md\n"
+        f"https://github.com/sands-lab/nika/blob/main/docs/benchmarks/leaderboard-submission.md\n"
     )
 
 

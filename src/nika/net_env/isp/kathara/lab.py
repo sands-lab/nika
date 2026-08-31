@@ -34,7 +34,6 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
-from nika.topology.sndlib.catalog import topology_for_size
 from nika.net_env.isp.contract import (
     IspValidationPolicy,
     build_isp_validation_contract,
@@ -60,7 +59,7 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
 class Isp(NetworkEnvBase):
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
+    TOPO_SIZE = None
     TAGS = [
         "isp",
         "sndlib",
@@ -68,7 +67,6 @@ class Isp(NetworkEnvBase):
         "isis",
         "ospf",
         "bgp",
-        "rpki",
         "igp",
         "link",
         "icmp",
@@ -82,8 +80,10 @@ class Isp(NetworkEnvBase):
         constant_metric: int = DEFAULT_CONSTANT_METRIC,
         bgp_mode: IspBgpMode | str = DEFAULT_BGP_MODE,
         rpki: bool = False,
+        rtbh: bool = False,
         device_profile: str | None = None,
         topo_size: str | None = None,
+        scenario_id: str | None = None,
         **kwargs,
     ):
         # Ignore legacy kwargs from old sessions.
@@ -91,12 +91,31 @@ class Isp(NetworkEnvBase):
         kwargs.pop("traffic_scale", None)
         super().__init__(**kwargs)
 
-        self.topo = topo if topo is not None else topology_for_size(topo_size or "s")
+        if topo_size is not None:
+            raise ValueError(
+                "ISP topology identity is the scenario name "
+                "(e.g. isp_abilene); do not pass topo_size."
+            )
+        if topo is None:
+            raise ValueError(
+                "ISP requires an explicit topo (supplied by scenario deploy_defaults)."
+            )
+        self.topo = topo
+        if scenario_id is not None:
+            self.scenario_id = scenario_id
+        elif isinstance(topo, str) and not str(topo).endswith(".xml"):
+            self.scenario_id = f"isp_{topo}"
+        else:
+            raise ValueError(
+                "ISP requires scenario_id when topo is a path/XML file "
+                "(e.g. scenario_id='isp_abilene')."
+            )
         self.igp = igp
         self.metric_strategy = metric_strategy
         self.constant_metric = constant_metric
         raw_mode = bgp_mode if isinstance(bgp_mode, str) else bgp_mode
         self.rpki = bool(rpki)
+        self.rtbh = bool(rtbh)
         self.bgp_mode: IspBgpMode = normalize_bgp_mode(
             raw_mode if isinstance(raw_mode, str) else raw_mode
         )
@@ -104,6 +123,12 @@ class Isp(NetworkEnvBase):
             raise ValueError(
                 f"RPKI capability requires bgp_mode 'ebgp' (got {self.bgp_mode!r})."
             )
+        if self.rtbh and self.bgp_mode != "ebgp":
+            raise ValueError(
+                f"RTBH capability requires bgp_mode 'ebgp' (got {self.bgp_mode!r})."
+            )
+        if self.rpki and self.rtbh:
+            raise ValueError("RPKI and RTBH capabilities are mutually exclusive.")
         from nika.net_env.isp.profiles import (
             default_device_profile,
             normalize_device_profile,
@@ -122,7 +147,7 @@ class Isp(NetworkEnvBase):
         )
         base_plan = compile_isp_plan(config)
         self.bgp_plan: BgpPlan | None = compile_bgp_plan(
-            base_plan, self.bgp_mode, rpki=self.rpki
+            base_plan, self.bgp_mode, rpki=self.rpki, rtbh=self.rtbh
         )
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
         # Always attach edge stub hosts so traffic CLI can choose demands/dynamic later.
@@ -141,6 +166,7 @@ class Isp(NetworkEnvBase):
             traffic=self.traffic,
             bgp_plan=self.bgp_plan,
             policy=self.validation_policy,
+            scenario=self.scenario_id,
         )
         self.inventory = dict(self.plan.inventory)
         if self.bgp_plan is not None:
@@ -159,8 +185,8 @@ class Isp(NetworkEnvBase):
         self.VERIFY_MAX_WAIT_SEC = wait
         self.VERIFY_RETRY_DELAY_SEC = 5.0
 
-        self.lab = Lab(self.LAB_NAME)
-        self.name = self.LAB_NAME
+        self.lab = Lab(self.scenario_id)
+        self.name = self.scenario_id
         self.instance = Kathara.get_instance()
         bgp_desc = (
             f"BGP={self.bgp_mode}."
@@ -397,6 +423,17 @@ class Isp(NetworkEnvBase):
             f"Inventory nodes: {inv['node_count']}; links: {inv['link_count']}",
         ]
         return "\n".join(lines)
+
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.isp.kathara.verify import verify_isp_lab_startup
+
+        return verify_isp_lab_startup(
+            self._build_runtime(),
+            plan=self.plan,
+            bgp_plan=self.bgp_plan,
+            traffic=self.traffic,
+            scenario_name=self.LAB_NAME,
+        )
 
     def verify_lab(self) -> dict:
         from nika.net_env.isp.kathara.verify import verify_isp_lab

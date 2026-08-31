@@ -47,8 +47,9 @@ class WorkerApiServerPartitionParams(K8sParams):
     apiserver_address: str = Field(
         default="",
         description=(
-            "API server address to block. Defaults to the control-plane node's "
-            "InternalIP, which is what the k3s agent connects to."
+            "Single API server address to block. When empty, blocks TCP/6443 to "
+            "the control-plane eth0 address and Kubernetes Node InternalIP so the "
+            "k3s agent cannot fail over between those paths."
         ),
     )
 
@@ -56,6 +57,7 @@ class WorkerApiServerPartitionParams(K8sParams):
 class WorkerApiServerPartition(K8sProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name: str = "k8s_worker_apiserver_partition"
+    description = "Worker is partitioned from the Kubernetes API server."
     symptom_desc = (
         "One Kubernetes worker node reports NotReady and stops receiving new pods, "
         "and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while "
@@ -84,38 +86,45 @@ class WorkerApiServerPartition(K8sProblemBase):
             self.target_device = workers[0]
         return self.target_device
 
-    def _apiserver_address(
+    def _apiserver_addresses(
         self, params: WorkerApiServerPartitionParams, k8s: Any
-    ) -> str:
+    ) -> list[str]:
         if params.apiserver_address:
-            return params.apiserver_address
+            return [params.apiserver_address]
 
         control = self.control_node(params)
+        # Agents join via K3S_URL=https://<control>:6443 (lab eth0 /etc/hosts),
+        # but after that path is cut they can fail over to the Kubernetes Node
+        # InternalIP (often a docker-bridge address on eth1). Block both.
+        addresses: list[str] = []
+        lab_ip = self.runtime.get_host_ip(control)
+        if lab_ip:
+            addresses.append(str(lab_ip))
+
         control_node_name = k8s.k8s_node_for_device(
             control, control, devices=self.cluster_nodes()
         )
         for entry in k8s.k8s_nodes(control):
             if entry.get("name") == control_node_name and entry.get("internal_ip"):
-                return str(entry["internal_ip"])
+                addresses.append(str(entry["internal_ip"]))
+                break
 
-        address = self.runtime.get_host_ip(control)
-        if not address:
+        # Preserve order, drop duplicates.
+        unique = list(dict.fromkeys(addresses))
+        if not unique:
             raise ValueError(
                 f"Cannot resolve the API server address for {control!r}: the node has "
-                "no InternalIP and no address on its first interface. Pass "
+                "no address on its first interface and no InternalIP. Pass "
                 "--set apiserver_address=<ip>."
             )
-        return address
+        return unique
 
     def _drop_specs(
         self, params: WorkerApiServerPartitionParams, k8s: Any
     ) -> list[DropSpec]:
         return [
-            DropSpec(
-                self._apiserver_address(params, k8s),
-                protocol="tcp",
-                port=params.apiserver_port,
-            )
+            DropSpec(address, protocol="tcp", port=params.apiserver_port)
+            for address in self._apiserver_addresses(params, k8s)
         ]
 
     def root_cause_resources(self, params: WorkerApiServerPartitionParams):
@@ -163,7 +172,8 @@ class WorkerApiServerPartition(K8sProblemBase):
         )
         specs = self._drop_specs(params, k8s)
         node_filter = NodeFilter(self.runtime, device)
-        apiserver_address = specs[0].destination
+        apiserver_addresses = [spec.destination for spec in specs]
+        apiserver_address = apiserver_addresses[0]
 
         def evaluate() -> tuple[bool, dict[str, Any]]:
             unfiltered = [
@@ -208,9 +218,11 @@ class WorkerApiServerPartition(K8sProblemBase):
                 )
                 logs_blocked = not result.ok
 
-            apiserver_reachable = node_filter.tcp_reachable(
-                apiserver_address, params.apiserver_port
-            )
+            reachable_paths = {
+                address: node_filter.tcp_reachable(address, params.apiserver_port)
+                for address in apiserver_addresses
+            }
+            apiserver_reachable = any(reachable_paths.values())
             # Ping still works: this is a port-scoped partition, not a dead node.
             control_pingable = self.runtime.ping_ok(device, apiserver_address, count=2)
 
@@ -218,6 +230,7 @@ class WorkerApiServerPartition(K8sProblemBase):
                 "target_device": device,
                 "k8s_node": node_name,
                 "apiserver_address": apiserver_address,
+                "apiserver_addresses": apiserver_addresses,
                 "apiserver_port": params.apiserver_port,
                 "blocked_specs": [spec.describe() for spec in specs],
                 "unfiltered": unfiltered,
@@ -228,6 +241,7 @@ class WorkerApiServerPartition(K8sProblemBase):
                 "logs_probe_pod": logs_probe_pod,
                 "kubectl_logs_blocked": logs_blocked,
                 "apiserver_port_reachable": apiserver_reachable,
+                "apiserver_port_reachable_by_address": reachable_paths,
                 "node_still_pingable": control_pingable,
             }
 

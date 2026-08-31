@@ -1,4 +1,4 @@
-"""Offline ground-truth helpers used by generate_benchmark and migrate."""
+"""Offline ground-truth helpers used by catalog generation and migrate."""
 
 from __future__ import annotations
 
@@ -44,6 +44,47 @@ def build_multi_ground_truth(
     )
 
 
+def ground_truth_for_multi_case(
+    *,
+    problems: list[str],
+    params: dict[str, dict[str, str]],
+    scenario: str,
+    topo_size: str = "",
+    net_env: Any = None,
+    topo: str | None = None,
+    igp: str | None = None,
+    bgp_mode: str | None = None,
+    rpki: bool | None = None,
+) -> ProblemGroundTruth:
+    from nika.problems.rca.inventory import load_offline_net_env
+    from nika.problems.registry import get_problem_class
+
+    env = net_env
+    if env is None:
+        env = load_offline_net_env(
+            scenario,
+            topo_size,
+            topo=topo,
+            igp=igp,
+            bgp_mode=bgp_mode,
+            rpki=rpki,
+        )
+    sub_faults: list[Any] = []
+    for problem in problems:
+        cls = get_problem_class(problem)
+        if cls is None:
+            raise UnresolvedRootCauseError(f"Unknown failure {problem!r}.")
+        instance = cls.__new__(cls)
+        instance.root_cause_name = cls.root_cause_name
+        instance.symptom_desc = getattr(cls, "symptom_desc", "") or ""
+        instance.net_env = env
+        instance.scenario_name = scenario
+        instance._resolved_params = None
+        instance.parse_params(params[problem])
+        sub_faults.append(instance)
+    return build_multi_ground_truth(sub_faults, failure_domain="multiple_faults")
+
+
 def ground_truth_for_case(
     *,
     problem: str,
@@ -63,6 +104,7 @@ def ground_truth_for_case(
     instance.root_cause_name = cls.root_cause_name
     instance.symptom_desc = getattr(cls, "symptom_desc", "") or ""
     instance.net_env = env
+    instance.scenario_name = scenario
     instance._resolved_params = None
     instance.parse_params(params)
     return instance.get_ground_truth()

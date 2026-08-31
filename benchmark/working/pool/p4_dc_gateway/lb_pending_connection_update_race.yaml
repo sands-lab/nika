@@ -1,0 +1,35 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: lb_pending_connection_update_race
+  cases:
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+      learning_delay_ms: '5'
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_pending_connection_update_race
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      learning_delay_ms: '5'
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_pending_connection_update_race
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      learning_delay_ms: '5'
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_pending_connection_update_race

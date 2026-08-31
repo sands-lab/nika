@@ -34,12 +34,14 @@ def build_isp_validation_contract(
     traffic: IspTrafficAttachment,
     bgp_plan: BgpPlan | None = None,
     policy: IspValidationPolicy = IspValidationPolicy(),
+    scenario: str | None = None,
 ) -> ValidationContract:
     """Compile stable concrete intents from ISP topology and routing design."""
     catalog = _catalog(plan, traffic, bgp_plan, policy)
     endpoints = catalog.expand(EntitySelector(kind="group", value="edge_endpoints"))
     baseline_endpoints = _baseline_endpoints(endpoints, bgp_plan)
     intents: list[ValidationIntent] = []
+    scenario_id = scenario or f"isp_{plan.topology_name}"
 
     if len(baseline_endpoints) >= 2:
         source, destination = baseline_endpoints
@@ -166,7 +168,7 @@ def build_isp_validation_contract(
             f"isp.{plan.topology_name}.{plan.igp}.{plan.metric_strategy}."
             f"{plan.constant_metric}.{bgp_plan.mode if bgp_plan else 'none'}"
         ),
-        scenario="isp",
+        scenario=scenario_id,
         design_source={
             "topology": plan.topology_name,
             "igp": plan.igp,

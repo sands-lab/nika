@@ -132,7 +132,10 @@ def get_problem_instance(
             for fault_name in resolved
         ]
         return MultiFaultProblem(
-            sub_faults=sub_faults, scenario_name=scenario_name, **kwargs
+            sub_faults=sub_faults,
+            problem_names=resolved,
+            scenario_name=scenario_name,
+            **kwargs,
         )
 
     return _PROBLEMS[resolved[0]](scenario_name=scenario_name, **kwargs)

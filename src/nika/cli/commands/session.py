@@ -24,6 +24,9 @@ def _failure_summary(session: dict) -> str:
         if len(injections) == 1:
             return str(injections[0].get("problem_name", "—"))
         return "1"
+    problem_names = session.get("problem_names")
+    if isinstance(problem_names, list) and len(problem_names) > 1:
+        return "+".join(str(name) for name in problem_names)
     return str(n_failures)
 
 

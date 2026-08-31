@@ -1,0 +1,18 @@
+scenario:
+  name: isp_geant_ebgp_rpki
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: at1_at
+      intf_name: eth0
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: at1_at
+        name: eth0
+      fault_type: mtu_mismatch

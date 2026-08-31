@@ -1,0 +1,125 @@
+scenario:
+  name: isp_abilene_ebgp_rpki
+failure:
+  fault_type: icmp_acl_block
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_atlam5
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_atlang
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_atlang
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_chinng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_chinng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_dnvrng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_dnvrng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_hstnng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_hstnng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_iplsng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_iplsng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_kscyng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kscyng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_losang
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_losang
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_nycmng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_nycmng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_snvang
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_snvang
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_sttlng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_sttlng
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_washng
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_washng
+      fault_type: icmp_acl_block

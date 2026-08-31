@@ -1,0 +1,15 @@
+scenario:
+  name: isp_abilene_ebgp_rpki
+failure:
+  fault_type: bgp_rpki_invalid_route_leak
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kscyng
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_rpki_invalid_route_leak

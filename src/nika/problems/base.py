@@ -77,13 +77,16 @@ class ProblemBase:
 
     failure_domain: ClassVar[FailureDomain | str | None] = None
     root_cause_name: ClassVar[str] = ""
+    # Short meaning of the failure ID for agent ontology / registry.
+    # Must not leak injection method, artifacts, or differential probe shortcuts.
+    description: ClassVar[str] = ""
     symptom_desc: ClassVar[str] = ""
     Params: ClassVar[type[BaseModel] | None] = None
     META: ClassVar[ProblemMeta | None] = None
     TAGS: ClassVar[list[str]] = []
     # Optional coverage-column ids when TAGS alone would match too broadly.
     # ``None`` means TAGS subset matching only. Values are column ids as in
-    # ``coverage_columns`` (scenario name, or ``isp/<config>``).
+    # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
@@ -115,7 +118,11 @@ class ProblemBase:
             domain = cls.__dict__.get("failure_domain")
             name = cls.__dict__.get("root_cause_name")
             if domain is not None and isinstance(name, str) and name:
-                description = cls.__dict__.get("symptom_desc") or name
+                description = (
+                    cls.__dict__.get("description")
+                    or cls.__dict__.get("symptom_desc")
+                    or name
+                )
                 cls.META = ProblemMeta(
                     failure_domain=domain,
                     root_cause_name=name,

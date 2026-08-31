@@ -81,6 +81,7 @@ class WebDoSParams(BaseModel):
 class WebDoS(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name: str = "web_dos_attack"
+    description = "Web service is under a denial-of-service attack."
     symptom_desc: str = "Users reports high latency when accessing some web services."
     TAGS: list[str] = ["http"]
     COMPATIBLE_COLUMNS = frozenset(

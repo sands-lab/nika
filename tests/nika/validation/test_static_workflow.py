@@ -19,7 +19,7 @@ def _contract(scenario: str) -> ValidationContract:
 def test_unsupported_environment_skips_static_validation(tmp_path) -> None:
     reports = run_static_validation(
         net_env=SimpleNamespace(backend="containerlab", device_profile="frr"),
-        contract=_contract("isp"),
+        contract=_contract("isp_abilene"),
         artifact_dir=tmp_path,
     )
     assert reports == {}
@@ -66,7 +66,7 @@ def test_supported_environment_uses_internal_batfish_defaults(
     )
     reports = run_static_validation(
         net_env=env,
-        contract=_contract("isp"),
+        contract=_contract("isp_abilene"),
         artifact_dir=tmp_path,
     )
 

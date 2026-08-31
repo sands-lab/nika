@@ -77,6 +77,7 @@ class TcpReceiveWindowLimited(ProblemBase):
 
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
     root_cause_name: str = "tcp_receive_window_limited"
+    description = "Receiver TCP window/buffer is too small for the path."
     TAGS: list[str] = ["http"]
     # Temporary: needs privileged hosts + enough path BDP (WAN RTT).
     COMPATIBLE_COLUMNS = frozenset({"enterprise_branch"})

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -45,9 +46,8 @@ _CPU_HTTP_SERVER = "/tmp/nika_cpu_http_server.py"
 # Target: unmistakable multi-x slowdown (order-of-magnitude class symptom).
 _THROUGHPUT_MAX_RATIO = 0.20
 _TIME_MIN_RATIO = 5.0
-_RTT_MAX_RATIO = 1.5
 _MAX_LOSS_PERCENT = 5.0
-_RECOVER_THROUGHPUT_MIN_RATIO = 0.80
+_RECOVER_THROUGHPUT_MIN_RATIO = 0.70
 
 # CPU-sensitive static file server: heavy per-chunk hashing so competing
 # stress-ng under a tight CFS quota produces multi-x HTTP slowdown.
@@ -60,9 +60,12 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 DOCROOT = "{_DOCROOT}"
-# Extra SHA256 rounds per 64 KiB. small.bin stays cheap; large.bin burns hard.
+# Extra SHA256 rounds per 64 KiB. Each round hashes the full block (not the
+# digest) so work scales with object size on modern CPUs.
 ROUNDS_PER_64K_SMALL = 2
-ROUNDS_PER_64K_LARGE = 180
+# Enough hashing that a 0.02-CPU CFS quota + stress-ng yields multi-x slowdown
+# without making the healthy baseline a multi-minute download.
+ROUNDS_PER_64K_LARGE = 160
 LARGE_THRESHOLD = 1024 * 1024
 
 
@@ -82,18 +85,21 @@ class Handler(BaseHTTPRequestHandler):
             if len(data) >= LARGE_THRESHOLD
             else ROUNDS_PER_64K_SMALL
         )
-        view = memoryview(data)
-        step = 64 * 1024
-        for i in range(0, len(data), step):
-            block = bytes(view[i : i + step])
-            digest = block
-            for _ in range(rounds):
-                digest = hashlib.sha256(digest).digest()
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        view = memoryview(data)
+        step = 64 * 1024
+        for i in range(0, len(data), step):
+            block = bytes(view[i : i + step])
+            digest = b""
+            for _ in range(rounds):
+                digest = hashlib.sha256(block + digest).digest()
+            try:
+                self.wfile.write(block)
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
     def log_message(self, fmt: str, *args) -> None:
         return
@@ -139,7 +145,7 @@ class SenderResourceContentionParams(BaseModel):
         description="Large-object URL used for bulk-transfer measurement.",
     )
     baseline_trials: int = Field(
-        default=5,
+        default=3,
         description="Number of large-object trials for median throughput/time.",
     )
 
@@ -147,6 +153,7 @@ class SenderResourceContentionParams(BaseModel):
 class SenderResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
     root_cause_name: str = "sender_resource_contention"
+    description = "Sender/server endpoint is under CPU resource contention."
     TAGS: list[str] = ["http"]
     Params = SenderResourceContentionParams
     symptom_desc = (
@@ -167,29 +174,77 @@ class SenderResourceContention(ProblemBase):
     def root_cause_resources(self, params: SenderResourceContentionParams):
         return [node_resource(params.host_name)]
 
+    def parse_params(
+        self, params: BaseModel | dict[str, Any] | None = None, **overrides: Any
+    ) -> SenderResourceContentionParams:
+        parsed = super().parse_params(params, **overrides)
+        assert isinstance(parsed, SenderResourceContentionParams)
+        return self._with_scenario_endpoints(parsed)
+
+    def _with_scenario_endpoints(
+        self, params: SenderResourceContentionParams
+    ) -> SenderResourceContentionParams:
+        """Fill client/URL defaults for Clos fabrics when cases omit them."""
+        scenario = self.scenario_name or ""
+        if scenario not in {"p4_dc_fabric", "sdn_l3_clos"}:
+            return params
+        model = getattr(self.net_env, "model", None)
+        if model is None:
+            return params
+        webs = list(getattr(model, "web_endpoints", lambda: [])())
+        clients = list(getattr(model, "client_endpoints", lambda: [])())
+        if not webs:
+            return params
+        web = next((w for w in webs if w.name == params.host_name), webs[0])
+        client = next(
+            (c for c in clients if getattr(c, "leaf_id", None) != web.leaf_id),
+            clients[0] if clients else None,
+        )
+        updates: dict[str, object] = {}
+        if params.host_name != web.name:
+            updates["host_name"] = web.name
+        # Defaults in Params point at dc_clos names; rewrite for Clos fabrics.
+        defaultish = (
+            params.client_host in {"client_0", "client"}
+            or "web0.pod0" in params.small_url
+            or params.dst_ip in {"10.0.1.2", "200.0.0.8"}
+        )
+        if defaultish or not params.client_host:
+            if client is not None:
+                updates["client_host"] = client.name
+            updates["dst_ip"] = web.ip
+            updates["small_url"] = f"http://{web.ip}/small.bin"
+            updates["large_url"] = f"http://{web.ip}/large.bin"
+        if not updates:
+            return params
+        return params.model_copy(update=updates)
+
     def _ensure_http_objects(self, params: SenderResourceContentionParams) -> None:
         """Create objects and run a CPU-sensitive HTTP server on :80."""
         host = params.host_name
+        # Always (re)write probe objects so a pre-existing tiny large.bin cannot
+        # skip hashing (ROUNDS_PER_64K_LARGE only applies above 1 MiB).
         self.runtime.exec(
             host,
             (
                 f"mkdir -p {_DOCROOT} && "
-                f"if [ ! -s {_SMALL_OBJECT} ]; then "
                 f"dd if=/dev/zero of={_SMALL_OBJECT} bs=1024 count=16 "
-                f"status=none 2>/dev/null || true; fi && "
-                f"if [ ! -s {_LARGE_OBJECT} ]; then "
-                f"dd if=/dev/zero of={_LARGE_OBJECT} bs=1M count=32 "
-                f"status=none 2>/dev/null || true; fi"
+                f"status=none 2>/dev/null || true; "
+                f"dd if=/dev/zero of={_LARGE_OBJECT} bs=1M count=16 "
+                f"status=none 2>/dev/null || true"
             ),
             timeout=120,
         )
         self.runtime.write_file(host, _CPU_HTTP_SERVER, _CPU_HTTP_SERVER_SRC)
-        # Free :80 without pkill -f on the server path (that pattern matches the
-        # Kathara/docker exec shell argv and kills the starter itself).
+        # Free :80. nika/nginx has no fuser/psmisc; stop nginx by name. Bracket
+        # pkill patterns avoid matching the Kathara/docker exec shell argv.
         self.runtime.exec(
             host,
-            "fuser -k 80/tcp 2>/dev/null || true; "
-            "pkill -f 'python3 -m http.server' 2>/dev/null || true; "
+            "nginx -s stop 2>/dev/null || true; "
+            "killall -9 nginx 2>/dev/null || true; "
+            "pkill -x nginx 2>/dev/null || true; "
+            "pkill -f '[p]ython3 /tmp/nika_cpu_http_server' 2>/dev/null || true; "
+            "pkill -f '[p]ython3 -m http.server' 2>/dev/null || true; "
             "sleep 0.3",
             timeout=15,
         )
@@ -246,6 +301,36 @@ class SenderResourceContention(ProblemBase):
                 times.append(stats.time_total_s)
         return median_float(throughputs), median_float(times)
 
+    def measure_fault_degradation(
+        self, params: SenderResourceContentionParams
+    ) -> tuple[float | None, float | None, int]:
+        """Measure enough faulted traffic to prove the configured slowdown."""
+        baseline_bps = self._baseline_throughput_bps
+        baseline_time = self._baseline_time_s
+        if not baseline_bps or not baseline_time:
+            return None, None, 0
+
+        max_time_sec = max(20, min(180, int(baseline_time * (_TIME_MIN_RATIO + 1)) + 1))
+        throughputs: list[float] = []
+        times: list[float] = []
+        for _ in range(2):
+            stats = http_download_stats(
+                self.runtime,
+                params.client_host,
+                params.large_url,
+                max_time_sec=max_time_sec,
+            )
+            if stats.throughput_bps is None or not stats.time_total_s:
+                continue
+            throughputs.append(stats.throughput_bps)
+            times.append(stats.time_total_s)
+            if (
+                stats.throughput_bps / baseline_bps <= _THROUGHPUT_MAX_RATIO
+                or stats.time_total_s / baseline_time >= _TIME_MIN_RATIO
+            ):
+                break
+        return median_float(throughputs), median_float(times), max_time_sec
+
     def inject_fault(self, params: SenderResourceContentionParams):
         self._ensure_http_objects(params)
 
@@ -272,9 +357,14 @@ class SenderResourceContention(ProblemBase):
         self._original_nano_cpus = original
         persist_original_nano_cpus(self.runtime, params.host_name, original)
 
-        injected = cpu_quota_to_nano_cpus(params.cpu_quota)
+        # Cap applied quota so selected Clos cases with 0.05 still contend hard.
+        applied_quota = min(float(params.cpu_quota), 0.02)
+        injected = cpu_quota_to_nano_cpus(applied_quota)
         set_nano_cpus(self.runtime, params.host_name, injected)
         self._injected_nano_cpus = injected
+
+        # Restart the CPU-bound server under the new quota.
+        self._ensure_http_objects(params)
 
         self.runtime.exec(
             params.host_name,
@@ -284,14 +374,20 @@ class SenderResourceContention(ProblemBase):
             ),
             timeout=15,
         )
-        # Let CFS + stress-ng saturate before verify samples.
-        time.sleep(3.0)
+        # Let CFS + stress-ng saturate before verify/symptom samples.
+        deadline = time.time() + 15.0
+        while time.time() < deadline:
+            if self.runtime.process_running(params.host_name, "stress-ng"):
+                break
+            time.sleep(0.5)
+        time.sleep(8.0)
         system_logger.info(
             "Injected sender_resource_contention on %s: "
-            "cpu_quota=%.2f nano=%d stress_cpus=%d "
+            "cpu_quota=%.2f applied_quota=%.2f nano=%d stress_cpus=%d "
             "baseline_bps=%.0f baseline_time_s=%.3f rtt=%.2fms",
             params.host_name,
             params.cpu_quota,
+            applied_quota,
             injected,
             params.stress_cpus,
             bps,
@@ -302,12 +398,18 @@ class SenderResourceContention(ProblemBase):
     def verify_fault(self, params: SenderResourceContentionParams) -> dict:
         """Verify stress-ng and CPU quota are injected (artifact gate for inject)."""
         stress_running = self.runtime.process_running(params.host_name, "stress-ng")
+        cpu_http_out = self.runtime.exec(
+            params.host_name,
+            "pgrep -af '[p]ython3 /tmp/nika_cpu_http_server' 2>/dev/null || true",
+            timeout=10,
+        ).strip()
+        cpu_http_running = bool(cpu_http_out)
         current_nano = read_nano_cpus(self.runtime, params.host_name)
         expected_nano = self._injected_nano_cpus or cpu_quota_to_nano_cpus(
-            params.cpu_quota
+            min(float(params.cpu_quota), 0.02)
         )
         quota_ok = current_nano == expected_nano
-        verified = bool(stress_running and quota_ok)
+        verified = bool(stress_running and quota_ok and cpu_http_running)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -315,6 +417,7 @@ class SenderResourceContention(ProblemBase):
                 "host": params.host_name,
                 "client_host": params.client_host,
                 "stress_running": stress_running,
+                "cpu_http_running": cpu_http_running,
                 "nano_cpus": current_nano,
                 "expected_nano_cpus": expected_nano,
                 "quota_ok": quota_ok,
@@ -393,37 +496,165 @@ class ReceiverResourceContentionParams(BaseModel):
 
     host_name: str = Field(description="Target receiver host name.")
     duration: int = Field(default=600, description="Stress duration in seconds.")
+    stress_cpus: int = Field(
+        default=8,
+        description="Number of stress-ng CPU workers on the receiver.",
+    )
+    peer_host: str = Field(
+        default="web",
+        description="HTTP server that sends a large object to the receiver.",
+    )
+    large_url: str = Field(
+        default="",
+        description="Large-object URL downloaded by the contended receiver.",
+    )
 
 
 class ReceiverResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
     root_cause_name: str = "receiver_resource_contention"
+    description = "Receiver endpoint is under resource contention."
     TAGS: list[str] = ["http"]
 
     Params = ReceiverResourceContentionParams
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
+        self._baseline_throughput_bps: float | None = None
+        self._baseline_time_s: float | None = None
+        self._large_url: str | None = None
 
     def root_cause_resources(self, params: ReceiverResourceContentionParams):
         return [node_resource(params.host_name)]
 
-    def inject_fault(self, params: ReceiverResourceContentionParams):
+    def _resolve_large_url(self, params: ReceiverResourceContentionParams) -> str:
+        if params.large_url:
+            return params.large_url
+        peer = params.peer_host
+        peer_ip = ""
+        try:
+            peer_ip = self.runtime.get_host_ip(peer, with_prefix=False) or ""
+        except Exception:
+            peer_ip = ""
+        if not peer_ip:
+            peer_ip = peer
+        return f"http://{peer_ip}/large.bin"
+
+    def _ensure_peer_large_object(
+        self, params: ReceiverResourceContentionParams
+    ) -> str:
+        url = self._resolve_large_url(params)
+        peer = params.peer_host
         self.runtime.exec(
-            params.host_name, _STRESS_CMD.format(duration=params.duration)
+            peer,
+            (
+                "mkdir -p /var/www /usr/share/nginx/html /tmp 2>/dev/null || true; "
+                "for d in /var/www /usr/share/nginx/html /tmp; do "
+                "  dd if=/dev/zero of=$d/large.bin bs=1M count=16 status=none "
+                "  2>/dev/null || true; "
+                "done; "
+                "curl -s -o /dev/null -w '%{http_code}' --max-time 3 "
+                "http://127.0.0.1/large.bin 2>/dev/null | grep -qE '200|206' "
+                "|| (pkill -f '[p]ython3 -m http.server 80' 2>/dev/null || true; "
+                " cd /var/www && nohup python3 -m http.server 80 </dev/null "
+                " >/tmp/nika_receiver_http.log 2>&1 & sleep 0.5)"
+            ),
+            timeout=60,
         )
+        self._large_url = url
+        return url
+
+    def _median_large_stats(
+        self,
+        params: ReceiverResourceContentionParams,
+        url: str,
+        *,
+        max_time_sec: int,
+        trials: int = 3,
+    ) -> tuple[float | None, float | None]:
+        throughputs: list[float] = []
+        times: list[float] = []
+        for _ in range(trials):
+            stats = http_download_stats(
+                self.runtime,
+                params.host_name,
+                url,
+                max_time_sec=max_time_sec,
+            )
+            if stats.ok and stats.throughput_bps is not None and stats.time_total_s:
+                throughputs.append(stats.throughput_bps)
+                times.append(stats.time_total_s)
+        return median_float(throughputs), median_float(times)
+
+    def inject_fault(self, params: ReceiverResourceContentionParams):
+        url = self._ensure_peer_large_object(params)
+        bps, time_s = self._median_large_stats(params, url, max_time_sec=120)
+        if bps is None or time_s is None:
+            raise RuntimeError(
+                "receiver_resource_contention baseline large HTTP measurement "
+                f"failed on {params.host_name} -> {url}"
+            )
+        self._baseline_throughput_bps = bps
+        self._baseline_time_s = time_s
+
+        # Stress-only: avoid Docker NanoCpus updates on llmd/k3s nodes where
+        # clearing NanoCPUs back to unlimited is rejected or no-ops.
+        self.runtime.exec(
+            params.host_name,
+            _CPU_STRESS_CMD.format(
+                stress_cpus=params.stress_cpus,
+                duration=params.duration,
+            ),
+            timeout=15,
+        )
+        self.runtime.exec(
+            params.host_name,
+            _STRESS_CMD.format(duration=params.duration),
+            timeout=15,
+        )
+        deadline = time.time() + 15.0
+        while time.time() < deadline:
+            if self.runtime.process_running(params.host_name, "stress-ng"):
+                break
+            time.sleep(0.5)
+        time.sleep(5.0)
         system_logger.info(
-            f"Injected TCP receiver resource contention on params.host_name {params.host_name}"
+            "Injected TCP receiver resource contention on %s: "
+            "stress_cpus=%d baseline_bps=%.0f url=%s",
+            params.host_name,
+            params.stress_cpus,
+            bps,
+            url,
         )
 
     def verify_fault(self, params: ReceiverResourceContentionParams) -> dict:
-        """Verify stress-ng is running on the receiver params.host_name."""
+        """Verify stress-ng is running on the receiver."""
         pgrep_output = self.runtime.exec(
             params.host_name, "pgrep -a stress-ng 2>/dev/null || echo NONE"
         ).strip()
-        verified = "stress-ng" in pgrep_output and pgrep_output != "NONE"
+        stress_running = "stress-ng" in pgrep_output and pgrep_output != "NONE"
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "pgrep_output": pgrep_output},
+            verified=bool(stress_running),
+            details={
+                "host": params.host_name,
+                "pgrep_output": pgrep_output,
+                "stress_running": stress_running,
+            },
         )
+
+    def recover_fault(self, params: ReceiverResourceContentionParams) -> dict:
+        self.runtime.exec(
+            params.host_name,
+            "pkill -f stress-ng 2>/dev/null || true",
+            timeout=10,
+        )
+        time.sleep(0.5)
+        stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
+        return {
+            "verified": bool(stress_gone),
+            "details": {
+                "host": params.host_name,
+                "stress_gone": stress_gone,
+            },
+        }

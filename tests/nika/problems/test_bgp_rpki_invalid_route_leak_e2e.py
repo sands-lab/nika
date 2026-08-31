@@ -30,22 +30,15 @@ from tests.support.prerequisites import docker_available
 load_test_env()
 
 PROBLEM = "bgp_rpki_invalid_route_leak"
-ENV_ARGS: list[str] = [
-    "--topo",
-    "abilene",
-    "--igp",
-    "ospf",
-    "--bgp-mode",
-    "ebgp",
-    "--rpki",
-]
+ENV_ARGS: list[str] = []
 AGENT_MAX_STEPS = 40
 _BGP_RPKI_TOOLS = (
-    "frr_get_routing_state",
     "frr_get_rpki_status",
     "frr_exec",
     "frr_get_bgp_conf",
+    "frr_show_ip_route",
     "traceroute",
+    "ping_pair",
 )
 
 
@@ -124,9 +117,9 @@ class TestBGPRPKIInvalidRouteLeakE2E(IntegrationTestCase):
         roles = _rpki_roles()
         params = {"host_name": roles["leaker"]}
 
-        session_id = self._start_env("isp", ENV_ARGS)
+        session_id = self._start_env("isp_abilene_ebgp_rpki", ENV_ARGS)
         try:
-            self._assert_session_ready(session_id, "isp")
+            self._assert_session_ready(session_id, "isp_abilene_ebgp_rpki")
             row = self._session_row(session_id)
             lab_name = row["lab_name"]
 
@@ -177,8 +170,8 @@ class _BGPRPKIAgentPipelineBase(OrderedPipelineTestCase):
     leaker: str = ""
 
     def test_step_01_start_env(self) -> None:
-        type(self).session_id = self._start_env("isp", ENV_ARGS)
-        self._assert_session_ready(self.session_id, "isp")
+        type(self).session_id = self._start_env("isp_abilene_ebgp_rpki", ENV_ARGS)
+        self._assert_session_ready(self.session_id, "isp_abilene_ebgp_rpki")
         time.sleep(30)
 
     def test_step_02_inject_failure(self) -> None:

@@ -161,6 +161,38 @@ def _shared_checks(runtime: LabRuntime, dist_router: str) -> dict[str, bool]:
     return checks
 
 
+def verify_campus_lan_lab_startup(
+    runtime: LabRuntime,
+    *,
+    scenario_name: str,
+) -> dict:
+    """Bounded readiness: core OSPF and probe-host gateway attachment."""
+    host_ready = _host_has_ipv4(runtime)
+    checks = {
+        "ospf_process": _ospf_process_running(runtime),
+        "ospf_neighbors": _ospf_neighbors_full(runtime),
+        "core_link_up": _link_up(runtime, CORE_ROUTER),
+        "dist_gateway_configured": _dist_gateway_configured(runtime, DIST_ROUTER_DHCP),
+        "host_ipv4": host_ready,
+        "host_default_route": _default_route_via(runtime, PROBE_HOST, HOST_GATEWAY)
+        if host_ready
+        else False,
+        "gateway_reachable": _ping_ok(runtime, PROBE_HOST, HOST_GATEWAY)
+        if host_ready
+        else False,
+    }
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+        details={
+            "probe_host": PROBE_HOST,
+            "core_router": CORE_ROUTER,
+            "dist_router": DIST_ROUTER_DHCP,
+        },
+    )
+
+
 def verify_campus_lan_lab(
     runtime: LabRuntime,
     *,

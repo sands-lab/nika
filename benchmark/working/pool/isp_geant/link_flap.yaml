@@ -1,0 +1,689 @@
+scenario:
+  name: isp_geant
+failure:
+  fault_type: link_flap
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: at1_at
+      intf_name: eth0
+      peer_host: pc_ch1_ch
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_at1_at
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: at1_at:eth0--ch1_ch:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: at1_at
+      intf_name: eth1
+      peer_host: pc_de1_de
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_at1_at
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: at1_at:eth1--de1_de:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: at1_at
+      intf_name: eth2
+      peer_host: pc_hu1_hu
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_at1_at
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: at1_at:eth2--hu1_hu:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: at1_at
+      intf_name: eth3
+      peer_host: pc_ny1_ny
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_at1_at
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: at1_at:eth3--ny1_ny:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: at1_at
+      intf_name: eth4
+      peer_host: pc_si1_si
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_at1_at
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: at1_at:eth4--si1_si:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: be1_be
+      intf_name: eth0
+      peer_host: pc_fr1_fr
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_be1_be
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: be1_be:eth0--fr1_fr:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: be1_be
+      intf_name: eth1
+      peer_host: pc_lu1_lu
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_be1_be
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: be1_be:eth1--lu1_lu:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: be1_be
+      intf_name: eth2
+      peer_host: pc_nl1_nl
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_be1_be
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: be1_be:eth2--nl1_nl:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: ch1_ch
+      intf_name: eth1
+      peer_host: pc_fr1_fr
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_ch1_ch
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: ch1_ch:eth1--fr1_fr:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: ch1_ch
+      intf_name: eth2
+      peer_host: pc_it1_it
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_ch1_ch
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: ch1_ch:eth2--it1_it:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: cz1_cz
+      intf_name: eth0
+      peer_host: pc_de1_de
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_cz1_cz
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: cz1_cz:eth0--de1_de:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: cz1_cz
+      intf_name: eth1
+      peer_host: pc_pl1_pl
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_cz1_cz
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: cz1_cz:eth1--pl1_pl:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: cz1_cz
+      intf_name: eth2
+      peer_host: pc_sk1_sk
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_cz1_cz
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: cz1_cz:eth2--sk1_sk:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: de1_de
+      intf_name: eth2
+      peer_host: pc_fr1_fr
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_de1_de
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: de1_de:eth2--fr1_fr:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: de1_de
+      intf_name: eth3
+      peer_host: pc_gr1_gr
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_de1_de
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: de1_de:eth3--gr1_gr:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: de1_de
+      intf_name: eth4
+      peer_host: pc_ie1_ie
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_de1_de
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: de1_de:eth4--ie1_ie:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: de1_de
+      intf_name: eth5
+      peer_host: pc_it1_it
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_de1_de
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: de1_de:eth5--it1_it:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: de1_de
+      intf_name: eth6
+      peer_host: pc_nl1_nl
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_de1_de
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: de1_de:eth6--nl1_nl:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: de1_de
+      intf_name: eth7
+      peer_host: pc_se1_se
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_de1_de
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: de1_de:eth7--se1_se:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: es1_es
+      intf_name: eth0
+      peer_host: pc_fr1_fr
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_es1_es
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: es1_es:eth0--fr1_fr:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: es1_es
+      intf_name: eth1
+      peer_host: pc_it1_it
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_es1_es
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: es1_es:eth1--it1_it:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: es1_es
+      intf_name: eth2
+      peer_host: pc_pt1_pt
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_es1_es
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: es1_es:eth2--pt1_pt:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: fr1_fr
+      intf_name: eth4
+      peer_host: pc_lu1_lu
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_fr1_fr
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: fr1_fr:eth4--lu1_lu:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: fr1_fr
+      intf_name: eth5
+      peer_host: pc_uk1_uk
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_fr1_fr
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: fr1_fr:eth5--uk1_uk:eth0
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: gr1_gr
+      intf_name: eth1
+      peer_host: pc_it1_it
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_gr1_gr
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: gr1_gr:eth1--it1_it:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: hr1_hr
+      intf_name: eth0
+      peer_host: pc_hu1_hu
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hr1_hr
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hr1_hr:eth0--hu1_hu:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: hr1_hr
+      intf_name: eth1
+      peer_host: pc_si1_si
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_hr1_hr
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hr1_hr:eth1--si1_si:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: hu1_hu
+      intf_name: eth2
+      peer_host: pc_sk1_sk
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_hu1_hu
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hu1_hu:eth2--sk1_sk:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: ie1_ie
+      intf_name: eth1
+      peer_host: pc_uk1_uk
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_ie1_ie
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: ie1_ie:eth1--uk1_uk:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: il1_il
+      intf_name: eth0
+      peer_host: pc_it1_it
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_il1_il
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: il1_il:eth0--it1_it:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: il1_il
+      intf_name: eth1
+      peer_host: pc_nl1_nl
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_il1_il
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: il1_il:eth1--nl1_nl:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: nl1_nl
+      intf_name: eth3
+      peer_host: pc_uk1_uk
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_nl1_nl
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: nl1_nl:eth3--uk1_uk:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: ny1_ny
+      intf_name: eth1
+      peer_host: pc_uk1_uk
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_ny1_ny
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: ny1_ny:eth1--uk1_uk:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: pl1_pl
+      intf_name: eth1
+      peer_host: pc_se1_se
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_pl1_pl
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: pl1_pl:eth1--se1_se:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: pt1_pt
+      intf_name: eth1
+      peer_host: pc_uk1_uk
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_pt1_pt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: pt1_pt:eth1--uk1_uk:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      down_time: '1'
+      host_name: se1_se
+      intf_name: eth2
+      peer_host: pc_uk1_uk
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_se1_se
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: se1_se:eth2--uk1_uk:eth5
+      fault_type: link_flap

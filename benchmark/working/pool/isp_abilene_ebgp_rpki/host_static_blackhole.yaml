@@ -1,0 +1,125 @@
+scenario:
+  name: isp_abilene_ebgp_rpki
+failure:
+  fault_type: host_static_blackhole
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: atlam5
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+    root_causes:
+    - resource:
+        kind: node
+        node: atlang
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: chinng
+    root_causes:
+    - resource:
+        kind: node
+        node: chinng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dnvrng
+    root_causes:
+    - resource:
+        kind: node
+        node: dnvrng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: iplsng
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kscyng
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: losang
+    root_causes:
+    - resource:
+        kind: node
+        node: losang
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nycmng
+    root_causes:
+    - resource:
+        kind: node
+        node: nycmng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: snvang
+    root_causes:
+    - resource:
+        kind: node
+        node: snvang
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sttlng
+    root_causes:
+    - resource:
+        kind: node
+        node: sttlng
+      fault_type: host_static_blackhole
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washng
+    root_causes:
+    - resource:
+        kind: node
+        node: washng
+      fault_type: host_static_blackhole

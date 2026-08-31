@@ -1,0 +1,512 @@
+scenario:
+  name: isp_janos-us-ca
+failure:
+  fault_type: bgp_acl_block
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: boston
+    root_causes:
+    - resource:
+        kind: node
+        node: boston
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: calgary
+    root_causes:
+    - resource:
+        kind: node
+        node: calgary
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: charlotte
+    root_causes:
+    - resource:
+        kind: node
+        node: charlotte
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: chicago
+    root_causes:
+    - resource:
+        kind: node
+        node: chicago
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cincinnati
+    root_causes:
+    - resource:
+        kind: node
+        node: cincinnati
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cleveland
+    root_causes:
+    - resource:
+        kind: node
+        node: cleveland
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dallas
+    root_causes:
+    - resource:
+        kind: node
+        node: dallas
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: denver
+    root_causes:
+    - resource:
+        kind: node
+        node: denver
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: detroit
+    root_causes:
+    - resource:
+        kind: node
+        node: detroit
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: elpaso
+    root_causes:
+    - resource:
+        kind: node
+        node: elpaso
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: houston
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: indianapolis
+    root_causes:
+    - resource:
+        kind: node
+        node: indianapolis
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kansascity
+    root_causes:
+    - resource:
+        kind: node
+        node: kansascity
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lasvegas
+    root_causes:
+    - resource:
+        kind: node
+        node: lasvegas
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: losangeles
+    root_causes:
+    - resource:
+        kind: node
+        node: losangeles
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: memphis
+    root_causes:
+    - resource:
+        kind: node
+        node: memphis
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: miami
+    root_causes:
+    - resource:
+        kind: node
+        node: miami
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: minneapolis
+    root_causes:
+    - resource:
+        kind: node
+        node: minneapolis
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: montreal
+    root_causes:
+    - resource:
+        kind: node
+        node: montreal
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nashville
+    root_causes:
+    - resource:
+        kind: node
+        node: nashville
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: neworleans
+    root_causes:
+    - resource:
+        kind: node
+        node: neworleans
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: newyork
+    root_causes:
+    - resource:
+        kind: node
+        node: newyork
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: oklahomacity
+    root_causes:
+    - resource:
+        kind: node
+        node: oklahomacity
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: philadelphia
+    root_causes:
+    - resource:
+        kind: node
+        node: philadelphia
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: phoenix
+    root_causes:
+    - resource:
+        kind: node
+        node: phoenix
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pittsburgh
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: portland
+    root_causes:
+    - resource:
+        kind: node
+        node: portland
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sacrameto
+    root_causes:
+    - resource:
+        kind: node
+        node: sacrameto
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: saltlakecity
+    root_causes:
+    - resource:
+        kind: node
+        node: saltlakecity
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sandiego
+    root_causes:
+    - resource:
+        kind: node
+        node: sandiego
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sanfrancisco
+    root_causes:
+    - resource:
+        kind: node
+        node: sanfrancisco
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: seattle
+    root_causes:
+    - resource:
+        kind: node
+        node: seattle
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: stlouis
+    root_causes:
+    - resource:
+        kind: node
+        node: stlouis
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tampa
+    root_causes:
+    - resource:
+        kind: node
+        node: tampa
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: toronto
+    root_causes:
+    - resource:
+        kind: node
+        node: toronto
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: vancouver
+    root_causes:
+    - resource:
+        kind: node
+        node: vancouver
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washingtondc
+    root_causes:
+    - resource:
+        kind: node
+        node: washingtondc
+      fault_type: bgp_acl_block
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: winnipeg
+    root_causes:
+    - resource:
+        kind: node
+        node: winnipeg
+      fault_type: bgp_acl_block

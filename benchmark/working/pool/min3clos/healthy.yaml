@@ -1,0 +1,5 @@
+scenario:
+  name: min3clos
+healthy:
+  variants:
+  - {}

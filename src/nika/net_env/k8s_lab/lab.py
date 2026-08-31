@@ -11,14 +11,15 @@ from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.utils.k8s_workload_cache import mount_workload_cache
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-_FRR_IMAGE = "kathara/frr"
+_FRR_IMAGE = "nika/frr"
 _K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1"
-_BASE_IMAGE = "kathara/base"
+_BASE_IMAGE = "nika/base"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
@@ -155,6 +156,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
         )
         for name, links in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
+            mount_workload_cache(m, self.LAB_NAME)
             self.declare_machine(
                 name,
                 role=(
@@ -231,12 +233,25 @@ class K8sFatTreeBGP(NetworkEnvBase):
         super().load_machines()
         self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.k8s_lab.verify import verify_k8s_lab_startup
+
+        return verify_k8s_lab_startup(
+            self._build_runtime(), scenario_name=self.LAB_NAME
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.k8s_lab.verify import verify_k8s_lab
 
         return verify_k8s_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
 
+    def sync_client_hosts(self) -> None:
+        from nika.net_env.utils.k8s_client_hosts import sync_k8s_client_hosts
+
+        sync_k8s_client_hosts(self._build_runtime())
+
     def post_deploy(self):
+        self.sync_client_hosts()
         port = self.metadata.get("k8s_controller_port")
         if port is None:
             return

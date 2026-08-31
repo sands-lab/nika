@@ -60,13 +60,6 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 inject = inject_params_from_benchmark_yaml(
                     case.scenario, case.problem, case.size or ""
                 )
-                # size=s curated YAML picks super_spine for blackhole leaks, but that
-                # device has no client host for resolve_victim_host().
-                if (
-                    case.problem == "bgp_blackhole_route_leak"
-                    and "super_spine" in inject.get("host_name", "")
-                ):
-                    inject["host_name"] = "leaf_router_0_0"
                 row = {
                     "scenario": case.scenario,
                     "problem": case.problem,

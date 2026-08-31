@@ -1,0 +1,35 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: host_ip_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_corp_pc
+      host_name_2: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    inject:
+      host_name: hq_corp_pc
+      host_name_2: br4_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_corp_pc
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    inject:
+      host_name: br6_corp_pc
+      host_name_2: br6_corp_pc2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_corp_pc2
+        name: eth0
+      fault_type: host_ip_conflict

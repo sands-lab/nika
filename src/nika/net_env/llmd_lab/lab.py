@@ -17,13 +17,14 @@ from Kathara.model.Lab import Lab
 
 from nika.config import REPO_ROOT, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.utils.k8s_workload_cache import mount_workload_cache
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
 _K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1"
-_BASE_IMAGE = "kathara/base"
+_BASE_IMAGE = "nika/base"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
@@ -38,6 +39,11 @@ else:
     _HELM_ARCHITECTURE = "amd64"
 _HELM_ARCHIVE_URL = (
     f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-{_HELM_ARCHITECTURE}.tar.gz"
+)
+_AGENTGATEWAY_VERSION = "v1.1.0"
+_HELM_CHART_SPECS = (
+    ("agentgateway-crds", "oci://cr.agentgateway.dev/charts/agentgateway-crds"),
+    ("agentgateway", "oci://cr.agentgateway.dev/charts/agentgateway"),
 )
 
 
@@ -59,6 +65,46 @@ def _ensure_helm_binary() -> Path:
         shutil.copy2(extracted, helm_bin)
         helm_bin.chmod(0o755)
     return helm_bin
+
+
+def ensure_helm_charts() -> list[Path]:
+    """Download AgentGateway Helm charts on the host and return cached tgz paths."""
+    import subprocess
+
+    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    helm_bin = _ensure_helm_binary()
+    chart_paths: list[Path] = []
+    for chart_name, oci_url in _HELM_CHART_SPECS:
+        chart_path = cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz"
+        if not chart_path.is_file():
+            print(f"Pulling Helm chart {oci_url} ({_AGENTGATEWAY_VERSION})...")
+            subprocess.run(
+                [
+                    str(helm_bin),
+                    "pull",
+                    oci_url,
+                    "--version",
+                    _AGENTGATEWAY_VERSION,
+                    "-d",
+                    str(cache_dir),
+                ],
+                check=True,
+            )
+        if not chart_path.is_file():
+            raise RuntimeError(f"Helm chart cache missing after pull: {chart_path}")
+        chart_paths.append(chart_path)
+    return chart_paths
+
+
+def cached_helm_charts() -> list[Path]:
+    """Return staged Helm chart paths when already present under ``.nika_cache``."""
+    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
+    return [
+        cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz"
+        for chart_name, _ in _HELM_CHART_SPECS
+        if (cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz").is_file()
+    ]
 
 
 class LLMDInferenceCluster(NetworkEnvBase):
@@ -117,6 +163,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
         )
         for name, (links, is_controller) in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
+            mount_workload_cache(m, self.LAB_NAME)
             self.declare_machine(
                 name,
                 role=(
@@ -165,11 +212,31 @@ class LLMDInferenceCluster(NetworkEnvBase):
         self.lab.connect_machine_to_link("client", "A")
         all_machines["client"] = client
 
+        # Dedicated HTTP endpoint for application-layer faults (separate from
+        # the probe client so CPU-quota injects do not starve curl itself).
+        # nika/base includes stress-ng; pin NanoCpus at create time so recover
+        # can restore a non-zero quota (Docker ignores NanoCpus:0 clears).
+        web = self.lab.new_machine(
+            "web", **{"image": "nika/base", "cpus": 1.0, "mem": "512m"}
+        )
+        self.declare_machine(
+            web.name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux",),
+            service_type="web",
+        )
+        self.lab.connect_machine_to_link("web", "A")
+        all_machines["web"] = web
+
         # Inject Helm into controller FS from host cache (busybox wget cannot fetch HTTPS).
         helm_bin = _ensure_helm_binary()
         all_machines["controller"].create_file_from_path(
             str(helm_bin), "/usr/local/bin/helm"
         )
+        for chart_path in cached_helm_charts():
+            all_machines["controller"].create_file_from_path(
+                str(chart_path), f"/helm-charts/{chart_path.name}"
+            )
 
         # Load per-machine configuration directories and startup scripts
         for name, m in all_machines.items():
@@ -193,12 +260,25 @@ class LLMDInferenceCluster(NetworkEnvBase):
         super().load_machines()
         self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
 
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.llmd_lab.verify import verify_llmd_lab_startup
+
+        return verify_llmd_lab_startup(
+            self._build_runtime(), scenario_name=self.LAB_NAME
+        )
+
     def verify_lab(self) -> dict:
         from nika.net_env.llmd_lab.verify import verify_llmd_lab
 
         return verify_llmd_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
 
+    def sync_client_hosts(self) -> None:
+        from nika.net_env.utils.k8s_client_hosts import sync_llmd_client_hosts
+
+        sync_llmd_client_hosts(self._build_runtime())
+
     def post_deploy(self):
+        self.sync_client_hosts()
         port = self.metadata.get("k8s_controller_port")
         if port is None:
             return

@@ -1,0 +1,105 @@
+scenario:
+  name: isp_dfn-bwin_ebgp_rtbh
+failure:
+  fault_type: icmp_acl_block
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_berlin
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_frankfurt
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_hamburg
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_hannover
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_hannover
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_karlsruhe
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_koeln
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_koeln
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_leipzig
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_leipzig
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_muenchen
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_muenchen
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_nuernberg
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_nuernberg
+      fault_type: icmp_acl_block
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pc_stuttgart
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_stuttgart
+      fault_type: icmp_acl_block

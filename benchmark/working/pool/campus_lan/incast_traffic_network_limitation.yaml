@@ -1,0 +1,50 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: incast_traffic_network_limitation
+  cases:
+  - topo_size: s
+    inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web_server_0
+      limit: 128kb
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_0
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: m
+    inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web_server_0
+      limit: 128kb
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_0
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: l
+    inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web_server_0
+      limit: 128kb
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_0
+        name: eth0
+      fault_type: incast_traffic_network_limitation

@@ -18,6 +18,35 @@ from nika.net_env.verify import (
 from nika.runtime.base import LabRuntime
 
 
+def verify_isp_srl_lab_startup(
+    runtime: LabRuntime,
+    *,
+    plan: IspPlan,
+    scenario_name: str,
+    bgp_plan: BgpPlan | None = None,
+    traffic: IspTrafficAttachment | None = None,
+) -> dict[str, Any]:
+    expected = [node.device_name for node in plan.nodes]
+    if traffic is not None:
+        expected.extend(h.host_name for h in traffic.hosts)
+    checks: dict[str, bool] = {
+        "nodes_deployed": nodes_deployed(runtime, expected),
+        "igp_adjacencies": _igp_adjacencies_ok(runtime, plan),
+    }
+    if bgp_plan is not None:
+        checks["bgp_sessions"] = _bgp_sessions_ok(runtime, bgp_plan)
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+        details={
+            "topology_name": plan.topology_name,
+            "igp": plan.igp,
+            "bgp_mode": bgp_plan.mode if bgp_plan is not None else "none",
+        },
+    )
+
+
 def verify_isp_srl_lab(
     runtime: LabRuntime,
     *,

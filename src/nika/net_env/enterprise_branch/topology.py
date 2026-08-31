@@ -98,7 +98,7 @@ SCALE: dict[TopoSize, ScaleSpec] = {
 # Regional underlay one-way delay on each Site Edge↔provider attachment.
 # Branch→HQ crosses two attachments (~40 ms one-way, ~80 ms RTT), under the
 # Cisco SD-WAN Small Branch Bulk-Data (300 ms) and Business-Data (400 ms) RTT
-# SLA ceilings. See docs/network-scenarios.md.
+# SLA ceilings. See docs/operations/network-scenarios.md.
 UNDERLAY_ONE_WAY_DELAY_MS = 20
 
 # Static objects served by SERVER-role HTTP hosts for bulk-transfer probes.

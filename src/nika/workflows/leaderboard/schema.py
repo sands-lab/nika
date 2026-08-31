@@ -6,11 +6,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
-FILES_FILENAME = "files.json"
 RESULTS_DIRNAME = "results"
 IDENTITY_FILENAME = "identity.yaml"
 METRICS_FILENAME = "metrics.json"
@@ -98,9 +97,7 @@ class BenchmarkIdentity(BaseModel):
     id: str
     version: str
     ref: str
-    digest: str
     split: Literal["dev", "test"]
-    cases_sha256: str
     case_count: int = Field(..., ge=1)
     n_trials: int = Field(..., ge=1)
     scoring_id: str
@@ -126,7 +123,7 @@ class PackageIdentity(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["3"] = SCHEMA_VERSION
+    schema_version: Literal["4"] = SCHEMA_VERSION
     created_at: str
     benchmark: BenchmarkIdentity
     run: RunIdentity
@@ -200,24 +197,3 @@ class AggregatedMetrics(BaseModel):
     n_agent_failed: int
     token_totals: dict[str, int] = Field(default_factory=dict)
     steps_totals: dict[str, int] = Field(default_factory=dict)
-
-
-class FileInventory(BaseModel):
-    """Integrity for one release run + the slim submission package.
-
-    Aligns with common leaderboard practice (HAL / Terminal-Bench): bind the
-    submission to a single run identity instead of hashing every trial artifact.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    source_run_sha256: str = Field(
-        ...,
-        min_length=64,
-        max_length=64,
-        description="SHA-256 of the official release-run run.json",
-    )
-    package: dict[str, str] = Field(
-        default_factory=dict,
-        description="SHA-256 of package-local files (metadata, README, results)",
-    )

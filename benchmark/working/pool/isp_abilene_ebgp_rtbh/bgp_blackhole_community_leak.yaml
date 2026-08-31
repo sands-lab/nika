@@ -1,0 +1,18 @@
+scenario:
+  name: isp_abilene_ebgp_rtbh
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kscyng
+      peer_host: pc_kscyng
+      probe_dst_ip: 198.51.100.1
+      symptom_host: iplsng
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_blackhole_community_leak

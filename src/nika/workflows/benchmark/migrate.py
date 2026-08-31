@@ -7,7 +7,8 @@ from typing import Any
 
 import yaml
 
-from nika.problems.rca.materialize import ground_truth_for_case
+from nika.problems.rca.materialize import ground_truth_for_case, ground_truth_for_multi_case
+from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
 from nika.problems.rca.inventory import load_offline_net_env
@@ -36,7 +37,8 @@ def materialize_case(
     if not isinstance(row, dict):
         raise ValueError("Benchmark case must be a mapping")
     scenario = str(row["scenario"])
-    problem = str(row["problem"])
+    problems = row_problems(row)
+    problem = str(row.get("problem") or "+".join(problems))
     if is_healthy_case(problem):
         out: dict[str, Any] = {
             "scenario": scenario,
@@ -45,7 +47,7 @@ def materialize_case(
             "inject": {},
             "root_causes": [],
         }
-        for key in ("topo", "igp", "bgp_mode", "rpki"):
+        for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
             if row.get(key) not in (None, "", "-"):
                 out[key] = row[key]
         return out
@@ -54,6 +56,8 @@ def materialize_case(
     isp_igp = row.get("igp")
     isp_bgp = row.get("bgp_mode")
     isp_rpki = row.get("rpki")
+    isp_backend = row.get("backend")
+    isp_device_profile = row.get("device_profile")
     isp_kwargs: dict[str, Any] = {}
     if isp_topo not in (None, "", "-"):
         isp_kwargs["topo"] = str(isp_topo)
@@ -67,7 +71,19 @@ def materialize_case(
             if isinstance(isp_rpki, bool)
             else str(isp_rpki).lower() in {"1", "true", "yes", "on"}
         )
-    inject = {str(k): str(v) for k, v in dict(row.get("inject") or {}).items()}
+    if isp_backend not in (None, "", "-"):
+        isp_kwargs["backend"] = str(isp_backend)
+    if isp_device_profile not in (None, "", "-"):
+        isp_kwargs["device_profile"] = str(isp_device_profile)
+    inject_raw = dict(row.get("inject") or {})
+    if len(problems) > 1:
+        inject_map = {
+            name: {str(k): str(v) for k, v in dict(inject_raw.get(name) or {}).items()}
+            for name in problems
+        }
+    else:
+        inject_map = {problems[0]: {str(k): str(v) for k, v in inject_raw.items()}}
+    inject = inject_map[problems[0]] if len(problems) == 1 else inject_map
     cache = env_cache if env_cache is not None else {}
     cache_key = (
         scenario,
@@ -76,21 +92,37 @@ def materialize_case(
         isp_kwargs.get("igp", ""),
         isp_kwargs.get("bgp_mode", ""),
         str(isp_kwargs.get("rpki", False)),
+        isp_kwargs.get("backend", ""),
+        isp_kwargs.get("device_profile", ""),
     )
     if cache_key not in cache:
         cache[cache_key] = load_offline_net_env(scenario, topo, **isp_kwargs)
-    gt = ground_truth_for_case(
-        problem=problem,
-        params=inject,
-        scenario=scenario,
-        topo_size=topo,
-        net_env=cache[cache_key],
-    )
+    if len(problems) > 1:
+        gt = ground_truth_for_multi_case(
+            problems=problems,
+            params=inject_map,
+            scenario=scenario,
+            topo_size=topo,
+            net_env=cache[cache_key],
+            topo=isp_kwargs.get("topo"),
+            igp=isp_kwargs.get("igp"),
+            bgp_mode=isp_kwargs.get("bgp_mode"),
+            rpki=isp_kwargs.get("rpki"),
+        )
+    else:
+        gt = ground_truth_for_case(
+            problem=problems[0],
+            params=inject_map[problems[0]],
+            scenario=scenario,
+            topo_size=topo,
+            net_env=cache[cache_key],
+        )
     out: dict[str, Any] = {
         "scenario": scenario,
         "topo_size": topo or None,
         "problem": problem,
-        "inject": inject,
+        "problems": problems,
+        "inject": inject_map if len(problems) > 1 else inject_map[problems[0]],
         "root_causes": canonical_root_causes(gt.root_causes),
     }
     out.update(isp_kwargs)

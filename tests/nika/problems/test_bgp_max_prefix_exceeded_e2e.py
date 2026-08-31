@@ -32,21 +32,21 @@ from tests.support.prerequisites import docker_available
 load_test_env()
 
 PROBLEM = "bgp_max_prefix_exceeded"
-ENV_ARGS = ["--topo", "abilene", "--igp", "ospf", "--bgp-mode", "ebgp"]
+ENV_ARGS = ["--igp", "ospf", "--bgp-mode", "ebgp"]
 AGENT_MAX_STEPS = 40
 _BGP_TOOLS = (
-    "frr_get_routing_state",
     "frr_exec",
     "frr_get_bgp_conf",
+    "frr_show_ip_route",
     "frr_get_rpki_status",
     "traceroute",
-    "get_reachability",
+    "ping_pair",
     "run_pingmesh_snapshot",
 )
 
 
-def _inject_params() -> dict[str, str]:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+def _inject_params(topology: str = "abilene") -> dict[str, str]:
+    isp_plan = compile_isp_plan(IspConfig(topology=topology, igp="ospf"))
     bgp = compile_bgp_plan(isp_plan, "ebgp")
     assert bgp is not None
     return isp_inject_params(PROBLEM, isp_plan.inventory, bgp.inventory)
@@ -79,9 +79,9 @@ def _assert_bgp_tool_use(messages: list[dict]) -> None:
         f"diagnosis must call BGP/reachability telemetry tools; "
         f"saw {sorted(set(diag_tools))}"
     )
-    assert any("frr_get_routing_state" in n for n in diag_tools), (
-        f"diagnosis must call frr_get_routing_state; saw {sorted(set(diag_tools))}"
-    )
+    assert any(
+        "frr_exec" in n or "frr_get_bgp" in n or "frr_show" in n for n in diag_tools
+    ), f"diagnosis must call FRR CLI/show tools; saw {sorted(set(diag_tools))}"
 
 
 def _assert_fault_type_submitted(session_dir: Path, params: dict[str, str]) -> None:
@@ -115,17 +115,21 @@ def _assert_fault_type_submitted(session_dir: Path, params: dict[str, str]) -> N
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class TestBGPMaxPrefixExceededE2E(IntegrationTestCase):
-    """Healthy → inject → verify → recover on Abilene eBGP."""
+    """Healthy → inject → verify → recover on both release contexts."""
 
-    def test_healthy_inject_recover_cycle(self) -> None:
-        params = _inject_params()
+    @pytest.mark.parametrize(
+        ("scenario", "topology"),
+        (("isp_abilene", "abilene"), ("isp_geant", "geant")),
+    )
+    def test_healthy_inject_recover_cycle(self, scenario: str, topology: str) -> None:
+        params = _inject_params(topology)
         assert params["receiver_name"]
         assert params["peer_name"]
         assert params["neighbor_ip"]
 
-        session_id = self._start_env("isp", ENV_ARGS)
+        session_id = self._start_env(scenario, ENV_ARGS)
         try:
-            self._assert_session_ready(session_id, "isp")
+            self._assert_session_ready(session_id, scenario)
             row = self._session_row(session_id)
             lab_name = row["lab_name"]
             time.sleep(35)
@@ -165,7 +169,7 @@ class TestBGPMaxPrefixExceededE2E(IntegrationTestCase):
             problem = self._problem(cls, session_id=session_id)
             parsed = problem.parse_params(params)
             recovered = problem.recover_fault(parsed)
-            assert recovered["ok"], recovered
+            assert recovered["verified"], recovered
 
             time.sleep(10)
             restored = frr.frr_get_routing_state(receiver, neighbor=neighbor_ip)
@@ -189,8 +193,8 @@ class _BGPMaxPrefixAgentPipelineBase(OrderedPipelineTestCase):
     _params: dict[str, str] | None = None
 
     def test_step_01_start_env(self) -> None:
-        type(self).session_id = self._start_env("isp", ENV_ARGS)
-        self._assert_session_ready(self.session_id, "isp")
+        type(self).session_id = self._start_env("isp_abilene", ENV_ARGS)
+        self._assert_session_ready(self.session_id, "isp_abilene")
         time.sleep(35)
 
     def test_step_02_inject_failure(self) -> None:
@@ -246,7 +250,7 @@ class TestBGPMaxPrefixExceededAgentDeepseek(_BGPMaxPrefixAgentPipelineBase):
 class KatharaBGPMaxPrefixPipelineIntegrationTest(pipeline_case.PipelineCaseBase):
     """env → inject → MCP → mock agent → close → metrics for max-prefix."""
 
-    SCENARIO = "isp"
+    SCENARIO = "isp_abilene"
     BACKEND = "kathara"
     ENV_RUN_ARGS = ENV_ARGS
     PROBLEM = PROBLEM
@@ -266,11 +270,11 @@ class KatharaBGPMaxPrefixPipelineIntegrationTest(pipeline_case.PipelineCaseBase)
     ]
 
     async def _extra_diagnosis_mcp_checks(self, tools: dict) -> dict[str, str]:
-        assert "frr_get_routing_state" in tools
-        out = await tools["frr_get_routing_state"].ainvoke(
+        assert "frr_exec" in tools
+        out = await tools["frr_exec"].ainvoke(
             {
-                "device": self.INJECT_PARAMS["receiver_name"],
-                "neighbor": self.INJECT_PARAMS["neighbor_ip"],
+                "router_name": self.INJECT_PARAMS["receiver_name"],
+                "command": f"show bgp neighbors {self.INJECT_PARAMS['neighbor_ip']}",
             }
         )
-        return {"frr_get_routing_state": str(out)}
+        return {"frr_exec": str(out)}

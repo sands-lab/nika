@@ -1,0 +1,14 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: mac_address_conflict
+  cases:
+  - inject:
+      host_name: spine_1_2
+      host_name_2: core_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: spine_1_2
+        name: eth0
+      fault_type: mac_address_conflict

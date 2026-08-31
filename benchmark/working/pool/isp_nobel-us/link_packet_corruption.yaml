@@ -1,0 +1,383 @@
+scenario:
+  name: isp_nobel-us
+failure:
+  fault_type: link_packet_corruption
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: ann_arbor
+      intf_name: eth0
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth0--princeton:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: ann_arbor
+      intf_name: eth1
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth1--ithaca:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: ann_arbor
+      intf_name: eth2
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth2--salt_lake_city:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: atlanta
+      intf_name: eth0
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth0--pittsburgh:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: atlanta
+      intf_name: eth1
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth1--houston:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: boulder
+      intf_name: eth0
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth0--lincoln:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: boulder
+      intf_name: eth1
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth1--houston:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: boulder
+      intf_name: eth2
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth2--salt_lake_city:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: houston
+      intf_name: eth0
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth0--washington:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: houston
+      intf_name: eth2
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth2--san_diego:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: ithaca
+      intf_name: eth0
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth0--washington:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: ithaca
+      intf_name: eth2
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth2--pittsburgh:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: lincoln
+      intf_name: eth0
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_lincoln
+    root_causes:
+    - resource:
+        kind: link
+        name: lincoln:eth0--urbana_champaign:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: palo_alto
+      intf_name: eth0
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth0--san_diego:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: palo_alto
+      intf_name: eth1
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth1--salt_lake_city:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: palo_alto
+      intf_name: eth2
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth2--seattle:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: pittsburgh
+      intf_name: eth1
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: pittsburgh:eth1--urbana_champaign:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: pittsburgh
+      intf_name: eth2
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: pittsburgh:eth2--princeton:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: princeton
+      intf_name: eth2
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_princeton
+    root_causes:
+    - resource:
+        kind: link
+        name: princeton:eth2--washington:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: san_diego
+      intf_name: eth2
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_san_diego
+    root_causes:
+    - resource:
+        kind: link
+        name: san_diego:eth2--seattle:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: seattle
+      intf_name: eth0
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_seattle
+    root_causes:
+    - resource:
+        kind: link
+        name: seattle:eth0--urbana_champaign:eth2
+      fault_type: link_packet_corruption

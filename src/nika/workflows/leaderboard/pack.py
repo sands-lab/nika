@@ -26,14 +26,12 @@ from nika.workflows.leaderboard.aggregate import (
     build_rca_confusion,
     extract_trial_metrics,
 )
-from nika.workflows.leaderboard.hashing import sha256_file
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     load_submission_dir,
     slugify_name,
 )
 from nika.workflows.leaderboard.schema import (
-    FILES_FILENAME,
     IDENTITY_FILENAME,
     METADATA_FILENAME,
     METRICS_FILENAME,
@@ -45,7 +43,6 @@ from nika.workflows.leaderboard.schema import (
     TRIAL_RESULT_FILENAME,
     TRIALS_DIRNAME,
     BenchmarkIdentity,
-    FileInventory,
     PackageIdentity,
     RunIdentity,
     SubmissionMetadata,
@@ -240,14 +237,12 @@ def pack_leaderboard_submission(
         raise LeaderboardPackError("run.json missing version/split")
 
     try:
-        release = load_release(version, split=split, verify_digest=True)
+        release = load_release(version, split=split)
     except ReleaseError as exc:
         raise LeaderboardPackError(str(exc)) from exc
 
     for field, expected in (
         ("benchmark_id", release.id),
-        ("benchmark_digest", release.benchmark_digest),
-        ("cases_sha256", release.cases_sha256),
         ("case_count", release.case_count),
         ("n_trials", release.n_trials),
     ):
@@ -282,7 +277,6 @@ def pack_leaderboard_submission(
         if not legacy.is_file():
             raise LeaderboardPackError(f"missing run.json under {results_root}")
         run_json_path = legacy
-    source_run_sha256 = sha256_file(run_json_path)
 
     meta_model, _meta_src, readme_src = _resolve_metadata(
         submission_dir=submission_dir,
@@ -308,9 +302,7 @@ def pack_leaderboard_submission(
             id=release.id,
             version=release.version,
             ref=release.ref,
-            digest=release.benchmark_digest,
             split=release.split,  # type: ignore[arg-type]
-            cases_sha256=release.cases_sha256,
             case_count=release.case_count,
             n_trials=release.n_trials,
             scoring_id=str(scoring.get("id") or ""),
@@ -326,7 +318,9 @@ def pack_leaderboard_submission(
             llm_provider=run_cfg.get("llm_provider"),
             max_steps=run_cfg.get("max_steps"),
             case_timeout_sec=int(
-                run_cfg.get("case_timeout_sec") or release.case_timeout_sec
+                run_cfg.get("case_timeout_sec")
+                if run_cfg.get("case_timeout_sec") is not None
+                else 2400
             ),
             nika_git_commit=run_cfg.get("nika_git_commit"),
             source_result_dir=_relative_result_hint(results_root),
@@ -377,31 +371,10 @@ def pack_leaderboard_submission(
     confusion_path = results_out / RCA_CONFUSION_FILENAME
     _write_json(confusion_path, confusion)
 
-    package_hashes: dict[str, str] = {
-        METADATA_FILENAME: sha256_file(metadata_path),
-        README_FILENAME: sha256_file(readme_path),
-        f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}": sha256_file(identity_path),
-        f"{RESULTS_DIRNAME}/{METRICS_FILENAME}": sha256_file(metrics_path),
-        f"{RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME}": sha256_file(confusion_path),
-    }
-
     for result in trial_results:
         trial_path = trials_out / result.trial_id
         trial_path.mkdir(parents=True, exist_ok=True)
         result_path = trial_path / TRIAL_RESULT_FILENAME
         _write_json(result_path, result)
-        rel = (
-            f"{RESULTS_DIRNAME}/{TRIALS_DIRNAME}/"
-            f"{result.trial_id}/{TRIAL_RESULT_FILENAME}"
-        )
-        package_hashes[rel] = sha256_file(result_path)
-
-    inventory = FileInventory(
-        source_run_sha256=source_run_sha256,
-        package=package_hashes,
-    )
-    files_path = package_root / FILES_FILENAME
-    # files.json hashes exclude itself (validated by recompute of listed package files).
-    _write_json(files_path, inventory)
 
     return package_root

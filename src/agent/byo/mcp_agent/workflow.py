@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+import agent.byo.mcp_agent._bootstrap  # noqa: F401
+
 from mcp_agent.executor.workflow import Workflow, WorkflowResult
 
 from agent.byo.mcp_agent.config import session_server_names

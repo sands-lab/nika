@@ -58,6 +58,30 @@ def _leaf_bgp_neighbors_established(
     return established >= min_neighbors
 
 
+def verify_min3clos_lab_startup(
+    runtime: LabRuntime, *, scenario_name: str
+) -> dict:
+    """Bounded readiness: fabric nodes, client attachment, and leaf BGP."""
+    checks = {
+        "nodes_deployed": _nodes_deployed(runtime),
+        "client1_link_up": _link_up(runtime, CLIENT1, "eth1"),
+        "client1_ipv4": _host_has_ipv4(runtime, CLIENT1, "eth1", CLIENT1_IP),
+        "leaf1_bgp_neighbors": _leaf_bgp_neighbors_established(
+            runtime, LEAF1, min_neighbors=MIN_LEAF_BGP_NEIGHBORS
+        ),
+    }
+    return build_lab_verify_result(
+        scenario_name=scenario_name,
+        verified=all(checks.values()),
+        checks=checks,
+        details={
+            "probe_client": CLIENT1,
+            "peer_client": CLIENT2,
+            "probe_leaf": LEAF1,
+        },
+    )
+
+
 def verify_min3clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict:
     """Check fabric provisioning, BGP convergence, and end-to-end client reachability."""
     client_ready = _link_up(runtime, CLIENT1, "eth1") and _host_has_ipv4(

@@ -48,8 +48,6 @@ class CaptureMeta:
     dropped_packets: int | None = None
     dumpcap_version: str | None = None
     tshark_version: str | None = None
-    sha256: str | None = None
-    artifact_path: str | None = None
     inspect_display_filters: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,7 +76,5 @@ class CaptureMeta:
             dropped_packets=data.get("dropped_packets"),
             dumpcap_version=data.get("dumpcap_version"),
             tshark_version=data.get("tshark_version"),
-            sha256=data.get("sha256"),
-            artifact_path=data.get("artifact_path"),
             inspect_display_filters=list(data.get("inspect_display_filters") or []),
         )

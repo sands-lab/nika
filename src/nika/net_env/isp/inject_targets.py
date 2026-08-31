@@ -37,12 +37,12 @@ BGP_ORIGINATOR_PROBLEMS = frozenset(
         "bgp_asn_misconfig",
         "bgp_acl_block",
         "bgp_missing_route_advertisement",
-        "bgp_blackhole_route_leak",
         "host_static_blackhole",
     }
 )
 BGP_HIJACK_PROBLEM = "bgp_hijacking"
 BGP_RPKI_LEAK_PROBLEM = "bgp_rpki_invalid_route_leak"
+BGP_RTBH_LEAK_PROBLEM = "bgp_blackhole_community_leak"
 BGP_MAX_PREFIX_PROBLEM = "bgp_max_prefix_exceeded"
 
 
@@ -309,27 +309,17 @@ def isp_bgp_symptom_targets(
     hijack_prefix: str | None = None,
 ) -> dict[str, str]:
     """Cross-PoP probe endpoints for BGP-originator faults on ``router_device``."""
-    if problem == "bgp_blackhole_route_leak":
-        link = _router_backbone_link(isp_inventory, router_device)
-        if link is None:
-            return {}
-        device, iface = link
-        peer_device, _ = link_peer_endpoint(isp_inventory, device, iface)
-        dst = stub_host_ip(isp_inventory, router_device)
-        nodes = sorted(
-            str(n["device"])
-            for n in (isp_inventory.get("nodes") or [])
-            if n.get("device")
-        )
-        remote = next(
-            (node for node in nodes if node not in {router_device, peer_device}),
-            peer_device,
-        )
-        return {
-            "symptom_host": stub_host_for_router(remote),
-            "probe_dst_ip": dst,
-            "peer_host": stub_host_for_router(router_device),
-        }
+    if problem == "bgp_blackhole_community_leak":
+        observer = str(bgp_inventory.get("data_plane_observer_host") or "")
+        ping_addr = str(bgp_inventory.get("target_ping_address") or "")
+        leaker = str(bgp_inventory.get("leaker_device") or router_device)
+        if observer and ping_addr:
+            return {
+                "symptom_host": observer,
+                "probe_dst_ip": ping_addr,
+                "peer_host": stub_host_for_router(leaker),
+            }
+        return {}
 
     prefix: str | None = None
     if problem == "bgp_missing_route_advertisement":
@@ -340,15 +330,28 @@ def isp_bgp_symptom_targets(
     if prefix:
         net = ipaddress.ip_network(prefix, strict=False)
         dst = str(net.network_address + 1)
-        nodes = sorted(
-            str(n["device"])
-            for n in (isp_inventory.get("nodes") or [])
-            if n.get("device") and str(n["device"]) != router_device
-        )
-        if nodes:
-            remote = nodes[0]
+        # Prefer a lab-verified cross-AS observer for this prefix when present.
+        observers = [
+            str(item.get("observer") or "")
+            for item in (bgp_inventory or {}).get("expect_reachable") or []
+            if str(item.get("prefix") or "") == prefix and item.get("observer")
+        ]
+        remote = ""
+        if observers:
+            remote = sorted(observers)[0]
+        if not remote:
+            nodes = sorted(
+                str(n["device"])
+                for n in (isp_inventory.get("nodes") or [])
+                if n.get("device") and str(n["device"]) != router_device
+            )
+            remote = nodes[0] if nodes else ""
+        if remote:
+            # Probe from the observer router (same source as lab
+            # ``bgp_prefixes_propagated``). Stub hosts are not required for
+            # this control-plane advertisement withdrawal signal.
             return {
-                "symptom_host": stub_host_for_router(remote),
+                "symptom_host": remote,
                 "probe_dst_ip": dst,
                 "peer_host": stub_host_for_router(router_device),
             }
@@ -377,6 +380,15 @@ def enrich_isp_symptom_params(
         )
         for key, value in extra.items():
             params.setdefault(key, value)
+    if problem == BGP_RTBH_LEAK_PROBLEM:
+        extra = isp_bgp_symptom_targets(
+            isp_inventory,
+            bgp_inventory,
+            router,
+            problem,
+        )
+        for key, value in extra.items():
+            params.setdefault(key, value)
 
 
 def isp_inject_params(
@@ -391,7 +403,13 @@ def isp_inject_params(
     if problem in LINK_HOST_ONLY_PROBLEMS:
         return {"host_name": first_router(isp_inventory)}
     if problem in BGP_ORIGINATOR_PROBLEMS:
-        return {"host_name": first_originator(bgp_inventory)}
+        host = first_originator(bgp_inventory)
+        out: dict[str, str] = {"host_name": host}
+        if problem == "bgp_missing_route_advertisement":
+            prefix = _originated_prefix_for_device(bgp_inventory, host)
+            if prefix:
+                out["prefix"] = prefix
+        return out
     if problem == BGP_HIJACK_PROBLEM:
         host, prefix = hijack_speaker_and_prefix(bgp_inventory)
         return {"host_name": host, "target_network": prefix}
@@ -399,6 +417,15 @@ def isp_inject_params(
         if not bgp_inventory or not bgp_inventory.get("rpki"):
             raise ValueError(
                 "bgp_rpki_invalid_route_leak requires ISP eBGP RPKI inventory"
+            )
+        leaker = bgp_inventory.get("leaker_device")
+        if not leaker:
+            raise ValueError("bgp inventory missing leaker_device")
+        return {"host_name": str(leaker)}
+    if problem == BGP_RTBH_LEAK_PROBLEM:
+        if not bgp_inventory or not bgp_inventory.get("rtbh"):
+            raise ValueError(
+                "bgp_blackhole_community_leak requires ISP eBGP RTBH inventory"
             )
         leaker = bgp_inventory.get("leaker_device")
         if not leaker:

@@ -66,6 +66,15 @@ def test_bgp_originator_and_hijack() -> None:
         assert isp_inject_params("bgp_asn_misconfig", isp_plan.inventory, bgp_inv) == {
             "host_name": origin
         }
+        missing = isp_inject_params(
+            "bgp_missing_route_advertisement", isp_plan.inventory, bgp_inv
+        )
+        assert missing["host_name"] == origin
+        assert missing.get("prefix")
+        assert any(
+            o["device"] == origin and o["prefix"] == missing["prefix"]
+            for o in bgp_inv["originated"]
+        )
         hijack = isp_inject_params("bgp_hijacking", isp_plan.inventory, bgp_inv)
         speaker, prefix = hijack_speaker_and_prefix(bgp_inv)
         assert hijack == {"host_name": speaker, "target_network": prefix}
@@ -83,6 +92,26 @@ def test_bgp_rpki_leak_target_from_inventory() -> None:
         "bgp_rpki_invalid_route_leak", isp_plan.inventory, bgp.inventory
     )
     assert params == {"host_name": bgp.inventory["leaker_device"]}
+
+
+def test_bgp_rtbh_leak_target_from_inventory() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp", rtbh=True)
+    assert bgp is not None
+    params = isp_inject_params(
+        "bgp_blackhole_community_leak", isp_plan.inventory, bgp.inventory
+    )
+    assert params == {"host_name": bgp.inventory["leaker_device"]}
+    from nika.net_env.isp.inject_targets import isp_bgp_symptom_targets
+
+    symptoms = isp_bgp_symptom_targets(
+        isp_plan.inventory,
+        bgp.inventory,
+        bgp.inventory["leaker_device"],
+        "bgp_blackhole_community_leak",
+    )
+    assert symptoms["symptom_host"] == bgp.inventory["data_plane_observer_host"]
+    assert symptoms["probe_dst_ip"] == "198.51.100.1"
 
 
 def test_bgp_max_prefix_target_ebgp() -> None:

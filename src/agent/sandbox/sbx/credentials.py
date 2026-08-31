@@ -224,7 +224,7 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
             f"{provider or 'openai|deepseek|custom'} in config/nika.yaml.\n"
             "ChatGPT / Codex subscription: run "
             "`sbx secret set -g openai --oauth` once on the host.\n"
-            "See docs/agent-sandbox.md and "
+            "See docs/operations/agent-sandbox.md and "
             "https://docs.docker.com/ai/sandboxes/agents/codex/"
         )
     if service == SERVICE_ANTHROPIC:
@@ -237,7 +237,7 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
             "Claude subscription: authenticate with `/login` inside Claude Code "
             "so the anthropic secret is stored on the host "
             "(see https://docs.docker.com/ai/sandboxes/agents/claude-code/).\n"
-            "See docs/agent-sandbox.md"
+            "See docs/operations/agent-sandbox.md"
         )
     return f"Missing Docker Sandboxes credential for {service}."
 

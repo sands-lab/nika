@@ -25,6 +25,7 @@ class SDNControllerCrashParams(BaseModel):
 class SDNControllerCrash(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name: str = "sdn_controller_crash"
+    description = "SDN controller is down."
     TAGS: str = ["sdn"]
 
     Params = SDNControllerCrashParams
@@ -36,14 +37,20 @@ class SDNControllerCrash(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: SDNControllerCrashParams):
-        # ONOS runs as a Java/karaf process; also match legacy POX if present.
-        # nika/onos PID 1 is a keeper script, so killing Java leaves the
-        # container exec-able for verify_fault.
+        # ONOS: JVM plus the karaf wrapper (/bin/sh .../bin/karaf server).
+        # PID 1 is a keeper (sleep infinity); SIGKILL leaves exec for verify.
+        # Bracket patterns avoid pkill matching the Kathara/docker exec shell
+        # argv (which embeds this command string and would suicide before kill).
         self.runtime.exec(
             params.host_name,
-            "pkill -f 'onos-service|org.apache.karaf|java.*onos' || "
-            "pkill -f pox.py || true; "
-            "sleep 1",
+            "pkill -9 -f '[o]rg.apache.karaf' 2>/dev/null || true; "
+            "pkill -9 -f '[o]nos-service' 2>/dev/null || true; "
+            "pkill -9 -f '[j]ava.*karaf' 2>/dev/null || true; "
+            "pkill -9 -f '[a]pache-karaf' 2>/dev/null || true; "
+            "pkill -9 -f '[/]bin/karaf' 2>/dev/null || true; "
+            "pkill -9 -f '[k]araf server' 2>/dev/null || true; "
+            "pkill -9 -f '[p]ox.py' 2>/dev/null || true; "
+            "sleep 3",
         )
 
     def verify_fault(self, params: SDNControllerCrashParams) -> dict:
@@ -52,6 +59,7 @@ class SDNControllerCrash(ProblemBase):
                 params.host_name,
                 "pgrep -af 'onos-service|karaf|java.*onos|pox.py' 2>/dev/null "
                 "| grep -v 'pgrep\\|bash\\|grep\\|onos-entrypoint\\|sleep infinity' "
+                "| grep -v '<defunct>' "
                 "| grep . || echo NONE",
             ).strip()
         except Exception as exc:  # noqa: BLE001
@@ -89,6 +97,7 @@ class SouthboundPortBlockParams(BaseModel):
 class SouthboundPortBlock(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name: str = "southbound_port_block"
+    description = "Controller southbound channel port is blocked."
     TAGS: str = ["sdn"]
 
     Params = SouthboundPortBlockParams
@@ -135,6 +144,7 @@ class SouthboundPortMismatchParams(BaseModel):
 class SouthboundPortMismatch(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name: str = "southbound_port_mismatch"
+    description = "Controller southbound listen port mismatches switch config."
     TAGS: str = ["sdn"]
 
     Params = SouthboundPortMismatchParams

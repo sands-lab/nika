@@ -1,0 +1,50 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: incast_traffic_network_limitation
+  cases:
+  - topo_size: s
+    inject:
+      burst: 64kb
+      delay_ms: '400'
+      host_name: service_1_1
+      limit: 64kb
+      observer_device: client_1
+      probe_dst_ip: 10.0.1.11
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: service_1_1
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: m
+    inject:
+      burst: 64kb
+      delay_ms: '400'
+      host_name: service_1_1
+      limit: 64kb
+      observer_device: client_1
+      probe_dst_ip: 10.0.1.11
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: service_1_1
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: l
+    inject:
+      burst: 64kb
+      delay_ms: '400'
+      host_name: service_1_1
+      limit: 64kb
+      observer_device: client_1
+      probe_dst_ip: 10.0.1.11
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: service_1_1
+        name: eth0
+      fault_type: incast_traffic_network_limitation

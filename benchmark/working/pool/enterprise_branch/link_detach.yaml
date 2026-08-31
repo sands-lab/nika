@@ -1,0 +1,1025 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: link_detach
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br3_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br4_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth5
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br3_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br4_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br5_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br6_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br7_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br8_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth5
+      fault_type: link_detach

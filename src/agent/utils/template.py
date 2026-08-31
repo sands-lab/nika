@@ -32,10 +32,12 @@ SUBMIT_PROMPT_TEMPLATE = dedent("""\
     You are given a frozen diagnosis report, a fault ontology, and a canonical
     resource inventory. Do not investigate again or revise the report. Call
     submit() once with is_anomaly and root_causes as [{resource_id, fault_type}, ...]
-    chosen from that supplied context. Each fault_type must be an exact ontology
-    ``id`` (never an owner_kind or a natural-language alias), and each resource_id
-    must be an exact inventory id. Do not invent ids. For a healthy case submit
-    is_anomaly=false with an empty root_causes list. Do not call submit more than once.
+    chosen from that supplied context. Each fault ontology entry has an ``id``,
+    a short ``description`` of what that id means, and an ``owner_kind``. Each
+    fault_type must be an exact ontology ``id`` (never an owner_kind, description,
+    or natural-language alias), and each resource_id must be an exact inventory id.
+    Do not invent ids. For a healthy case submit is_anomaly=false with an empty
+    root_causes list. Do not call submit more than once.
     Rely only on the MCP tools available to you; do not execute arbitrary shell commands.\
 """).strip()
 

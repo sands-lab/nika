@@ -1,0 +1,117 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: p4_table_entry_missing
+  cases:
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_entry_missing
+  - topo_size: s
+    inject:
+      host_name: leaf_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2
+      fault_type: p4_table_entry_missing
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_entry_missing
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2
+      fault_type: p4_table_entry_missing
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_3
+      fault_type: p4_table_entry_missing
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_4
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_2
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_3
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_4
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_5
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_6
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_7
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_8
+      fault_type: p4_table_entry_missing

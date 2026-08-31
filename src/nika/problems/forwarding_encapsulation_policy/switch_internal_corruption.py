@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import interfaces_for_node
+from nika.problems.support.probe_paths import get_probe_path
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
 from traffic.burst import BurstTrafficGenerator
@@ -26,6 +27,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "device_forwarding_packet_corruption"
+    description = "A forwarding device silently corrupts selected packets."
     symptom_desc = (
         "A subset of TCP flows through one fabric switch incurs end-to-end "
         "checksum drops and retransmissions while links and BGP remain healthy."
@@ -84,7 +86,23 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         }
 
     def _start_cross_leaf_workload(self, seed: int) -> None:
-        """Generate enough stable TCP tuples to exercise ECMP and the trigger."""
+        """Generate stable TCP tuples on the default probe path."""
+        scenario = getattr(self, "scenario_name", None) or ""
+        topo_size = getattr(self.net_env, "topo_size", None) or "s"
+        path = get_probe_path(scenario, topo_size=topo_size)
+        if path is not None and path.peer_host and path.peer_host != path.src_host:
+            BurstTrafficGenerator(self.runtime).run(
+                sources=[path.src_host],
+                destination=path.peer_host,
+                protocol="tcp",
+                rate="10M",
+                packet_size=1200,
+                duration=60,
+                synchronized_start=0,
+                seed=seed,
+                flows_per_source=24,
+            )
+            return
         hosts = sorted(
             name
             for name, identity in self.net_env.machine_identities.items()

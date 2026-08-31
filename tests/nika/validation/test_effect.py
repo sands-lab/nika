@@ -21,7 +21,7 @@ from nika.validation.effect import (
 def _contract() -> ValidationContract:
     return ValidationContract(
         contract_id="isp.test.ospf.none",
-        scenario="isp",
+        scenario="isp_abilene",
         design_source={},
         intents=(
             ValidationIntent(
@@ -83,7 +83,7 @@ def test_reachability_effect_only_targets_prefix_destinations() -> None:
     """
     contract = ValidationContract(
         contract_id="isp.test.ebgp",
-        scenario="isp",
+        scenario="isp_abilene",
         design_source={},
         intents=(
             ValidationIntent(

@@ -26,6 +26,24 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     DESC = "3-node CLOS fabric with Nokia SR Linux (Containerlab min-clos / clos01)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 300
 
+    def __init__(self, *, backend: str = "containerlab", **kwargs):
+        from nika.runtime.spec import NodeRole
+
+        super().__init__(backend=backend, **kwargs)
+        for name in ("leaf1", "leaf2", "spine"):
+            self.declare_machine(
+                name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "srl", "bgp"),
+            )
+        for name in ("client1", "client2"):
+            self.declare_machine(
+                name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
+
     def _prepare_runtime_files(self) -> None:
         super()._prepare_runtime_files()
         lab_name = self.name
@@ -108,6 +126,13 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             raise RuntimeError(
                 f"min3clos setup.sh failed: {result.stderr or result.stdout}"
             )
+
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.min3clos.verify import verify_min3clos_lab_startup
+
+        return verify_min3clos_lab_startup(
+            self._build_runtime(), scenario_name=self.LAB_NAME
+        )
 
     def verify_lab(self) -> dict:
         from nika.net_env.min3clos.verify import verify_min3clos_lab

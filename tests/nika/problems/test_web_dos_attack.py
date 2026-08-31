@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from benchmark.inject_resolve import resolve_inject_params
+from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.problems.registry import compatible, get_problem_class
 from nika.problems.security.web import WebDoS, WebDoSParams
 from tests.support.integration_base import IntegrationTestCase

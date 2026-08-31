@@ -7,25 +7,6 @@ from typing import Any
 
 HEALTHY_PROBLEM = "healthy"
 
-# Fixed ISP deploy profile for healthy ISP cases (must be self-contained).
-HEALTHY_ISP_OPTIONS: dict[str, Any] = {
-    "topo": "abilene",
-    "igp": "ospf",
-    "bgp_mode": "ebgp",
-    "rpki": False,
-}
-
-# One healthy case per scenario present in the selected matrix.
-SELECTED_HEALTHY_SCENARIOS: tuple[str, ...] = (
-    "campus_lan",
-    "dc_clos",
-    "enterprise_branch",
-    "isp",
-    "p4_dc_fabric",
-    "p4_dc_gateway",
-    "sdn_l3_clos",
-)
-
 
 def is_healthy_case(problem: str | None) -> bool:
     return str(problem or "") == HEALTHY_PROBLEM
@@ -60,7 +41,7 @@ def write_healthy_session_artifacts(session_id: str) -> None:
         getattr(session, "scenario_topo_size", None) or params.get("topo_size") or ""
     )
     isp_kwargs: dict[str, Any] = {}
-    for key in ("topo", "igp", "bgp_mode", "rpki"):
+    for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
         if key in params and params[key] is not None:
             isp_kwargs[key] = params[key]
     net_env = load_offline_net_env(

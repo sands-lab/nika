@@ -1,0 +1,15 @@
+scenario:
+  name: isp_geant_ebgp_rpki
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: at1_at
+      fault_type: icmp_frag_needed_filter_misconfiguration

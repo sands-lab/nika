@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import agent.byo.mcp_agent._bootstrap  # noqa: F401
+
 from mcp.types import CallToolRequest, CallToolResult
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm_anthropic import AnthropicAugmentedLLM
@@ -13,7 +15,7 @@ from agent.utils.loggers import (
     tool_event_payload,
 )
 from agent.utils.usage import normalize_usage
-from nika.service.mcp_server.registry import MCP_SERVER_PREFIXES
+from nika.mcp.registry import MCP_SERVER_PREFIXES
 
 _SERVER_PREFIXES = MCP_SERVER_PREFIXES + ("task_mcp_server_",)
 

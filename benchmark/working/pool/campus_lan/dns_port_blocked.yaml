@@ -1,0 +1,29 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: dns_port_blocked
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dns_server
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_port_blocked
+  - topo_size: m
+    inject:
+      host_name: dns_server
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_port_blocked
+  - topo_size: l
+    inject:
+      host_name: dns_server
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_port_blocked

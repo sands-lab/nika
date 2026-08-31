@@ -17,7 +17,7 @@ def resolve_inject_params(
     try:
         params = inject_params_from_benchmark_yaml(scenario, problem, topo_size)
     except ValueError:
-        from benchmark.inject_resolve import resolve_inject_params as bench_resolve
+        from nika.workflows.benchmark.inject_resolve import resolve_inject_params as bench_resolve
 
         params = bench_resolve(problem, scenario, topo_size, seed=42)
     if overrides:
