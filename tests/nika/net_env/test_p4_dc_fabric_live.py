@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -12,13 +11,9 @@ from nika.net_env.verify import http_ok, ping_ok
 from nika.runtime.factory import runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
+from tests.support.scenario_failure_compat import write_probe_report
 
 REPORT_PATH = Path("results/test/p4_dc_fabric_acceptance.json")
-
-
-def _record(rows: list[dict]) -> None:
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_PATH.write_text(json.dumps(rows, indent=2, default=str), encoding="utf-8")
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
@@ -63,7 +58,7 @@ class P4DcFabricLiveTest(IntegrationTestCase):
             row["cleanup_redeploy"] = True
         finally:
             self._close_session(session_id)
-        _record([row])
+        write_probe_report(REPORT_PATH, {"rows": [row]})
         assert all(row[k] for k in row if k != "size")
 
 

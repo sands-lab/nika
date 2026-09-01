@@ -9,10 +9,6 @@ from nika.mcp.gateway.session_registry import (
 import pytest
 
 
-def test_failure_catalog_is_unavailable_during_diagnosis() -> None:
-    clear_sessions()
-
-
 def test_submission_phase_cannot_be_reversed() -> None:
     clear_sessions()
     register_session("phase-lock", scenario_name="simple_bgp")

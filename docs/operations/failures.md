@@ -23,16 +23,16 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 
 | Domain | Boundary | Registered failures | Working-matrix cases |
 | --- | --- | ---: | ---: |
-| Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 238 |
-| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 8 | 199 |
-| Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 26 | 346 |
+| Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 267 |
+| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 8 | 196 |
+| Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 26 | 324 |
 | Service Networking | Kubernetes ClusterIP forwarding and load-balancer operation. | 6 | 17 |
 | Management & Orchestration Plane | Kubernetes API-server reachability, SDN controller availability, and controller southbound management channels. | 4 | 11 |
 | Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 13 | 132 |
 | Endpoint & Application | Endpoint resource contention and application delay. | 2 | 38 |
 | Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. | 3 | 25 |
-| Security | Attacks, spoofing, and poisoning. | 7 | 84 |
-| **Total** |  | **75** | **1,112** |
+| Security | Attacks, spoofing, and poisoning. | 7 | 88 |
+| **Total** |  | **75** | **1,098** |
 
 The domains follow the failed network mechanism.
 

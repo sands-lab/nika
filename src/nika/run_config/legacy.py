@@ -80,6 +80,7 @@ CREDENTIAL_ENV_KEYS: tuple[str, ...] = (
     "NIKA_CUSTOM_API_KEY",
     "LANGFUSE_SECRET_KEY",
     "LANGFUSE_PUBLIC_KEY",
+    "HF_TOKEN",
 )
 
 _warned = False

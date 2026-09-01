@@ -116,7 +116,7 @@ uv run pytest tests/agent/test_sandbox_agents.py -v
 
 ## Benchmark tests (`tests/benchmark/`)
 
-Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`, `task_label`). Offline inject-param generation, ISP option/symptom targeting, and healthy-case rules live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Batch mode requires explicit `--config` or `--release` (no bare default suite).
+Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`). Offline inject-param generation, ISP option/symptom targeting, healthy-case rules, and task-label contracts live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Batch mode requires explicit `--config` or `--release` (no bare default suite).
 
 | Module | Purpose |
 |--------|---------|
@@ -128,7 +128,6 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |
 | `test_migrate.py` | Benchmark YAML migrate → `root_causes` |
-| `test_task_label.py` | Compound task label format/parse |
 | `helpers.py` | Load inject params from bundled benchmark YAML |
 | `curated.py` / `fixtures/curated_0_2_0_test.yaml` | Curated 0.2.0 test-split rows (tests only; not a published release) |
 
@@ -140,6 +139,7 @@ Related (moved out of this directory):
 | `tests/nika/net_env/isp/test_isp_options.py` | ISP deploy-option selection + row normalize/fingerprint |
 | `tests/nika/net_env/isp/test_isp_bgp_symptom.py` | ISP BGP inject symptom host / probe target attachment |
 | `tests/nika/workflows/test_healthy_cases.py` | Healthy (no-fault) case normalize + selected YAML coverage |
+| `tests/nika/workflows/test_multi_fault_benchmark_row.py` | Compound task label format/parse and multi-fault fingerprint contracts |
 
 ```shell
 uv run pytest tests/benchmark/test_release.py -v

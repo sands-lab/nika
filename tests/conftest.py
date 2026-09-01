@@ -91,7 +91,7 @@ def pytest_collection_modifyitems(config, items):
                 "test_alias_load",
                 "test_inject_resolve",
                 "test_migrate",
-                "test_task_label",
+                "test_multi_fault_benchmark_row",
                 "test_isp_options",
                 "test_isp_bgp_symptom",
                 "test_isp_contract",
