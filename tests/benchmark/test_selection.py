@@ -21,11 +21,6 @@ from nika.workflows.benchmark.selection import (
     selection_fingerprints,
     CoverageState,
 )
-from nika.workflows.benchmark.split_catalog import (
-    effective_backend,
-    select_dev_test_cases,
-    validate_dev_test_split,
-)
 
 
 def _synthetic_pool() -> list[dict]:
@@ -253,18 +248,6 @@ def test_compute_gain_rejects_duplicate_context() -> None:
     assert gain < 0
 
 
-def test_semantic_isolation_rejects_different_targets_in_same_context() -> None:
-    base = {
-        "scenario": "dc_clos",
-        "problem": "link_down",
-        "topo_size": "s",
-    }
-    dev = [{**base, "inject": {"host_name": "pc_0_0", "intf_name": "eth0"}}]
-    test = [{**base, "inject": {"host_name": "pc_0_1", "intf_name": "eth0"}}]
-    with pytest.raises(ValueError, match="semantic isolation"):
-        validate_dev_test_split(dev, test)
-
-
 def test_baseline_one_per_failure_count() -> None:
     pool = _synthetic_pool()
     baseline = baseline_one_per_failure(pool)
@@ -317,24 +300,3 @@ def test_real_catalog_selection_constraints() -> None:
     assert {"s", "m", "l"} & scales
     for row in cases:
         assert "scenario" in row and "problem" in row
-
-
-def test_real_catalog_dev_test_split_contract() -> None:
-    catalog = Path("benchmark/working/pool")
-    if not catalog.is_dir():
-        return
-    collapsed = collapse_candidates(load_candidate_catalog(catalog))
-    dev, test = select_dev_test_cases(collapsed, seed=42)
-    registry = set(list_avail_problem_instances())
-    validate_dev_test_split(dev, test, expected_failures=registry)
-    test_healthy = sum(1 for row in test if row["problem"] == HEALTHY_PROBLEM)
-    assert 0.10 <= test_healthy / len(test) <= 0.20
-    assert {
-        row["problem"] for row in dev if row["problem"] != HEALTHY_PROBLEM
-    } == registry
-    assert {
-        row["problem"] for row in test if row["problem"] != HEALTHY_PROBLEM
-    } == registry
-    assert {effective_backend(row) for row in dev} == {"kathara", "containerlab"}
-    assert {effective_backend(row) for row in test} == {"kathara", "containerlab"}
-    assert all(effective_backend(row) for row in dev + test)

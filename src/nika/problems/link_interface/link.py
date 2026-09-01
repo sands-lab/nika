@@ -396,7 +396,7 @@ class LinkCapacityBottleneck(ProblemBase):
     root_cause_name: str = "link_capacity_bottleneck"
     description = "Logical link capacity is bottlenecked below demand."
     TAGS: str = ["link"]
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
 
     Params = LinkCapacityBottleneckParams
 
@@ -436,13 +436,20 @@ class LinkCapacityBottleneck(ProblemBase):
     ) -> None:
         intf = _resolve_link_intf(params.intf_name, "containerlab")
         self.faulty_intf = intf
-        self._host_veth = HostTcController(self.runtime).set_tbf(
+        controller = HostTcController(self.runtime)
+        peer = controller.set_tbf(
             params.host_name,
             intf,
             rate=params.rate,
             burst=params.burst,
             limit=params.limit,
         )
+        if peer.startswith("node:"):
+            self._host_veth = None
+            self._capacity_mode = "node_intf"
+        else:
+            self._host_veth = peer
+            self._capacity_mode = "host_peer"
 
     def verify_fault(self, params: LinkCapacityBottleneckParams) -> dict:
         """Verify the controller-side TBF without exposing it to lab nodes."""
@@ -473,6 +480,35 @@ class LinkCapacityBottleneck(ProblemBase):
         self, params: LinkCapacityBottleneckParams
     ) -> dict:
         intf = _resolve_link_intf(params.intf_name, "containerlab")
+        mode = getattr(self, "_capacity_mode", None)
+        if mode == "node_intf":
+            verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=verified,
+                details={
+                    "host": params.host_name,
+                    "intf": intf,
+                    "mode": "node_intf",
+                },
+            )
+        if mode is None and getattr(self, "_host_veth", None) is None:
+            try:
+                controller = HostTcController(self.runtime)
+                controller.peer_name(params.host_name, intf)
+            except RuntimeCapabilityError:
+                verified = self.runtime.tc_qdisc_contains(
+                    params.host_name, intf, "tbf"
+                )
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=verified,
+                    details={
+                        "host": params.host_name,
+                        "intf": intf,
+                        "mode": "node_intf",
+                    },
+                )
         controller = HostTcController(self.runtime)
         peer = getattr(self, "_host_veth", None) or controller.peer_name(
             params.host_name, intf
@@ -481,7 +517,7 @@ class LinkCapacityBottleneck(ProblemBase):
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
-            details={"host": params.host_name, "intf": intf},
+            details={"host": params.host_name, "intf": intf, "mode": "host_peer"},
         )
 
     def recover_fault(self, params: LinkCapacityBottleneckParams) -> dict:
@@ -498,12 +534,25 @@ class LinkCapacityBottleneck(ProblemBase):
                 proxy is None or controller.discover(params.host_name, intf) is None
             )
         else:
-            controller = HostTcController(self.runtime)
-            peer = getattr(self, "_host_veth", None) or controller.peer_name(
-                params.host_name, intf
-            )
-            controller.clear(peer)
-            restored = "tbf" not in controller.qdisc(peer).lower()
+            mode = getattr(self, "_capacity_mode", None)
+            if mode == "node_intf":
+                self.runtime.tc_clear_intf(params.host_name, intf)
+                restored = not self.runtime.tc_qdisc_contains(
+                    params.host_name, intf, "tbf"
+                )
+            else:
+                controller = HostTcController(self.runtime)
+                try:
+                    peer = getattr(self, "_host_veth", None) or controller.peer_name(
+                        params.host_name, intf
+                    )
+                    controller.clear(peer)
+                    restored = "tbf" not in controller.qdisc(peer).lower()
+                except RuntimeCapabilityError:
+                    self.runtime.tc_clear_intf(params.host_name, intf)
+                    restored = not self.runtime.tc_qdisc_contains(
+                        params.host_name, intf, "tbf"
+                    )
         return {
             "verified": restored,
             "details": {"host": params.host_name, "intf": intf},

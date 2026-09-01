@@ -166,6 +166,7 @@ def assert_link_capacity_bottleneck_pre(ctx: FailureE2EContext) -> None:
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
     assert path is not None and path.peer_host and path.dst_ip
+    _wait_for_ping(ctx.runtime, path.src_host, path.dst_ip)
     baseline_bps = iperf_throughput_bps(
         ctx.runtime,
         path.src_host,

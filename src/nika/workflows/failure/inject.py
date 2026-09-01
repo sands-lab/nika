@@ -29,6 +29,15 @@ def _failure_verify_settings() -> tuple[int, float]:
         return 3, 5.0
 
 
+def _failure_effect_enabled() -> bool:
+    try:
+        from nika.run_config.loader import get_run_config
+
+        return bool(get_run_config().nika.runtime_validation.failure_effect)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _json_safe(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
@@ -311,7 +320,7 @@ def inject_failure(
     )
 
     contract_path = Path(session.session_dir) / "validation-contract.json"
-    if contract_path.is_file():
+    if _failure_effect_enabled() and contract_path.is_file():
         from nika.net_env.contract import ValidationContract
         from nika.validation.effect import (
             FAILURE_EFFECT_FILENAME,

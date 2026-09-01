@@ -73,11 +73,63 @@ class BGPAsnMisconfig(ProblemBase):
     def _inject_asn_misconfig_kathara(self, params: BGPAsnMisconfigParams) -> None:
         as_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
         wrong_asn = as_number + 600
+        # k8s_lab uses split FRR configs (/etc/frr/bgpd.conf); campus etc. use frr.conf.
+        # Patch on-disk configs and bounce daemons so split-config labs reload.
+        # Avoid shell "$vars" inside runtime.exec wrapping (quote escaping breaks loops).
+        patched: list[str] = []
+        for conf in ("/etc/frr/frr.conf", "/etc/frr/bgpd.conf"):
+            exists = self.runtime.exec(
+                params.host_name,
+                f"test -f {conf} && echo yes || echo no",
+                timeout=10,
+            ).strip()
+            if exists != "yes":
+                continue
+            self.runtime.exec(
+                params.host_name,
+                f"cp -a {conf} {conf}.bak",
+                timeout=10,
+            )
+            self.runtime.exec(
+                params.host_name,
+                f"sed -i -E 's/^router bgp [0-9]+/router bgp {wrong_asn}/' {conf}",
+                timeout=10,
+            )
+            patched.append(conf)
+        verify_files = self.runtime.exec(
+            params.host_name,
+            "grep -E '^router bgp' /etc/frr/frr.conf /etc/frr/bgpd.conf 2>/dev/null || true",
+            timeout=10,
+        )
+        if not patched or f"router bgp {wrong_asn}" not in verify_files:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: could not patch BGP ASN files on "
+                f"{params.host_name!r}: patched={patched!r} grep={verify_files!r}"
+            )
         self.runtime.exec(
             params.host_name,
-            f"sed -i.bak 's/^router bgp {as_number}$/router bgp {wrong_asn}/' /etc/frr/frr.conf && service frr restart 2>/dev/null || true",
+            (
+                "pkill -9 -x bgpd 2>/dev/null || true; "
+                "pkill -9 -x zebra 2>/dev/null || true; "
+                "sleep 1; "
+                "/usr/lib/frr/frrinit.sh start 2>/dev/null || "
+                "systemctl start frr 2>/dev/null || "
+                "service frr start 2>/dev/null || "
+                "("
+                "  [ -x /usr/lib/frr/zebra ] && /usr/lib/frr/zebra -d -A 127.0.0.1; "
+                "  [ -x /usr/lib/frr/bgpd ] && /usr/lib/frr/bgpd -d -A 127.0.0.1; "
+                ")"
+            ),
+            timeout=90,
         )
-        time.sleep(8)
+        time.sleep(12)
+        running = self.runtime.frr_get_bgp_asn_number(params.host_name)
+        if running != wrong_asn:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: FRR on {params.host_name!r} "
+                f"did not apply ASN change ({as_number} -> {wrong_asn}); "
+                f"running={running}."
+            )
         self._orig_asn = as_number
         self._wrong_asn = wrong_asn
         self.logger.info(
@@ -123,23 +175,31 @@ class BGPAsnMisconfig(ProblemBase):
         )
 
     def _verify_asn_misconfig_kathara(self, params: BGPAsnMisconfigParams) -> dict:
+        orig_asn = getattr(self, "_orig_asn", None)
+        expected_wrong = getattr(self, "_wrong_asn", None)
         file_asn_raw = self.runtime.exec(
             params.host_name,
-            "grep -E '^router bgp' /etc/frr/frr.conf 2>/dev/null | awk '{print $3}'",
+            (
+                "grep -E '^router bgp' /etc/frr/frr.conf /etc/frr/bgpd.conf "
+                "2>/dev/null | awk '{print $NF}' | head -1"
+            ),
         ).strip()
         orig_asn_raw = self.runtime.exec(
             params.host_name,
-            "grep -E '^router bgp' /etc/frr/frr.conf.bak 2>/dev/null | awk '{print $3}'",
+            (
+                "grep -E '^router bgp' /etc/frr/frr.conf.bak /etc/frr/bgpd.conf.bak "
+                "2>/dev/null | awk '{print $NF}' | head -1"
+            ),
         ).strip()
-        running_asn_raw = self.runtime.exec(
-            params.host_name,
-            "vtysh -c 'show running-config' 2>/dev/null | grep -E '^router bgp' | awk '{print $3}'",
-        ).strip()
-        file_changed = (
-            bool(file_asn_raw) and bool(orig_asn_raw) and file_asn_raw != orig_asn_raw
-        )
-        daemon_changed = bool(running_asn_raw) and running_asn_raw != orig_asn_raw
-        verified = file_changed and daemon_changed
+        if not orig_asn_raw and orig_asn is not None:
+            orig_asn_raw = str(orig_asn)
+        try:
+            running_asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
+            running_asn_raw = str(running_asn)
+        except Exception:
+            running_asn = None
+            running_asn_raw = ""
+        verified = expected_wrong is not None and running_asn == expected_wrong
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -148,6 +208,7 @@ class BGPAsnMisconfig(ProblemBase):
                 "file_asn": file_asn_raw,
                 "orig_asn": orig_asn_raw,
                 "running_asn": running_asn_raw,
+                "wrong_asn": expected_wrong,
             },
         )
 

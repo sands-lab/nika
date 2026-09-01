@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,6 +33,7 @@ from nika.workflows.leaderboard.meta_input import (
     load_submission_dir,
     slugify_name,
 )
+from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
 from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
     METADATA_FILENAME,
@@ -39,7 +42,9 @@ from nika.workflows.leaderboard.schema import (
     RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
-    SCHEMA_VERSION,
+    TRAJECTORIES_DIR_SUFFIX,
+    TRAJECTORY_OPTIONAL_SUCCESS_FILE,
+    TRAJECTORY_REQUIRED_FILES,
     TRIAL_RESULT_FILENAME,
     TRIALS_DIRNAME,
     BenchmarkIdentity,
@@ -53,6 +58,65 @@ from nika.workflows.leaderboard.secrets import scan_value_for_issues
 
 class LeaderboardPackError(ValueError):
     """Invalid release-run inputs for packing a leaderboard submission."""
+
+
+@dataclass(frozen=True)
+class PackResult:
+    """Scores package plus sibling trajectories package from one pack run."""
+
+    scores_dir: Path
+    trajectories_dir: Path
+
+
+# Machine-local absolute paths are redacted when packing trajectories.
+_ABS_PATH_REDACT = re.compile(
+    r"(?:/home/|/Users/|/tmp/|/var/|/etc/|[A-Za-z]:\\)[^\s\"']*"
+)
+
+
+def _redact_absolute_paths(text: str) -> str:
+    return _ABS_PATH_REDACT.sub("<REDACTED_PATH>", text)
+
+
+def _sanitize_json_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _redact_absolute_paths(value)
+    if isinstance(value, dict):
+        return {k: _sanitize_json_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_json_value(v) for v in value]
+    return value
+
+
+def _write_sanitized_trajectory_file(
+    src: Path,
+    dest: Path,
+    *,
+    trial_id: str,
+) -> None:
+    raw = src.read_text(encoding="utf-8")
+    if src.name == "run.json":
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise LeaderboardPackError(f"Expected JSON object at {src}")
+        data = _sanitize_json_value(data)
+        if isinstance(data, dict):
+            data["session_dir"] = trial_id
+        dest.write_text(
+            json.dumps(data, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return
+    if src.suffix == ".json":
+        data = json.loads(raw)
+        data = _sanitize_json_value(data)
+        dest.write_text(
+            json.dumps(data, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return
+    # JSONL / plain text
+    dest.write_text(_redact_absolute_paths(raw), encoding="utf-8")
 
 
 def _utc_now() -> datetime:
@@ -202,6 +266,42 @@ def _trial_result_from_dir(
     )
 
 
+def _copy_trajectory_trial_files(
+    *,
+    session_dir: Path,
+    dest_dir: Path,
+    outcome: str,
+    trial_id: str,
+) -> None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for name in TRAJECTORY_REQUIRED_FILES:
+        src = session_dir / name
+        if not src.is_file():
+            raise LeaderboardPackError(
+                f"Trial under {session_dir} missing required trajectory file {name}"
+            )
+        _write_sanitized_trajectory_file(src, dest_dir / name, trial_id=trial_id)
+
+    submission_src = session_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE
+    if outcome == "success":
+        if not submission_src.is_file():
+            raise LeaderboardPackError(
+                f"Trial under {session_dir} outcome=success but missing "
+                f"{TRAJECTORY_OPTIONAL_SUCCESS_FILE}"
+            )
+        _write_sanitized_trajectory_file(
+            submission_src,
+            dest_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE,
+            trial_id=trial_id,
+        )
+    elif submission_src.is_file():
+        _write_sanitized_trajectory_file(
+            submission_src,
+            dest_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE,
+            trial_id=trial_id,
+        )
+
+
 def pack_leaderboard_submission(
     result_dir: str | Path,
     *,
@@ -209,13 +309,14 @@ def pack_leaderboard_submission(
     metadata: SubmissionMetadata | dict[str, Any] | None = None,
     readme_text: str | None = None,
     out_dir: str | Path | None = None,
-) -> Path:
-    """Build a SWE-bench-style leaderboard package from an official release run.
+) -> PackResult:
+    """Build scores + trajectories packages from an official release run.
 
     Prefer ``submission_dir`` containing edited ``metadata.yaml`` + ``README.md``.
     Programmatic callers may pass ``metadata`` and optional ``readme_text``.
 
-    Returns the package directory path.
+    Returns :class:`PackResult` with ``scores_dir`` and sibling
+    ``trajectories_dir`` (``{scores}_trajectories/``).
     """
     results_root = resolve_results_root(result_dir)
     if not results_root.is_dir():
@@ -254,6 +355,7 @@ def pack_leaderboard_submission(
 
     trials = expand_trials(release.cases, release.n_trials)
     trial_results: list[TrialResult] = []
+    session_by_trial_id: dict[str, Path] = {}
 
     for trial in trials:
         session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
@@ -270,6 +372,7 @@ def pack_leaderboard_submission(
             session_dir=session_dir,
         )
         trial_results.append(result)
+        session_by_trial_id[trial.trial_id] = session_dir
 
     run_json_path = results_root / "run.json"
     if not run_json_path.is_file():
@@ -295,8 +398,13 @@ def pack_leaderboard_submission(
 
     scoring = release.scoring if isinstance(release.scoring, dict) else {}
     created = _utc_now()
+    package_name = _package_folder_name(meta_model, when=created)
+    try:
+        traj_relpath = remote_trajectories_relpath(release.version, package_name)
+    except ValueError as exc:
+        raise LeaderboardPackError(str(exc)) from exc
+
     identity = PackageIdentity(
-        schema_version=SCHEMA_VERSION,  # type: ignore[arg-type]
         created_at=created.isoformat(),
         benchmark=BenchmarkIdentity(
             id=release.id,
@@ -325,9 +433,19 @@ def pack_leaderboard_submission(
             nika_git_commit=run_cfg.get("nika_git_commit"),
             source_result_dir=_relative_result_hint(results_root),
         ),
+        trajectories_relpath=traj_relpath,
+        scores_package=None,
     )
     if not identity.run.run_id or not identity.run.agent_type:
         raise LeaderboardPackError("run.json must include run_id and agent_type")
+
+    traj_identity = PackageIdentity(
+        created_at=identity.created_at,
+        benchmark=identity.benchmark,
+        run=identity.run,
+        trajectories_relpath=traj_relpath,
+        scores_package=package_name,
+    )
 
     safety = scan_value_for_issues(
         {
@@ -343,14 +461,17 @@ def pack_leaderboard_submission(
     if out_dir is not None:
         package_root = Path(out_dir)
     else:
-        package_root = results_root / _package_folder_name(meta_model, when=created)
+        package_root = results_root / package_name
     if not package_root.is_absolute():
         package_root = (REPO_ROOT / package_root).resolve()
     else:
         package_root = package_root.resolve()
 
-    if package_root.exists():
-        shutil.rmtree(package_root)
+    traj_root = package_root.parent / f"{package_root.name}{TRAJECTORIES_DIR_SUFFIX}"
+
+    for root in (package_root, traj_root):
+        if root.exists():
+            shutil.rmtree(root)
 
     results_out = package_root / RESULTS_DIRNAME
     trials_out = results_out / TRIALS_DIRNAME
@@ -377,4 +498,31 @@ def pack_leaderboard_submission(
         result_path = trial_path / TRIAL_RESULT_FILENAME
         _write_json(result_path, result)
 
-    return package_root
+    # Sibling trajectories package (HF layout; no results/ wrapper).
+    traj_trials = traj_root / TRIALS_DIRNAME
+    traj_trials.mkdir(parents=True)
+    _write_yaml(traj_root / METADATA_FILENAME, meta_model)
+    (traj_root / README_FILENAME).write_text(readme_body, encoding="utf-8")
+    _write_yaml(traj_root / IDENTITY_FILENAME, traj_identity)
+
+    for result in trial_results:
+        session_dir = session_by_trial_id[result.trial_id]
+        _copy_trajectory_trial_files(
+            session_dir=session_dir,
+            dest_dir=traj_trials / result.trial_id,
+            outcome=result.outcome,
+            trial_id=result.trial_id,
+        )
+
+    traj_safety = scan_value_for_issues(
+        {
+            "metadata": meta_model.model_dump(mode="json"),
+            "identity": traj_identity.model_dump(mode="json"),
+            "readme": readme_body,
+        },
+        label="trajectories",
+    )
+    if traj_safety:
+        raise LeaderboardPackError("; ".join(traj_safety))
+
+    return PackResult(scores_dir=package_root, trajectories_dir=traj_root)

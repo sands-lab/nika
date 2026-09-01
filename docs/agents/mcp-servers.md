@@ -34,7 +34,7 @@ Lab topology and deploy steps live in [Network scenarios](../operations/network-
 | `pingmesh_mcp_server` | host | `run_pingmesh_snapshot` |
 | `packet_capture_mcp_server` | observability | `packet_capture_start`, `packet_capture_stop`, `packet_capture_inspect` |
 
-Install `tshark` on lab nodes used for capture (included in `nika/base` and `nika/frr` images). Nodes prefer `dumpcap`, then fall back to `tcpdump`. Capture and inspect both run inside the target node container; the session directory stores metadata only.
+Install `tshark` on lab nodes used for capture (included in `nika/base` and `nika/frr` images). Nodes prefer `dumpcap`, then fall back to `tcpdump`. Capture, metadata, and inspect all stay inside the target node container; nothing is written under the session or result directory.
 
 Use `ping_pair`, `traceroute`, and `run_pingmesh_snapshot` to establish symptoms. There is no full-mesh reachability MCP tool; operators and tests may still call lab API `get_reachability` outside the agent tool surface.
 
@@ -88,7 +88,7 @@ Every diagnosis session includes `packet_capture_mcp_server`. Use it when you ne
 
 1. `packet_capture_start(device, interface, capture_filter=..., max_duration_sec=..., max_packets=...)`: start async capture. Pass a BPF (libpcap) filter plus duration or packet caps.
 2. Run probes (`ping_pair`, `active_tcp_probe`, or scenario traffic) while capture runs.
-3. `packet_capture_stop(capture_id)`: stop capture and write metadata under the session directory. The pcap stays on the lab node at a container path returned in the stop payload.
+3. `packet_capture_stop(capture_id)`: stop capture. The pcap and metadata stay on the lab node; the stop payload returns the container path.
 4. `packet_capture_inspect(capture_id, view=..., display_filter=..., limit=..., offset=...)`: page through `summary`, `packets`, `protocol`, or `expert` with a Wireshark display filter. Inspection runs `tshark` inside the capture node.
 
 Set capture limits on each call; values above the hard ceilings fail. Use BPF at start and Wireshark display filters at inspect. Default inspect pages return protocol fields without application payload.

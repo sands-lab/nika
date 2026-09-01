@@ -16,7 +16,7 @@ import pytest
 
 from nika.workflows.leaderboard import github_cli as gh
 from nika.workflows.leaderboard.remote import DEFAULT_LEADERBOARD_REPO
-from nika.workflows.leaderboard.submit import submit_leaderboard_package
+from nika.workflows.leaderboard.submit import _submit_packed_package
 
 _LIVE = os.environ.get("NIKA_LEADERBOARD_E2E", "").strip() in {"1", "true", "yes"}
 _gh_ok = shutil.which("gh") is not None
@@ -66,11 +66,10 @@ def _minimal_live_package(tmp_path: Path) -> Path:
     (results / "identity.yaml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": "4",
                 "benchmark": {
                     "id": "nika-bench",
-                    "version": "0.1.0",
-                    "ref": "nika-bench@0.1.0",
+                    "version": "0.2.0",
+                    "ref": "nika-bench@0.2.0",
                     "split": "test",
                     "case_count": 1,
                     "n_trials": 1,
@@ -103,11 +102,12 @@ def test_live_submit_opens_and_closes_draft_pr(tmp_path: Path) -> None:
         pytest.skip(f"no push access to {repo}")
 
     package = _minimal_live_package(tmp_path)
-    result = submit_leaderboard_package(
+    result = _submit_packed_package(
         package,
         repo=repo,
         draft=True,
         skip_validate=True,
+        skip_trajectories=True,
         title=f"[e2e] temporary submit {package.name}",
         body=(
             "Automated NIKA leaderboard submit E2E draft PR.\n\n"
@@ -115,7 +115,7 @@ def test_live_submit_opens_and_closes_draft_pr(tmp_path: Path) -> None:
         ),
     )
     assert result.pr_url.startswith("https://github.com/")
-    assert result.remote_path == f"submissions/0.1.0/{package.name}"
+    assert result.remote_path == f"submissions/0.2.0/{package.name}"
     assert package.name in result.branch
 
     number = gh.pr_number_from_url(result.pr_url)

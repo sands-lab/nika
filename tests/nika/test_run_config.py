@@ -37,6 +37,32 @@ def test_static_validation_yaml_has_only_enabled_flag() -> None:
         )
 
 
+def test_runtime_validation_defaults_are_light() -> None:
+    cfg = RunConfig()
+    assert cfg.nika.runtime_validation.depth == "light"
+    assert cfg.nika.runtime_validation.failure_effect is False
+    assert cfg.nika.static_validation.enabled is False
+
+
+def test_runtime_validation_rejects_invalid_depth() -> None:
+    with pytest.raises(ValidationError):
+        RunConfig.model_validate(
+            {"nika": {"runtime_validation": {"depth": "medium"}}}
+        )
+
+
+def test_runtime_validation_accepts_full_and_failure_effect() -> None:
+    cfg = RunConfig.model_validate(
+        {
+            "nika": {
+                "runtime_validation": {"depth": "full", "failure_effect": True},
+            }
+        }
+    )
+    assert cfg.nika.runtime_validation.depth == "full"
+    assert cfg.nika.runtime_validation.failure_effect is True
+
+
 def test_load_and_merge_cli(tmp_path: Path) -> None:
     path = tmp_path / "nika.yaml"
     path.write_text(

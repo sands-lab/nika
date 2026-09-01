@@ -6,10 +6,10 @@ Every current scenario uses a **two-layer** healthy baseline, aligned with failu
 
 | Layer | When | Scenario API | Purpose |
 | --- | --- | --- | --- |
-| Fast runtime | `nika env run` startup | `startup_verify_lab()` (+ Batfish for ISP Kathara+FRR) | Bounded readiness: nodes, control-plane convergence, minimal connectivity |
-| Full behavioral | Tests only | `verify_lab()` via `tests.support.scenario_evaluate.evaluate_scenario` | All documented healthy intents: services, isolation, ECMP, HTTP, contract intents |
+| Fast runtime | Default `nika env run` / benchmark startup (`nika.runtime_validation.depth: light`) | `startup_verify_lab()` | Bounded readiness: nodes, control-plane convergence, minimal connectivity |
+| Full behavioral | Opt-in `depth: full`, or tests via `evaluate_scenario` | `verify_lab()` | All documented healthy intents: services, isolation, ECMP, HTTP, contract intents |
 
-`verify_lab_with_retry()` polls `startup_verify_lab()` when implemented; otherwise it falls back to `verify_lab()`. Production workflows do not import `evaluate_scenario`.
+`verify_lab_with_retry()` follows `nika.runtime_validation.depth`: `light` (default) polls `startup_verify_lab()` when implemented and otherwise falls back to `verify_lab()`; `full` always polls `verify_lab()`. Production workflows do not import `evaluate_scenario`. Pre-deploy Batfish remains separate and off by default (`nika.static_validation.enabled`).
 
 Base `isp_<topology>` scenarios on Kathara with FRR also create a design-time validation contract and can run Batfish static validation. Static and runtime evidence remain separate because they answer different questions.
 
@@ -22,7 +22,7 @@ design inputs -> configuration generation -> deployed network -> runtime verific
              -> validation contract      -> Batfish verification (when supported)
 ```
 
-`nika env run` deploys the lab, polls `startup_verify_lab()` (or `verify_lab()` when no startup hook exists) until it passes or the configured timeout expires, and records its checks in the session log. A contract-bearing scenario writes the contract before deployment. With `--static-validation`, a supported run performs Batfish validation before deployment and fails startup when a supported required intent fails or errors.
+`nika env run` deploys the lab, polls verification until it passes or the configured timeout expires, and records its checks in the session log. Depth defaults to light (`startup_verify_lab` when present). A contract-bearing scenario writes the contract before deployment. With `--static-validation`, a supported run performs Batfish validation before deployment and fails startup when a supported required intent fails or errors.
 
 | Artifact | When NIKA writes it | Contents |
 | --- | --- | --- |
@@ -261,7 +261,7 @@ Use `required` when a failed intent must fail startup. An `optional` intent reco
 
 ## Failure-effect validation
 
-Failure-effect validation compares the healthy contract with the lab after a real injection. The injection supplies the post-injection FRR configuration to the faulty Batfish snapshot. NIKA does not synthesize a fault configuration.
+Failure-effect validation compares the healthy contract with the lab after a real injection. It is off by default (`nika.runtime_validation.failure_effect: false`) so benchmark and normal inject paths skip deep contract connectivity and Batfish faulty re-checks. When enabled, the injection supplies the post-injection FRR configuration to the faulty Batfish snapshot. NIKA does not synthesize a fault configuration.
 
 | Status | Meaning |
 | --- | --- |

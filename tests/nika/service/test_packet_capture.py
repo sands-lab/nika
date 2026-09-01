@@ -18,7 +18,7 @@ from nika.mcp.registry import (
     select_diagnosis_servers,
 )
 from nika.service.packet_capture import inspect
-from nika.service.packet_capture.artifact import meta_path, read_meta
+from nika.service.packet_capture.artifact import read_meta, remote_meta_path
 from nika.service.packet_capture.limits import (
     HARD_INSPECT_PAGE_SIZE,
     HARD_MAX_DURATION_SEC,
@@ -221,6 +221,15 @@ class TestPacketCaptureRegistry:
 class FakeRuntime:
     def __init__(self) -> None:
         self.commands: list[tuple[str, str]] = []
+        self.files: dict[tuple[str, str], str] = {}
+        self.nodes: list[str] = ["client1", "client2", "router1"]
+
+    def list_nodes(self) -> list[str]:
+        return list(self.nodes)
+
+    def write_file(self, node: str, path: str, content: str) -> str:
+        self.files[(node, path)] = content
+        return ""
 
     def exec(self, node: str, command: str, timeout: float = 10) -> str:
         self.commands.append((node, command))
@@ -234,25 +243,33 @@ class FakeRuntime:
             return "TShark 4.0.0"
         if "echo $! >" in command and "nohup" in command:
             return ""
-        if command.startswith("cat /tmp/nika-capture-"):
+        if command.startswith("cat /tmp/nika-capture-") and command.endswith(".pid"):
             return "4242"
+        if command.startswith("cat /tmp/nika-capture-") and ".meta.json" in command:
+            path = command[len("cat ") :].strip()
+            return self.files.get((node, path), "")
+        if "test -f" in command and "echo yes" in command:
+            # test -f <path> && echo yes || echo no
+            parts = command.split()
+            path = parts[2] if len(parts) > 2 else ""
+            return "yes" if (node, path) in self.files or path.endswith(
+                ".pcapng"
+            ) else "no"
         if "wc -c <" in command:
             return "11"
         if "tcpdump -r" in command and "wc -l" in command:
             return "2"
         if "dumpcap -v" in command:
             return ""
-        if "test -f" in command and "echo yes" in command:
-            return "yes"
         if command == "sleep 0.5":
             return ""
         return ""
 
 
 class TestCaptureLifecycle:
-    def test_concurrent_captures_have_distinct_ids(self, tmp_path: Path) -> None:
+    def test_concurrent_captures_have_distinct_ids(self) -> None:
         runtime = FakeRuntime()
-        manager = CaptureManager(session_dir=str(tmp_path), runtime=runtime)
+        manager = CaptureManager(runtime=runtime)
 
         first = manager.start(device="client1", interface="eth0")
         second = manager.start(
@@ -261,11 +278,11 @@ class TestCaptureLifecycle:
 
         assert first["capture_id"] != second["capture_id"]
         assert first["status"] == "running"
-        assert read_meta(str(tmp_path), first["capture_id"])["device"] == "client1"
+        assert read_meta(runtime, first["capture_id"])["device"] == "client1"
 
-    def test_stop_persists_meta_without_local_pcap(self, tmp_path: Path) -> None:
+    def test_stop_persists_meta_on_node_only(self, tmp_path: Path) -> None:
         runtime = FakeRuntime()
-        manager = CaptureManager(session_dir=str(tmp_path), runtime=runtime)
+        manager = CaptureManager(runtime=runtime)
         started = manager.start(device="router1", interface="eth0")
         capture_id = started["capture_id"]
 
@@ -279,20 +296,18 @@ class TestCaptureLifecycle:
             == f"/tmp/nika-capture-{capture_id}.pcapng"
         )
         assert stopped["artifact"]["tshark_version"] == "TShark 4.0.0"
-        meta = json.loads(
-            (tmp_path / "packet_captures" / capture_id / "meta.json").read_text()
-        )
+        meta = read_meta(runtime, capture_id)
         assert meta["status"] == "stopped"
         assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
         assert (
-            not meta_path(str(tmp_path), capture_id)
-            .parent.joinpath("capture.pcapng")
-            .exists()
-        )
+            "router1",
+            remote_meta_path(capture_id),
+        ) in runtime.files
+        assert not (tmp_path / "packet_captures").exists()
 
-    def test_inspect_requires_stopped_capture(self, tmp_path: Path) -> None:
+    def test_inspect_requires_stopped_capture(self) -> None:
         runtime = FakeRuntime()
-        manager = CaptureManager(session_dir=str(tmp_path), runtime=runtime)
+        manager = CaptureManager(runtime=runtime)
         started = manager.start(device="client1", interface="eth0")
         with pytest.raises(RuntimeError, match="not stopped"):
             manager.inspect(started["capture_id"], view="summary")
@@ -315,7 +330,7 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
     def _manager(self) -> CaptureManager:
         row = self._session_row(self.session_id)
         runtime = runtime_for_session(row)
-        return CaptureManager(session_dir=str(row["session_dir"]), runtime=runtime)
+        return CaptureManager(runtime=runtime)
 
     def _runtime(self):
         return runtime_for_session(self._session_row(self.session_id))
@@ -361,14 +376,18 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
             == f"/tmp/nika-capture-{capture_id}.pcapng"
         )
 
-        meta = read_meta(str(session_dir), capture_id)
+        meta = read_meta(runtime, capture_id)
         assert meta["status"] == "stopped"
         assert meta["device"] == self.CAPTURE_HOST
         assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
         assert "ground_truth" not in json.dumps(meta)
-        assert not (
-            session_dir / "packet_captures" / capture_id / "capture.pcapng"
-        ).exists()
+        assert not (session_dir / "packet_captures").exists()
+        remote_meta = runtime.exec(
+            self.CAPTURE_HOST,
+            f"test -f /tmp/nika-capture-{capture_id}.meta.json && echo yes",
+            timeout=5,
+        ).strip()
+        assert remote_meta == "yes"
 
         inspected = manager.inspect(
             capture_id,
@@ -386,6 +405,8 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
 
         summary = manager.inspect(capture_id, view="summary")
         assert "protocols" in summary["data"]
+
+        assert not (session_dir / "packet_captures").exists()
 
     def test_concurrent_captures_on_two_hosts(self) -> None:
         manager = self._manager()
@@ -422,6 +443,7 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         """Verify pcap stays on the node and every inspect view works in Docker."""
         manager = self._manager()
         runtime = self._runtime()
+        session_dir = Path(self._session_row(self.session_id)["session_dir"])
 
         started = manager.start(
             device=self.CAPTURE_HOST,
@@ -451,6 +473,7 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         size = int(exists.strip().splitlines()[-1])
         assert size > 0, exists
         assert size == stopped["captured_bytes"], (size, stopped)
+        assert not (session_dir / "packet_captures").exists()
 
         protocol = manager.inspect(
             capture_id,
@@ -472,3 +495,4 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         )
         assert missing["returned"] == 0
         assert missing["total_available"] == 0
+        assert not (session_dir / "packet_captures").exists()

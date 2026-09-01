@@ -131,6 +131,10 @@ def _write_mocked_trial(
         json.dumps({"role": "assistant", "content": "mock diagnosis"}) + "\n",
         encoding="utf-8",
     )
+    (session_dir / "nika.jsonl").write_text(
+        json.dumps({"event": "env_start"}) + "\n",
+        encoding="utf-8",
+    )
     success = outcome == "success"
     _write_json(
         session_dir / "eval_metrics.json",
@@ -266,7 +270,7 @@ class TestReleaseRunToLeaderboardPackE2E:
             package = pack_leaderboard_submission(
                 result_dir,
                 submission_dir=staging,
-            )
+            ).scores_dir
 
         slug = slugify_name("E2E Mock Agent")
         assert package.name.endswith(f"_{slug}")
@@ -279,13 +283,30 @@ class TestReleaseRunToLeaderboardPackE2E:
         identity = yaml.safe_load(
             (package / RESULTS_DIRNAME / IDENTITY_FILENAME).read_text(encoding="utf-8")
         )
-        assert identity["schema_version"] == "4"
+        assert "schema_version" not in identity
         assert identity["benchmark"]["version"] == release.version
         assert "digest" not in identity["benchmark"]
         assert "cases_sha256" not in identity["benchmark"]
         assert identity["benchmark"]["n_trials"] == 2
         assert identity["run"]["official"] is True
         assert identity["run"]["agent_type"] == "mock"
+        assert identity["trajectories_relpath"] == (
+            f"trajectories/{release.version}/{package.name}"
+        )
+
+        traj = package.parent / f"{package.name}_trajectories"
+        assert traj.is_dir()
+        assert (traj / "identity.yaml").is_file()
+        assert (traj / "trials").is_dir()
+        for trial_path in (package / RESULTS_DIRNAME / "trials").iterdir():
+            if not trial_path.is_dir():
+                continue
+            tdir = traj / "trials" / trial_path.name
+            assert (tdir / "messages.jsonl").is_file()
+            assert (tdir / "nika.jsonl").is_file()
+            assert (tdir / "run.json").is_file()
+            assert (tdir / "ground_truth.json").is_file()
+            assert (tdir / "eval_metrics.json").is_file()
 
         packed_meta = yaml.safe_load(
             (package / METADATA_FILENAME).read_text(encoding="utf-8")
@@ -335,16 +356,20 @@ class TestReleaseRunToLeaderboardPackE2E:
             report = validate_leaderboard_submission(package)
         assert report.ok, report.errors
 
-    def test_cli_template_then_pack_submission(
+    def test_cli_template_then_submit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """CLI path: template → edit → pack --submission → validate."""
+        """CLI path: template → edit → submit (pack + validate + mocked PRs)."""
         release = _freeze_mini_release(tmp_path, version="lb-cli-e2e", n_trials=1)
         result_dir = tmp_path / "results" / "cli-e2e"
         runs_dir = tmp_path / "benchmark_runs"
         monkeypatch.setattr(
             "nika.workflows.benchmark.release.RELEASES_DIR",
             tmp_path / "releases",
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.validate.load_release",
+            lambda *a, **k: release,
         )
 
         def fake_trial(trial, **kwargs):
@@ -394,6 +419,7 @@ class TestReleaseRunToLeaderboardPackE2E:
         assert template_result.exit_code == 0, template_result.output
         assert (staging / METADATA_FILENAME).is_file()
         assert (staging / README_FILENAME).is_file()
+        assert "leaderboard submit" in template_result.output
 
         _fill_staging(
             staging,
@@ -405,34 +431,92 @@ class TestReleaseRunToLeaderboardPackE2E:
             extra={},
         )
 
-        pack_result = runner.invoke(
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.ensure_gh_auth",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.can_push",
+            lambda _r: True,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.clone_url_for_repo",
+            lambda r: f"mock://{r}",
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.current_login",
+            lambda: "ci",
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.git_clone",
+            lambda url, dest, *, depth=1: (
+                dest.mkdir(parents=True, exist_ok=True) or (dest / ".git").mkdir()
+            ),
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.git_checkout_new_branch",
+            lambda *_a, **_k: None,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.git_add_all",
+            lambda *_a, **_k: None,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.git_commit",
+            lambda *_a, **_k: True,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.git_push",
+            lambda *_a, **_k: None,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.gh.create_pull_request",
+            lambda **kwargs: "https://github.com/sands-lab/nika-leaderboard/pull/1",
+        )
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.hf.ensure_hf_token",
+            lambda: "hf_test",
+        )
+
+        def fake_hf_upload(**kwargs):
+            from nika.workflows.leaderboard.hf_cli import HfPullRequestResult
+
+            return HfPullRequestResult(
+                repo_id=kwargs["repo_id"],
+                remote_path=kwargs["path_in_repo"],
+                pr_url="https://huggingface.co/datasets/Zhihao98/nika-trajectories/discussions/1",
+                pr_num=1,
+            )
+
+        monkeypatch.setattr(
+            "nika.workflows.leaderboard.submit.hf.upload_folder_create_pr",
+            fake_hf_upload,
+        )
+
+        submit_result = runner.invoke(
             app,
             [
                 "leaderboard",
-                "pack",
+                "submit",
                 "--result_dir",
                 str(result_dir),
                 "--submission",
                 str(staging),
             ],
         )
-        assert pack_result.exit_code == 0, pack_result.output
+        assert submit_result.exit_code == 0, submit_result.output
+        assert "Packed scores package:" in submit_result.output
+        assert "Opened GitHub pull request:" in submit_result.output
+        assert "Opened HF trajectories PR:" in submit_result.output
+
         slug = slugify_name("CLI E2E Agent")
         packages = [
             p
             for p in result_dir.iterdir()
-            if p.is_dir() and p.name.endswith(f"_{slug}")
+            if p.is_dir()
+            and p.name.endswith(f"_{slug}")
+            and not p.name.endswith("_trajectories")
         ]
         assert len(packages) == 1
         package = packages[0]
-
-        validate_result = runner.invoke(
-            app,
-            [
-                "leaderboard",
-                "validate",
-                str(package),
-            ],
-        )
-        assert validate_result.exit_code == 0, validate_result.output
-        assert "validation passed" in validate_result.output.lower()
+        assert (package.parent / f"{package.name}_trajectories").is_dir()

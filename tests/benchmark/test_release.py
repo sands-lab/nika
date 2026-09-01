@@ -46,14 +46,14 @@ class TestDeprecatedRelease010:
         assert not is_deprecated_release("mini")
 
     def test_load_raises_deprecated(self) -> None:
-        with pytest.raises(ReleaseError, match="deprecated"):
+        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
             load_release("0.1.0", split="dev")
-        with pytest.raises(ReleaseError, match="deprecated"):
+        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
             resolve_cases("0.1.0", split="test")
 
     def test_nika_alias_still_parses_but_load_rejects(self) -> None:
         assert parse_release_ref("nika@0.1") == ("nika-bench", "0.1.0")
-        with pytest.raises(ReleaseError, match="deprecated"):
+        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
             load_release("nika@0.1", split="test")
 
     def test_sha256_ref_rejected(self) -> None:

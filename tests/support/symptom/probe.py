@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel
@@ -25,13 +26,13 @@ from nika.net_env.verify import (
     tbf_overlimits,
 )
 from nika.problems.support.probe_paths import ProbePath, get_probe_path
+from nika.runtime.base import LabRuntime
 from tests.support.symptom.gray_probes import probe_gray_packet_loss
 from tests.support.symptom.types import (
     ProbeKind,
     ProbeSnapshot,
     SymptomClass,
 )
-from nika.runtime.base import LabRuntime
 
 # Scenario endpoint cross-subnet peers for host-local faults.
 _CROSS_SUBNET_PEER: dict[str, dict[str, str]] = {
@@ -191,6 +192,46 @@ def _resolve_path(
         peer_host=peer_host,
         old_ip=old_ip,
     )
+
+
+def _resolve_mtu_mismatch_path(
+    problem: Any,
+    params: Any,
+    base: ProbePath,
+) -> ProbePath:
+    """Probe the peer address on the undersized link to avoid multipath bypass.
+
+    ISP meshes often keep alternate routes to a remote stub, so DF pings to the
+    stub may never traverse the injected low-MTU interface. The peer's address
+    on that link is a connected route and must use the reduced MTU hop.
+    """
+    host = _params_get(params, "host_name")
+    intf = _params_get(params, "intf_name")
+    if not host or not intf:
+        return base
+    peer = None
+    peer_fn = getattr(problem, "_peer_endpoint", None)
+    if callable(peer_fn):
+        try:
+            peer = peer_fn(host, intf)
+        except Exception:  # noqa: BLE001
+            peer = None
+    if peer is None:
+        return base
+    peer_host, peer_intf = peer
+    output = exec_or_empty(
+        problem.runtime,
+        peer_host,
+        f"ip -4 -o addr show dev {peer_intf} 2>/dev/null | "
+        "awk '{print $4}' | head -1",
+        timeout=10,
+    ).strip()
+    if not output:
+        return base
+    peer_ip = output.split("/", 1)[0].strip()
+    if not peer_ip:
+        return base
+    return replace(base, dst_ip=peer_ip)
 
 
 def _resolve_blackhole_path(

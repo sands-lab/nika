@@ -171,7 +171,31 @@ class HostTcController:
         burst: str,
         limit: str,
     ) -> str:
-        peer = self.peer_name(node, intf)
+        """Apply TBF on the host veth peer, or inside the node when none exists."""
+        try:
+            peer = self.peer_name(node, intf)
+        except RuntimeCapabilityError:
+            pid = self._container_pid(node)
+            self._run(
+                "nsenter",
+                "-t",
+                str(pid),
+                "-n",
+                "tc",
+                "qdisc",
+                "replace",
+                "dev",
+                intf,
+                "root",
+                "tbf",
+                "rate",
+                rate,
+                "burst",
+                burst,
+                "limit",
+                limit,
+            )
+            return f"node:{node}:{intf}"
         self._run(
             "tc",
             "qdisc",

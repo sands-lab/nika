@@ -20,6 +20,7 @@
 
 ## 📰 News
 
+- **2026-09-01:** Published [nika-bench 0.2.0](benchmark/releases/0.2.0/README.md). `nika leaderboard submit` now packs agent trajectories and opens a Hugging Face dataset PR; see [leaderboard submission](docs/benchmarks/leaderboard-submission.md).
 - **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`; existing installations with operational `.env` keys can run [`nika config migrate`](docs/operations/cli-reference.md#nika-config).
 - **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/benchmarks/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
 
@@ -183,7 +184,7 @@ Pick the path that matches what you're trying to do:
 1. [Quick start](#-quick-start) — end-to-end task run or frozen release.
 2. [Run configuration](docs/operations/configuration.md): YAML settings, credentials, defaults, and migration.
 3. [CLI reference](docs/operations/cli-reference.md): `nika` commands, sessions, and result paths.
-4. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md)
+4. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md) (GitHub scores + Hugging Face trajectories)
 
 **🔌 I want to connect my own agent**
 

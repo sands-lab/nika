@@ -13,10 +13,13 @@ from nika.service.packet_capture.models import CaptureMeta
 
 
 class CaptureManager:
-    """Manage concurrent packet captures for one troubleshooting session."""
+    """Manage concurrent packet captures for one troubleshooting session.
 
-    def __init__(self, *, session_dir: str, runtime: LabRuntime) -> None:
-        self.session_dir = session_dir
+    Capture files and metadata stay on lab nodes; nothing is written under the
+    session/result directory.
+    """
+
+    def __init__(self, *, runtime: LabRuntime) -> None:
         self.runtime = runtime
 
     def start(
@@ -55,7 +58,7 @@ class CaptureManager:
             status="running",
             started_at=running.started_at,
         )
-        artifact.write_meta(self.session_dir, meta.to_dict())
+        artifact.write_meta(self.runtime, device, meta.to_dict())
         return {
             "capture_id": capture_id,
             "status": "running",
@@ -64,7 +67,7 @@ class CaptureManager:
         }
 
     def stop(self, capture_id: str) -> dict:
-        meta = CaptureMeta.from_dict(artifact.read_meta(self.session_dir, capture_id))
+        meta = CaptureMeta.from_dict(artifact.read_meta(self.runtime, capture_id))
         if meta.status == "stopped":
             return self._stop_payload(meta)
 
@@ -82,7 +85,7 @@ class CaptureManager:
         meta.dropped_packets = stats.dropped_packets
         meta.dumpcap_version = stats.dumpcap_version
         meta.tshark_version = inspect.tshark_version(self.runtime, meta.device)
-        artifact.write_meta(self.session_dir, meta.to_dict())
+        artifact.write_meta(self.runtime, meta.device, meta.to_dict())
         return self._stop_payload(meta)
 
     def inspect(
@@ -95,7 +98,7 @@ class CaptureManager:
         limit: int | None = None,
         offset: int = 0,
     ) -> dict:
-        meta = CaptureMeta.from_dict(artifact.read_meta(self.session_dir, capture_id))
+        meta = CaptureMeta.from_dict(artifact.read_meta(self.runtime, capture_id))
         if meta.status != "stopped":
             raise RuntimeError(
                 f"Capture {capture_id!r} is not stopped yet; call packet_capture_stop first"
@@ -113,7 +116,7 @@ class CaptureManager:
 
         if display_filter and display_filter not in meta.inspect_display_filters:
             meta.inspect_display_filters.append(display_filter)
-            artifact.write_meta(self.session_dir, meta.to_dict())
+            artifact.write_meta(self.runtime, meta.device, meta.to_dict())
 
         payload = inspect.inspect_capture(
             self.runtime,

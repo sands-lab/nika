@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -125,6 +125,15 @@ class StaticValidationSettings(BaseModel):
     enabled: bool = False
 
 
+class RuntimeValidationSettings(BaseModel):
+    """Control post-deploy runtime verification depth and failure-effect checks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    depth: Literal["light", "full"] = "light"
+    failure_effect: bool = False
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -139,6 +148,9 @@ class NikaSettings(BaseModel):
     mcp: McpSettings = Field(default_factory=McpSettings)
     static_validation: StaticValidationSettings = Field(
         default_factory=StaticValidationSettings
+    )
+    runtime_validation: RuntimeValidationSettings = Field(
+        default_factory=RuntimeValidationSettings
     )
 
 

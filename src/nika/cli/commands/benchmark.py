@@ -14,6 +14,7 @@ from nika.run_config.loader import (
 from nika.run_config.legacy import warn_legacy_operational_env
 from nika.utils.agent_config import apply_custom_provider_env
 from nika.workflows.benchmark.release import (
+    DEFAULT_RELEASE_VERSION,
     ReleaseError,
     freeze_split_release,
     is_deprecated_release,
@@ -80,7 +81,8 @@ def benchmark_releases() -> None:
     for version in versions:
         if is_deprecated_release(version):
             typer.secho(
-                f"DEPRECATED {version}: retained for provenance; not runnable",
+                f"DEPRECATED {version}: retained for provenance; not runnable. "
+                f"Use --release {DEFAULT_RELEASE_VERSION}.",
                 fg=typer.colors.YELLOW,
             )
             continue
@@ -116,8 +118,18 @@ def benchmark_run(
         "--release",
         "-d",
         help=(
-            "Frozen release version or ref (e.g. 0.1.0, nika@0.1, nika-bench@0.1.0). "
-            "Uses RELEASE.yaml default_split_for_release. Mutually exclusive with --config."
+            f"Frozen release version or ref (e.g. {DEFAULT_RELEASE_VERSION}, "
+            f"nika@{DEFAULT_RELEASE_VERSION}, nika-bench@{DEFAULT_RELEASE_VERSION}). "
+            "Uses RELEASE.yaml default_split_for_release unless --split is set. "
+            "Mutually exclusive with --config."
+        ),
+    ),
+    split: str | None = typer.Option(
+        None,
+        "--split",
+        help=(
+            "Release split: dev or test. Overrides config/nika.yaml benchmark.split "
+            "and RELEASE.yaml default_split_for_release. Release mode only."
         ),
     ),
     problem: str | None = typer.Option(
@@ -213,7 +225,9 @@ def benchmark_run(
         "--continue-on-error/--abort-on-error",
         help=(
             "Batch mode: keep running past failed cases and summarize them "
-            "at the end (default from run config)."
+            "at the end. Official --release runs default to continuing; "
+            "ad-hoc --config defaults come from run config. "
+            "Use --abort-on-error to stop on the first failure."
         ),
     ),
     retry_passes: int | None = typer.Option(
@@ -247,6 +261,7 @@ def benchmark_run(
         resume=resume,
         session_tag=session_tag,
         release=release,
+        split=split,
     )
     set_run_config(cfg)
     apply_custom_provider_env(cfg)
@@ -333,6 +348,8 @@ def benchmark_run(
         config = Path(default_benchmark_yaml_path())
 
     if config is not None:
+        if split is not None:
+            raise typer.BadParameter("--split applies to --release mode only.")
         run_benchmark_from_yaml(
             benchmark_file=str(config),
             agent_type=agent_type,
@@ -351,7 +368,10 @@ def benchmark_run(
         )
         return
 
-    # Release path
+    # Release path: continue past trial failures unless --abort-on-error.
+    release_continue = (
+        continue_on_error if continue_on_error is not None else True
+    )
     try:
         split_override = bench.split
         _, version = parse_release_ref(resolved_release)
@@ -374,7 +394,7 @@ def benchmark_run(
             case_timeout=(
                 case_timeout if case_timeout is not None else bench.case_timeout_sec
             ),
-            continue_on_error=resolved_continue,
+            continue_on_error=release_continue,
             retry_passes=resolved_retry,
         )
     except (ReleaseError, ValueError) as exc:
@@ -441,7 +461,7 @@ def benchmark_select(
 def benchmark_freeze(
     version: str = typer.Option(..., "--version", help="Immutable release version."),
     source: Path = typer.Option(
-        Path("benchmark/working/release-candidate"),
+        ...,
         "--source",
         help="Validated directory containing dev.yaml and test.yaml.",
     ),

@@ -650,6 +650,15 @@ def compare_symptom(
                 or float(after_bps) < 100_000.0
             )
         )
+        before_loss_raw = before.get("loss_percent")
+        after_loss_raw = after.get("loss_percent")
+        loss_degraded = False
+        if after_loss_raw is not None:
+            after_loss = float(after_loss_raw)
+            before_loss = (
+                float(before_loss_raw) if before_loss_raw is not None else 0.0
+            )
+            loss_degraded = after_loss >= loss_min_percent and after_loss > before_loss
         onlink = after.get("route_onlink")
         ok = (
             http_broke
@@ -657,6 +666,7 @@ def compare_symptom(
             or slower_rtt
             or absolute_slow
             or throughput_drop
+            or loss_degraded
             or bool(onlink)
         )
         details["observed"] = {
@@ -665,6 +675,7 @@ def compare_symptom(
             "slower_rtt": slower_rtt,
             "absolute_slow": absolute_slow,
             "throughput_drop": throughput_drop,
+            "loss_degraded": loss_degraded,
             "route_onlink": onlink,
             "before_ms": before_ms,
             "after_ms": after_ms,
@@ -672,6 +683,8 @@ def compare_symptom(
             "after_rtt": after_rtt,
             "before_bps": before_bps,
             "after_bps": after_bps,
+            "before_loss": before_loss_raw,
+            "after_loss": after_loss_raw,
         }
         return ok, details
     return False, details
@@ -790,12 +803,29 @@ def _restart_dead_k8s_nodes(net_env: NetworkEnvBase, dead_nodes: list[str]) -> N
             continue
 
 
+def _runtime_validation_depth() -> Literal["light", "full"]:
+    """Return configured post-deploy verification depth."""
+    try:
+        from nika.run_config.loader import get_run_config
+
+        return get_run_config().nika.runtime_validation.depth
+    except Exception:  # noqa: BLE001
+        return "light"
+
+
 def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
-    """Poll ``net_env.verify_lab()`` until success or timeout.
+    """Poll startup or full lab verification until success or timeout.
+
+    With ``nika.runtime_validation.depth: light`` (default), prefer
+    ``startup_verify_lab`` when present. With ``full``, always poll
+    ``verify_lab``.
 
     Returns ``None`` when the scenario defines no startup verification.
     """
-    verify = getattr(net_env, "startup_verify_lab", net_env.verify_lab)
+    if _runtime_validation_depth() == "full":
+        verify = net_env.verify_lab
+    else:
+        verify = getattr(net_env, "startup_verify_lab", net_env.verify_lab)
     result = verify()
     if result is None:
         return None

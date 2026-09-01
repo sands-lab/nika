@@ -921,12 +921,17 @@ def run_benchmark_from_release(
     resume: bool = True,
     session_tag: str | None = None,
     case_timeout: int | None = None,
-    continue_on_error: bool = False,
+    continue_on_error: bool = True,
     retry_passes: int = 0,
     check_images: bool = True,
     release: BenchmarkRelease | None = None,
 ) -> None:
-    """Run a frozen ``nika-bench`` release split after preflight validation."""
+    """Run a frozen ``nika-bench`` release split after preflight validation.
+
+    Official release runs default to ``continue_on_error=True`` so a single
+    trial failure does not abort the job; pass False (CLI ``--abort-on-error``)
+    to stop on the first error.
+    """
     resolved_split = normalize_split(split, default="test")
     resolved = release or load_release(release_ref, split=resolved_split)
     if resolved.split != resolved_split:
@@ -973,7 +978,7 @@ def run_benchmark_from_release(
     print(
         f"Running {resolved.ref} split={resolved.split} "
         f"({resolved.case_count} cases × {n_trials} trials, "
-        f"official={official}) → {job_path}"
+        f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
     )
 
     run_benchmark_trials(

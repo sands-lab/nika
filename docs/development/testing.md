@@ -7,7 +7,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 - `tests/agent/` → `src/agent/`
 - `tests/nika/` → `src/nika/`
 - `tests/benchmark/` → `nika benchmark` (YAML cases + `src/nika/workflows/benchmark/`)
-- `tests/leaderboard/` → `nika leaderboard` (pack / validate / submit + release→submit E2E)
+- `tests/leaderboard/` → `nika leaderboard` (submit packs/validates + release→submit E2E)
 - `tests/support/` → shared helpers
 
 ## Layout
@@ -124,10 +124,13 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |
+| `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
+| `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |
 | `test_migrate.py` | Benchmark YAML migrate → `root_causes` |
 | `test_task_label.py` | Compound task label format/parse |
 | `helpers.py` | Load inject params from bundled benchmark YAML |
+| `curated.py` / `fixtures/curated_0_2_0_test.yaml` | Curated 0.2.0 test-split rows (tests only; not a published release) |
 
 Related (moved out of this directory):
 
@@ -145,18 +148,21 @@ uv run pytest tests/benchmark/test_trials.py -v
 uv run pytest tests/benchmark/test_trials.py -v -k ReleaseRunE2E  # requires Docker
 uv run pytest tests/benchmark/test_batch.py -v                 # requires Docker
 uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + API key
+uv run pytest tests/benchmark/test_curated_release_contract.py -v
+# Live curated path (serial; needs Docker + DEEPSEEK_API_KEY; avoid parallel k8s/llmd suites)
+uv run pytest tests/benchmark/test_curated_release_e2e.py -m live -v
 ```
 
 ## Leaderboard tests (`tests/leaderboard/`)
 
-Covers `nika leaderboard template|pack|validate|submit`. The default suite does not require Docker. Packs require a filled `metadata.yaml` and `README.md`. See the [leaderboard submission guide](../benchmarks/leaderboard-submission.md).
+Covers `nika leaderboard template|submit` (submit packs and validates before opening PRs). The default suite does not require Docker. Submissions require a filled `metadata.yaml` and `README.md`. See the [leaderboard submission guide](../benchmarks/leaderboard-submission.md).
 
 | Module | Purpose |
 |--------|---------|
 | `test_pack_validate.py` | Schema/pack/validate unit tests (coverage, hashes, secrets, bad meta) |
 | `test_submit_unit.py` | Mocked submit (direct push + fork path) |
 | `test_e2e_release_pack.py` | Mocked `run_benchmark_from_release` → template → pack → validate |
-| `test_e2e_release_submit.py` | Mocked release → pack → validate → submit (no network) |
+| `test_e2e_release_submit.py` | Mocked release → submit (pack + validate + PRs, no network) |
 | `test_e2e_submit_github.py` | Opt-in live draft PR + close (`NIKA_LEADERBOARD_E2E=1`) |
 
 ```shell

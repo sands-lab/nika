@@ -161,6 +161,32 @@ class CliSmokeTest:
         both_text = f"{both.output}\n{both.stderr or ''}"
         assert "--config" in both_text and "--release" in both_text
 
+    def test_benchmark_run_help_includes_split(self) -> None:
+        result = _RUNNER.invoke(app, ["benchmark", "run", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "--split" in result.output
+
+    def test_benchmark_run_forwards_split(self) -> None:
+        with patch(
+            "nika.cli.commands.benchmark.run_benchmark_from_release"
+        ) as run_from_release:
+            result = _RUNNER.invoke(
+                app,
+                [
+                    "benchmark",
+                    "run",
+                    "--release",
+                    "0.2.0",
+                    "--split",
+                    "dev",
+                    "--result_dir",
+                    "/tmp/nika-split-smoke",
+                ],
+            )
+        assert result.exit_code == 0, result.output
+        assert run_from_release.call_args.kwargs["split"] == "dev"
+        assert run_from_release.call_args.kwargs["continue_on_error"] is True
+
     def test_console_script_help_invocations(self) -> None:
         assert (_REPO_ROOT / "src" / "nika").is_dir(), _REPO_ROOT
         for args in CLI_HELP_ARGS:

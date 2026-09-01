@@ -541,8 +541,9 @@ def evaluate_link_capacity_symptom(
 
     low_throughput = bps is not None and float(bps) < 100_000.0
     shaped = overlimits is not None and int(overlimits) > 0
-    # Bottleneck leaves the path reachable while TBF is active.
-    ok = bool(artifact_ok and path_alive)
+    # Prefer a live path under TBF. Extreme rates (e.g. 30kbit on clab node-ns)
+    # may drop ICMP while still proving shaping via overlimits.
+    ok = bool(artifact_ok and (path_alive or shaped))
 
     return ok, {
         "failure": "link_capacity_bottleneck",

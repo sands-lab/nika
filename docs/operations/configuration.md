@@ -70,9 +70,18 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
-| `nika.static_validation.enabled` | `false` | Run the optional Batfish verifier before deployment for supported ISP Kathara FRR scenarios. Live runtime verification remains enabled for normal startup. |
+| `nika.static_validation.enabled` | `false` | Run the optional Batfish verifier before deployment for supported ISP Kathara FRR scenarios. |
 
 The CLI flag `--static-validation` overrides this setting for one run. Use `--no-static-validation` to force the runtime-only path.
+
+### Runtime validation
+
+| Key | Default | Meaning and constraints |
+| --- | --- | --- |
+| `nika.runtime_validation.depth` | `light` | `light` polls `startup_verify_lab` when present (bounded readiness). `full` always polls `verify_lab` (deep connectivity and contract intents where implemented). |
+| `nika.runtime_validation.failure_effect` | `false` | After failure inject, compare healthy vs faulty contract evidence (deep runtime ± Batfish when artifacts exist). Off by default; does not affect `verify_fault`. |
+
+Default production and benchmark paths use light runtime checks without Batfish or failure-effect validation. For the deep maintainer path, set `depth: full`, `failure_effect: true`, and optionally `static_validation.enabled: true`.
 
 ## `agent` settings
 
@@ -102,6 +111,8 @@ The CLI flag `--static-validation` overrides this setting for one run. Use `--no
 | `community.sade` | `agent.models.sade`, then `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
 
 Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox.
+
+Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
 
 ## `benchmark` settings
 

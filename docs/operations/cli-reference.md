@@ -20,7 +20,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
 | `nika config` | Show effective run config or migrate legacy `.env` ops into YAML |
-| `nika leaderboard` | Pack, validate, and submit leaderboard entries (GitHub PR) from official release runs |
+| `nika leaderboard` | Pack, validate, and submit scores (GitHub PR) + trajectories (HF PR) from official release runs |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`) against the running lab |
 
@@ -96,7 +96,7 @@ Aligned with `nika agent run`:
 ## `nika env`
 
 - **`nika env list`**: print registered scenario ids.
-- **`nika env run NAME [-s s|m|l] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG]`**: deploy one instance, run live runtime verification, create a session, and print `session_id=…`. Batfish follows `nika.static_validation.enabled`; the CLI flags override it for one run.
+- **`nika env run NAME [-s s|m|l] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
@@ -224,20 +224,16 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
 ## `nika leaderboard`
 
-Pack, validate, and open a GitHub PR for a leaderboard submission from an official release run. See the [leaderboard submission guide](../benchmarks/leaderboard-submission.md).
+Pack, validate, and open GitHub (scores) + Hugging Face (trajectories) PRs from an official release run. See the [leaderboard submission guide](../benchmarks/leaderboard-submission.md).
 
 ```shell
 nika leaderboard template -o results/my-run/submission
 # edit metadata.yaml + README.md
-nika leaderboard pack --result_dir results/my-run \
+nika leaderboard submit --result_dir results/my-run \
   --submission results/my-run/submission
-
-nika leaderboard validate results/my-run/YYYYMMDD_slug
-
-nika leaderboard submit results/my-run/YYYYMMDD_slug
 ```
 
-Pack flags: `--result_dir`, required `--submission`, optional `--out`. Pack writes `{result_dir}/{YYYYMMDD}_{slug}/` by default. Submit requires authenticated [`gh`](https://cli.github.com/) and opens a PR on `sands-lab/nika-leaderboard` (override with `--repo`).
+`submit` packs `{result_dir}/{YYYYMMDD}_{slug}/` plus sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens PRs. Pack or validate failures exit before any remote submit. Requires authenticated [`gh`](https://cli.github.com/) and `HF_TOKEN`. Scores PR target: `sands-lab/nika-leaderboard` (`--repo`). Trajectories dataset PR: `Zhihao98/nika-trajectories` (`--traj-repo`). Use `--skip-github` / `--skip-trajectories` to submit only one side.
 
 ---
 
@@ -258,7 +254,7 @@ nika benchmark releases                         # list + verify each release
 nika benchmark run                              # complete candidate pool
 nika benchmark run --config benchmark/working/pool
 nika benchmark migrate --input cases.yaml --output /tmp/labeled.yaml --report /tmp/migrate_report.yaml
-nika benchmark freeze --version 0.2.0
+nika benchmark freeze --version 0.2.0 --source path/to/split-files
 nika benchmark run --config benchmark/working/cases.yaml --batch-size 4
 nika benchmark run --config benchmark/working/cases.yaml --result_dir results/list1
 nika benchmark run --config benchmark/working/cases.yaml --result_dir results/list1 --batch-size 4
@@ -266,7 +262,7 @@ nika benchmark run --config benchmark/working/cases.yaml --result_dir results/li
 
 **Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
 
-**`nika benchmark freeze --version VERSION`** creates `benchmark/releases/VERSION/` from a validated candidate directory that already contains `dev.yaml` and `test.yaml`. It refuses to overwrite an existing destination.
+**`nika benchmark freeze --version VERSION --source DIRECTORY`** creates `benchmark/releases/VERSION/` from a validated candidate directory that already contains `dev.yaml` and `test.yaml`. It refuses to overwrite an existing destination.
 
 Release runs expand each case to `defaults.n_trials` trials under `{result_dir}/trials/{case_key}__tNN/`. Ad-hoc `--config` uses the same layout with `n_trials=1`. Resume skips completed trials (including `agent_failed`); incomplete trials are re-run without creating extra trial indices.
 
@@ -282,7 +278,7 @@ Release runs expand each case to `defaults.n_trials` trials under `{result_dir}/
 
 **Inner no-response timeout**: MCP clients use `nika.mcp.read_timeout_sec` in `config/nika.yaml` (default **120**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` only limits agent iterations, not wall time.
 
-**`--continue-on-error`** (`benchmark.continue_on_error`, batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
+**`--continue-on-error` / `--abort-on-error`** (batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Official `--release` runs default to continuing (`continue_on_error=True`) even when YAML still has `benchmark.continue_on_error: false`; pass `--abort-on-error` to stop on the first failure. Ad-hoc `--config` batches use `benchmark.continue_on_error` from run config. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
 
 **`--retry-passes N`** (`benchmark.retry_passes`, batch mode): after the first pass, scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). NIKA preserves `agent_failed` trials. Retries stop when a pass completes no new trial. Example for an unattended run:
 

@@ -13,7 +13,7 @@ nika benchmark releases
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
-Release `0.1.0` remains under `benchmark/releases/0.1.0/` for provenance. Its legacy IDs are not runnable, and `nika benchmark releases` reports it as `DEPRECATED`.
+Release `0.1.0` remains under `benchmark/releases/0.1.0/` for provenance. Its legacy IDs are not runnable, and `nika benchmark releases` reports it as `DEPRECATED` with guidance to use `--release 0.2.0`.
 
 Each release run treats `--result_dir` as **one run** and writes:
 
@@ -25,16 +25,17 @@ Each release run treats `--result_dir` as **one run** and writes:
 
 Active run progress is recorded under `runtime/benchmark_runs/{run_id}.json`.
 
-After a finished release run, pack and validate a leaderboard submission. See the [leaderboard submission guide](leaderboard-submission.md).
+After a finished release run, submit a leaderboard entry (packs and validates automatically). See the [leaderboard submission guide](leaderboard-submission.md).
 
 ```shell
 nika leaderboard template -o results/my-run/submission
 # edit metadata.yaml + README.md
-nika leaderboard pack --result_dir results/my-run --submission results/my-run/submission
-nika leaderboard validate results/my-run/YYYYMMDD_slug
+nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission
 ```
 
 `defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed`. NIKA cleans and reruns incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
+
+Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when possible so resume can skip it.
 
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
 

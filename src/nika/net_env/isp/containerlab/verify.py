@@ -290,9 +290,24 @@ def _srl_ping_ok(runtime: LabRuntime, device: str, target: str) -> bool:
     return "1 received" in output or "1 packets received" in output
 
 
+def _srl_bgp_prefix_ok(runtime: LabRuntime, device: str, prefix: str) -> bool:
+    network = prefix.split("/")[0]
+    output = exec_or_empty(
+        runtime,
+        device,
+        f'sr_cli "show network-instance default protocols bgp routes ipv4 prefix {prefix}"',
+        timeout=30,
+    )
+    if "Network not in table" in output or "Unknown command" in output:
+        return False
+    return network in output or prefix in output
+
+
 def _bgp_prefixes_propagated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     ping_by_prefix = {o.prefix: o.ping_address for o in bgp_plan.originated}
     for observer, prefix in bgp_plan.expect_reachable:
+        if not _srl_bgp_prefix_ok(runtime, observer, prefix):
+            return False
         target = ping_by_prefix.get(prefix)
         if target and not _srl_ping_ok(runtime, observer, target):
             return False

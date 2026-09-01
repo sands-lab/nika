@@ -91,11 +91,29 @@ def _resolve_isp_kwargs(
     any_provided = any(value is not None for value in provided.values())
 
     if is_isp_named_special(scenario):
-        if any_provided:
+        # Case YAML / release rows often still carry device_profile=frr (and
+        # backend=kathara). Those are the baked defaults — ignore them. Reject
+        # only truly conflicting protocol knobs.
+        conflicts: list[str] = []
+        if topo is not None:
+            conflicts.append(f"topo={topo!r}")
+        if igp is not None:
+            conflicts.append(f"igp={igp!r}")
+        if metric_strategy is not None:
+            conflicts.append(f"metric_strategy={metric_strategy!r}")
+        if constant_metric is not None:
+            conflicts.append(f"constant_metric={constant_metric!r}")
+        if bgp_mode is not None:
+            conflicts.append(f"bgp_mode={bgp_mode!r}")
+        if rpki is not None:
+            conflicts.append(f"rpki={rpki!r}")
+        if device_profile not in (None, "", "-", "frr"):
+            conflicts.append(f"device_profile={device_profile!r}")
+        if conflicts:
             raise ValueError(
                 f"Scenario '{scenario}' uses a fixed protocol profile; omit "
                 "--topo/--igp/--metric-strategy/--constant-metric/--bgp-mode/"
-                "--rpki/--device-profile."
+                f"--rpki/--device-profile (got {', '.join(conflicts)})."
             )
         return {}
 
@@ -456,9 +474,15 @@ def start_net_env(
                 error_type=type(exc).__name__,
             )
         try:
-            from nika.workflows.session.close import close_session
+            from nika.workflows.session.close import (
+                close_session,
+                remove_orphaned_containerlab_management_network,
+            )
 
             close_session(session_id=resolved_session_id, undeploy=True)
+            remove_orphaned_containerlab_management_network(
+                getattr(net_env, "name", None)
+            )
         except Exception as cleanup_exc:  # noqa: BLE001 - best effort
             print(
                 f"WARNING: could not close session {resolved_session_id} after "
@@ -472,6 +496,16 @@ def start_net_env(
                     f"WARNING: could not undeploy lab {net_env.name} after "
                     f"failed start: {undeploy_exc}"
                 )
+            try:
+                from nika.workflows.session.close import (
+                    remove_orphaned_containerlab_management_network,
+                )
+
+                remove_orphaned_containerlab_management_network(
+                    getattr(net_env, "name", None)
+                )
+            except Exception:  # noqa: BLE001 - best effort
+                pass
         raise
 
     log_event(

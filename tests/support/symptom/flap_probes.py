@@ -225,11 +225,14 @@ def evaluate_flap_samples(
         periodic_loss = True
         alignment_ok = True
 
+    # Kathara flaps the VDE proxy, not the node operstate. Multipath ISP labs
+    # often keep ICMP up via alternate routes while the proxy still cycles.
+    # Observed proxy up/down transitions are the authoritative flap signal.
     kathara_proxy_flap = (
         kathara_backend
-        and len(set(proxy_states)) > 1
+        and "up" in proxy_states
+        and "down" in proxy_states
         and transitions >= 2
-        and aggregate_loss >= 5.0
     )
     if kathara_proxy_flap and not periodic_loss:
         periodic_loss = True

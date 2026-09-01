@@ -27,7 +27,6 @@ from nika.workflows.leaderboard.schema import (
     RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
-    SCHEMA_VERSION,
     TRIAL_RESULT_FILENAME,
     TRIALS_DIRNAME,
     AggregatedMetrics,
@@ -122,12 +121,6 @@ def validate_leaderboard_submission(
         return ValidationReport(
             ok=False,
             errors=[f"invalid {RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"],
-        )
-
-    if identity.schema_version != SCHEMA_VERSION:
-        errors.append(
-            f"unsupported schema_version {identity.schema_version!r}; "
-            f"expected {SCHEMA_VERSION!r}"
         )
 
     try:

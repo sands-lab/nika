@@ -36,7 +36,6 @@ from nika.workflows.leaderboard.schema import (
     RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
-    SCHEMA_VERSION,
     SubmissionMetadata,
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
@@ -120,6 +119,9 @@ def _write_trial_artifacts(
     )
     (session_dir / "messages.jsonl").write_text(
         '{"role":"assistant","content":"ok"}\n', encoding="utf-8"
+    )
+    (session_dir / "nika.jsonl").write_text(
+        '{"event":"env_start"}\n', encoding="utf-8"
     )
     metrics = {
         "detection_score": 1.0 if outcome == "success" else -1.0,
@@ -233,8 +235,6 @@ _FULL_METADATA: dict[str, Any] = {
         "skills": ["network-diagnosis"],
         "optimization_methods": ["none"],
         "tags": ["test"],
-        "os_model": False,
-        "os_system": False,
         "extra": {},
     },
 }
@@ -255,7 +255,7 @@ def _pack(
         metadata=meta,
         readme_text=readme_text if readme_text is not None else _DEFAULT_README,
         **overrides,
-    )
+    ).scores_dir
 
 
 def _identity_path(package: Path) -> Path:
@@ -303,7 +303,8 @@ class TestLeaderboardPackValidate:
         assert report.ok, report.errors
 
         identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
-        assert identity["schema_version"] == SCHEMA_VERSION
+        assert "schema_version" not in identity
+        assert identity["benchmark"]["version"] == "lb-mini"
 
         trial_results = sorted(
             (package / RESULTS_DIRNAME / "trials").glob("*/result.json")
@@ -397,7 +398,7 @@ class TestLeaderboardPackValidate:
             {"gt": "link_down", "predicted": "host_missing_ip", "count": 1}
         ]
 
-    def test_schema_v1_package_rejected(self, mini_release_env) -> None:
+    def test_identity_rejects_unknown_fields(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         package = _pack(result_dir)
         identity_path = _identity_path(package)
@@ -408,7 +409,7 @@ class TestLeaderboardPackValidate:
         )
         report = validate_leaderboard_submission(package)
         assert not report.ok
-        assert any("schema_version" in e for e in report.errors)
+        assert any("identity.yaml" in e for e in report.errors)
 
     def test_pack_from_submission_dir(self, mini_release_env, tmp_path: Path) -> None:
         _release, result_dir = mini_release_env
@@ -431,16 +432,24 @@ class TestLeaderboardPackValidate:
         )
         package = pack_leaderboard_submission(result_dir, submission_dir=staging)
         packed = yaml.safe_load(
-            (package / METADATA_FILENAME).read_text(encoding="utf-8")
+            (package.scores_dir / METADATA_FILENAME).read_text(encoding="utf-8")
         )
         assert packed["info"]["name"] == "YAML Agent"
         assert packed["agent"]["model"] == "gpt-4.1"
         assert packed["agent"]["framework"] == "autogen"
         assert packed["agent"]["extra"]["note"] == "from-dir"
-        assert "From staging dir" in (package / README_FILENAME).read_text(
-            encoding="utf-8"
+        assert "From staging dir" in (
+            package.scores_dir / README_FILENAME
+        ).read_text(encoding="utf-8")
+        assert validate_leaderboard_submission(package.scores_dir).ok
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
         )
-        assert validate_leaderboard_submission(package).ok
+
+        traj_report = validate_trajectory_package(
+            package.trajectories_dir, scores_dir=package.scores_dir
+        )
+        assert traj_report.ok, traj_report.errors
 
     def test_write_and_load_submission_templates(self, tmp_path: Path) -> None:
         staging = write_submission_templates(tmp_path / "submission")

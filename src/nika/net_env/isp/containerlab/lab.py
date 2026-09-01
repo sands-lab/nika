@@ -28,6 +28,10 @@ from nika.net_env.isp.igp import (
     IspPlan,
     compile_isp_plan,
 )
+from nika.net_env.utils.containerlab.mgmt_subnet import (
+    mgmt_ipv4_address,
+    mgmt_ipv4_subnet,
+)
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.net_env.isp.igp.srl import render_srl_node_config
 from nika.net_env.isp.profiles import (
@@ -51,7 +55,6 @@ MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
 SRL_IMAGE = "ghcr.io/nokia/srlinux:24.10"
 SRL_TYPE = "ixr-d2l"
 LINUX_IMAGE = "ghcr.io/hellt/network-multitool"
-MGMT_SUBNET = "172.100.100.0/24"
 SRL_PASSWORD = "NokiaSrl1!"
 
 
@@ -169,8 +172,6 @@ class Isp(ContainerlabNetworkEnv):
         self.inventory["backend"] = "containerlab"
 
         self.name = self.scenario_id
-        self._mgmt_ipv4 = self._assign_mgmt_ips()
-        self._clab_doc = self._build_clab_document(lab_name=self.scenario_id)
 
         node_n = len(self.plan.nodes)
         link_n = len(self.plan.links)
@@ -198,11 +199,12 @@ class Isp(ContainerlabNetworkEnv):
     def _assign_mgmt_ips(self) -> dict[str, str]:
         mapping: dict[str, str] = {}
         index = 2
+        lab = self.name or self.scenario_id
         for node in sorted(self.plan.nodes, key=lambda n: n.device_name):
-            mapping[node.device_name] = f"172.100.100.{index}"
+            mapping[node.device_name] = mgmt_ipv4_address(lab, index)
             index += 1
         for host in sorted(self.traffic.hosts, key=lambda h: h.host_name):
-            mapping[host.host_name] = f"172.100.100.{index}"
+            mapping[host.host_name] = mgmt_ipv4_address(lab, index)
             index += 1
             if index > 254:
                 raise ValueError("Too many ISP nodes for mgmt /24.")
@@ -218,6 +220,9 @@ class Isp(ContainerlabNetworkEnv):
         self.servers = {}
 
     def _build_clab_document(self, *, lab_name: str) -> dict:
+        if not getattr(self, "_mgmt_ipv4", None):
+            self._mgmt_ipv4 = self._assign_mgmt_ips()
+        mgmt_subnet = mgmt_ipv4_subnet(lab_name)
         nodes: dict = {}
         for node in self.plan.nodes:
             nodes[node.device_name] = {
@@ -263,7 +268,7 @@ class Isp(ContainerlabNetworkEnv):
             "name": lab_name,
             "mgmt": {
                 "network": f"br-{lab_name}",
-                "ipv4-subnet": MGMT_SUBNET,
+                "ipv4-subnet": mgmt_subnet,
             },
             "topology": {
                 "kinds": {
@@ -289,6 +294,7 @@ class Isp(ContainerlabNetworkEnv):
         self.runtime_workdir.mkdir(parents=True, exist_ok=True)
         self.topology_file = self.runtime_workdir / f"{self.scenario_id}.clab.yml"
 
+        self._mgmt_ipv4 = self._assign_mgmt_ips()
         doc = self._build_clab_document(lab_name=lab_name)
         self.topology_file.write_text(
             yaml.safe_dump(doc, sort_keys=False, default_flow_style=False),

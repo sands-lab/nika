@@ -20,6 +20,7 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
     list_all_net_envs,
+    resolve_scenario_backend,
     scenario_requires_topo_size,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
@@ -31,12 +32,15 @@ from nika.mcp.registry import (
     SUBMISSION_SERVER,
 )
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
-from nika.workflows.benchmark.candidate_context import selection_context_key
+from nika.workflows.benchmark.candidate_context import (
+    normalize_topo_scale,
+    selection_context_key,
+)
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 BENCHMARK_ID = "nika-bench"
 BENCHMARK_ID_ALIASES = frozenset({"nika-bench", "nika"})
-DEFAULT_RELEASE_VERSION = "0.1.0"
+DEFAULT_RELEASE_VERSION = "0.2.0"
 RELEASES_DIR = BENCHMARK_DIR / "releases"
 JOB_FILENAME = "benchmark_job.json"
 RUN_CONFIG_FILENAME = "run.json"
@@ -74,6 +78,22 @@ RESOURCES_V1: dict[str, Any] = {}
 DEFAULTS_V1 = {
     "n_trials": 3,
 }
+
+REQUIRED_SPLIT_FAMILIES = frozenset(
+    {
+        "campus",
+        "dc_clos",
+        "enterprise_branch",
+        "isp",
+        "sdn",
+        "p4",
+        "kubernetes",
+        "llm_serving",
+        "srl_clos",
+    }
+)
+REQUIRED_SPLIT_SCALES = frozenset({"s", "m", "l", "fixed"})
+REQUIRED_SPLIT_BACKENDS = frozenset({"kathara", "containerlab"})
 
 
 class ReleaseError(ValueError):
@@ -138,7 +158,8 @@ def _reject_deprecated_release(version: str) -> None:
     raise ReleaseError(
         f"Release {version} is deprecated and no longer runnable "
         f"(legacy scenario/failure ids are not migrated). "
-        f"Use a current release or --config with a modern case matrix."
+        f"Use --release {DEFAULT_RELEASE_VERSION} "
+        f"(or --config with a modern case matrix)."
     )
 
 
@@ -388,6 +409,81 @@ def verify_dev_test_isolation(
         )
 
 
+def _scenario_family(scenario: str) -> str:
+    if scenario == "campus_lan":
+        return "campus"
+    if scenario in {"dc_clos", "enterprise_branch"}:
+        return scenario
+    if scenario.startswith("isp_"):
+        return "isp"
+    if scenario == "sdn_l3_clos":
+        return "sdn"
+    if scenario.startswith("p4_"):
+        return "p4"
+    if scenario == "k8s_lab":
+        return "kubernetes"
+    if scenario == "llmd_lab":
+        return "llm_serving"
+    if scenario == "min3clos":
+        return "srl_clos"
+    return scenario
+
+
+def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set[str]]:
+    families: set[str] = set()
+    scales: set[str] = set()
+    backends: set[str] = set()
+    for row in rows:
+        scenario = str(row["scenario"])
+        families.add(_scenario_family(scenario))
+        scales.add(normalize_topo_scale(row))
+        backends.add(str(row.get("backend") or resolve_scenario_backend(scenario)))
+    return families, scales, backends
+
+
+def _validate_release_splits(
+    dev_cases: list[dict[str, Any]],
+    test_cases: list[dict[str, Any]],
+    *,
+    expected_failures: set[str],
+) -> None:
+    verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_cases)
+    failures = {
+        str(row["problem"]) for row in dev_cases if not is_healthy_case(row["problem"])
+    }
+    if failures != expected_failures:
+        missing = sorted(expected_failures - failures)
+        extra = sorted(failures - expected_failures)
+        raise ReleaseError(
+            f"Split failure coverage mismatch: missing={missing}, extra={extra}"
+        )
+    for name, rows in (("Dev", dev_cases), ("Test", test_cases)):
+        families, scales, backends = _split_coverage(rows)
+        if not REQUIRED_SPLIT_FAMILIES <= families:
+            raise ReleaseError(
+                f"{name} is missing scenario families: "
+                f"{sorted(REQUIRED_SPLIT_FAMILIES - families)}"
+            )
+        if not REQUIRED_SPLIT_SCALES <= scales:
+            raise ReleaseError(
+                f"{name} is missing topology scales: "
+                f"{sorted(REQUIRED_SPLIT_SCALES - scales)}"
+            )
+        if not REQUIRED_SPLIT_BACKENDS <= backends:
+            raise ReleaseError(
+                f"{name} is missing backends: "
+                f"{sorted(REQUIRED_SPLIT_BACKENDS - backends)}"
+            )
+    test_healthy = sum(is_healthy_case(row["problem"]) for row in test_cases)
+    test_ratio = test_healthy / len(test_cases)
+    if not 0.10 <= test_ratio <= 0.20:
+        raise ReleaseError(
+            f"Test healthy ratio {test_ratio:.4f} is outside [0.10, 0.20]"
+        )
+    if not any(is_healthy_case(row["problem"]) for row in dev_cases):
+        raise ReleaseError("Dev must contain healthy cases")
+
+
 def preflight_release(
     release: BenchmarkRelease,
     *,
@@ -428,14 +524,11 @@ def preflight_release(
     if "dev" in release.splits and "test" in release.splits:
         dev = load_release_from_dir(release.root, split="dev").cases
         test = load_release_from_dir(release.root, split="test").cases
-        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
-        expected = set(list_avail_problem_instances())
-        from nika.workflows.benchmark.split_catalog import validate_dev_test_split
-
-        try:
-            validate_dev_test_split(dev, test, expected_failures=expected)
-        except ValueError as exc:
-            raise ReleaseError(str(exc)) from exc
+        _validate_release_splits(
+            dev,
+            test,
+            expected_failures=set(list_avail_problem_instances()),
+        )
 
     _verify_mcp_policy(release.cases, release.tools)
 
@@ -716,16 +809,11 @@ def freeze_split_release(
         raise ReleaseError(f"Release candidate is missing files: {missing}")
     dev = load_benchmark_yaml(source_dir / "dev.yaml")
     test = load_benchmark_yaml(source_dir / "test.yaml")
-    from nika.workflows.benchmark.split_catalog import validate_dev_test_split
-
-    try:
-        validate_dev_test_split(
-            dev,
-            test,
-            expected_failures=set(list_avail_problem_instances()),
-        )
-    except ValueError as exc:
-        raise ReleaseError(str(exc)) from exc
+    _validate_release_splits(
+        dev,
+        test,
+        expected_failures=set(list_avail_problem_instances()),
+    )
 
     dest = out_dir or (releases_dir() / version)
     if dest.exists():

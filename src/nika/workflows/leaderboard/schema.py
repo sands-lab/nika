@@ -6,8 +6,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "4"
-
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
 RESULTS_DIRNAME = "results"
@@ -16,6 +14,32 @@ METRICS_FILENAME = "metrics.json"
 RCA_CONFUSION_FILENAME = "rca_confusion.json"
 TRIALS_DIRNAME = "trials"
 TRIAL_RESULT_FILENAME = "result.json"
+
+# Local sibling package suffix; remote HF path drops this suffix.
+TRAJECTORIES_DIR_SUFFIX = "_trajectories"
+
+# Per-trial files copied into the Hugging Face trajectories package.
+TRAJECTORY_REQUIRED_FILES = (
+    "run.json",
+    "messages.jsonl",
+    "nika.jsonl",
+    "ground_truth.json",
+    "eval_metrics.json",
+)
+TRAJECTORY_OPTIONAL_SUCCESS_FILE = "submission.json"
+
+# Rejected under trajectory packages (pcaps / validation dumps / judge extras).
+TRAJECTORY_FORBIDDEN_NAME_FRAGMENTS = (
+    "packet_captures",
+    ".pcap",
+    ".pcapng",
+    "llm_judge.json",
+    "sandbox_manifest.json",
+    "validation-contract.json",
+    "validation-results.json",
+    "validation-failure-effect.json",
+    "batfish-validation",
+)
 
 PRIMARY_METRIC = "rca_f1"
 
@@ -69,8 +93,6 @@ class SubmissionAgent(BaseModel):
     skills: list[str]
     optimization_methods: list[str]
     tags: list[str]
-    os_model: bool = False
-    os_system: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("tools", "skills", "optimization_methods", "tags")
@@ -119,14 +141,19 @@ class RunIdentity(BaseModel):
 
 
 class PackageIdentity(BaseModel):
-    """Machine-written ``results/identity.yaml`` (benchmark + run binding)."""
+    """Machine-written ``results/identity.yaml`` (benchmark + run binding).
+
+    Scores packages may set ``trajectories_relpath``. Trajectory packages may
+    set ``scores_package`` (dirname of the paired scores package).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["4"] = SCHEMA_VERSION
     created_at: str
     benchmark: BenchmarkIdentity
     run: RunIdentity
+    trajectories_relpath: str | None = None
+    scores_package: str | None = None
 
 
 class TrialResult(BaseModel):

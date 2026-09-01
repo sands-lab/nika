@@ -36,6 +36,10 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "pem_private_key",
         re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     ),
+    (
+        "hf_token",
+        re.compile(r"\bhf_[A-Za-z0-9]{20,}\b"),
+    ),
 )
 
 _ABS_PATH_RE = re.compile(
@@ -110,4 +114,51 @@ def scan_package_dir(submission_dir: Path) -> list[str]:
         else:
             data = json.loads(raw)
         issues.extend(scan_value_for_issues(data, label=rel))
+    return issues
+
+
+def scan_trajectory_package_dir(trajectories_dir: Path) -> list[str]:
+    """Scan metadata/README/identity and per-trial trajectory text artifacts."""
+    from nika.workflows.leaderboard.schema import (
+        IDENTITY_FILENAME,
+        METADATA_FILENAME,
+        README_FILENAME,
+        TRAJECTORY_OPTIONAL_SUCCESS_FILE,
+        TRAJECTORY_REQUIRED_FILES,
+        TRIALS_DIRNAME,
+    )
+
+    issues: list[str] = []
+    targets = [
+        trajectories_dir / METADATA_FILENAME,
+        trajectories_dir / README_FILENAME,
+        trajectories_dir / IDENTITY_FILENAME,
+    ]
+    trials_root = trajectories_dir / TRIALS_DIRNAME
+    if trials_root.is_dir():
+        for trial_dir in sorted(p for p in trials_root.iterdir() if p.is_dir()):
+            for name in (*TRAJECTORY_REQUIRED_FILES, TRAJECTORY_OPTIONAL_SUCCESS_FILE):
+                path = trial_dir / name
+                if path.is_file():
+                    targets.append(path)
+
+    for path in targets:
+        if not path.is_file():
+            continue
+        raw = path.read_text(encoding="utf-8")
+        rel = path.relative_to(trajectories_dir).as_posix()
+        if path.suffix in {".yaml", ".yml"}:
+            data = yaml.safe_load(raw)
+            issues.extend(scan_value_for_issues(data, label=rel))
+            continue
+        if path.suffix == ".json":
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                issues.extend(scan_value_for_issues(raw, label=rel))
+            else:
+                issues.extend(scan_value_for_issues(data, label=rel))
+            continue
+        # JSONL / plain text (messages.jsonl, nika.jsonl)
+        issues.extend(scan_value_for_issues(raw, label=rel))
     return issues

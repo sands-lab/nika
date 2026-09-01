@@ -116,6 +116,19 @@ def test_compare_symptom_degraded_rtt() -> None:
     assert details["observed"]["slower_rtt"] is True
 
 
+def test_compare_symptom_degraded_loss() -> None:
+    from nika.net_env.verify import compare_symptom
+
+    ok, details = compare_symptom(
+        {"loss_percent": None, "ping_ok": None},
+        {"loss_percent": 65.0, "ping_ok": True, "rtt_avg_ms": 4120.0},
+        "degraded",
+        loss_min_percent=10.0,
+    )
+    assert ok
+    assert details["observed"]["loss_degraded"] is True
+
+
 def test_compare_symptom_degraded_absolute_http() -> None:
     from nika.net_env.verify import compare_symptom
 

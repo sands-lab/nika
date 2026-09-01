@@ -15,6 +15,7 @@ from tests.support.symptom.contracts import get_symptom_contract
 from tests.support.symptom.custom import evaluate_custom_symptom
 from tests.support.symptom.probe import (
     _resolve_blackhole_path,
+    _resolve_mtu_mismatch_path,
     _resolve_path,
     run_probe_snapshot,
     symptom_class_to_expect,
@@ -92,6 +93,8 @@ def evaluate_symptom(
             path = replace(path, src_host=targets[0])
     if failure == "host_static_blackhole":
         path = _resolve_blackhole_path(runtime, params, path)
+    if failure == "mtu_mismatch" and problem is not None:
+        path = _resolve_mtu_mismatch_path(problem, params, path)
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
     before_snap = before if before is not None else ProbeSnapshot()
     expect = symptom_class_to_expect(contract.symptom_class)

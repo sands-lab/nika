@@ -527,10 +527,45 @@ class ReceiverResourceContention(ProblemBase):
     def root_cause_resources(self, params: ReceiverResourceContentionParams):
         return [node_resource(params.host_name)]
 
+    def _device_in_lab(self, name: str) -> bool:
+        if not name:
+            return False
+        if name in set(self.net_env.hosts or []):
+            return True
+        if name in set(self.net_env.routers or []):
+            return True
+        servers = getattr(self.net_env, "servers", None) or {}
+        for bucket in servers.values():
+            if name in (bucket or []):
+                return True
+        return False
+
+    def _resolve_peer_host(self, params: ReceiverResourceContentionParams) -> str:
+        """Prefer an HTTP peer that exists in this scenario (dc_clos uses webserver*)."""
+        peer = params.peer_host
+        if self._device_in_lab(peer):
+            return peer
+        from nika.problems.support.probe_paths import get_probe_path
+
+        path = get_probe_path(self.scenario_name or "")
+        if path is not None and path.peer_host and self._device_in_lab(path.peer_host):
+            return path.peer_host
+        servers = getattr(self.net_env, "servers", None) or {}
+        for name in servers.get("web") or []:
+            if self._device_in_lab(name):
+                return name
+        return peer
+
     def _resolve_large_url(self, params: ReceiverResourceContentionParams) -> str:
         if params.large_url:
             return params.large_url
-        peer = params.peer_host
+        from nika.problems.support.probe_paths import get_probe_path
+
+        path = get_probe_path(self.scenario_name or "")
+        if path is not None and path.http_url:
+            base = path.http_url.rstrip("/")
+            return f"{base}/large.bin"
+        peer = self._resolve_peer_host(params)
         peer_ip = ""
         try:
             peer_ip = self.runtime.get_host_ip(peer, with_prefix=False) or ""
@@ -544,7 +579,7 @@ class ReceiverResourceContention(ProblemBase):
         self, params: ReceiverResourceContentionParams
     ) -> str:
         url = self._resolve_large_url(params)
-        peer = params.peer_host
+        peer = self._resolve_peer_host(params)
         self.runtime.exec(
             peer,
             (
@@ -646,10 +681,14 @@ class ReceiverResourceContention(ProblemBase):
     def recover_fault(self, params: ReceiverResourceContentionParams) -> dict:
         self.runtime.exec(
             params.host_name,
-            "pkill -f stress-ng 2>/dev/null || true",
-            timeout=10,
+            (
+                "pkill -9 -f '[s]tress-ng' 2>/dev/null || true; "
+                "pkill -9 stress-ng 2>/dev/null || true; "
+                "killall -9 stress-ng 2>/dev/null || true"
+            ),
+            timeout=15,
         )
-        time.sleep(0.5)
+        time.sleep(1.0)
         stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
         return {
             "verified": bool(stress_gone),

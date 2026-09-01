@@ -1337,6 +1337,10 @@ def resolve_inject_params(
             params["limit"] = "500kb"
         if problem == "receiver_resource_contention":
             params["duration"] = "600"
+            if scenario == "dc_clos":
+                params["peer_host"] = "webserver0_pod0"
+                params["large_url"] = "http://web0.pod0/large.bin"
+                params["stress_cpus"] = "4"
 
     elif scenario == "enterprise_branch" and problem in {
         "snat_port_pool_exhaustion",

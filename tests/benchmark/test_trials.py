@@ -629,7 +629,7 @@ class TestReleaseRunMetadata:
 
         with (
             patch("nika.workflows.benchmark.run.preflight_release"),
-            patch("nika.workflows.benchmark.run.run_benchmark_trials"),
+            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
                 tmp_path / "benchmark_runs",
@@ -653,6 +653,7 @@ class TestReleaseRunMetadata:
             assert first["n_trials"] == release.n_trials
             assert (result_dir / RUN_CONFIG_FILENAME).is_file()
             assert (result_dir / JOB_FILENAME).is_file()
+            assert run_trials.call_args.kwargs["continue_on_error"] is True
 
             run_benchmark_from_release(
                 release_ref="mini-release",
@@ -684,6 +685,35 @@ class TestReleaseRunMetadata:
                     check_images=False,
                     release=release,
                 )
+
+    def test_release_abort_on_error_forwarded(self, tmp_path: Path) -> None:
+        source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
+        release = freeze_release(
+            version="mini-abort",
+            source_cases=source,
+            out_dir=tmp_path / "releases" / "mini-abort",
+        )
+        with (
+            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                tmp_path / "benchmark_runs",
+            ),
+        ):
+            run_benchmark_from_release(
+                release_ref="mini-abort",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=None,
+                result_dir=str(tmp_path / "results"),
+                continue_on_error=False,
+                check_images=False,
+                release=release,
+            )
+        assert run_trials.call_args.kwargs["continue_on_error"] is False
 
     def test_fingerprint_included_in_case_key(self) -> None:
         other = {

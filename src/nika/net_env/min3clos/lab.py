@@ -9,14 +9,7 @@ from typing import ClassVar
 
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
-
-_SRL_MGMT_IPV4: dict[str, str] = {
-    "leaf1": "172.100.100.2",
-    "leaf2": "172.100.100.3",
-    "spine": "172.100.100.4",
-}
-
-
+from nika.config import RUNTIME_DIR
 class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     # ref: https://containerlab.dev/lab-examples/min-clos/
     LAB_NAME = "min3clos"
@@ -44,11 +37,57 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
                 reachability_target=True,
             )
 
+    def topology_replacements(self, lab_name: str) -> dict[str, str]:
+        from nika.net_env.utils.containerlab.mgmt_subnet import (
+            mgmt_ipv4_address,
+            mgmt_ipv4_subnet,
+            mgmt_ipv6_address,
+            mgmt_ipv6_subnet,
+        )
+
+        hosts = (
+            ("leaf1", 2),
+            ("leaf2", 3),
+            ("spine", 4),
+            ("client1", 5),
+            ("client2", 6),
+        )
+        replacements = {
+            "__MGMT_IPV4_SUBNET__": mgmt_ipv4_subnet(lab_name),
+            "__MGMT_IPV6_SUBNET__": mgmt_ipv6_subnet(lab_name),
+        }
+        for name, index in hosts:
+            replacements[f"__MGMT_IP_{name.upper()}__"] = mgmt_ipv4_address(
+                lab_name, index
+            )
+            replacements[f"__MGMT_IPV6_{name.upper()}__"] = mgmt_ipv6_address(
+                lab_name, index
+            )
+        return replacements
+
+    def _mgmt_ipv4_for_srl(self) -> dict[str, str]:
+        from nika.net_env.utils.containerlab.mgmt_subnet import mgmt_ipv4_address
+
+        lab_name = self.name or self.LAB_NAME
+        return {
+            name: mgmt_ipv4_address(lab_name, index)
+            for name, index in (("leaf1", 2), ("leaf2", 3), ("spine", 4))
+        }
+
     def _prepare_runtime_files(self) -> None:
-        super()._prepare_runtime_files()
         lab_name = self.name
-        if not lab_name or self.runtime_workdir is None:
+        if not lab_name:
             raise ValueError("Lab name is required before deploy.")
+        self.runtime_workdir = RUNTIME_DIR / "containerlab" / lab_name
+        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+
+        self.topology_file = self.runtime_workdir / f"{self.LAB_NAME}.clab.yml"
+        render_topology(
+            self.topology_template(),
+            lab_name=lab_name,
+            output_path=self.topology_file,
+            replacements=self.topology_replacements(lab_name),
+        )
 
         configs_src = self.lab_dir / "configs"
         configs_dst = self.runtime_workdir / "configs"
@@ -58,7 +97,12 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
 
         setup_template = self.lab_dir / "setup.sh.tmpl"
         setup_dst = self.runtime_workdir / "setup.sh"
-        render_topology(setup_template, lab_name=lab_name, output_path=setup_dst)
+        render_topology(
+            setup_template,
+            lab_name=lab_name,
+            output_path=setup_dst,
+            replacements=self.topology_replacements(lab_name),
+        )
         setup_dst.chmod(0o755)
 
     def deploy(self) -> None:
@@ -95,7 +139,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         return result.returncode == 0
 
     def _wait_for_gnmi(self) -> None:
-        pending = set(_SRL_MGMT_IPV4.values())
+        pending = set(self._mgmt_ipv4_for_srl().values())
         deadline = time.time() + self.GNMI_WAIT_TIMEOUT_SEC
         while time.time() < deadline and pending:
             for addr in list(pending):

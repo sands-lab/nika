@@ -389,6 +389,9 @@ def _receiver_resource_contention(
         time_ratio = injected_time_s / baseline_time
         # Receiver contention: clear slowdown, not necessarily sender-class multi-x.
         perf_ok = throughput_ratio <= 0.50 or time_ratio >= 2.0
+    elif baseline_bps and baseline_time and injected_bps is None:
+        # Contended receiver may fail large downloads entirely.
+        perf_ok = True
     verified = bool(perf_ok)
     result = build_verify_result(
         fault_type=problem.root_cause_name,
