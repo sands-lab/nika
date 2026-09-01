@@ -1,9 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
 from agent.utils.provider_env import (
@@ -56,6 +54,7 @@ def load_model(
         return ChatOpenAI(**kwargs)
 
     if llm_provider == "deepseek":
+        from langchain_deepseek import ChatDeepSeek
         return ChatDeepSeek(
             model=model,
             api_key=os.getenv(ENV_DEEPSEEK_API_KEY) or None,
@@ -97,6 +96,7 @@ def load_model(
 
     if llm_provider == "anthropic":
         # Official Anthropic needs no base URL. Provider mapping supplies one for gateways.
+        from langchain_anthropic import ChatAnthropic
         kwargs = {
             "model": model,
             "api_key": os.getenv(ENV_ANTHROPIC_API_KEY) or None,

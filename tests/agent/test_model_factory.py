@@ -6,7 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import agent.llm.model_factory as model_factory
 from agent.llm.model_factory import load_model
+
+
+def test_provider_chat_classes_are_lazily_imported() -> None:
+    assert not hasattr(model_factory, "ChatAnthropic")
+    assert not hasattr(model_factory, "ChatDeepSeek")
 
 
 def test_load_model_anthropic_wires_chat_anthropic() -> None:
@@ -20,7 +26,7 @@ def test_load_model_anthropic_wires_chat_anthropic() -> None:
             },
             clear=False,
         ),
-        patch("agent.llm.model_factory.ChatAnthropic", return_value=fake) as ctor,
+        patch("langchain_anthropic.ChatAnthropic", return_value=fake) as ctor,
     ):
         model = load_model(llm_provider="anthropic", model="deepseek-v4-flash")
 
@@ -42,7 +48,7 @@ def test_load_model_anthropic_omits_empty_base_url() -> None:
             {"ANTHROPIC_API_KEY": "sk-ant", "ANTHROPIC_BASE_URL": ""},
             clear=False,
         ),
-        patch("agent.llm.model_factory.ChatAnthropic", return_value=fake) as ctor,
+        patch("langchain_anthropic.ChatAnthropic", return_value=fake) as ctor,
     ):
         load_model(llm_provider="anthropic", model="claude-haiku-4-5")
 
@@ -76,7 +82,7 @@ def test_load_model_anthropic_passes_reasoning_effort() -> None:
     fake = MagicMock(name="ChatAnthropic")
     with (
         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant"}, clear=False),
-        patch("agent.llm.model_factory.ChatAnthropic", return_value=fake) as ctor,
+        patch("langchain_anthropic.ChatAnthropic", return_value=fake) as ctor,
     ):
         load_model(
             llm_provider="anthropic",
@@ -91,7 +97,7 @@ def test_load_model_deepseek_ignores_reasoning_effort() -> None:
     fake = MagicMock(name="ChatDeepSeek")
     with (
         patch.dict("os.environ", {"DEEPSEEK_API_KEY": "sk-ds"}, clear=False),
-        patch("agent.llm.model_factory.ChatDeepSeek", return_value=fake) as ctor,
+        patch("langchain_deepseek.ChatDeepSeek", return_value=fake) as ctor,
     ):
         load_model(
             llm_provider="deepseek",
