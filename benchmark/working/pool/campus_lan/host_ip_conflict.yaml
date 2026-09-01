@@ -1,0 +1,35 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: host_ip_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dns_server
+      host_name_2: web_server_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    inject:
+      host_name: pc_1_1_1_1
+      host_name_2: pc_1_2_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_2_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    inject:
+      host_name: pc_2_2_2_1
+      host_name_2: pc_1_3_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_3_2_1
+        name: eth0
+      fault_type: host_ip_conflict

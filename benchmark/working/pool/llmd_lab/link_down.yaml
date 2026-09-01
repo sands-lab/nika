@@ -1,0 +1,13 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: link_down
+  cases:
+  - inject:
+      host_name: controller
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: client:eth0--controller:eth0--web:eth0--worker1:eth0--worker2:eth0--worker3:eth0--worker4:eth0--worker5:eth0
+      fault_type: link_down

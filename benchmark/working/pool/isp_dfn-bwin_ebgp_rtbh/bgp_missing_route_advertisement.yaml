@@ -1,0 +1,47 @@
+scenario:
+  name: isp_dfn-bwin_ebgp_rtbh
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: frankfurt
+      peer_host: pc_frankfurt
+      prefix: 198.51.101.0/24
+      probe_dst_ip: 198.51.101.1
+      symptom_host: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hamburg
+      peer_host: pc_hamburg
+      prefix: 198.51.102.0/24
+      probe_dst_ip: 198.51.102.1
+      symptom_host: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: stuttgart
+      peer_host: pc_stuttgart
+      prefix: 198.51.100.0/24
+      probe_dst_ip: 198.51.100.1
+      symptom_host: frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: stuttgart
+      fault_type: bgp_missing_route_advertisement

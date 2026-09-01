@@ -163,6 +163,7 @@ def config_migrate(
         "# NIKA_CUSTOM_API_KEY=",
         "# LANGFUSE_SECRET_KEY=",
         "# LANGFUSE_PUBLIC_KEY=",
+        "# HF_TOKEN=",
         "",
     ]
     # Keep credentials in .env. Provider and endpoint selection belongs in YAML.

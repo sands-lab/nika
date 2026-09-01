@@ -1,0 +1,15 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - inject:
+      host_name: leaf_1_1
+      intf_name: eth2
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth2
+      fault_type: mtu_mismatch

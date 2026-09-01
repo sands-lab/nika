@@ -421,7 +421,7 @@ def _text_summary(payload: dict[str, Any], show_clean: bool) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pressure / resource sweep across service-path devices.")
-    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "ospf_enterprise_dhcp"))
+    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "campus_lan"))
     parser.add_argument("--device", action="append", default=[], dest="devices")
     parser.add_argument(
         "--group",

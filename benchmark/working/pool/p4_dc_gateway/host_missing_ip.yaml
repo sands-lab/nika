@@ -1,0 +1,35 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: host_missing_ip
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: m
+    inject:
+      host_name: client_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: l
+    inject:
+      host_name: client_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3
+        name: eth0
+      fault_type: host_missing_ip

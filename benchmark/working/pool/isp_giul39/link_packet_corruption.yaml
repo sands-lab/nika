@@ -1,0 +1,3101 @@
+scenario:
+  name: isp_giul39
+failure:
+  fault_type: link_packet_corruption
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth0
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth0--n2:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth1
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth1--n2:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth2
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth2--n3:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth3
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth3--n3:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth4
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth4--n4:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth5
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth5--n4:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth6
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth6--n5:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth7
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth7--n5:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth8
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth8--n7:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n1
+      intf_name: eth9
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth9--n7:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth0
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth0--n4:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth1
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth1--n4:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth10
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth10--n24:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth11
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth11--n24:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth2
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth2--n7:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth3
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth3--n7:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth4
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth4--n9:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth5
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth5--n9:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth6
+      peer_host: pc_n11
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth6--n11:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth7
+      peer_host: pc_n11
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth7--n11:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth8
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth8--n15:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n10
+      intf_name: eth9
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth9--n15:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n11
+      intf_name: eth0
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth0--n7:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n11
+      intf_name: eth1
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth1--n7:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n11
+      intf_name: eth4
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth4--n12:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n11
+      intf_name: eth5
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth5--n12:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n11
+      intf_name: eth6
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth6--n17:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n11
+      intf_name: eth7
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth7--n17:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n12
+      intf_name: eth0
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth0--n8:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n12
+      intf_name: eth1
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth1--n8:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n12
+      intf_name: eth4
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth4--n25:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n12
+      intf_name: eth5
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth5--n25:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth0
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth0--n9:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth1--n9:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth2
+      peer_host: pc_n14
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth2--n14:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth3
+      peer_host: pc_n14
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth3--n14:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth4
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth4--n18:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth5
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth5--n18:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth6
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth6--n19:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n13
+      intf_name: eth7
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth7--n19:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth0
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth0--n9:eth8
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth1--n9:eth9
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth4
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth4--n15:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth5
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth5--n15:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth6
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth6--n20:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth7
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth7--n20:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth8
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth8--n26:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n14
+      intf_name: eth9
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth9--n26:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n15
+      intf_name: eth0
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth0--n9:eth10
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n15
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth1--n9:eth11
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n15
+      intf_name: eth6
+      peer_host: pc_n16
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth6--n16:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n15
+      intf_name: eth7
+      peer_host: pc_n16
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth7--n16:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth2
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth2--n17:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth3
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth3--n17:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth4
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth4--n20:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth5
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth5--n20:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth6
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth6--n23:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth7
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth7--n23:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth8
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth8--n24:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n16
+      intf_name: eth9
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth9--n24:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n17
+      intf_name: eth4
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth4--n24:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n17
+      intf_name: eth5
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth5--n24:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n17
+      intf_name: eth6
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth6--n25:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n17
+      intf_name: eth7
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth7--n25:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n17
+      intf_name: eth8
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth8--n31:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n17
+      intf_name: eth9
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth9--n31:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth0
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth0--n6:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth1
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth1--n6:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth4
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth4--n19:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth5
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth5--n19:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth6
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth6--n21:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth7
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth7--n21:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth8
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth8--n36:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n18
+      intf_name: eth9
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth9--n36:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n19
+      intf_name: eth4
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth4--n22:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n19
+      intf_name: eth5
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth5--n22:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n19
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth6--n26:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n19
+      intf_name: eth7
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth7--n26:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n2
+      intf_name: eth2
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth2--n3:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n2
+      intf_name: eth3
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth3--n3:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n2
+      intf_name: eth4
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth4--n8:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n2
+      intf_name: eth5
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth5--n8:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n20
+      intf_name: eth4
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth4--n23:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n20
+      intf_name: eth5
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth5--n23:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n20
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth6--n26:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n20
+      intf_name: eth7
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth7--n26:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n21
+      intf_name: eth2
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: link
+        name: n21:eth2--n22:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n21
+      intf_name: eth3
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: link
+        name: n21:eth3--n22:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n21
+      intf_name: eth4
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: link
+        name: n21:eth4--n36:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n21
+      intf_name: eth5
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: link
+        name: n21:eth5--n36:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n22
+      intf_name: eth4
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n22
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth4--n27:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n22
+      intf_name: eth5
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n22
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth5--n27:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth10
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth10--n34:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth11
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth11--n34:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth4
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth4--n24:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth5
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth5--n24:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth6--n26:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth7
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth7--n26:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth8
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth8--n28:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n23
+      intf_name: eth9
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth9--n28:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n24
+      intf_name: eth10
+      peer_host: pc_n29
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth10--n29:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n24
+      intf_name: eth11
+      peer_host: pc_n29
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth11--n29:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n24
+      intf_name: eth8
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth8--n28:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n24
+      intf_name: eth9
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth9--n28:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n25
+      intf_name: eth0
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: link
+        name: n25:eth0--n8:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n25
+      intf_name: eth1
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: link
+        name: n25:eth1--n8:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n25
+      intf_name: eth6
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: link
+        name: n25:eth6--n31:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n25
+      intf_name: eth7
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: link
+        name: n25:eth7--n31:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n26
+      intf_name: eth10
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: link
+        name: n26:eth10--n30:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n26
+      intf_name: eth11
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: link
+        name: n26:eth11--n30:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n26
+      intf_name: eth12
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: link
+        name: n26:eth12--n34:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n26
+      intf_name: eth13
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: link
+        name: n26:eth13--n34:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n26
+      intf_name: eth8
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: link
+        name: n26:eth8--n27:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n26
+      intf_name: eth9
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: link
+        name: n26:eth9--n27:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n27
+      intf_name: eth4
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n27
+    root_causes:
+    - resource:
+        kind: link
+        name: n27:eth4--n35:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n27
+      intf_name: eth5
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n27
+    root_causes:
+    - resource:
+        kind: link
+        name: n27:eth5--n35:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth10
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth10--n34:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth11
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth11--n34:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth4
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth4--n30:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth5
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth5--n30:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth6
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth6--n31:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth7
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth7--n31:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth8
+      peer_host: pc_n32
+      probe_dst_ip: 10.254.0.102
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth8--n32:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n28
+      intf_name: eth9
+      peer_host: pc_n32
+      probe_dst_ip: 10.254.0.102
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: link
+        name: n28:eth9--n32:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n29
+      intf_name: eth2
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: link
+        name: n29:eth2--n30:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n29
+      intf_name: eth3
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: link
+        name: n29:eth3--n30:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n29
+      intf_name: eth4
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: link
+        name: n29:eth4--n31:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n29
+      intf_name: eth5
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: link
+        name: n29:eth5--n31:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n3
+      intf_name: eth4
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: link
+        name: n3:eth4--n4:eth8
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n3
+      intf_name: eth5
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: link
+        name: n3:eth5--n4:eth9
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n3
+      intf_name: eth6
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: link
+        name: n3:eth6--n7:eth8
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n3
+      intf_name: eth7
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: link
+        name: n3:eth7--n7:eth9
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n30
+      intf_name: eth6
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n30
+    root_causes:
+    - resource:
+        kind: link
+        name: n30:eth6--n31:eth8
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n30
+      intf_name: eth7
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n30
+    root_causes:
+    - resource:
+        kind: link
+        name: n30:eth7--n31:eth9
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n31
+      intf_name: eth10
+      peer_host: pc_n33
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: link
+        name: n31:eth10--n33:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n31
+      intf_name: eth11
+      peer_host: pc_n33
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: link
+        name: n31:eth11--n33:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n31
+      intf_name: eth12
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: link
+        name: n31:eth12--n39:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n31
+      intf_name: eth13
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: link
+        name: n31:eth13--n39:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n32
+      intf_name: eth2
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: link
+        name: n32:eth2--n34:eth6
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n32
+      intf_name: eth3
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: link
+        name: n32:eth3--n34:eth7
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n32
+      intf_name: eth4
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: link
+        name: n32:eth4--n37:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n32
+      intf_name: eth5
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: link
+        name: n32:eth5--n37:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n33
+      intf_name: eth2
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: link
+        name: n33:eth2--n34:eth8
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n33
+      intf_name: eth3
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: link
+        name: n33:eth3--n34:eth9
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n33
+      intf_name: eth4
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: link
+        name: n33:eth4--n37:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n33
+      intf_name: eth5
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: link
+        name: n33:eth5--n37:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n33
+      intf_name: eth6
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: link
+        name: n33:eth6--n39:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n33
+      intf_name: eth7
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: link
+        name: n33:eth7--n39:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n34
+      intf_name: eth10
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: link
+        name: n34:eth10--n35:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n34
+      intf_name: eth11
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: link
+        name: n34:eth11--n35:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n34
+      intf_name: eth12
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: link
+        name: n34:eth12--n37:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n34
+      intf_name: eth13
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: link
+        name: n34:eth13--n37:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n34
+      intf_name: eth14
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: link
+        name: n34:eth14--n38:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n34
+      intf_name: eth15
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: link
+        name: n34:eth15--n38:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n35
+      intf_name: eth4
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n35
+    root_causes:
+    - resource:
+        kind: link
+        name: n35:eth4--n36:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n35
+      intf_name: eth5
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n35
+    root_causes:
+    - resource:
+        kind: link
+        name: n35:eth5--n36:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n36
+      intf_name: eth6
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n36
+    root_causes:
+    - resource:
+        kind: link
+        name: n36:eth6--n38:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n36
+      intf_name: eth7
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n36
+    root_causes:
+    - resource:
+        kind: link
+        name: n36:eth7--n38:eth3
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n37
+      intf_name: eth6
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: link
+        name: n37:eth6--n38:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n37
+      intf_name: eth7
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: link
+        name: n37:eth7--n38:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n37
+      intf_name: eth8
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: link
+        name: n37:eth8--n39:eth4
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n37
+      intf_name: eth9
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: link
+        name: n37:eth9--n39:eth5
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n4
+      intf_name: eth0
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: link
+        name: n4:eth0--n5:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n4
+      intf_name: eth1
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: link
+        name: n4:eth1--n5:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n4
+      intf_name: eth2
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: link
+        name: n4:eth2--n7:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n4
+      intf_name: eth3
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: link
+        name: n4:eth3--n7:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n5
+      intf_name: eth2
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: link
+        name: n5:eth2--n6:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n5
+      intf_name: eth3
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: link
+        name: n5:eth3--n6:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n5
+      intf_name: eth4
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: link
+        name: n5:eth4--n9:eth0
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n5
+      intf_name: eth5
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: link
+        name: n5:eth5--n9:eth1
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n6
+      intf_name: eth2
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n6
+    root_causes:
+    - resource:
+        kind: link
+        name: n6:eth2--n9:eth2
+      fault_type: link_packet_corruption
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      corruption_percentage: '10'
+      host_name: n6
+      intf_name: eth3
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n6
+    root_causes:
+    - resource:
+        kind: link
+        name: n6:eth3--n9:eth3
+      fault_type: link_packet_corruption

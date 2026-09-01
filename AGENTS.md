@@ -1,45 +1,76 @@
 # NIKA
 
-NIKA is a Python 3.12 platform for deploying Kathara or Containerlab network scenarios, injecting failures, running troubleshooting agents, and evaluating their submissions. Dependencies use `uv`.
+NIKA is a platform for generating and running executable benchmarks for network troubleshooting agents. Python dependencies and commands use `uv`.
 
-## Architecture boundaries
+## Development rules
 
-- Keep Typer parsing and presentation in `src/nika/cli/commands/`. Put behavior that must work outside a CLI callback in `src/nika/workflows/` or a lower-level module.
-- Use `src/nika/runtime/` for lab lifecycle and session operations. Keep shared contracts in `base.py`, `spec.py`, and `meta.py`; put backend implementations under `runtime/kathara/` or `runtime/containerlab/`.
-- Use `src/nika/service/` for device and backend APIs. Backend-neutral adapters belong in `service/lab/`; backend-specific APIs belong in `service/kathara/` or `service/containerlab/`.
-- Keep MCP behavior in `service/mcp_server/`, `service/mcp_gateway/`, or the Kubernetes MCP server. Agent implementations should call shared tools instead of copying tool behavior.
-- Keep registries importable with core dependencies. Do not import emulator packages or agent SDKs at module scope; preserve lazy loading and explicit extra checks.
-- Register scenarios in `src/nika/net_env/net_env_pool.py`. Put Kathara and Containerlab implementations in their matching backend directories.
-- New failures subclass `ProblemBase`, define typed `Params`, set `root_cause_category` and `root_cause_name`, and add `symptom_desc` when the name does not describe the symptom. Use the six-category taxonomy in `docs/failures.md`. `prob_pool.py` discovers concrete classes and keys them by `root_cause_name`.
-- Scenario and failure compatibility uses `TAGS` subset matching. Treat a `TAGS` or registry change as a benchmark contract change; regenerate the working matrices and review the diff.
-- Agents implement `agent.protocols.TroubleshootingAgent` and register their CLI name in `agent/registry.py`. Community implementations live under `src/agent/community/<name>/`; their operator references live under `docs/agents/community/`.
-- Keep the optional remote lab control plane in `src/nika/remote/`. MCP `remote_proxy` and leaderboard transport serve different purposes.
+* Read relevant code before modifying behavior and make the smallest change needed.
+* Reuse existing NIKA abstractions instead of creating parallel implementations.
+* Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
+* Do not weaken tests to make changes pass.
+* Avoid introducing feature-specific helpers, wrappers, mocks, or abstractions unless they have clear reuse value.
 
-## Configuration and state
+## Scenarios and failures
 
-- Configuration precedence is CLI flags, then `config/nika.yaml`, then code defaults. `--run-config` and `NIKA_RUN_CONFIG` select another operations file.
-- Keep credentials in the repository-root `.env`; use `.env.example` as the template. Do not commit credentials.
-- Resolve relative result paths from the repository root through `resolve_results_root()`. Runtime state belongs under `runtime/`; experiment artifacts belong under `results/{session_id}/`.
-- Session-scoped operations may select the sole running session. If several sessions run, require `--session_id` and reuse `nika.utils.session_resolve`.
-- The `mock` agent is deterministic and test-only. Use it for pipeline tests that should not need credentials.
+* Prefer failures and scenarios grounded in real network incidents, standards, vendor practice, or established failure modes.
+* Failures should represent root causes rather than symptoms.
+* Keep scenarios minimal while preserving realistic reproduction and diagnosis.
+* Avoid telemetry, metadata, or interfaces that leak ground truth.
+* New failures follow the existing `ProblemBase` model, failure taxonomy, registry, and RCA conventions.
+* Cross-domain reusable failure logic belongs in shared support code rather than concrete registered failures.
+
+## Benchmark contracts
+
+Treat changes to scenario/failure compatibility, taxonomy, root-cause identity, ground truth, registries, or benchmark cases as benchmark contract changes.
+
+Regenerate and review derived benchmark artifacts after such changes. Do not manually modify generated benchmark data unless explicitly required. Treat published benchmark releases as immutable.
+
+## Testing
+
+Prefer **real Docker-backed NIKA E2E tests** over unit tests for executable network behavior.
+
+For changes involving scenarios, failures, traffic, telemetry, runtime, or backends:
+
+* Start a real NIKA session and exercise the normal workflow.
+* Use `nika exec` to run commands inside containers and inspect actual network state.
+* Validate observable behavior such as connectivity, routes, protocol sessions, counters, traffic, telemetry, failure symptoms, and recovery.
+* Prefer real protocol and runtime behavior over mocks or synthetic substitutes.
+
+Run independent E2E tests in parallel when safe to reduce test time, but run resource-intensive Kubernetes, LLMd, and containerlab scenarios sequentially to avoid resource contention and instability.
+
+Use unit tests mainly for stable isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms.
+
+Do not add permanent unit tests merely to mirror implementation details or increase coverage.
+
+During feature development, temporary focused tests and helpers are acceptable. After completing each feature, proactively remove all development-only test functions, fixtures, mocks, scripts, and helper functions introduced for that work. Retain only durable tests and reusable helpers that directly exercise or support NIKA’s primary workflows, user-visible behavior, benchmark contracts, or reusable core logic.
+
+Keep a small durable regression set focused on:
+
+* user-visible behavior;
+* important failure modes;
+* benchmark contracts;
+* reusable core logic.
+
+Any test that creates external resources must clean up only the resources it owns, including on failure. Prefer NIKA lifecycle commands/APIs over manual Docker or emulator cleanup.
 
 ## Verification
 
-- Run focused tests near the changed subsystem before broader suites. Locate them by subsystem name under `tests/`.
-- Exercise the CLI path when config resolution, repository-root paths, or session selection affect behavior.
-- Use a temporary or isolated `--result_dir` for benchmark resume and artifact tests.
-- Format Python with `uv run ruff format .` and lint with `uv run ruff check .`.
-- Docker, Kathara, Containerlab, `clab`, `gnmic`, Kubernetes, local agent CLIs, and API credentials gate some integration tests. Distinguish missing prerequisites from code failures.
+For executable network changes, completion normally requires a real E2E run rather than only unit tests.
+
+Before finishing:
+
+* verify the intended behavior in a running NIKA environment;
+* inspect containers with `nika exec` when relevant;
+* confirm retained regression tests pass;
+* confirm test-created resources are removed;
+* remove temporary or overly specific test code;
+* review the repository diff for unintended changes;
+* run formatting and lint checks.
+
+A test is not complete if assertions pass but its resources remain or it does not validate the intended runtime behavior.
 
 ## Operational safety
 
-- Do not delete `runtime/` or `results/` in bulk; they can contain active sessions and experiment outputs.
-- Use `nika session close` or `nika session wipe` for lab cleanup instead of removing emulator or Docker state by hand.
-- Do not edit generated benchmark YAML by hand unless the task targets benchmark cases. Regenerate matrices with `uv run python benchmark/generate_benchmark.py`.
-- Treat `benchmark/releases/` as frozen publication data. Modify it only when the task creates or updates a release.
-- Preserve lab configs, startup files, P4 programs, Kubernetes manifests, SNDlib data, and Containerlab topology files unless the task targets them.
-
-## Documentation
-
-- Keep `README.md` as the user-facing introduction. Start from `docs/README.md` for detailed references and update its index when adding or moving a page.
-- Keep Markdown prose on one source line and let the renderer wrap it.
+* Never delete unrelated runtime, Docker, emulator, Kubernetes, or experiment resources.
+* Prefer NIKA lifecycle operations for session cleanup.
+* Preserve scenario data, topology files, startup configs, P4 programs, manifests, and traffic datasets unless the task explicitly changes them.

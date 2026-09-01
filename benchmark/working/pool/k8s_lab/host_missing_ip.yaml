@@ -1,0 +1,14 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: host_missing_ip
+  cases:
+  - inject:
+      host_name: client
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client
+        name: eth0
+      fault_type: host_missing_ip

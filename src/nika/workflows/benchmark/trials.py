@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -9,10 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.workflows.eval.session import build_eval_metrics_payload
 from nika.workflows.benchmark.resume import (
-    benchmark_row_fingerprint,
+    benchmark_row_identity,
     cleanup_benchmark_session,
 )
 
@@ -21,7 +23,7 @@ VALID_TRIAL_OUTCOMES = frozenset({"success", "agent_failed"})
 REQUIRED_TRIAL_ARTIFACTS = (
     "run.json",
     "ground_truth.json",
-    "messages.jsonl",
+    MESSAGES_FILENAME,
     "eval_metrics.json",
 )
 
@@ -37,12 +39,42 @@ def sanitize_token(value: str) -> str:
     return cleaned.strip("._-") or "case"
 
 
+def _inject_case_key_parts(inject: Any) -> list[str]:
+    if not isinstance(inject, dict):
+        return []
+    parts: list[str] = []
+    for key, value in sorted(inject.items()):
+        if isinstance(value, dict):
+            for nested_key, nested_value in sorted(value.items()):
+                parts.append(sanitize_token(f"{key}-{nested_key}-{nested_value}"))
+        else:
+            parts.append(sanitize_token(f"{key}-{value}"))
+    return parts
+
+
 def case_key_for_row(row: dict[str, Any]) -> str:
-    """Stable filesystem-safe case id: ``{scenario}__{problem}__{fp8}``."""
-    fp = benchmark_row_fingerprint(row)
-    scenario = sanitize_token(str(row["scenario"]))
-    problem = sanitize_token(str(row["problem"]))
-    return f"{scenario}__{problem}__{fp[:8]}"
+    """Stable filesystem-safe case id from scenario / problem / deploy params."""
+    identity = benchmark_row_identity(row)
+    parts = [
+        sanitize_token(str(identity["scenario"])),
+        sanitize_token(str(identity["problem"])),
+    ]
+    for key in ("topo_size", "topo", "igp", "bgp_mode", "backend", "device_profile"):
+        value = identity.get(key) or ""
+        if value != "":
+            parts.append(sanitize_token(str(value)))
+    if identity.get("rpki"):
+        parts.append("rpki")
+    base = "__".join(parts)
+    inject_parts = _inject_case_key_parts(identity.get("inject"))
+    if not inject_parts:
+        return base
+    full = "__".join([base, *inject_parts])
+    # Linux NAME_MAX is 255; trial dirname appends ``__tNN``.
+    if len(full) + 5 <= 240:
+        return full
+    digest = hashlib.sha1(full.encode("utf-8")).hexdigest()[:16]
+    return f"{base}__inj-{digest}"
 
 
 def trial_dirname(case_key: str, trial_index: int) -> str:
@@ -145,12 +177,12 @@ def _restore_success_eval_metrics(path: Path) -> bool:
 
     gt = _read_json(path / "ground_truth.json")
     submission = _read_json(path / "submission.json")
-    messages_path = path / "messages.jsonl"
-    if gt is None or submission is None or not messages_path.is_file():
+    trajectory_path = path / MESSAGES_FILENAME
+    if gt is None or submission is None or not trajectory_path.is_file():
         return False
 
     try:
-        trace_metrics = AgentTraceParser(trace_path=str(messages_path)).parse_trace()
+        trace_metrics = AgentTraceParser(trace_path=str(trajectory_path)).parse_trace()
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         trace_metrics = {}
     payload = build_eval_metrics_payload(
@@ -297,9 +329,7 @@ def scan_trials(
 _RUN_IDENTITY_FIELDS = (
     "benchmark_id",
     "version",
-    "benchmark_digest",
     "split",
-    "cases_sha256",
     "agent_type",
     "model",
     "llm_provider",

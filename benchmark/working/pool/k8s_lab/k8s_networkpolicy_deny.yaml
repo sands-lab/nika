@@ -1,0 +1,19 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: k8s_networkpolicy_deny
+  cases:
+  - inject:
+      control_node: controller
+      control_url: http://datacenter.com/weather?location=London
+      namespace: word-ns
+      pod_selector: app=word
+      symptom_host: client
+      symptom_url: http://datacenter.com/word
+    root_causes:
+    - resource:
+        kind: k8s
+        name: nika-deny-ingress
+        namespace: word-ns
+        k8s_kind: NetworkPolicy
+      fault_type: k8s_networkpolicy_deny

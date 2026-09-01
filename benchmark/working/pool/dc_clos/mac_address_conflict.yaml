@@ -1,0 +1,35 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: mac_address_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dns_pod0
+      host_name_2: webserver0_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: m
+    inject:
+      host_name: webserver0_pod1
+      host_name_2: dns_pod1
+    root_causes:
+    - resource:
+        kind: interface
+        node: webserver0_pod1
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: l
+    inject:
+      host_name: client_2
+      host_name_2: webserver0_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2
+        name: eth0
+      fault_type: mac_address_conflict

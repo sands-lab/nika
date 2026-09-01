@@ -1,0 +1,32 @@
+scenario:
+  name: sdn_l3_clos
+failure:
+  fault_type: southbound_port_block
+  cases:
+  - topo_size: s
+    inject:
+      host_name: onos
+      southbound_port: '6653'
+    root_causes:
+    - resource:
+        kind: node
+        node: onos
+      fault_type: southbound_port_block
+  - topo_size: m
+    inject:
+      host_name: onos
+      southbound_port: '6653'
+    root_causes:
+    - resource:
+        kind: node
+        node: onos
+      fault_type: southbound_port_block
+  - topo_size: l
+    inject:
+      host_name: onos
+      southbound_port: '6653'
+    root_causes:
+    - resource:
+        kind: node
+        node: onos
+      fault_type: southbound_port_block

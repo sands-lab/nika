@@ -57,13 +57,16 @@ def _gateway_base_for_phase_advance() -> str:
     return os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
 
 
-def begin_submission_mcp_phase(session_id: str) -> None:
-    """Advance gateway phase before starting the submission workflow step."""
+def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> None:
+    """Freeze diagnosis and advance the gateway before the submission step."""
+    from nika.workflows.agent.submission import freeze_diagnosis
+
+    freeze_diagnosis(session_id, diagnosis_report)
     base = _gateway_base_for_phase_advance()
     use_http = False
     if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
         if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
-            from nika.service.mcp_gateway.phase import advance_mcp_phase
+            from nika.mcp.gateway.phase import advance_mcp_phase
 
             advance_mcp_phase(session_id, SUBMISSION)
             return
@@ -106,6 +109,6 @@ def begin_submission_mcp_phase(session_id: str) -> None:
             ) from exc
         return
 
-    from nika.service.mcp_gateway.phase import advance_mcp_phase
+    from nika.mcp.gateway.phase import advance_mcp_phase
 
     advance_mcp_phase(session_id, SUBMISSION)

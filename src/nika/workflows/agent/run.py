@@ -7,7 +7,7 @@ import os
 from agent.registry import create_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
 from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
-from nika.service.mcp_gateway.lifecycle import (
+from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
 )
@@ -26,7 +26,8 @@ logging.basicConfig(level=logging.INFO)
 
 
 def _gateway_policy_mode(agent_type: str) -> str:
-    return "unified" if agent_type == "community.sade" else "two_phase"
+    del agent_type
+    return "two_phase"
 
 
 def start_agent(

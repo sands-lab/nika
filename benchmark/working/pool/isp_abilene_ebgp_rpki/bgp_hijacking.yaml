@@ -1,0 +1,173 @@
+scenario:
+  name: isp_abilene_ebgp_rpki
+failure:
+  fault_type: bgp_hijacking
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlam5
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlang
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: chinng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: chinng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dnvrng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: dnvrng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: iplsng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kscyng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: losang
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nycmng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: nycmng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: snvang
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: snvang
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sttlng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: sttlng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washng
+      peer_host: pc_atlam5
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlang
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: washng
+      fault_type: bgp_hijacking

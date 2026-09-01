@@ -1,0 +1,13 @@
+# Pinned ONOS controller with iproute2/curl/nftables for Kathara OOB, fabric REST,
+# and SDN southbound fault injection. Entrypoint keeps the container alive after
+# ONOS exits so sdn_controller_crash remains verifiable.
+FROM onosproject/onos:2.7-latest@sha256:ee324bcf56ed01497069143f83f1315fcf634b36f1ac3c589a8c54ccaf354813
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends iproute2 iputils-ping curl nftables && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY onos-entrypoint.sh /nika/onos-entrypoint.sh
+RUN chmod +x /nika/onos-entrypoint.sh
+
+ENTRYPOINT ["/nika/onos-entrypoint.sh"]

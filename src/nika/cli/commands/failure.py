@@ -27,7 +27,7 @@ def _parse_set_options(raw_items: list[str] | None) -> dict[str, str]:
 @failure_app.command("list")
 def failure_list() -> None:
     """Print injectable problem ids."""
-    from nika.problems.prob_pool import list_avail_problem_names
+    from nika.problems.registry import list_avail_problem_names
 
     for name in sorted(list_avail_problem_names()):
         typer.echo(name)
@@ -46,7 +46,10 @@ def failure_inject(
     sets: list[str] | None = typer.Option(
         None,
         "--set",
-        help="Override injection parameters as key=value. Repeat the flag for multiple values.",
+        help=(
+            "Override injection parameters as key=value. For multiple problems use "
+            "problem.field=value (e.g. mtu_mismatch.host_name=leaf1)."
+        ),
     ),
 ) -> None:
     """Inject one or more faults for the current session."""
@@ -68,12 +71,16 @@ def failure_describe(
     ),
 ) -> None:
     """Describe supported parameters for one failure type."""
-    from nika.problems.prob_pool import get_problem_class
+    from nika.problems.registry import get_problem_class
 
     cls = get_problem_class(problem)
     if cls is None:
         typer.echo(f"Unknown problem: {problem}", err=True)
         raise typer.Exit(1)
+
+    typer.echo(f"Problem: {problem}")
+    for key, value in cls.taxonomy_metadata().items():
+        typer.echo(f"{key}: {value}")
 
     ParamsClass = getattr(cls, "Params", None)
     if ParamsClass is None:
@@ -82,7 +89,6 @@ def failure_describe(
         return
 
     schema = ParamsClass.model_json_schema()
-    typer.echo(f"Problem: {problem}")
     if schema.get("description"):
         typer.echo(schema["description"])
     typer.echo("\nParameter schema (JSON Schema):")

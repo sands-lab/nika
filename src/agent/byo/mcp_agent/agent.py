@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import agent.byo.mcp_agent._bootstrap  # noqa: F401
+
 from mcp_agent.app import MCPApp
 
 from agent.byo.mcp_agent.config import build_mcp_agent_settings

@@ -1,0 +1,61 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: icmp_acl_block
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_0
+    root_causes:
+    - resource:
+        kind: node
+        node: client_0
+      fault_type: icmp_acl_block
+  - topo_size: m
+    inject:
+      host_name: client_0
+    root_causes:
+    - resource:
+        kind: node
+        node: client_0
+      fault_type: icmp_acl_block
+  - topo_size: m
+    inject:
+      host_name: client_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: icmp_acl_block
+  - topo_size: l
+    inject:
+      host_name: client_0
+    root_causes:
+    - resource:
+        kind: node
+        node: client_0
+      fault_type: icmp_acl_block
+  - topo_size: l
+    inject:
+      host_name: client_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: icmp_acl_block
+  - topo_size: l
+    inject:
+      host_name: client_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: icmp_acl_block
+  - topo_size: l
+    inject:
+      host_name: client_3
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: icmp_acl_block

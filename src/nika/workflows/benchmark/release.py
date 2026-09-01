@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import inspect
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -14,75 +14,86 @@ from typing import Any, Literal
 import yaml
 
 from nika.config import BENCHMARK_DIR, REPO_ROOT
-from nika.net_env.kathara.utils.docker_files.docker_images import (
+from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
 )
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
     list_all_net_envs,
+    resolve_scenario_backend,
     scenario_requires_topo_size,
-    scenario_source_path,
 )
-from nika.problems.prob_pool import get_problem_class, list_avail_problem_instances
-from nika.service.mcp_server.registry import (
+from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.problems.registry import list_avail_problem_instances
+from nika.mcp.registry import (
+    DIAGNOSIS_PACKET_CAPTURE_SERVER,
     MCP_SERVER_SPECS,
     select_diagnosis_servers,
     SUBMISSION_SERVER,
 )
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
+from nika.workflows.benchmark.candidate_context import (
+    normalize_topo_scale,
+    selection_context_key,
+)
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 BENCHMARK_ID = "nika-bench"
 BENCHMARK_ID_ALIASES = frozenset({"nika-bench", "nika"})
-DEFAULT_RELEASE_VERSION = "0.1.0"
+DEFAULT_RELEASE_VERSION = "0.2.0"
 RELEASES_DIR = BENCHMARK_DIR / "releases"
 JOB_FILENAME = "benchmark_job.json"
 RUN_CONFIG_FILENAME = "run.json"
 
+# Published suites that predate the current scenario/failure identity model.
+# They remain on disk for provenance but are not loadable or runnable.
+DEPRECATED_RELEASES = frozenset({"0.1.0"})
+
 SplitName = Literal["dev", "test"]
 VALID_SPLITS: tuple[SplitName, ...] = ("dev", "test")
 
-SCORING_V1 = {
-    "id": "rule-based-v1",
-    "description": (
-        "detection accuracy; localization P/R/F1 on faulty_devices; "
-        "RCA P/R/F1 on root_cause_name (nika.evaluator.scoring)"
-    ),
-    "leaderboard_primary": "rca_f1",
-    "judge_allowed": False,
-}
-
-SCORING_V2 = {
-    "id": "rule-based-v2",
-    "description": (
-        "detection accuracy; joint RCA P/R/F1 and exact match on "
-        "(resource.id, fault_type); localization and fault-type submetrics; "
-        "efficiency metrics remain independent"
-    ),
+SCORING = {
+    "id": "rule-based",
     "leaderboard_primary": "rca_f1",
     "judge_allowed": False,
 }
 
 TOOLS_V1 = {
-    "policy_id": "diagnosis-servers-v1",
     "allowed_mcp_servers": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
         "kathara_base_mcp_server",
         "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
         "kathara_frr_mcp_server",
         "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
         "kathara_telemetry_mcp_server",
         "task_mcp_server",
     ],
 }
 
-RESOURCES_V1 = {
-    "policy_id": "scenario-defined-v1",
-}
+RESOURCES_V1: dict[str, Any] = {}
 
 DEFAULTS_V1 = {
-    "case_timeout_sec": 2400,
     "n_trials": 3,
 }
+
+REQUIRED_SPLIT_FAMILIES = frozenset(
+    {
+        "campus",
+        "dc_clos",
+        "enterprise_branch",
+        "isp",
+        "sdn",
+        "p4",
+        "kubernetes",
+        "llm_serving",
+        "srl_clos",
+    }
+)
+REQUIRED_SPLIT_SCALES = frozenset({"s", "m", "l", "fixed"})
+REQUIRED_SPLIT_BACKENDS = frozenset({"kathara", "containerlab"})
 
 
 class ReleaseError(ValueError):
@@ -100,24 +111,17 @@ class BenchmarkRelease:
     cases_path: Path
     cases: list[dict[str, Any]]
     case_count: int
-    cases_sha256: str
     splits: dict[str, Any]
     defaults: dict[str, Any]
     scoring: dict[str, Any]
     tools: dict[str, Any]
     resources: dict[str, Any]
     images: dict[str, Any]
-    scenario_problem_pin: dict[str, Any]
-    benchmark_digest: str
     manifest: dict[str, Any]
 
     @property
     def ref(self) -> str:
         return f"{self.id}@{self.version}"
-
-    @property
-    def case_timeout_sec(self) -> int:
-        return int(self.defaults.get("case_timeout_sec", 0))
 
     @property
     def n_trials(self) -> int:
@@ -143,6 +147,22 @@ def list_releases() -> list[str]:
     return versions
 
 
+def is_deprecated_release(version: str) -> bool:
+    """Return True when ``version`` is retained only for provenance."""
+    return str(version).strip() in DEPRECATED_RELEASES
+
+
+def _reject_deprecated_release(version: str) -> None:
+    if not is_deprecated_release(version):
+        return
+    raise ReleaseError(
+        f"Release {version} is deprecated and no longer runnable "
+        f"(legacy scenario/failure ids are not migrated). "
+        f"Use --release {DEFAULT_RELEASE_VERSION} "
+        f"(or --config with a modern case matrix)."
+    )
+
+
 def normalize_split(split: str | None, *, default: SplitName) -> SplitName:
     if split is None or str(split).strip() == "":
         return default
@@ -155,8 +175,6 @@ def normalize_split(split: str | None, *, default: SplitName) -> SplitName:
 def normalize_version_selector(selector: str) -> str:
     """Map short aliases like ``0.1`` → ``0.1.0`` when that release exists."""
     raw = selector.strip()
-    if raw.startswith("sha256:"):
-        return raw
     if raw in list_releases():
         return raw
     if raw.count(".") == 1:
@@ -167,10 +185,15 @@ def normalize_version_selector(selector: str) -> str:
 
 
 def parse_release_ref(ref: str) -> tuple[str, str]:
-    """Parse ``0.1.0``, ``nika@0.1``, ``nika-bench@0.1.0``, or ``…@sha256:<digest>``."""
+    """Parse ``0.1.0``, ``nika@0.1``, or ``nika-bench@0.1.0``."""
     raw = (ref or "").strip()
     if not raw:
         raise ReleaseError("Empty release reference")
+    if raw.startswith("sha256:") or "@sha256:" in raw:
+        raise ReleaseError(
+            f"Digest-based release references are not supported: {ref!r}. "
+            "Use a named version such as 0.2.0 or nika-bench@0.2.0."
+        )
     if "@" not in raw:
         return BENCHMARK_ID, normalize_version_selector(raw)
     bench_id, selector = raw.split("@", 1)
@@ -186,44 +209,6 @@ def parse_release_ref(ref: str) -> tuple[str, str]:
     return BENCHMARK_ID, normalize_version_selector(selector)
 
 
-def _sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _sha256_file(path: Path) -> str:
-    return _sha256_bytes(path.read_bytes())
-
-
-def _canonical_json(payload: Any) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-
-def _repo_rel(path: Path) -> str:
-    resolved = path.resolve()
-    try:
-        return str(resolved.relative_to(REPO_ROOT.resolve()))
-    except ValueError:
-        return str(resolved)
-
-
-def _pin_source_file(path: Path) -> dict[str, str]:
-    return {"path": _repo_rel(path), "sha256": _sha256_file(path)}
-
-
-def _problem_source_path(problem_name: str) -> Path:
-    cls = get_problem_class(problem_name)
-    if cls is None:
-        raise ReleaseError(f"Unknown problem: {problem_name!r}")
-    return Path(inspect.getfile(cls)).resolve()
-
-
-def _scenario_source_path(scenario_name: str) -> Path:
-    try:
-        return scenario_source_path(scenario_name)
-    except ValueError as exc:
-        raise ReleaseError(str(exc)) from exc
-
-
 def collect_images_for_scenarios(scenario_names: set[str]) -> list[str]:
     images: set[str] = set()
     for name in sorted(scenario_names):
@@ -235,53 +220,6 @@ def collect_images_for_scenarios(scenario_names: set[str]) -> list[str]:
     return sorted(images)
 
 
-def build_scenario_problem_pins(
-    scenarios: set[str], problems: set[str]
-) -> dict[str, Any]:
-    return {
-        "scenarios": {
-            name: _pin_source_file(_scenario_source_path(name))
-            for name in sorted(scenarios)
-        },
-        "problems": {
-            name: _pin_source_file(_problem_source_path(name))
-            for name in sorted(problems)
-        },
-    }
-
-
-def compute_benchmark_digest(
-    *,
-    splits: dict[str, Any],
-    defaults: dict[str, Any],
-    scoring: dict[str, Any],
-    tools: dict[str, Any],
-    resources: dict[str, Any],
-    images: dict[str, Any],
-    scenario_problem_pin: dict[str, Any],
-) -> str:
-    """Digest from policy + per-split ``cases_sha256`` (not full case bodies)."""
-    split_payload = {
-        name: {
-            "case_count": int((meta or {}).get("case_count") or 0),
-            "cases_sha256": str((meta or {}).get("cases_sha256") or ""),
-        }
-        for name, meta in sorted(splits.items())
-    }
-    payload = {
-        "splits": split_payload,
-        "defaults": defaults,
-        "scoring": scoring,
-        "tools": tools,
-        "resources": resources,
-        "images": {
-            "required": sorted(images.get("required") or []),
-        },
-        "scenario_problem_pin": scenario_problem_pin,
-    }
-    return _sha256_bytes(_canonical_json(payload).encode("utf-8"))
-
-
 def _load_manifest(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -289,48 +227,31 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     return data
 
 
-def _legacy_splits_from_manifest(
-    root: Path, manifest: dict[str, Any]
-) -> dict[str, Any]:
-    """Support pre-split releases that only had ``cases_file`` / ``cases.yaml``."""
-    cases_file = str(manifest.get("cases_file") or "cases.yaml")
-    cases_path = root / cases_file
-    if not cases_path.is_file() and (root / "dev.yaml").is_file():
-        cases_file = "dev.yaml"
-        cases_path = root / cases_file
-    if not cases_path.is_file():
-        raise ReleaseError(f"Missing cases file under {root}")
-    return {
-        "dev": {
-            "cases_file": cases_file,
-            "case_count": int(manifest.get("case_count") or 0),
-            "cases_sha256": str(
-                manifest.get("cases_sha256") or _sha256_file(cases_path)
-            ),
-        }
-    }
-
-
-def _resolve_splits(root: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+def _resolve_splits(manifest: dict[str, Any]) -> dict[str, Any]:
     raw = manifest.get("splits")
     if isinstance(raw, dict) and raw:
         return dict(raw)
-    return _legacy_splits_from_manifest(root, manifest)
+    raise ReleaseError(
+        "RELEASE.yaml must declare a non-empty 'splits' mapping "
+        "(legacy single-file release manifests are not supported)"
+    )
 
 
-def _find_release_by_digest(digest: str) -> Path:
-    needle = digest.removeprefix("sha256:").lower()
-    for version in list_releases():
-        release = load_release(version, split="dev", verify_digest=False)
-        if release.benchmark_digest.lower() == needle:
-            return release.root
-    raise ReleaseError(f"No local release matches digest sha256:{needle}")
+def _normalize_split_meta(meta: dict[str, Any] | None, *, name: str) -> dict[str, Any]:
+    meta = dict(meta or {})
+    return {
+        "cases_file": meta.get("cases_file") or f"{name}.yaml",
+        "case_count": int(meta.get("case_count") or 0),
+    }
 
 
 def resolve_release_dir(selector: str) -> Path:
-    """Resolve a version or ``sha256:<digest>`` to a release directory."""
+    """Resolve a named version to a release directory."""
     if selector.startswith("sha256:"):
-        return _find_release_by_digest(selector)
+        raise ReleaseError(
+            f"Digest-based release selectors are not supported: {selector!r}. "
+            "Use a named version such as 0.2.0."
+        )
     root = releases_dir() / selector
     if not root.is_dir():
         raise ReleaseError(
@@ -344,7 +265,6 @@ def load_release_from_dir(
     root: Path,
     *,
     split: SplitName = "dev",
-    verify_digest: bool = True,
 ) -> BenchmarkRelease:
     """Load a release from an explicit directory containing ``RELEASE.yaml``."""
     root = Path(root)
@@ -353,58 +273,37 @@ def load_release_from_dir(
     if not manifest_path.is_file():
         raise ReleaseError(f"Missing RELEASE.yaml in {root}")
     manifest = _load_manifest(manifest_path)
-    splits = _resolve_splits(root, manifest)
-    if split not in splits:
+    version = str(manifest.get("version") or root.name)
+    _reject_deprecated_release(version)
+    splits_raw = _resolve_splits(manifest)
+    if split not in splits_raw:
         raise ReleaseError(
-            f"Release {root.name} has no {split!r} split; available: {sorted(splits)}"
+            f"Release {root.name} has no {split!r} split; available: {sorted(splits_raw)}"
         )
 
-    split_meta = dict(splits[split] or {})
-    cases_file = str(split_meta.get("cases_file") or f"{split}.yaml")
+    split_meta = _normalize_split_meta(splits_raw[split], name=split)
+    cases_file = str(split_meta["cases_file"])
     cases_path = root / cases_file
     if not cases_path.is_file():
         raise ReleaseError(f"Missing {split} cases file: {cases_path}")
 
     cases = load_benchmark_yaml(cases_path)
-    cases_sha256 = _sha256_file(cases_path)
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
-    scoring = dict(manifest.get("scoring") or SCORING_V2)
+    defaults.pop("case_timeout_sec", None)
+    scoring = dict(manifest.get("scoring") or SCORING)
     tools = dict(manifest.get("tools") or TOOLS_V1)
-    resources = dict(manifest.get("resources") or RESOURCES_V1)
+    tools.pop("policy_id", None)
+    resources = dict(manifest.get("resources") or {})
+    resources.pop("policy_id", None)
     images = dict(manifest.get("images") or {"required": []})
-    pins = dict(manifest.get("scenario_problem_pin") or {})
 
-    # Refresh sha entries for digest from on-disk files when present.
-    digest_splits: dict[str, Any] = {}
-    for name, meta in splits.items():
-        meta = dict(meta or {})
-        path = root / str(meta.get("cases_file") or f"{name}.yaml")
-        entry = {
-            "cases_file": meta.get("cases_file") or f"{name}.yaml",
-            "case_count": int(meta.get("case_count") or 0),
-            "cases_sha256": str(meta.get("cases_sha256") or ""),
-        }
-        if path.is_file():
-            entry["cases_sha256"] = _sha256_file(path)
-            if not entry["case_count"]:
-                entry["case_count"] = len(load_benchmark_yaml(path))
-        digest_splits[name] = entry
-
-    digest = compute_benchmark_digest(
-        splits=digest_splits,
-        defaults=defaults,
-        scoring=scoring,
-        tools=tools,
-        resources=resources,
-        images=images,
-        scenario_problem_pin=pins,
-    )
-    stored = str(manifest.get("benchmark_digest") or "").removeprefix("sha256:")
-    if verify_digest and stored and stored != digest:
-        raise ReleaseError(
-            f"Release digest mismatch for {root.name}: "
-            f"RELEASE.yaml has {stored}, computed {digest}"
-        )
+    resolved_splits: dict[str, Any] = {}
+    for name, meta in splits_raw.items():
+        entry = _normalize_split_meta(meta, name=name)
+        path = root / str(entry["cases_file"])
+        if path.is_file() and not entry["case_count"]:
+            entry["case_count"] = len(load_benchmark_yaml(path))
+        resolved_splits[name] = entry
 
     declared_count = int(split_meta.get("case_count") or 0)
     if declared_count and declared_count != len(cases):
@@ -413,14 +312,6 @@ def load_release_from_dir(
             f"{cases_path.name} ({len(cases)})"
         )
 
-    stored_cases_sha = str(split_meta.get("cases_sha256") or "").removeprefix("sha256:")
-    if stored_cases_sha and stored_cases_sha != cases_sha256:
-        raise ReleaseError(
-            f"{split} cases_sha256 mismatch: RELEASE.yaml has {stored_cases_sha}, "
-            f"file hashes to {cases_sha256}"
-        )
-
-    version = str(manifest.get("version") or root.name)
     bench_id = str(manifest.get("id") or BENCHMARK_ID)
     return BenchmarkRelease(
         id=bench_id,
@@ -430,15 +321,12 @@ def load_release_from_dir(
         cases_path=cases_path,
         cases=cases,
         case_count=len(cases),
-        cases_sha256=cases_sha256,
-        splits=digest_splits,
+        splits=resolved_splits,
         defaults=defaults,
         scoring=scoring,
         tools=tools,
         resources=resources,
         images=images,
-        scenario_problem_pin=pins,
-        benchmark_digest=digest,
         manifest=manifest,
     )
 
@@ -447,15 +335,13 @@ def load_release(
     ref: str = DEFAULT_RELEASE_VERSION,
     *,
     split: SplitName | str = "dev",
-    verify_digest: bool = True,
 ) -> BenchmarkRelease:
-    """Load and resolve a frozen release by version or ``id@selector``."""
+    """Load and resolve a frozen release by version or ``id@version``."""
     _bench_id, selector = parse_release_ref(ref)
     root = resolve_release_dir(selector)
     return load_release_from_dir(
         root,
         split=normalize_split(split, default="dev"),
-        verify_digest=verify_digest,
     )
 
 
@@ -467,27 +353,6 @@ def resolve_cases(
     return list(load_release(ref, split=split).cases)
 
 
-def _verify_pins(pins: dict[str, Any], *, kind: str) -> None:
-    entries = pins.get(kind) or {}
-    if not isinstance(entries, dict):
-        raise ReleaseError(f"scenario_problem_pin.{kind} must be a mapping")
-    for name, meta in entries.items():
-        if not isinstance(meta, dict) or "path" not in meta or "sha256" not in meta:
-            raise ReleaseError(f"Invalid pin for {kind} {name!r}")
-        path = Path(meta["path"])
-        if not path.is_absolute():
-            path = REPO_ROOT / path
-        if not path.is_file():
-            raise ReleaseError(f"Pinned {kind} source missing for {name!r}: {path}")
-        actual = _sha256_file(path)
-        expected = str(meta["sha256"]).removeprefix("sha256:")
-        if actual != expected:
-            raise ReleaseError(
-                f"Pinned {kind} {name!r} changed: expected sha256 {expected}, "
-                f"got {actual} ({path})"
-            )
-
-
 def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> None:
     allowed = set(tools.get("allowed_mcp_servers") or [])
     unknown = allowed - set(MCP_SERVER_SPECS)
@@ -495,10 +360,13 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
         raise ReleaseError(
             f"Release allowlist references unknown MCP servers: {sorted(unknown)}"
         )
+    # Platform-default servers added after a freeze may be mounted at runtime
+    # without rewriting frozen RELEASE.yaml allowlists (e.g. nika-bench@0.1.0).
+    platform_optional = {DIAGNOSIS_PACKET_CAPTURE_SERVER}
     for row in cases:
         servers = set(select_diagnosis_servers(row["scenario"]))
         servers.add(SUBMISSION_SERVER)
-        extra = servers - allowed
+        extra = servers - allowed - platform_optional
         if extra:
             raise ReleaseError(
                 f"Scenario {row['scenario']!r} needs MCP servers outside allowlist: "
@@ -515,7 +383,7 @@ def verify_dev_test_isolation(
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
 ) -> None:
-    """Ensure Dev/Test are disjoint instances covering the same failure types."""
+    """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
     if not dev_cases or not test_cases:
         raise ReleaseError("Both Dev and Test splits must be non-empty")
     dev_problems = {row["problem"] for row in dev_cases}
@@ -526,11 +394,94 @@ def verify_dev_test_isolation(
         raise ReleaseError(
             f"Dev/Test problem sets differ; only_dev={only_dev}, only_test={only_test}"
         )
-    overlap = _fingerprints(dev_cases) & _fingerprints(test_cases)
-    if overlap:
+    exact_overlap = _fingerprints(dev_cases) & _fingerprints(test_cases)
+    if exact_overlap:
         raise ReleaseError(
-            f"Dev/Test held-out isolation failed: {len(overlap)} shared fingerprint(s)"
+            f"Dev/Test exact isolation failed: {len(exact_overlap)} shared case(s)"
         )
+    context_overlap = {selection_context_key(row) for row in dev_cases} & {
+        selection_context_key(row) for row in test_cases
+    }
+    if context_overlap:
+        raise ReleaseError(
+            "Dev/Test semantic isolation failed: "
+            f"{len(context_overlap)} shared failure-context pair(s)"
+        )
+
+
+def _scenario_family(scenario: str) -> str:
+    if scenario == "campus_lan":
+        return "campus"
+    if scenario in {"dc_clos", "enterprise_branch"}:
+        return scenario
+    if scenario.startswith("isp_"):
+        return "isp"
+    if scenario == "sdn_l3_clos":
+        return "sdn"
+    if scenario.startswith("p4_"):
+        return "p4"
+    if scenario == "k8s_lab":
+        return "kubernetes"
+    if scenario == "llmd_lab":
+        return "llm_serving"
+    if scenario == "min3clos":
+        return "srl_clos"
+    return scenario
+
+
+def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set[str]]:
+    families: set[str] = set()
+    scales: set[str] = set()
+    backends: set[str] = set()
+    for row in rows:
+        scenario = str(row["scenario"])
+        families.add(_scenario_family(scenario))
+        scales.add(normalize_topo_scale(row))
+        backends.add(str(row.get("backend") or resolve_scenario_backend(scenario)))
+    return families, scales, backends
+
+
+def _validate_release_splits(
+    dev_cases: list[dict[str, Any]],
+    test_cases: list[dict[str, Any]],
+    *,
+    expected_failures: set[str],
+) -> None:
+    verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_cases)
+    failures = {
+        str(row["problem"]) for row in dev_cases if not is_healthy_case(row["problem"])
+    }
+    if failures != expected_failures:
+        missing = sorted(expected_failures - failures)
+        extra = sorted(failures - expected_failures)
+        raise ReleaseError(
+            f"Split failure coverage mismatch: missing={missing}, extra={extra}"
+        )
+    for name, rows in (("Dev", dev_cases), ("Test", test_cases)):
+        families, scales, backends = _split_coverage(rows)
+        if not REQUIRED_SPLIT_FAMILIES <= families:
+            raise ReleaseError(
+                f"{name} is missing scenario families: "
+                f"{sorted(REQUIRED_SPLIT_FAMILIES - families)}"
+            )
+        if not REQUIRED_SPLIT_SCALES <= scales:
+            raise ReleaseError(
+                f"{name} is missing topology scales: "
+                f"{sorted(REQUIRED_SPLIT_SCALES - scales)}"
+            )
+        if not REQUIRED_SPLIT_BACKENDS <= backends:
+            raise ReleaseError(
+                f"{name} is missing backends: "
+                f"{sorted(REQUIRED_SPLIT_BACKENDS - backends)}"
+            )
+    test_healthy = sum(is_healthy_case(row["problem"]) for row in test_cases)
+    test_ratio = test_healthy / len(test_cases)
+    if not 0.10 <= test_ratio <= 0.20:
+        raise ReleaseError(
+            f"Test healthy ratio {test_ratio:.4f} is outside [0.10, 0.20]"
+        )
+    if not any(is_healthy_case(row["problem"]) for row in dev_cases):
+        raise ReleaseError("Dev must contain healthy cases")
 
 
 def preflight_release(
@@ -557,7 +508,9 @@ def preflight_release(
         )
 
     scenarios = {row["scenario"] for row in release.cases}
-    problems = {row["problem"] for row in release.cases}
+    problems = {
+        row["problem"] for row in release.cases if not is_healthy_case(row["problem"])
+    }
     known_scenarios = set(list_all_net_envs())
     known_problems = set(list_avail_problem_instances())
     missing_scenarios = sorted(scenarios - known_scenarios)
@@ -569,16 +522,14 @@ def preflight_release(
 
     # Isolation requires both splits on disk (always true for 0.1.0).
     if "dev" in release.splits and "test" in release.splits:
-        dev = load_release_from_dir(
-            release.root, split="dev", verify_digest=False
-        ).cases
-        test = load_release_from_dir(
-            release.root, split="test", verify_digest=False
-        ).cases
-        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        dev = load_release_from_dir(release.root, split="dev").cases
+        test = load_release_from_dir(release.root, split="test").cases
+        _validate_release_splits(
+            dev,
+            test,
+            expected_failures=set(list_avail_problem_instances()),
+        )
 
-    _verify_pins(release.scenario_problem_pin, kind="scenarios")
-    _verify_pins(release.scenario_problem_pin, kind="problems")
     _verify_mcp_policy(release.cases, release.tools)
 
     required = list(release.images.get("required") or [])
@@ -634,15 +585,12 @@ def build_job_metadata(
         "benchmark_id": release.id,
         "version": release.version,
         "benchmark_ref": release.ref,
-        "benchmark_digest": release.benchmark_digest,
         "split": release.split,
         "case_count": release.case_count,
-        "cases_sha256": release.cases_sha256,
         "nika_git_commit": commit,
         "nika_git_dirty": dirty,
         "scoring": release.scoring,
         "tools": {
-            "policy_id": release.tools.get("policy_id"),
             "allowed_mcp_servers": release.tools.get("allowed_mcp_servers"),
         },
         "resources": release.resources,
@@ -686,7 +634,6 @@ def write_job_metadata(result_dir: Path, job: dict[str, Any]) -> Path:
             {
                 "benchmark_id": job.get("benchmark_id"),
                 "version": job.get("version"),
-                "benchmark_digest": job.get("benchmark_digest"),
                 "split": job.get("split"),
                 "nika_git_commit": job.get("nika_git_commit"),
                 "nika_git_dirty": job.get("nika_git_dirty"),
@@ -712,7 +659,6 @@ def release_fields_for_session(job: dict[str, Any]) -> dict[str, Any]:
     return {
         "benchmark_id": job.get("benchmark_id"),
         "benchmark_version": job.get("version"),
-        "benchmark_digest": job.get("benchmark_digest"),
         "benchmark_split": job.get("split"),
         "benchmark_job_id": run_id,
         "benchmark_run_id": run_id,
@@ -733,50 +679,44 @@ def write_release_manifest(
     tools: dict[str, Any],
     resources: dict[str, Any],
     images: dict[str, Any],
-    scenario_problem_pin: dict[str, Any],
-) -> str:
-    digest = compute_benchmark_digest(
-        splits=splits,
-        defaults=defaults,
-        scoring=scoring,
-        tools=tools,
-        resources=resources,
-        images=images,
-        scenario_problem_pin=scenario_problem_pin,
-    )
-    manifest = {
+) -> None:
+    normalized_splits = {
+        name: _normalize_split_meta(meta, name=name) for name, meta in splits.items()
+    }
+    manifest: dict[str, Any] = {
         "id": BENCHMARK_ID,
         "version": version,
-        "splits": splits,
+        "splits": normalized_splits,
         "default_split_for_release": "test",
-        "benchmark_digest": digest,
         "defaults": defaults,
         "scoring": scoring,
         "tools": tools,
-        "resources": resources,
         "images": images,
-        "scenario_problem_pin": scenario_problem_pin,
     }
+    if resources:
+        manifest["resources"] = resources
     (dest / "RELEASE.yaml").write_text(
         yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
-    return digest
 
 
 def rebuild_release_manifest(
     dest: Path,
     *,
     scoring: dict[str, Any] | None = None,
-) -> str:
-    """Rewrite ``RELEASE.yaml`` from on-disk split YAML, current pins, and scoring."""
+) -> None:
+    """Rewrite ``RELEASE.yaml`` from on-disk split YAML and current policy."""
     dest = Path(dest)
     manifest_path = dest / "RELEASE.yaml"
     existing = _load_manifest(manifest_path) if manifest_path.is_file() else {}
     version = str(existing.get("version") or dest.name)
     defaults = dict(existing.get("defaults") or DEFAULTS_V1)
+    defaults.pop("case_timeout_sec", None)
     tools = dict(existing.get("tools") or TOOLS_V1)
-    resources = dict(existing.get("resources") or RESOURCES_V1)
+    resources = dict(existing.get("resources") or {})
+    resources.pop("policy_id", None)
+    tools.pop("policy_id", None)
 
     splits: dict[str, Any] = {}
     all_cases: list[dict[str, Any]] = []
@@ -789,36 +729,38 @@ def rebuild_release_manifest(
         splits[name] = {
             "cases_file": f"{name}.yaml",
             "case_count": len(cases),
-            "cases_sha256": _sha256_file(path),
         }
     if not splits:
         raise ReleaseError(f"No split YAML files under {dest}")
 
     scenarios = {row["scenario"] for row in all_cases}
-    problems = {row["problem"] for row in all_cases}
-    return write_release_manifest(
+    write_release_manifest(
         dest,
         version=version,
         splits=splits,
         defaults=defaults,
-        scoring=dict(scoring or SCORING_V2),
+        scoring=dict(scoring or SCORING),
         tools=tools,
         resources=resources,
         images={"required": collect_images_for_scenarios(scenarios)},
-        scenario_problem_pin=build_scenario_problem_pins(scenarios, problems),
     )
 
 
 def freeze_release(
     *,
-    version: str = DEFAULT_RELEASE_VERSION,
-    source_cases: Path | None = None,
+    version: str,
+    source_cases: Path,
     out_dir: Path | None = None,
 ) -> BenchmarkRelease:
     """Create a minimal single-split (dev) release for tests / local experiments."""
+    if is_deprecated_release(version):
+        raise ReleaseError(
+            f"Cannot freeze deprecated release version {version!r}; "
+            f"choose a new version id"
+        )
     from nika.workflows.benchmark.migrate import materialize_cases, write_cases_yaml
 
-    source = source_cases or (BENCHMARK_DIR / "benchmark_selected.yaml")
+    source = source_cases
     dest = out_dir or (releases_dir() / version)
     dest.mkdir(parents=True, exist_ok=True)
 
@@ -829,17 +771,13 @@ def freeze_release(
     cases_path = dest / "dev.yaml"
     write_cases_yaml(cases_path, seed=raw.get("seed"), cases=cases)
     loaded = load_benchmark_yaml(cases_path)
-    cases_sha256 = _sha256_file(cases_path)
 
     scenarios = {row["scenario"] for row in loaded}
-    problems = {row["problem"] for row in loaded}
-    pins = build_scenario_problem_pins(scenarios, problems)
     images = {"required": collect_images_for_scenarios(scenarios)}
     splits = {
         "dev": {
             "cases_file": "dev.yaml",
             "case_count": len(loaded),
-            "cases_sha256": cases_sha256,
         }
     }
     write_release_manifest(
@@ -847,10 +785,67 @@ def freeze_release(
         version=version,
         splits=splits,
         defaults=dict(DEFAULTS_V1),
-        scoring=dict(SCORING_V2),
+        scoring=dict(SCORING),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=images,
-        scenario_problem_pin=pins,
     )
-    return load_release_from_dir(dest, split="dev", verify_digest=True)
+    return load_release_from_dir(dest, split="dev")
+
+
+def freeze_split_release(
+    *,
+    version: str,
+    source_dir: Path,
+    out_dir: Path | None = None,
+) -> BenchmarkRelease:
+    """Freeze validated Dev/Test candidate files as an immutable release."""
+    if is_deprecated_release(version):
+        raise ReleaseError(f"Cannot freeze deprecated release version {version!r}")
+    source_dir = Path(source_dir)
+    required = ("dev.yaml", "test.yaml")
+    missing = [name for name in required if not (source_dir / name).is_file()]
+    if missing:
+        raise ReleaseError(f"Release candidate is missing files: {missing}")
+    dev = load_benchmark_yaml(source_dir / "dev.yaml")
+    test = load_benchmark_yaml(source_dir / "test.yaml")
+    _validate_release_splits(
+        dev,
+        test,
+        expected_failures=set(list_avail_problem_instances()),
+    )
+
+    dest = out_dir or (releases_dir() / version)
+    if dest.exists():
+        raise ReleaseError(f"Release destination already exists: {dest}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{version}-", dir=dest.parent))
+    for name in required:
+        shutil.copy2(source_dir / name, staging / name)
+
+    splits = {
+        name: {
+            "cases_file": f"{name}.yaml",
+            "case_count": len(cases),
+        }
+        for name, cases in (("dev", dev), ("test", test))
+    }
+    scenarios = {str(row["scenario"]) for row in dev + test}
+    try:
+        write_release_manifest(
+            staging,
+            version=version,
+            splits=splits,
+            defaults=dict(DEFAULTS_V1),
+            scoring=dict(SCORING),
+            tools=dict(TOOLS_V1),
+            resources=dict(RESOURCES_V1),
+            images={"required": collect_images_for_scenarios(scenarios)},
+        )
+        staged = load_release_from_dir(staging, split="dev")
+        preflight_release(staged, check_images=False)
+        staging.rename(dest)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return load_release_from_dir(dest, split="dev")

@@ -3,7 +3,6 @@ import json
 import random
 import re
 import time
-from collections import defaultdict
 from typing import Dict, Literal, Optional, Protocol, runtime_checkable
 
 from func_timeout import func_timeout
@@ -13,6 +12,9 @@ from Kathara.manager.docker.stats.DockerLinkStats import DockerLinkStats
 from Kathara.manager.Kathara import Kathara, Lab
 from Kathara.model.Machine import Machine
 
+from nika.runtime.spec import MachineInventory, NodeRole
+from nika.service.lab.tc_api import TCMixin
+
 
 @runtime_checkable
 class _SupportsBase(Protocol):
@@ -21,18 +23,77 @@ class _SupportsBase(Protocol):
 
     def _run_cmd(self, host_name: str, command: str) -> str: ...
 
+    def _require_machine_inventory(self) -> MachineInventory: ...
 
-class KatharaBaseAPI:
+
+def _static_lab_from_session(session_meta: dict | None, lab_name: str) -> "Lab | None":
+    """Rebuild immutable machine metadata when Kathara's live parser is transiently unavailable."""
+    if not session_meta or not session_meta.get("scenario_name"):
+        return None
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    params = dict(session_meta.get("scenario_params") or {})
+    params.pop("backend", None)
+    params.pop("lab_name", None)
+    params.pop("topology_file", None)
+    params.pop("runtime_workdir", None)
+    net_env = get_net_env_instance(
+        str(session_meta["scenario_name"]),
+        backend="kathara",
+        lab_name=lab_name,
+        **params,
+    )
+    net_env.load_machines()
+    return net_env.lab
+
+
+class KatharaBaseAPI(TCMixin):
     """
     Base interfaces to interact with the Kathara.
     """
 
-    def __init__(self, lab_name: str):
+    def __init__(self, lab_name: str, *, session_meta: dict | None = None):
         self.instance = Kathara.get_instance()
-        self.lab = self.instance.get_lab_from_api(lab_name=lab_name)
+        try:
+            self.lab = self.instance.get_lab_from_api(lab_name=lab_name)
+        except KeyError:
+            # A controller-owned VDE fault proxy temporarily replaces a Docker
+            # network.  Kathara's live-lab parser follows that network ID and
+            # can raise KeyError before returning the otherwise healthy lab.
+            # Commands only require the lab name; use the persisted scenario
+            # definition for machine metadata until the proxy is removed.
+            self.lab = _static_lab_from_session(session_meta, lab_name)
         if self.lab is None:
             raise ValueError(f"Lab {lab_name} not found.")
         self._resolved_shell_cache: dict[str, str] = {}
+        if session_meta is None:
+            from nika.utils.session_store import SessionStore
+
+            store = SessionStore()
+            matches = [
+                row
+                for row in store.list_running_sessions()
+                if row.get("lab_name") == lab_name
+            ]
+            if len(matches) == 1:
+                session_meta = store.get_session(str(matches[0]["session_id"]))
+        raw_identities = ((session_meta or {}).get("metadata") or {}).get(
+            "machine_identities"
+        )
+        self.machine_inventory = (
+            MachineInventory.from_dict(raw_identities)
+            if isinstance(raw_identities, dict)
+            else None
+        )
+
+    def _require_machine_inventory(self) -> MachineInventory:
+        if self.machine_inventory is None:
+            raise ValueError(
+                "Kathara machine identities are unavailable; construct the API "
+                "with session metadata."
+            )
+        self.machine_inventory.validate(set(self.lab.machines))
+        return self.machine_inventory
 
     def _get_lab_link_stats(self) -> Dict[str, DockerLinkStats]:
         """Get the link stats of the lab."""
@@ -113,27 +174,12 @@ class KatharaBaseAPI:
         )
 
     def get_hosts(self) -> list[Machine]:
-        """
-        Get the list of hosts (all containers with Docker image kathara/base) in the lab.
-        """
-        hosts = []
-        for name, machine in self.lab.machines.items():
-            host_keys = ["pc", "client"]
-            image = machine.get_image()
-            if "base" in image and any(key in name for key in host_keys):
-                hosts.append(name)
-        return hosts
+        """Get explicitly declared host machines."""
+        return self._require_machine_inventory().names_for_role(NodeRole.HOST)
 
     def get_base_hosts(self) -> list[Machine]:
-        """
-        Get the list of base hosts (all containers with Docker image kathara/base) in the lab.
-        """
-        hosts = []
-        for name, machine in self.lab.machines.items():
-            image = machine.get_image()
-            if "base" in image:
-                hosts.append(name)
-        return hosts
+        """Get machines explicitly declaring the generic Linux capability."""
+        return self._require_machine_inventory().names_for_capability("linux")
 
     def get_host_net_config(self, host_name: str) -> dict:
         """
@@ -147,15 +193,8 @@ class KatharaBaseAPI:
         return config
 
     def get_bmv2_switches(self) -> list[Machine]:
-        """
-        Get the list of bmv2 switches in the lab.
-        """
-        switches = []
-        for name, machine in self.lab.machines.items():
-            image = machine.get_image()
-            if "p4" in image:
-                switches.append(name)
-        return switches
+        """Get machines explicitly declaring the BMv2 capability."""
+        return self._require_machine_inventory().names_for_capability("bmv2")
 
     def get_connected_devices(self, host_name: str) -> list[str]:
         """
@@ -421,66 +460,18 @@ class KatharaBaseAPI:
         return await self._get_reachability_async()
 
     def load_machines(self):
-        self.bmv2_switches = []
-        self.ovs_switches = []
-        self.sdn_controllers = []
-        self.hosts = []
-        self.routers = []
-        self.switches = []
-        self.servers = defaultdict(list)
-
-        machines: Dict[str, Machine] = self.lab.machines
-        for machine, machine_obj in machines.items():
-            image = machine_obj.get_image()
-            if "p4" in image:
-                self.bmv2_switches.append(machine)
-            elif "frr" in image:
-                self.routers.append(machine)
-            elif "base" in image or "nginx" in image or "wireguard" in image:
-                host_keys = ["pc", "client"]
-                if any(key in machine for key in host_keys):
-                    self.hosts.append(machine)
-                elif "load_balancer" in machine or "lb" in machine:
-                    self.servers["load_balancer"].append(machine)
-                elif "switch" in machine or "sw" in machine:
-                    self.switches.append(machine)
-                elif "dns" in machine:
-                    self.servers["dns"].append(machine)
-                elif "dhcp" in machine:
-                    self.servers["dhcp"].append(machine)
-                elif "web" in machine and "backend" not in machine:
-                    self.servers["web"].append(machine)
-                elif "vpn" in machine:
-                    self.servers["vpn"].append(machine)
-
-            elif "influxdb" in image:
-                self.servers["database"].append(machine)
-
-            elif "sdn" in image:
-                self.ovs_switches.append(machine)
-            elif "pox" in image:
-                self.sdn_controllers.append(machine)
-            else:
-                print(f"Unknown machine type: {machine} with image {image}")
-
-        # sort all lists
-        self.bmv2_switches = sorted(self.bmv2_switches)
-        self.ovs_switches = sorted(self.ovs_switches)
-        self.sdn_controllers = sorted(self.sdn_controllers)
-        self.hosts = sorted(self.hosts)
-        self.routers = sorted(self.routers)
-        self.switches = sorted(self.switches)
-        for server_type in self.servers:
-            self.servers[server_type] = sorted(self.servers[server_type])
+        inventory = self._require_machine_inventory()
+        self.bmv2_switches = inventory.names_for_capability("bmv2")
+        self.ovs_switches = inventory.names_for_capability("ovs")
+        self.sdn_controllers = inventory.names_for_role(NodeRole.CONTROLLER)
+        self.hosts = inventory.names_for_role(NodeRole.HOST)
+        self.routers = inventory.names_for_role(NodeRole.ROUTER)
+        self.switches = inventory.names_for_role(NodeRole.SWITCH)
+        self.servers = inventory.services()
 
     async def _get_reachability_async(self) -> str:
         self.load_machines()
-
-        host_names = list(self.hosts)
-        for key, servers in self.servers.items():
-            for server in servers:
-                if server not in host_names:
-                    host_names.append(server)
+        host_names = self.machine_inventory.reachability_targets()
 
         host_ips = {host_name: self.get_host_ip(host_name) for host_name in host_names}
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from nika.runtime.base import LabRuntime
-from nika.runtime.extras import raise_missing_extra, require_backend_extra
+from nika.utils.dependencies import raise_missing_extra, require_backend_extra
 from nika.runtime.meta import meta_get, meta_lab_name, meta_path
 
 if TYPE_CHECKING:
@@ -85,6 +85,14 @@ def runtime_for_session(meta: dict[str, Any] | Any) -> LabRuntime:
     scenario_params.pop("backend", None)
     scenario_params.pop("topology_file", None)
     scenario_params.pop("runtime_workdir", None)
+    if scenario_name:
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(str(scenario_name)):
+            # Fixed ISP scale/topology are persisted as benchmark metadata; the
+            # canonical scenario ID supplies both when reconstructing the lab.
+            scenario_params.pop("topo_size", None)
+            scenario_params.pop("topo", None)
     if scenario_params.get("topo_size") is not None:
         kwargs["topo_size"] = scenario_params.pop("topo_size")
     kwargs.update(scenario_params)

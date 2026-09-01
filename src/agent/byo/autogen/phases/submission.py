@@ -14,6 +14,7 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
 from agent.protocols import SUBMISSION
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
+from agent.utils.submission_context import submission_prompt_context
 
 
 @asynccontextmanager
@@ -57,19 +58,20 @@ class AutogenSubmissionPhase:
         self._reasoning_effort = reasoning_effort
 
     async def run(self, diagnosis_report: str) -> str:
-        begin_submission_mcp_phase(self._session_id)
+        begin_submission_mcp_phase(self._session_id, diagnosis_report)
         server_configs = session_server_configs(
             self._session_id,
             self._scenario_name,
         )
-        logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
         model_client = create_model_client(
             self._model,
             provider=self._llm_provider,
             reasoning_effort=self._reasoning_effort,
         )
         prompt = (
-            f"Based on the diagnosis report: {diagnosis_report}, "
+            f"Based on the diagnosis report: {diagnosis_report}. "
+            f"{submission_prompt_context(self._session_id)} "
             "please provide the submission. Do not submit if no report available."
         )
 

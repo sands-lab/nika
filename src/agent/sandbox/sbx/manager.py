@@ -18,6 +18,7 @@ from agent.sandbox.redact import redact_text
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME, native_sbx_agent
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
+    require_sbx_authenticated,
     run_sbx_checked,
     run_sbx_optional,
     stream_sbx,
@@ -171,6 +172,7 @@ class SbxSandboxManager:
 
         upstream_proxy = resolve_sbx_upstream_proxy(env_file=self.config.env_file)
         ensure_sbx_proxy_config(upstream_proxy)
+        require_sbx_authenticated()
         ensure_sbx_ready()
         ensure_llm_network_policy()
 

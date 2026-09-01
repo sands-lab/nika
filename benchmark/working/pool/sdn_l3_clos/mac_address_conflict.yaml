@@ -1,0 +1,35 @@
+scenario:
+  name: sdn_l3_clos
+failure:
+  fault_type: mac_address_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_2_1
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: m
+    inject:
+      host_name: client_4_2
+      host_name_2: client_6_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: l
+    inject:
+      host_name: web_11
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_11
+        name: eth0
+      fault_type: mac_address_conflict

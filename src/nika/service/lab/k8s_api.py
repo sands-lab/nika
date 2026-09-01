@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import shlex
@@ -347,3 +348,135 @@ class K8sAPIMixin:
             if name == k8s_node:
                 return device
         return k8s_node
+
+    def k8s_pick_workload_pod(self: SupportsExec, node: str) -> tuple[str, str] | None:
+        """Pick a Running application pod (not CoreDNS / system add-ons)."""
+        skip_ns = {
+            "kube-system",
+            "metallb-system",
+            "ingress-nginx",
+            "agentgateway-system",
+        }
+        preferred_ns = ("word-ns", "weather-ns", "llm-d")
+        pods = self.k8s_pods(
+            node, all_namespaces=True, field_selector="status.phase=Running"
+        )
+        ranked: list[tuple[str, str]] = []
+        for pod in pods:
+            ns = pod.get("namespace") or ""
+            name = pod.get("name") or ""
+            if ns in skip_ns or not name:
+                continue
+            lowered = name.lower()
+            if "coredns" in lowered or "kube-dns" in lowered:
+                continue
+            ranked.append((ns, name))
+        ranked.sort(
+            key=lambda item: (
+                preferred_ns.index(item[0]) if item[0] in preferred_ns else 99
+            )
+        )
+        return ranked[0] if ranked else None
+
+    def k8s_pod_dns_ok(
+        self: SupportsExec,
+        node: str,
+        query: str = "kubernetes.default.svc.cluster.local",
+    ) -> bool | None:
+        """True when a workload pod resolves ``query`` via cluster DNS."""
+        picked = self.k8s_pick_workload_pod(node)
+        if picked is None:
+            return None
+        ns, name = picked
+        py_src = (
+            "import socket\n"
+            "socket.setdefaulttimeout(5)\n"
+            f"r=socket.getaddrinfo({query!r}, None)\n"
+            "print('name:', r[0][4][0])\n"
+        )
+        py_b64 = base64.b64encode(py_src.encode()).decode("ascii")
+        py_payload = f'exec(__import__("base64").b64decode("{py_b64}"))'
+        containers = self.kubectl(
+            node,
+            f"get pod {shlex.quote(name)}{_ns(ns)} "
+            "-o jsonpath='{.spec.containers[*].name}'",
+            check=False,
+            timeout=20,
+        ).stdout.split()
+        if not containers:
+            containers = [""]
+        commands = (
+            f"nslookup {shlex.quote(query)}",
+            f"getent hosts {shlex.quote(query)}",
+            f"python3 -c {shlex.quote(py_payload)}",
+            f"python -c {shlex.quote(py_payload)}",
+        )
+        for container in containers:
+            cflag = f" -c {shlex.quote(container)}" if container else ""
+            prefix = f"exec {_ns(ns).strip()} {shlex.quote(name)}{cflag} -- "
+            for cmd in commands:
+                try:
+                    result = self.kubectl(node, prefix + cmd, check=False, timeout=20)
+                except K8sTimeoutError:
+                    # Isolated DNS makes resolvers block until the exec budget
+                    # expires; that hang is the outage signal.
+                    return False
+                output = f"{result.stdout}\n{result.stderr}"
+                combined = output.lower()
+                missing = any(
+                    token in combined
+                    for token in (
+                        "executable file not found",
+                        "command not found",
+                        "no such file or directory",
+                    )
+                )
+                if missing:
+                    continue
+                parsed = _dns_lookup_ok(output, query)
+                if parsed is not None:
+                    return parsed
+        return None
+
+    def k8s_host_dns_ok(
+        self: SupportsExec,
+        node: str,
+        server: str,
+        query: str = "kubernetes.default.svc.cluster.local",
+    ) -> bool:
+        """True when ``node`` resolves ``query`` via DNS server ``server``."""
+        cmd = (
+            f"nslookup {shlex.quote(query)} {shlex.quote(server)} 2>/dev/null || "
+            f"busybox nslookup {shlex.quote(query)} {shlex.quote(server)} "
+            "2>/dev/null || true"
+        )
+        raw = self.exec_cmd(node, cmd, timeout=12) or ""
+        if raw.startswith(_TIMEOUT_SENTINEL):
+            return False
+        return bool(_dns_lookup_ok(raw, query))
+
+
+def _dns_lookup_ok(output: str, query: str) -> bool | None:
+    lowered = output.lower()
+    if any(
+        token in lowered
+        for token in (
+            "can't find",
+            "can't resolve",
+            "nxdomain",
+            "no servers could be reached",
+            "timed out",
+            "connection timed out",
+            "name or service not known",
+            "temporary failure in name resolution",
+        )
+    ):
+        return False
+    if "name:" in lowered or "has address" in lowered:
+        return True
+    host = query.lower().rstrip(".")
+    for line in lowered.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and host in parts[1:] and parts[0].count(".") == 3:
+            return True
+    return None

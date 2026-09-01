@@ -1,0 +1,28 @@
+seed: 42
+cases:
+- scenario: campus_lan
+  problem: dhcp_spoofed_gateway
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  topo_size: s
+  root_causes:
+  - resource:
+      kind: node
+      node: dhcp_server
+    fault_type: dhcp_spoofed_gateway
+- scenario: campus_lan
+  problem: ospf_acl_block
+  inject:
+    host_name: router_core_1
+  topo_size: s
+  root_causes:
+  - resource:
+      kind: node
+      node: router_core_1
+    fault_type: ospf_acl_block
+- scenario: dc_clos
+  problem: healthy
+  inject: {}
+  topo_size: s
+  root_causes: []

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from nika.net_env.isp.inject_targets import (
     DEFAULT_HIJACK_PREFIX,
     first_link_endpoint,
@@ -25,9 +23,36 @@ def test_link_and_router_targets_polska() -> None:
     assert first_router(inv) == sorted(n["device"] for n in inv["nodes"])[0]
     params = isp_inject_params("link_down", inv)
     assert params == {"host_name": device, "intf_name": iface}
+    assert isp_inject_params("link_capacity_bottleneck", inv) == {
+        "host_name": device,
+        "intf_name": iface,
+    }
+    assert isp_inject_params("link_packet_corruption", inv) == {
+        "host_name": device,
+        "intf_name": iface,
+    }
     assert isp_inject_params("frr_service_down", inv) == {
         "host_name": first_router(inv)
     }
+
+
+def test_isp_link_symptom_targets_abilene() -> None:
+    from nika.net_env.isp.inject_targets import isp_link_symptom_targets
+    from nika.net_env.isp.kathara.lab import _stub_series_all_routers
+    from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
+
+    plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    attachment = attach_traffic_stubs(
+        plan,
+        _stub_series_all_routers(plan),
+        pop_node_ids=tuple(n.node_id for n in plan.nodes),
+    )
+    inv = attachment.plan.inventory
+    device, iface = first_link_endpoint(inv)
+    targets = isp_link_symptom_targets(inv, device, iface)
+    assert targets["symptom_host"].startswith("pc_")
+    assert targets["peer_host"].startswith("pc_")
+    assert targets["probe_dst_ip"].startswith("10.254.")
 
 
 def test_bgp_originator_and_hijack() -> None:
@@ -41,6 +66,15 @@ def test_bgp_originator_and_hijack() -> None:
         assert isp_inject_params("bgp_asn_misconfig", isp_plan.inventory, bgp_inv) == {
             "host_name": origin
         }
+        missing = isp_inject_params(
+            "bgp_missing_route_advertisement", isp_plan.inventory, bgp_inv
+        )
+        assert missing["host_name"] == origin
+        assert missing.get("prefix")
+        assert any(
+            o["device"] == origin and o["prefix"] == missing["prefix"]
+            for o in bgp_inv["originated"]
+        )
         hijack = isp_inject_params("bgp_hijacking", isp_plan.inventory, bgp_inv)
         speaker, prefix = hijack_speaker_and_prefix(bgp_inv)
         assert hijack == {"host_name": speaker, "target_network": prefix}
@@ -50,7 +84,52 @@ def test_bgp_originator_and_hijack() -> None:
             assert speaker not in originators
 
 
-def test_unsupported_problem() -> None:
-    plan = compile_isp_plan(IspConfig(topology="polska"))
-    with pytest.raises(ValueError, match="unsupported"):
-        isp_inject_params("host_crash", plan.inventory)
+def test_bgp_rpki_leak_target_from_inventory() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
+    assert bgp is not None
+    params = isp_inject_params(
+        "bgp_rpki_invalid_route_leak", isp_plan.inventory, bgp.inventory
+    )
+    assert params == {"host_name": bgp.inventory["leaker_device"]}
+
+
+def test_bgp_rtbh_leak_target_from_inventory() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp", rtbh=True)
+    assert bgp is not None
+    params = isp_inject_params(
+        "bgp_blackhole_community_leak", isp_plan.inventory, bgp.inventory
+    )
+    assert params == {"host_name": bgp.inventory["leaker_device"]}
+    from nika.net_env.isp.inject_targets import isp_bgp_symptom_targets
+
+    symptoms = isp_bgp_symptom_targets(
+        isp_plan.inventory,
+        bgp.inventory,
+        bgp.inventory["leaker_device"],
+        "bgp_blackhole_community_leak",
+    )
+    assert symptoms["symptom_host"] == bgp.inventory["data_plane_observer_host"]
+    assert symptoms["probe_dst_ip"] == "198.51.100.1"
+
+
+def test_bgp_max_prefix_target_ebgp() -> None:
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
+    bgp = compile_bgp_plan(isp_plan, "ebgp")
+    assert bgp is not None
+    params = isp_inject_params(
+        "bgp_max_prefix_exceeded", isp_plan.inventory, bgp.inventory
+    )
+    assert params["receiver_name"]
+    assert params["peer_name"]
+    assert params["neighbor_ip"]
+    assert params["receiver_name"] != params["peer_name"]
+    pair = {params["receiver_name"], params["peer_name"]}
+    sessions = [
+        s
+        for s in bgp.inventory["sessions"]
+        if s["session_type"] == "ebgp"
+        and {s["local_device"], s["remote_device"]} == pair
+    ]
+    assert sessions

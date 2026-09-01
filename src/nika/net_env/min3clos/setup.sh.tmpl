@@ -1,0 +1,64 @@
+#!/bin/bash
+# Post-deploy provisioning from https://containerlab.dev/lab-examples/min-clos/
+
+set -euo pipefail
+
+CFG_DIR=./configs
+SRL_PASSWORD=NokiaSrl1!
+FAILED=0
+
+declare -A MGMT_IP=(
+  [leaf1]=__MGMT_IP_LEAF1__
+  [leaf2]=__MGMT_IP_LEAF2__
+  [spine]=__MGMT_IP_SPINE__
+)
+
+configure_SRL() {
+  local node=$1
+  local out
+  out=$(gnmic -a "${MGMT_IP[$node]}:57400" --timeout 30s -u admin -p "$SRL_PASSWORD" -e json_ietf --skip-verify set --update-path / --update-file "$CFG_DIR/$node.yaml" 2>&1)
+  if echo "$out" | grep -q -e '"operation": "UPDATE"'; then
+    docker exec "clab-__LAB_NAME__-$node" sr_cli "save startup" > /dev/null
+    return 0
+  fi
+  echo "Error: Unable to push config into clab-__LAB_NAME__-$node."
+  echo "$out" >&2
+  return 1
+}
+
+configure_CLIENT() {
+  docker cp "$CFG_DIR/$1.sh" "clab-__LAB_NAME__-$1:/tmp/"
+  docker exec "clab-__LAB_NAME__-$1" bash "/tmp/$1.sh"
+}
+
+echo
+PIDS=""
+NE=("leaf1" "leaf2" "spine")
+CLIENT=("client1" "client2")
+
+for VARIANT in "${NE[@]}"; do
+  ( configure_SRL "$VARIANT" ) &
+  REF=$!
+  echo "[$REF] Configuring $VARIANT..."
+  PIDS+=" $REF"
+done
+
+for VARIANT in "${CLIENT[@]}"; do
+  ( configure_CLIENT "$VARIANT" ) &
+  REF=$!
+  echo "[$REF] Configuring $VARIANT..."
+  PIDS+=" $REF"
+done
+
+echo
+for p in $PIDS; do
+  if wait "$p"; then
+    echo "Process $p success"
+  else
+    echo "Process $p fail"
+    FAILED=1
+  fi
+done
+echo
+
+exit "$FAILED"

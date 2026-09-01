@@ -90,7 +90,7 @@ def resolve_agent_model(
                 "config/nika.yaml or pass -m/--model."
             )
         case "mock":
-            raise ValueError("Missing model for mock agent: pass -m/--model.")
+            return "mock"
         case "cli.codex" | "sdk.codex_sdk":
             raise ValueError(
                 "Missing model: set agent.models.codex in config/nika.yaml "

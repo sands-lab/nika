@@ -1,0 +1,13 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: arp_cache_poisoning
+  cases:
+  - inject:
+      host_name: client
+      target_ip: 200.0.0.8
+    root_causes:
+    - resource:
+        kind: node
+        node: client
+      fault_type: arp_cache_poisoning

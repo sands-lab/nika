@@ -9,10 +9,11 @@ import nika.runtime.kathara.patch  # noqa: F401
 from Kathara.manager.Kathara import Kathara
 
 from nika.runtime.base import LabRuntime
-from nika.runtime.docker_ops import pause_container, unpause_container
-from nika.runtime.exec_utils import exec_with_timeout
+from nika.runtime.shared.containers import pause_container, unpause_container
+from nika.runtime.shared.execution import exec_with_timeout
 from nika.service.shell import ShellResolver
 from nika.service.kathara.docker_utils import get_machine_container, list_lab_containers
+from nika.runtime.spec import MachineInventory
 
 if TYPE_CHECKING:
     from docker.models.containers import Container
@@ -151,6 +152,14 @@ class KatharaRuntime(LabRuntime):
 
     def destroy(self) -> None:
         """Undeploy the lab and VERIFY its containers are gone."""
+        # Dynamic fault proxies are intentionally outside the Kathara lab
+        # inventory, so remove only resources explicitly labelled for this lab.
+        try:
+            from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+
+            KatharaVdeFaultProxy.cleanup_lab(self.lab_name)
+        except Exception as exc:  # cleanup must not prevent normal teardown
+            print(f"Error cleaning VDE fault proxies: {exc}")
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:
@@ -177,7 +186,14 @@ class KatharaRuntime(LabRuntime):
         )
 
     def exists(self) -> bool:
-        tmp_lab = self._instance.get_lab_from_api(lab_name=self.lab_name)
+        try:
+            tmp_lab = self._instance.get_lab_from_api(lab_name=self.lab_name)
+        except Exception:
+            # A dynamically inserted controller-only VDE proxy can temporarily
+            # make Kathara's API inventory incomplete.  Treat it as live so
+            # lifecycle teardown reaches ``destroy()``, which removes only the
+            # labelled proxy resources before undeploying the lab.
+            return True
         if tmp_lab is None:
             return False
         tmp_machines = tmp_lab.machines
@@ -229,12 +245,8 @@ class KatharaRuntime(LabRuntime):
         return results
 
     def list_dhcp_client_nodes(self) -> list[str]:
-        """Return lab nodes that typically receive DHCP leases."""
-        nodes: list[str] = []
-        if not self._net_env.lab or not self._net_env.lab.machines:
-            return self.list_nodes()
-        for name, machine in self._net_env.lab.machines.items():
-            image = machine.get_image()
-            if "base" in image and any(key in name for key in ("pc", "client")):
-                nodes.append(name)
-        return nodes
+        """Return nodes explicitly declared as DHCP clients."""
+        inventory = MachineInventory(self._net_env.machine_identities)
+        if self._net_env.lab and self._net_env.lab.machines:
+            inventory.validate(set(self._net_env.lab.machines))
+        return inventory.names_for_capability("dhcp_client")

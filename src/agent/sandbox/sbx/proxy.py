@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import logging
 import os
+import socket
 import subprocess
 import threading
 import time
@@ -81,6 +82,19 @@ def _apply_process_daemon_env(upstream_proxy: str) -> None:
 
 def sbx_daemon_running() -> bool:
     """True when ``sbx daemon status`` reports a running daemon."""
+    daemon_socket = (
+        Path.home() / ".local/state/sandboxes/sandboxes/sandboxd/sandboxd.sock"
+    )
+    if daemon_socket.exists():
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        probe.settimeout(1)
+        try:
+            probe.connect(str(daemon_socket))
+            return True
+        except OSError:
+            pass
+        finally:
+            probe.close()
     try:
         proc = subprocess.run(
             ["sbx", "daemon", "status"],
@@ -88,7 +102,7 @@ def sbx_daemon_running() -> bool:
             capture_output=True,
             text=True,
             check=False,
-            timeout=30,
+            timeout=8,
         )
     except subprocess.TimeoutExpired:
         return False

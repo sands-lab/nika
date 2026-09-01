@@ -17,7 +17,7 @@ from agent.utils.skills import resolve_skills_root
 SANDBOX_RUN_DIRNAME = ".sandbox_run"
 SKILLS_DIRNAME = "skills"
 # Standardized session artifacts only — agent CLI/SDK workspaces stay ephemeral.
-COLLECTED_FILES = ("messages.jsonl", "submission.json")
+COLLECTED_FILES = ("messages.jsonl", "nika.jsonl", "submission.json")
 
 
 @dataclass

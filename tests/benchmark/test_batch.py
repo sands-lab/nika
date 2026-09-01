@@ -60,13 +60,6 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 inject = inject_params_from_benchmark_yaml(
                     case.scenario, case.problem, case.size or ""
                 )
-                # size=s curated YAML picks super_spine for blackhole leaks, but that
-                # device has no client host for resolve_victim_host().
-                if (
-                    case.problem == "bgp_blackhole_route_leak"
-                    and "super_spine" in inject.get("host_name", "")
-                ):
-                    inject["host_name"] = "leaf_router_0_0"
                 row = {
                     "scenario": case.scenario,
                     "problem": case.problem,
@@ -171,7 +164,10 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
 
             assert gt["is_anomaly"]
 
-            assert case.problem in gt["root_cause_name"]
+            fault_types = {
+                item.get("fault_type") for item in gt.get("root_causes") or []
+            }
+            assert case.problem in fault_types
 
     def test_run_json_correctness(self) -> None:
         for case in SCENARIO_CASES:
@@ -196,7 +192,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         for case in SCENARIO_CASES:
             session_id, session_dir = self._result(case)
             sub = self._load_json(session_dir, "submission.json")
-            for field in ("is_anomaly", "faulty_devices", "root_cause_name"):
+            for field in ("is_anomaly", "root_causes"):
                 assert field in sub, f"Missing field '{field}' in submission.json"
 
             assert session_id in str(session_dir)
@@ -247,18 +243,16 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 for line in trace_path.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            agents_seen = {e["agent"] for e in events}
+            phases_seen = {e["phase"] for e in events}
 
-            assert DIAGNOSIS in agents_seen
+            assert DIAGNOSIS in phases_seen
 
-            assert SUBMISSION in agents_seen
+            assert SUBMISSION in phases_seen
             tool_names_seen = {
                 e["tool"]["name"]
                 for e in events
                 if e.get("event") == "tool_start" and "tool" in e
             }
-
-            assert "list_avail_problems" in tool_names_seen
 
             assert "submit" in tool_names_seen
 

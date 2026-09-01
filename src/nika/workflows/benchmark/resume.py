@@ -2,29 +2,91 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
-from nika.config import SESSIONS_DIR, resolve_results_root
-from nika.utils.session_artifacts import RUN_FILENAME, iter_session_dirs
+from nika.config import SESSIONS_DIR
 from nika.utils.session_index import SessionIndex
 from nika.workflows.session.close import close_session
 
 
-def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
-    payload = {
+from nika.workflows.benchmark.multi_fault import row_problems
+
+
+def _fingerprint_inject(row: dict[str, Any]) -> dict[str, Any]:
+    inject = row.get("inject") or {}
+    problems = row_problems(row)
+    if len(problems) > 1:
+        nested: dict[str, dict[str, str]] = {}
+        for problem in problems:
+            piece = inject.get(problem) if isinstance(inject, dict) else {}
+            if isinstance(piece, dict):
+                nested[problem] = {str(k): str(v) for k, v in sorted(piece.items())}
+        return nested
+    if isinstance(inject, dict) and any(isinstance(v, dict) for v in inject.values()):
+        return {
+            str(k): str(v) for k, v in sorted(inject.items()) if not isinstance(v, dict)
+        }
+    return {str(k): str(v) for k, v in sorted(inject.items())}
+
+
+def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
+    """Stable identity fields for one catalog/case row (names + deploy params)."""
+    return {
         "scenario": row["scenario"],
         "problem": row["problem"],
+        "problems": row_problems(row),
         "topo_size": row.get("topo_size") or "",
-        "inject": {
-            str(k): str(v) for k, v in sorted((row.get("inject") or {}).items())
-        },
+        "topo": row.get("topo") or "",
+        "igp": row.get("igp") or "",
+        "bgp_mode": row.get("bgp_mode") or "",
+        "rpki": bool(row.get("rpki", False)),
+        "backend": row.get("backend") or "",
+        "device_profile": row.get("device_profile") or "",
+        "inject": _fingerprint_inject(row),
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+
+
+def benchmark_row_fingerprint(row: dict[str, Any]) -> str:
+    """Canonical identity string for equality / Dev-Test isolation checks."""
+    return json.dumps(
+        benchmark_row_identity(row),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+
+
+def benchmark_option_id(row: dict[str, Any]) -> str:
+    """Return a readable, stable identity for one catalog option."""
+    identity: list[tuple[str, Any]] = [
+        ("scenario", row["scenario"]),
+        ("topo_size", row.get("topo_size") or ""),
+    ]
+    identity.extend(
+        (key, row[key])
+        for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile")
+        if key in row
+    )
+    identity.append(("problem", row["problem"]))
+    identity.extend(
+        (f"inject.{key}", value)
+        for key, value in sorted((row.get("inject") or {}).items())
+    )
+
+    def component(key: str, value: Any) -> str:
+        if value in (None, ""):
+            text = "-"
+        elif isinstance(value, bool):
+            text = str(value).lower()
+        else:
+            text = str(value)
+        return f"{quote(key, safe='-._~')}={quote(text, safe='-._~')}"
+
+    return "__".join(component(key, value) for key, value in identity)
 
 
 def benchmark_row_from_case(
@@ -33,38 +95,32 @@ def benchmark_row_from_case(
     problem: str,
     topo_size: str,
     inject_params: dict[str, str],
+    topo: str | None = None,
+    igp: str | None = None,
+    bgp_mode: str | None = None,
+    rpki: bool | None = None,
+    backend: str | None = None,
+    device_profile: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    row: dict[str, Any] = {
         "scenario": scenario,
         "problem": problem,
         "topo_size": topo_size or "",
-        "inject": inject_params,
+        "inject": dict(inject_params),
     }
-
-
-def _read_run_meta(session_dir: Path) -> dict[str, Any] | None:
-    run_path = session_dir / RUN_FILENAME
-    if not run_path.exists():
-        return None
-    try:
-        return json.loads(run_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-
-
-def session_matches_row(run_meta: dict[str, Any], row: dict[str, Any]) -> bool:
-    stored_fp = run_meta.get("benchmark_fingerprint")
-    if not stored_fp:
-        return False
-    return stored_fp == benchmark_row_fingerprint(row)
-
-
-def is_benchmark_case_complete(session_dir: str | Path, row: dict[str, Any]) -> bool:
-    """Return True when a benchmark row finished the full pipeline (session closed)."""
-    run_meta = _read_run_meta(Path(session_dir))
-    if run_meta is None or run_meta.get("status") != "finished":
-        return False
-    return session_matches_row(run_meta, row)
+    if topo:
+        row["topo"] = topo
+    if igp:
+        row["igp"] = igp
+    if bgp_mode:
+        row["bgp_mode"] = bgp_mode
+    if rpki is not None:
+        row["rpki"] = bool(rpki)
+    if backend:
+        row["backend"] = backend
+    if device_profile:
+        row["device_profile"] = device_profile
+    return row
 
 
 def cleanup_benchmark_session(
@@ -90,77 +146,3 @@ def cleanup_benchmark_session(
         path = Path(session_dir)
         if path.exists():
             shutil.rmtree(path)
-
-
-def _sessions_under_root(results_root: Path) -> list[tuple[Path, dict[str, Any]]]:
-    sessions: list[tuple[Path, dict[str, Any]]] = []
-    for session_dir in iter_session_dirs(results_root):
-        run_meta = _read_run_meta(session_dir)
-        if run_meta is not None:
-            sessions.append((session_dir, run_meta))
-    return sessions
-
-
-def scan_benchmark_cases(
-    *,
-    rows: list[dict[str, Any]],
-    result_dir: str | Path | None,
-    resume: bool,
-) -> tuple[Path, list[int]]:
-    """Legacy flat-session resume scan (fingerprint match under ``result_dir``).
-
-    Batch ``nika benchmark run --config`` / ``--release`` use
-    ``scan_trials`` under ``trials/`` instead. Kept for unit tests
-    and older flat result trees.
-    """
-    results_root = resolve_results_root(result_dir)
-    results_root.mkdir(parents=True, exist_ok=True)
-    total = len(rows)
-
-    if not resume:
-        return results_root, list(range(total))
-
-    pool = _sessions_under_root(results_root)
-    claimed: set[str] = set()
-    completed = 0
-    pending: list[int] = []
-
-    for index, row in enumerate(rows):
-        label = f"[{index + 1}/{total}] {row['scenario']}/{row['problem']}"
-        matched_dir: Path | None = None
-
-        for session_dir, run_meta in pool:
-            key = str(session_dir)
-            if key in claimed:
-                continue
-            if is_benchmark_case_complete(session_dir, row):
-                matched_dir = session_dir
-                claimed.add(key)
-                break
-
-        if matched_dir is not None:
-            completed += 1
-            print(f"{label} skip (already complete: {matched_dir})")
-            continue
-
-        for session_dir, run_meta in pool:
-            key = str(session_dir)
-            if key in claimed or run_meta.get("status") == "finished":
-                continue
-            if session_matches_row(run_meta, row):
-                print(f"{label} cleaning incomplete session")
-                cleanup_benchmark_session(
-                    str(run_meta.get("session_id") or session_dir.name), session_dir
-                )
-
-        pending.append(index)
-
-    if completed and pending:
-        print(
-            f"Resuming benchmark: {completed}/{total} complete, "
-            f"{len(pending)} remaining under {results_root}"
-        )
-    elif not pending:
-        print(f"All {total} benchmark case(s) already complete under {results_root}")
-
-    return results_root, pending

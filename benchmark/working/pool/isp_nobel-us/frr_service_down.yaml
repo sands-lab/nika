@@ -1,0 +1,187 @@
+scenario:
+  name: isp_nobel-us
+failure:
+  fault_type: frr_service_down
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: ann_arbor
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: boulder
+    root_causes:
+    - resource:
+        kind: node
+        node: boulder
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: houston
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ithaca
+    root_causes:
+    - resource:
+        kind: node
+        node: ithaca
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lincoln
+    root_causes:
+    - resource:
+        kind: node
+        node: lincoln
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: palo_alto
+    root_causes:
+    - resource:
+        kind: node
+        node: palo_alto
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pittsburgh
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: princeton
+    root_causes:
+    - resource:
+        kind: node
+        node: princeton
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: salt_lake_city
+    root_causes:
+    - resource:
+        kind: node
+        node: salt_lake_city
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: san_diego
+    root_causes:
+    - resource:
+        kind: node
+        node: san_diego
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: seattle
+    root_causes:
+    - resource:
+        kind: node
+        node: seattle
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: urbana_champaign
+    root_causes:
+    - resource:
+        kind: node
+        node: urbana_champaign
+      fault_type: frr_service_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washington
+    root_causes:
+    - resource:
+        kind: node
+        node: washington
+      fault_type: frr_service_down

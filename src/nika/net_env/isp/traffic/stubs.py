@@ -191,6 +191,8 @@ def attach_traffic_stubs(
         nodes=nodes_t,
         links=plan.links,
     )
+    for key, value in plan.inventory.items():
+        inventory.setdefault(key, value)
     hosts_t = tuple(sorted(hosts, key=lambda h: h.host_name))
     edges_t = tuple(sorted(edge_links, key=lambda e: e.router_device))
     inventory["hosts"] = [

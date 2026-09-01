@@ -16,19 +16,20 @@ from agent.sandbox.sbx.credentials import (
     missing_credential_message,
     required_services_for_agent,
 )
-from agent.sandbox.sbx.client import ensure_sbx_daemon, run_sbx, run_sbx_checked
+from agent.sandbox.sbx.client import (
+    ensure_sbx_daemon,
+    require_sbx_authenticated,
+    run_sbx,
+    run_sbx_checked,
+)
 from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
 from agent.sandbox.sbx.manager import SbxSandboxManager
+from agent.sandbox.sbx.policy import _LLM_NETWORK_HOSTS
 from agent.sandbox.sbx.proxy import (
     ensure_sbx_proxy_config,
     resolve_sbx_upstream_proxy,
+    sbx_daemon_running,
     sbx_process_env,
-)
-from agent.sandbox.sbx.wheels import (
-    SDK_WHEEL_DIRNAME,
-    install_sdk_wheels_in_sandbox,
-    sdk_wheel_dir,
-    stage_sdk_wheels,
 )
 from agent.sandbox.sbx.workspace import collect_artifacts, prepare_workspace
 
@@ -67,6 +68,12 @@ def test_exec_command_uses_sandbox_relative_paths() -> None:
     assert command[:4] == ["sbx", "exec", "-d", "nika-test"]
     assert "CODEX_HOME=.codex_home" in command[-1]
     assert "cd codex_workspace" in command[-1]
+
+
+def test_llm_policy_allows_supported_provider_endpoints() -> None:
+    assert {"api.anthropic.com", "api.deepseek.com", "openrouter.ai"} <= set(
+        _LLM_NETWORK_HOSTS
+    )
 
 
 def test_exec_command_rewrites_secret_env_to_sentinel() -> None:
@@ -252,6 +259,7 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
     with (
         patch("agent.sandbox.sbx.manager.ensure_sbx_proxy_config"),
         patch("agent.sandbox.sbx.manager.ensure_sbx_ready"),
+        patch("agent.sandbox.sbx.manager.require_sbx_authenticated"),
         patch("agent.sandbox.sbx.manager.ensure_llm_network_policy"),
         patch(
             "agent.sandbox.sbx.manager.ensure_sbx_credentials",
@@ -499,21 +507,6 @@ def test_explicit_proxy_is_forwarded_to_sbx() -> None:
         reset_run_config()
 
 
-def test_proxy_from_main_env_file(tmp_path) -> None:
-    from nika.run_config.loader import reset_run_config, set_run_config
-    from nika.run_config.schema import RunConfig
-
-    set_run_config(
-        RunConfig.model_validate(
-            {"nika": {"sandbox": {"upstream_proxy": "http://proxy.test:8080"}}}
-        )
-    )
-    try:
-        assert resolve_sbx_upstream_proxy() == "http://proxy.test:8080"
-    finally:
-        reset_run_config()
-
-
 def test_ensure_sbx_proxy_config_no_op_without_upstream() -> None:
     with (
         patch("agent.sandbox.sbx.proxy.sbx_available", return_value=True),
@@ -665,6 +658,32 @@ def test_ensure_sbx_daemon_uses_status_not_ls() -> None:
     run.assert_not_called()
 
 
+def test_sbx_daemon_running_uses_live_unix_socket(tmp_path, monkeypatch) -> None:
+    socket_path = tmp_path / ".local/state/sandboxes/sandboxes/sandboxd/sandboxd.sock"
+    socket_path.parent.mkdir(parents=True)
+    socket_path.touch()
+    probe = SimpleNamespace(
+        settimeout=lambda _timeout: None,
+        connect=lambda path: path == str(socket_path),
+        close=lambda: None,
+    )
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    with (
+        patch("agent.sandbox.sbx.proxy.socket.socket", return_value=probe),
+        patch("agent.sandbox.sbx.proxy.subprocess.run") as run,
+    ):
+        assert sbx_daemon_running() is True
+    run.assert_not_called()
+
+
+def test_require_sbx_authenticated_fails_with_actionable_message() -> None:
+    with (
+        patch("agent.sandbox.sbx.client.sbx_authenticated", return_value=False),
+        pytest.raises(RuntimeError, match=r"sbx login.*upstream proxy"),
+    ):
+        require_sbx_authenticated()
+
+
 def test_run_sbx_checked_retries_hub_token_error() -> None:
     fail = SimpleNamespace(
         returncode=1,
@@ -686,79 +705,3 @@ def test_run_sbx_checked_retries_hub_token_error() -> None:
     assert result.returncode == 0
     assert run.call_count == 2
     sleep.assert_called_once_with(2.0)
-
-
-def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
-    cache = tmp_path / "cache"
-    cache.mkdir()
-    (cache / "pkg-1.0-py3-none-any.whl").write_bytes(b"wheel")
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-
-    with (
-        patch("agent.sandbox.sbx.wheels._WHEEL_CACHE", cache),
-        patch("agent.sandbox.sbx.wheels._pip_download"),
-    ):
-        staged = stage_sdk_wheels(workspace)
-    assert staged == workspace / SDK_WHEEL_DIRNAME
-
-    wheels = sdk_wheel_dir(workspace)
-    with patch("agent.sandbox.sbx.wheels.run_sbx_checked") as run:
-        install_sdk_wheels_in_sandbox(
-            sandbox_name="nika-test",
-            workspace_dir=workspace,
-        )
-
-    command = run.call_args.args[0]
-    assert command[:3] == ["exec", "-d", "nika-test"]
-    assert "--no-index" in command[-1]
-    assert str(wheels) in command[-1]
-    assert "-r '" in command[-1]
-    assert (workspace / "requirements-sdk.txt").is_file()
-
-
-def test_sdk_packages_install_from_pypi_when_offline_disabled(tmp_path) -> None:
-    from agent.sandbox.sbx.wheels import install_sdk_packages_in_sandbox
-
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    with patch("agent.sandbox.sbx.wheels.run_sbx_checked") as run:
-        install_sdk_packages_in_sandbox(
-            sandbox_name="nika-test",
-            workspace_dir=workspace,
-            offline=False,
-        )
-
-    command = run.call_args.args[0]
-    assert command[:3] == ["exec", "-d", "nika-test"]
-    assert "--no-index" not in command[-1]
-    assert "pip3 install" in command[-1]
-    assert "-r '" in command[-1]
-    assert (workspace / "requirements-sdk.txt").is_file()
-
-
-def test_sdk_requirements_are_exact_pins() -> None:
-    from agent.sandbox.sbx.wheels import SDK_PIP_PACKAGES, SDK_REQUIREMENTS_FILE
-
-    assert SDK_REQUIREMENTS_FILE.is_file()
-    assert SDK_PIP_PACKAGES
-    assert all("==" in req for req in SDK_PIP_PACKAGES)
-    assert any(req.startswith("pydantic==") for req in SDK_PIP_PACKAGES)
-    assert any(req.startswith("claude-agent-sdk==") for req in SDK_PIP_PACKAGES)
-    assert any(req.startswith("openai-codex==") for req in SDK_PIP_PACKAGES)
-
-
-def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
-    from nika.run_config.loader import reset_run_config, set_run_config
-    from nika.run_config.schema import RunConfig
-
-    reset_run_config()
-    set_run_config(RunConfig())
-    assert resolve_sandbox_config().offline_sdk_wheels is False
-
-    set_run_config(
-        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": True}}})
-    )
-    assert resolve_sandbox_config().offline_sdk_wheels is True
-    assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False
-    reset_run_config()

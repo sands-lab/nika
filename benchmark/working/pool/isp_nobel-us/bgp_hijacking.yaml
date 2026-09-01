@@ -1,0 +1,243 @@
+scenario:
+  name: isp_nobel-us
+failure:
+  fault_type: bgp_hijacking
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ann_arbor
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ann_arbor
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlanta
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: boulder
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: boulder
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: houston
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: ithaca
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ithaca
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lincoln
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lincoln
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: palo_alto
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: palo_alto
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: pittsburgh
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: princeton
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: princeton
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: salt_lake_city
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: salt_lake_city
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: san_diego
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: san_diego
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: seattle
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: seattle
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: urbana_champaign
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: urbana_champaign
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washington
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 198.18.0.1
+      symptom_host: atlanta
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: washington
+      fault_type: bgp_hijacking

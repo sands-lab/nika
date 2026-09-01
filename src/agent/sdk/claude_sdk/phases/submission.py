@@ -3,6 +3,8 @@
 from agent.sdk.claude_sdk.worker import ClaudeSdkWorker
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.protocols import SUBMISSION
+from agent.utils.mcp_client import begin_submission_mcp_phase
+from agent.utils.submission_context import submission_prompt_context
 
 
 class ClaudeSdkSubmissionPhase:
@@ -26,9 +28,11 @@ class ClaudeSdkSubmissionPhase:
         )
 
     async def run(self, diagnosis_report: str) -> str:
+        begin_submission_mcp_phase(self._worker.session_id, diagnosis_report)
         prompt = (
             f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
             f"Based on the diagnosis report: {diagnosis_report}\n"
+            f"{submission_prompt_context(self._worker.session_id)}\n"
             "Please provide the submission. Do not submit if no report is available."
         )
         return await self._worker.run(prompt)

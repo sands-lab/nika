@@ -1,0 +1,2098 @@
+scenario:
+  name: isp_brain
+failure:
+  fault_type: ospf_area_misconfiguration
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh
+    root_causes:
+    - resource:
+        kind: node
+        node: adh
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh10
+    root_causes:
+    - resource:
+        kind: node
+        node: adh10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh11
+    root_causes:
+    - resource:
+        kind: node
+        node: adh11
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh21
+    root_causes:
+    - resource:
+        kind: node
+        node: adh21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh22
+    root_causes:
+    - resource:
+        kind: node
+        node: adh22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh23
+    root_causes:
+    - resource:
+        kind: node
+        node: adh23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh24
+    root_causes:
+    - resource:
+        kind: node
+        node: adh24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh3
+    root_causes:
+    - resource:
+        kind: node
+        node: adh3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh5
+    root_causes:
+    - resource:
+        kind: node
+        node: adh5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh6
+    root_causes:
+    - resource:
+        kind: node
+        node: adh6
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh63
+    root_causes:
+    - resource:
+        kind: node
+        node: adh63
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh7
+    root_causes:
+    - resource:
+        kind: node
+        node: adh7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh8
+    root_causes:
+    - resource:
+        kind: node
+        node: adh8
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: adh9
+    root_causes:
+    - resource:
+        kind: node
+        node: adh9
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk1
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk10
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk11
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk11
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk12
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk12
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk2
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk2
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk20
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk20
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk21
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk22
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk23
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk24
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk3
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk4
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk4
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk42
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk42
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk5
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk6
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk6
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk7
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk8
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk8
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk9
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk9
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw
+    root_causes:
+    - resource:
+        kind: node
+        node: htw
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw1
+    root_causes:
+    - resource:
+        kind: node
+        node: htw1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw10
+    root_causes:
+    - resource:
+        kind: node
+        node: htw10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw11
+    root_causes:
+    - resource:
+        kind: node
+        node: htw11
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw13
+    root_causes:
+    - resource:
+        kind: node
+        node: htw13
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw21
+    root_causes:
+    - resource:
+        kind: node
+        node: htw21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw22
+    root_causes:
+    - resource:
+        kind: node
+        node: htw22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw23
+    root_causes:
+    - resource:
+        kind: node
+        node: htw23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw24
+    root_causes:
+    - resource:
+        kind: node
+        node: htw24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw5
+    root_causes:
+    - resource:
+        kind: node
+        node: htw5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw63
+    root_causes:
+    - resource:
+        kind: node
+        node: htw63
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw64
+    root_causes:
+    - resource:
+        kind: node
+        node: htw64
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw7
+    root_causes:
+    - resource:
+        kind: node
+        node: htw7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw9
+    root_causes:
+    - resource:
+        kind: node
+        node: htw9
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu
+    root_causes:
+    - resource:
+        kind: node
+        node: hu
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu1
+    root_causes:
+    - resource:
+        kind: node
+        node: hu1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu10
+    root_causes:
+    - resource:
+        kind: node
+        node: hu10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu17
+    root_causes:
+    - resource:
+        kind: node
+        node: hu17
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu19
+    root_causes:
+    - resource:
+        kind: node
+        node: hu19
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu2
+    root_causes:
+    - resource:
+        kind: node
+        node: hu2
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu20
+    root_causes:
+    - resource:
+        kind: node
+        node: hu20
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu21
+    root_causes:
+    - resource:
+        kind: node
+        node: hu21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu22
+    root_causes:
+    - resource:
+        kind: node
+        node: hu22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu23
+    root_causes:
+    - resource:
+        kind: node
+        node: hu23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu24
+    root_causes:
+    - resource:
+        kind: node
+        node: hu24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu3
+    root_causes:
+    - resource:
+        kind: node
+        node: hu3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu4
+    root_causes:
+    - resource:
+        kind: node
+        node: hu4
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu43
+    root_causes:
+    - resource:
+        kind: node
+        node: hu43
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu5
+    root_causes:
+    - resource:
+        kind: node
+        node: hu5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu6
+    root_causes:
+    - resource:
+        kind: node
+        node: hu6
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu7
+    root_causes:
+    - resource:
+        kind: node
+        node: hu7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu8
+    root_causes:
+    - resource:
+        kind: node
+        node: hu8
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu9
+    root_causes:
+    - resource:
+        kind: node
+        node: hu9
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk
+    root_causes:
+    - resource:
+        kind: node
+        node: spk
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk1
+    root_causes:
+    - resource:
+        kind: node
+        node: spk1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk10
+    root_causes:
+    - resource:
+        kind: node
+        node: spk10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk11
+    root_causes:
+    - resource:
+        kind: node
+        node: spk11
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk2
+    root_causes:
+    - resource:
+        kind: node
+        node: spk2
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk20
+    root_causes:
+    - resource:
+        kind: node
+        node: spk20
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk21
+    root_causes:
+    - resource:
+        kind: node
+        node: spk21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk22
+    root_causes:
+    - resource:
+        kind: node
+        node: spk22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk23
+    root_causes:
+    - resource:
+        kind: node
+        node: spk23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk24
+    root_causes:
+    - resource:
+        kind: node
+        node: spk24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk3
+    root_causes:
+    - resource:
+        kind: node
+        node: spk3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk4
+    root_causes:
+    - resource:
+        kind: node
+        node: spk4
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk44
+    root_causes:
+    - resource:
+        kind: node
+        node: spk44
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk5
+    root_causes:
+    - resource:
+        kind: node
+        node: spk5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk6
+    root_causes:
+    - resource:
+        kind: node
+        node: spk6
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk64
+    root_causes:
+    - resource:
+        kind: node
+        node: spk64
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk7
+    root_causes:
+    - resource:
+        kind: node
+        node: spk7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk8
+    root_causes:
+    - resource:
+        kind: node
+        node: spk8
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: spk9
+    root_causes:
+    - resource:
+        kind: node
+        node: spk9
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu
+    root_causes:
+    - resource:
+        kind: node
+        node: tu
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu1
+    root_causes:
+    - resource:
+        kind: node
+        node: tu1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu10
+    root_causes:
+    - resource:
+        kind: node
+        node: tu10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu11
+    root_causes:
+    - resource:
+        kind: node
+        node: tu11
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu12
+    root_causes:
+    - resource:
+        kind: node
+        node: tu12
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu18
+    root_causes:
+    - resource:
+        kind: node
+        node: tu18
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu19
+    root_causes:
+    - resource:
+        kind: node
+        node: tu19
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu2
+    root_causes:
+    - resource:
+        kind: node
+        node: tu2
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu21
+    root_causes:
+    - resource:
+        kind: node
+        node: tu21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu22
+    root_causes:
+    - resource:
+        kind: node
+        node: tu22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu23
+    root_causes:
+    - resource:
+        kind: node
+        node: tu23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu24
+    root_causes:
+    - resource:
+        kind: node
+        node: tu24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu3
+    root_causes:
+    - resource:
+        kind: node
+        node: tu3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu4
+    root_causes:
+    - resource:
+        kind: node
+        node: tu4
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu5
+    root_causes:
+    - resource:
+        kind: node
+        node: tu5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu6
+    root_causes:
+    - resource:
+        kind: node
+        node: tu6
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu63
+    root_causes:
+    - resource:
+        kind: node
+        node: tu63
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu7
+    root_causes:
+    - resource:
+        kind: node
+        node: tu7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu8
+    root_causes:
+    - resource:
+        kind: node
+        node: tu8
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up
+    root_causes:
+    - resource:
+        kind: node
+        node: up
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up1
+    root_causes:
+    - resource:
+        kind: node
+        node: up1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up10
+    root_causes:
+    - resource:
+        kind: node
+        node: up10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up20
+    root_causes:
+    - resource:
+        kind: node
+        node: up20
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up21
+    root_causes:
+    - resource:
+        kind: node
+        node: up21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up22
+    root_causes:
+    - resource:
+        kind: node
+        node: up22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up23
+    root_causes:
+    - resource:
+        kind: node
+        node: up23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up24
+    root_causes:
+    - resource:
+        kind: node
+        node: up24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up3
+    root_causes:
+    - resource:
+        kind: node
+        node: up3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up5
+    root_causes:
+    - resource:
+        kind: node
+        node: up5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: up7
+    root_causes:
+    - resource:
+        kind: node
+        node: up7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias
+    root_causes:
+    - resource:
+        kind: node
+        node: wias
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias1
+    root_causes:
+    - resource:
+        kind: node
+        node: wias1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias10
+    root_causes:
+    - resource:
+        kind: node
+        node: wias10
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias11
+    root_causes:
+    - resource:
+        kind: node
+        node: wias11
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias13
+    root_causes:
+    - resource:
+        kind: node
+        node: wias13
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias2
+    root_causes:
+    - resource:
+        kind: node
+        node: wias2
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias4
+    root_causes:
+    - resource:
+        kind: node
+        node: wias4
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias5
+    root_causes:
+    - resource:
+        kind: node
+        node: wias5
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias6
+    root_causes:
+    - resource:
+        kind: node
+        node: wias6
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias7
+    root_causes:
+    - resource:
+        kind: node
+        node: wias7
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias8
+    root_causes:
+    - resource:
+        kind: node
+        node: wias8
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias9
+    root_causes:
+    - resource:
+        kind: node
+        node: wias9
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib
+    root_causes:
+    - resource:
+        kind: node
+        node: zib
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib100
+    root_causes:
+    - resource:
+        kind: node
+        node: zib100
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib101
+    root_causes:
+    - resource:
+        kind: node
+        node: zib101
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib102
+    root_causes:
+    - resource:
+        kind: node
+        node: zib102
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib104
+    root_causes:
+    - resource:
+        kind: node
+        node: zib104
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib124
+    root_causes:
+    - resource:
+        kind: node
+        node: zib124
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib143
+    root_causes:
+    - resource:
+        kind: node
+        node: zib143
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib144
+    root_causes:
+    - resource:
+        kind: node
+        node: zib144
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib21
+    root_causes:
+    - resource:
+        kind: node
+        node: zib21
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib22
+    root_causes:
+    - resource:
+        kind: node
+        node: zib22
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib23
+    root_causes:
+    - resource:
+        kind: node
+        node: zib23
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib24
+    root_causes:
+    - resource:
+        kind: node
+        node: zib24
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib61
+    root_causes:
+    - resource:
+        kind: node
+        node: zib61
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib62
+    root_causes:
+    - resource:
+        kind: node
+        node: zib62
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib63
+    root_causes:
+    - resource:
+        kind: node
+        node: zib63
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib64
+    root_causes:
+    - resource:
+        kind: node
+        node: zib64
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib65
+    root_causes:
+    - resource:
+        kind: node
+        node: zib65
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib66
+    root_causes:
+    - resource:
+        kind: node
+        node: zib66
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib67
+    root_causes:
+    - resource:
+        kind: node
+        node: zib67
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib68
+    root_causes:
+    - resource:
+        kind: node
+        node: zib68
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib69
+    root_causes:
+    - resource:
+        kind: node
+        node: zib69
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib70
+    root_causes:
+    - resource:
+        kind: node
+        node: zib70
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib77
+    root_causes:
+    - resource:
+        kind: node
+        node: zib77
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib79
+    root_causes:
+    - resource:
+        kind: node
+        node: zib79
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib81
+    root_causes:
+    - resource:
+        kind: node
+        node: zib81
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib82
+    root_causes:
+    - resource:
+        kind: node
+        node: zib82
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib83
+    root_causes:
+    - resource:
+        kind: node
+        node: zib83
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib85
+    root_causes:
+    - resource:
+        kind: node
+        node: zib85
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib87
+    root_causes:
+    - resource:
+        kind: node
+        node: zib87
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib95
+    root_causes:
+    - resource:
+        kind: node
+        node: zib95
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib96
+    root_causes:
+    - resource:
+        kind: node
+        node: zib96
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib97
+    root_causes:
+    - resource:
+        kind: node
+        node: zib97
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib98
+    root_causes:
+    - resource:
+        kind: node
+        node: zib98
+      fault_type: ospf_area_misconfiguration
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: zib99
+    root_causes:
+    - resource:
+        kind: node
+        node: zib99
+      fault_type: ospf_area_misconfiguration

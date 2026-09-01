@@ -1,6 +1,0 @@
-table_set_default dmac_forward drop
-table_add dmac_forward forward_to_port 00:00:00:00:00:00&&&00:00:00:00:00:00 00:00:0a:00:00:01 => 1 10
-table_add dmac_forward forward_to_port 00:00:00:00:00:00&&&00:00:00:00:00:00 00:00:0a:00:00:02 => 2 10
-table_add dmac_forward forward_to_port 00:00:00:00:00:00&&&00:00:00:00:00:00 00:00:0a:00:00:03 => 2 10
-table_add egress.process_int_transit.tb_int_insert init_metadata 1 => 2
-EOF

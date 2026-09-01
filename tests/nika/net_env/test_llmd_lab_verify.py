@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import pytest
-from nika.net_env.kathara.kubernetes.llmd_lab.lab import LLMDInferenceCluster
-from tests.support.integration_base import CliIntegrationTestCase, PerTestEnvTestCase
-from tests.support.prerequisites import docker_available, privileged_lab_supported
+from nika.net_env.llmd_lab.lab import LLMDInferenceCluster
 from tests.support.net_env import instantiate_with_mocked_kathara
 
 
@@ -12,7 +9,7 @@ class LLMDLabUnitTest:
 
     def _inst(self) -> LLMDInferenceCluster:
         return instantiate_with_mocked_kathara(
-            "nika.net_env.kathara.kubernetes.llmd_lab.lab.Kathara.get_instance",
+            "nika.net_env.llmd_lab.lab.Kathara.get_instance",
             LLMDInferenceCluster,
         )
 
@@ -35,6 +32,14 @@ class LLMDLabUnitTest:
         inst = self._inst()
 
         assert "client" in inst.hosts
+
+    def test_has_web_service(self) -> None:
+        """llmd_lab must expose a dedicated web service for HTTP faults."""
+        inst = self._inst()
+
+        assert "web" in (inst.servers or {}).get("web", [])
+        assert "web" in inst.lab.machines
+        assert inst.lab.machines["web"].get_image() == "nika/base"
 
     def test_all_k3s_nodes_are_bridged(self) -> None:
         """All k3s nodes must have bridged=True for internet access."""
@@ -70,19 +75,3 @@ class LLMDLabUnitTest:
             assert machine.is_privileged(), (
                 f"Expected {node_name} to be privileged but it is not"
             )
-
-
-@pytest.mark.skipif(
-    not (docker_available() and privileged_lab_supported()),
-    reason="Requires Docker and root (privileged k3s containers)",
-)
-class LLMDLabStartupVerifyTest(CliIntegrationTestCase, PerTestEnvTestCase):
-    """Deploy llmd_lab via CLI and verify the session is running."""
-
-    SCENARIO = LLMDInferenceCluster.LAB_NAME
-
-    def test_session_running_and_listed(self) -> None:
-        """Session must be running and llmd_lab must appear in env list."""
-        list_output = self._invoke_ok(["env", "list"])
-
-        assert LLMDInferenceCluster.LAB_NAME in list_output

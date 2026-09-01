@@ -1,0 +1,61 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: dns_port_blocked
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dns_pod0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_port_blocked
+  - topo_size: m
+    inject:
+      host_name: dns_pod0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_port_blocked
+  - topo_size: m
+    inject:
+      host_name: dns_pod1
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod1
+      fault_type: dns_port_blocked
+  - topo_size: l
+    inject:
+      host_name: dns_pod0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_port_blocked
+  - topo_size: l
+    inject:
+      host_name: dns_pod1
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod1
+      fault_type: dns_port_blocked
+  - topo_size: l
+    inject:
+      host_name: dns_pod2
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod2
+      fault_type: dns_port_blocked
+  - topo_size: l
+    inject:
+      host_name: dns_pod3
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod3
+      fault_type: dns_port_blocked

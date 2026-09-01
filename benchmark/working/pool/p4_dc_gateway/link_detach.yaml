@@ -1,0 +1,2165 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: link_detach
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: client_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: gateway_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: gateway_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    inject:
+      host_name: leaf_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: client_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: client_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: client_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: client_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth6
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_3
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_3
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_3
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_4
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_4
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_4
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: gateway_4
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_2
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth5
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_3
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth5
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: leaf_4
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_5
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_6
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_7
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: client_8
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth10
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_2
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_3
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_4
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_5
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_6
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_7
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: gateway_8
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_2
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_3
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_3
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_4
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_4
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_5
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_5
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_6
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_6
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_7
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_7
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: leaf_8
+      intf_name: eth9
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_8
+        name: eth9
+      fault_type: link_detach

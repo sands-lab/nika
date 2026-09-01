@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 import typer
 
-from nika.generator.traffic.od_flows import ODFLowGenerator
-from nika.generator.traffic.web_access import WebBrowsingTrafficGenerator
+from traffic.od_flows import ODFLowGenerator
+from traffic.web_access import WebBrowsingTrafficGenerator
 from nika.net_env.net_env_pool import get_net_env_instance, scenario_requires_topo_size
 from nika.runtime.factory import runtime_for_net_env
 from nika.utils.session_resolve import resolve_running_session_id
@@ -19,6 +19,7 @@ from nika.utils.session_store import SessionStore
 traffic_app = typer.Typer(help="Generate traffic in the Kathará lab.")
 
 _TRAFFIC_TYPE_HELP: dict[str, str] = {
+    "burst": "Synchronized deterministic UDP or TCP incast.",
     "od": "OD-matrix iperf3 between hosts (--od-json, --mesh-mbps, or --all-to-host + --mbps).",
     "web": "Synthetic web browsing (ab) for scenarios with web_urls.",
     "sndlib": "Replay SNDlib demands/dynamic series on isp stub hosts (interval order).",
@@ -43,9 +44,24 @@ def _resolve_lab_and_size(
     lab: str | None,
     size: str | None,
 ) -> tuple[str, str | None]:
+    store = SessionStore()
+    if lab:
+        try:
+            matches = [
+                row
+                for row in store.list_running_sessions()
+                if row.get("lab_name") == lab
+            ]
+            if len(matches) == 1:
+                meta = store.get_session(str(matches[0]["session_id"]))
+                scenario = meta.get("scenario_name")
+                if scenario:
+                    return str(scenario), size or meta.get("scenario_topo_size")
+        except (OSError, KeyError, TypeError, json.JSONDecodeError):
+            pass
     try:
         resolved_id = resolve_running_session_id()
-        meta = SessionStore().get_session(resolved_id)
+        meta = store.get_session(resolved_id)
     except (
         FileNotFoundError,
         ValueError,
@@ -75,6 +91,18 @@ def _normalize_size(raw: str | None) -> str | None:
     if raw not in ("s", "m", "l"):
         raise typer.BadParameter("Topology size must be one of: s, m, l.")
     return raw
+
+
+def _active_runtime_lab_name(scenario: str) -> str | None:
+    """Return the concrete lab name when the current session matches a scenario."""
+    try:
+        session_id = resolve_running_session_id()
+        meta = SessionStore().get_session(session_id)
+    except (FileNotFoundError, ValueError, OSError, KeyError, TypeError):
+        return None
+    if meta.get("scenario_name") != scenario:
+        return None
+    return str(meta.get("lab_name") or "") or None
 
 
 @traffic_app.command("fetch")
@@ -111,7 +139,9 @@ def traffic_list() -> None:
 
 @traffic_app.command("run")
 def traffic_run(
-    traffic_type: str = typer.Argument(..., metavar="TYPE", help="od | web | sndlib"),
+    traffic_type: str = typer.Argument(
+        ..., metavar="TYPE", help="od | web | sndlib | burst"
+    ),
     background: bool = typer.Option(
         False,
         "--background/--no-background",
@@ -189,6 +219,26 @@ def traffic_run(
     no_loop: bool = typer.Option(
         False, "--no-loop", help="[web] Run one browsing session per host then stop."
     ),
+    sources: str | None = typer.Option(
+        None, "--sources", help="[burst] Comma-separated source node names."
+    ),
+    destination: str | None = typer.Option(
+        None, "--destination", help="[burst] Destination node name or address."
+    ),
+    protocol: str = typer.Option("udp", "--protocol", help="[burst] udp or tcp."),
+    rate: str = typer.Option("10M", "--rate", help="[burst] Per-source iperf3 rate."),
+    packet_size: int = typer.Option(
+        1200, "--packet-size", help="[burst] Packet or write size in bytes."
+    ),
+    duration: int = typer.Option(
+        10, "--duration", help="[burst] Flow duration in seconds."
+    ),
+    synchronized_start: float = typer.Option(
+        0.0,
+        "--synchronized-start",
+        help="[burst] Unix start timestamp; 0 chooses the next second.",
+    ),
+    seed: int = typer.Option(42, "--seed", help="[burst] Deterministic flow seed."),
 ) -> None:
     """Start traffic of the given TYPE against the current lab (or ``--lab``)."""
     t = traffic_type.strip().lower()
@@ -199,6 +249,35 @@ def traffic_run(
 
     size_n = _normalize_size(size)
     scenario, size_resolved = _resolve_lab_and_size(lab=lab, size=size_n)
+
+    if t == "burst":
+        from traffic.burst import BurstTrafficGenerator
+
+        if not sources or not destination:
+            raise typer.BadParameter("burst requires --sources and --destination.")
+        protocol_n = protocol.strip().lower()
+        if protocol_n not in {"udp", "tcp"}:
+            raise typer.BadParameter("--protocol must be udp or tcp.")
+        if packet_size <= 0 or duration <= 0:
+            raise typer.BadParameter("--packet-size and --duration must be positive.")
+        kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        if runtime_lab_name:
+            kwargs["lab_name"] = runtime_lab_name
+        net_env = get_net_env_instance(scenario, **kwargs)
+        generator = BurstTrafficGenerator(runtime_for_net_env(net_env))
+        event = generator.run(
+            sources=[item.strip() for item in sources.split(",") if item.strip()],
+            destination=destination,
+            protocol=protocol_n,  # type: ignore[arg-type]
+            rate=rate,
+            packet_size=packet_size,
+            duration=duration,
+            synchronized_start=synchronized_start,
+            seed=seed,
+        )
+        typer.echo(json.dumps(event, indent=2))
+        return
 
     if unit not in ("K", "M"):
         raise typer.BadParameter('--unit must be "K" or "M".')
@@ -225,6 +304,9 @@ def traffic_run(
                 "`web` traffic always blocks this CLI until interrupted; do not pass `--background`."
             )
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        if runtime_lab_name:
+            kwargs["lab_name"] = runtime_lab_name
         gen = WebBrowsingTrafficGenerator(
             scenario_name=scenario,
             request_delay_range=(request_delay_min, request_delay_max),
@@ -237,6 +319,9 @@ def traffic_run(
 
     if t == "od":
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        if runtime_lab_name:
+            kwargs["lab_name"] = runtime_lab_name
         net_env = get_net_env_instance(scenario, **kwargs)
         hosts = list(net_env.hosts)
 
@@ -322,12 +407,18 @@ def _run_sndlib(
     server_args: str,
     client_args: str,
 ) -> None:
-    from nika.generator.traffic.sndlib_replay import SndlibTrafficReplayer
+    from traffic.sndlib_replay import SndlibTrafficReplayer
     from nika.net_env.isp.traffic import resolve_traffic_series
     from nika.net_env.isp.traffic.models import DEFAULT_TRAFFIC_SCALE
+    from nika.net_env.isp.identity import (
+        is_isp_scenario,
+        isp_topo_from_scenario,
+    )
 
-    if scenario != "isp":
-        raise typer.BadParameter("sndlib traffic replay requires scenario 'isp'.")
+    if not is_isp_scenario(scenario):
+        raise typer.BadParameter(
+            "sndlib traffic replay requires an ISP scenario (e.g. isp_abilene)."
+        )
 
     traffic_mode = (mode or "demands").strip().lower()
     if traffic_mode not in ("demands", "dynamic"):
@@ -367,7 +458,11 @@ def _run_sndlib(
         kwargs.update(_net_env_kwargs_for_scenario(scenario, size_resolved))
 
     net_env = get_net_env_instance(scenario, **kwargs)
-    topo = params.get("topo") or getattr(net_env, "topo", None) or "polska"
+    topo = (
+        params.get("topo")
+        or getattr(net_env, "topo", None)
+        or isp_topo_from_scenario(scenario)
+    )
     series = resolve_traffic_series(topo, traffic_mode)
     if series is None:
         raise typer.BadParameter("Could not resolve SNDlib traffic series.")

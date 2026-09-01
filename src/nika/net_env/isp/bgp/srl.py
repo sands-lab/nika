@@ -49,10 +49,7 @@ def routing_policy_document() -> dict[str, Any]:
                     "statement": [
                         {
                             "name": "10",
-                            "match": {
-                                "prefix-set": "BUSINESS",
-                                "protocol": "local",
-                            },
+                            "match": {"prefix-set": "BUSINESS"},
                             "action": {"policy-result": "accept"},
                         },
                         {
@@ -132,6 +129,12 @@ def _render_ebgp(node: BgpNodePlan) -> dict[str, Any]:
         "admin-state": "enable",
         "autonomous-system": node.asn,
         "router-id": node.router_id,
+        # SRL rejects eBGP import/export unless a policy matches; disable the
+        # default reject-all so group afi-safi BGP-IN/BGP-OUT policies apply.
+        "ebgp-default-policy": {
+            "import-reject-all": False,
+            "export-reject-all": False,
+        },
         "afi-safi": [{"afi-safi-name": "ipv4-unicast", "admin-state": "enable"}],
         "group": [
             {
@@ -147,5 +150,5 @@ def _render_ebgp(node: BgpNodePlan) -> dict[str, Any]:
                 ],
             }
         ],
-        "neighbor": _neighbors(node, group="EBGP", rr_clients=False),
+        "neighbor": _neighbors(node, group="EBGP", rr_clients=True),
     }

@@ -1,0 +1,35 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: mac_address_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: web_server_1
+      host_name_2: web_server_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_1
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: m
+    inject:
+      host_name: web_server_2
+      host_name_2: web_server_0
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_2
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: l
+    inject:
+      host_name: load_balancer
+      host_name_2: pc_2_4_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: load_balancer
+        name: eth0
+      fault_type: mac_address_conflict

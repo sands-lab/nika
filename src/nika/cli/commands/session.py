@@ -20,15 +20,13 @@ def _failure_summary(session: dict) -> str:
         problem_names = session.get("problem_names")
         if isinstance(problem_names, list) and problem_names:
             return str(problem_names[0])
-        root_cause = session.get("root_cause_name")
-        if isinstance(root_cause, str) and root_cause:
-            return root_cause
-        if isinstance(root_cause, list) and root_cause:
-            return str(root_cause[0])
         injections = session.get("failure_injections", [])
         if len(injections) == 1:
             return str(injections[0].get("problem_name", "—"))
         return "1"
+    problem_names = session.get("problem_names")
+    if isinstance(problem_names, list) and len(problem_names) > 1:
+        return "+".join(str(name) for name in problem_names)
     return str(n_failures)
 
 
@@ -90,7 +88,7 @@ def session_ps(
     Columns
     -------
     SESSION ID  unique session identifier
-    ENV ID      scenario name plus instance suffix (e.g. simple_bgp_a1b2c3)
+    ENV ID      scenario name plus instance suffix (e.g. dc_clos_a1b2c3)
     STATUS      running | finished
     FAILURES    problem name when there is one, otherwise record count
     AGENTS      agent activity summary

@@ -2,8 +2,10 @@ from nika.service.kathara.base_api import KatharaBaseAPI
 from nika.service.kathara.bmv2_api import BMv2APIMixin, KatharaBMv2API
 from nika.service.kathara.frr_api import FRRAPIMixin, KatharaFRRAPI
 from nika.service.kathara.intf_api import IntfAPIMixin, KatharaIntfAPI
+from nika.service.kathara.iosxr_api import IOSXRAPIMixin, KatharaIOSXRAPI
 from nika.service.kathara.k8s_api import KatharaK8sAPI, K8sAPIMixin
 from nika.service.kathara.nftable_api import KatharaNFTableAPI, NFTableMixin
+from nika.service.kathara.sdn_api import KatharaSdnAPI, SdnAPIMixin
 from nika.service.kathara.tc_api import KatharaTCAPI, TCMixin
 from nika.service.kathara.telemetry_api import KatharaTelemetryAPI, TelemetryAPIMixin
 
@@ -13,7 +15,9 @@ __all__ = [
     "KatharaBMv2API",
     "KatharaFRRAPI",
     "KatharaIntfAPI",
+    "KatharaIOSXRAPI",
     "KatharaNFTableAPI",
+    "KatharaSdnAPI",
     "KatharaTCAPI",
     "KatharaTelemetryAPI",
     "KatharaK8sAPI",
@@ -25,10 +29,12 @@ class KatharaAPIALL(
     BMv2APIMixin,
     FRRAPIMixin,
     IntfAPIMixin,
+    IOSXRAPIMixin,
     NFTableMixin,
     TCMixin,
     TelemetryAPIMixin,
     K8sAPIMixin,
+    SdnAPIMixin,
 ):
     """
     Combined API for all Kathara functionalities.

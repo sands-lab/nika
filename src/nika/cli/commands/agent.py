@@ -50,6 +50,7 @@ def _activate_run_config(
     model: str | None,
     max_steps: int | None,
     reasoning_effort: str | None,
+    access_role: str | None,
     sandbox_keep_container: bool,
     sandbox_cpus: str | None,
     sandbox_memory: str | None,
@@ -65,6 +66,7 @@ def _activate_run_config(
         model=model,
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
+        access_role=access_role,
         sandbox_keep=sandbox_keep_container or None,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,
@@ -127,6 +129,9 @@ def agent_run(
             "langgraph), cli.codex, and sdk.codex_sdk: none, minimal, low, "
             "medium, high, xhigh. byo.mcp_agent supports none/low/medium/high."
         ),
+    ),
+    access_role: str | None = typer.Option(
+        None, "--role", help="Diagnosis access role (default: agent.access.role)."
     ),
     run_config: str | None = typer.Option(
         None,
@@ -198,6 +203,7 @@ def agent_run(
         model=model,
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
+        access_role=access_role,
         sandbox_keep_container=sandbox_keep_container,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,

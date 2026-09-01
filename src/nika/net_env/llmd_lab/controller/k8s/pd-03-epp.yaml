@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-d-epp
+  namespace: llm-d
+  labels:
+    app: llm-d-epp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-d-epp
+  template:
+    metadata:
+      labels:
+        app: llm-d-epp
+    spec:
+      serviceAccountName: llm-d-epp
+      terminationGracePeriodSeconds: 130
+      containers:
+      - name: epp
+        image: ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - --pool-name
+        - llm-d-pd
+        - --pool-namespace
+        - llm-d
+        - --pool-group
+        - inference.networking.k8s.io
+        - --v
+        - "4"
+        - --zap-encoder
+        - json
+        - --grpc-port
+        - "9002"
+        - --grpc-health-port
+        - "9003"
+        - --config-file
+        - /etc/epp/epp-config.yaml
+        ports:
+        - name: grpc
+          containerPort: 9002
+          protocol: TCP
+        - name: health
+          containerPort: 9003
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        livenessProbe:
+          grpc:
+            port: 9003
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 9003
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
+        volumeMounts:
+        - name: epp-config
+          mountPath: /etc/epp
+          readOnly: true
+      volumes:
+      - name: epp-config
+        configMap:
+          name: epp-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-d-epp
+  namespace: llm-d
+  labels:
+    app: llm-d-epp
+spec:
+  selector:
+    app: llm-d-epp
+  ports:
+  - name: grpc
+    port: 9002
+    targetPort: 9002
+    protocol: TCP
+    appProtocol: http2
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,14 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: host_incorrect_netmask
+  cases:
+  - inject:
+      host_name: client
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: client
+        name: eth0
+      fault_type: host_incorrect_netmask

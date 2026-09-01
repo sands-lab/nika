@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nika.problems.root_cause import UnresolvedRootCauseError
+from nika.problems.rca import UnresolvedRootCauseError
 from nika.workflows.benchmark.migrate import migrate_benchmark_yaml
 
 
@@ -39,9 +39,8 @@ class MigrateBenchmarkTest:
         causes = yaml.safe_load(out.read_text())["cases"][0]["root_causes"]
         assert causes[0]["fault_type"] == "link_down"
         assert causes[0]["resource"] == {
-            "kind": "interface",
-            "node": "pc1",
-            "name": "eth0",
+            "kind": "link",
+            "name": "pc1:eth0--router1:eth1",
         }
 
     def test_unresolved_is_reported(self, tmp_path: Path) -> None:

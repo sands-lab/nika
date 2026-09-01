@@ -1,0 +1,29 @@
+scenario:
+  name: sdn_l3_clos
+failure:
+  fault_type: sdn_controller_crash
+  cases:
+  - topo_size: s
+    inject:
+      host_name: onos
+    root_causes:
+    - resource:
+        kind: node
+        node: onos
+      fault_type: sdn_controller_crash
+  - topo_size: m
+    inject:
+      host_name: onos
+    root_causes:
+    - resource:
+        kind: node
+        node: onos
+      fault_type: sdn_controller_crash
+  - topo_size: l
+    inject:
+      host_name: onos
+    root_causes:
+    - resource:
+        kind: node
+        node: onos
+      fault_type: sdn_controller_crash

@@ -12,16 +12,16 @@ def assert_phase_messages(
     require_diagnosis_tools: bool = True,
     require_submission_tools: bool = True,
 ) -> None:
-    agents = {e["agent"] for e in messages}
-    assert DIAGNOSIS in agents
+    phases = {e["phase"] for e in messages}
+    assert DIAGNOSIS in phases
     if require_submission_tools:
-        assert SUBMISSION in agents
+        assert SUBMISSION in phases
 
     if require_diagnosis_tools:
         diag_tools = [
             name
             for e in messages
-            if e["agent"] == DIAGNOSIS
+            if e["phase"] == DIAGNOSIS
             for name in _extract_tool_names(e)
         ]
         assert diag_tools, "diagnosis phase must call at least one MCP tool"
@@ -30,11 +30,9 @@ def assert_phase_messages(
         sub_tools = [
             name
             for e in messages
-            if e["agent"] == SUBMISSION
+            if e["phase"] == SUBMISSION
             for name in _extract_tool_names(e)
         ]
-        assert any("list_resources" in name for name in sub_tools), sub_tools
-        assert any("list_avail_problems" in name for name in sub_tools), sub_tools
         assert any("submit" in name for name in sub_tools), sub_tools
 
 
@@ -126,26 +124,3 @@ def marker_before_first_mcp_tool(
             if tool_name and tool_name != "Skill":
                 return False
     return False
-
-
-def assert_skill_invoked(
-    messages: list[dict],
-    skill_name: str = "nika-test-skill",
-) -> None:
-    invoked = skill_invoked(messages, skill_name=skill_name)
-    workflow = marker_before_first_mcp_tool(messages)
-    assert invoked or workflow, (
-        f"expected skill {skill_name!r} to be invoked or its marker-first workflow followed"
-    )
-    assert workflow, "expected NIKA_TEST_SKILL_ACTIVE before the first MCP tool call"
-
-
-def reachability_called_before_submit(messages: list[dict]) -> bool:
-    saw_reachability = False
-    for entry in messages:
-        for tool_name in _extract_tool_names(entry):
-            if "submit" in tool_name:
-                return saw_reachability
-            if "get_reachability" in tool_name:
-                saw_reachability = True
-    return saw_reachability

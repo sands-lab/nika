@@ -1,6 +1,0 @@
-# WireGuard key pairs: one line per pair = private_key,public_key
-# Order: vpn_server_1, pc1, web_server_1_1, web_server_1_2 (at least 4 lines required)
-UF6GO/WF8RYGoZspYQ73JxMhdOWAwo3G5/9+655DqUg=,pNjUktPKMOKqq88UPy4BC1TLipjdJPM2ozWZjM8YNjA=
-cIyt1h6wNT/dPAsp90hJJb3i+l/iiWXsCOSYHTm8JGI=,1nsFyoZafBoCbR9Pedsyf2rqjvn6EtsP65wztLsvVV4=
-yGdGi88hELno2Q7gyMvRC9lTsFzWIS2ybjK5Yqs+wX8=,WlmcLCe6ThCHdyAtoS3yPuKnUK9WkSJxp7LFRutG72Y=
-8MDObM28ucE/1zRQL9SAAmZUPc+1RF9cEPBOLqN1JnI=,eru0IX0x/rb5zuoxtEBZSSFEX7wyixmGPP0q3aNyIRs=

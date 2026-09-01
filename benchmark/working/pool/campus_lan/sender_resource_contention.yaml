@@ -1,0 +1,50 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: sender_resource_contention
+  cases:
+  - topo_size: s
+    inject:
+      client_host: pc_1_1_1_1
+      cpu_quota: '0.05'
+      dst_ip: 10.200.0.3
+      duration: '600'
+      host_name: web_server_0
+      large_url: http://10.200.0.3/large.bin
+      small_url: http://10.200.0.3/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: sender_resource_contention
+  - topo_size: m
+    inject:
+      client_host: pc_1_1_1_1
+      cpu_quota: '0.05'
+      dst_ip: 10.200.0.3
+      duration: '600'
+      host_name: web_server_0
+      large_url: http://10.200.0.3/large.bin
+      small_url: http://10.200.0.3/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: sender_resource_contention
+  - topo_size: l
+    inject:
+      client_host: pc_1_1_1_1
+      cpu_quota: '0.05'
+      dst_ip: 10.200.0.3
+      duration: '600'
+      host_name: web_server_0
+      large_url: http://10.200.0.3/large.bin
+      small_url: http://10.200.0.3/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: sender_resource_contention

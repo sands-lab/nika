@@ -1,0 +1,56 @@
+scenario:
+  name: isp_abilene
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: snvang
+      peer_host: pc_snvang
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: snvang
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sttlng
+      peer_host: pc_sttlng
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: sttlng
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: washng
+      peer_host: pc_washng
+      prefix: 203.0.115.0/24
+      probe_dst_ip: 203.0.115.1
+      symptom_host: atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: washng
+      fault_type: bgp_missing_route_advertisement

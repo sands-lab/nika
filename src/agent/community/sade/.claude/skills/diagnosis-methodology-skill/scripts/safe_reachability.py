@@ -161,7 +161,7 @@ def _summary(payload: dict, max_dests: int) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Best-effort reachability when MCP get_reachability() aborts.")
-    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "ospf_enterprise_dhcp"))
+    parser.add_argument("--lab", default=os.getenv("LAB_NAME", "campus_lan"))
     parser.add_argument("--max-dests", type=int, default=2, help="Number of destination devices to sample.")
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args()

@@ -1,0 +1,923 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: link_down
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth1--br1_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth2--isp1_core:eth2
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth3--isp2_core:eth2
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_corp_pc:eth0--br2_edge:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth1--br2_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth2--isp1_core:eth3
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth3--isp2_core:eth3
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_corp_pc:eth0--dc2_edge:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth1--dc2_srv:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth2--dc2_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth3--isp1_core:eth1
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth4--isp2_core:eth1
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_corp_pc:eth0--hq_edge:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth1--hq_srv:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth2--hq_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth3--isp1_core:eth0
+      fault_type: link_down
+  - topo_size: s
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth4--isp2_core:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc2:eth0--br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth1--br1_iot_pc2:eth0--br1_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth2--br1_guest_pc2:eth0--br1_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth3--isp1_core:eth2
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth4--isp2_core:eth2
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_corp_pc2:eth0--br2_corp_pc:eth0--br2_edge:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth1--br2_iot_pc2:eth0--br2_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth2--br2_guest_pc2:eth0--br2_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth3--isp1_core:eth3
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth4--isp2_core:eth3
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br3_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_corp_pc2:eth0--br3_corp_pc:eth0--br3_edge:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth1--br3_iot_pc2:eth0--br3_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth2--br3_guest_pc2:eth0--br3_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth3--isp1_core:eth4
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br3_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth4--isp2_core:eth4
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br4_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_corp_pc2:eth0--br4_corp_pc:eth0--br4_edge:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth1--br4_iot_pc2:eth0--br4_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth2--br4_guest_pc2:eth0--br4_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth3--isp1_core:eth5
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth4--isp2_core:eth5
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_corp_pc2:eth0--dc2_corp_pc:eth0--dc2_edge:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth1--dc2_srv:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth2--dc2_iot_pc2:eth0--dc2_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth3--dc2_guest_pc2:eth0--dc2_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth4--isp1_core:eth1
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: dc2_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth5--isp2_core:eth1
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_corp_pc2:eth0--hq_corp_pc:eth0--hq_edge:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth1--hq_srv:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth2--hq_iot_pc2:eth0--hq_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth3--hq_guest_pc2:eth0--hq_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth4--isp1_core:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: hq_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth5--isp2_core:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc2:eth0--br1_corp_pc3:eth0--br1_corp_pc4:eth0--br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth1--br1_iot_pc2:eth0--br1_iot_pc3:eth0--br1_iot_pc4:eth0--br1_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth2--br1_guest_pc2:eth0--br1_guest_pc3:eth0--br1_guest_pc4:eth0--br1_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth3--isp1_core:eth2
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth4--isp2_core:eth2
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_corp_pc2:eth0--br2_corp_pc3:eth0--br2_corp_pc4:eth0--br2_corp_pc:eth0--br2_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth1--br2_iot_pc2:eth0--br2_iot_pc3:eth0--br2_iot_pc4:eth0--br2_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth2--br2_guest_pc2:eth0--br2_guest_pc3:eth0--br2_guest_pc4:eth0--br2_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth3--isp1_core:eth3
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth4--isp2_core:eth3
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br3_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_corp_pc2:eth0--br3_corp_pc3:eth0--br3_corp_pc4:eth0--br3_corp_pc:eth0--br3_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth1--br3_iot_pc2:eth0--br3_iot_pc3:eth0--br3_iot_pc4:eth0--br3_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth2--br3_guest_pc2:eth0--br3_guest_pc3:eth0--br3_guest_pc4:eth0--br3_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth3--isp1_core:eth4
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br3_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br3_edge:eth4--isp2_core:eth4
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br4_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_corp_pc2:eth0--br4_corp_pc3:eth0--br4_corp_pc4:eth0--br4_corp_pc:eth0--br4_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth1--br4_iot_pc2:eth0--br4_iot_pc3:eth0--br4_iot_pc4:eth0--br4_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth2--br4_guest_pc2:eth0--br4_guest_pc3:eth0--br4_guest_pc4:eth0--br4_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth3--isp1_core:eth5
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br4_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br4_edge:eth4--isp2_core:eth5
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br5_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br5_corp_pc2:eth0--br5_corp_pc3:eth0--br5_corp_pc4:eth0--br5_corp_pc:eth0--br5_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br5_edge:eth1--br5_iot_pc2:eth0--br5_iot_pc3:eth0--br5_iot_pc4:eth0--br5_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br5_edge:eth2--br5_guest_pc2:eth0--br5_guest_pc3:eth0--br5_guest_pc4:eth0--br5_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br5_edge:eth3--isp1_core:eth6
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br5_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br5_edge:eth4--isp2_core:eth6
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br6_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br6_corp_pc2:eth0--br6_corp_pc3:eth0--br6_corp_pc4:eth0--br6_corp_pc:eth0--br6_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br6_edge:eth1--br6_iot_pc2:eth0--br6_iot_pc3:eth0--br6_iot_pc4:eth0--br6_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br6_edge:eth2--br6_guest_pc2:eth0--br6_guest_pc3:eth0--br6_guest_pc4:eth0--br6_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br6_edge:eth3--isp1_core:eth7
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br6_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br6_edge:eth4--isp2_core:eth7
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br7_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br7_corp_pc2:eth0--br7_corp_pc3:eth0--br7_corp_pc4:eth0--br7_corp_pc:eth0--br7_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br7_edge:eth1--br7_iot_pc2:eth0--br7_iot_pc3:eth0--br7_iot_pc4:eth0--br7_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br7_edge:eth2--br7_guest_pc2:eth0--br7_guest_pc3:eth0--br7_guest_pc4:eth0--br7_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br7_edge:eth3--isp1_core:eth8
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br7_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br7_edge:eth4--isp2_core:eth8
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br8_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: br8_corp_pc2:eth0--br8_corp_pc3:eth0--br8_corp_pc4:eth0--br8_corp_pc:eth0--br8_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: br8_edge:eth1--br8_iot_pc2:eth0--br8_iot_pc3:eth0--br8_iot_pc4:eth0--br8_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: br8_edge:eth2--br8_guest_pc2:eth0--br8_guest_pc3:eth0--br8_guest_pc4:eth0--br8_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: br8_edge:eth3--isp1_core:eth9
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: br8_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: br8_edge:eth4--isp2_core:eth9
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_corp_pc2:eth0--dc2_corp_pc3:eth0--dc2_corp_pc4:eth0--dc2_corp_pc:eth0--dc2_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth1--dc2_srv:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth2--dc2_iot_pc2:eth0--dc2_iot_pc3:eth0--dc2_iot_pc4:eth0--dc2_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth3--dc2_guest_pc2:eth0--dc2_guest_pc3:eth0--dc2_guest_pc4:eth0--dc2_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth4--isp1_core:eth1
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: dc2_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth5--isp2_core:eth1
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_corp_pc2:eth0--hq_corp_pc3:eth0--hq_corp_pc4:eth0--hq_corp_pc:eth0--hq_edge:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth1--hq_srv:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth2--hq_iot_pc2:eth0--hq_iot_pc3:eth0--hq_iot_pc4:eth0--hq_iot_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth3--hq_guest_pc2:eth0--hq_guest_pc3:eth0--hq_guest_pc4:eth0--hq_guest_pc:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth4--isp1_core:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: hq_edge
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth5--isp2_core:eth0
+      fault_type: link_down

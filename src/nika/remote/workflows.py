@@ -14,7 +14,7 @@ from nika.config import resolve_results_root
 from nika.remote.client import RemoteClient
 from nika.remote.config import load_remote_config
 from nika.remote.protocol import EnvStartRequest, FailureInjectRequest, PolicyMode
-from nika.service.mcp_gateway.lifecycle import (
+from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     ENV_GATEWAY_URL,
 )
@@ -143,8 +143,10 @@ def remote_start_net_env(
     metric_strategy: str | None = None,
     constant_metric: int | None = None,
     bgp_mode: str | None = None,
+    rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    static_validation: bool = False,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -166,8 +168,10 @@ def remote_start_net_env(
             metric_strategy=metric_strategy,
             constant_metric=constant_metric,
             bgp_mode=bgp_mode,
+            rpki=rpki,
             backend=backend,
             device_profile=device_profile,
+            static_validation=static_validation,
         )
     )
     session = _mirror_session_locally(

@@ -1,0 +1,17 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: incast_traffic_network_limitation
+  cases:
+  - inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web
+      limit: 128kb
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web
+        name: eth0
+      fault_type: incast_traffic_network_limitation

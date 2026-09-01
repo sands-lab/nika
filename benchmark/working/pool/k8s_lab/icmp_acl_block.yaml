@@ -1,0 +1,12 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: icmp_acl_block
+  cases:
+  - inject:
+      host_name: client
+    root_causes:
+    - resource:
+        kind: node
+        node: client
+      fault_type: icmp_acl_block

@@ -232,29 +232,23 @@ class Session:
         os.makedirs(self.session_dir, exist_ok=True)
         run_path = os.path.join(self.session_dir, "run.json")
         serializable = {
-            k: v for k, v in payload.items() if k not in ("store", "failure_injections")
+            k: v
+            for k, v in payload.items()
+            if k not in ("store", "failure_injections", "root_cause_name")
         }
         with open(run_path, "w", encoding="utf-8") as f:
             json.dump(serializable, f, indent=2, default=str)
 
     def update_session(self, key: str, value: Any):
         setattr(self, key, value)
-        if hasattr(self, "problem_names") and hasattr(self, "session_id"):
-            if len(self.problem_names) > 1:
-                self.root_cause_name = "multiple_faults"
-            else:
-                self.root_cause_name = self.problem_names[0]
         self._write_session()
 
     def update_run_meta(self, key: str, value: Any):
         """Update ``run.json`` for a closed session (no runtime session document)."""
         setattr(self, key, value)
-        if hasattr(self, "problem_names") and hasattr(self, "session_id"):
-            if len(self.problem_names) > 1:
-                self.root_cause_name = "multiple_faults"
-            else:
-                self.root_cause_name = self.problem_names[0]
         payload = {k: v for k, v in self.__dict__.items() if k != "store"}
+        # Drop legacy packaging field if present on older in-memory sessions.
+        payload.pop("root_cause_name", None)
         self._write_run_json(payload)
         if hasattr(self, "session_id"):
             fields = extract_index_fields(payload)

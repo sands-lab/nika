@@ -1,0 +1,2445 @@
+scenario:
+  name: isp_janos-us-ca
+failure:
+  fault_type: link_capacity_bottleneck
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth0--nashville:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_charlotte
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth1--charlotte:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth2--neworleans:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth3--nashville:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_charlotte
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth4--charlotte:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth5--neworleans:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_tampa
+      probe_dst_ip: 10.254.0.138
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth6--tampa:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: atlanta
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_tampa
+      probe_dst_ip: 10.254.0.138
+      rate: 30kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth7--tampa:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: boston
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_newyork
+      probe_dst_ip: 10.254.0.90
+      rate: 30kbit
+      symptom_host: pc_boston
+    root_causes:
+    - resource:
+        kind: link
+        name: boston:eth0--newyork:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: boston
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_montreal
+      probe_dst_ip: 10.254.0.78
+      rate: 30kbit
+      symptom_host: pc_boston
+    root_causes:
+    - resource:
+        kind: link
+        name: boston:eth1--montreal:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: boston
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_newyork
+      probe_dst_ip: 10.254.0.90
+      rate: 30kbit
+      symptom_host: pc_boston
+    root_causes:
+    - resource:
+        kind: link
+        name: boston:eth2--newyork:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: boston
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_montreal
+      probe_dst_ip: 10.254.0.78
+      rate: 30kbit
+      symptom_host: pc_boston
+    root_causes:
+    - resource:
+        kind: link
+        name: boston:eth3--montreal:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: calgary
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_vancouver
+      probe_dst_ip: 10.254.0.146
+      rate: 30kbit
+      symptom_host: pc_calgary
+    root_causes:
+    - resource:
+        kind: link
+        name: calgary:eth0--vancouver:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: calgary
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_winnipeg
+      probe_dst_ip: 10.254.0.154
+      rate: 30kbit
+      symptom_host: pc_calgary
+    root_causes:
+    - resource:
+        kind: link
+        name: calgary:eth1--winnipeg:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: calgary
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_vancouver
+      probe_dst_ip: 10.254.0.146
+      rate: 30kbit
+      symptom_host: pc_calgary
+    root_causes:
+    - resource:
+        kind: link
+        name: calgary:eth2--vancouver:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: calgary
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_calgary
+    root_causes:
+    - resource:
+        kind: link
+        name: calgary:eth3--saltlakecity:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: calgary
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_winnipeg
+      probe_dst_ip: 10.254.0.154
+      rate: 30kbit
+      symptom_host: pc_calgary
+    root_causes:
+    - resource:
+        kind: link
+        name: calgary:eth4--winnipeg:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: calgary
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_calgary
+    root_causes:
+    - resource:
+        kind: link
+        name: calgary:eth5--saltlakecity:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: charlotte
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_charlotte
+    root_causes:
+    - resource:
+        kind: link
+        name: charlotte:eth0--nashville:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: charlotte
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_charlotte
+    root_causes:
+    - resource:
+        kind: link
+        name: charlotte:eth1--nashville:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: charlotte
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_washingtondc
+      probe_dst_ip: 10.254.0.150
+      rate: 30kbit
+      symptom_host: pc_charlotte
+    root_causes:
+    - resource:
+        kind: link
+        name: charlotte:eth3--washingtondc:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: charlotte
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_tampa
+      probe_dst_ip: 10.254.0.138
+      rate: 30kbit
+      symptom_host: pc_charlotte
+    root_causes:
+    - resource:
+        kind: link
+        name: charlotte:eth4--tampa:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: charlotte
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_washingtondc
+      probe_dst_ip: 10.254.0.150
+      rate: 30kbit
+      symptom_host: pc_charlotte
+    root_causes:
+    - resource:
+        kind: link
+        name: charlotte:eth6--washingtondc:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: charlotte
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_tampa
+      probe_dst_ip: 10.254.0.138
+      rate: 30kbit
+      symptom_host: pc_charlotte
+    root_causes:
+    - resource:
+        kind: link
+        name: charlotte:eth7--tampa:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_minneapolis
+      probe_dst_ip: 10.254.0.74
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth0--minneapolis:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_minneapolis
+      probe_dst_ip: 10.254.0.74
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth1--minneapolis:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_indianapolis
+      probe_dst_ip: 10.254.0.50
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth2--indianapolis:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_detroit
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth3--detroit:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth4--stlouis:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_indianapolis
+      probe_dst_ip: 10.254.0.50
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth5--indianapolis:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_detroit
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth6--detroit:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: chicago
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_chicago
+    root_causes:
+    - resource:
+        kind: link
+        name: chicago:eth7--stlouis:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cincinnati
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_indianapolis
+      probe_dst_ip: 10.254.0.50
+      rate: 30kbit
+      symptom_host: pc_cincinnati
+    root_causes:
+    - resource:
+        kind: link
+        name: cincinnati:eth0--indianapolis:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cincinnati
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_cleveland
+      probe_dst_ip: 10.254.0.26
+      rate: 30kbit
+      symptom_host: pc_cincinnati
+    root_causes:
+    - resource:
+        kind: link
+        name: cincinnati:eth1--cleveland:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cincinnati
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_indianapolis
+      probe_dst_ip: 10.254.0.50
+      rate: 30kbit
+      symptom_host: pc_cincinnati
+    root_causes:
+    - resource:
+        kind: link
+        name: cincinnati:eth2--indianapolis:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cincinnati
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_cleveland
+      probe_dst_ip: 10.254.0.26
+      rate: 30kbit
+      symptom_host: pc_cincinnati
+    root_causes:
+    - resource:
+        kind: link
+        name: cincinnati:eth3--cleveland:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cleveland
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_detroit
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_cleveland
+    root_causes:
+    - resource:
+        kind: link
+        name: cleveland:eth0--detroit:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cleveland
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_detroit
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_cleveland
+    root_causes:
+    - resource:
+        kind: link
+        name: cleveland:eth1--detroit:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cleveland
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_newyork
+      probe_dst_ip: 10.254.0.90
+      rate: 30kbit
+      symptom_host: pc_cleveland
+    root_causes:
+    - resource:
+        kind: link
+        name: cleveland:eth2--newyork:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cleveland
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.106
+      rate: 30kbit
+      symptom_host: pc_cleveland
+    root_causes:
+    - resource:
+        kind: link
+        name: cleveland:eth3--pittsburgh:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cleveland
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_newyork
+      probe_dst_ip: 10.254.0.90
+      rate: 30kbit
+      symptom_host: pc_cleveland
+    root_causes:
+    - resource:
+        kind: link
+        name: cleveland:eth5--newyork:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: cleveland
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.106
+      rate: 30kbit
+      symptom_host: pc_cleveland
+    root_causes:
+    - resource:
+        kind: link
+        name: cleveland:eth6--pittsburgh:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_memphis
+      probe_dst_ip: 10.254.0.66
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth0--memphis:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_elpaso
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth1--elpaso:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_elpaso
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth2--elpaso:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.46
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth3--houston:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_oklahomacity
+      probe_dst_ip: 10.254.0.94
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth4--oklahomacity:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_denver
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth5--denver:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_memphis
+      probe_dst_ip: 10.254.0.66
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth6--memphis:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.46
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth7--houston:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth8
+      limit: 500kb
+      peer_host: pc_oklahomacity
+      probe_dst_ip: 10.254.0.94
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth8--oklahomacity:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: dallas
+      intf_name: eth9
+      limit: 500kb
+      peer_host: pc_denver
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_dallas
+    root_causes:
+    - resource:
+        kind: link
+        name: dallas:eth9--denver:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: denver
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_denver
+    root_causes:
+    - resource:
+        kind: link
+        name: denver:eth0--saltlakecity:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: denver
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_kansascity
+      probe_dst_ip: 10.254.0.54
+      rate: 30kbit
+      symptom_host: pc_denver
+    root_causes:
+    - resource:
+        kind: link
+        name: denver:eth2--kansascity:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: denver
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_denver
+    root_causes:
+    - resource:
+        kind: link
+        name: denver:eth3--saltlakecity:eth8
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: denver
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_kansascity
+      probe_dst_ip: 10.254.0.54
+      rate: 30kbit
+      symptom_host: pc_denver
+    root_causes:
+    - resource:
+        kind: link
+        name: denver:eth5--kansascity:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: detroit
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_toronto
+      probe_dst_ip: 10.254.0.142
+      rate: 30kbit
+      symptom_host: pc_detroit
+    root_causes:
+    - resource:
+        kind: link
+        name: detroit:eth3--toronto:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: detroit
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_toronto
+      probe_dst_ip: 10.254.0.142
+      rate: 30kbit
+      symptom_host: pc_detroit
+    root_causes:
+    - resource:
+        kind: link
+        name: detroit:eth5--toronto:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: elpaso
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_phoenix
+      probe_dst_ip: 10.254.0.102
+      rate: 30kbit
+      symptom_host: pc_elpaso
+    root_causes:
+    - resource:
+        kind: link
+        name: elpaso:eth0--phoenix:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: elpaso
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.46
+      rate: 30kbit
+      symptom_host: pc_elpaso
+    root_causes:
+    - resource:
+        kind: link
+        name: elpaso:eth2--houston:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: elpaso
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_phoenix
+      probe_dst_ip: 10.254.0.102
+      rate: 30kbit
+      symptom_host: pc_elpaso
+    root_causes:
+    - resource:
+        kind: link
+        name: elpaso:eth3--phoenix:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: elpaso
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.46
+      rate: 30kbit
+      symptom_host: pc_elpaso
+    root_causes:
+    - resource:
+        kind: link
+        name: elpaso:eth5--houston:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: houston
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth4--neworleans:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: houston
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth5--neworleans:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: indianapolis
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_indianapolis
+    root_causes:
+    - resource:
+        kind: link
+        name: indianapolis:eth2--stlouis:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: indianapolis
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_indianapolis
+    root_causes:
+    - resource:
+        kind: link
+        name: indianapolis:eth3--nashville:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: indianapolis
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_indianapolis
+    root_causes:
+    - resource:
+        kind: link
+        name: indianapolis:eth5--stlouis:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: indianapolis
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_indianapolis
+    root_causes:
+    - resource:
+        kind: link
+        name: indianapolis:eth6--nashville:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: kansascity
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_oklahomacity
+      probe_dst_ip: 10.254.0.94
+      rate: 30kbit
+      symptom_host: pc_kansascity
+    root_causes:
+    - resource:
+        kind: link
+        name: kansascity:eth0--oklahomacity:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: kansascity
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_minneapolis
+      probe_dst_ip: 10.254.0.74
+      rate: 30kbit
+      symptom_host: pc_kansascity
+    root_causes:
+    - resource:
+        kind: link
+        name: kansascity:eth1--minneapolis:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: kansascity
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_oklahomacity
+      probe_dst_ip: 10.254.0.94
+      rate: 30kbit
+      symptom_host: pc_kansascity
+    root_causes:
+    - resource:
+        kind: link
+        name: kansascity:eth2--oklahomacity:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: kansascity
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_minneapolis
+      probe_dst_ip: 10.254.0.74
+      rate: 30kbit
+      symptom_host: pc_kansascity
+    root_causes:
+    - resource:
+        kind: link
+        name: kansascity:eth3--minneapolis:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: kansascity
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_kansascity
+    root_causes:
+    - resource:
+        kind: link
+        name: kansascity:eth5--stlouis:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: kansascity
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_kansascity
+    root_causes:
+    - resource:
+        kind: link
+        name: kansascity:eth7--stlouis:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_sacrameto
+      probe_dst_ip: 10.254.0.114
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth0--sacrameto:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_phoenix
+      probe_dst_ip: 10.254.0.102
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth1--phoenix:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_sacrameto
+      probe_dst_ip: 10.254.0.114
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth2--sacrameto:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_phoenix
+      probe_dst_ip: 10.254.0.102
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth3--phoenix:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth4--saltlakecity:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_losangeles
+      probe_dst_ip: 10.254.0.62
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth5--losangeles:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_losangeles
+      probe_dst_ip: 10.254.0.62
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth6--losangeles:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: lasvegas
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_lasvegas
+    root_causes:
+    - resource:
+        kind: link
+        name: lasvegas:eth7--saltlakecity:eth9
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: losangeles
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_sandiego
+      probe_dst_ip: 10.254.0.122
+      rate: 30kbit
+      symptom_host: pc_losangeles
+    root_causes:
+    - resource:
+        kind: link
+        name: losangeles:eth0--sandiego:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: losangeles
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_sanfrancisco
+      probe_dst_ip: 10.254.0.126
+      rate: 30kbit
+      symptom_host: pc_losangeles
+    root_causes:
+    - resource:
+        kind: link
+        name: losangeles:eth1--sanfrancisco:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: losangeles
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_sandiego
+      probe_dst_ip: 10.254.0.122
+      rate: 30kbit
+      symptom_host: pc_losangeles
+    root_causes:
+    - resource:
+        kind: link
+        name: losangeles:eth3--sandiego:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: losangeles
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_sanfrancisco
+      probe_dst_ip: 10.254.0.126
+      rate: 30kbit
+      symptom_host: pc_losangeles
+    root_causes:
+    - resource:
+        kind: link
+        name: losangeles:eth4--sanfrancisco:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: memphis
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_memphis
+    root_causes:
+    - resource:
+        kind: link
+        name: memphis:eth1--stlouis:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: memphis
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_memphis
+    root_causes:
+    - resource:
+        kind: link
+        name: memphis:eth2--nashville:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: memphis
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_memphis
+    root_causes:
+    - resource:
+        kind: link
+        name: memphis:eth3--neworleans:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: memphis
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_stlouis
+      probe_dst_ip: 10.254.0.134
+      rate: 30kbit
+      symptom_host: pc_memphis
+    root_causes:
+    - resource:
+        kind: link
+        name: memphis:eth5--stlouis:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: memphis
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_nashville
+      probe_dst_ip: 10.254.0.82
+      rate: 30kbit
+      symptom_host: pc_memphis
+    root_causes:
+    - resource:
+        kind: link
+        name: memphis:eth6--nashville:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: memphis
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_memphis
+    root_causes:
+    - resource:
+        kind: link
+        name: memphis:eth7--neworleans:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: miami
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_miami
+    root_causes:
+    - resource:
+        kind: link
+        name: miami:eth0--neworleans:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: miami
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_neworleans
+      probe_dst_ip: 10.254.0.86
+      rate: 30kbit
+      symptom_host: pc_miami
+    root_causes:
+    - resource:
+        kind: link
+        name: miami:eth1--neworleans:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: miami
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_tampa
+      probe_dst_ip: 10.254.0.138
+      rate: 30kbit
+      symptom_host: pc_miami
+    root_causes:
+    - resource:
+        kind: link
+        name: miami:eth2--tampa:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: miami
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_tampa
+      probe_dst_ip: 10.254.0.138
+      rate: 30kbit
+      symptom_host: pc_miami
+    root_causes:
+    - resource:
+        kind: link
+        name: miami:eth3--tampa:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: minneapolis
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_winnipeg
+      probe_dst_ip: 10.254.0.154
+      rate: 30kbit
+      symptom_host: pc_minneapolis
+    root_causes:
+    - resource:
+        kind: link
+        name: minneapolis:eth0--winnipeg:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: minneapolis
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_winnipeg
+      probe_dst_ip: 10.254.0.154
+      rate: 30kbit
+      symptom_host: pc_minneapolis
+    root_causes:
+    - resource:
+        kind: link
+        name: minneapolis:eth3--winnipeg:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: montreal
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_toronto
+      probe_dst_ip: 10.254.0.142
+      rate: 30kbit
+      symptom_host: pc_montreal
+    root_causes:
+    - resource:
+        kind: link
+        name: montreal:eth1--toronto:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: montreal
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_toronto
+      probe_dst_ip: 10.254.0.142
+      rate: 30kbit
+      symptom_host: pc_montreal
+    root_causes:
+    - resource:
+        kind: link
+        name: montreal:eth3--toronto:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: newyork
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_philadelphia
+      probe_dst_ip: 10.254.0.98
+      rate: 30kbit
+      symptom_host: pc_newyork
+    root_causes:
+    - resource:
+        kind: link
+        name: newyork:eth3--philadelphia:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: newyork
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_toronto
+      probe_dst_ip: 10.254.0.142
+      rate: 30kbit
+      symptom_host: pc_newyork
+    root_causes:
+    - resource:
+        kind: link
+        name: newyork:eth4--toronto:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: newyork
+      intf_name: eth6
+      limit: 500kb
+      peer_host: pc_philadelphia
+      probe_dst_ip: 10.254.0.98
+      rate: 30kbit
+      symptom_host: pc_newyork
+    root_causes:
+    - resource:
+        kind: link
+        name: newyork:eth6--philadelphia:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: newyork
+      intf_name: eth7
+      limit: 500kb
+      peer_host: pc_toronto
+      probe_dst_ip: 10.254.0.142
+      rate: 30kbit
+      symptom_host: pc_newyork
+    root_causes:
+    - resource:
+        kind: link
+        name: newyork:eth7--toronto:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: philadelphia
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_washingtondc
+      probe_dst_ip: 10.254.0.150
+      rate: 30kbit
+      symptom_host: pc_philadelphia
+    root_causes:
+    - resource:
+        kind: link
+        name: philadelphia:eth1--washingtondc:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: philadelphia
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_washingtondc
+      probe_dst_ip: 10.254.0.150
+      rate: 30kbit
+      symptom_host: pc_philadelphia
+    root_causes:
+    - resource:
+        kind: link
+        name: philadelphia:eth3--washingtondc:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: phoenix
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_sandiego
+      probe_dst_ip: 10.254.0.122
+      rate: 30kbit
+      symptom_host: pc_phoenix
+    root_causes:
+    - resource:
+        kind: link
+        name: phoenix:eth3--sandiego:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: phoenix
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_sandiego
+      probe_dst_ip: 10.254.0.122
+      rate: 30kbit
+      symptom_host: pc_phoenix
+    root_causes:
+    - resource:
+        kind: link
+        name: phoenix:eth4--sandiego:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: pittsburgh
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_washingtondc
+      probe_dst_ip: 10.254.0.150
+      rate: 30kbit
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: pittsburgh:eth1--washingtondc:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: pittsburgh
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_washingtondc
+      probe_dst_ip: 10.254.0.150
+      rate: 30kbit
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: pittsburgh:eth3--washingtondc:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: portland
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.130
+      rate: 30kbit
+      symptom_host: pc_portland
+    root_causes:
+    - resource:
+        kind: link
+        name: portland:eth0--seattle:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: portland
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_sanfrancisco
+      probe_dst_ip: 10.254.0.126
+      rate: 30kbit
+      symptom_host: pc_portland
+    root_causes:
+    - resource:
+        kind: link
+        name: portland:eth1--sanfrancisco:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: portland
+      intf_name: eth2
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_portland
+    root_causes:
+    - resource:
+        kind: link
+        name: portland:eth2--saltlakecity:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: portland
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.130
+      rate: 30kbit
+      symptom_host: pc_portland
+    root_causes:
+    - resource:
+        kind: link
+        name: portland:eth3--seattle:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: portland
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_portland
+    root_causes:
+    - resource:
+        kind: link
+        name: portland:eth4--saltlakecity:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: portland
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_sanfrancisco
+      probe_dst_ip: 10.254.0.126
+      rate: 30kbit
+      symptom_host: pc_portland
+    root_causes:
+    - resource:
+        kind: link
+        name: portland:eth5--sanfrancisco:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: sacrameto
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_sanfrancisco
+      probe_dst_ip: 10.254.0.126
+      rate: 30kbit
+      symptom_host: pc_sacrameto
+    root_causes:
+    - resource:
+        kind: link
+        name: sacrameto:eth1--sanfrancisco:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: sacrameto
+      intf_name: eth3
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_sacrameto
+    root_causes:
+    - resource:
+        kind: link
+        name: sacrameto:eth3--saltlakecity:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: sacrameto
+      intf_name: eth4
+      limit: 500kb
+      peer_host: pc_saltlakecity
+      probe_dst_ip: 10.254.0.118
+      rate: 30kbit
+      symptom_host: pc_sacrameto
+    root_causes:
+    - resource:
+        kind: link
+        name: sacrameto:eth4--saltlakecity:eth7
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: sacrameto
+      intf_name: eth5
+      limit: 500kb
+      peer_host: pc_sanfrancisco
+      probe_dst_ip: 10.254.0.126
+      rate: 30kbit
+      symptom_host: pc_sacrameto
+    root_causes:
+    - resource:
+        kind: link
+        name: sacrameto:eth5--sanfrancisco:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: seattle
+      intf_name: eth0
+      limit: 500kb
+      peer_host: pc_vancouver
+      probe_dst_ip: 10.254.0.146
+      rate: 30kbit
+      symptom_host: pc_seattle
+    root_causes:
+    - resource:
+        kind: link
+        name: seattle:eth0--vancouver:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      burst: 64kb
+      host_name: seattle
+      intf_name: eth1
+      limit: 500kb
+      peer_host: pc_vancouver
+      probe_dst_ip: 10.254.0.146
+      rate: 30kbit
+      symptom_host: pc_seattle
+    root_causes:
+    - resource:
+        kind: link
+        name: seattle:eth1--vancouver:eth3
+      fault_type: link_capacity_bottleneck

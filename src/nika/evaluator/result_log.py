@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from nika.config import RESULTS_DIR
 from nika.evaluator.llm_judge import JudgeResponse
 from nika.evaluator.trace_parser import AgentTraceParser
-from nika.problems.prob_pool import get_problem_instance
+from nika.problems.registry import get_problem_class
 from nika.utils.session_artifacts import RUN_FILENAME, is_finished_session
 
 load_dotenv()
@@ -32,8 +32,8 @@ SUMMARY_REQUIRED_ARTIFACTS = (
 class EvalResult:
     agent_type: str = None
     model: str = None
-    root_cause_category: str = None
-    root_cause_name: str = None
+    failure_domain: str = None
+    problem: str = None
     net_env: str = None
     scenario_topo_size: str = None
     session_id: str = None
@@ -83,22 +83,29 @@ def missing_summary_artifacts(session_dir: Path) -> list[str]:
     ]
 
 
-def resolve_root_cause_category(run_meta: dict) -> str | None:
-    category = run_meta.get("root_cause_category")
-    if category:
-        return str(category)
+def resolve_failure_metadata(run_meta: dict) -> dict[str, str | None]:
+    resolved = {"failure_domain": run_meta.get("failure_domain")}
     problem_names = run_meta.get("problem_names") or []
-    if len(problem_names) != 1:
-        return None
-    try:
-        problem = get_problem_instance(
-            problem_names=problem_names,
-            scenario_name=run_meta.get("scenario_name", ""),
-            **(run_meta.get("scenario_params") or {}),
-        )
-        return str(problem.root_cause_category)
-    except Exception:
-        return None
+    if len(problem_names) > 1:
+        resolved["failure_domain"] = resolved.get("failure_domain") or "multiple_faults"
+    elif len(problem_names) == 1:
+        problem = get_problem_class(problem_names[0])
+        if problem is not None:
+            for key, value in problem.taxonomy_metadata().items():
+                resolved[key] = resolved[key] or value
+    return {key: str(value) if value else None for key, value in resolved.items()}
+
+
+def _primary_problem(run_meta: dict) -> str | None:
+    names = run_meta.get("problem_names")
+    if isinstance(names, list) and names:
+        if len(names) > 1:
+            return "+".join(str(name) for name in names)
+        return str(names[0])
+    if isinstance(names, str) and names.strip():
+        return names.strip()
+    problem = run_meta.get("problem")
+    return str(problem) if problem else None
 
 
 def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
@@ -117,6 +124,7 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
     metrics_blob = json.loads(
         (session_dir / EVAL_METRICS_FILENAME).read_text(encoding="utf-8")
     )
+    taxonomy = resolve_failure_metadata(run_meta)
 
     judge_response: JudgeResponse | None = None
     judge_path = session_dir / LLM_JUDGE_FILENAME
@@ -151,8 +159,8 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
     return EvalResult(
         agent_type=run_meta.get("agent_type"),
         model=run_meta.get("model"),
-        root_cause_category=resolve_root_cause_category(run_meta),
-        root_cause_name=run_meta.get("root_cause_name"),
+        failure_domain=taxonomy["failure_domain"],
+        problem=_primary_problem(run_meta),
         net_env=run_meta.get("scenario_name"),
         scenario_topo_size=run_meta.get("scenario_topo_size"),
         session_id=run_meta.get("session_id") or session_dir.name,

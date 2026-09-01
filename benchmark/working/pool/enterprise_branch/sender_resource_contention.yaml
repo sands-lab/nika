@@ -1,0 +1,50 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: sender_resource_contention
+  cases:
+  - topo_size: s
+    inject:
+      client_host: br1_corp_pc
+      cpu_quota: '0.05'
+      dst_ip: 10.0.20.2
+      duration: '900'
+      host_name: hq_srv
+      large_url: http://10.0.20.2/large.bin
+      small_url: http://10.0.20.2/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: sender_resource_contention
+  - topo_size: m
+    inject:
+      client_host: br1_corp_pc
+      cpu_quota: '0.05'
+      dst_ip: 10.0.20.2
+      duration: '900'
+      host_name: hq_srv
+      large_url: http://10.0.20.2/large.bin
+      small_url: http://10.0.20.2/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: sender_resource_contention
+  - topo_size: l
+    inject:
+      client_host: br1_corp_pc
+      cpu_quota: '0.05'
+      dst_ip: 10.0.20.2
+      duration: '900'
+      host_name: hq_srv
+      large_url: http://10.0.20.2/large.bin
+      small_url: http://10.0.20.2/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: sender_resource_contention

@@ -128,11 +128,34 @@ class BackendResolveTest:
                     with patch("nika.workflows.env.start.Session") as mock_session_cls:
                         session = mock_session_cls.return_value
                         session.session_dir = str(Path(tmp) / "session")
-                        start_net_env("isp", None)
+                        start_net_env("isp_abilene", None)
                         _, kwargs = mock_env.call_args
                         assert kwargs.get("backend") == "kathara"
+                        assert "topo_size" not in kwargs
                         init_kwargs = session.init_session.call_args.kwargs
                         assert init_kwargs.get("backend") == "kathara"
+                        assert init_kwargs.get("scenario_topo_size") == "s"
+
+    def test_runtime_for_fixed_isp_session_ignores_sampling_identity(self) -> None:
+        runtime = runtime_for_session(
+            {
+                "backend": "kathara",
+                "lab_name": "isp_abilene__saved",
+                "scenario_name": "isp_abilene",
+                "scenario_params": {
+                    "backend": "kathara",
+                    "lab_name": "isp_abilene__saved",
+                    "topo_size": "s",
+                    "topo": "abilene",
+                    "igp": "ospf",
+                    "bgp_mode": "ebgp",
+                    "device_profile": "frr",
+                },
+            }
+        )
+
+        assert runtime._net_env.scenario_id == "isp_abilene"
+        assert runtime._net_env.name == "isp_abilene__saved"
 
     def test_start_net_env_isp_containerlab(self) -> None:
         from unittest.mock import patch
@@ -152,7 +175,7 @@ class BackendResolveTest:
                     with patch("nika.workflows.env.start.Session") as mock_session_cls:
                         session = mock_session_cls.return_value
                         session.session_dir = str(Path(tmp) / "session")
-                        start_net_env("isp", None, backend="containerlab")
+                        start_net_env("isp_abilene", None, backend="containerlab")
                         _, kwargs = mock_env.call_args
                         assert kwargs.get("backend") == "containerlab"
                         init_kwargs = session.init_session.call_args.kwargs

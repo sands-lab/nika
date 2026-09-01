@@ -1,0 +1,50 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: incast_traffic_network_limitation
+  cases:
+  - topo_size: s
+    inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web_2
+      limit: 128kb
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: m
+    inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web_2
+      limit: 128kb
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: incast_traffic_network_limitation
+  - topo_size: l
+    inject:
+      burst: 128kb
+      delay_ms: '300'
+      host_name: web_2
+      limit: 128kb
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+      rate: 256kbit
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: incast_traffic_network_limitation

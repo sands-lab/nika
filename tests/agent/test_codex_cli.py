@@ -14,6 +14,7 @@ from agent.cli.codex.codex_worker import (
     _reconnect_transport_failed,
 )
 from agent.protocols import DIAGNOSIS
+from agent.protocols import SUBMISSION
 from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
@@ -124,6 +125,46 @@ class CodexWorkerConfigTest:
                 reasoning_effort="turbo",
                 llm_provider="openai",
             )
+
+    @pytest.mark.parametrize(
+        ("phase", "expected_servers"),
+        [
+            (DIAGNOSIS, {"kathara_base_mcp_server"}),
+            (SUBMISSION, {"task_mcp_server"}),
+        ],
+    )
+    def test_writes_only_phase_allowed_mcp_servers(
+        self, monkeypatch, tmp_path, phase, expected_servers
+    ) -> None:
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
+        )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
+        )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.begin_submission_mcp_phase", lambda _sid: None
+        )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.load_session_mcp_config",
+            lambda *_args, **_kwargs: {
+                "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
+                "task_mcp_server": {"transport": "http", "url": "http://task"},
+            },
+        )
+        worker = CodexWorker(
+            session_id="sess-123",
+            session_dir=tmp_path,
+            phase=phase,
+            llm_provider="openai",
+        )
+        worker._setup_workspace()
+        config = (worker._codex_home / "config.toml").read_text()
+        assert {
+            name
+            for name in ("kathara_base_mcp_server", "task_mcp_server")
+            if name in config
+        } == expected_servers
 
 
 class CodexDisplayTest:

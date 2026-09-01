@@ -28,7 +28,7 @@ def prepare_claude_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
             "operational settings in config/nika.yaml. You can also authenticate "
             "with Claude `/login` "
             "so the host `anthropic` sbx secret is stored "
-            "(see docs/agent-sandbox.md)."
+            "(see docs/operations/agent-sandbox.md)."
         )
     from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL, in_sandbox
 

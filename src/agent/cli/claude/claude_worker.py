@@ -118,7 +118,7 @@ class ClaudeWorker:
 
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "claude_workspace"
-        self._logger = MessageLogger(agent=phase, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._stream_output = stream_output
         self._mcp_config_path: Path | None = None
 
@@ -139,6 +139,23 @@ class ClaudeWorker:
             self.scenario_name,
             session_dir=self.session_dir,
         )
+        # The gateway enforces phase access, but keeping the submission server
+        # out of the diagnosis config also keeps the fault catalog out of the
+        # agent's visible tool inventory.
+        from nika.mcp.registry import SUBMISSION_SERVER
+
+        if self.phase == SUBMISSION:
+            servers = {
+                name: config
+                for name, config in servers.items()
+                if name == SUBMISSION_SERVER
+            }
+        else:
+            servers = {
+                name: config
+                for name, config in servers.items()
+                if name != SUBMISSION_SERVER
+            }
 
         self._logger.log(
             "mcp_config",

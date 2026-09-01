@@ -33,40 +33,52 @@ def env_run(
         "--size",
         help="Topology size s, m, or l (required only for scalable scenarios).",
     ),
-    topo: str | None = typer.Option(
-        None,
-        "--topo",
-        help="SNDlib topology name or network.xml path (isp only; default: polska).",
-    ),
     igp: str | None = typer.Option(
         None,
         "--igp",
-        help="Interior gateway protocol: isis or ospf (isp only; default: isis).",
+        help=(
+            "Interior gateway protocol: isis or ospf "
+            "(ISP topology scenarios only; default: isis)."
+        ),
     ),
     metric_strategy: str | None = typer.Option(
         None,
         "--metric-strategy",
         help=(
             "Link metric strategy: constant, routing_cost, or inv_capacity "
-            "(isp only; default: constant)."
+            "(ISP topology scenarios only; default: constant)."
         ),
     ),
     constant_metric: int | None = typer.Option(
         None,
         "--constant-metric",
-        help="Metric value for constant strategy / fallbacks (isp only; default: 10).",
+        help=(
+            "Metric value for constant strategy / fallbacks "
+            "(ISP topology scenarios only; default: 10)."
+        ),
     ),
     bgp_mode: str | None = typer.Option(
         None,
         "--bgp-mode",
-        help=("BGP preset: none, ibgp_rr, or ebgp (isp only; default: none)."),
+        help=(
+            "BGP preset: none, ibgp_rr, or ebgp "
+            "(ISP topology scenarios only; default: none)."
+        ),
+    ),
+    rpki: bool = typer.Option(
+        False,
+        "--rpki/--no-rpki",
+        help=(
+            "Deprecated for base ISP scenarios; use named RPKI scenarios "
+            "isp_abilene_ebgp_rpki / isp_geant_ebgp_rpki."
+        ),
     ),
     backend: str | None = typer.Option(
         None,
         "--backend",
         help=(
             "Lab backend: kathara or containerlab "
-            "(required when a scenario supports both; isp defaults to kathara)."
+            "(required when a scenario supports both; ISP defaults to kathara)."
         ),
     ),
     device_profile: str | None = typer.Option(
@@ -81,6 +93,14 @@ def env_run(
         False,
         "--no-redeploy",
         help="If set, do not redeploy when the lab already exists.",
+    ),
+    static_validation: bool | None = typer.Option(
+        None,
+        "--static-validation/--no-static-validation",
+        help=(
+            "Run the optional Batfish verifier before deployment (ISP Kathara FRR only). "
+            "Defaults to nika.static_validation.enabled."
+        ),
     ),
     instance_tag: str | None = typer.Option(
         None,
@@ -103,15 +123,53 @@ def env_run(
         redeploy=not no_redeploy,
         instance_tag=instance_tag,
         result_dir=result_dir,
-        topo=topo,
         igp=igp,
         metric_strategy=metric_strategy,
         constant_metric=constant_metric,
         bgp_mode=bgp_mode,
+        rpki=rpki or None,
         backend=backend,
         device_profile=device_profile,
+        static_validation=static_validation,
     )
     typer.echo(f"session_id={session_id}")
+
+
+@env_app.command("cache")
+def env_cache(
+    name: str | None = typer.Argument(
+        None,
+        metavar="NAME",
+        help="Scenario id (k8s_lab or llmd_lab). Omit when using --all.",
+    ),
+    all_scenarios: bool = typer.Option(
+        False,
+        "--all",
+        help="Pre-cache images for all Kubernetes scenarios.",
+    ),
+) -> None:
+    """Pre-pull host Docker images and workload image tars for Kubernetes labs."""
+    from nika.net_env.utils.k8s_workload_cache import (
+        K8S_SCENARIOS,
+        cache_scenario,
+    )
+
+    if all_scenarios:
+        targets = sorted(K8S_SCENARIOS)
+    elif name is None:
+        raise typer.BadParameter("Provide NAME or use --all.")
+    elif name not in K8S_SCENARIOS:
+        raise typer.BadParameter(
+            f"Scenario {name!r} does not support env cache. "
+            f"Supported: {', '.join(sorted(K8S_SCENARIOS))}."
+        )
+    else:
+        targets = [name]
+
+    for scenario in targets:
+        typer.echo(f"Caching images for {scenario}...")
+        cache_scenario(scenario)
+    typer.echo("Done.")
 
 
 @env_app.command("ps")
@@ -125,7 +183,7 @@ def env_ps() -> None:
     \b
     Columns
     -------
-    ENV ID      scenario name plus instance suffix (e.g. simple_bgp_a1b2c3)
+    ENV ID      scenario name plus instance suffix (e.g. dc_clos_a1b2c3)
     BACKEND     kathara or containerlab
     SIZE        topology size when applicable (s, m, l), — otherwise
     STATUS      running | finished

@@ -1,0 +1,7 @@
+scenario:
+  name: isp_geant_ebgp_rpki
+healthy:
+  variants:
+  - topo_size: m
+    backend: kathara
+    device_profile: frr

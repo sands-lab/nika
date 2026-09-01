@@ -12,8 +12,8 @@ import docker
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.containerlab.parse import parse_clab_topology
-from nika.runtime.docker_ops import pause_container, unpause_container
-from nika.runtime.exec_utils import exec_with_timeout
+from nika.runtime.shared.containers import pause_container, unpause_container
+from nika.runtime.shared.execution import exec_with_timeout
 
 
 class ContainerlabRuntime(LabRuntime):
@@ -117,13 +117,42 @@ class ContainerlabRuntime(LabRuntime):
             "--reconfigure",
         )
         if result.returncode != 0:
+            err = (result.stderr or result.stdout or "").strip()
+            hint = ""
+            low = err.lower()
+            if any(
+                marker in low
+                for marker in (
+                    "invalid config for network",
+                    "subnet already in use",
+                    "no configured subnet",
+                )
+            ):
+                try:
+                    from nika.workflows.session.close import (
+                        remove_orphaned_containerlab_management_network,
+                    )
+
+                    remove_orphaned_containerlab_management_network(self._lab_name)
+                except Exception:  # noqa: BLE001 - best-effort before re-raise
+                    pass
+                hint = (
+                    f" Leftover Docker network br-{self._lab_name} may be "
+                    "blocking deploy; run: nika session wipe -y"
+                )
             raise RuntimeError(
-                f"clab deploy failed for {self._lab_name}: {result.stderr or result.stdout}"
+                f"clab deploy failed for {self._lab_name}: {err}{hint}"
             )
         time.sleep(5)
         self._refresh_node_map()
 
     def destroy(self) -> None:
+        # Host-side flap workers are outside containerlab's inventory.
+        # Remove only workers carrying this lab's opaque identifier before
+        # destroying their veth endpoints.
+        from nika.service.containerlab.host_tc import HostTcController
+
+        HostTcController.cleanup_lab(self._lab_name)
         result = self._run_clab(
             "destroy",
             "-t",

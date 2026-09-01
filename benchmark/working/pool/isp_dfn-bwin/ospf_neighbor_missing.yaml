@@ -1,0 +1,135 @@
+scenario:
+  name: isp_dfn-bwin
+failure:
+  fault_type: ospf_neighbor_missing
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hannover
+    root_causes:
+    - resource:
+        kind: node
+        node: hannover
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: karlsruhe
+    root_causes:
+    - resource:
+        kind: node
+        node: karlsruhe
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: koeln
+    root_causes:
+    - resource:
+        kind: node
+        node: koeln
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: leipzig
+    root_causes:
+    - resource:
+        kind: node
+        node: leipzig
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: muenchen
+    root_causes:
+    - resource:
+        kind: node
+        node: muenchen
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nuernberg
+    root_causes:
+    - resource:
+        kind: node
+        node: nuernberg
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: stuttgart
+    root_causes:
+    - resource:
+        kind: node
+        node: stuttgart
+      fault_type: ospf_neighbor_missing

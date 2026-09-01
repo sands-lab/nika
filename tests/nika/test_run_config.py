@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from typer.testing import CliRunner
 
@@ -14,19 +15,8 @@ from nika.run_config.legacy import (
     detect_legacy_operational_env,
     warn_legacy_operational_env,
 )
-from nika.run_config.loader import (
-    load_run_config,
-    merge_cli,
-    reset_run_config,
-    set_run_config,
-)
+from nika.run_config.loader import load_run_config, merge_cli
 from nika.run_config.schema import RunConfig
-from nika.utils.agent_config import (
-    resolve_agent_model,
-    resolve_agent_type,
-    resolve_llm_provider,
-    resolve_max_steps,
-)
 
 _RUNNER = CliRunner()
 
@@ -36,6 +26,41 @@ def test_load_missing_uses_defaults(tmp_path: Path) -> None:
     assert cfg.agent.type == "byo.langgraph"
     assert cfg.agent.max_steps == 20
     assert cfg.benchmark.case_timeout_sec == 2400
+
+
+def test_static_validation_yaml_has_only_enabled_flag() -> None:
+    cfg = RunConfig.model_validate({"nika": {"static_validation": {"enabled": True}}})
+    assert cfg.nika.static_validation.enabled is True
+    with pytest.raises(ValidationError, match="verifiers"):
+        RunConfig.model_validate(
+            {"nika": {"static_validation": {"verifiers": ["batfish"]}}}
+        )
+
+
+def test_runtime_validation_defaults_are_light() -> None:
+    cfg = RunConfig()
+    assert cfg.nika.runtime_validation.depth == "light"
+    assert cfg.nika.runtime_validation.failure_effect is False
+    assert cfg.nika.static_validation.enabled is False
+
+
+def test_runtime_validation_rejects_invalid_depth() -> None:
+    with pytest.raises(ValidationError):
+        RunConfig.model_validate(
+            {"nika": {"runtime_validation": {"depth": "medium"}}}
+        )
+
+
+def test_runtime_validation_accepts_full_and_failure_effect() -> None:
+    cfg = RunConfig.model_validate(
+        {
+            "nika": {
+                "runtime_validation": {"depth": "full", "failure_effect": True},
+            }
+        }
+    )
+    assert cfg.nika.runtime_validation.depth == "full"
+    assert cfg.nika.runtime_validation.failure_effect is True
 
 
 def test_load_and_merge_cli(tmp_path: Path) -> None:
@@ -59,28 +84,6 @@ def test_load_and_merge_cli(tmp_path: Path) -> None:
     assert merged.agent.max_steps == 30
     assert merged.agent.model == "override-model"
     assert merged.agent.provider == "deepseek"
-
-
-def test_resolve_from_run_config() -> None:
-    cfg = RunConfig.model_validate(
-        {
-            "agent": {
-                "type": "byo.langgraph",
-                "provider": "deepseek",
-                "max_steps": 15,
-                "models": {"langgraph": "deepseek-chat"},
-            }
-        }
-    )
-    set_run_config(cfg)
-    try:
-        assert resolve_agent_type(None) == "byo.langgraph"
-        assert resolve_llm_provider(None, agent_type="byo.langgraph") == "deepseek"
-        assert resolve_max_steps(None) == 15
-        assert resolve_agent_model("byo.langgraph", None) == "deepseek-chat"
-        assert resolve_agent_model("byo.langgraph", "cli-model") == "cli-model"
-    finally:
-        reset_run_config()
 
 
 def test_provider_validation_via_schema() -> None:

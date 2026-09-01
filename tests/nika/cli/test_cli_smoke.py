@@ -3,7 +3,10 @@ import importlib
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
 from typer.testing import CliRunner
+
 from nika.cli.main import app
 
 
@@ -119,20 +122,29 @@ class CliSmokeTest:
 
             assert result.exit_code == 0
 
-    def test_benchmark_run_requires_config_or_release(self) -> None:
-        """Bare ``nika benchmark run`` has no default suite."""
-        result = _RUNNER.invoke(app, ["benchmark", "run"])
-        assert result.exit_code != 0
-        combined = f"{result.output}\n{result.stderr or ''}"
-        assert "--config" in combined
-        assert "--release" in combined
+    def test_env_static_validation_is_opt_in(self) -> None:
+        with patch(
+            "nika.workflows.env.start.start_net_env", return_value="session-test"
+        ) as mocked:
+            default = _RUNNER.invoke(app, ["env", "run", "simple_bgp"])
+            assert default.exit_code == 0, default.output
+            assert mocked.call_args.kwargs["static_validation"] is None
 
-        result_dir_only = _RUNNER.invoke(
-            app, ["benchmark", "run", "--result_dir", "results/tmp"]
+            enabled = _RUNNER.invoke(
+                app, ["env", "run", "simple_bgp", "--static-validation"]
+            )
+            assert enabled.exit_code == 0, enabled.output
+            assert mocked.call_args.kwargs["static_validation"] is True
+
+    def test_benchmark_run_defaults_to_candidate_catalog(self) -> None:
+        with patch(
+            "nika.cli.commands.benchmark.run_benchmark_from_yaml"
+        ) as run_from_yaml:
+            result = _RUNNER.invoke(app, ["benchmark", "run"])
+        assert result.exit_code == 0, result.output
+        assert run_from_yaml.call_args.kwargs["benchmark_file"].endswith(
+            "benchmark/working/pool"
         )
-        assert result_dir_only.exit_code != 0
-        combined_dir = f"{result_dir_only.output}\n{result_dir_only.stderr or ''}"
-        assert "no default" in combined_dir.lower() or "--release" in combined_dir
 
         both = _RUNNER.invoke(
             app,
@@ -140,7 +152,7 @@ class CliSmokeTest:
                 "benchmark",
                 "run",
                 "--config",
-                "benchmark/benchmark_selected.yaml",
+                "benchmark/working/pool",
                 "--release",
                 "0.1.0",
             ],
@@ -148,6 +160,32 @@ class CliSmokeTest:
         assert both.exit_code != 0
         both_text = f"{both.output}\n{both.stderr or ''}"
         assert "--config" in both_text and "--release" in both_text
+
+    def test_benchmark_run_help_includes_split(self) -> None:
+        result = _RUNNER.invoke(app, ["benchmark", "run", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "--split" in result.output
+
+    def test_benchmark_run_forwards_split(self) -> None:
+        with patch(
+            "nika.cli.commands.benchmark.run_benchmark_from_release"
+        ) as run_from_release:
+            result = _RUNNER.invoke(
+                app,
+                [
+                    "benchmark",
+                    "run",
+                    "--release",
+                    "0.2.0",
+                    "--split",
+                    "dev",
+                    "--result_dir",
+                    "/tmp/nika-split-smoke",
+                ],
+            )
+        assert result.exit_code == 0, result.output
+        assert run_from_release.call_args.kwargs["split"] == "dev"
+        assert run_from_release.call_args.kwargs["continue_on_error"] is True
 
     def test_console_script_help_invocations(self) -> None:
         assert (_REPO_ROOT / "src" / "nika").is_dir(), _REPO_ROOT

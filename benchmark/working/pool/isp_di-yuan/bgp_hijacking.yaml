@@ -1,0 +1,192 @@
+scenario:
+  name: isp_di-yuan
+failure:
+  fault_type: bgp_hijacking
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_1
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_10
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_10
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_11
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_2
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_3
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_4
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_5
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_5
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_6
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_7
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_8
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n_9
+      peer_host: pc_n_1
+      probe_dst_ip: 198.18.0.1
+      symptom_host: n_10
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: bgp_hijacking

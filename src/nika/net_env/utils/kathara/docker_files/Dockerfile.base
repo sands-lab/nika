@@ -1,0 +1,5 @@
+FROM kathara/base:latest
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends stress-ng isc-dhcp-server isc-dhcp-relay nftables tcpdump tshark python3-scapy conntrack && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*

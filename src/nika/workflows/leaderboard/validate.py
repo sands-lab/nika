@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from nika.config import REPO_ROOT, resolve_results_root
+from nika.config import REPO_ROOT
 from nika.workflows.benchmark.release import ReleaseError, load_release
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.aggregate import (
@@ -18,10 +18,8 @@ from nika.workflows.leaderboard.aggregate import (
     build_rca_confusion,
     metrics_nearly_equal,
 )
-from nika.workflows.leaderboard.hashing import sha256_file
 from nika.workflows.leaderboard.meta_input import MetaInputError, parse_metadata_payload
 from nika.workflows.leaderboard.schema import (
-    FILES_FILENAME,
     IDENTITY_FILENAME,
     METADATA_FILENAME,
     METRICS_FILENAME,
@@ -29,11 +27,9 @@ from nika.workflows.leaderboard.schema import (
     RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
-    SCHEMA_VERSION,
     TRIAL_RESULT_FILENAME,
     TRIALS_DIRNAME,
     AggregatedMetrics,
-    FileInventory,
     PackageIdentity,
     RcaConfusion,
     TrialResult,
@@ -75,8 +71,6 @@ def _resolve_submission_dir(path: str | Path) -> Path:
 
 def validate_leaderboard_submission(
     submission_dir: str | Path,
-    *,
-    source_result_dir: str | Path | None = None,
 ) -> ValidationReport:
     """Validate a leaderboard submission package. Returns a report (does not raise)."""
     errors: list[str] = []
@@ -88,7 +82,6 @@ def validate_leaderboard_submission(
 
     metadata_path = root / METADATA_FILENAME
     readme_path = root / README_FILENAME
-    files_path = root / FILES_FILENAME
     results_root = root / RESULTS_DIRNAME
     identity_path = results_root / IDENTITY_FILENAME
     metrics_path = results_root / METRICS_FILENAME
@@ -98,7 +91,6 @@ def validate_leaderboard_submission(
     for required in (
         metadata_path,
         readme_path,
-        files_path,
         identity_path,
         metrics_path,
         confusion_path,
@@ -131,13 +123,6 @@ def validate_leaderboard_submission(
             errors=[f"invalid {RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"],
         )
 
-    if identity.schema_version != SCHEMA_VERSION:
-        errors.append(
-            f"unsupported schema_version {identity.schema_version!r}; "
-            f"expected {SCHEMA_VERSION!r} "
-            f"(schema 1 packages must be re-packed with NIKA that emits schema 2)"
-        )
-
     try:
         metrics = AggregatedMetrics.model_validate(_load_json(metrics_path))
     except ValidationError as exc:
@@ -149,43 +134,6 @@ def validate_leaderboard_submission(
     except ValidationError as exc:
         errors.append(f"invalid {RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME}: {exc}")
         confusion = None
-
-    try:
-        inventory = FileInventory.model_validate(_load_json(files_path))
-    except ValidationError as exc:
-        errors.append(f"invalid {FILES_FILENAME}: {exc}")
-        inventory = None
-
-    # Package-local integrity (files.json itself is not listed).
-    if inventory is not None:
-        expected_package = dict(inventory.package)
-        for rel, expected_hash in sorted(expected_package.items()):
-            path = root / rel
-            if not path.is_file():
-                errors.append(f"listed package file missing: {rel}")
-                continue
-            actual = sha256_file(path)
-            if actual != expected_hash:
-                errors.append(
-                    f"package file modified: {rel} "
-                    f"(expected {expected_hash}, got {actual})"
-                )
-        for result_path in sorted(trials_root.glob(f"*/{TRIAL_RESULT_FILENAME}")):
-            rel = result_path.relative_to(root).as_posix()
-            if rel not in expected_package:
-                errors.append(f"trial result not listed in {FILES_FILENAME}: {rel}")
-        for required_rel in (
-            METADATA_FILENAME,
-            README_FILENAME,
-            f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}",
-            f"{RESULTS_DIRNAME}/{METRICS_FILENAME}",
-            f"{RESULTS_DIRNAME}/{RCA_CONFUSION_FILENAME}",
-        ):
-            if required_rel not in expected_package:
-                errors.append(
-                    f"required package file not listed in {FILES_FILENAME}: "
-                    f"{required_rel}"
-                )
 
     trial_results: list[TrialResult] = []
     seen_ids: set[str] = set()
@@ -214,7 +162,6 @@ def validate_leaderboard_submission(
         release = load_release(
             identity.benchmark.version,
             split=identity.benchmark.split,
-            verify_digest=True,
         )
     except ReleaseError as exc:
         errors.append(f"benchmark release load failed: {exc}")
@@ -224,9 +171,7 @@ def validate_leaderboard_submission(
         checks = [
             ("id", identity.benchmark.id, release.id),
             ("version", identity.benchmark.version, release.version),
-            ("digest", identity.benchmark.digest, release.benchmark_digest),
             ("split", identity.benchmark.split, release.split),
-            ("cases_sha256", identity.benchmark.cases_sha256, release.cases_sha256),
             ("case_count", identity.benchmark.case_count, release.case_count),
             ("n_trials", identity.benchmark.n_trials, release.n_trials),
         ]
@@ -288,23 +233,5 @@ def validate_leaderboard_submission(
         )
 
     errors.extend(scan_package_dir(root))
-    if source_result_dir is not None and inventory is not None:
-        source_root = resolve_results_root(source_result_dir)
-        if not source_root.is_dir():
-            errors.append(f"source_result_dir not found: {source_root}")
-        else:
-            run_path = source_root / "run.json"
-            if not run_path.is_file():
-                legacy = source_root / "benchmark_job.json"
-                run_path = legacy if legacy.is_file() else run_path
-            if not run_path.is_file():
-                errors.append(f"source run.json missing under {source_root}")
-            else:
-                actual = sha256_file(run_path)
-                if actual != inventory.source_run_sha256:
-                    errors.append(
-                        "source run.json modified "
-                        f"(expected {inventory.source_run_sha256}, got {actual})"
-                    )
 
     return ValidationReport(ok=not errors, errors=errors, warnings=warnings)

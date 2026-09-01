@@ -1,0 +1,1 @@
+"""Shared Kubernetes failure infrastructure."""

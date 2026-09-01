@@ -1,0 +1,7 @@
+scenario:
+  name: sdn_l3_clos
+healthy:
+  variants:
+  - topo_size: s
+  - topo_size: m
+  - topo_size: l

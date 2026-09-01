@@ -1,23 +1,21 @@
 from __future__ import annotations
 
-from nika.evaluator.scoring import (
-    score_detection,
-    score_localization,
-    score_rca,
-    score_rca_v2,
-)
-from nika.problems.root_cause import (
+from nika.evaluator.scoring import score_rca_v2
+from nika.problems.rca import (
     healthy_ground_truth,
-    interface_resource,
+    link_resource,
     node_resource,
 )
-from nika.problems.root_cause import RootCause
+from nika.problems.rca import RootCause
 from nika.workflows.eval.session import generic_eval
+
+_LINK = "pc1:eth0--router1:eth0"
+_LINK_OTHER = "pc2:eth0--router2:eth0"
 
 
 def _gt(*causes: RootCause) -> dict:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "is_anomaly": True,
         "root_causes": [c.model_dump(mode="json") for c in causes],
     }
@@ -28,86 +26,47 @@ def _sub(*causes: RootCause) -> dict:
 
 
 class ScoringTest:
-    def test_score_detection_match(self) -> None:
-        assert score_detection({"is_anomaly": True}, {"is_anomaly": True}) == 1.0
-
-    def test_score_detection_mismatch(self) -> None:
-        assert score_detection({"is_anomaly": False}, {"is_anomaly": True}) == 0.0
-
-    def test_score_localization_perfect(self) -> None:
-        acc, prec, rec, f1 = score_localization(
-            {"faulty_devices": ["pc1", "router1"]},
-            {"faulty_devices": ["pc1", "router1"]},
-        )
-        assert (acc, prec, rec, f1) == (1.0, 1.0, 1.0, 1.0)
-
-    def test_score_rca_partial(self) -> None:
-        acc, prec, rec, f1 = score_rca(
-            {"root_cause_name": ["link_down", "extra"]},
-            {"root_cause_name": ["link_down"]},
-        )
-        assert acc == 1.0
-        assert prec == 0.5
-        assert rec == 1.0
-        assert f1 == 0.6667
-
     def test_v2_resource_id_submit(self) -> None:
-        truth = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
+        truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         scores = score_rca_v2(
             {
                 "root_causes": [
-                    {"resource_id": "interface/pc1/eth0", "fault_type": "link_down"}
+                    {"resource_id": f"link/{_LINK}", "fault_type": "link_down"}
                 ]
             },
             _gt(truth),
         )
         assert scores["rca_f1"] == 1.0
-        cause = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
+        cause = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         scores = score_rca_v2(_sub(cause), _gt(cause))
         assert scores["rca_f1"] == 1.0
 
     def test_v2_extra_prediction(self) -> None:
-        truth = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
-        extra = RootCause(resource=node_resource("r1"), fault_type="host_crash")
+        truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
+        extra = RootCause(resource=node_resource("r1"), fault_type="host_missing_ip")
         scores = score_rca_v2(_sub(truth, extra), _gt(truth))
         assert scores["rca_recall"] == 1.0
         assert scores["rca_precision"] == 0.5
         assert scores["rca_f1"] == 0.6667
 
     def test_v2_missing_prediction(self) -> None:
-        a = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
-        b = RootCause(resource=node_resource("r1"), fault_type="host_crash")
+        a = RootCause(resource=link_resource(_LINK), fault_type="link_down")
+        b = RootCause(resource=node_resource("r1"), fault_type="host_missing_ip")
         scores = score_rca_v2(_sub(a), _gt(a, b))
         assert scores["rca_precision"] == 1.0
         assert scores["rca_recall"] == 0.5
 
     def test_resource_right_type_wrong(self) -> None:
-        truth = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
-        pred = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_flap"
-        )
+        truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
+        pred = RootCause(resource=link_resource(_LINK), fault_type="link_flap")
         scores = score_rca_v2(_sub(pred), _gt(truth))
         assert scores["rca_f1"] == 0.0
         assert scores["localization_f1"] == 1.0
         assert scores["fault_type_f1"] == 0.0
 
     def test_type_right_resource_wrong(self) -> None:
-        truth = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
-        pred = RootCause(
-            resource=interface_resource("pc2", "eth0"), fault_type="link_down"
-        )
+        truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
+        pred = RootCause(resource=link_resource(_LINK_OTHER), fault_type="link_down")
         scores = score_rca_v2(_sub(pred), _gt(truth))
         assert scores["rca_f1"] == 0.0
         assert scores["localization_f1"] == 0.0
@@ -119,20 +78,14 @@ class ScoringTest:
         assert scores["rca_f1"] == 1.0
 
     def test_generic_eval_uses_resource_pairs(self) -> None:
-        cause = RootCause(
-            resource=interface_resource("pc1", "eth0"), fault_type="link_down"
-        )
+        cause = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         gt = {
-            "schema_version": 2,
+            "schema_version": 3,
             "is_anomaly": True,
-            "faulty_devices": ["pc1", "pc2"],
-            "root_cause_name": ["link_down"],
             "root_causes": [cause.model_dump(mode="json", exclude_none=True)],
         }
         submission = {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": ["link_down"],
             "root_causes": [cause.model_dump(mode="json", exclude_none=True)],
         }
         payload = generic_eval(gt, submission)

@@ -13,10 +13,11 @@ from tests.support.integration_base import SharedSessionTestCase
 
 
 class KatharaScenarioApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
-    """One shared lab per class; subclasses set ``SCENARIO`` and optional ``ENV_RUN_ARGS``."""
+    """One shared lab per class; subclasses set ``SCENARIO``, ``PROBE_HOST``, optional ``ENV_RUN_ARGS``."""
 
     __test__ = False
     ENV_RUN_ARGS: ClassVar[list[str]] = []
+    PROBE_HOST: ClassVar[str] = "pc1"
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -43,3 +44,16 @@ class KatharaScenarioApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
 
     def _nft_api(self) -> KatharaNFTableAPI:
         return KatharaNFTableAPI(lab_name=self._lab_name())
+
+    def test_runtime_list_nodes_and_exec(self) -> None:
+        runtime = self._runtime()
+        nodes = runtime.list_nodes()
+        assert nodes
+        assert self.PROBE_HOST in nodes
+        out = runtime.exec(self.PROBE_HOST, "hostname", timeout=15)
+        assert out.strip()
+
+    def test_host_api_reachability(self) -> None:
+        api = self._host_api()
+        cfg = api.get_host_net_config(self.PROBE_HOST)
+        assert cfg

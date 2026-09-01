@@ -1,0 +1,38 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: device_forwarding_packet_corruption
+  cases:
+  - topo_size: s
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth4
+      probe_dst_ip: 10.0.20.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_forwarding_packet_corruption
+  - topo_size: m
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth5
+      probe_dst_ip: 10.0.20.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_forwarding_packet_corruption
+  - topo_size: l
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth5
+      probe_dst_ip: 10.0.20.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_forwarding_packet_corruption

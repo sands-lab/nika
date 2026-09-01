@@ -1,4 +1,4 @@
-"""System logger: writes structured JSONL events to {session_dir}/events.jsonl
+"""System logger: writes structured JSONL events to {session_dir}/nika.jsonl
 once a session directory is bound via ``bind_session_dir()``.
 
 Usage
@@ -10,7 +10,7 @@ Basic logging (requires a bound session directory):
 
 Structured event logging:
     from nika.utils.logger import log_event
-    log_event("env_start", "Lab deployed", scenario="simple_bgp", session_id="...")
+    log_event("env_start", "Lab deployed", scenario="dc_clos", session_id="...")
 
 Bind a session directory (call once session_dir is known):
     from nika.utils.logger import bind_session_dir
@@ -30,7 +30,7 @@ _logger_lock = threading.Lock()
 
 
 class _JsonlHandler(logging.Handler):
-    """Appends a structured JSON line to events.jsonl."""
+    """Appends a structured JSON line to nika.jsonl."""
 
     def __init__(self, events_path: str) -> None:
         super().__init__()
@@ -88,7 +88,7 @@ def refresh_logger() -> logging.Logger:
 
 
 def bind_session_dir(session_dir: str | Path) -> None:
-    """Attach per-session events.jsonl handler; call once session_dir is known.
+    """Attach per-session nika.jsonl handler; call once session_dir is known.
 
     Accepts only ``str`` / ``Path``. Mocks that implement ``os.PathLike`` via
     auto ``__fspath__`` are rejected (they resolve to junk CWD paths).
@@ -102,22 +102,22 @@ def bind_session_dir(session_dir: str | Path) -> None:
     with _logger_lock:
         os.makedirs(session_dir, exist_ok=True)
         _session_dir = session_dir
-        _session_events_path = os.path.join(session_dir, "events.jsonl")
+        _session_events_path = os.path.join(session_dir, "nika.jsonl")
         _attach_jsonl_handler(_session_events_path)
 
 
 def log_event(event_type: str, message: str, **data) -> None:
     """Log a structured event with optional key/value metadata.
 
-    Writes a structured JSON line to events.jsonl when a session dir is bound.
+    Writes a structured JSON line to nika.jsonl when a session dir is bound.
 
     Example::
-        log_event("env_start", "Lab deployed", scenario="simple_bgp", session_id="...")
+        log_event("env_start", "Lab deployed", scenario="dc_clos", session_id="...")
         log_error_event("failure_inject_error", "Inject failed", error="timeout")
     """
     system_logger.info(message, extra={"event_type": event_type, "data": data or None})
 
 
 def log_error_event(event_type: str, message: str, **data) -> None:
-    """Log a structured ERROR-level event to events.jsonl when a session dir is bound."""
+    """Log a structured ERROR-level event to nika.jsonl when a session dir is bound."""
     system_logger.error(message, extra={"event_type": event_type, "data": data or None})

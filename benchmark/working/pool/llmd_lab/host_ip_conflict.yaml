@@ -1,0 +1,14 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: host_ip_conflict
+  cases:
+  - inject:
+      host_name: client
+      host_name_2: web
+    root_causes:
+    - resource:
+        kind: interface
+        node: web
+        name: eth0
+      fault_type: host_ip_conflict

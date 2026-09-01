@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import os
+import warnings
 
-from mcp_agent.config import (
-    AnthropicSettings,
-    MCPServerSettings,
-    MCPSettings,
-    OpenAISettings,
-    Settings,
-)
+import pydantic
+
+# mcp-agent 0.2.6 still defines an after-model classmethod validator on
+# OpenTelemetrySettings; suppress the import-time Pydantic 2.12 deprecation.
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", pydantic.PydanticDeprecatedSince212)
+    from mcp_agent.config import (
+        AnthropicSettings,
+        MCPServerSettings,
+        MCPSettings,
+        OpenAISettings,
+        Settings,
+    )
 
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import mcp_read_timeout_seconds, select_diagnosis_servers

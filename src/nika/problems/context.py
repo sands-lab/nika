@@ -16,6 +16,14 @@ def init_problem(
     scenario_name: str | None, **kwargs: Any
 ) -> tuple[NetworkEnvBase, LabRuntime]:
     """Resolve network environment and backend-neutral runtime for a problem."""
+    if scenario_name is not None:
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(scenario_name):
+            # Session metadata records the fixed ISP scale/topology for benchmark
+            # sampling, but the canonical scenario ID owns deployment identity.
+            kwargs.pop("topo_size", None)
+            kwargs.pop("topo", None)
     net_env = get_net_env_instance(scenario_name, **kwargs)
     runtime = kwargs.get("runtime")
     if runtime is None:

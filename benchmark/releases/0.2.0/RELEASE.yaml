@@ -1,0 +1,39 @@
+id: nika-bench
+version: 0.2.0
+splits:
+  dev:
+    cases_file: dev.yaml
+    case_count: 84
+  test:
+    cases_file: test.yaml
+    case_count: 85
+default_split_for_release: test
+defaults:
+  n_trials: 3
+scoring:
+  id: rule-based
+  leaderboard_primary: rca_f1
+  judge_allowed: false
+tools:
+  allowed_mcp_servers:
+  - containerlab_srl_mcp_server
+  - k8s_mcp_server
+  - kathara_base_mcp_server
+  - pingmesh_mcp_server
+  - packet_capture_mcp_server
+  - kathara_frr_mcp_server
+  - kathara_bmv2_mcp_server
+  - kathara_sdn_mcp_server
+  - kathara_telemetry_mcp_server
+  - task_mcp_server
+images:
+  required:
+  - kathara/p4
+  - kathara/sdn
+  - nika/base
+  - nika/fabric-controller
+  - nika/frr
+  - nika/nginx
+  - nika/onos
+  - nika/routinator:v0.14.2
+  - rancher/k3s:v1.34.1-k3s1

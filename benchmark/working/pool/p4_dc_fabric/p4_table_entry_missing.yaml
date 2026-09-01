@@ -1,0 +1,35 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: p4_table_entry_missing
+  cases:
+  - topo_size: s
+    inject:
+      host_name: leaf_1
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_entry_missing
+  - topo_size: m
+    inject:
+      host_name: leaf_1
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_entry_missing
+  - topo_size: l
+    inject:
+      host_name: leaf_1
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: p4_table_entry_missing

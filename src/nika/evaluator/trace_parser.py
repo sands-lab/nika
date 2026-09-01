@@ -1,8 +1,8 @@
 """Parse messages.jsonl to extract agent trace metrics.
 
-The parser reads the unified ``messages.jsonl`` file and optionally filters
-by the ``agent`` field.  Token counts, step counts, and timing are derived
-from the diagnosis phase by default (``agent_filter=DIAGNOSIS``).
+The parser reads the session message trace and optionally filters
+by the ``phase`` field. Token counts, step counts, and timing are derived
+from the diagnosis phase by default (``phase_filter=DIAGNOSIS``).
 """
 
 import json
@@ -13,9 +13,9 @@ from agent.utils.usage import normalize_usage
 
 
 class AgentTraceParser:
-    def __init__(self, trace_path: str, agent_filter: str | None = DIAGNOSIS) -> None:
+    def __init__(self, trace_path: str, phase_filter: str | None = DIAGNOSIS) -> None:
         self.trace_path = trace_path
-        self.agent_filter = agent_filter
+        self.phase_filter = phase_filter
         self.in_tokens = 0
         self.out_tokens = 0
         self.steps = 0
@@ -80,7 +80,7 @@ class AgentTraceParser:
                 if not line:
                     continue
                 entry = json.loads(line)
-                if self.agent_filter and entry.get("agent") != self.agent_filter:
+                if self.phase_filter and entry.get("phase") != self.phase_filter:
                     continue
 
                 raw_ts = entry.get("timestamp")

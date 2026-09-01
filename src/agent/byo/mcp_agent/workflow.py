@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+import agent.byo.mcp_agent._bootstrap  # noqa: F401
+
 from mcp_agent.executor.workflow import Workflow, WorkflowResult
 
 from agent.byo.mcp_agent.config import session_server_names
@@ -63,7 +65,7 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
         )
 
     async def _run_diagnosis(self, task_description: str) -> tuple[str, bool]:
-        logger = MessageLogger(agent=DIAGNOSIS, session_dir=self._session_dir)
+        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self._session_dir)
         self._print_phase(DIAGNOSIS, "starting network fault analysis")
         logger.log(
             "agent_start", {"phase": DIAGNOSIS, "task_preview": task_description[:200]}
@@ -106,7 +108,7 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
         return report, False
 
     async def _run_submission(self, diagnosis_report: str) -> str:
-        logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
         self._print_phase(SUBMISSION, "recording structured result")
         logger.log("agent_start", {"phase": SUBMISSION})
 

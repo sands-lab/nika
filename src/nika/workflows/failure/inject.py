@@ -4,11 +4,13 @@ import json
 import time
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
-from nika.problems.prob_pool import (
+from nika.problems.registry import (
     get_problem_instance,
     list_avail_problem_names,
+    resolve_problem_name,
 )
 from nika.utils.logger import bind_session_dir, log_error_event, log_event
 from nika.utils.session import Session
@@ -27,6 +29,15 @@ def _failure_verify_settings() -> tuple[int, float]:
         return 3, 5.0
 
 
+def _failure_effect_enabled() -> bool:
+    try:
+        from nika.run_config.loader import get_run_config
+
+        return bool(get_run_config().nika.runtime_validation.failure_effect)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _json_safe(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
@@ -42,7 +53,6 @@ def _json_safe(value: Any) -> Any:
 def _extract_injection_params(problem: Any) -> dict[str, Any]:
     params: dict[str, Any] = {"problem_class": problem.__class__.__name__}
     for attr in (
-        "faulty_devices",
         "faulty_intf",
         "intf_name",
         "service_name",
@@ -103,15 +113,17 @@ def inject_failure(
 
     session = Session()
     session.load_running_session(session_id=session_id)
-    session.update_session("problem_names", problem_names)
+
+    resolved_names = [resolve_problem_name(name) for name in problem_names]
+    for original, resolved in zip(problem_names, resolved_names, strict=True):
+        if resolved not in list_avail_problem_names():
+            raise ValueError(f"Unknown problem name: {original}")
+
+    session.update_session("problem_names", resolved_names)
 
     bind_session_dir(session.session_dir)
 
     store = SessionStore()
-
-    for problem_name in problem_names:
-        if problem_name not in list_avail_problem_names():
-            raise ValueError(f"Unknown problem name: {problem_name}")
 
     scenario_params = dict(
         session.scenario_params if hasattr(session, "scenario_params") else {}
@@ -121,20 +133,14 @@ def inject_failure(
     session_meta = {k: v for k, v in session.__dict__.items() if k != "store"}
     scenario_params.setdefault("backend", resolve_backend(session_meta))
     overrides = dict(param_overrides or {})
-    if overrides and len(problem_names) != 1:
-        raise ValueError(
-            "When using --set parameters, inject exactly one problem at a time."
-        )
-
     inject_problem = get_problem_instance(
-        problem_names=problem_names,
+        problem_names=resolved_names,
         scenario_name=session.scenario_name,
         **scenario_params,
     )
-    if getattr(inject_problem, "root_cause_category", None):
-        session.update_session(
-            "root_cause_category", str(inject_problem.root_cause_category)
-        )
+    taxonomy = inject_problem.taxonomy_metadata()
+    for key, value in taxonomy.items():
+        session.update_session(key, value)
 
     failure_rows: list[tuple[int, str]] = []
     now_ts = datetime.now().timestamp()
@@ -145,25 +151,30 @@ def inject_failure(
         fault_params = ParamsClass(**overrides)
     elif overrides:
         raise ValueError(
-            f"Problem '{problem_names[0]}' does not accept --set parameters yet."
+            f"Problem '{resolved_names[0]}' does not accept --set parameters yet."
         )
     else:
         fault_params = None
 
-    if len(problem_names) > 1 and hasattr(inject_problem, "sub_faults"):
+    if len(resolved_names) > 1 and hasattr(inject_problem, "sub_faults"):
         sub_faults = list(getattr(inject_problem, "sub_faults"))
-        for idx, problem_name in enumerate(problem_names):
+        for idx, problem_name in enumerate(resolved_names):
             sub_problem = sub_faults[idx] if idx < len(sub_faults) else inject_problem
+            params_snapshot = _extract_injection_params(sub_problem)
+            if isinstance(fault_params, object) and hasattr(fault_params, "sub_params"):
+                parsed = getattr(fault_params, "sub_params", {}).get(problem_name)
+                if parsed is not None:
+                    params_snapshot["resolved_params"] = _json_safe(
+                        parsed.model_dump(exclude_none=True)
+                    )
             failure_id = store.create_failure_injection(
                 {
                     "session_id": session.session_id,
                     "problem_name": problem_name,
-                    "root_cause_category": str(
-                        getattr(sub_problem, "root_cause_category", "")
-                    ),
+                    **sub_problem.taxonomy_metadata(),
                     "scenario_name": session.scenario_name,
                     "lab_name": session.lab_name,
-                    "injection_params": _extract_injection_params(sub_problem),
+                    "injection_params": params_snapshot,
                     "status": "pending",
                     "start_time": now_ts,
                 }
@@ -182,10 +193,8 @@ def inject_failure(
         failure_id = store.create_failure_injection(
             {
                 "session_id": session.session_id,
-                "problem_name": problem_names[0],
-                "root_cause_category": str(
-                    getattr(inject_problem, "root_cause_category", "")
-                ),
+                "problem_name": resolved_names[0],
+                **taxonomy,
                 "scenario_name": session.scenario_name,
                 "lab_name": session.lab_name,
                 "injection_params": params_snapshot,
@@ -193,7 +202,7 @@ def inject_failure(
                 "start_time": now_ts,
             }
         )
-        failure_rows.append((failure_id, problem_names[0]))
+        failure_rows.append((failure_id, resolved_names[0]))
 
     if ParamsClass is not None:
         try:
@@ -300,7 +309,7 @@ def inject_failure(
 
     gt = inject_problem.get_ground_truth()
     if expected_root_causes:
-        from nika.problems.ground_truth import assert_root_causes_match
+        from nika.problems.rca.materialize import assert_root_causes_match
 
         assert_root_causes_match(gt, expected_root_causes)
     session.write_gt(gt.model_dump(mode="json", exclude_none=True))
@@ -309,3 +318,64 @@ def inject_failure(
         f"Ground truth saved for session {session.session_id}.",
         session_id=session.session_id,
     )
+
+    contract_path = Path(session.session_dir) / "validation-contract.json"
+    if _failure_effect_enabled() and contract_path.is_file():
+        from nika.net_env.contract import ValidationContract
+        from nika.validation.effect import (
+            FAILURE_EFFECT_FILENAME,
+            FailureEffectReport,
+            run_failure_effect_validation,
+        )
+
+        contract = ValidationContract.load(contract_path)
+        try:
+            effect_report = run_failure_effect_validation(
+                problem=inject_problem,
+                contract=contract,
+                artifact_dir=session.session_dir,
+            )
+        except Exception as exc:  # noqa: BLE001 - preserve validation evidence
+            effect_report = FailureEffectReport(
+                failure=resolved_names[0],
+                status="UNSUPPORTED",
+                reason=f"failure-effect validation error: {exc}",
+            )
+            effect_report.write(
+                str(Path(session.session_dir) / FAILURE_EFFECT_FILENAME)
+            )
+        session.update_session("validation_failure_effect", FAILURE_EFFECT_FILENAME)
+        for failure_id, _problem_name in failure_rows:
+            store.update_failure_injection(
+                session.session_id,
+                failure_id,
+                {"effect_validation": effect_report.model_dump(mode="json")},
+            )
+        intent_evidence = effect_report.evidence.get("intents", {})
+        for verifier, event_name in (
+            ("batfish", "failure_effect_batfish_validation"),
+            ("runtime", "failure_effect_runtime_validation"),
+        ):
+            verifier_evidence = {
+                intent_id: {
+                    "expected": evidence.get("expected"),
+                    verifier: evidence.get(verifier),
+                }
+                for intent_id, evidence in intent_evidence.items()
+            }
+            log_event(
+                event_name,
+                f"Failure effect {verifier} validation: {resolved_names}",
+                session_id=session.session_id,
+                problems=resolved_names,
+                status=effect_report.status,
+                intents=verifier_evidence,
+            )
+        log_event(
+            "failure_effect_validation",
+            f"Failure effect validation {effect_report.status}: {resolved_names}",
+            session_id=session.session_id,
+            problems=resolved_names,
+            status=effect_report.status,
+            path=str(Path(session.session_dir) / FAILURE_EFFECT_FILENAME),
+        )

@@ -1,0 +1,19 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: k8s_networkpolicy_deny
+  cases:
+  - inject:
+      control_node: controller
+      control_url: http://200.0.0.8/
+      namespace: llm-d
+      pod_selector: gateway.networking.k8s.io/gateway-name=llm-d-gateway
+      symptom_host: client
+      symptom_url: http://llmd/v1/models
+    root_causes:
+    - resource:
+        kind: k8s
+        name: nika-deny-ingress
+        namespace: llm-d
+        k8s_kind: NetworkPolicy
+      fault_type: k8s_networkpolicy_deny

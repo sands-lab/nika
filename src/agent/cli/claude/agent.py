@@ -12,7 +12,7 @@ Two-phase pipeline via ``claude -p`` subprocesses (no LangGraph).
 Authentication uses ``agent.provider`` (``-p`` / config/nika.yaml) with
 ``ANTHROPIC_API_KEY``, ``DEEPSEEK_API_KEY``, or ``NIKA_CUSTOM_*`` (mapped for
 the subprocess only), or ``claude auth login``.  See
-:mod:`agent.cli.claude.config` and ``docs/agent-implementations.md``.
+:mod:`agent.cli.claude.config` and ``docs/agents/agent-implementations.md``.
 
 Select with ``nika agent run -a cli.claude``.
 """

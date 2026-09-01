@@ -35,8 +35,6 @@ META_TEMPLATE: dict[str, Any] = {
         # Harness optimizations (e.g. GEPA, skills, Multi-agent) — not model fine-tunes.
         "optimization_methods": [],
         "tags": [],
-        "os_model": False,
-        "os_system": False,
         "extra": {},
     },
 }
@@ -144,8 +142,6 @@ def parse_metadata_payload(data: dict[str, Any]) -> SubmissionMetadata:
             agent_raw.get("optimization_methods"), field="optimization_methods"
         ),
         "tags": _parse_list_field(agent_raw.get("tags"), field="tags"),
-        "os_model": bool(agent_raw.get("os_model", False)),
-        "os_system": bool(agent_raw.get("os_system", False)),
         "extra": agent_raw.get("extra")
         if isinstance(agent_raw.get("extra"), dict)
         else {},

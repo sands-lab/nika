@@ -14,9 +14,6 @@ from agent.cli.claude.config import (
     prepare_claude_subprocess_env,
     use_bare_claude_mode,
 )
-from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig
-from nika.utils.agent_config import resolve_agent_model
 from tests.support.integration_pipeline import load_test_env
 
 load_test_env()
@@ -24,24 +21,6 @@ load_test_env()
 
 class ClaudeConfigTest:
     """Claude env model and auth helpers."""
-
-    def test_claude_model_from_yaml(self) -> None:
-        reset_run_config()
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "cli.claude",
-                        "provider": "deepseek",
-                        "models": {"claude": "deepseek-v4-flash"},
-                    }
-                }
-            )
-        )
-        try:
-            assert resolve_agent_model("cli.claude", None) == "deepseek-v4-flash"
-        finally:
-            reset_run_config()
 
     def test_default_model_missing_raises(self) -> None:
         """Sandbox Claude Code compat: env model chain is empty."""
@@ -144,6 +123,42 @@ class ClaudeWorkerConfigTest:
                 phase="invalid_phase",
                 llm_provider="anthropic",
             )
+
+    @pytest.mark.parametrize(
+        ("phase", "expected_servers"),
+        [
+            ("diagnosis", {"kathara_base_mcp_server"}),
+            ("submission", {"task_mcp_server"}),
+        ],
+    )
+    def test_mcp_config_exposes_only_current_phase_servers(
+        self, tmp_path, phase: str, expected_servers: set[str]
+    ) -> None:
+        worker = ClaudeWorker(
+            session_id="sess-123",
+            session_dir=str(tmp_path),
+            phase=phase,
+            model="test-model",
+            llm_provider="anthropic",
+        )
+        worker.workspace.mkdir()
+        servers = {
+            "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
+            "task_mcp_server": {"transport": "http", "url": "http://task"},
+        }
+        with (
+            unittest.mock.patch(
+                "agent.cli.claude.claude_worker.load_session_mcp_config",
+                return_value=servers,
+            ),
+            unittest.mock.patch(
+                "agent.cli.claude.claude_worker.begin_submission_mcp_phase"
+            ),
+        ):
+            worker._write_mcp_config()
+
+        config = json.loads(worker._mcp_config_path.read_text())
+        assert set(config["mcpServers"]) == expected_servers
 
 
 class ClaudeDisplayTest:

@@ -1,0 +1,19 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: sender_resource_contention
+  cases:
+  - inject:
+      client_host: client
+      cpu_quota: '0.05'
+      dst_ip: 200.0.0.8
+      duration: '600'
+      host_name: web
+      large_url: http://200.0.0.8/large.bin
+      small_url: http://200.0.0.8/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web
+      fault_type: sender_resource_contention

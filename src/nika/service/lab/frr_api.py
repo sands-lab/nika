@@ -94,3 +94,104 @@ class FRRAPIMixin:
             f"Could not determine BGP ASN for {node!r}. "
             f"summary={summary!r}, running_config_asn={running_config!r}"
         )
+
+    def frr_get_bgp_summary(self: SupportsExec, router_name: str) -> str:
+        return self.exec_cmd(router_name, "vtysh -c 'show bgp summary'")
+
+    def frr_get_bgp_routes(
+        self: SupportsExec, router_name: str, prefix: str | None = None
+    ) -> str:
+        if prefix:
+            return self.exec_cmd(router_name, f"vtysh -c 'show ip bgp {prefix}'")
+        return self.exec_cmd(router_name, "vtysh -c 'show ip bgp'")
+
+    def frr_get_bgp_neighbor_stats(
+        self: SupportsExec, router_name: str, neighbor: str | None = None
+    ) -> str:
+        if neighbor:
+            return self.exec_cmd(
+                router_name, f"vtysh -c 'show bgp neighbors {neighbor}'"
+            )
+        return self.exec_cmd(router_name, "vtysh -c 'show bgp neighbors'")
+
+    def frr_get_routing_state(
+        self: SupportsExec,
+        device: str,
+        *,
+        neighbor: str | None = None,
+        prefix: str | None = None,
+    ) -> str:
+        """Aggregate BGP telemetry for agents and diagnostics.
+
+        Returns summary, neighbor detail (session state, received/accepted
+        prefixes, configured maximum-prefix, last reset), and RIB output
+        (optionally filtered to ``prefix``).
+        """
+        chunks: list[str] = [
+            f"=== BGP summary ({device}) ===",
+            self.frr_get_bgp_summary(device),
+            "",
+        ]
+        if neighbor:
+            chunks.append(f"=== BGP neighbor {neighbor} ({device}) ===")
+            chunks.append(self.frr_get_bgp_neighbor_stats(device, neighbor=neighbor))
+        else:
+            chunks.append(f"=== BGP neighbors ({device}) ===")
+            chunks.append(self.frr_get_bgp_neighbor_stats(device))
+        chunks.append("")
+        if prefix:
+            chunks.append(f"=== BGP RIB {prefix} ({device}) ===")
+            chunks.append(self.frr_get_bgp_routes(device, prefix=prefix))
+        else:
+            chunks.append(f"=== BGP RIB ({device}) ===")
+            chunks.append(self.frr_get_bgp_routes(device))
+        running = self.exec_cmd(
+            device,
+            "vtysh -c 'show running-config' 2>/dev/null | "
+            "grep -E 'maximum-prefix|neighbor .* remote-as' || true",
+        )
+        chunks.extend(
+            [
+                "",
+                f"=== BGP configured neighbors / maximum-prefix ({device}) ===",
+                running or "(none)",
+            ]
+        )
+        return "\n".join(chunks)
+
+    def frr_get_rpki_status(
+        self: SupportsExec, device: str, prefix: str | None = None
+    ) -> str:
+        """Return RTR connection / validation summary, optionally for one prefix."""
+        chunks: list[str] = []
+        chunks.append(
+            self.exec_cmd(
+                device, "vtysh -c 'show rpki cache-connection' 2>/dev/null || true"
+            )
+        )
+        chunks.append(
+            self.exec_cmd(
+                device, "vtysh -c 'show rpki cache-server' 2>/dev/null || true"
+            )
+        )
+        if prefix:
+            chunks.append(
+                self.exec_cmd(
+                    device,
+                    f"vtysh -c 'show rpki prefix-table {prefix}' 2>/dev/null || "
+                    f"vtysh -c 'show rpki prefix {prefix}' 2>/dev/null || true",
+                )
+            )
+            chunks.append(
+                self.exec_cmd(
+                    device,
+                    f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
+                )
+            )
+        else:
+            chunks.append(
+                self.exec_cmd(
+                    device, "vtysh -c 'show rpki prefix-table' 2>/dev/null || true"
+                )
+            )
+        return "\n".join(chunk for chunk in chunks if chunk is not None)

@@ -1,57 +1,62 @@
 # NIKA documentation
 
-Use this index to find the shortest path for your task. The root [`README.md`](../README.md) introduces NIKA and provides the first-run workflow.
+Start with the root [README](../README.md) to install NIKA and run one incident. Then choose the page that matches your task.
 
-## Run and operate NIKA
+## Start and operate a lab
 
-| Goal | Document |
+| Goal | Read | Type |
+| --- | --- | --- |
+| Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](operations/configuration.md) | Reference |
+| Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
+| Select a scenario, backend, scale, or prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
+| Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
+| Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
+| Run a supported agent in a Docker Sandbox microVM | [Docker Sandbox execution](operations/agent-sandbox.md) | How-to |
+
+## Choose or integrate an agent
+
+| Goal | Read | Type |
+| --- | --- | --- |
+| Compare registered agents, providers, and execution modes | [Agent implementation reference](agents/agent-implementations.md) | Reference |
+| Implement and register a `TroubleshootingAgent` | [Custom agent integration](agents/custom-agents.md) | How-to |
+| See which MCP servers a session mounts and how to use packet capture | [MCP servers](agents/mcp-servers.md) | Reference |
+| Add reusable instructions for Claude or Codex agents | [Configure agent skills](agents/agent-skills.md) | How-to |
+| Configure a community-maintained agent | [Community agent references](agents/community/README.md) | Reference |
+
+## Run, evaluate, and publish a benchmark
+
+| Goal | Read | Type |
+| --- | --- | --- |
+| Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
+| Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
+| Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
+
+## Develop scenarios, failures, and verifiers
+
+| Goal | Read | Type |
+| --- | --- | --- |
+| Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
+| Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
+| Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
+
+## Maintain the documentation
+
+Read the code registries before changing a catalog or count:
+
+```shell
+uv run nika env list
+uv run nika failure list
+uv run nika agent list
+```
+
+| Contract | Implementation |
 | --- | --- |
-| Configure agents, labs, MCP, and benchmark runs | [Run configuration reference](configuration.md) |
-| Choose and deploy a lab | [Network scenario reference](network-scenarios.md) |
-| Select and inject a fault | [Failure reference](failures.md) |
-| Use every CLI command and option | [CLI reference](cli-reference.md) |
-| Run labs on another host | [Remote lab execution](remote.md) |
-| Run agents in an isolated microVM | [Agent sandbox execution](agent-sandbox.md) |
-
-## Extend NIKA
-
-| Goal | Document |
-| --- | --- |
-| Add a scenario, failure, traffic source, or benchmark case | [Create benchmark tasks](creating-benchmark-tasks.md) |
-| Implement and register an agent | [Custom agent integration](custom-agents.md) |
-| Attach troubleshooting skills to an agent | [Agent skills](agent-skills.md) |
-| Understand the built-in agent implementations | [Agent implementation reference](agent-implementations.md) |
-| Configure a community agent | [Community agent references](agents/community/README.md) |
-
-## Evaluate and contribute
-
-| Goal | Document |
-| --- | --- |
-| Understand the checked-in benchmark matrices | [Benchmark configuration reference](benchmark-configuration.md) |
-| Implement or evaluate root-cause labels | [Root-cause ground truth and scoring](root-cause-evaluation.md) |
-| Package a leaderboard result | [Leaderboard submission](leaderboard-submission.md) |
-| Run the test suites | [Testing guide](testing.md) |
-
-The code registries are the source of truth for available scenarios and failures. Run `uv run nika env list` and `uv run nika failure list` to inspect the installed checkout.
-
-## Map documentation to implementation
-
-Use these links when a reference page does not expose enough implementation detail for a change or review.
-
-| Topic | Primary implementation files |
-| --- | --- |
-| CLI commands | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/) |
 | Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml) |
-| Scenario registry and contracts | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
-| SNDlib topology import | [`topology/sndlib/`](../src/nika/topology/sndlib/), [`net_env/isp/`](../src/nika/net_env/isp/) |
-| Failure registry and contracts | [`prob_pool.py`](../src/nika/problems/prob_pool.py), [`problem_base.py`](../src/nika/problems/problem_base.py), [`root_cause.py`](../src/nika/problems/root_cause.py) |
-| Failure implementations | [`problems/`](../src/nika/problems/) |
+| CLI and workflows | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/), [`workflows/`](../src/nika/workflows/) |
+| Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
+| Scenario validation | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |
+| Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/agent/registry.py) |
-| Built-in agent implementations | [`byo/`](../src/agent/byo/), [`cli/`](../src/agent/cli/), [`sdk/`](../src/agent/sdk/) |
-| Agent sandbox | [`runner.py`](../src/agent/sandbox/runner.py), [`manifest.py`](../src/agent/sandbox/manifest.py) |
-| Shared agent skills | [`utils/skills.py`](../src/agent/utils/skills.py), [`skills/`](../src/agent/skills/skills/) |
-| Community agents | [`community/`](../src/agent/community/), [community agent references](agents/community/README.md) |
-| Benchmark generation and execution | [`generate_benchmark.py`](../benchmark/generate_benchmark.py), [`workflows/benchmark/`](../src/nika/workflows/benchmark/) |
-| Leaderboard packaging | [`workflows/leaderboard/`](../src/nika/workflows/leaderboard/) |
-| Remote lab control | [`remote/server.py`](../src/nika/remote/server.py), [`remote/workflows.py`](../src/nika/remote/workflows.py) |
+| MCP server catalog and selection | [`mcp/registry.py`](../src/nika/mcp/registry.py), [`mcp/servers/`](../src/nika/mcp/servers/), [`mcp/gateway/`](../src/nika/mcp/gateway/) |
+| Benchmark generation | [`workflows/benchmark/`](../src/nika/workflows/benchmark/) (`nika benchmark generate` / `select`) |
 | Test suites | [`tests/`](../tests/) |

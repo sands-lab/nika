@@ -1,0 +1,56 @@
+scenario:
+  name: isp_france
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      peer_host: pc_n23
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n01
+    root_causes:
+    - resource:
+        kind: node
+        node: n23
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n24
+      peer_host: pc_n24
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n01
+    root_causes:
+    - resource:
+        kind: node
+        node: n24
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n25
+      peer_host: pc_n25
+      prefix: 203.0.115.0/24
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n01
+    root_causes:
+    - resource:
+        kind: node
+        node: n25
+      fault_type: bgp_missing_route_advertisement

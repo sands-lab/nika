@@ -16,7 +16,7 @@ SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"
 RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
-MCP_SERVER_DIR = _PKG_DIR / "service" / "mcp_server"
+MCP_SERVER_DIR = _PKG_DIR / "mcp" / "servers"
 
 # Migration recognizes this legacy name. Runtime result paths come from YAML or CLI.
 ENV_RESULT_DIR = "NIKA_RESULT_DIR"

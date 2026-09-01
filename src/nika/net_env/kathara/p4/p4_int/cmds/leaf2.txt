@@ -1,8 +1,0 @@
-mirroring_add 500 4
-table_set_default dmac_forward drop
-table_add dmac_forward forward_to_port 00:00:00:00:00:00&&&00:00:00:00:00:00 00:00:0a:00:00:01 => 2 10
-table_add dmac_forward forward_to_port 00:00:00:00:00:00&&&00:00:00:00:00:00 00:00:0a:00:00:02 => 1 10
-table_add dmac_forward forward_to_port 00:00:00:00:00:00&&&00:00:00:00:00:00 00:00:0a:00:00:03 => 4 10
-table_add ingress.process_int_source_sink.tb_set_sink int_set_sink 1 => 
-table_add egress.process_int_report.tb_generate_report do_report_encapsulation 1 => 00:00:00:00:00:aa 00:00:00:00:00:03 10.0.0.100 10.0.0.3 1234
-EOF

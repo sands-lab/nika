@@ -1,0 +1,41 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: device_forwarding_packet_corruption
+  cases:
+  - topo_size: s
+    inject:
+      forwarding_device: spine_router_0_1
+      intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_router_0_1
+      fault_type: device_forwarding_packet_corruption
+  - topo_size: m
+    inject:
+      forwarding_device: spine_router_0_1
+      intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_router_0_1
+      fault_type: device_forwarding_packet_corruption
+  - topo_size: l
+    inject:
+      forwarding_device: spine_router_0_1
+      intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_router_0_1
+      fault_type: device_forwarding_packet_corruption

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import shlex
 from typing import Literal
 
@@ -181,13 +182,41 @@ class SemanticOpsMixin:
         self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
 
     def dhcp_delete_subnet(self: SupportsExec, dhcp_server: str, subnet: str) -> None:
-        sub = self._subnet_escaped(subnet)
         self.exec_cmd(dhcp_server, "cp /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf.bak")
+        escaped_sub = re.escape(subnet)
+        script = (
+            "import re\n"
+            "from pathlib import Path\n"
+            f"sub = {subnet!r}\n"
+            "path = Path('/etc/dhcp/dhcpd.conf')\n"
+            "text = path.read_text()\n"
+            f"pattern = re.compile(r'^\\s*subnet\\s+{escaped_sub}\\s+netmask\\s', re.M)\n"
+            "if not pattern.search(text):\n"
+            "    raise SystemExit(f'subnet block not found for {sub!r}')\n"
+            "out = []\n"
+            "skip = False\n"
+            "depth = 0\n"
+            "for line in text.splitlines(True):\n"
+            "    if (not skip) and pattern.match(line):\n"
+            "        skip = True\n"
+            "        depth = line.count('{') - line.count('}')\n"
+            "        continue\n"
+            "    if skip:\n"
+            "        depth += line.count('{') - line.count('}')\n"
+            "        if depth <= 0:\n"
+            "            skip = False\n"
+            "        continue\n"
+            "    out.append(line)\n"
+            "path.write_text(''.join(out))\n"
+        )
+        self.write_file(dhcp_server, "/tmp/nika_dhcp_delete_subnet.py", script)
+        self.exec_cmd(dhcp_server, "python3 /tmp/nika_dhcp_delete_subnet.py")
+        self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
         self.exec_cmd(
             dhcp_server,
-            f"sed -i '/subnet {sub} netmask 255\\.255\\.255\\.0/,/}}/d' /etc/dhcp/dhcpd.conf",
+            "for i in 1 2 3 4 5; do "
+            "systemctl is-active --quiet isc-dhcp-server && break; sleep 1; done",
         )
-        self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
 
     def process_running(self: SupportsExec, node: str, process_name: str) -> bool:
         quoted = shlex.quote(process_name)

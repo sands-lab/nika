@@ -29,7 +29,7 @@ class ClabParseTest:
     def test_min3clos_template_parses(self) -> None:
         template = (
             Path(__file__).resolve().parents[3]
-            / "src/nika/net_env/containerlab/min3clos/min3clos.clab.yml.tmpl"
+            / "src/nika/net_env/min3clos/min3clos.clab.yml.tmpl"
         )
         spec = parse_clab_topology(template)
 

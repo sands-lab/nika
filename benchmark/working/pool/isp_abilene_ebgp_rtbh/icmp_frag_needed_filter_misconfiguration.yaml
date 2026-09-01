@@ -1,0 +1,15 @@
+scenario:
+  name: isp_abilene_ebgp_rtbh
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: atlam5
+      fault_type: icmp_frag_needed_filter_misconfiguration

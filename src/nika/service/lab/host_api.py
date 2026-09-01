@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from nika.runtime.extras import raise_missing_extra, require_backend_extra
+from nika.utils.dependencies import raise_missing_extra, require_backend_extra
 
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
@@ -24,7 +24,7 @@ def create_host_api(
             from nika.service.kathara.base_api import KatharaBaseAPI
         except ImportError as exc:
             raise_missing_extra("kathara", cause=exc)
-        return KatharaBaseAPI(lab_name=lab_name)
+        return KatharaBaseAPI(lab_name=lab_name, session_meta=session_meta)
 
     require_backend_extra("containerlab")
     try:

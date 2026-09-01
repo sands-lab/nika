@@ -1,0 +1,35 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: dhcp_spoofed_subnet
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+      subnet: 10.1.1.0
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_spoofed_subnet
+  - topo_size: m
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+      subnet: 10.1.1.0
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_spoofed_subnet
+  - topo_size: l
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+      subnet: 10.1.1.0
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_spoofed_subnet

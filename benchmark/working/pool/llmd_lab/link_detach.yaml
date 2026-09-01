@@ -1,0 +1,14 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: link_detach
+  cases:
+  - inject:
+      host_name: controller
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: controller
+        name: eth0
+      fault_type: link_detach

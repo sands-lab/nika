@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
 from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
-from nika.problems.prob_pool import get_problem_instance
+from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
 from nika.workflows.agent.run import start_agent
@@ -25,7 +26,11 @@ from nika.workflows.benchmark.trials import (
     scan_trials,
     trial_dir,
 )
-from nika.workflows.benchmark.load_config import load_benchmark_yaml
+from nika.workflows.benchmark.healthy import (
+    is_healthy_case,
+    write_healthy_session_artifacts,
+)
+from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.release import (
     BenchmarkRelease,
     DEFAULT_RELEASE_VERSION,
@@ -49,6 +54,7 @@ from nika.workflows.benchmark.resume import (
 )
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import eval_results, run_eval_metrics
+from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
@@ -56,7 +62,7 @@ _BENCHMARK_DONE_PREFIX = "benchmark_done "
 
 
 def default_benchmark_yaml_path() -> str:
-    return str(BENCHMARK_DIR / "benchmark_selected.yaml")
+    return str(BENCHMARK_DIR / "working" / "pool")
 
 
 def default_release_ref() -> str:
@@ -69,6 +75,8 @@ def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     session = Session().load_running_session(session_id=session_id)
     for key, value in release_fields_for_session(release_meta).items():
         session.update_session(key, value)
+    if release_meta.get("fault_ontology"):
+        session.update_session("fault_ontology", release_meta["fault_ontology"])
 
 
 def _stamp_trial_meta(
@@ -92,9 +100,18 @@ def validate_inject_params(
     problem: str,
     scenario: str,
     topo_size: str,
-    params: dict[str, str],
+    params: dict[str, Any],
+    *,
+    problems: list[str] | None = None,
 ) -> None:
     """Raise ValueError if inject params do not satisfy the problem schema."""
+    resolved_problems = list(problems or row_problems({"problem": problem}))
+    if is_healthy_case(problem):
+        if params:
+            raise ValueError(
+                f"Healthy case {problem!r} does not accept inject parameters."
+            )
+        return
     if not params:
         raise ValueError(
             f"Missing inject parameters for {problem!r}. "
@@ -105,22 +122,35 @@ def validate_inject_params(
     kwargs: dict = {}
     if topo_size:
         kwargs["topo_size"] = topo_size
-    problem_inst = get_problem_instance(
-        problem_names=[problem],
-        scenario_name=scenario,
-        **kwargs,
-    )
-    params_class = getattr(type(problem_inst), "Params", None)
+    if len(resolved_problems) > 1:
+        nested = flatten_inject_overrides(
+            {"problem": problem, "problems": resolved_problems, "inject": params}
+        )
+        problem_inst = get_problem_instance(
+            problem_names=resolved_problems,
+            scenario_name=scenario,
+            **kwargs,
+        )
+        if hasattr(problem_inst, "resolve_params"):
+            problem_inst.resolve_params(nested)
+        return
+
+    problem_cls = get_problem_class(resolved_problems[0])
+    if problem_cls is None:
+        raise ValueError(f"Unknown problem {resolved_problems[0]!r}")
+    params_class = getattr(problem_cls, "Params", None)
     if params_class is None:
         if params:
-            raise ValueError(f"Problem {problem!r} does not accept inject parameters.")
+            raise ValueError(
+                f"Problem {resolved_problems[0]!r} does not accept inject parameters."
+            )
         return
     try:
         params_class(**params)
     except ValidationError as exc:
         raise ValueError(
-            f"Invalid or incomplete inject parameters for {problem!r}: {exc}. "
-            f"Run `nika failure describe {problem}` for required fields."
+            f"Invalid or incomplete inject parameters for {resolved_problems[0]!r}: {exc}. "
+            f"Run `nika failure describe {resolved_problems[0]}` for required fields."
         ) from exc
 
 
@@ -290,7 +320,8 @@ def run_single_case(
     model: str | None,
     max_steps: int | None,
     *,
-    inject_params: dict[str, str],
+    inject_params: dict[str, Any],
+    problems: list[str] | None = None,
     result_dir: str | None = None,
     session_tag: str | None = None,
     release_meta: dict | None = None,
@@ -298,6 +329,13 @@ def run_single_case(
     trial_index: int | None = None,
     case_key: str | None = None,
     expected_root_causes: list | None = None,
+    candidate_option_id: str | None = None,
+    topo: str | None = None,
+    igp: str | None = None,
+    bgp_mode: str | None = None,
+    rpki: bool | None = None,
+    backend: str | None = None,
+    device_profile: str | None = None,
 ) -> tuple[str, Path]:
     """Run one benchmark case (env → inject → agent → close + metrics).
 
@@ -307,8 +345,22 @@ def run_single_case(
     Returns:
         The session id and session directory for the completed run.
     """
+    isp_bits = []
+    if topo:
+        isp_bits.append(f"Topo: {topo}")
+    if igp:
+        isp_bits.append(f"IGP: {igp}")
+    if bgp_mode:
+        isp_bits.append(f"BGP: {bgp_mode}")
+    if rpki:
+        isp_bits.append("RPKI: on")
+    if backend:
+        isp_bits.append(f"Backend: {backend}")
+    if device_profile:
+        isp_bits.append(f"Device: {device_profile}")
     print(
         f"Running benchmark for Problem: {problem}, Scenario: {scenario}, Topo Size: {topo_size}"
+        + (f", {', '.join(isp_bits)}" if isp_bits else "")
         + (f", Trial: {trial_id}" if trial_id else "")
     )
 
@@ -320,7 +372,28 @@ def run_single_case(
     if not scenario_requires_topo_size(scenario):
         size = None
 
-    validate_inject_params(problem, scenario, topo_size or "", inject_params)
+    resolved_problems = list(
+        problems or row_problems({"problem": problem, "inject": inject_params})
+    )
+    inject_overrides = (
+        flatten_inject_overrides(
+            {
+                "problem": problem,
+                "problems": resolved_problems,
+                "inject": inject_params,
+            }
+        )
+        if len(resolved_problems) > 1
+        else dict(inject_params)
+    )
+
+    validate_inject_params(
+        problem,
+        scenario,
+        topo_size or "",
+        inject_params,
+        problems=resolved_problems,
+    )
     params = dict(inject_params)
 
     predetermined_dir: str | None = None
@@ -350,6 +423,12 @@ def run_single_case(
         session_tag=session_tag,
         session_id=trial_id,
         session_dir=predetermined_dir,
+        topo=topo,
+        igp=igp,
+        bgp_mode=bgp_mode,
+        rpki=rpki,
+        backend=backend,
+        device_profile=device_profile,
     )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
@@ -357,12 +436,15 @@ def run_single_case(
     try:
         if session_dir is None:
             session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
-        inject_failure(
-            problem_names=[problem],
-            session_id=session_id,
-            param_overrides=params,
-            expected_root_causes=expected_root_causes,
-        )
+        if is_healthy_case(problem):
+            write_healthy_session_artifacts(session_id)
+        else:
+            inject_failure(
+                problem_names=resolved_problems,
+                session_id=session_id,
+                param_overrides=inject_overrides,
+                expected_root_causes=expected_root_causes,
+            )
         gt_written = (session_dir / "ground_truth.json").is_file()
 
         row = benchmark_row_from_case(
@@ -370,12 +452,20 @@ def run_single_case(
             problem=problem,
             topo_size=topo_size,
             inject_params=params,
+            topo=topo,
+            igp=igp,
+            bgp_mode=bgp_mode,
+            rpki=rpki,
+            backend=backend,
+            device_profile=device_profile,
         )
         session = Session().load_running_session(session_id=session_id)
         session.update_session(
             "benchmark_fingerprint",
             benchmark_row_fingerprint(row),
         )
+        if candidate_option_id:
+            session.update_session("candidate_option_id", candidate_option_id)
         _stamp_release_meta(session_id, release_meta)
         _stamp_trial_meta(
             session_id,
@@ -504,6 +594,7 @@ def _run_trial(
     row = trial.row
     run_single_case(
         problem=row["problem"],
+        problems=row_problems(row),
         scenario=row["scenario"],
         topo_size=row.get("topo_size") or "",
         inject_params=row["inject"],
@@ -512,6 +603,7 @@ def _run_trial(
             if row.get("root_causes_status") == "unresolved"
             else row.get("root_causes")
         ),
+        candidate_option_id=row.get("candidate_option_id"),
         release_meta=release_meta,
         agent_type=agent_type,
         llm_provider=llm_provider,
@@ -522,6 +614,12 @@ def _run_trial(
         trial_id=trial.trial_id,
         trial_index=trial.trial_index,
         case_key=trial.case_key,
+        topo=row.get("topo"),
+        igp=row.get("igp"),
+        bgp_mode=row.get("bgp_mode"),
+        rpki=row.get("rpki"),
+        backend=row.get("backend"),
+        device_profile=row.get("device_profile"),
     )
 
 
@@ -673,10 +771,18 @@ def run_benchmark_trials(
     if retry_passes and not continue_on_error:
         continue_on_error = True
 
-    rows = load_benchmark_yaml(benchmark_file)
+    rows = load_benchmark_input(benchmark_file)
     if not rows:
         print(f"No benchmark rows found in {benchmark_file}")
         return
+    release_meta = dict(release_meta or {})
+    release_meta["fault_ontology"] = sorted(
+        {
+            str(row["problem"])
+            for row in rows
+            if row.get("problem") and not is_healthy_case(row.get("problem"))
+        }
+    )
 
     trials = expand_trials(rows, n_trials)
     results_root = resolve_results_root(result_dir)
@@ -815,22 +921,29 @@ def run_benchmark_from_release(
     resume: bool = True,
     session_tag: str | None = None,
     case_timeout: int | None = None,
-    continue_on_error: bool = False,
+    continue_on_error: bool = True,
     retry_passes: int = 0,
     check_images: bool = True,
     release: BenchmarkRelease | None = None,
 ) -> None:
-    """Run a frozen ``nika-bench`` release split after preflight validation."""
+    """Run a frozen ``nika-bench`` release split after preflight validation.
+
+    Official release runs default to ``continue_on_error=True`` so a single
+    trial failure does not abort the job; pass False (CLI ``--abort-on-error``)
+    to stop on the first error.
+    """
     resolved_split = normalize_split(split, default="test")
     resolved = release or load_release(release_ref, split=resolved_split)
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
     preflight_release(resolved, check_images=check_images)
 
-    # Release defaults supply a recommended watchdog; CLI may override freely.
-    effective_timeout = (
-        resolved.case_timeout_sec if case_timeout is None else case_timeout
-    )
+    # Timeout is operational (run config / CLI), not a release pin.
+    if case_timeout is None:
+        from nika.run_config.schema import BenchmarkSettings
+
+        case_timeout = int(BenchmarkSettings.model_fields["case_timeout_sec"].default)
+    effective_timeout = int(case_timeout)
     n_trials = resolved.n_trials
     official = True
 
@@ -865,8 +978,7 @@ def run_benchmark_from_release(
     print(
         f"Running {resolved.ref} split={resolved.split} "
         f"({resolved.case_count} cases × {n_trials} trials, "
-        f"digest={resolved.benchmark_digest[:12]}…, official={official}) "
-        f"→ {job_path}"
+        f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
     )
 
     run_benchmark_trials(

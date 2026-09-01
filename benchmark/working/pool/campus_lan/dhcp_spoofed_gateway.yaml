@@ -1,0 +1,32 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: dhcp_spoofed_gateway
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_spoofed_gateway
+  - topo_size: m
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_spoofed_gateway
+  - topo_size: l
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_spoofed_gateway

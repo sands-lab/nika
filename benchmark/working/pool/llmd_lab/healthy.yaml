@@ -1,0 +1,5 @@
+scenario:
+  name: llmd_lab
+healthy:
+  variants:
+  - {}

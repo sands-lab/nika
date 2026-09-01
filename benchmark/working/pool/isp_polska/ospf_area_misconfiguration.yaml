@@ -1,0 +1,161 @@
+scenario:
+  name: isp_polska
+failure:
+  fault_type: ospf_area_misconfiguration
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bialystok
+    root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bydgoszcz
+    root_causes:
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: gdansk
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: katowice
+    root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kolobrzeg
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lodz
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: poznan
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: rzeszow
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: szczecin
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wroclaw
+    root_causes:
+    - resource:
+        kind: node
+        node: wroclaw
+      fault_type: ospf_area_misconfiguration

@@ -1,0 +1,38 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: dns_lookup_latency
+  cases:
+  - topo_size: s
+    inject:
+      delay_ms: '1000'
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: dns_lookup_latency
+  - topo_size: m
+    inject:
+      delay_ms: '1000'
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: dns_lookup_latency
+  - topo_size: l
+    inject:
+      delay_ms: '1000'
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: dns_lookup_latency

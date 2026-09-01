@@ -1,0 +1,26 @@
+scenario:
+  name: min3clos
+failure:
+  fault_type: bgp_asn_misconfig
+  cases:
+  - inject:
+      host_name: leaf1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf1
+      fault_type: bgp_asn_misconfig
+  - inject:
+      host_name: leaf2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf2
+      fault_type: bgp_asn_misconfig
+  - inject:
+      host_name: spine
+    root_causes:
+    - resource:
+        kind: node
+        node: spine
+      fault_type: bgp_asn_misconfig

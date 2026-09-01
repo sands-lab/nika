@@ -13,9 +13,9 @@ import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.mcp_servers import MCPServerConfig, SESSION_HEADER
-from nika.service.k8s_mcp_server.client import reset_client
-from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
-from nika.service.mcp_server.registry import K8S_MCP_SERVER
+from nika.mcp.k8s.client import reset_client
+from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.mcp.registry import K8S_MCP_SERVER
 from nika.utils.session_store import SessionStore
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
@@ -334,7 +334,7 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
                 "namespace": "word-ns",
                 "pod_selector": "app=word",
                 "symptom_url": "http://datacenter.com/word",
-                "control_url": "http://datacenter.com/weather",
+                "control_url": "http://datacenter.com/weather?location=London",
             },
         )
         self._assert_failure_injected("k8s_networkpolicy_deny")
@@ -585,7 +585,7 @@ def _prod_shape_mcp_probe(
     import urllib.error
     import urllib.request
 
-    from nika.service.mcp_gateway.lifecycle import mcp_gateway_for_session
+    from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 
     reset_client(session_id)
     with mcp_gateway_for_session(

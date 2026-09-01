@@ -8,7 +8,7 @@ import urllib.request
 import pytest
 
 from agent.sandbox.sbx.policy import sanitize_sandbox_name
-from nika.service.mcp_gateway.lifecycle import McpGatewayManager
+from nika.mcp.gateway.lifecycle import McpGatewayManager
 from nika.utils.net import pick_free_port
 from tests.agent.sandbox_support import (
     run_cross_sandbox_isolation_probe,

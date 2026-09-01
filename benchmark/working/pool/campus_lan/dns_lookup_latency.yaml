@@ -1,0 +1,38 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: dns_lookup_latency
+  cases:
+  - topo_size: s
+    inject:
+      delay_ms: '1000'
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: dns_lookup_latency
+  - topo_size: m
+    inject:
+      delay_ms: '1000'
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: dns_lookup_latency
+  - topo_size: l
+    inject:
+      delay_ms: '1000'
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: dns_lookup_latency

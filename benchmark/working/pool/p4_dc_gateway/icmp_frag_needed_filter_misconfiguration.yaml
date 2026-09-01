@@ -1,0 +1,29 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: icmp_frag_needed_filter_misconfiguration

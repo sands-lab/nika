@@ -12,7 +12,7 @@ import yaml
 
 from nika.workflows.benchmark.release import (
     RESOURCES_V1,
-    SCORING_V2,
+    SCORING,
     TOOLS_V1,
     freeze_release,
     load_release_from_dir,
@@ -30,14 +30,12 @@ from nika.workflows.leaderboard.pack import (
     pack_leaderboard_submission,
 )
 from nika.workflows.leaderboard.schema import (
-    FILES_FILENAME,
     IDENTITY_FILENAME,
     METADATA_FILENAME,
     METRICS_FILENAME,
     RCA_CONFUSION_FILENAME,
     README_FILENAME,
     RESULTS_DIRNAME,
-    SCHEMA_VERSION,
     SubmissionMetadata,
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
@@ -48,10 +46,10 @@ def _mini_cases_yaml(path: Path) -> Path:
         "seed": 42,
         "cases": [
             {
-                "scenario": "simple_bgp",
-                "topo_size": None,
+                "scenario": "dc_clos",
+                "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "pc1", "intf_name": "eth0"},
+                "inject": {"host_name": "client_0", "intf_name": "eth0"},
             }
         ],
     }
@@ -75,13 +73,12 @@ def _freeze_mini(
         version=version,
         splits=release.splits,
         defaults=defaults,
-        scoring=dict(SCORING_V2),
+        scoring=dict(SCORING),
         tools=dict(TOOLS_V1),
         resources=dict(RESOURCES_V1),
         images=release.images,
-        scenario_problem_pin=release.scenario_problem_pin,
     )
-    return load_release_from_dir(dest, split="dev", verify_digest=True)
+    return load_release_from_dir(dest, split="dev")
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -94,7 +91,7 @@ def _write_trial_artifacts(
     *,
     outcome: str = "success",
     rca_f1: float = 1.0,
-    predicted_root_cause_name: list[str] | None = None,
+    predicted_fault_types: list[str] | None = None,
     write_submission: bool | None = None,
 ) -> None:
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -104,20 +101,27 @@ def _write_trial_artifacts(
             "status": "finished",
             "outcome": outcome,
             "session_id": session_dir.name,
-            "scenario_name": "simple_bgp",
-            "root_cause_name": "link_down",
+            "scenario_name": "dc_clos",
+            "problem_names": ["link_down"],
         },
     )
     _write_json(
         session_dir / "ground_truth.json",
         {
             "is_anomaly": True,
-            "faulty_devices": ["pc1"],
-            "root_cause_name": ["link_down"],
+            "root_causes": [
+                {
+                    "resource_id": "node/pc1",
+                    "fault_type": "link_down",
+                }
+            ],
         },
     )
     (session_dir / "messages.jsonl").write_text(
         '{"role":"assistant","content":"ok"}\n', encoding="utf-8"
+    )
+    (session_dir / "nika.jsonl").write_text(
+        '{"event":"env_start"}\n', encoding="utf-8"
     )
     metrics = {
         "detection_score": 1.0 if outcome == "success" else -1.0,
@@ -141,16 +145,21 @@ def _write_trial_artifacts(
     )
     if should_write:
         pred = (
-            predicted_root_cause_name
-            if predicted_root_cause_name is not None
+            predicted_fault_types
+            if predicted_fault_types is not None
             else ["link_down"]
         )
         _write_json(
             session_dir / "submission.json",
             {
                 "is_anomaly": True,
-                "faulty_devices": ["pc1"],
-                "root_cause_name": pred,
+                "root_causes": [
+                    {
+                        "resource_id": "node/pc1",
+                        "fault_type": name,
+                    }
+                    for name in pred
+                ],
             },
         )
 
@@ -169,17 +178,15 @@ def _build_release_run(
         "benchmark_id": release.id,
         "version": release.version,
         "benchmark_ref": release.ref,
-        "benchmark_digest": release.benchmark_digest,
         "split": release.split,
         "case_count": release.case_count,
-        "cases_sha256": release.cases_sha256,
         "nika_git_commit": None,
         "nika_git_dirty": False,
         "scoring": release.scoring,
         "tools": release.tools,
         "resources": release.resources,
         "defaults": release.defaults,
-        "case_timeout_sec": release.case_timeout_sec,
+        "case_timeout_sec": 2400,
         "agent_type": "mock",
         "llm_provider": None,
         "model": "mock-v1",
@@ -228,8 +235,6 @@ _FULL_METADATA: dict[str, Any] = {
         "skills": ["network-diagnosis"],
         "optimization_methods": ["none"],
         "tags": ["test"],
-        "os_model": False,
-        "os_system": False,
         "extra": {},
     },
 }
@@ -250,29 +255,11 @@ def _pack(
         metadata=meta,
         readme_text=readme_text if readme_text is not None else _DEFAULT_README,
         **overrides,
-    )
+    ).scores_dir
 
 
 def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
-
-
-def _metrics_rel() -> str:
-    return f"{RESULTS_DIRNAME}/{METRICS_FILENAME}"
-
-
-def _identity_rel() -> str:
-    return f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}"
-
-
-def _refresh_package_hash(package: Path, rel: str) -> None:
-    from nika.workflows.leaderboard.hashing import sha256_file
-
-    files = json.loads((package / FILES_FILENAME).read_text(encoding="utf-8"))
-    files["package"][rel] = sha256_file(package / rel)
-    (package / FILES_FILENAME).write_text(
-        json.dumps(files, indent=2) + "\n", encoding="utf-8"
-    )
 
 
 class TestLeaderboardPackValidate:
@@ -295,7 +282,6 @@ class TestLeaderboardPackValidate:
         assert package.name.endswith("_meta_agent")
         assert (package / METADATA_FILENAME).is_file()
         assert (package / README_FILENAME).is_file()
-        assert (package / FILES_FILENAME).is_file()
         assert _identity_path(package).is_file()
         assert (package / RESULTS_DIRNAME / METRICS_FILENAME).is_file()
         assert (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).is_file()
@@ -313,11 +299,12 @@ class TestLeaderboardPackValidate:
         assert packed["agent"]["optimization_methods"] == ["reflection"]
         assert packed["agent"]["tags"] == ["research"]
 
-        report = validate_leaderboard_submission(package, source_result_dir=result_dir)
+        report = validate_leaderboard_submission(package)
         assert report.ok, report.errors
 
         identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
-        assert identity["schema_version"] == SCHEMA_VERSION
+        assert "schema_version" not in identity
+        assert identity["benchmark"]["version"] == "lb-mini"
 
         trial_results = sorted(
             (package / RESULTS_DIRNAME / "trials").glob("*/result.json")
@@ -325,8 +312,8 @@ class TestLeaderboardPackValidate:
         assert trial_results
         for path in trial_results:
             trial = json.loads(path.read_text(encoding="utf-8"))
-            assert trial["gt_root_cause_name"] == ["link_down"]
-            assert trial["predicted_root_cause_name"] == ["link_down"]
+            assert trial["gt_fault_types"] == ["link_down"]
+            assert trial["predicted_fault_types"] == ["link_down"]
 
         confusion = json.loads(
             (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).read_text(
@@ -355,17 +342,15 @@ class TestLeaderboardPackValidate:
             "benchmark_id": release.id,
             "version": release.version,
             "benchmark_ref": release.ref,
-            "benchmark_digest": release.benchmark_digest,
             "split": release.split,
             "case_count": release.case_count,
-            "cases_sha256": release.cases_sha256,
             "nika_git_commit": None,
             "nika_git_dirty": False,
             "scoring": release.scoring,
             "tools": release.tools,
             "resources": release.resources,
             "defaults": release.defaults,
-            "case_timeout_sec": release.case_timeout_sec,
+            "case_timeout_sec": 2400,
             "agent_type": "mock",
             "llm_provider": None,
             "model": "mock-v1",
@@ -381,7 +366,7 @@ class TestLeaderboardPackValidate:
             trial_dir(result_dir, first.case_key, first.trial_index),
             outcome="success",
             rca_f1=0.0,
-            predicted_root_cause_name=["host_missing_ip"],
+            predicted_fault_types=["host_missing_ip"],
         )
         _write_trial_artifacts(
             trial_dir(result_dir, second.case_key, second.trial_index),
@@ -390,17 +375,17 @@ class TestLeaderboardPackValidate:
         )
 
         package = _pack(result_dir)
-        report = validate_leaderboard_submission(package, source_result_dir=result_dir)
+        report = validate_leaderboard_submission(package)
         assert report.ok, report.errors
 
         by_id = {
             path.parent.name: json.loads(path.read_text(encoding="utf-8"))
             for path in (package / RESULTS_DIRNAME / "trials").glob("*/result.json")
         }
-        assert by_id[first.trial_id]["gt_root_cause_name"] == ["link_down"]
-        assert by_id[first.trial_id]["predicted_root_cause_name"] == ["host_missing_ip"]
-        assert by_id[second.trial_id]["gt_root_cause_name"] == ["link_down"]
-        assert by_id[second.trial_id]["predicted_root_cause_name"] is None
+        assert by_id[first.trial_id]["gt_fault_types"] == ["link_down"]
+        assert by_id[first.trial_id]["predicted_fault_types"] == ["host_missing_ip"]
+        assert by_id[second.trial_id]["gt_fault_types"] == ["link_down"]
+        assert by_id[second.trial_id]["predicted_fault_types"] is None
 
         confusion = json.loads(
             (package / RESULTS_DIRNAME / RCA_CONFUSION_FILENAME).read_text(
@@ -413,7 +398,7 @@ class TestLeaderboardPackValidate:
             {"gt": "link_down", "predicted": "host_missing_ip", "count": 1}
         ]
 
-    def test_schema_v1_package_rejected(self, mini_release_env) -> None:
+    def test_identity_rejects_unknown_fields(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         package = _pack(result_dir)
         identity_path = _identity_path(package)
@@ -422,10 +407,9 @@ class TestLeaderboardPackValidate:
         identity_path.write_text(
             yaml.safe_dump(data, sort_keys=False), encoding="utf-8"
         )
-        _refresh_package_hash(package, _identity_rel())
         report = validate_leaderboard_submission(package)
         assert not report.ok
-        assert any("schema_version" in e for e in report.errors)
+        assert any("identity.yaml" in e for e in report.errors)
 
     def test_pack_from_submission_dir(self, mini_release_env, tmp_path: Path) -> None:
         _release, result_dir = mini_release_env
@@ -448,16 +432,24 @@ class TestLeaderboardPackValidate:
         )
         package = pack_leaderboard_submission(result_dir, submission_dir=staging)
         packed = yaml.safe_load(
-            (package / METADATA_FILENAME).read_text(encoding="utf-8")
+            (package.scores_dir / METADATA_FILENAME).read_text(encoding="utf-8")
         )
         assert packed["info"]["name"] == "YAML Agent"
         assert packed["agent"]["model"] == "gpt-4.1"
         assert packed["agent"]["framework"] == "autogen"
         assert packed["agent"]["extra"]["note"] == "from-dir"
-        assert "From staging dir" in (package / README_FILENAME).read_text(
-            encoding="utf-8"
+        assert "From staging dir" in (
+            package.scores_dir / README_FILENAME
+        ).read_text(encoding="utf-8")
+        assert validate_leaderboard_submission(package.scores_dir).ok
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
         )
-        assert validate_leaderboard_submission(package).ok
+
+        traj_report = validate_trajectory_package(
+            package.trajectories_dir, scores_dir=package.scores_dir
+        )
+        assert traj_report.ok, traj_report.errors
 
     def test_write_and_load_submission_templates(self, tmp_path: Path) -> None:
         staging = write_submission_templates(tmp_path / "submission")
@@ -491,24 +483,22 @@ class TestLeaderboardPackValidate:
         data = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
         data["agent"] = None
         meta_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        _refresh_package_hash(package, METADATA_FILENAME)
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("invalid metadata" in e.lower() for e in report.errors)
 
-    def test_digest_mismatch_fails(self, mini_release_env) -> None:
+    def test_case_count_mismatch_fails(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         package = _pack(result_dir)
         identity_path = _identity_path(package)
         data = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
-        data["benchmark"]["digest"] = "0" * 64
+        data["benchmark"]["case_count"] = 999
         identity_path.write_text(
             yaml.safe_dump(data, sort_keys=False), encoding="utf-8"
         )
-        _refresh_package_hash(package, _identity_rel())
         report = validate_leaderboard_submission(package)
         assert not report.ok
-        assert any("digest" in e for e in report.errors)
+        assert any("case_count" in e for e in report.errors)
 
     def test_missing_trial_fails(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
@@ -516,17 +506,6 @@ class TestLeaderboardPackValidate:
         trials_root = package / RESULTS_DIRNAME / "trials"
         trial_dirs = sorted(trials_root.iterdir())
         shutil.rmtree(trial_dirs[0])
-        files = json.loads((package / FILES_FILENAME).read_text(encoding="utf-8"))
-        removed = [
-            k
-            for k in list(files["package"])
-            if k.startswith(f"{RESULTS_DIRNAME}/trials/{trial_dirs[0].name}/")
-        ]
-        for key in removed:
-            files["package"].pop(key, None)
-        (package / FILES_FILENAME).write_text(
-            json.dumps(files, indent=2) + "\n", encoding="utf-8"
-        )
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("missing trials" in e for e in report.errors)
@@ -540,14 +519,6 @@ class TestLeaderboardPackValidate:
         second = trials[1]
         shutil.rmtree(second)
         shutil.copytree(src, second)
-        from nika.workflows.leaderboard.hashing import sha256_file
-
-        files = json.loads((package / FILES_FILENAME).read_text(encoding="utf-8"))
-        rel = f"{RESULTS_DIRNAME}/trials/{second.name}/result.json"
-        files["package"][rel] = sha256_file(second / "result.json")
-        (package / FILES_FILENAME).write_text(
-            json.dumps(files, indent=2) + "\n", encoding="utf-8"
-        )
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any(
@@ -564,20 +535,9 @@ class TestLeaderboardPackValidate:
         metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
         metrics["mean_rca_f1"] = 0.0
         metrics_path.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
-        _refresh_package_hash(package, _metrics_rel())
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("mean_rca_f1" in e for e in report.errors)
-
-    def test_tampered_package_file_fails(self, mini_release_env) -> None:
-        _release, result_dir = mini_release_env
-        package = _pack(result_dir)
-        metrics_path = package / RESULTS_DIRNAME / METRICS_FILENAME
-        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
-        metrics_path.write_text(json.dumps(metrics, indent=4) + "\n", encoding="utf-8")
-        report = validate_leaderboard_submission(package)
-        assert not report.ok
-        assert any("package file modified" in e for e in report.errors)
 
     def test_bad_agent_type_fails(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
@@ -586,7 +546,6 @@ class TestLeaderboardPackValidate:
         data = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
         data["agent"]["tools"] = "not-a-list"
         meta_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        _refresh_package_hash(package, METADATA_FILENAME)
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any(
@@ -600,7 +559,6 @@ class TestLeaderboardPackValidate:
         data = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
         data["info"]["org"] = "sk-abcdefghijklmnopqrstuvwxyz0123456789"
         meta_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        _refresh_package_hash(package, METADATA_FILENAME)
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("secret" in e for e in report.errors)
@@ -612,7 +570,6 @@ class TestLeaderboardPackValidate:
         data = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
         data["info"]["org"] = "/home/wang/secret-lab"
         meta_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        _refresh_package_hash(package, METADATA_FILENAME)
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("absolute path" in e for e in report.errors)
@@ -624,17 +581,6 @@ class TestLeaderboardPackValidate:
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("README.md" in e for e in report.errors)
-
-    def test_source_run_tamper_fails(self, mini_release_env) -> None:
-        _release, result_dir = mini_release_env
-        package = _pack(result_dir)
-        run_path = result_dir / "run.json"
-        data = json.loads(run_path.read_text(encoding="utf-8"))
-        data["tampered"] = True
-        run_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        report = validate_leaderboard_submission(package, source_result_dir=result_dir)
-        assert not report.ok
-        assert any("source run.json modified" in e for e in report.errors)
 
     def test_pack_rejects_non_official_run(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env

@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-sim-d
+  namespace: llm-d
+  labels:
+    app: llm-d-pd
+    llm-d.ai/role: decode
+    llm-d.ai/guide: pd-disaggregation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llm-d-pd
+      llm-d.ai/role: decode
+  template:
+    metadata:
+      labels:
+        app: llm-d-pd
+        llm-d.ai/role: decode
+        llm-d.ai/guide: pd-disaggregation
+    spec:
+      containers:
+      - name: routing-sidecar
+        image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - --port=8000
+        - --vllm-port=8200
+        - --kv-connector=nixlv2
+        - --secure-proxy=false
+        - --inference-pool=llm-d/llm-d-pd
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      - name: vllm-decode
+        image: ghcr.io/llm-d/llm-d-inference-sim:latest
+        imagePullPolicy: IfNotPresent
+        args:
+        - --config=/etc/sim/config.yaml
+        - --port=8200
+        ports:
+        - name: vllm-http
+          containerPort: 8200
+          protocol: TCP
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8200
+          failureThreshold: 60
+          periodSeconds: 5
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8200
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8200
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: sim-config
+          mountPath: /etc/sim
+          readOnly: true
+      volumes:
+      - name: sim-config
+        configMap:
+          name: inference-sim-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-sim-d-service
+  namespace: llm-d
+spec:
+  selector:
+    llm-d.ai/role: decode
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

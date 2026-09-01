@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import agent.byo.mcp_agent._bootstrap  # noqa: F401
+
 from mcp_agent.agents.agent import Agent
 
 from agent.byo.mcp_agent.config import _mcp_reasoning_effort, build_mcp_request_params
@@ -10,6 +12,7 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import begin_submission_mcp_phase
 from agent.protocols import SUBMISSION
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
+from agent.utils.submission_context import submission_prompt_context
 
 
 class McpSubmissionPhase:
@@ -35,8 +38,8 @@ class McpSubmissionPhase:
         self._reasoning_effort = _mcp_reasoning_effort(reasoning_effort)
 
     async def run(self, diagnosis_report: str) -> str:
-        begin_submission_mcp_phase(self._session_id)
-        logger = MessageLogger(agent=SUBMISSION, session_dir=self._session_dir)
+        begin_submission_mcp_phase(self._session_id, diagnosis_report)
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
         request_params = build_mcp_request_params(
             model=self._model,
             max_steps=self._max_steps,
@@ -46,6 +49,7 @@ class McpSubmissionPhase:
         prompt = (
             f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
             f"Based on the diagnosis report: {diagnosis_report}\n"
+            f"{submission_prompt_context(self._session_id)}\n"
             "Please provide the submission. Do not submit if no report is available."
         )
 

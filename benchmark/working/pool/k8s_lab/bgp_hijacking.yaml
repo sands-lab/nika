@@ -1,0 +1,33 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: bgp_hijacking
+  cases:
+  - inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: bgp_hijacking
+  - inject:
+      host_name: leaf_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_2
+      fault_type: bgp_hijacking
+  - inject:
+      host_name: leaf_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_1
+      fault_type: bgp_hijacking
+  - inject:
+      host_name: leaf_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_2
+      fault_type: bgp_hijacking

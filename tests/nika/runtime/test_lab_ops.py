@@ -4,7 +4,7 @@ import pytest
 import json
 from unittest.mock import MagicMock
 from nika.runtime.base import LabRuntime, RuntimeCapabilityError
-from nika.problems.problem_base import ProblemBase
+from nika.problems.base import ProblemBase
 
 
 class _StubRuntime(LabRuntime):
@@ -33,7 +33,14 @@ class _StubRuntime(LabRuntime):
 
     def exec(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         self.calls.append((node, cmd))
-        return self._responses.get((node, cmd), "")
+        if (node, cmd) in self._responses:
+            return self._responses[(node, cmd)]
+        # Default: nft availability probe used by NFTableMixin.add_nft_drop_rule.
+        if "echo OK" in cmd and "echo MISSING" in cmd:
+            return "OK\n"
+        if "apt-get install" in cmd and "nftables" in cmd:
+            return ""
+        return ""
 
     def get_container(self, node: str):
         container = MagicMock()

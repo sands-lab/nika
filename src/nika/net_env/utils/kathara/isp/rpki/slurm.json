@@ -1,0 +1,24 @@
+{
+  "slurmVersion": 1,
+  "validationOutputFilters": {
+    "prefixFilters": [],
+    "bgpsecFilters": []
+  },
+  "locallyAddedAssertions": {
+    "prefixAssertions": [
+      {
+        "asn": 65001,
+        "prefix": "203.0.113.0/24",
+        "maxPrefixLength": 24,
+        "comment": "NIKA Abilene VRP for 203.0.113.0/24"
+      },
+      {
+        "asn": 65001,
+        "prefix": "203.0.114.0/24",
+        "maxPrefixLength": 24,
+        "comment": "NIKA Abilene VRP for 203.0.114.0/24"
+      }
+    ],
+    "bgpsecAssertions": []
+  }
+}

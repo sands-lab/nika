@@ -18,7 +18,7 @@ from nika.remote.protocol import (
     PolicyMode,
     SessionContainersResponse,
 )
-from nika.service.mcp_gateway.lifecycle import (
+from nika.mcp.gateway.lifecycle import (
     McpGatewayManager,
     SANDBOX_GATEWAY_BIND_HOST,
     mcp_gateway_for_session,
@@ -128,8 +128,10 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             metric_strategy=request.metric_strategy,
             constant_metric=request.constant_metric,
             bgp_mode=request.bgp_mode,
+            rpki=request.rpki,
             backend=request.backend,
             device_profile=request.device_profile,
+            static_validation=request.static_validation,
         )
     except Exception:
         logger.exception("env start failed scenario=%s", request.scenario)

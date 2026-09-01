@@ -1,0 +1,50 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: sender_resource_contention
+  cases:
+  - topo_size: s
+    inject:
+      client_host: client_0
+      cpu_quota: '0.05'
+      dst_ip: 10.0.1.2
+      duration: '600'
+      host_name: webserver0_pod0
+      large_url: http://web0.pod0/large.bin
+      small_url: http://web0.pod0/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: webserver0_pod0
+      fault_type: sender_resource_contention
+  - topo_size: m
+    inject:
+      client_host: client_0
+      cpu_quota: '0.05'
+      dst_ip: 10.0.1.2
+      duration: '600'
+      host_name: webserver0_pod0
+      large_url: http://web0.pod0/large.bin
+      small_url: http://web0.pod0/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: webserver0_pod0
+      fault_type: sender_resource_contention
+  - topo_size: l
+    inject:
+      client_host: client_0
+      cpu_quota: '0.05'
+      dst_ip: 10.0.1.2
+      duration: '600'
+      host_name: webserver0_pod0
+      large_url: http://web0.pod0/large.bin
+      small_url: http://web0.pod0/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: webserver0_pod0
+      fault_type: sender_resource_contention

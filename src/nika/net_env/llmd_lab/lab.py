@@ -1,0 +1,298 @@
+"""LLM disaggregated inference lab (llmd-lab).
+
+A star topology with Kubernetes (k3s) deploying llm-d with disaggregated Prefill/Decode.
+All nodes connect to a single bridged switch and use the internet for downloading models.
+"""
+
+import os
+import platform
+import shutil
+import tarfile
+import tempfile
+import urllib.request
+from pathlib import Path
+
+from Kathara.manager.Kathara import Kathara
+from Kathara.model.Lab import Lab
+
+from nika.config import REPO_ROOT, RUNTIME_DIR
+from nika.net_env.base import NetworkEnvBase
+from nika.net_env.utils.k8s_workload_cache import mount_workload_cache
+from nika.runtime.spec import NodeRole
+from nika.utils.net import pick_free_port
+
+cur_path = os.path.dirname(os.path.abspath(__file__))
+
+_K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1"
+_BASE_IMAGE = "nika/base"
+
+_KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
+
+_K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
+_HELM_VERSION = "v3.21.3"
+machine = platform.machine().lower()
+if machine in ("x86_64", "amd64"):
+    _HELM_ARCHITECTURE = "amd64"
+elif machine in ("aarch64", "arm64"):
+    _HELM_ARCHITECTURE = "arm64"
+else:
+    _HELM_ARCHITECTURE = "amd64"
+_HELM_ARCHIVE_URL = (
+    f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-{_HELM_ARCHITECTURE}.tar.gz"
+)
+_AGENTGATEWAY_VERSION = "v1.1.0"
+_HELM_CHART_SPECS = (
+    ("agentgateway-crds", "oci://cr.agentgateway.dev/charts/agentgateway-crds"),
+    ("agentgateway", "oci://cr.agentgateway.dev/charts/agentgateway"),
+)
+
+
+def _ensure_helm_binary() -> Path:
+    """Download Helm on the host (k3s busybox wget has no HTTPS) and stage it for Kathara."""
+    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / _HELM_VERSION
+    helm_bin = cache_dir / f"helm-{_HELM_ARCHITECTURE}"
+    if helm_bin.is_file() and os.access(helm_bin, os.X_OK):
+        return helm_bin
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / "helm.tgz"
+        urllib.request.urlretrieve(_HELM_ARCHIVE_URL, archive)
+        with tarfile.open(archive, "r:gz") as tar:
+            member = tar.getmember(f"linux-{_HELM_ARCHITECTURE}/helm")
+            tar.extract(member, path=tmp, filter="data")
+        extracted = Path(tmp) / f"linux-{_HELM_ARCHITECTURE}" / "helm"
+        shutil.copy2(extracted, helm_bin)
+        helm_bin.chmod(0o755)
+    return helm_bin
+
+
+def ensure_helm_charts() -> list[Path]:
+    """Download AgentGateway Helm charts on the host and return cached tgz paths."""
+    import subprocess
+
+    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    helm_bin = _ensure_helm_binary()
+    chart_paths: list[Path] = []
+    for chart_name, oci_url in _HELM_CHART_SPECS:
+        chart_path = cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz"
+        if not chart_path.is_file():
+            print(f"Pulling Helm chart {oci_url} ({_AGENTGATEWAY_VERSION})...")
+            subprocess.run(
+                [
+                    str(helm_bin),
+                    "pull",
+                    oci_url,
+                    "--version",
+                    _AGENTGATEWAY_VERSION,
+                    "-d",
+                    str(cache_dir),
+                ],
+                check=True,
+            )
+        if not chart_path.is_file():
+            raise RuntimeError(f"Helm chart cache missing after pull: {chart_path}")
+        chart_paths.append(chart_path)
+    return chart_paths
+
+
+def cached_helm_charts() -> list[Path]:
+    """Return staged Helm chart paths when already present under ``.nika_cache``."""
+    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
+    return [
+        cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz"
+        for chart_name, _ in _HELM_CHART_SPECS
+        if (cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz").is_file()
+    ]
+
+
+class LLMDInferenceCluster(NetworkEnvBase):
+    LAB_NAME = "llmd_lab"
+    VERIFY_MAX_WAIT_SEC = 1800
+    VERIFY_RETRY_DELAY_SEC = 20
+    TOPO_LEVEL = "hard"
+    TOPO_SIZE = None
+    TAGS = [
+        "kubernetes",
+        "k3s",
+        "k8s_control_plane",
+        "metallb",
+        "coredns",
+        "kube_proxy",
+        "network_policy",
+        "llm",
+        "inference",
+        "link",
+        "pc",
+        "http",
+        "icmp",
+        "arp",
+        "mac",
+    ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.lab = Lab(self.LAB_NAME)
+        self.name = self.LAB_NAME
+        self.instance = Kathara.get_instance()
+        self.desc = (
+            "A star-topology Kubernetes (k3s) cluster running llm-d with disaggregated "
+            "Prefill/Decode inference. All nodes are bridged for internet access to pull "
+            "container images. Uses Gateway API and inference extensions."
+        )
+        self.kubernetes_nodes = []
+
+        # K3s machines: name -> (links, is_controller)
+        _k3s_machines = {
+            "controller": (["A"], True),
+            "worker1": (["A"], False),
+            "worker2": (["A"], False),
+            "worker3": (["A"], False),
+            "worker4": (["A"], False),
+            "worker5": (["A"], False),
+        }
+
+        all_machines = {}
+
+        # Keepalive until device startup signals networking is ready, then exec
+        # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
+        _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
+        _k3s_server = (
+            "server --disable servicelb --disable traefik --write-kubeconfig-mode 644"
+        )
+        for name, (links, is_controller) in _k3s_machines.items():
+            m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
+            mount_workload_cache(m, self.LAB_NAME)
+            self.declare_machine(
+                name,
+                role=(
+                    NodeRole.CONTROLLER if is_controller else NodeRole.INFRASTRUCTURE
+                ),
+                capabilities=("linux", "k3s"),
+            )
+            m.add_meta("privileged", True)
+            m.add_meta("bridged", True)
+            for ulimit in _K3S_ULIMITS:
+                m.add_meta("ulimit", ulimit)
+            m.add_meta("shell", "/bin/sh")
+            m.add_meta("entrypoint", "/bin/sh")
+            if is_controller:
+                m.add_meta(
+                    "args",
+                    f'-c "{_k3s_wait}exec /bin/k3s {_k3s_server}"',
+                )
+                m.add_meta("env", "K3S_TOKEN=secret")
+                m.add_meta("env", "VERIFY_CHECKSUM=false")
+                m.add_meta("env", "KUBECONFIG=/etc/rancher/k3s/k3s.yaml")
+                # Expose kubectl (6443) on a host port unique to this lab instance,
+                # so concurrent sessions don't collide on a fixed port mapping.
+                controller_kubectl_port = pick_free_port()
+                m.add_meta("port", f"{controller_kubectl_port}:6443/tcp")
+                self.metadata["k8s_controller_port"] = controller_kubectl_port
+            else:
+                m.add_meta(
+                    "args",
+                    f'-c "{_k3s_wait}exec /bin/k3s agent"',
+                )
+                m.add_meta("env", "K3S_URL=https://controller:6443")
+                m.add_meta("env", "K3S_TOKEN=secret")
+            for link in links:
+                self.lab.connect_machine_to_link(name, link)
+            all_machines[name] = m
+
+        # Client machine for testing service reachability
+        client = self.lab.new_machine("client", **{"image": _BASE_IMAGE})
+        self.declare_machine(
+            client.name,
+            role=NodeRole.HOST,
+            capabilities=("linux",),
+            reachability_target=True,
+        )
+        self.lab.connect_machine_to_link("client", "A")
+        all_machines["client"] = client
+
+        # Dedicated HTTP endpoint for application-layer faults (separate from
+        # the probe client so CPU-quota injects do not starve curl itself).
+        # nika/base includes stress-ng; pin NanoCpus at create time so recover
+        # can restore a non-zero quota (Docker ignores NanoCpus:0 clears).
+        web = self.lab.new_machine(
+            "web", **{"image": "nika/base", "cpus": 1.0, "mem": "512m"}
+        )
+        self.declare_machine(
+            web.name,
+            role=NodeRole.SERVICE,
+            capabilities=("linux",),
+            service_type="web",
+        )
+        self.lab.connect_machine_to_link("web", "A")
+        all_machines["web"] = web
+
+        # Inject Helm into controller FS from host cache (busybox wget cannot fetch HTTPS).
+        helm_bin = _ensure_helm_binary()
+        all_machines["controller"].create_file_from_path(
+            str(helm_bin), "/usr/local/bin/helm"
+        )
+        for chart_path in cached_helm_charts():
+            all_machines["controller"].create_file_from_path(
+                str(chart_path), f"/helm-charts/{chart_path.name}"
+            )
+
+        # Load per-machine configuration directories and startup scripts
+        for name, m in all_machines.items():
+            machine_dir = os.path.join(cur_path, name)
+            if os.path.isdir(machine_dir):
+                m.copy_directory_from_path(machine_dir, "/")
+            startup_file = os.path.join(cur_path, f"{name}.startup")
+            if os.path.isfile(startup_file):
+                self.lab.create_file_from_path(startup_file, f"{name}.startup")
+
+        self.load_machines()
+
+    def _prepare_runtime_files(self) -> None:
+        lab_name = self.name
+        if not lab_name:
+            raise ValueError("Lab name is required before deploy.")
+        self.runtime_workdir = RUNTIME_DIR / "kathara" / lab_name
+        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+
+    def load_machines(self):
+        super().load_machines()
+        self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
+
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.llmd_lab.verify import verify_llmd_lab_startup
+
+        return verify_llmd_lab_startup(
+            self._build_runtime(), scenario_name=self.LAB_NAME
+        )
+
+    def verify_lab(self) -> dict:
+        from nika.net_env.llmd_lab.verify import verify_llmd_lab
+
+        return verify_llmd_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
+
+    def sync_client_hosts(self) -> None:
+        from nika.net_env.utils.k8s_client_hosts import sync_llmd_client_hosts
+
+        sync_llmd_client_hosts(self._build_runtime())
+
+    def post_deploy(self):
+        self.sync_client_hosts()
+        port = self.metadata.get("k8s_controller_port")
+        if port is None:
+            return
+        from nika.net_env.utils.kathara.kubeconfig_export import (
+            write_host_kubeconfig,
+        )
+
+        if self.runtime_workdir is None:
+            self._prepare_runtime_files()
+        write_host_kubeconfig(
+            instance=self.instance,
+            controller_machine=self.lab.machines["controller"],
+            remote_kubeconfig_path=_KUBECONFIG_REMOTE_PATH,
+            runtime_workdir=self.runtime_workdir,
+            port=int(port),
+            metadata=self.metadata,
+        )

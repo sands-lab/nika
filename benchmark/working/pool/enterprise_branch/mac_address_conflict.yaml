@@ -1,0 +1,35 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: mac_address_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: hq_srv
+      host_name_2: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_srv
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: m
+    inject:
+      host_name: dc2_corp_pc2
+      host_name_2: br2_guest_pc2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_corp_pc2
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: l
+    inject:
+      host_name: br1_iot_pc
+      host_name_2: br6_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_iot_pc
+        name: eth0
+      fault_type: mac_address_conflict

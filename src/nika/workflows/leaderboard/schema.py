@@ -1,4 +1,4 @@
-"""Versioned leaderboard submission schemas (schema_version ``2``)."""
+"""Leaderboard submission schemas."""
 
 from __future__ import annotations
 
@@ -6,17 +6,40 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "2"
-
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
-FILES_FILENAME = "files.json"
 RESULTS_DIRNAME = "results"
 IDENTITY_FILENAME = "identity.yaml"
 METRICS_FILENAME = "metrics.json"
 RCA_CONFUSION_FILENAME = "rca_confusion.json"
 TRIALS_DIRNAME = "trials"
 TRIAL_RESULT_FILENAME = "result.json"
+
+# Local sibling package suffix; remote HF path drops this suffix.
+TRAJECTORIES_DIR_SUFFIX = "_trajectories"
+
+# Per-trial files copied into the Hugging Face trajectories package.
+TRAJECTORY_REQUIRED_FILES = (
+    "run.json",
+    "messages.jsonl",
+    "nika.jsonl",
+    "ground_truth.json",
+    "eval_metrics.json",
+)
+TRAJECTORY_OPTIONAL_SUCCESS_FILE = "submission.json"
+
+# Rejected under trajectory packages (pcaps / validation dumps / judge extras).
+TRAJECTORY_FORBIDDEN_NAME_FRAGMENTS = (
+    "packet_captures",
+    ".pcap",
+    ".pcapng",
+    "llm_judge.json",
+    "sandbox_manifest.json",
+    "validation-contract.json",
+    "validation-results.json",
+    "validation-failure-effect.json",
+    "batfish-validation",
+)
 
 PRIMARY_METRIC = "rca_f1"
 
@@ -70,8 +93,6 @@ class SubmissionAgent(BaseModel):
     skills: list[str]
     optimization_methods: list[str]
     tags: list[str]
-    os_model: bool = False
-    os_system: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("tools", "skills", "optimization_methods", "tags")
@@ -98,9 +119,7 @@ class BenchmarkIdentity(BaseModel):
     id: str
     version: str
     ref: str
-    digest: str
     split: Literal["dev", "test"]
-    cases_sha256: str
     case_count: int = Field(..., ge=1)
     n_trials: int = Field(..., ge=1)
     scoring_id: str
@@ -122,14 +141,19 @@ class RunIdentity(BaseModel):
 
 
 class PackageIdentity(BaseModel):
-    """Machine-written ``results/identity.yaml`` (benchmark + run binding)."""
+    """Machine-written ``results/identity.yaml`` (benchmark + run binding).
+
+    Scores packages may set ``trajectories_relpath``. Trajectory packages may
+    set ``scores_package`` (dirname of the paired scores package).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["2"] = SCHEMA_VERSION
     created_at: str
     benchmark: BenchmarkIdentity
     run: RunIdentity
+    trajectories_relpath: str | None = None
+    scores_package: str | None = None
 
 
 class TrialResult(BaseModel):
@@ -142,26 +166,26 @@ class TrialResult(BaseModel):
     problem: str
     outcome: Literal["success", "agent_failed"]
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
-    gt_root_cause_name: list[str] = Field(default_factory=list)
-    predicted_root_cause_name: list[str] | None = None
+    gt_fault_types: list[str] = Field(default_factory=list)
+    predicted_fault_types: list[str] | None = None
 
-    @field_validator("gt_root_cause_name")
+    @field_validator("gt_fault_types")
     @classmethod
-    def _non_empty_gt_names(cls, value: list[str]) -> list[str]:
+    def _non_empty_gt_types(cls, value: list[str]) -> list[str]:
         for item in value:
             if not isinstance(item, str) or not item.strip():
-                raise ValueError("gt_root_cause_name entries must be non-empty strings")
+                raise ValueError("gt_fault_types entries must be non-empty strings")
         return value
 
-    @field_validator("predicted_root_cause_name")
+    @field_validator("predicted_fault_types")
     @classmethod
-    def _non_empty_pred_names(cls, value: list[str] | None) -> list[str] | None:
+    def _non_empty_pred_types(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
             return None
         for item in value:
             if not isinstance(item, str) or not item.strip():
                 raise ValueError(
-                    "predicted_root_cause_name entries must be non-empty strings"
+                    "predicted_fault_types entries must be non-empty strings"
                 )
         return value
 
@@ -200,24 +224,3 @@ class AggregatedMetrics(BaseModel):
     n_agent_failed: int
     token_totals: dict[str, int] = Field(default_factory=dict)
     steps_totals: dict[str, int] = Field(default_factory=dict)
-
-
-class FileInventory(BaseModel):
-    """Integrity for one release run + the slim submission package.
-
-    Aligns with common leaderboard practice (HAL / Terminal-Bench): bind the
-    submission to a single run identity instead of hashing every trial artifact.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    source_run_sha256: str = Field(
-        ...,
-        min_length=64,
-        max_length=64,
-        description="SHA-256 of the official release-run run.json",
-    )
-    package: dict[str, str] = Field(
-        default_factory=dict,
-        description="SHA-256 of package-local files (metadata, README, results)",
-    )

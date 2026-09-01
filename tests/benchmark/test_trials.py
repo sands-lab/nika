@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 
 from nika.workflows.benchmark.trials import (
     case_key_for_row,
@@ -26,26 +25,21 @@ from nika.workflows.benchmark.release import (
     load_run_config,
 )
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
 from nika.workflows.benchmark.run import (
     _finalize_timed_out_trial,
     _require_submission,
     run_benchmark_from_release,
     run_benchmark_trials,
 )
+from tests.benchmark.trial_helpers import ROW_A, ROW_B, mini_cases_yaml, write_valid_trial
 from tests.support.prerequisites import docker_available
 
-
-ROW_A = {
-    "scenario": "simple_bgp",
-    "problem": "link_down",
-    "topo_size": "",
-    "inject": {"host_name": "pc1", "intf_name": "eth0"},
-}
-ROW_B = {
-    "scenario": "simple_bgp",
-    "problem": "link_flap",
-    "topo_size": "",
-    "inject": {"host_name": "pc1", "intf_name": "eth0"},
+HEALTHY_ROW = {
+    "scenario": "dc_clos",
+    "problem": HEALTHY_PROBLEM,
+    "topo_size": "s",
+    "inject": {},
 }
 
 
@@ -56,33 +50,22 @@ def _write_valid_trial(
     session_id: str | None = None,
     fingerprint: str | None = None,
 ) -> None:
-    path.mkdir(parents=True, exist_ok=True)
-    sid = session_id or path.name
-    run_meta = {
-        "session_id": sid,
-        "status": "finished",
-        "outcome": outcome,
-        "benchmark_fingerprint": fingerprint or "fp",
-    }
-    (path / "run.json").write_text(json.dumps(run_meta), encoding="utf-8")
-    (path / "ground_truth.json").write_text("{}", encoding="utf-8")
-    (path / "messages.jsonl").write_text("", encoding="utf-8")
-    (path / "eval_metrics.json").write_text("{}", encoding="utf-8")
-    if outcome == "success":
-        (path / "submission.json").write_text("{}", encoding="utf-8")
+    write_valid_trial(
+        path,
+        outcome=outcome,
+        session_id=session_id,
+        fingerprint=fingerprint,
+    )
 
 
 def _mini_cases_yaml(path: Path, rows: list[dict] | None = None) -> Path:
-    payload = {"seed": 42, "cases": rows or [ROW_A, ROW_B]}
-    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    return path
+    return mini_cases_yaml(path, rows)
 
 
 class TestTrialHelpers:
     def test_case_key_and_trial_dirname_are_stable(self) -> None:
         key = case_key_for_row(ROW_A)
-        assert key.startswith("simple_bgp__link_down__")
-        assert len(key.rsplit("__", 1)[-1]) == 8
+        assert key == "dc_clos__link_down__s__host_name-client_0__intf_name-eth0"
         assert trial_dirname(key, 1) == f"{key}__t01"
         assert trial_dirname(key, 12) == f"{key}__t12"
         assert case_key_for_row(ROW_A) == key
@@ -195,15 +178,12 @@ class TestTrialHelpers:
                     "root_causes": [
                         {
                             "resource": {
-                                "kind": "interface",
-                                "node": "pc1",
-                                "name": "eth0",
+                                "kind": "link",
+                                "name": "pc1:eth0--router1:eth1",
                             },
                             "fault_type": "link_down",
                         }
                     ],
-                    "faulty_devices": ["pc1"],
-                    "root_cause_name": ["link_down"],
                 }
             ),
             encoding="utf-8",
@@ -214,7 +194,7 @@ class TestTrialHelpers:
                     "is_anomaly": True,
                     "root_causes": [
                         {
-                            "resource_id": "interface/pc1/eth0",
+                            "resource_id": "link/pc1:eth0--router1:eth1",
                             "fault_type": "link_down",
                         }
                     ],
@@ -264,9 +244,7 @@ class TestTrialHelpers:
         proposed = {
             "benchmark_id": "nika-bench",
             "version": "mini",
-            "benchmark_digest": "abc",
             "split": "dev",
-            "cases_sha256": "0" * 64,
             "agent_type": "mock",
             "model": "mock-v1",
             "llm_provider": None,
@@ -292,9 +270,7 @@ class TestTrialHelpers:
         existing = {
             "benchmark_id": "nika-bench",
             "version": "mini",
-            "benchmark_digest": "abc",
             "split": "dev",
-            "cases_sha256": "0" * 64,
             "agent_type": "mock",
             "model": "mock-v1",
             "llm_provider": None,
@@ -498,7 +474,7 @@ class TestAgentFailedFinalization:
                         "session_id": sid,
                         "status": "running",
                         "session_dir": str(sdir),
-                        "scenario_name": "simple_bgp",
+                        "scenario_name": "dc_clos",
                     }
                 ),
                 encoding="utf-8",
@@ -509,7 +485,7 @@ class TestAgentFailedFinalization:
                 {
                     "session_id": sid,
                     "lab_name": "lab",
-                    "scenario_name": "simple_bgp",
+                    "scenario_name": "dc_clos",
                     "scenario_topo_size": None,
                     "scenario_params": {},
                     "session_dir": str(sdir),
@@ -528,9 +504,13 @@ class TestAgentFailedFinalization:
                 json.dumps(
                     {
                         "is_anomaly": True,
-                        "faulty_devices": ["pc1"],
-                        "root_cause_category": "link_failure",
-                        "root_cause_name": ["link_down"],
+                        "root_causes": [
+                            {
+                                "resource_id": "node/pc1",
+                                "fault_type": "link_down",
+                            }
+                        ],
+                        "failure_domain": "link_interface",
                     }
                 ),
                 encoding="utf-8",
@@ -571,7 +551,7 @@ class TestAgentFailedFinalization:
 
             sid, sdir = run_single_case(
                 problem="link_down",
-                scenario="simple_bgp",
+                scenario="dc_clos",
                 topo_size="",
                 agent_type="mock",
                 llm_provider=None,
@@ -605,7 +585,7 @@ class TestAgentFailedFinalization:
                 {
                     "session_id": trial.trial_id,
                     "status": "running",
-                    "scenario_name": "simple_bgp",
+                    "scenario_name": "dc_clos",
                 }
             ),
             encoding="utf-8",
@@ -649,7 +629,7 @@ class TestReleaseRunMetadata:
 
         with (
             patch("nika.workflows.benchmark.run.preflight_release"),
-            patch("nika.workflows.benchmark.run.run_benchmark_trials"),
+            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
                 tmp_path / "benchmark_runs",
@@ -673,6 +653,7 @@ class TestReleaseRunMetadata:
             assert first["n_trials"] == release.n_trials
             assert (result_dir / RUN_CONFIG_FILENAME).is_file()
             assert (result_dir / JOB_FILENAME).is_file()
+            assert run_trials.call_args.kwargs["continue_on_error"] is True
 
             run_benchmark_from_release(
                 release_ref="mini-release",
@@ -704,6 +685,35 @@ class TestReleaseRunMetadata:
                     check_images=False,
                     release=release,
                 )
+
+    def test_release_abort_on_error_forwarded(self, tmp_path: Path) -> None:
+        source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
+        release = freeze_release(
+            version="mini-abort",
+            source_cases=source,
+            out_dir=tmp_path / "releases" / "mini-abort",
+        )
+        with (
+            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                tmp_path / "benchmark_runs",
+            ),
+        ):
+            run_benchmark_from_release(
+                release_ref="mini-abort",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=None,
+                result_dir=str(tmp_path / "results"),
+                continue_on_error=False,
+                check_images=False,
+                release=release,
+            )
+        assert run_trials.call_args.kwargs["continue_on_error"] is False
 
     def test_fingerprint_included_in_case_key(self) -> None:
         other = {
@@ -798,7 +808,7 @@ class TestReleaseRunE2E:
                 model="mock-v1",
                 max_steps=20,
                 result_dir=str(result_dir),
-                case_timeout=600,
+                case_timeout=0,
                 check_images=False,
                 release=release,
             )
@@ -854,8 +864,160 @@ class TestReleaseRunE2E:
                 model="mock-v1",
                 max_steps=20,
                 result_dir=str(result_dir),
-                case_timeout=600,
+                case_timeout=0,
                 check_images=False,
                 release=release,
             )
             assert mocked_trial.call_count == 0
+
+
+@pytest.mark.skipif(
+    not docker_available(), reason="Docker required for agent_failed resume E2E"
+)
+class TestAgentFailedResumeDockerE2E:
+    """Real lab + forced agent failure must count; resume must not re-run."""
+
+    def test_agent_failed_trial_is_skipped_on_resume(self, tmp_path: Path) -> None:
+        source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
+        release = freeze_release(
+            version="agent-failed-e2e",
+            source_cases=source,
+            out_dir=tmp_path / "releases" / "agent-failed-e2e",
+        )
+        release = replace(release, defaults={**release.defaults, "n_trials": 1})
+        result_dir = tmp_path / "agent-failed-e2e-run"
+        runs_dir = tmp_path / "benchmark_runs"
+
+        with (
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                runs_dir,
+            ),
+            patch(
+                "nika.workflows.benchmark.run.start_agent",
+                side_effect=RuntimeError("forced agent failure for resume e2e"),
+            ),
+        ):
+            run_benchmark_from_release(
+                release_ref="agent-failed-e2e",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=20,
+                result_dir=str(result_dir),
+                case_timeout=0,
+                check_images=False,
+                release=release,
+            )
+
+        row = release.cases[0]
+        key = case_key_for_row(row)
+        trial_path = trial_dir(result_dir, key, 1)
+        assert is_valid_trial(trial_path)
+        run_meta = json.loads((trial_path / "run.json").read_text(encoding="utf-8"))
+        assert run_meta["outcome"] == "agent_failed"
+        assert run_meta["status"] == "finished"
+        assert (trial_path / "ground_truth.json").is_file()
+        assert not (trial_path / "submission.json").exists()
+
+        with (
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                runs_dir,
+            ),
+            patch("nika.workflows.benchmark.run._run_trial") as mocked_trial,
+        ):
+            run_benchmark_from_release(
+                release_ref="agent-failed-e2e",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=20,
+                result_dir=str(result_dir),
+                case_timeout=0,
+                check_images=False,
+                release=release,
+            )
+            assert mocked_trial.call_count == 0
+
+
+@pytest.mark.skipif(
+    not docker_available(), reason="Docker required for healthy mock-agent E2E"
+)
+class TestHealthyMockAgentE2E:
+    """Healthy case + fault case: mock agent must not crash on ``healthy`` ontology."""
+
+    def test_healthy_case_succeeds_with_fault_ontology_batch(self, tmp_path: Path) -> None:
+        # Batch healthy with a real fault so release_meta.fault_ontology would
+        # previously include the ``healthy`` sentinel and crash ownership lookup.
+        source = _mini_cases_yaml(
+            tmp_path / "cases_src.yaml",
+            rows=[HEALTHY_ROW, ROW_A],
+        )
+        release = freeze_release(
+            version="healthy-mock-e2e",
+            source_cases=source,
+            out_dir=tmp_path / "releases" / "healthy-mock-e2e",
+        )
+        release = replace(release, defaults={**release.defaults, "n_trials": 1})
+        assert release.case_count == 2
+
+        result_dir = tmp_path / "healthy-mock-e2e-run"
+        runs_dir = tmp_path / "benchmark_runs"
+
+        with patch(
+            "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+            runs_dir,
+        ):
+            run_benchmark_from_release(
+                release_ref="healthy-mock-e2e",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model="mock-v1",
+                max_steps=20,
+                result_dir=str(result_dir),
+                case_timeout=0,
+                check_images=False,
+                release=release,
+            )
+
+        healthy_row = next(
+            row for row in release.cases if row["problem"] == HEALTHY_PROBLEM
+        )
+        fault_row = next(
+            row for row in release.cases if row["problem"] != HEALTHY_PROBLEM
+        )
+        healthy_path = trial_dir(result_dir, case_key_for_row(healthy_row), 1)
+        fault_path = trial_dir(result_dir, case_key_for_row(fault_row), 1)
+
+        assert is_valid_trial(healthy_path)
+        healthy_run = json.loads(
+            (healthy_path / "run.json").read_text(encoding="utf-8")
+        )
+        assert healthy_run["outcome"] == "success", healthy_run
+        assert healthy_run.get("agent_error") in (None, "")
+
+        gt = json.loads(
+            (healthy_path / "ground_truth.json").read_text(encoding="utf-8")
+        )
+        assert gt.get("is_anomaly") is False
+        assert gt.get("root_causes") == []
+
+        submission = json.loads(
+            (healthy_path / "submission.json").read_text(encoding="utf-8")
+        )
+        assert submission.get("is_anomaly") is False
+        assert submission.get("root_causes") == []
+
+        metrics = json.loads(
+            (healthy_path / "eval_metrics.json").read_text(encoding="utf-8")
+        )
+        assert metrics["detection_score"] == 1.0
+        assert metrics["rca_accuracy"] == 1.0
+
+        assert is_valid_trial(fault_path)
+        fault_run = json.loads((fault_path / "run.json").read_text(encoding="utf-8"))
+        assert fault_run["outcome"] == "success", fault_run

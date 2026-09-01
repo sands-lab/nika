@@ -1,0 +1,3101 @@
+scenario:
+  name: isp_giul39
+failure:
+  fault_type: link_detach
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth0
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth1
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth2
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth3
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth4
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth5
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth6
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth7
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth8
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n1
+      intf_name: eth9
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth0
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth1
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth10
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth11
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth2
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth3
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth4
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth5
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth6
+      peer_host: pc_n11
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth7
+      peer_host: pc_n11
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth8
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      intf_name: eth9
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: interface
+        node: n10
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      intf_name: eth0
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: interface
+        node: n11
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      intf_name: eth1
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: interface
+        node: n11
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      intf_name: eth4
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: interface
+        node: n11
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      intf_name: eth5
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: interface
+        node: n11
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      intf_name: eth6
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: interface
+        node: n11
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      intf_name: eth7
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n11
+    root_causes:
+    - resource:
+        kind: interface
+        node: n11
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n12
+      intf_name: eth0
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: interface
+        node: n12
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n12
+      intf_name: eth1
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: interface
+        node: n12
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n12
+      intf_name: eth4
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: interface
+        node: n12
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n12
+      intf_name: eth5
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n12
+    root_causes:
+    - resource:
+        kind: interface
+        node: n12
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth0
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth2
+      peer_host: pc_n14
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth3
+      peer_host: pc_n14
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth4
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth5
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth6
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      intf_name: eth7
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n13
+    root_causes:
+    - resource:
+        kind: interface
+        node: n13
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth0
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth4
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth5
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth6
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth7
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth8
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      intf_name: eth9
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n14
+    root_causes:
+    - resource:
+        kind: interface
+        node: n14
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n15
+      intf_name: eth0
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: interface
+        node: n15
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n15
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: interface
+        node: n15
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n15
+      intf_name: eth6
+      peer_host: pc_n16
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: interface
+        node: n15
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n15
+      intf_name: eth7
+      peer_host: pc_n16
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: interface
+        node: n15
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth2
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth3
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth4
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth5
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth6
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth7
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth8
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      intf_name: eth9
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n16
+    root_causes:
+    - resource:
+        kind: interface
+        node: n16
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      intf_name: eth4
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: interface
+        node: n17
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      intf_name: eth5
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: interface
+        node: n17
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      intf_name: eth6
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: interface
+        node: n17
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      intf_name: eth7
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: interface
+        node: n17
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      intf_name: eth8
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: interface
+        node: n17
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      intf_name: eth9
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n17
+    root_causes:
+    - resource:
+        kind: interface
+        node: n17
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth0
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth1
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth4
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth5
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth6
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth7
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth8
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      intf_name: eth9
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n18
+    root_causes:
+    - resource:
+        kind: interface
+        node: n18
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n19
+      intf_name: eth4
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: interface
+        node: n19
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n19
+      intf_name: eth5
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: interface
+        node: n19
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n19
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: interface
+        node: n19
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n19
+      intf_name: eth7
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n19
+    root_causes:
+    - resource:
+        kind: interface
+        node: n19
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n2
+      intf_name: eth2
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: interface
+        node: n2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n2
+      intf_name: eth3
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: interface
+        node: n2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n2
+      intf_name: eth4
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: interface
+        node: n2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n2
+      intf_name: eth5
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: interface
+        node: n2
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n20
+      intf_name: eth4
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: interface
+        node: n20
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n20
+      intf_name: eth5
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: interface
+        node: n20
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n20
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: interface
+        node: n20
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n20
+      intf_name: eth7
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n20
+    root_causes:
+    - resource:
+        kind: interface
+        node: n20
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n21
+      intf_name: eth2
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: interface
+        node: n21
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n21
+      intf_name: eth3
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: interface
+        node: n21
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n21
+      intf_name: eth4
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: interface
+        node: n21
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n21
+      intf_name: eth5
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n21
+    root_causes:
+    - resource:
+        kind: interface
+        node: n21
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n22
+      intf_name: eth4
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n22
+    root_causes:
+    - resource:
+        kind: interface
+        node: n22
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n22
+      intf_name: eth5
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n22
+    root_causes:
+    - resource:
+        kind: interface
+        node: n22
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth10
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth11
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth4
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth5
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth7
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth8
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n23
+      intf_name: eth9
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: interface
+        node: n23
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n24
+      intf_name: eth10
+      peer_host: pc_n29
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: interface
+        node: n24
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n24
+      intf_name: eth11
+      peer_host: pc_n29
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: interface
+        node: n24
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n24
+      intf_name: eth8
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: interface
+        node: n24
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n24
+      intf_name: eth9
+      peer_host: pc_n28
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n24
+    root_causes:
+    - resource:
+        kind: interface
+        node: n24
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n25
+      intf_name: eth0
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: interface
+        node: n25
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n25
+      intf_name: eth1
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.150
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: interface
+        node: n25
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n25
+      intf_name: eth6
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: interface
+        node: n25
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n25
+      intf_name: eth7
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n25
+    root_causes:
+    - resource:
+        kind: interface
+        node: n25
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n26
+      intf_name: eth10
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: interface
+        node: n26
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n26
+      intf_name: eth11
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: interface
+        node: n26
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n26
+      intf_name: eth12
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: interface
+        node: n26
+        name: eth12
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n26
+      intf_name: eth13
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: interface
+        node: n26
+        name: eth13
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n26
+      intf_name: eth8
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: interface
+        node: n26
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n26
+      intf_name: eth9
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n26
+    root_causes:
+    - resource:
+        kind: interface
+        node: n26
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n27
+      intf_name: eth4
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n27
+    root_causes:
+    - resource:
+        kind: interface
+        node: n27
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n27
+      intf_name: eth5
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n27
+    root_causes:
+    - resource:
+        kind: interface
+        node: n27
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth10
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth11
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth4
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth5
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth6
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth7
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth8
+      peer_host: pc_n32
+      probe_dst_ip: 10.254.0.102
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n28
+      intf_name: eth9
+      peer_host: pc_n32
+      probe_dst_ip: 10.254.0.102
+      symptom_host: pc_n28
+    root_causes:
+    - resource:
+        kind: interface
+        node: n28
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n29
+      intf_name: eth2
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: interface
+        node: n29
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n29
+      intf_name: eth3
+      peer_host: pc_n30
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: interface
+        node: n29
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n29
+      intf_name: eth4
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: interface
+        node: n29
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n29
+      intf_name: eth5
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n29
+    root_causes:
+    - resource:
+        kind: interface
+        node: n29
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n3
+      intf_name: eth4
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: interface
+        node: n3
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n3
+      intf_name: eth5
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.134
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: interface
+        node: n3
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n3
+      intf_name: eth6
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: interface
+        node: n3
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n3
+      intf_name: eth7
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n3
+    root_causes:
+    - resource:
+        kind: interface
+        node: n3
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n30
+      intf_name: eth6
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n30
+    root_causes:
+    - resource:
+        kind: interface
+        node: n30
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n30
+      intf_name: eth7
+      peer_host: pc_n31
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n30
+    root_causes:
+    - resource:
+        kind: interface
+        node: n30
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n31
+      intf_name: eth10
+      peer_host: pc_n33
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: interface
+        node: n31
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n31
+      intf_name: eth11
+      peer_host: pc_n33
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: interface
+        node: n31
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n31
+      intf_name: eth12
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: interface
+        node: n31
+        name: eth12
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n31
+      intf_name: eth13
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n31
+    root_causes:
+    - resource:
+        kind: interface
+        node: n31
+        name: eth13
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n32
+      intf_name: eth2
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: interface
+        node: n32
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n32
+      intf_name: eth3
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: interface
+        node: n32
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n32
+      intf_name: eth4
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: interface
+        node: n32
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n32
+      intf_name: eth5
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n32
+    root_causes:
+    - resource:
+        kind: interface
+        node: n32
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n33
+      intf_name: eth2
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: interface
+        node: n33
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n33
+      intf_name: eth3
+      peer_host: pc_n34
+      probe_dst_ip: 10.254.0.110
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: interface
+        node: n33
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n33
+      intf_name: eth4
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: interface
+        node: n33
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n33
+      intf_name: eth5
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: interface
+        node: n33
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n33
+      intf_name: eth6
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: interface
+        node: n33
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n33
+      intf_name: eth7
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n33
+    root_causes:
+    - resource:
+        kind: interface
+        node: n33
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n34
+      intf_name: eth10
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: interface
+        node: n34
+        name: eth10
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n34
+      intf_name: eth11
+      peer_host: pc_n35
+      probe_dst_ip: 10.254.0.114
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: interface
+        node: n34
+        name: eth11
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n34
+      intf_name: eth12
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: interface
+        node: n34
+        name: eth12
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n34
+      intf_name: eth13
+      peer_host: pc_n37
+      probe_dst_ip: 10.254.0.122
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: interface
+        node: n34
+        name: eth13
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n34
+      intf_name: eth14
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: interface
+        node: n34
+        name: eth14
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n34
+      intf_name: eth15
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n34
+    root_causes:
+    - resource:
+        kind: interface
+        node: n34
+        name: eth15
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n35
+      intf_name: eth4
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n35
+    root_causes:
+    - resource:
+        kind: interface
+        node: n35
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n35
+      intf_name: eth5
+      peer_host: pc_n36
+      probe_dst_ip: 10.254.0.118
+      symptom_host: pc_n35
+    root_causes:
+    - resource:
+        kind: interface
+        node: n35
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n36
+      intf_name: eth6
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n36
+    root_causes:
+    - resource:
+        kind: interface
+        node: n36
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n36
+      intf_name: eth7
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n36
+    root_causes:
+    - resource:
+        kind: interface
+        node: n36
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n37
+      intf_name: eth6
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: interface
+        node: n37
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n37
+      intf_name: eth7
+      peer_host: pc_n38
+      probe_dst_ip: 10.254.0.126
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: interface
+        node: n37
+        name: eth7
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n37
+      intf_name: eth8
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: interface
+        node: n37
+        name: eth8
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n37
+      intf_name: eth9
+      peer_host: pc_n39
+      probe_dst_ip: 10.254.0.130
+      symptom_host: pc_n37
+    root_causes:
+    - resource:
+        kind: interface
+        node: n37
+        name: eth9
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n4
+      intf_name: eth0
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: interface
+        node: n4
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n4
+      intf_name: eth1
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: interface
+        node: n4
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n4
+      intf_name: eth2
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: interface
+        node: n4
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n4
+      intf_name: eth3
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.146
+      symptom_host: pc_n4
+    root_causes:
+    - resource:
+        kind: interface
+        node: n4
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n5
+      intf_name: eth2
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: interface
+        node: n5
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n5
+      intf_name: eth3
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.142
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: interface
+        node: n5
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n5
+      intf_name: eth4
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: interface
+        node: n5
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n5
+      intf_name: eth5
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n5
+    root_causes:
+    - resource:
+        kind: interface
+        node: n5
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n6
+      intf_name: eth2
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n6
+    root_causes:
+    - resource:
+        kind: interface
+        node: n6
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n6
+      intf_name: eth3
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.154
+      symptom_host: pc_n6
+    root_causes:
+    - resource:
+        kind: interface
+        node: n6
+        name: eth3
+      fault_type: link_detach

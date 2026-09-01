@@ -60,6 +60,14 @@ nika:
     gateway_host: "127.0.0.1"
     # MCP gateway port; 0 selects a free port.
     gateway_port: 0
+  static_validation:
+    # Optional Batfish verifier; live runtime verification remains the default.
+    enabled: false
+  runtime_validation:
+    # light: startup_verify_lab readiness; full: verify_lab deep checks.
+    depth: light
+    # Post-inject contract comparison (deep runtime ± Batfish).
+    failure_effect: false
 
 agent:
   # Agent implementation from `nika agent list`.
@@ -109,7 +117,8 @@ benchmark:
   batch_size: 1
   # Per-trial timeout in seconds; 0 disables it.
   case_timeout_sec: 2400
-  # Continue after a failed trial.
+  # Continue after a failed trial (ad-hoc --config). Official --release runs
+  # continue by default unless you pass --abort-on-error.
   continue_on_error: false
   # Extra passes over failed or incomplete trials.
   retry_passes: 0

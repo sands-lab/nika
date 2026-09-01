@@ -1,22 +1,16 @@
-"""Rule-based scoring for detection, localization, and RCA submissions.
+"""Rule-based scoring for detection and pair-based RCA submissions.
 
 RCA scores the pair ``(resource.id, fault_type)`` as a set (precision, recall,
 F1). Localization and fault-type identification are independent set metrics.
-``*_accuracy`` keys are aliases of recall for leaderboard package schema 2
-compatibility.
+``*_accuracy`` keys are aliases of recall for backward compatibility.
 """
 
 from __future__ import annotations
 
 from pydantic import ValidationError
 
-from nika.evaluator.submissions import (
-    DetectionSubmission,
-    LocalizationSubmission,
-    RCASubmission,
-    RootCauseSubmission,
-)
-from nika.problems.root_cause import RootCause
+from nika.evaluator.submissions import DetectionSubmission, RootCauseSubmission
+from nika.problems.rca import RootCause
 
 
 def score_detection(submission: dict, gt: dict) -> float:
@@ -55,41 +49,6 @@ def _prf(pred: set, truth: set) -> tuple[float, float, float, float]:
         round(float(recall), 4),
         round(float(f1), 4),
     )
-
-
-def score_localization(submission: dict, gt: dict) -> tuple[float, float, float, float]:
-    """Legacy localization: set P/R/F1 on faulty devices."""
-    try:
-        parsed_submission = LocalizationSubmission.model_validate(
-            {"faulty_devices": submission.get("faulty_devices", [])}
-        )
-    except ValidationError:
-        return -1.0, -1.0, -1.0, -1.0
-
-    parsed_gt = LocalizationSubmission.model_validate(
-        {"faulty_devices": gt.get("faulty_devices", [])}
-    )
-    acc, prec, rec, f1 = _prf(
-        set(parsed_submission.faulty_devices), set(parsed_gt.faulty_devices)
-    )
-    return acc, prec, rec, f1
-
-
-def score_rca(submission: dict, gt: dict) -> tuple[float, float, float, float]:
-    """Legacy RCA: set P/R/F1 on root cause names."""
-    sub_rc_names = submission.get("root_cause_name", None)
-    if sub_rc_names is None:
-        return -1.0, -1.0, -1.0, -1.0
-
-    try:
-        parsed_gt = RCASubmission.model_validate(
-            {"root_cause_name": gt.get("root_cause_name", [])}
-        )
-    except ValidationError:
-        return -1.0, -1.0, -1.0, -1.0
-
-    acc, prec, rec, f1 = _prf(set(sub_rc_names), set(parsed_gt.root_cause_name))
-    return acc, prec, rec, f1
 
 
 def _root_causes_from(payload: dict, *, field: str) -> list[RootCause] | None:

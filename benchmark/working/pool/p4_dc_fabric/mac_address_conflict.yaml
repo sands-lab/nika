@@ -1,0 +1,35 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: mac_address_conflict
+  cases:
+  - topo_size: s
+    inject:
+      host_name: client_2_1
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: m
+    inject:
+      host_name: web_2
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: l
+    inject:
+      host_name: web_7
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: mac_address_conflict

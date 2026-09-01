@@ -1,0 +1,41 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: web_dos_attack
+  cases:
+  - topo_size: s
+    inject:
+      attack_url: http://20.0.0.1:80/
+      attacker_device: client_2
+      host_name: service_1_1
+      observer_device: client_1
+      probe_url: http://20.0.0.1:80/
+    root_causes:
+    - resource:
+        kind: node
+        node: service_1_1
+      fault_type: web_dos_attack
+  - topo_size: m
+    inject:
+      attack_url: http://20.0.0.1:80/
+      attacker_device: client_4
+      host_name: service_1_1
+      observer_device: client_1
+      probe_url: http://20.0.0.1:80/
+    root_causes:
+    - resource:
+        kind: node
+        node: service_1_1
+      fault_type: web_dos_attack
+  - topo_size: l
+    inject:
+      attack_url: http://20.0.0.1:80/
+      attacker_device: client_8
+      host_name: service_1_1
+      observer_device: client_1
+      probe_url: http://20.0.0.1:80/
+    root_causes:
+    - resource:
+        kind: node
+        node: service_1_1
+      fault_type: web_dos_attack

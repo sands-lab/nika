@@ -1,0 +1,18 @@
+scenario:
+  name: isp_abilene_ebgp_rtbh
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+      intf_name: eth0
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: atlam5
+        name: eth0
+      fault_type: mtu_mismatch

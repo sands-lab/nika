@@ -29,6 +29,7 @@ dependencies = [
     "autogen-ext[mcp,openai]>=0.7.5",
     "ruff>=0.15.20",
     "langchain-anthropic>=1.5.6",
+    "huggingface_hub>=0.30.0",
 ]
 
 [project.optional-dependencies]
@@ -44,24 +45,37 @@ sade = ["claude-agent-sdk"]
 sdk = ["claude-agent-sdk", "openai-codex>=0.1.0b3"]
 # Optional Langfuse tracing for byo.langgraph.
 observability = ["langfuse"]
+batfish = [
+    "docker>=7.1.0",
+    "pybatfish==2025.7.7.2423",
+]
 
 [project.scripts]
 nika = "nika.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nika*", "agent*"]
+include = ["nika*", "agent*", "traffic*"]
 
 [tool.setuptools.package-data]
 "nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]
+"nika.problems.forwarding_encapsulation_policy" = ["*.bpf.c"]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 python_classes = ["Test*", "*Test", "*Tests", "*TestCase"]
 asyncio_mode = "auto"
+markers = [
+    "unit: fast tests with no Docker or external services",
+    "contract: benchmark/registry/schema/artifact contracts without emulators",
+    "integration: env deploy, failure inject, traffic, MCP smoke (Docker/clab)",
+    "sandbox: sandbox isolation and security probes",
+    "e2e: full user flows (mock agent benchmark/pipeline)",
+    "live: real LLM, GitHub, or Batfish live tests (credentials required)",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:fs",
     "ignore::DeprecationWarning:fs.opener",
@@ -70,7 +84,3 @@ filterwarnings = [
 
 [tool.uv]
 prerelease = "allow"
-
-[tool.ruff.lint.per-file-ignores]
-# Barefoot Networks P4 runtime Thrift client (vendor code).
-"src/nika/net_env/kathara/utils/p4/thrift_API.py" = ["E712", "E721", "E722", "E741", "F403", "F405", "F841"]

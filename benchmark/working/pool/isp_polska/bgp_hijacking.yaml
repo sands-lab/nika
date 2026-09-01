@@ -1,0 +1,209 @@
+scenario:
+  name: isp_polska
+failure:
+  fault_type: bgp_hijacking
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bialystok
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: bydgoszcz
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: gdansk
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: katowice
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kolobrzeg
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: krakow
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: lodz
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: poznan
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: rzeszow
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: szczecin
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: warsaw
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wroclaw
+      peer_host: pc_bialystok
+      probe_dst_ip: 198.18.0.1
+      symptom_host: bydgoszcz
+      target_network: 198.18.0.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: wroclaw
+      fault_type: bgp_hijacking

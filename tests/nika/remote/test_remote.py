@@ -94,6 +94,20 @@ def test_handle_env_start_logs(caplog: pytest.LogCaptureFixture) -> None:
     assert any("env start done" in m and "sess-log" in m for m in messages)
 
 
+def test_handle_env_start_forwards_static_validation() -> None:
+    with (
+        patch(
+            "nika.remote.handlers.start_net_env", return_value="sess-static"
+        ) as start,
+        patch(
+            "nika.remote.handlers.session_public_dict",
+            return_value={"session_id": "sess-static"},
+        ),
+    ):
+        handle_env_start(EnvStartRequest(scenario="isp_abilene", static_validation=True))
+    assert start.call_args.kwargs["static_validation"] is True
+
+
 def test_remote_app_health_no_auth() -> None:
     app = create_remote_app()
     client = TestClient(app)
@@ -160,9 +174,10 @@ def test_start_net_env_remote_branch() -> None:
     ) as mocked:
         from nika.workflows.env.start import start_net_env
 
-        sid = start_net_env("simple_bgp", None)
+        sid = start_net_env("simple_bgp", None, static_validation=True)
     assert sid == "remote-sess"
     mocked.assert_called_once()
+    assert mocked.call_args.kwargs["static_validation"] is True
 
 
 def test_mcp_policy_resource_from_url() -> None:

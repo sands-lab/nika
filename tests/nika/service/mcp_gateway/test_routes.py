@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from starlette.testclient import TestClient
 
-from nika.service.mcp_gateway.app import create_gateway_app
-from nika.service.mcp_gateway.session_registry import clear_sessions, register_session
+from nika.mcp.gateway.app import create_gateway_app
+from nika.mcp.gateway.session_registry import clear_sessions, register_session
 
 
 class GatewayPhaseRouteTest:

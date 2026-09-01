@@ -1,0 +1,29 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: m
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: l
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: icmp_frag_needed_filter_misconfiguration

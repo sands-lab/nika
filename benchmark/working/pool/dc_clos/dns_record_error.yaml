@@ -1,0 +1,75 @@
+scenario:
+  name: dc_clos
+failure:
+  fault_type: dns_record_error
+  cases:
+  - topo_size: s
+    inject:
+      host_name: dns_pod0
+      target_domain: pod0
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_record_error
+  - topo_size: m
+    inject:
+      host_name: dns_pod0
+      target_domain: pod0
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_record_error
+  - topo_size: m
+    inject:
+      host_name: dns_pod1
+      target_domain: pod1
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod1
+      fault_type: dns_record_error
+  - topo_size: l
+    inject:
+      host_name: dns_pod0
+      target_domain: pod0
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_record_error
+  - topo_size: l
+    inject:
+      host_name: dns_pod1
+      target_domain: pod1
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod1
+      fault_type: dns_record_error
+  - topo_size: l
+    inject:
+      host_name: dns_pod2
+      target_domain: pod2
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod2
+      fault_type: dns_record_error
+  - topo_size: l
+    inject:
+      host_name: dns_pod3
+      target_domain: pod3
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod3
+      fault_type: dns_record_error

@@ -1,0 +1,38 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: web_dos_attack
+  cases:
+  - topo_size: s
+    inject:
+      attacker_device: client_4_1
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: web_dos_attack
+  - topo_size: m
+    inject:
+      attacker_device: client_8_3
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: web_dos_attack
+  - topo_size: l
+    inject:
+      attacker_device: client_16_3
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: web_dos_attack

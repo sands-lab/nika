@@ -1,0 +1,64 @@
+# Configure Reachable IP Address
+ip address add 201.1.1.2/24 dev eth0
+
+# Wait for a default route (bridged eth1 may still be attaching).
+for _ in $(seq 1 60); do
+  ip route show default 2>/dev/null | grep -q . && break
+  sleep 1
+done
+
+# Prefer the lab default route (bridged eth1 may already have a Docker default).
+# Bridging is required for host port publish of the API; this restores fabric egress.
+ip route replace default via 201.1.1.1 dev eth0
+
+# Signal the container entrypoint to exec k3s as PID1 (see issue #38).
+mkdir -p /var/run
+touch /var/run/nika-net-ready
+
+# Wait Kubernetes control plane startup
+kubectl api-versions &> /dev/null
+while [[ $? != 0 ]]; do sleep 1; kubectl api-versions &> /dev/null; done
+
+# Wait for the host-side preload orchestrator to finish all k3s nodes.
+for _ in $(seq 1 900); do
+  [ -f /var/run/nika-images-preloaded ] && break
+  sleep 1
+done
+
+# Start MetalLB
+kubectl apply -f /k8s/metallb-frr.yaml
+
+# Wait MetalLB controller startup
+kubectl wait -n metallb-system --for condition=ready pod --selector component=controller --timeout 24h &> /dev/null
+while [[ $? != 0 ]]; do sleep 1; kubectl wait -n metallb-system --for condition=ready pod --selector component=controller --timeout 24h &> /dev/null; done
+
+# Apply MetalLB configuration
+kubectl apply -f /k8s/metallb-conf.yaml
+
+# Wait MetalLB speakers startup
+kubectl wait -n metallb-system --for condition=ready pod --selector component=speaker --timeout 24h &> /dev/null
+
+# Start NGINX Ingress Controller
+kubectl apply -f /k8s/ingress-nginx.yaml
+
+# Wait NGINX Ingress Controller startup
+kubectl wait -n ingress-nginx --for=condition=ready pod --selector app.kubernetes.io/component=controller --timeout 24h &> /dev/null
+while [[ $? != 0 ]]; do sleep 1; kubectl wait -n ingress-nginx --for=condition=ready pod --selector app.kubernetes.io/component=controller --timeout 24h &> /dev/null; done
+
+# Apply PVs
+kubectl apply -f /k8s/pv.yaml
+
+# Apply sample workloads in dependency order (namespaces before deployments).
+kubectl apply -f /shared/ns.yaml
+kubectl apply -f /shared/pvc.yaml
+kubectl apply -f /shared/deploy_db.yaml
+
+kubectl wait -n word-ns --for=condition=ready pod -l app=worddb --timeout 24h
+kubectl wait -n weather-ns --for=condition=ready pod -l app=weatherdb --timeout 24h
+
+kubectl apply -f /shared/deploy_app.yaml
+kubectl apply -f /shared/svc.yaml
+kubectl apply -f /shared/ing.yaml
+
+kubectl wait -n word-ns --for=condition=ready pod -l app=word --timeout 24h
+kubectl wait -n weather-ns --for=condition=ready pod -l app=weather --timeout 24h

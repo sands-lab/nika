@@ -80,6 +80,7 @@ def test_attach_stubs_and_od_mapping() -> None:
     attachment = attach_traffic_stubs(plan, series, scale=2.0)
     assert attachment.hosts
     assert all(h.host_name.startswith("pc_") for h in attachment.hosts)
+    assert stub_host_name("warsaw") == "pc_warsaw"
     assert any(i.passive for n in attachment.plan.nodes for i in n.interfaces)
     assert attachment.edge_links[0].prefixlen == 30
     od_list = series_to_od_dicts(series, scale=2.0, inventory=attachment.plan.inventory)
@@ -90,10 +91,6 @@ def test_attach_stubs_and_od_mapping() -> None:
     dst = next(iter(od_list[0][src]))
     assert dst.startswith("pc_")
     assert od_list[0][src][dst] >= 1
-
-
-def test_stub_host_name() -> None:
-    assert stub_host_name("warsaw") == "pc_warsaw"
 
 
 def test_frr_passive_edge_no_ospf_neighbor() -> None:

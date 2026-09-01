@@ -1,0 +1,56 @@
+scenario:
+  name: isp_geant
+failure:
+  fault_type: bgp_missing_route_advertisement
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: si1_si
+      peer_host: pc_si1_si
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: si1_si
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: sk1_sk
+      peer_host: pc_sk1_sk
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.114.1
+      symptom_host: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: sk1_sk
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: uk1_uk
+      peer_host: pc_uk1_uk
+      prefix: 203.0.115.0/24
+      probe_dst_ip: 203.0.115.1
+      symptom_host: at1_at
+    root_causes:
+    - resource:
+        kind: node
+        node: uk1_uk
+      fault_type: bgp_missing_route_advertisement

@@ -2,7 +2,6 @@
 
 import json
 import os
-import textwrap
 from pathlib import Path
 
 from nika.config import resolve_results_root
@@ -28,20 +27,14 @@ logger = system_logger
 
 def _format_judge_ground_truth(gt: dict) -> str:
     causes = gt.get("root_causes") or []
-    if causes:
-        lines = ["Structured root causes (resource + fault_type):"]
-        for item in causes:
-            resource = item.get("resource") or {}
-            lines.append(
-                f"- {resource.get('id') or resource} type={item.get('fault_type')}"
-            )
-        return "\n".join(lines)
-    return textwrap.dedent(
-        f"""\
-            The root cause is {gt.get("root_cause_name")}.
-            The faulty devices are: {", ".join(gt.get("faulty_devices") or [])}.
-        """
-    )
+    if not causes:
+        return "No structured root causes (healthy or unlabeled session)."
+    lines = ["Structured root causes (resource + fault_type):"]
+    for item in causes:
+        resource = item.get("resource") or {}
+        resource_id = item.get("resource_id") or resource.get("id") or resource
+        lines.append(f"- {resource_id} type={item.get('fault_type')}")
+    return "\n".join(lines)
 
 
 def _session_is_still_running(session_id: str) -> bool:

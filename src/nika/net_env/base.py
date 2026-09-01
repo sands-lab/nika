@@ -1,10 +1,12 @@
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Set
+from typing import ClassVar, Set
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.factory import runtime_for_net_env
-from nika.runtime.spec import LabSpec
+from nika.runtime.spec import LabSpec, MachineInventory, NodeIdentity, NodeRole
+
+from nika.net_env.contract import ValidationContract
 
 
 class NetworkEnvBase:
@@ -19,6 +21,7 @@ class NetworkEnvBase:
         self.topology_file: Path | None = None
         self.runtime_workdir: Path | None = None
         self.metadata: dict = {}
+        self.validation_contract: ValidationContract | None = None
         self.name = None
         self.desc = None
         self.instance = None
@@ -31,6 +34,30 @@ class NetworkEnvBase:
         self.links = None
         self.switches = None
         self.servers = None
+        self.machine_identities: dict[str, NodeIdentity] = {}
+
+    def declare_machine(
+        self,
+        name: str,
+        *,
+        role: NodeRole,
+        capabilities: tuple[str, ...] = (),
+        service_type: str | None = None,
+        reachability_target: bool = False,
+    ) -> None:
+        """Declare the semantic identity of a scenario machine."""
+        if name in self.machine_identities:
+            raise ValueError(f"Machine identity already declared: {name}")
+        identity = NodeIdentity(
+            role=role,
+            capabilities=tuple(sorted(set(capabilities))),
+            service_type=service_type,
+            reachability_target=reachability_target,
+        )
+        self.machine_identities[name] = identity
+        self.metadata["machine_identities"] = MachineInventory(
+            self.machine_identities
+        ).to_dict()
 
     def get_lab_spec(self) -> LabSpec | None:
         """Containerlab-native scenarios may override; Kathara scenarios return None."""
@@ -42,59 +69,16 @@ class NetworkEnvBase:
         return self.runtime
 
     def load_machines(self):
-        self.bmv2_switches = []
-        self.ovs_switches = []
-        self.sdn_controllers = []
-        self.hosts = []
-        self.routers = []
-        self.switches = []
-        self.servers = defaultdict(list)
-
-        machines: Dict[str, Any] = self.lab.machines
-        for machine, machine_obj in machines.items():
-            image = machine_obj.get_image()
-            if "p4" in image:
-                self.bmv2_switches.append(machine)
-            elif "frr" in image:
-                self.routers.append(machine)
-            elif "base" in image or "nginx" in image or "wireguard" in image:
-                host_keys = ["pc", "client"]
-                if any(key in machine for key in host_keys):
-                    self.hosts.append(machine)
-                elif "load_balancer" in machine or "lb" in machine:
-                    self.servers["load_balancer"].append(machine)
-                elif "switch" in machine or "sw" in machine:
-                    self.switches.append(machine)
-                elif "dns" in machine:
-                    self.servers["dns"].append(machine)
-                elif "dhcp" in machine:
-                    self.servers["dhcp"].append(machine)
-                elif "web" in machine and "backend" not in machine:
-                    self.servers["web"].append(machine)
-                elif "vpn" in machine:
-                    self.servers["vpn"].append(machine)
-
-            elif "influxdb" in image:
-                self.servers["database"].append(machine)
-
-            elif "sdn" in image:
-                self.ovs_switches.append(machine)
-            elif "pox" in image:
-                self.sdn_controllers.append(machine)
-            elif "k3s" in image:
-                pass  # k8s nodes are tracked via kubernetes_nodes on kubernetes labs
-            else:
-                print(f"Unknown machine type: {machine} with image {image}")
-
-        # sort all lists
-        self.bmv2_switches = sorted(self.bmv2_switches)
-        self.ovs_switches = sorted(self.ovs_switches)
-        self.sdn_controllers = sorted(self.sdn_controllers)
-        self.hosts = sorted(self.hosts)
-        self.routers = sorted(self.routers)
-        self.switches = sorted(self.switches)
-        for server_type in self.servers:
-            self.servers[server_type] = sorted(self.servers[server_type])
+        inventory = MachineInventory(self.machine_identities)
+        inventory.validate(set(self.lab.machines))
+        self.machine_inventory = inventory
+        self.bmv2_switches = inventory.names_for_capability("bmv2")
+        self.ovs_switches = inventory.names_for_capability("ovs")
+        self.sdn_controllers = inventory.names_for_role(NodeRole.CONTROLLER)
+        self.hosts = inventory.names_for_role(NodeRole.HOST)
+        self.routers = inventory.names_for_role(NodeRole.ROUTER)
+        self.switches = inventory.names_for_role(NodeRole.SWITCH)
+        self.servers = inventory.services()
 
     def get_topology(self) -> dict:
         """
@@ -164,7 +148,7 @@ class NetworkEnvBase:
 
     def _ensure_docker_images(self) -> None:
         """Ensure local NIKA Docker images required by this lab are available."""
-        from nika.net_env.kathara.utils.docker_files.docker_images import (
+        from nika.net_env.utils.kathara.docker_files.docker_images import (
             ensure_nika_docker_images,
         )
 
@@ -185,9 +169,25 @@ class NetworkEnvBase:
         """Return post-deploy verification result, or ``None`` when not implemented."""
         return None
 
+    def get_validation_contract(self) -> ValidationContract | None:
+        """Return the scenario's backend-independent healthy baseline contract."""
+        return self.validation_contract
+
     def post_deploy(self):
         """Run once the lab is deployed and verified."""
         return
+
+    def reconcile_dataplane_after_port_reconnect(
+        self, runtime: LabRuntime, nodes: list[str]
+    ) -> None:
+        """Re-apply controller-managed forwarding after a switch port was moved."""
+        return
+
+    def preload_workload_images(self) -> None:
+        """Import cached in-cluster images into k3s nodes when a cache is present."""
+        from nika.net_env.utils.k8s_workload_cache import preload_workload_images
+
+        preload_workload_images(self)
 
     def undeploy(self):
         """Undeploy the lab"""

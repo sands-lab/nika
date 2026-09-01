@@ -1,0 +1,1013 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: int_insufficient_mtu_headroom
+  cases:
+  - topo_size: s
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: s
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: s
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: s
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: m
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '2'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth1
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '3'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth2
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '4'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth3
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '5'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth4
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '6'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth5
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '7'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth6
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '8'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth7
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth7
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_1
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_1
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_2
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_2
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_3
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_3
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_4
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_4
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_5
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_5
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_6
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_6
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_7
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_7
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom
+  - topo_size: l
+    inject:
+      bmv2_port: '9'
+      host_name: gateway_8
+      int_mtu: '1480'
+      intf_name: eth8
+    root_causes:
+    - resource:
+        kind: interface
+        node: gateway_8
+        name: eth8
+      fault_type: int_insufficient_mtu_headroom

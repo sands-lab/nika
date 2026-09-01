@@ -1,0 +1,131 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: receiver_resource_contention
+  cases:
+  - topo_size: s
+    inject:
+      duration: '600'
+      host_name: client_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    inject:
+      duration: '600'
+      host_name: client_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    inject:
+      duration: '600'
+      host_name: client_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    inject:
+      duration: '600'
+      host_name: client_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    inject:
+      duration: '600'
+      host_name: client_3
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    inject:
+      duration: '600'
+      host_name: client_4
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_3
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_4
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_5
+    root_causes:
+    - resource:
+        kind: node
+        node: client_5
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_6
+    root_causes:
+    - resource:
+        kind: node
+        node: client_6
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_7
+    root_causes:
+    - resource:
+        kind: node
+        node: client_7
+      fault_type: receiver_resource_contention
+  - topo_size: l
+    inject:
+      duration: '600'
+      host_name: client_8
+    root_causes:
+    - resource:
+        kind: node
+        node: client_8
+      fault_type: receiver_resource_contention

@@ -1,5 +1,6 @@
 cache_dir/
 /.nika_cache/
+src/nika/net_env/llmd_lab/controller/usr/
 src/nika/net_env/kathara/kubernetes/llmd_lab/controller/usr/
 **/log/**
 *.pyc
