@@ -5,6 +5,7 @@ import typer
 from nika.config import ENV_RESULT_DIR
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
+    export_run_config_env,
     load_run_config,
     merge_cli,
     set_run_config,
@@ -34,7 +35,8 @@ def eval_metrics(
 ) -> None:
     """Compute rule-based scores and trace stats on closed session(s); write eval_metrics.json."""
     warn_legacy_operational_env()
-    cfg = merge_cli(load_run_config(run_config), result_dir=result_dir)
+    cfg_path = export_run_config_env(run_config)
+    cfg = merge_cli(load_run_config(cfg_path), result_dir=result_dir)
     set_run_config(cfg)
 
     from nika.workflows.eval.session import run_eval_metrics
@@ -76,8 +78,9 @@ def eval_judge(
 ) -> None:
     """Run LLM-as-judge on closed session(s); write llm_judge.json."""
     warn_legacy_operational_env()
+    cfg_path = export_run_config_env(run_config)
     cfg = merge_cli(
-        load_run_config(run_config),
+        load_run_config(cfg_path),
         result_dir=result_dir,
         judge_provider=judge_provider,
         judge_model=judge_model,
