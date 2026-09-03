@@ -252,7 +252,7 @@ class ContainerlabApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
         self.smoke(
             "ContainerlabSRLAPI.srl_exec_cli(ip-route)",
             lambda: api.srl_exec_cli(
-                LEAF1, "show network-instance default route-table ipv4"
+                LEAF1, "show network-instance default route-table ipv4-unicast summary"
             ),
             min_len=1,
         )

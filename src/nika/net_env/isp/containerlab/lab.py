@@ -54,7 +54,7 @@ MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
 
 SRL_IMAGE = "ghcr.io/nokia/srlinux:24.10"
 SRL_TYPE = "ixr-d2l"
-LINUX_IMAGE = "ghcr.io/hellt/network-multitool"
+LINUX_IMAGE = "wbitt/network-multitool"
 SRL_PASSWORD = "NokiaSrl1!"
 
 
