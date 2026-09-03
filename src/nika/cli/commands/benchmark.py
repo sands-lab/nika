@@ -7,12 +7,19 @@ import typer
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
+    export_run_config_env,
     load_run_config,
     merge_cli,
     set_run_config,
 )
 from nika.run_config.legacy import warn_legacy_operational_env
-from nika.utils.agent_config import apply_custom_provider_env
+from nika.utils.agent_config import (
+    apply_custom_provider_env,
+    resolve_agent_model,
+    resolve_agent_type,
+    resolve_llm_provider,
+    resolve_max_steps,
+)
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     ReleaseError,
@@ -245,7 +252,10 @@ def benchmark_run(
     benchmark candidate catalog.
     """
     warn_legacy_operational_env()
-    cfg = load_run_config(run_config)
+    # Spawn trial workers inherit process env, not ContextVar; export the path
+    # so children reload the same YAML (skills, sandbox, MCP, agent defaults).
+    cfg_path = export_run_config_env(run_config)
+    cfg = load_run_config(cfg_path)
     cfg = merge_cli(
         cfg,
         agent_type=agent_type,
@@ -265,6 +275,15 @@ def benchmark_run(
     )
     set_run_config(cfg)
     apply_custom_provider_env(cfg)
+    # Resolve before scheduling so spawn kwargs are concrete when CLI omitted them.
+    agent_type = resolve_agent_type(agent_type, config=cfg)
+    llm_provider = resolve_llm_provider(
+        llm_provider, agent_type=agent_type, config=cfg
+    )
+    model = resolve_agent_model(
+        agent_type, model, llm_provider=llm_provider, config=cfg
+    )
+    max_steps = resolve_max_steps(max_steps, config=cfg)
 
     bench = cfg.benchmark
     resolved_batch_size = bench.batch_size

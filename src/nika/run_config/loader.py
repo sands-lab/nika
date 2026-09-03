@@ -31,12 +31,25 @@ def default_run_config_path() -> Path:
     return (REPO_ROOT / DEFAULT_RUN_CONFIG_REL).resolve()
 
 
+def resolve_run_config_path(path: str | Path | None = None) -> Path:
+    """Resolve a run-config path to an absolute path (REPO_ROOT-relative allowed)."""
+    cfg_path = Path(path) if path is not None else default_run_config_path()
+    if not cfg_path.is_absolute():
+        return (REPO_ROOT / cfg_path).resolve()
+    return cfg_path.resolve()
+
+
+def export_run_config_env(path: str | Path | None = None) -> Path:
+    """Export ``NIKA_RUN_CONFIG`` so spawn children reload the same YAML file."""
+    cfg_path = resolve_run_config_path(path)
+    os.environ[ENV_RUN_CONFIG] = str(cfg_path)
+    return cfg_path
+
+
 def load_run_config(path: str | Path | None = None) -> RunConfig:
     """Load YAML run config; missing file → code defaults."""
     global _warned_missing
-    cfg_path = Path(path) if path is not None else default_run_config_path()
-    if not cfg_path.is_absolute():
-        cfg_path = (REPO_ROOT / cfg_path).resolve()
+    cfg_path = resolve_run_config_path(path)
 
     if not cfg_path.is_file():
         if not _warned_missing:

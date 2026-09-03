@@ -5,6 +5,7 @@ import typer
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
+    export_run_config_env,
     load_run_config,
     merge_cli,
     set_run_config,
@@ -58,7 +59,8 @@ def _activate_run_config(
     sandbox_upstream_proxy: str | None,
 ) -> None:
     warn_legacy_operational_env()
-    cfg = load_run_config(run_config)
+    cfg_path = export_run_config_env(run_config)
+    cfg = load_run_config(cfg_path)
     cfg = merge_cli(
         cfg,
         agent_type=agent_type,
