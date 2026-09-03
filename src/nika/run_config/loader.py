@@ -23,20 +23,27 @@ _current: ContextVar[RunConfig | None] = ContextVar("nika_run_config", default=N
 _warned_missing = False
 
 
+def _absolutize_run_config_path(cfg_path: Path) -> Path:
+    cfg_path = cfg_path.expanduser()
+    if not cfg_path.is_absolute():
+        return (REPO_ROOT / cfg_path).resolve()
+    return cfg_path.resolve()
+
+
 def default_run_config_path() -> Path:
     raw = os.environ.get(ENV_RUN_CONFIG, "").strip()
     if raw:
-        path = Path(raw)
-        return path if path.is_absolute() else (REPO_ROOT / path).resolve()
+        return _absolutize_run_config_path(Path(raw))
     return (REPO_ROOT / DEFAULT_RUN_CONFIG_REL).resolve()
 
 
 def resolve_run_config_path(path: str | Path | None = None) -> Path:
     """Resolve a run-config path to an absolute path (REPO_ROOT-relative allowed)."""
-    cfg_path = Path(path) if path is not None else default_run_config_path()
-    if not cfg_path.is_absolute():
-        return (REPO_ROOT / cfg_path).resolve()
-    return cfg_path.resolve()
+    if path is not None and not str(path).strip():
+        path = None
+    if path is None:
+        return default_run_config_path()
+    return _absolutize_run_config_path(Path(path))
 
 
 def export_run_config_env(path: str | Path | None = None) -> Path:

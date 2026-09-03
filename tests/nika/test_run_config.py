@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -11,11 +12,19 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from nika.cli.main import app
+from nika.config import REPO_ROOT
 from nika.run_config.legacy import (
     detect_legacy_operational_env,
     warn_legacy_operational_env,
 )
-from nika.run_config.loader import load_run_config, merge_cli
+from nika.run_config.loader import (
+    DEFAULT_RUN_CONFIG_REL,
+    ENV_RUN_CONFIG,
+    export_run_config_env,
+    load_run_config,
+    merge_cli,
+    resolve_run_config_path,
+)
 from nika.run_config.schema import RunConfig
 
 _RUNNER = CliRunner()
@@ -26,6 +35,42 @@ def test_load_missing_uses_defaults(tmp_path: Path) -> None:
     assert cfg.agent.type == "byo.langgraph"
     assert cfg.agent.max_steps == 20
     assert cfg.benchmark.case_timeout_sec == 2400
+
+
+def test_resolve_run_config_path_relative_and_absolute(tmp_path: Path) -> None:
+    abs_path = (tmp_path / "nika.yaml").resolve()
+    assert resolve_run_config_path(abs_path) == abs_path
+    assert resolve_run_config_path("config/nika.yaml") == (
+        REPO_ROOT / "config" / "nika.yaml"
+    ).resolve()
+
+
+def test_resolve_run_config_path_blank_and_home(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv(ENV_RUN_CONFIG, raising=False)
+    default = (REPO_ROOT / DEFAULT_RUN_CONFIG_REL).resolve()
+    assert resolve_run_config_path("") == default
+    assert resolve_run_config_path("   ") == default
+
+    home_cfg = tmp_path / "home-nika.yaml"
+    home_cfg.write_text("version: 1\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert resolve_run_config_path("~/home-nika.yaml") == home_cfg.resolve()
+
+
+def test_export_run_config_env_sets_absolute(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "custom.yaml"
+    target.write_text("version: 1\n", encoding="utf-8")
+    monkeypatch.delenv(ENV_RUN_CONFIG, raising=False)
+    exported = export_run_config_env(target)
+    assert exported == target.resolve()
+    assert Path(os.environ[ENV_RUN_CONFIG]).resolve() == exported
+
+    monkeypatch.setenv(ENV_RUN_CONFIG, "")
+    exported_default = export_run_config_env("")
+    assert exported_default == (REPO_ROOT / DEFAULT_RUN_CONFIG_REL).resolve()
+    assert Path(os.environ[ENV_RUN_CONFIG]).resolve() == exported_default
 
 
 def test_static_validation_yaml_has_only_enabled_flag() -> None:
