@@ -11,17 +11,20 @@ from nika.utils.agent_config import (
     resolve_agent_type,
     resolve_llm_provider,
     resolve_max_steps,
+    resolve_reasoning_effort,
 )
 
+DEEPSEEK_FLASH = "deepseek-v4-flash"
+
 AGENT_SPECS = (
-    ("byo.langgraph", "deepseek", "deepseek-chat"),
-    ("byo.mcp_agent", "deepseek", "deepseek-chat"),
-    ("byo.autogen", "deepseek", "deepseek-chat"),
-    ("cli.claude", "deepseek", "deepseek-v4-pro[1m]"),
-    ("cli.codex", "openai", "gpt-5.4-mini"),
-    ("sdk.claude_sdk", "deepseek", "deepseek-v4-flash"),
-    ("sdk.codex_sdk", "openai", "gpt-5.4-mini"),
-    ("community.sade", "deepseek", "deepseek-v4-flash"),
+    ("byo.langgraph", "deepseek", DEEPSEEK_FLASH),
+    ("byo.mcp_agent", "deepseek", DEEPSEEK_FLASH),
+    ("byo.autogen", "deepseek", DEEPSEEK_FLASH),
+    ("cli.claude", "deepseek", DEEPSEEK_FLASH),
+    ("cli.codex", "openai", "gpt-5-mini"),
+    ("sdk.claude_sdk", "deepseek", DEEPSEEK_FLASH),
+    ("sdk.codex_sdk", "openai", "gpt-5-mini"),
+    ("community.sade", "deepseek", DEEPSEEK_FLASH),
 )
 
 
@@ -40,15 +43,9 @@ def test_agent_resolves_from_yaml_and_cli(
         {
             "agent": {
                 "type": "byo.langgraph",
-                "provider": "openai",
+                "provider": "deepseek",
+                "model": DEEPSEEK_FLASH,
                 "max_steps": 7,
-                "models": {
-                    "langgraph": "gpt-5-mini",
-                    "mcp_agent": "gpt-4.1-mini",
-                    "autogen": "gpt-4.1-mini",
-                    "codex": "gpt-5.4-mini",
-                    "claude": "claude-sonnet",
-                },
             }
         }
     )
@@ -65,3 +62,29 @@ def test_agent_resolves_from_yaml_and_cli(
     assert resolve_llm_provider(None, agent_type=agent_type) == provider
     assert resolve_agent_model(agent_type, None, llm_provider=provider) == model
     assert resolve_max_steps(None) == 11
+
+
+@pytest.mark.parametrize("agent_type,provider,model", AGENT_SPECS)
+def test_agent_resolves_from_yaml_only(
+    agent_type: str, provider: str, model: str
+) -> None:
+    set_run_config(
+        RunConfig.model_validate(
+            {
+                "agent": {
+                    "type": agent_type,
+                    "provider": provider,
+                    "model": model,
+                    "max_steps": 9,
+                    "reasoning_effort": "low",
+                }
+            }
+        )
+    )
+
+    assert resolve_agent_type(None) == agent_type
+    assert resolve_llm_provider(None, agent_type=agent_type) == provider
+    assert resolve_agent_model(agent_type, None, llm_provider=provider) == model
+    assert resolve_max_steps(None) == 9
+    if agent_type in ("byo.langgraph", "cli.codex", "sdk.codex_sdk"):
+        assert resolve_reasoning_effort(None) == "low"

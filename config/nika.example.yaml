@@ -74,7 +74,7 @@ agent:
   type: byo.langgraph
   # LLM provider supported by the selected agent.
   provider: openai
-  # Model override shared by all agent types.
+  # Canonical model for the active agent type. Set explicitly (or pass -m).
   model: null
   # Maximum agent steps or turns per phase.
   max_steps: 20
@@ -85,28 +85,30 @@ agent:
     timeout_sec: 300
     # LangGraph LLM retry count.
     max_retries: 2
-  models:
-    # Model for byo.langgraph.
-    langgraph: gpt-5-mini
-    # Model for byo.mcp_agent.
-    mcp_agent: gpt-5-mini
-    # Model for byo.autogen.
-    autogen: gpt-5-mini
-    # Model for cli.codex.
-    codex: gpt-5-mini
-    # Model for cli.claude.
-    claude: claude-haiku-4-5
-    # Model for sdk.codex_sdk.
-    codex_sdk: gpt-5-mini
-    # Model for sdk.claude_sdk.
-    claude_sdk: claude-haiku-4-5
-    # Model for community.sade.
-    sade: claude-haiku-4-5
   custom:
     # Custom endpoint; also overrides the OpenAI or Anthropic base URL.
     base_url: null
-    # Model fallback for provider: custom.
+    # Deprecated: prefer agent.model. Fallback when provider is custom.
     model: null
+
+  # --- byo.langgraph / byo.mcp_agent / byo.autogen ---
+  # provider: openai | anthropic | deepseek | custom
+  # model: deepseek-v4-flash
+  # max_steps: used by BYO agents
+  # reasoning_effort: optional; BYO + Codex SDK
+  # llm.*: LangGraph factory timeout/retries only
+
+  # --- cli.codex / sdk.codex_sdk ---
+  # provider: openai | deepseek | custom
+  # model: gpt-5-mini
+  # Note: Codex currently calls api.openai.com /v1/responses; use an OpenAI
+  # model id unless model_providers routing for DeepSeek is configured.
+  # reasoning_effort: Codex only (-e / YAML)
+  # max_steps: ignored for SDK agents
+
+  # --- cli.claude / sdk.claude_sdk / community.sade ---
+  # provider: anthropic | deepseek | custom
+  # model: deepseek-v4-flash
 
 benchmark:
   # Frozen benchmark release.

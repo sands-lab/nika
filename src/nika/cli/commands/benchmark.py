@@ -171,7 +171,7 @@ def benchmark_run(
         None,
         "-m",
         "--model",
-        help="Model id (default: agent.model / agent.models.* in run config).",
+        help="Model id (default: agent.model in run config).",
     ),
     max_steps: int | None = typer.Option(
         None,

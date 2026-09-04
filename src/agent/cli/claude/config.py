@@ -11,8 +11,7 @@ NIKA drives ``claude -p`` as a subprocess. Authentication supports:
 4. **Claude subscription or OAuth**: authenticate with ``/login`` so the host
    ``anthropic`` sbx secret is stored (never copy ``~/.claude`` into the sandbox).
 
-Model selection: pass ``-m`` / ``--model``, or set ``agent.models.claude``
-(or ``agent.model``) in config/nika.yaml.
+Model selection: pass ``-m`` / ``--model``, or set ``agent.model`` in config/nika.yaml.
 """
 
 from __future__ import annotations
@@ -45,15 +44,15 @@ _CLAUDE_MODEL_ENV_KEYS = (
 def default_claude_model() -> str:
     """Return the model advertised by the Anthropic CLI environment.
 
-    Host model resolution uses ``agent.models.claude`` or ``-m`` through
+    Host model resolution uses ``agent.model`` or ``-m`` through
     :func:`resolve_claude_model`.
     """
     for key in _CLAUDE_MODEL_ENV_KEYS:
         if value := os.environ.get(key, "").strip():
             return value
     raise ValueError(
-        "Missing Claude model: set agent.models.claude (or agent.model) in "
-        "config/nika.yaml or pass -m/--model."
+        "Missing Claude model: set agent.model in config/nika.yaml "
+        "or pass -m/--model."
     )
 
 
@@ -62,8 +61,8 @@ def resolve_claude_model(model: str | None) -> str:
     if model and model.strip():
         return model.strip()
     raise ValueError(
-        "Missing Claude model: set agent.models.claude (or agent.model) in "
-        "config/nika.yaml or pass -m/--model."
+        "Missing Claude model: set agent.model in config/nika.yaml "
+        "or pass -m/--model."
     )
 
 

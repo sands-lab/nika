@@ -39,7 +39,7 @@ class ClaudeAgent:
         NIKA session identifier.
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
-        requires ``agent.models.claude`` / ``-m`` (see
+        requires ``agent.model`` / ``-m`` (see
         :func:`~agent.cli.claude.config.resolve_claude_model`).
     llm_provider:
         Active LLM provider (``anthropic``, ``deepseek``, ``custom``).

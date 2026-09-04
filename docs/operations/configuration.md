@@ -20,7 +20,7 @@ NIKA resolves values in this order:
 2. The selected YAML file
 3. Defaults in [`run_config/schema.py`](../../src/nika/run_config/schema.py)
 
-The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) supplies usable model choices. The schema leaves `agent.model` and every `agent.models.*` field unset, so a run without the template must pass `-m/--model` or define a model in another YAML file.
+The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) leaves `agent.model` unset and documents per-agent provider/model choices as commented blocks. A run must pass `-m/--model` or set `agent.model` in YAML.
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
 
@@ -89,26 +89,28 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | --- | --- | --- |
 | `agent.type` | `byo.langgraph` | Agent registry name. Run `uv run nika agent list` for available names. |
 | `agent.provider` | `openai` | Provider name. The selected agent must support it. |
-| `agent.model` | `null` | Model override shared by all agent types. Takes precedence over `agent.models.*`. |
+| `agent.model` | `null` | Canonical model id for the active agent type. |
 | `agent.max_steps` | `20` | Step or turn limit passed to agents that support it. Must be at least `1`. |
 | `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
 | `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. |
-| `agent.custom.model` | `null` | Final model fallback when `provider: custom`. |
+| `agent.custom.model` | `null` | Deprecated fallback when `provider: custom` and `agent.model` is unset. |
 | `agent.llm.timeout_sec` | `300` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
 
-`agent.models` stores one model per implementation. Model resolution uses `-m/--model`, then `agent.model`, then the implementation-specific field, then `agent.custom.model` for the custom provider.
+Model resolution order: `-m/--model`, then `agent.model`, then `agent.custom.model` when `provider: custom`, then deprecated `agent.models.*` (emits a warning).
 
-| Agent | Model field | Providers |
-| --- | --- | --- |
-| `byo.langgraph` | `agent.models.langgraph` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `byo.mcp_agent` | `agent.models.mcp_agent` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `byo.autogen` | `agent.models.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `cli.codex` | `agent.models.codex` | `openai`, `deepseek`, `custom` |
-| `sdk.codex_sdk` | `agent.models.codex_sdk`, then `agent.models.codex` | `openai`, `deepseek`, `custom` |
-| `cli.claude` | `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
-| `sdk.claude_sdk` | `agent.models.claude_sdk`, then `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
-| `community.sade` | `agent.models.sade`, then `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
+`agent.models` is deprecated. Set `agent.model` in one YAML file per run profile. To compare models, copy the YAML or pass `-m`.
+
+| Agent | Providers |
+| --- | --- |
+| `byo.langgraph` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `byo.mcp_agent` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `cli.codex` | `openai`, `deepseek`, `custom` |
+| `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
+| `cli.claude` | `anthropic`, `deepseek`, `custom` |
+| `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
+| `community.sade` | `anthropic`, `deepseek`, `custom` |
 
 Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox.
 
