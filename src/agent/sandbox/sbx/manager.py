@@ -104,10 +104,16 @@ class SbxSandboxManager:
         # Bake the session-specific gateway URL into the workspace.  Parallel
         # CLI trials share the host process environment, so resolving this URL
         # later from NIKA_MCP_GATEWAY_* can pick up a sibling trial's value.
-        # SDK microVMs have no SessionStore; bake the submission catalog here.
-        from nika.workflows.agent.submission import load_submission_catalog
+        # SDK/SADE microVMs ship only the agent package (no SessionStore); bake
+        # the submission catalog for those shell-template agents.
+        from agent.sandbox.sbx.agents import native_sbx_agent, uses_native_sbx_agent
 
-        manifest["submission_context"] = load_submission_catalog(session.session_id)
+        if uses_native_sbx_agent(agent_type) and native_sbx_agent(agent_type) == "shell":
+            from nika.workflows.agent.submission import load_submission_catalog
+
+            manifest["submission_context"] = load_submission_catalog(
+                session.session_id
+            )
         manifest["mcp_servers"] = build_sandbox_mcp_servers(
             session_id=session.session_id,
             scenario_name=scenario_name,
