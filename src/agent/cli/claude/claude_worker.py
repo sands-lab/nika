@@ -172,9 +172,9 @@ class ClaudeWorker:
     async def run(self, prompt: str) -> str:
         """Execute ``claude -p`` and return the final assistant message.
 
-        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout
-        rather than raising, so the two-phase pipeline can continue to the
-        submission phase with a degraded report.
+        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout.
+        The two-phase agent treats diagnosis ``ERROR:`` results as hard
+        failures and skips submission.
         """
         self._setup_workspace()
 
