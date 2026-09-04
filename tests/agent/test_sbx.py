@@ -263,7 +263,20 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     session_dir = tmp_path / "session"
     session_dir.mkdir()
     (session_dir / "ground_truth.json").write_text("secret", encoding="utf-8")
-    (session_dir / "run.json").write_text("{}", encoding="utf-8")
+    (session_dir / "run.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-1",
+                "scenario_name": "simple_bgp",
+                "backend": "kathara",
+                "status": "running",
+                "problem_names": ["link_down"],
+                "failure_domain": "link_interface",
+                "task_description": "should not leak",
+            }
+        ),
+        encoding="utf-8",
+    )
     workspace = prepare_workspace(
         session_dir=session_dir,
         manifest={"session_id": "sess-1", "task_description": "diagnose"},
@@ -271,7 +284,17 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     )
 
     assert not (workspace.workspace_dir / "ground_truth.json").exists()
-    assert (workspace.workspace_dir / "run.json").is_file()
+    sandbox_run = json.loads(
+        (workspace.workspace_dir / "run.json").read_text(encoding="utf-8")
+    )
+    assert sandbox_run == {
+        "session_id": "sess-1",
+        "scenario_name": "simple_bgp",
+        "backend": "kathara",
+        "status": "running",
+    }
+    assert "problem_names" not in sandbox_run
+    assert "failure_domain" not in sandbox_run
     assert json.loads(workspace.manifest_path.read_text())["session_id"] == "sess-1"
 
     (workspace.workspace_dir / "messages.jsonl").write_text("line\n", encoding="utf-8")

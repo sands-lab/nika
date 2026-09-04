@@ -18,6 +18,16 @@ SANDBOX_RUN_DIRNAME = ".sandbox_run"
 SKILLS_DIRNAME = "skills"
 # Standardized session artifacts only — agent CLI/SDK workspaces stay ephemeral.
 COLLECTED_FILES = ("messages.jsonl", "nika.jsonl", "submission.json")
+# Host run.json keeps eval fields (problem_names, failure_domain). The sandbox
+# copy is an isolation boundary: only Session metadata agents need in-VM.
+SANDBOX_RUN_JSON_ALLOWLIST = frozenset(
+    {
+        "session_id",
+        "scenario_name",
+        "backend",
+        "status",
+    }
+)
 
 
 @dataclass
@@ -32,6 +42,15 @@ class SandboxWorkspace:
 
 def sandbox_workspace_dir(session_dir: str | Path) -> Path:
     return Path(session_dir).resolve() / SANDBOX_RUN_DIRNAME
+
+
+def _write_sandbox_run_json(run_src: Path, run_dst: Path) -> None:
+    """Write allowlisted session meta for the sandbox workspace."""
+    raw = json.loads(run_src.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"Expected object in {run_src}, got {type(raw).__name__}")
+    filtered = {key: raw[key] for key in SANDBOX_RUN_JSON_ALLOWLIST if key in raw}
+    run_dst.write_text(json.dumps(filtered, indent=2), encoding="utf-8")
 
 
 def prepare_workspace(
@@ -56,11 +75,11 @@ def prepare_workspace(
         encoding="utf-8",
     )
 
-    # SDK agents run inside the microVM with NIKA_SESSION_DIR pointed at this
-    # workspace; SessionStore is not available there, so mirror run.json in.
+    # Agents see this workspace as NIKA_SESSION_DIR; write only allowlisted
+    # run.json fields so injected failure labels stay on the host.
     run_src = session_path / RUN_FILENAME
     if run_src.is_file():
-        shutil.copy2(run_src, workspace / RUN_FILENAME)
+        _write_sandbox_run_json(run_src, workspace / RUN_FILENAME)
 
     skills_src = resolve_skills_root()
     skills_dst = workspace / SKILLS_DIRNAME

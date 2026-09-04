@@ -38,6 +38,20 @@ if [ -n "${NIKA_SANDBOX_GROUND_TRUTH:-}" ]; then
 fi
 check "no_ground_truth_in_workspace" test ! -r ./ground_truth.json
 
+# Sandbox run.json must not expose injected failure labels.
+if [ -f ./run.json ]; then
+    if python3 -c '
+import json, sys
+meta = json.load(open("run.json", encoding="utf-8"))
+sys.exit(1 if ("problem_names" in meta or "failure_domain" in meta) else 0)
+'; then
+        echo "PASS: run_json_no_failure_labels"
+    else
+        echo "FAIL: run_json_no_failure_labels"
+        failures=$((failures + 1))
+    fi
+fi
+
 # If gateway health check fails, print URL for debugging.
 if [ -n "${NIKA_MCP_GATEWAY_AGENT_URL:-}" ]; then
     health_url="${NIKA_MCP_GATEWAY_AGENT_URL%/}/gateway/health"
