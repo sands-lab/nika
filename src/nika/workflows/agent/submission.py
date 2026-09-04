@@ -72,11 +72,8 @@ def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
     return {"report": report}
 
 
-def load_submission_context(session_id: str) -> dict[str, Any]:
-    """Build prompt-only context from immutable trajectory and scenario metadata."""
-    report = _frozen_report(_trajectory_path(session_id))
-    if report is None:
-        raise RuntimeError("Diagnosis must be frozen before submission.")
+def load_submission_catalog(session_id: str) -> dict[str, Any]:
+    """Fault ontology + resources for the submission prompt (no freeze required)."""
     row = SessionStore().get_session(session_id)
     params = row.get("scenario_params") or {}
     env = load_offline_net_env(
@@ -87,9 +84,21 @@ def load_submission_context(session_id: str) -> dict[str, Any]:
         bgp_mode=params.get("bgp_mode"),
     )
     return {
-        "diagnosis_report": report,
         "fault_ontology": ownership_entries(_case_ontology(row)),
         "resources": [
             {"id": item.id, "kind": str(item.kind)} for item in catalog_resources(env)
         ],
+    }
+
+
+def load_submission_context(session_id: str) -> dict[str, Any]:
+    """Build prompt-only context from immutable trajectory and scenario metadata."""
+    report = _frozen_report(_trajectory_path(session_id))
+    if report is None:
+        raise RuntimeError("Diagnosis must be frozen before submission.")
+    catalog = load_submission_catalog(session_id)
+    return {
+        "diagnosis_report": report,
+        "fault_ontology": catalog["fault_ontology"],
+        "resources": catalog["resources"],
     }

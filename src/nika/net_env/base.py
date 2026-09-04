@@ -148,11 +148,15 @@ class NetworkEnvBase:
 
     def _ensure_docker_images(self) -> None:
         """Ensure local NIKA Docker images required by this lab are available."""
+        from agent.sandbox.sbx.images import ensure_configured_sbx_template_images
         from nika.net_env.utils.kathara.docker_files.docker_images import (
             ensure_nika_docker_images,
         )
 
         ensure_nika_docker_images(self._collect_lab_images())
+        # When run config selects a sandbox agent, preload its sbx template
+        # alongside lab images (not at sbx create / per-case agent start).
+        ensure_configured_sbx_template_images()
 
     def deploy(self):
         """Deploy the lab"""

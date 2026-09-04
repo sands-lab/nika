@@ -142,7 +142,7 @@ class ClaudeWorker:
         # The gateway enforces phase access, but keeping the submission server
         # out of the diagnosis config also keeps the fault catalog out of the
         # agent's visible tool inventory.
-        from nika.mcp.registry import SUBMISSION_SERVER
+        from agent.mcp_names import SUBMISSION_SERVER
 
         if self.phase == SUBMISSION:
             servers = {

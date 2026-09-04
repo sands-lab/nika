@@ -32,6 +32,11 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 - Docker for Kathara / Containerlab labs
 - Credentials for the agent you run (see [Authentication](#authentication))
 
+When the run config (or CLI) selects a sandbox-supported agent (`cli.codex`,
+`cli.claude`, `sdk.*`, `community.sade`), NIKA preloads the matching
+`docker/sandbox-templates:*` image during lab image ensure and at the start of
+`nika agent run` / benchmark jobs—not on each case’s `sbx create`.
+
 ## Quick start
 
 ```bash
