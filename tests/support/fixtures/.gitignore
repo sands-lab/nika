@@ -1,0 +1,5 @@
+# Downloaded on demand by tests.support.arm64_user_e2e (not committed).
+docker-linux-arm64
+_docker_cli_staging/
+uv-arm64/
+docker-cli-plugins/

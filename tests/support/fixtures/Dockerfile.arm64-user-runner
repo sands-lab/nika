@@ -1,0 +1,20 @@
+# Test-only arm64 NIKA user runner (not used by production).
+# Base is a locally imported Ubuntu arm64 rootfs (nika-test/ubuntu-arm64:local).
+# uv binary is downloaded on the host (tests/support/fixtures/uv-arm64/) to avoid
+# flaky PyPI downloads under qemu during image build.
+FROM nika-test/ubuntu-arm64:local
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/local/bin:${PATH}"
+
+COPY uv-arm64/uv /usr/local/bin/uv
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash ca-certificates curl python3 python3-venv python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && chmod +x /usr/local/bin/uv \
+    && python3 --version \
+    && uv --version
+
+WORKDIR /work
