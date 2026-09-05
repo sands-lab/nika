@@ -8,7 +8,7 @@ from typing import Literal
 TopoSize = Literal["s", "m", "l"]
 
 # Lab image is nika/onos (see Dockerfile.onos); built on deploy via
-# ensure_nika_docker_images with platform=linux/amd64.
+# ensure_nika_docker_images for the host architecture.
 ONOS_IMAGE = "nika/onos"
 SWITCH_IMAGE = "kathara/sdn"
 BASE_IMAGE = "nika/base"

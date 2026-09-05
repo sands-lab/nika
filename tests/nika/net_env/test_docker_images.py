@@ -54,26 +54,30 @@ def test_nika_fabric_controller_dockerfile_is_registered() -> None:
     assert di._dockerfile_for_image("nika/fabric-controller").is_file()
 
 
-def test_nika_onos_is_forced_to_linux_amd64() -> None:
-    assert di.NIKA_IMAGE_PLATFORMS.get("nika/onos") == "linux/amd64"
+def test_nika_onos_builds_for_host_architecture() -> None:
+    assert "nika/onos" not in di.NIKA_IMAGE_PLATFORMS
+    assert "nika/onos" in di.NIKA_IMAGE_BUILDKIT
     text = di._dockerfile_for_image("nika/onos").read_text(encoding="utf-8")
-    assert "FROM --platform=linux/amd64 onosproject/onos:" in text
+    assert "FROM kathara/base:latest" in text
+    assert "eclipse-temurin:11-jre-jammy" in text
+    assert "COPY --from=onos-dist /root/onos /root/onos" in text
+    assert "jdk.util.zip.disableZip64ExtraFieldValidation" in text
 
 
-def test_build_nika_image_passes_platform_for_onos() -> None:
-    fake_client = MagicMock()
-    fake_client.images.build.return_value = (MagicMock(), iter([]))
-    fake_client.images.get.return_value = SimpleNamespace(
-        attrs={"Architecture": "amd64"}
-    )
-
+def test_build_nika_image_uses_docker_cli_for_onos() -> None:
     with (
-        patch.object(di, "_get_client", return_value=fake_client),
-        patch.object(di, "host_can_run_amd64", return_value=True),
+        patch.object(di.subprocess, "run") as run_cli,
+        patch.object(di, "_get_client") as get_client,
     ):
         di.build_nika_image("nika/onos")
 
-    assert fake_client.images.build.call_args.kwargs["platform"] == "linux/amd64"
+    run_cli.assert_called_once()
+    cmd = run_cli.call_args.args[0]
+    assert cmd[0:2] == ["docker", "build"]
+    assert "-f" in cmd and "Dockerfile.onos" in cmd
+    assert "nika/onos" in cmd
+    assert run_cli.call_args.kwargs["env"]["DOCKER_BUILDKIT"] == "1"
+    get_client.assert_not_called()
 
 
 def test_build_nika_image_omits_platform_for_multiarch_base() -> None:
@@ -86,33 +90,21 @@ def test_build_nika_image_omits_platform_for_multiarch_base() -> None:
     assert "platform" not in fake_client.images.build.call_args.kwargs
 
 
-def test_ensure_nika_onos_fails_early_without_amd64_emulation() -> None:
-    with (
-        patch.object(di, "image_exists", return_value=False),
-        patch.object(di, "host_can_run_amd64", return_value=False),
-        patch.object(di, "host_machine_arch", return_value="arm64"),
-        patch.object(di.platform, "system", return_value="Linux"),
-        patch.object(di, "pull_image") as pull,
-    ):
-        with pytest.raises(RuntimeError, match="cannot run amd64"):
-            di.ensure_nika_docker_images(["nika/onos"])
-
-    pull.assert_not_called()
-
-
-def test_build_nika_image_rejects_wrong_architecture_after_build() -> None:
+def test_build_nika_image_passes_platform_when_configured() -> None:
     fake_client = MagicMock()
     fake_client.images.build.return_value = (MagicMock(), iter([]))
     fake_client.images.get.return_value = SimpleNamespace(
-        attrs={"Architecture": "arm64"}
+        attrs={"Architecture": "amd64"}
     )
 
     with (
+        patch.object(di, "NIKA_IMAGE_PLATFORMS", {"nika/base": "linux/amd64"}),
         patch.object(di, "_get_client", return_value=fake_client),
         patch.object(di, "host_can_run_amd64", return_value=True),
     ):
-        with pytest.raises(RuntimeError, match="Architecture is 'arm64'"):
-            di.build_nika_image("nika/onos")
+        di.build_nika_image("nika/base")
+
+    assert fake_client.images.build.call_args.kwargs["platform"] == "linux/amd64"
 
 
 def test_ensure_skips_when_all_present() -> None:

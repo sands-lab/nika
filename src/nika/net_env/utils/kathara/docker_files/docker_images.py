@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import platform
+import subprocess
 from pathlib import Path
 from typing import Iterable, Set
 
@@ -27,9 +29,12 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
 
 # Images whose upstream base (or binaries) are single-arch. Builds and pulls
 # must target this platform so arm64 hosts do not produce mixed-arch layers.
-NIKA_IMAGE_PLATFORMS: dict[str, str] = {
-    "nika/onos": "linux/amd64",
-}
+# nika/onos is intentionally absent: it is built for the host arch (Kathara
+# base + host-arch JRE + ONOS Java tree copied from the amd64 upstream image).
+NIKA_IMAGE_PLATFORMS: dict[str, str] = {}
+
+# Dockerfiles that COPY --from a foreign-arch stage need BuildKit.
+NIKA_IMAGE_BUILDKIT: frozenset[str] = frozenset({"nika/onos"})
 
 # Old tags from before the nika/* rename. ensure retags these when the new
 # name is missing so local builds are not repeated.
@@ -198,25 +203,49 @@ def build_nika_image(image: str) -> None:
     else:
         print(f"Building Docker image {image} from {dockerfile.name}...")
 
-    build_kwargs: dict = {
-        "path": str(dockerfile.parent),
-        "dockerfile": dockerfile.name,
-        "tag": image,
-        "network_mode": "host",
-        "rm": True,
-    }
-    if docker_platform:
-        build_kwargs["platform"] = docker_platform
+    if image in NIKA_IMAGE_BUILDKIT:
+        cmd = [
+            "docker",
+            "build",
+            "-f",
+            dockerfile.name,
+            "-t",
+            image,
+            "--network=host",
+            ".",
+        ]
+        if docker_platform:
+            cmd[2:2] = ["--platform", docker_platform]
+        env = {**os.environ, "DOCKER_BUILDKIT": "1"}
+        try:
+            subprocess.run(
+                cmd,
+                cwd=str(dockerfile.parent),
+                env=env,
+                check=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError(f"Failed to build Docker image {image}") from exc
+    else:
+        build_kwargs: dict = {
+            "path": str(dockerfile.parent),
+            "dockerfile": dockerfile.name,
+            "tag": image,
+            "network_mode": "host",
+            "rm": True,
+        }
+        if docker_platform:
+            build_kwargs["platform"] = docker_platform
 
-    try:
-        _, build_log = _get_client().images.build(**build_kwargs)
-        for chunk in build_log:
-            if "stream" in chunk:
-                print(chunk["stream"], end="")
-            elif "error" in chunk:
-                raise BuildError(chunk["error"], build_log)
-    except BuildError as exc:
-        raise RuntimeError(f"Failed to build Docker image {image}") from exc
+        try:
+            _, build_log = _get_client().images.build(**build_kwargs)
+            for chunk in build_log:
+                if "stream" in chunk:
+                    print(chunk["stream"], end="")
+                elif "error" in chunk:
+                    raise BuildError(chunk["error"], build_log)
+        except BuildError as exc:
+            raise RuntimeError(f"Failed to build Docker image {image}") from exc
 
     if docker_platform:
         _assert_image_architecture(image, _arch_from_platform(docker_platform))
@@ -253,7 +282,7 @@ def ensure_nika_docker_images(
     are still only fetched when missing.
 
     Images listed in ``NIKA_IMAGE_PLATFORMS`` are built/pulled for that
-    platform (e.g. ``nika/onos`` → ``linux/amd64``).
+    platform. ``nika/onos`` builds for the host architecture.
     """
     required = {img for img in required_images if img}
     if not required:

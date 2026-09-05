@@ -1,13 +1,32 @@
-# Pinned ONOS controller with iproute2/curl/nftables for Kathara OOB, fabric REST,
-# and SDN southbound fault injection. Entrypoint keeps the container alive after
-# ONOS exits so sdn_controller_crash remains verifiable.
-# Upstream onosproject/onos is linux/amd64-only; pin platform so arm64 hosts
-# (Apple Silicon) do not mix host-arch layers into the image.
-FROM --platform=linux/amd64 onosproject/onos:2.7-latest@sha256:ee324bcf56ed01497069143f83f1315fcf634b36f1ac3c589a8c54ccaf354813
+# Multi-arch ONOS for Kathara: native runtime + official ONOS Java tree.
+# Upstream onosproject/onos is linux/amd64-only (Zulu amd64 JVM). We copy only
+# the arch-independent /root/onos distribution and run it on a host-arch JRE
+# so Kathara accepts the image on Linux arm64 (no foreign-arch rejection).
+#
+# Requires BuildKit (DOCKER_BUILDKIT=1) for cross-stage COPY from linux/amd64.
+ARG ONOS_IMAGE=onosproject/onos:2.7-latest@sha256:ee324bcf56ed01497069143f83f1315fcf634b36f1ac3c589a8c54ccaf354813
+ARG ONOS_PLATFORM=linux/amd64
+
+FROM --platform=$ONOS_PLATFORM ${ONOS_IMAGE} AS onos-dist
+
+# Multi-arch OpenJDK 11 (amd64 + arm64); copy into Kathara base below.
+FROM eclipse-temurin:11-jre-jammy AS jre
+
+FROM kathara/base:latest
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends iproute2 iputils-ping curl nftables && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY --from=jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+# Newer JDK 11 rejects some ONOS/Karaf JAR ZIP extra fields; keep this even when
+# lab meta overrides JAVA_OPTS (e.g. -Xmx1536m).
+ENV JDK_JAVA_OPTIONS="-Djdk.util.zip.disableZip64ExtraFieldValidation=true"
+
+COPY --from=onos-dist /root/onos /root/onos
+WORKDIR /root/onos
 
 COPY onos-entrypoint.sh /nika/onos-entrypoint.sh
 RUN chmod +x /nika/onos-entrypoint.sh
