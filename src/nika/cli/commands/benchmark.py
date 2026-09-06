@@ -4,12 +4,14 @@ from pathlib import Path
 
 import typer
 
+from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
     load_run_config,
     merge_cli,
+    persist_effective_run_config,
     set_run_config,
 )
 from nika.run_config.legacy import warn_legacy_operational_env
@@ -179,8 +181,26 @@ def benchmark_run(
         "--max-steps",
         help="Max steps per phase (default: agent.max_steps in run config).",
     ),
+    reasoning_effort: str | None = typer.Option(
+        None,
+        "-e",
+        "--reasoning-effort",
+        help=(
+            "Reasoning effort for byo agents (openai/custom; anthropic on "
+            "langgraph), cli.codex, and sdk.codex_sdk: none, minimal, low, "
+            "medium, high, xhigh. byo.mcp_agent supports none/low/medium/high."
+        ),
+    ),
     access_role: str | None = typer.Option(
         None, "--role", help="Diagnosis access role (default: agent.access.role)."
+    ),
+    base_url: str | None = typer.Option(
+        None,
+        "--base-url",
+        help=(
+            "Inference endpoint URL (default: agent.custom.base_url). "
+            "Required for provider=custom; also overrides OpenAI/Anthropic base URL."
+        ),
     ),
     run_config: str | None = typer.Option(
         None,
@@ -251,6 +271,11 @@ def benchmark_run(
     With no explicit mode or configured release, batch mode runs the generated
     benchmark candidate catalog.
     """
+    if reasoning_effort is not None and reasoning_effort not in REASONING_EFFORT_LEVELS:
+        raise typer.BadParameter(
+            f"reasoning_effort must be one of {', '.join(REASONING_EFFORT_LEVELS)}"
+        )
+
     warn_legacy_operational_env()
     # Spawn trial workers inherit process env, not ContextVar; export the path
     # so children reload the same YAML (skills, sandbox, MCP, agent defaults).
@@ -262,7 +287,9 @@ def benchmark_run(
         llm_provider=llm_provider,
         model=model,
         max_steps=max_steps,
+        reasoning_effort=reasoning_effort,
         access_role=access_role,
+        base_url=base_url,
         result_dir=result_dir,
         batch_size=batch_size,
         case_timeout_sec=case_timeout,
@@ -274,6 +301,8 @@ def benchmark_run(
         split=split,
     )
     set_run_config(cfg)
+    # Snapshot effective config so spawn workers see CLI overlays (--base-url, -e).
+    persist_effective_run_config(cfg)
     apply_custom_provider_env(cfg)
     # Resolve before scheduling so spawn kwargs are concrete when CLI omitted them.
     agent_type = resolve_agent_type(agent_type, config=cfg)

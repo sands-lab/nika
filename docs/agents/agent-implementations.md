@@ -32,8 +32,9 @@ Configure shared values in `config/nika.yaml` or override them on `nika agent ru
 | `-m`, `--model` | `agent.model` | None |
 | `-n`, `--max-steps` | `agent.max_steps` | `20`; used by BYO agents, Claude SDK, SADE, and `mock` |
 | `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
+| `--base-url` | `agent.custom.base_url` | None |
 
-See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules. Store provider keys in `.env`. Store custom endpoint URLs and model choices in YAML.
+See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.custom.base_url=...`, or YAML.
 
 | Agent family | Providers |
 | --- | --- |
@@ -79,6 +80,13 @@ agent:
   model: qwen2.5:7b
   custom:
     base_url: http://localhost:11434/v1
+```
+
+```shell
+uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b \
+  --base-url http://localhost:11434/v1 --problem dc_clos_s_link_down
+uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
+  agent.custom.base_url=http://localhost:11434/v1
 ```
 
 Set `NIKA_CUSTOM_API_KEY` in `.env` only when the endpoint requires authentication.

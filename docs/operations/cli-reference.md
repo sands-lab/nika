@@ -78,6 +78,7 @@ Aligned with `nika agent run`:
 - **`-m` / `--model`**: model id.
 - **`-n` / `--max-steps`**: max steps per phase (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, `sdk.claude_sdk`).
 - **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), `cli.codex`, and `sdk.codex_sdk`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only.
+- **`--base-url`**: inference endpoint (`agent.custom.base_url`). Required for `provider=custom`; also overrides the OpenAI or Anthropic base URL.
 
 `nika eval judge` uses **`-p`** and **`-m`** for the judge only (no agent in that command).
 
@@ -150,6 +151,7 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
   | `-m` / `--model` | both | model id |
   | `-n` / `--max-steps` | both | step cap per phase (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, `sdk.claude_sdk`) |
   | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO agents, `cli.codex`, `sdk.codex_sdk`) |
+  | `--base-url` | both | Inference endpoint (`agent.custom.base_url`) |
   | `--problem` | task | task label (see above) |
   | `--set key=value` | task | override inject parameters (repeatable) |
   | `--result_dir` | task | results parent directory |
@@ -214,9 +216,10 @@ Each finished session directory should contain at least `run.json`, `ground_trut
 ## `nika config`
 
 - **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
+- **`nika config set KEY=VALUE... [--run-config PATH]`**: write important keys into the YAML file (sparse update). Allowed keys: `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, `agent.reasoning_effort`, `agent.custom.base_url`, `nika.result_dir`, `nika.enable_skills`, `nika.judge.provider`, `nika.judge.model`. Lab/MCP/k8s and other knobs stay YAML-only.
 - **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing; confirm with `y` (`[y/N]`, default no). If `.env` has no ops keys, it tells you to prefer `cp config/nika.example.yaml config/nika.yaml`. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
 
-The tracked template is `config/nika.example.yaml` (preferred for new setups). Precedence is CLI flags → YAML → built-in defaults. Provider API keys stay in the repo-root `.env`. Leftover operational keys in `.env` are ignored at runtime (NIKA prints a one-shot warning); migrate them instead of relying on env.
+The tracked template is `config/nika.example.yaml` (preferred for new setups). Precedence is CLI flags → YAML → built-in defaults. Use `--base-url` / `-m` / `-p` on `nika agent run` and `nika benchmark run` for one-shot overrides; use `nika config set` to persist. Provider API keys stay in the repo-root `.env`. Leftover operational keys in `.env` are ignored at runtime (NIKA prints a one-shot warning); migrate them instead of relying on env.
 
 Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
 

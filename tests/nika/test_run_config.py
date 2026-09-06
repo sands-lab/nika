@@ -23,6 +23,7 @@ from nika.run_config.loader import (
     export_run_config_env,
     load_run_config,
     merge_cli,
+    persist_effective_run_config,
     resolve_run_config_path,
 )
 from nika.run_config.schema import RunConfig
@@ -129,6 +130,98 @@ def test_load_and_merge_cli(tmp_path: Path) -> None:
     assert merged.agent.max_steps == 30
     assert merged.agent.model == "override-model"
     assert merged.agent.provider == "deepseek"
+
+
+def test_merge_cli_base_url_overrides_yaml(tmp_path: Path) -> None:
+    path = tmp_path / "nika.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "agent": {
+                    "provider": "custom",
+                    "custom": {"base_url": "http://yaml-endpoint/v1"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    cfg = load_run_config(path)
+    merged = merge_cli(cfg, base_url="http://cli-endpoint/v1")
+    assert merged.agent.custom.base_url == "http://cli-endpoint/v1"
+    snapshot = persist_effective_run_config(merged)
+    reloaded = load_run_config(snapshot)
+    assert reloaded.agent.custom.base_url == "http://cli-endpoint/v1"
+
+
+def test_config_set_writes_sparse_yaml(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    out_path.write_text(
+        yaml.safe_dump({"version": 1, "agent": {"type": "byo.langgraph"}}),
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "agent.provider=custom",
+            "agent.model=qwen2.5:7b",
+            "agent.custom.base_url=http://localhost:11434/v1",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = yaml.safe_load(out_path.read_text(encoding="utf-8"))
+    assert data["agent"]["type"] == "byo.langgraph"
+    assert data["agent"]["provider"] == "custom"
+    assert data["agent"]["model"] == "qwen2.5:7b"
+    assert data["agent"]["custom"]["base_url"] == "http://localhost:11434/v1"
+    loaded = load_run_config(out_path)
+    assert loaded.agent.custom.base_url == "http://localhost:11434/v1"
+    assert loaded.agent.model == "qwen2.5:7b"
+
+
+def test_config_set_rejects_unknown_key(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "nika.lab.deploy_attempts=9",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Unsupported key" in result.output
+
+
+def test_config_set_rejects_invalid_provider(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    out_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "agent": {"type": "cli.claude", "provider": "anthropic"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "agent.provider=openai",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid configuration" in result.output
 
 
 def test_provider_validation_via_schema() -> None:

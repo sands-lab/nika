@@ -12,6 +12,15 @@ uv run nika config show
 
 `nika config show` validates the selected YAML file and prints the effective configuration without credentials. Use `--run-config PATH` or `NIKA_RUN_CONFIG` to select a different operations file.
 
+Persist important agent settings without hand-editing YAML:
+
+```shell
+uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
+  agent.custom.base_url=http://localhost:11434/v1
+```
+
+For a single run, override the same fields on `nika agent run` / `nika benchmark run` with `-p`, `-m`, and `--base-url` (CLI wins over YAML).
+
 ## Configuration precedence
 
 NIKA resolves values in this order:
@@ -92,7 +101,7 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | `agent.model` | `null` | Canonical model id for the active agent type. |
 | `agent.max_steps` | `20` | Step or turn limit passed to agents that support it. Must be at least `1`. |
 | `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
-| `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. |
+| `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. Set via YAML, `nika config set agent.custom.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
 | `agent.custom.model` | `null` | Deprecated fallback when `provider: custom` and `agent.model` is unset. |
 | `agent.llm.timeout_sec` | `300` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
