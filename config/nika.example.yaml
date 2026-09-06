@@ -1,130 +1,170 @@
-# NIKA run configuration.
-# Copy to config/nika.yaml or run: nika config migrate
-# Precedence: CLI flags > this file > built-in defaults
-# Credentials stay in the repo-root .env
+# NIKA run configuration template.
+# Setup: cp config/nika.example.yaml config/nika.yaml, then edit the copy.
+# CLI flags override this file. This file overrides built-in defaults.
+# Keep API keys and other credentials in the repo-root .env file.
 
+# Choose an agent. Uncomment one complete block and leave the others commented.
+# `type` selects a registered harness from `uv run nika agent list`.
+
+# LangGraph ReAct. Runs on the host.
+# agent:
+#   type: byo.langgraph
+#   provider: deepseek
+#   model: deepseek-v4-flash
+#   max_steps: 20
+#   # Optional for OpenAI, Anthropic, and supported custom models.
+#   # DeepSeek ignores this setting.
+#   # reasoning_effort: medium
+
+# mcp-agent Workflow. Runs on the host.
+# agent:
+#   type: byo.mcp_agent
+#   provider: deepseek
+#   model: deepseek-v4-flash
+#   max_steps: 20
+#   # Optional for OpenAI, Anthropic, and supported custom models.
+#   # DeepSeek ignores this setting.
+#   # reasoning_effort: medium
+
+# AutoGen GraphFlow. Runs on the host.
+# agent:
+#   type: byo.autogen
+#   provider: deepseek
+#   model: deepseek-v4-flash
+#   max_steps: 20
+#   # Optional for OpenAI, Anthropic, and supported custom models.
+#   # DeepSeek ignores this setting.
+#   # reasoning_effort: medium
+
+# Codex CLI. Runs in an isolated Docker Sandbox.
+# agent:
+#   type: cli.codex
+#   provider: openai
+#   model: gpt-5-mini
+#   reasoning_effort: medium
+
+# Claude Code CLI. Runs in an isolated Docker Sandbox.
+# agent:
+#   type: cli.claude
+#   provider: deepseek
+#   model: deepseek-v4-flash
+
+# Codex SDK. Runs in an isolated Docker Sandbox.
+# agent:
+#   type: sdk.codex_sdk
+#   provider: openai
+#   model: gpt-5-mini
+#   reasoning_effort: medium
+
+# Claude Agent SDK. Runs in an isolated Docker Sandbox.
+# agent:
+#   type: sdk.claude_sdk
+#   provider: deepseek
+#   model: deepseek-v4-flash
+#   max_steps: 20
+
+# SADE community agent. Runs in an isolated Docker Sandbox.
+# agent:
+#   type: community.sade
+#   provider: deepseek
+#   model: deepseek-v4-flash
+#   max_steps: 20
+
+# OpenAI-compatible endpoint. This example uses OpenRouter.
+# Set NIKA_CUSTOM_API_KEY in .env when the endpoint requires authentication.
+# agent:
+#   type: byo.langgraph
+#   provider: custom
+#   model: deepseek/deepseek-v4-flash
+#   max_steps: 20
+#   # Optional when the endpoint and model support this parameter.
+#   # reasoning_effort: medium
+#   custom:
+#     base_url: https://openrouter.ai/api/v1
+
+# Configure NIKA runtime and lab behavior.
 nika:
-  # Parent directory for run artifacts.
+  # Write run artifacts under this directory.
   result_dir: results
-  # Load shared Claude and Codex skills.
+  # Load NIKA's shared troubleshooting skills for Claude and Codex agents.
   enable_skills: true
   remote:
-    # Send lab operations to a remote NIKA server.
+    # Run lab operations on a remote NIKA server.
     enabled: false
-    # Remote NIKA server URL.
+    # Required when remote mode is enabled.
     url: null
-    # Reserved remote artifact path.
+    # Reserved for remote artifact storage. Keep null.
     artifact_root: null
   sandbox:
-    # Keep the sandbox after the agent exits.
+    # Keep the sandbox after a run for debugging.
     keep: false
-    # Sandbox CPU limit.
+    # Limit sandbox CPU resources. Null uses the sandbox runtime default.
     cpus: null
-    # Sandbox memory limit, such as 8g.
+    # Limit sandbox memory, such as 8g. Null uses the runtime default.
     memory: null
-    # Install SDK agents from cached wheels.
+    # Install SDK agents from cached wheels instead of downloading packages.
     offline_sdk_wheels: false
-    # Proxy used by sandboxd and sbx commands.
+    # Route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null
   observability:
-    # Enable Langfuse for byo.langgraph.
+    # Send byo.langgraph traces to Langfuse.
     langfuse_enabled: false
-    # Langfuse API endpoint.
+    # Langfuse API base URL.
     langfuse_host: https://cloud.langfuse.com
   judge:
-    # Provider used by nika eval judge.
+    # Provider used by `nika eval judge`.
     provider: openai
-    # Model used by nika eval judge.
+    # Model used by `nika eval judge`.
     model: gpt-5-mini
   lab:
-    # Kathara deployment attempts.
+    # Attempt a Kathara deployment up to this many times.
     deploy_attempts: 3
-    # Seconds to wait for Kathara machines.
+    # Wait this many seconds for Kathara machines to start.
     deploy_ready_timeout_sec: 90
-    # Seconds for container services to settle.
+    # Wait this many seconds for services after containers start.
     deploy_settle_sec: 5
-    # Seconds to wait for Kathara teardown.
+    # Wait this many seconds for Kathara containers to stop.
     undeploy_verify_timeout_sec: 30
-    # Default seconds for scenario startup checks.
+    # Stop scenario readiness checks after this many seconds.
     ready_max_wait_sec: 180
-    # Delay between scenario startup checks.
+    # Wait this many seconds between readiness checks.
     ready_retry_delay_sec: 5
-    # Fault verification attempts.
+    # Check an injected fault this many times before reporting failure.
     failure_verify_max_attempts: 3
-    # Delay between fault verification attempts.
+    # Wait this many seconds between fault checks.
     failure_verify_retry_delay_sec: 5
   mcp:
-    # MCP request timeout; 0 disables it.
+    # Stop waiting for an MCP response after this many seconds. Set 0 to disable.
     read_timeout_sec: 120
-    # MCP gateway bind address.
+    # Bind the MCP gateway to this address.
     gateway_host: "127.0.0.1"
-    # MCP gateway port; 0 selects a free port.
+    # Bind the MCP gateway to this port. Set 0 to choose a free port.
     gateway_port: 0
   static_validation:
-    # Optional Batfish verifier; live runtime verification remains the default.
+    # Run supported topology checks with Batfish before deployment.
     enabled: false
   runtime_validation:
-    # light: startup_verify_lab readiness; full: verify_lab deep checks.
+    # light checks readiness. full runs each scenario's deeper verification.
     depth: light
-    # Post-inject contract comparison (deep runtime ± Batfish).
+    # Compare healthy and faulty contract evidence after fault injection.
     failure_effect: false
 
-agent:
-  # Agent implementation from `nika agent list`.
-  type: byo.langgraph
-  # LLM provider supported by the selected agent.
-  provider: openai
-  # Canonical model for the active agent type. Set explicitly (or pass -m).
-  model: null
-  # Maximum agent steps or turns per phase.
-  max_steps: 20
-  # Reasoning level; accepted values depend on the agent.
-  reasoning_effort: null
-  llm:
-    # LangGraph LLM request timeout in seconds.
-    timeout_sec: 300
-    # LangGraph LLM retry count.
-    max_retries: 2
-  custom:
-    # Custom endpoint; also overrides the OpenAI or Anthropic base URL.
-    base_url: null
-    # Deprecated: prefer agent.model. Fallback when provider is custom.
-    model: null
-
-  # --- byo.langgraph / byo.mcp_agent / byo.autogen ---
-  # provider: openai | anthropic | deepseek | custom
-  # model: deepseek-v4-flash
-  # max_steps: used by BYO agents
-  # reasoning_effort: optional; BYO + Codex SDK
-  # llm.*: LangGraph factory timeout/retries only
-
-  # --- cli.codex / sdk.codex_sdk ---
-  # provider: openai | deepseek | custom
-  # model: gpt-5-mini
-  # Note: Codex currently calls api.openai.com /v1/responses; use an OpenAI
-  # model id unless model_providers routing for DeepSeek is configured.
-  # reasoning_effort: Codex only (-e / YAML)
-  # max_steps: ignored for SDK agents
-
-  # --- cli.claude / sdk.claude_sdk / community.sade ---
-  # provider: anthropic | deepseek | custom
-  # model: deepseek-v4-flash
-
+# Configure benchmark execution.
 benchmark:
-  # Frozen benchmark release.
+  # Run this frozen benchmark release. Null uses ad-hoc or CLI selection.
   release: null
-  # Release split, such as dev or test.
+  # Select a release split, such as dev or test.
   split: null
-  # Trials to run at the same time.
+  # Run this many trials at the same time.
   batch_size: 1
-  # Per-trial timeout in seconds; 0 disables it.
+  # Stop each trial after this many seconds. Set 0 to disable.
   case_timeout_sec: 2400
-  # Continue after a failed trial (ad-hoc --config). Official --release runs
-  # continue by default unless you pass --abort-on-error.
+  # Continue an ad-hoc batch after a failed trial. Release runs continue unless
+  # you pass --abort-on-error.
   continue_on_error: false
-  # Extra passes over failed or incomplete trials.
+  # Retry failed or incomplete trials with this many extra passes.
   retry_passes: 0
-  # Reuse completed trial slots.
+  # Reuse completed trial slots instead of running them again.
   resume: true
-  # Optional tag added to session IDs.
+  # Add this tag to generated session IDs.
   session_tag: null

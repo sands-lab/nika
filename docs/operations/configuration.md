@@ -10,6 +10,14 @@ cp .env.example .env
 uv run nika config show
 ```
 
+To compare agents or models, copy the YAML into a profile file and pass `--run-config`:
+
+```shell
+cp config/nika.example.yaml config/codex-gptmini.yaml
+# edit agent.type / provider / model in that file
+uv run nika agent run --run-config config/codex-gptmini.yaml --problem dc_clos_s_link_down
+```
+
 `nika config show` validates the selected YAML file and prints the effective configuration without credentials. Use `--run-config PATH` or `NIKA_RUN_CONFIG` to select a different operations file.
 
 Persist important agent settings without hand-editing YAML:
@@ -29,7 +37,7 @@ NIKA resolves values in this order:
 2. The selected YAML file
 3. Defaults in [`run_config/schema.py`](../../src/nika/run_config/schema.py)
 
-The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) leaves `agent.model` unset and documents per-agent provider/model choices as commented blocks. A run must pass `-m/--model` or set `agent.model` in YAML.
+The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) puts a simple `agent:` profile first (`type`, `provider`, `model`, …) and keeps platform settings under `nika:`. It leaves alternate agent blocks commented so you can copy one over the active profile, or copy the whole file to `config/codex-gptmini.yaml` / `config/claude-haiku.yaml` and select it with `--run-config`. A run must set `agent.model` (or pass `-m/--model`).
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
 
