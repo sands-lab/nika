@@ -155,6 +155,8 @@ class NikaSettings(BaseModel):
 
 
 class AgentModels(BaseModel):
+    """Legacy per-agent model fields; prefer ``agent.model`` in new YAML."""
+
     model_config = ConfigDict(extra="forbid")
 
     langgraph: str | None = None
@@ -229,6 +231,7 @@ class AgentSettings(BaseModel):
 
     type: str = "byo.langgraph"
     provider: str = "openai"
+    # Canonical model id for the active agent type (see agent.models.* for legacy YAML).
     model: str | None = None
     max_steps: int = 20
     reasoning_effort: str | None = None
@@ -296,10 +299,14 @@ class RunConfig(BaseModel):
         return self
 
     def model_for_agent(self, agent_type: str | None = None) -> str | None:
-        """Return the best model id for *agent_type* from YAML (no CLI)."""
-        at = (agent_type or self.agent.type).lower()
+        """Return model from ``agent.model`` or legacy ``agent.models.*`` (no CLI)."""
         if self.agent.model:
             return self.agent.model
+        return self.legacy_model_for_agent(agent_type)
+
+    def legacy_model_for_agent(self, agent_type: str | None = None) -> str | None:
+        """Return legacy ``agent.models.*`` for *agent_type* (ignores ``agent.model``)."""
+        at = (agent_type or self.agent.type).lower()
         models = self.agent.models
         match at:
             case "byo.langgraph":

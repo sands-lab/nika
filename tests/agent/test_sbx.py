@@ -9,7 +9,11 @@ from unittest.mock import patch
 import pytest
 
 from agent.sandbox.config import SandboxConfig, resolve_sandbox_config
-from agent.sandbox.sbx.agents import native_sbx_agent
+from agent.sandbox.sbx.agents import (
+    native_sbx_agent,
+    required_sbx_template_images,
+    sbx_template_image,
+)
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL, apply_codex_auth
 from agent.sandbox.sbx.credentials import (
     ensure_sbx_credentials,
@@ -32,6 +36,22 @@ from agent.sandbox.sbx.proxy import (
     sbx_process_env,
 )
 from agent.sandbox.sbx.workspace import collect_artifacts, prepare_workspace
+
+
+@pytest.mark.parametrize(
+    ("agent_type", "image"),
+    [
+        ("cli.codex", "docker/sandbox-templates:codex-docker"),
+        ("cli.claude", "docker/sandbox-templates:claude-code-docker"),
+        ("sdk.codex_sdk", "docker/sandbox-templates:shell-docker"),
+        ("sdk.claude_sdk", "docker/sandbox-templates:shell-docker"),
+        ("community.sade", "docker/sandbox-templates:shell-docker"),
+    ],
+)
+def test_required_sbx_template_images(agent_type: str, image: str) -> None:
+    assert required_sbx_template_images(agent_type) == [image]
+    assert required_sbx_template_images("byo.langgraph", agent_type) == [image]
+    assert sbx_template_image(native_sbx_agent(agent_type)) == image
 
 
 @pytest.mark.parametrize(
@@ -171,7 +191,8 @@ def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
 
 
 def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
-    """Bundled agent tree must import SDK entrypoints without installing nika."""
+    """Bundled agent tree must import and construct SDK agents without nika."""
+    import json
     import subprocess
     import sys
 
@@ -186,11 +207,29 @@ def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
     )
     manager._bundle_agent_sources(tmp_path)
     workspace = tmp_path
+    (workspace / "sandbox_manifest.json").write_text(
+        json.dumps(
+            {
+                "session_id": "s1",
+                "scenario_name": "simple_bgp",
+                "backend": "kathara",
+                "submission_context": {"fault_ontology": [], "resources": []},
+                "mcp_servers": {
+                    "task_mcp_server": {
+                        "transport": "http",
+                        "url": "http://example/mcp",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     # Simulate microVM: only workspace on path (agent package), no src/nika.
     script = (
         "import os, sys\n"
         f"sys.path.insert(0, {str(workspace)!r})\n"
         "os.environ['NIKA_SANDBOX_EXECUTION']='1'\n"
+        f"os.environ['NIKA_SESSION_DIR']={str(workspace)!r}\n"
         # Block accidental nika imports from the host install.
         "sys.modules['nika'] = None\n"
         "from agent.registry import create_agent\n"
@@ -198,6 +237,13 @@ def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
         "from agent.sdk.codex_sdk import config as codex_config\n"
         "assert hasattr(claude_config, 'prepare_claude_subprocess_env')\n"
         "assert hasattr(codex_config, 'codex_sdk_local_auth_available')\n"
+        "for agent_type in ('sdk.codex_sdk', 'sdk.claude_sdk', 'community.sade'):\n"
+        "    create_agent(\n"
+        "        agent_type,\n"
+        "        session_id='s1',\n"
+        "        model='deepseek-v4-flash',\n"
+        "        llm_provider='deepseek',\n"
+        "    )\n"
         "print('ok')\n"
     )
     proc = subprocess.run(
@@ -217,7 +263,20 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     session_dir = tmp_path / "session"
     session_dir.mkdir()
     (session_dir / "ground_truth.json").write_text("secret", encoding="utf-8")
-    (session_dir / "run.json").write_text("{}", encoding="utf-8")
+    (session_dir / "run.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-1",
+                "scenario_name": "simple_bgp",
+                "backend": "kathara",
+                "status": "running",
+                "problem_names": ["link_down"],
+                "failure_domain": "link_interface",
+                "task_description": "should not leak",
+            }
+        ),
+        encoding="utf-8",
+    )
     workspace = prepare_workspace(
         session_dir=session_dir,
         manifest={"session_id": "sess-1", "task_description": "diagnose"},
@@ -225,7 +284,17 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     )
 
     assert not (workspace.workspace_dir / "ground_truth.json").exists()
-    assert (workspace.workspace_dir / "run.json").is_file()
+    sandbox_run = json.loads(
+        (workspace.workspace_dir / "run.json").read_text(encoding="utf-8")
+    )
+    assert sandbox_run == {
+        "session_id": "sess-1",
+        "scenario_name": "simple_bgp",
+        "backend": "kathara",
+        "status": "running",
+    }
+    assert "problem_names" not in sandbox_run
+    assert "failure_domain" not in sandbox_run
     assert json.loads(workspace.manifest_path.read_text())["session_id"] == "sess-1"
 
     (workspace.workspace_dir / "messages.jsonl").write_text("line\n", encoding="utf-8")

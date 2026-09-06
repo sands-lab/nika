@@ -8,6 +8,7 @@ from nika.run_config.loader import (
     export_run_config_env,
     load_run_config,
     merge_cli,
+    persist_effective_run_config,
     set_run_config,
 )
 from nika.run_config.legacy import warn_legacy_operational_env
@@ -52,6 +53,7 @@ def _activate_run_config(
     max_steps: int | None,
     reasoning_effort: str | None,
     access_role: str | None,
+    base_url: str | None,
     sandbox_keep_container: bool,
     sandbox_cpus: str | None,
     sandbox_memory: str | None,
@@ -69,6 +71,7 @@ def _activate_run_config(
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
         access_role=access_role,
+        base_url=base_url,
         sandbox_keep=sandbox_keep_container or None,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,
@@ -76,6 +79,7 @@ def _activate_run_config(
         sandbox_upstream_proxy=sandbox_upstream_proxy,
     )
     set_run_config(cfg)
+    persist_effective_run_config(cfg)
     apply_custom_provider_env(cfg)
 
 
@@ -114,7 +118,7 @@ def agent_run(
         None,
         "-m",
         "--model",
-        help="Model id (default: agent.model / agent.models.* in run config).",
+        help="Model id (default: agent.model in run config).",
     ),
     max_steps: int | None = typer.Option(
         None,
@@ -134,6 +138,14 @@ def agent_run(
     ),
     access_role: str | None = typer.Option(
         None, "--role", help="Diagnosis access role (default: agent.access.role)."
+    ),
+    base_url: str | None = typer.Option(
+        None,
+        "--base-url",
+        help=(
+            "Inference endpoint URL (default: agent.custom.base_url). "
+            "Required for provider=custom; also overrides OpenAI/Anthropic base URL."
+        ),
     ),
     run_config: str | None = typer.Option(
         None,
@@ -206,6 +218,7 @@ def agent_run(
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
         access_role=access_role,
+        base_url=base_url,
         sandbox_keep_container=sandbox_keep_container,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,

@@ -6,6 +6,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 from agent.sandbox.config import (
@@ -16,7 +17,8 @@ from agent.sandbox.config import (
 )
 from agent.sandbox.manifest import manifest_mcp_servers
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
-from agent.protocols import SUBMISSION
+from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.loggers import MESSAGES_FILENAME
 
 SESSION_HEADER = "NIKA-Session-Id"
 
@@ -57,27 +59,101 @@ def _gateway_base_for_phase_advance() -> str:
     return os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
 
 
+def _freeze_diagnosis_in_workspace(report: str) -> None:
+    """Append diagnosis_frozen to workspace messages.jsonl (no ``nika`` needed)."""
+    session_dir = os.environ.get(ENV_SESSION_DIR, "").strip() or "."
+    path = Path(session_dir) / MESSAGES_FILENAME
+    if path.is_file():
+        for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "diagnosis_frozen":
+                return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "phase": DIAGNOSIS,
+                    "event": "diagnosis_frozen",
+                    "report": report,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+
+def _http_advance_submission_phase(session_id: str, base: str) -> None:
+    url = f"{base}/gateway/sessions/{session_id}/phase"
+    payload = json.dumps({"phase": SUBMISSION}).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            SESSION_HEADER: session_id,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            if response.status != 200:
+                raise RuntimeError(
+                    f"MCP phase advance failed with HTTP {response.status}"
+                )
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"MCP phase advance failed: HTTP {exc.code}: {body}"
+        ) from exc
+
+
 def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> None:
     """Freeze diagnosis and advance the gateway before the submission step."""
-    from nika.workflows.agent.submission import freeze_diagnosis
-
-    freeze_diagnosis(session_id, diagnosis_report)
-    base = _gateway_base_for_phase_advance()
-    use_http = False
+    # SDK microVM: agent tree only — freeze locally and advance via HTTP.
     if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
+        try:
+            from nika.workflows.agent.submission import freeze_diagnosis
+        except ImportError:
+            _freeze_diagnosis_in_workspace(diagnosis_report)
+            base = _gateway_base_for_phase_advance()
+            if not base:
+                raise RuntimeError(
+                    f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
+                    "MCP phase advance."
+                )
+            _http_advance_submission_phase(session_id, base)
+            return
+        freeze_diagnosis(session_id, diagnosis_report)
         if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
             from nika.mcp.gateway.phase import advance_mcp_phase
 
             advance_mcp_phase(session_id, SUBMISSION)
             return
-        use_http = True
-    else:
-        try:
-            from nika.remote.config import is_remote_enabled
+        base = _gateway_base_for_phase_advance()
+        if not base:
+            raise RuntimeError(
+                f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
+                "MCP phase advance."
+            )
+        _http_advance_submission_phase(session_id, base)
+        return
 
-            use_http = is_remote_enabled()
-        except Exception:  # noqa: BLE001 - remote package optional at import time
-            use_http = False
+    from nika.workflows.agent.submission import freeze_diagnosis
+
+    freeze_diagnosis(session_id, diagnosis_report)
+    base = _gateway_base_for_phase_advance()
+    use_http = False
+    try:
+        from nika.remote.config import is_remote_enabled
+
+        use_http = is_remote_enabled()
+    except Exception:  # noqa: BLE001 - remote package optional at import time
+        use_http = False
 
     if use_http:
         if not base:
@@ -85,28 +161,7 @@ def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> N
                 f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
                 "MCP phase advance."
             )
-        url = f"{base}/gateway/sessions/{session_id}/phase"
-        payload = json.dumps({"phase": SUBMISSION}).encode("utf-8")
-        request = urllib.request.Request(
-            url,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                SESSION_HEADER: session_id,
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=10) as response:
-                if response.status != 200:
-                    raise RuntimeError(
-                        f"MCP phase advance failed with HTTP {response.status}"
-                    )
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"MCP phase advance failed: HTTP {exc.code}: {body}"
-            ) from exc
+        _http_advance_submission_phase(session_id, base)
         return
 
     from nika.mcp.gateway.phase import advance_mcp_phase

@@ -78,6 +78,48 @@ class CodexSubprocessStallError(Exception):
         super().__init__(f"stalled after {stall_s}s without {reason}")
 
 
+class CodexFatalError(Exception):
+    """Raised when Codex reports a non-retryable API/config failure."""
+
+
+def _fatal_codex_error_message(event: dict) -> str | None:
+    """Return the message when the event is a permanent API/config failure.
+
+    Transient reconnect/timeout noise is ignored so the existing stall timer
+    can still handle transport flakes.  Model-metadata fallback warnings are
+    also ignored — they are not fatal by themselves.
+    """
+    event_type = event.get("type", "")
+    if event_type == "error":
+        message = str(event.get("message") or "")
+    elif event_type == "turn.failed":
+        error = event.get("error") or {}
+        message = str(error.get("message") or event.get("message") or "")
+    elif event_type == "item.completed":
+        item = event.get("item") or {}
+        message = (
+            str(item.get("message") or "") if item.get("type") == "error" else ""
+        )
+    else:
+        message = ""
+    if not message:
+        return None
+    lower = message.lower()
+    if "defaulting to fallback metadata" in lower:
+        return None
+    if "does not exist or you do not have access" in lower:
+        return message
+    if "404" in lower and "not found" in lower and "model" in lower:
+        return message
+    if "invalid api key" in lower or "incorrect api key" in lower:
+        return message
+    if "401" in lower or "unauthorized" in lower:
+        return message
+    if "403" in lower and ("forbidden" in lower or "access" in lower):
+        return message
+    return None
+
+
 def _is_productive_codex_event(event: dict) -> bool:
     """Return True when a JSONL event indicates real agent work, not a reconnect."""
     event_type = event.get("type", "")
@@ -261,7 +303,7 @@ class CodexWorker:
         # current phase.  The gateway enforces this too, but excluding the
         # task server here keeps the diagnosis prompt and tool inventory free
         # of submission-only fault catalog metadata.
-        from nika.mcp.registry import SUBMISSION_SERVER
+        from agent.mcp_names import SUBMISSION_SERVER
 
         if self.phase == SUBMISSION:
             servers = {
@@ -290,9 +332,9 @@ class CodexWorker:
     async def run(self, prompt: str) -> str:
         """Execute ``codex exec`` and return the final assistant message.
 
-        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout
-        rather than raising, so the two-phase pipeline can continue to the
-        submission phase with a degraded report.
+        Returns an ``"ERROR: ..."`` string on subprocess failure, fatal API
+        error, stall, or timeout.  The two-phase agent treats diagnosis
+        ``ERROR:`` results as hard failures and skips submission.
         """
         self._setup_workspace()
 
@@ -347,6 +389,12 @@ class CodexWorker:
                     cwd=str(self.workspace),
                 )
             returncode, stderr_text = await self._stream_subprocess(proc)
+        except CodexFatalError as exc:
+            self._logger.log(
+                "subprocess_fatal",
+                {"phase": self.phase, "error": str(exc)},
+            )
+            return f"ERROR: {self.phase} phase {exc}"
         except CodexSubprocessStallError as exc:
             self._logger.log(
                 "subprocess_stall",
@@ -425,6 +473,9 @@ class CodexWorker:
     def _track_codex_progress(
         self, event: dict, loop: asyncio.AbstractEventLoop
     ) -> None:
+        fatal = _fatal_codex_error_message(event)
+        if fatal is not None:
+            raise CodexFatalError(fatal)
         if _reconnect_transport_failed(event):
             if self._reconnect_failure_at is None:
                 self._reconnect_failure_at = loop.time()
@@ -486,10 +537,15 @@ class CodexWorker:
                 if not line_bytes:
                     break
 
-                self._handle_stdout_line(
-                    line_bytes.decode("utf-8", errors="replace").rstrip("\n"),
-                    loop=loop,
-                )
+                try:
+                    self._handle_stdout_line(
+                        line_bytes.decode("utf-8", errors="replace").rstrip("\n"),
+                        loop=loop,
+                    )
+                except CodexFatalError:
+                    proc.kill()
+                    await proc.wait()
+                    raise
         finally:
             await stderr_task
 

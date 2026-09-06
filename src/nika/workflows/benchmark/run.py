@@ -771,6 +771,12 @@ def run_benchmark_trials(
     if retry_passes and not continue_on_error:
         continue_on_error = True
 
+    from agent.sandbox.sbx.images import ensure_sbx_template_images
+
+    # Once per job, before any case/lab deploy, so parallel trials do not race
+    # on the first ``sbx create`` Docker Hub pull.
+    ensure_sbx_template_images([agent_type])
+
     rows = load_benchmark_input(benchmark_file)
     if not rows:
         print(f"No benchmark rows found in {benchmark_file}")
@@ -937,6 +943,10 @@ def run_benchmark_from_release(
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
     preflight_release(resolved, check_images=check_images)
+    if check_images:
+        from agent.sandbox.sbx.images import ensure_sbx_template_images
+
+        ensure_sbx_template_images([agent_type])
 
     # Timeout is operational (run config / CLI), not a release pin.
     if case_timeout is None:

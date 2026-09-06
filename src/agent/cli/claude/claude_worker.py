@@ -83,7 +83,7 @@ class ClaudeWorker:
         One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
         Claude model name forwarded to ``claude --model``.  When omitted,
-        requires ``agent.models.claude`` / ``-m`` (see
+        requires ``agent.model`` / ``-m`` (see
         :func:`~agent.cli.claude.config.resolve_claude_model`).
     llm_provider:
         Active LLM provider for credential mapping.
@@ -142,7 +142,7 @@ class ClaudeWorker:
         # The gateway enforces phase access, but keeping the submission server
         # out of the diagnosis config also keeps the fault catalog out of the
         # agent's visible tool inventory.
-        from nika.mcp.registry import SUBMISSION_SERVER
+        from agent.mcp_names import SUBMISSION_SERVER
 
         if self.phase == SUBMISSION:
             servers = {
@@ -172,9 +172,9 @@ class ClaudeWorker:
     async def run(self, prompt: str) -> str:
         """Execute ``claude -p`` and return the final assistant message.
 
-        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout
-        rather than raising, so the two-phase pipeline can continue to the
-        submission phase with a degraded report.
+        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout.
+        The two-phase agent treats diagnosis ``ERROR:`` results as hard
+        failures and skips submission.
         """
         self._setup_workspace()
 

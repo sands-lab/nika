@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import pytest
 import json
+
+import pytest
 from agent.protocols import DIAGNOSIS
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import assert_phase_messages
 from tests.agent.sandbox_support import (
@@ -22,17 +25,55 @@ from tests.support.integration_pipeline import (
 )
 
 load_test_env()
+DEEPSEEK_FLASH = "deepseek-v4-flash"
+# Codex CLI/SDK: ChatGPT host subscription via sbx openai secret; smallest model.
+# Codex Responses API ignores OPENAI_BASE_URL, so DeepSeek is not usable here.
 CODEX_MODEL = "gpt-5-mini"
-CLAUDE_MODEL = "deepseek-v4-flash"
 MAX_STEPS = 20
 _SANDBOX_SKIP = not sandbox_runtime_available()
 _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
 
 
+def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> None:
+    """Avoid host config/nika.yaml custom.base_url leaking into provider env."""
+    reset_run_config()
+    set_run_config(
+        RunConfig.model_validate(
+            {
+                "nika": {
+                    "result_dir": "results/test",
+                    "sandbox": {
+                        "offline_sdk_wheels": True,
+                        "upstream_proxy": "http://127.0.0.1:7890",
+                    },
+                },
+                "agent": {
+                    "type": agent_type,
+                    "provider": provider,
+                    "model": model,
+                    "max_steps": MAX_STEPS,
+                    "custom": {"base_url": None, "model": None},
+                },
+            }
+        )
+    )
+
+
 class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     agent_type: str = ""
-    model: str = ""
+    llm_provider: str = "deepseek"
+    model: str = DEEPSEEK_FLASH
     _agent_run_failed: bool = False
+
+    def setup_method(self) -> None:
+        _isolate_agent_run_config(
+            agent_type=self.agent_type,
+            provider=self.llm_provider,
+            model=self.model,
+        )
+
+    def teardown_method(self) -> None:
+        reset_run_config()
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -46,6 +87,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         try:
             self._run_agent(
                 agent_type=self.agent_type,
+                llm_provider=self.llm_provider,
                 model=self.model,
                 max_steps=MAX_STEPS,
                 reasoning_effort="low" if "codex" in self.agent_type else None,
@@ -103,6 +145,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
 )
 class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.codex"
+    llm_provider = "openai"
     model = CODEX_MODEL
 
 
@@ -113,7 +156,7 @@ class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
 )
 class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.claude"
-    model = CLAUDE_MODEL
+    model = DEEPSEEK_FLASH
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
@@ -123,6 +166,7 @@ class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
 )
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
+    llm_provider = "openai"
     model = CODEX_MODEL
 
 
@@ -133,7 +177,7 @@ class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
 )
 class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.claude_sdk"
-    model = CLAUDE_MODEL
+    model = DEEPSEEK_FLASH
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
@@ -143,7 +187,7 @@ class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
 )
 class SandboxSadePipelineTest(SandboxAgentPipelineBase):
     agent_type = "community.sade"
-    model = CLAUDE_MODEL
+    model = DEEPSEEK_FLASH
 
     def test_step_04_check_sandbox_artifacts(self) -> None:
         if type(self)._agent_run_failed:

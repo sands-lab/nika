@@ -63,6 +63,13 @@ def start_agent(
         offline_sdk_wheels=sandbox_offline_sdk_wheels,
     )
     use_sandbox = agent_type in SANDBOX_SUPPORTED_AGENTS
+    if use_sandbox:
+        from agent.sandbox.sbx.images import ensure_sbx_template_images
+
+        # Idempotent: skips pull when the template is already local (e.g. lab
+        # deploy / benchmark job preload). Covers ``nika agent run`` without
+        # a prior env start that knew the sandbox agent.
+        ensure_sbx_template_images([agent_type])
 
     session = Session()
     session.load_running_session(session_id=session_id)
