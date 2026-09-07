@@ -1,8 +1,12 @@
 """Commands for offline evaluation (metrics, judge, summary)."""
 
+import json
+from pathlib import Path
+
 import typer
 
-from nika.config import ENV_RESULT_DIR
+from nika.config import ENV_RESULT_DIR, resolve_results_root
+from nika.run_config.legacy import warn_legacy_operational_env
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -10,8 +14,8 @@ from nika.run_config.loader import (
     merge_cli,
     set_run_config,
 )
-from nika.run_config.legacy import warn_legacy_operational_env
 from nika.utils.agent_config import apply_custom_provider_env
+from nika.workflows.leaderboard.schema import PRIMARY_METRIC
 
 eval_app = typer.Typer(help="Evaluate a completed agent session.")
 
@@ -150,12 +154,42 @@ def eval_summary(
         envvar=ENV_RESULT_DIR,
         help="Results parent directory (default: results/). Session output goes to {result_dir}/{session_id}.",
     ),
+    report: bool = typer.Option(
+        True,
+        "--report/--no-report",
+        help="Print a visual summary to the terminal after writing the CSV.",
+    ),
+    group_by: list[str] | None = typer.Option(
+        None,
+        "-g",
+        "--group-by",
+        help="Report breakdown dimension: domain, env, problem, size (repeatable).",
+    ),
+    metric: str = typer.Option(
+        PRIMARY_METRIC,
+        "--metric",
+        help="Metric used to sort report rows and draw bars "
+        "(rca_f1, localization_f1, detection_score).",
+    ),
+    top: int = typer.Option(
+        15,
+        "--top",
+        help="Max rows per report breakdown table; 0 shows all.",
+    ),
+    json_out: str | None = typer.Option(
+        None,
+        "--json",
+        help="Also write the report aggregates to this JSON path.",
+    ),
 ) -> None:
     """Aggregate finished sessions under the results directory into one CSV file."""
-    from nika.workflows.eval.summary import run_eval_summary
+    from nika.workflows.eval.report import GROUP_DIMENSIONS, build_summary_report
+    from nika.workflows.eval.summary import collect_eval_summary
+
+    dimensions = tuple(group_by) if group_by else GROUP_DIMENSIONS
 
     try:
-        out_path = run_eval_summary(
+        outcome = collect_eval_summary(
             output_path=output,
             problems=problem,
             envs=env,
@@ -168,7 +202,42 @@ def eval_summary(
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    typer.echo(f"Wrote summary CSV: {out_path}")
+    typer.echo(f"Wrote summary CSV: {outcome.csv_path}")
+
+    if not report and json_out is None:
+        return
+
+    results_root = resolve_results_root(result_dir)
+    try:
+        summary_report = build_summary_report(
+            outcome.session_dirs,
+            result_dir=results_root,
+            metric=metric,
+            dimensions=dimensions,
+            # A filtered selection is a subset of the run, so the run-wide
+            # expected count would understate the scores.
+            n_trials_expected=(len(outcome.session_dirs) if outcome.filtered else None),
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if json_out is not None:
+        json_path = Path(json_out)
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(
+            json.dumps(summary_report.to_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        typer.echo(f"Wrote summary report JSON: {json_path}")
+
+    if report:
+        from nika.workflows.eval.render import render_summary_report
+
+        render_summary_report(
+            summary_report,
+            metric=metric,
+            top=None if top <= 0 else top,
+        )
 
 
 @eval_app.command("clean")
@@ -183,7 +252,7 @@ def eval_clean(
     ),
 ) -> None:
     """Delete session results, runtime session JSON files, and the SQLite session index."""
-    from nika.config import resolve_results_root, SESSIONS_DB, SESSIONS_DIR
+    from nika.config import SESSIONS_DB, SESSIONS_DIR
     from nika.utils.session_store import SessionStore
     from nika.workflows.eval.clean import run_eval_clean
 
