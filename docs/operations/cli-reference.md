@@ -181,7 +181,7 @@ Eval commands operate on **closed** sessions only. After a benchmark run (or a m
 
 - **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json` and record completion in `events.jsonl`. Scoring compares `(resource_id, fault_type)` pairs. With `--result_dir` and no `--session_id`, the command processes every closed session under that directory. Benchmark writes metrics when each case closes.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
-- **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions and write one CSV.
+- **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions, write one CSV, and print a visual summary to the terminal. See [report output](#nika-eval-summary-report-output).
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.
 
 Typical post-benchmark flow:
@@ -208,6 +208,26 @@ All filters are optional and repeatable. Omit filters to include every finished 
 | `--model` | Agent model id |
 
 Each finished session directory should contain at least `run.json`, `ground_truth.json`, and `eval_metrics.json`. `llm_judge.json` is optional and merged when present.
+
+### `nika eval summary` report output
+
+After writing the CSV, the command prints headline scores, run health, a fault-vs-healthy split, per-dimension breakdowns, and the most frequent RCA confusions.
+
+| Option | Meaning |
+|--------|---------|
+| `--report` / `--no-report` | Print the terminal report (default: on). `--no-report` restores CSV-only output for CI |
+| `-g` / `--group-by` | Breakdown dimension, repeatable: `domain`, `env`, `problem`, `size` (default: all four) |
+| `--metric` | Metric used to sort rows and draw bars: `rca_f1` (default), `localization_f1`, `detection_score` |
+| `--top` | Max rows per breakdown table; `0` shows all (default: 15) |
+| `--json` | Also write the report aggregates to this JSON path |
+
+Scoring matches `nika leaderboard pack`, so the headline here and a submission built from the same directory agree. Three consequences are worth knowing when comparing against the raw CSV:
+
+- **`outcome=agent_failed` trials score 0.0.** Their `eval_metrics.json` holds `-1.0` sentinels; averaging the CSV column directly yields negative scores. The `outcome` CSV column distinguishes these from a genuine `0.0`.
+- **Missing trials count as 0.** The denominator is `case_count x n_trials` from the result-dir run config, so trials that never landed lower the score. Applying any filter switches the denominator to the number of sessions selected.
+- **Healthy (no-fault) cases are reported separately.** They have no root cause, so RCA and localization are undefined for them and only `detection_score` is scored. Breakdown tables cover fault cases only.
+
+The same report prints automatically when `nika benchmark run` finishes.
 
 ---
 

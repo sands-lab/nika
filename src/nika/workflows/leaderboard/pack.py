@@ -26,14 +26,13 @@ from nika.workflows.benchmark.trials import (
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
     build_rca_confusion,
-    extract_trial_metrics,
 )
+from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     load_submission_dir,
     slugify_name,
 )
-from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
 from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
     METADATA_FILENAME,
@@ -54,6 +53,11 @@ from nika.workflows.leaderboard.schema import (
     TrialResult,
 )
 from nika.workflows.leaderboard.secrets import scan_value_for_issues
+from nika.workflows.leaderboard.trial_results import (
+    TrialResultError,
+    read_json_object,
+    trial_result_from_dir,
+)
 
 
 class LeaderboardPackError(ValueError):
@@ -131,10 +135,10 @@ def _relative_result_hint(result_dir: Path) -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise LeaderboardPackError(f"Expected JSON object at {path}")
-    return data
+    try:
+        return read_json_object(path)
+    except TrialResultError as exc:
+        raise LeaderboardPackError(str(exc)) from exc
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -191,79 +195,6 @@ def _resolve_metadata(
 def _package_folder_name(metadata: SubmissionMetadata, *, when: datetime) -> str:
     slug = slugify_name(metadata.info.name)
     return f"{when.strftime('%Y%m%d')}_{slug}"
-
-
-def _fault_types_from_root_causes(raw: Any) -> list[str] | None:
-    """Unique fault_type values from a root_causes list, preserving order."""
-    if not isinstance(raw, list):
-        return None
-    names: list[str] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        fault_type = str(item.get("fault_type") or "").strip()
-        if fault_type and fault_type not in names:
-            names.append(fault_type)
-    return names or None
-
-
-def _gt_fault_types(session_dir: Path, *, problem: str) -> list[str]:
-    gt_path = session_dir / "ground_truth.json"
-    if gt_path.is_file():
-        try:
-            gt = _read_json(gt_path)
-            names = _fault_types_from_root_causes(gt.get("root_causes"))
-            if names:
-                return names
-        except (LeaderboardPackError, json.JSONDecodeError, OSError):
-            pass
-    return [problem]
-
-
-def _predicted_fault_types(session_dir: Path) -> list[str] | None:
-    sub_path = session_dir / "submission.json"
-    if not sub_path.is_file():
-        return None
-    try:
-        submission = _read_json(sub_path)
-    except (LeaderboardPackError, json.JSONDecodeError, OSError):
-        return None
-    return _fault_types_from_root_causes(submission.get("root_causes"))
-
-
-def _trial_result_from_dir(
-    *,
-    trial_id: str,
-    case_key: str,
-    trial_index: int,
-    scenario: str,
-    problem: str,
-    session_dir: Path,
-) -> TrialResult:
-    run_meta = _read_json(session_dir / "run.json")
-    outcome = str(run_meta.get("outcome") or "")
-    if outcome not in {"success", "agent_failed"}:
-        raise LeaderboardPackError(
-            f"Trial {trial_id} has invalid outcome {outcome!r} under {session_dir}"
-        )
-    metrics_path = session_dir / "eval_metrics.json"
-    metrics = (
-        extract_trial_metrics(_read_json(metrics_path))
-        if metrics_path.is_file()
-        else {}
-    )
-
-    return TrialResult(
-        trial_id=trial_id,
-        case_key=case_key,
-        trial_index=trial_index,
-        scenario=scenario,
-        problem=problem,
-        outcome=outcome,  # type: ignore[arg-type]
-        metrics=metrics,
-        gt_fault_types=_gt_fault_types(session_dir, problem=problem),
-        predicted_fault_types=_predicted_fault_types(session_dir),
-    )
 
 
 def _copy_trajectory_trial_files(
@@ -363,14 +294,17 @@ def pack_leaderboard_submission(
             raise LeaderboardPackError(
                 f"Incomplete or missing trial {trial.trial_id} under {session_dir}"
             )
-        result = _trial_result_from_dir(
-            trial_id=trial.trial_id,
-            case_key=trial.case_key,
-            trial_index=trial.trial_index,
-            scenario=str(trial.row["scenario"]),
-            problem=str(trial.row["problem"]),
-            session_dir=session_dir,
-        )
+        try:
+            result = trial_result_from_dir(
+                trial_id=trial.trial_id,
+                case_key=trial.case_key,
+                trial_index=trial.trial_index,
+                scenario=str(trial.row["scenario"]),
+                problem=str(trial.row["problem"]),
+                session_dir=session_dir,
+            )
+        except TrialResultError as exc:
+            raise LeaderboardPackError(str(exc)) from exc
         trial_results.append(result)
         session_by_trial_id[trial.trial_id] = session_dir
 
