@@ -26,6 +26,28 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 ENV JDK_JAVA_OPTIONS="-Djdk.util.zip.disableZip64ExtraFieldValidation=true"
 
 COPY --from=onos-dist /root/onos /root/onos
+
+# The onos-thirdparty-base boot feature bundles two native-code fragments that
+# only ship x86_64/win32/macos (netty-tcnative-boringssl-static) or 32-bit arm
+# (sigar) variants: neither has an aarch64 build. On an arm64 host JRE, Karaf's
+# FeaturesServiceImpl fails to resolve them and aborts the *entire* boot
+# feature sequence before onos-api/onos-core/onos-rest are even attempted, so
+# ONOS never comes up (not merely missing metrics/TLS accel). Both bundles are
+# optional at runtime (sigar backs system-metrics collection; boringssl backs
+# a native TLS accelerator for Atomix's Netty transport, which falls back to
+# the JDK provider), so drop them from the feature descriptor on arm64 hosts
+# only, leaving amd64 behavior unchanged.
+ARG TARGETARCH
+RUN set -eux; \
+    if [ "${TARGETARCH}" != "amd64" ]; then \
+      features_xml="$(find /root/onos -name 'onos-features-*-features.xml' -print -quit)"; \
+      test -n "${features_xml}"; \
+      sed -i \
+        -e '/<bundle>mvn:io\.netty\/netty-tcnative-boringssl-static\//d' \
+        -e '/<bundle>mvn:org\.knowhowlab\.osgi\/sigar\//d' \
+        "${features_xml}"; \
+    fi
+
 WORKDIR /root/onos
 
 COPY onos-entrypoint.sh /nika/onos-entrypoint.sh
