@@ -1,0 +1,36 @@
+{
+  "versions": [
+    "0.1.0",
+    "0.2.0"
+  ],
+  "filters": {
+    "framework": [
+      "ClaudeCode",
+      "ReACT"
+    ],
+    "llm_provider": [
+      "openai",
+      "qwen"
+    ],
+    "model": [
+      "GPT-5",
+      "GPT-5-mini",
+      "GPT-OSS-20B",
+      "Qwen3.5-27B",
+      "Qwen3.6-27B"
+    ],
+    "optimization_methods": [
+      "GEPA",
+      "skills"
+    ],
+    "tags": [
+      "replication",
+      "slides"
+    ],
+    "org": [],
+    "split": [
+      "test"
+    ]
+  },
+  "primary_metric": "mean_rca_f1"
+}

@@ -1,0 +1,1325 @@
+{
+  "version": "0.1.0",
+  "by_scenario_problem": {
+    "ospf_enterprise_dhcp__arp_acl_block": {
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__arp_cache_poisoning": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__bgp_acl_block": {
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    "dc_clos_bgp__bgp_asn_misconfig": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__bgp_blackhole_route_leak": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_service__bgp_hijacking": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__bgp_missing_route_advertisement": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "p4_bloom_filter__bmv2_switch_down": {
+      "topo_size": null,
+      "root_cause_category": "link_failure",
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__dhcp_missing_subnet": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__dhcp_service_down": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__dhcp_spoofed_dns": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__dhcp_spoofed_gateway": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__dhcp_spoofed_subnet": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__dns_lookup_latency": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__dns_port_blocked": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__dns_record_error": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__dns_service_down": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "sdn_clos__flow_rule_loop": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "sdn_clos__flow_rule_shadowing": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__frr_service_down": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__host_crash": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__host_incorrect_dns": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__host_incorrect_gateway": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_static__host_incorrect_ip": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_static__host_incorrect_netmask": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__host_ip_conflict": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_static__host_missing_ip": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__host_static_blackhole": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "rip_small_internet_vpn__host_vpn_membership_missing": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__http_acl_block": {
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__icmp_acl_block": {
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__incast_traffic_network_limitation": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__link_bandwidth_throttling": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__link_detach": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__link_down": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__link_flap": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__link_fragmentation_disabled": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__link_high_packet_corruption": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__load_balancer_overload": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__mac_address_conflict": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "p4_mpls__mpls_label_limit_exceeded": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    "ospf_enterprise_dhcp__ospf_acl_block": {
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__ospf_area_misconfiguration": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__ospf_neighbor_missing": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "p4_bloom_filter__p4_aggressive_detection_thresholds": {
+      "topo_size": null,
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    "p4_bloom_filter__p4_compilation_error_parser_state": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    "p4_bloom_filter__p4_header_definition_error": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    "p4_bloom_filter__p4_table_entry_misconfig": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    "p4_bloom_filter__p4_table_entry_missing": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__receiver_resource_contention": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "sdn_clos__sdn_controller_crash": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__sender_application_delay": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__sender_resource_contention": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "sdn_clos__southbound_port_block": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "sdn_clos__southbound_port_mismatch": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "ospf_enterprise_dhcp__web_dos_attack": {
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    "dc_clos_bgp__arp_acl_block": {
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    "dc_clos_bgp__arp_cache_poisoning": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__bgp_acl_block": {
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    "dc_clos_service__bgp_asn_misconfig": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__bgp_blackhole_route_leak": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__bgp_hijacking": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__bgp_missing_route_advertisement": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "p4_counter__bmv2_switch_down": {
+      "topo_size": null,
+      "root_cause_category": "link_failure",
+      "split": "test"
+    },
+    "dc_clos_service__dns_lookup_latency": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__dns_port_blocked": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__dns_record_error": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__dns_service_down": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "sdn_star__flow_rule_loop": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "sdn_star__flow_rule_shadowing": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__frr_service_down": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__host_crash": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__host_incorrect_dns": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__host_incorrect_gateway": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__host_incorrect_ip": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__host_incorrect_netmask": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__host_ip_conflict": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__host_missing_ip": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__host_static_blackhole": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__http_acl_block": {
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    "dc_clos_bgp__icmp_acl_block": {
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    "dc_clos_service__incast_traffic_network_limitation": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__link_bandwidth_throttling": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__link_detach": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__link_down": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__link_flap": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__link_fragmentation_disabled": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__link_high_packet_corruption": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_bgp__mac_address_conflict": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_static__ospf_acl_block": {
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    "ospf_enterprise_static__ospf_area_misconfiguration": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "ospf_enterprise_static__ospf_neighbor_missing": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "p4_counter__p4_compilation_error_parser_state": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    "p4_counter__p4_header_definition_error": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    "p4_counter__p4_table_entry_misconfig": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    "p4_counter__p4_table_entry_missing": {
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    "dc_clos_service__receiver_resource_contention": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "sdn_star__sdn_controller_crash": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__sender_application_delay": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__sender_resource_contention": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "sdn_star__southbound_port_block": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "sdn_star__southbound_port_mismatch": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    "dc_clos_service__web_dos_attack": {
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    }
+  },
+  "categories": [
+    "link_failure",
+    "misconfiguration",
+    "network_node_error"
+  ],
+  "problems": [
+    "arp_acl_block",
+    "bgp_acl_block",
+    "bmv2_switch_down",
+    "http_acl_block",
+    "icmp_acl_block",
+    "mpls_label_limit_exceeded",
+    "ospf_acl_block",
+    "p4_aggressive_detection_thresholds",
+    "p4_compilation_error_parser_state",
+    "p4_header_definition_error",
+    "p4_table_entry_misconfig",
+    "p4_table_entry_missing"
+  ],
+  "cases": [
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "arp_acl_block",
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "arp_cache_poisoning",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "bgp_acl_block",
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "bgp_asn_misconfig",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "bgp_blackhole_route_leak",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "bgp_hijacking",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "bgp_missing_route_advertisement",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "bmv2_switch_down",
+      "topo_size": null,
+      "root_cause_category": "link_failure",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_missing_subnet",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_service_down",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_spoofed_dns",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_spoofed_gateway",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_spoofed_subnet",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dns_lookup_latency",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dns_port_blocked",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dns_record_error",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dns_service_down",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "sdn_clos",
+      "problem": "flow_rule_loop",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "sdn_clos",
+      "problem": "flow_rule_shadowing",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "frr_service_down",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_crash",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "host_incorrect_dns",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "host_incorrect_gateway",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_static",
+      "problem": "host_incorrect_ip",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_static",
+      "problem": "host_incorrect_netmask",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_ip_conflict",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_static",
+      "problem": "host_missing_ip",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_static_blackhole",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "rip_small_internet_vpn",
+      "problem": "host_vpn_membership_missing",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "http_acl_block",
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "icmp_acl_block",
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "incast_traffic_network_limitation",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "link_bandwidth_throttling",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "link_detach",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "link_down",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "link_flap",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "link_fragmentation_disabled",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "link_high_packet_corruption",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "load_balancer_overload",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "mac_address_conflict",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_mpls",
+      "problem": "mpls_label_limit_exceeded",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "ospf_acl_block",
+      "topo_size": "s",
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "ospf_area_misconfiguration",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "ospf_neighbor_missing",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "p4_aggressive_detection_thresholds",
+      "topo_size": null,
+      "root_cause_category": "misconfiguration",
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "p4_compilation_error_parser_state",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "p4_header_definition_error",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "p4_table_entry_misconfig",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "p4_table_entry_missing",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "receiver_resource_contention",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "sdn_clos",
+      "problem": "sdn_controller_crash",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "sender_application_delay",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "sender_resource_contention",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "sdn_clos",
+      "problem": "southbound_port_block",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "sdn_clos",
+      "problem": "southbound_port_mismatch",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "web_dos_attack",
+      "topo_size": "s",
+      "root_cause_category": null,
+      "split": "dev"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "arp_acl_block",
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "arp_cache_poisoning",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "bgp_acl_block",
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "bgp_asn_misconfig",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "bgp_blackhole_route_leak",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "bgp_hijacking",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "bgp_missing_route_advertisement",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "p4_counter",
+      "problem": "bmv2_switch_down",
+      "topo_size": null,
+      "root_cause_category": "link_failure",
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_missing_subnet",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_service_down",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_spoofed_dns",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_spoofed_gateway",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "dhcp_spoofed_subnet",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "dns_lookup_latency",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "dns_port_blocked",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "dns_record_error",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "dns_service_down",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "sdn_star",
+      "problem": "flow_rule_loop",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "sdn_star",
+      "problem": "flow_rule_shadowing",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "frr_service_down",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "host_crash",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "host_incorrect_dns",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_incorrect_gateway",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_incorrect_ip",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_incorrect_netmask",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "host_ip_conflict",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "host_missing_ip",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "host_static_blackhole",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "rip_small_internet_vpn",
+      "problem": "host_vpn_membership_missing",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "http_acl_block",
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "icmp_acl_block",
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "incast_traffic_network_limitation",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "link_bandwidth_throttling",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "link_detach",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "link_down",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "link_flap",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "link_fragmentation_disabled",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "link_high_packet_corruption",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_dhcp",
+      "problem": "load_balancer_overload",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_bgp",
+      "problem": "mac_address_conflict",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "p4_mpls",
+      "problem": "mpls_label_limit_exceeded",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_static",
+      "problem": "ospf_acl_block",
+      "topo_size": "l",
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_static",
+      "problem": "ospf_area_misconfiguration",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "ospf_enterprise_static",
+      "problem": "ospf_neighbor_missing",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "p4_bloom_filter",
+      "problem": "p4_aggressive_detection_thresholds",
+      "topo_size": null,
+      "root_cause_category": "misconfiguration",
+      "split": "test"
+    },
+    {
+      "scenario": "p4_counter",
+      "problem": "p4_compilation_error_parser_state",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    {
+      "scenario": "p4_counter",
+      "problem": "p4_header_definition_error",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    {
+      "scenario": "p4_counter",
+      "problem": "p4_table_entry_misconfig",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    {
+      "scenario": "p4_counter",
+      "problem": "p4_table_entry_missing",
+      "topo_size": null,
+      "root_cause_category": "network_node_error",
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "receiver_resource_contention",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "sdn_star",
+      "problem": "sdn_controller_crash",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "sender_application_delay",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "sender_resource_contention",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "sdn_star",
+      "problem": "southbound_port_block",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "sdn_star",
+      "problem": "southbound_port_mismatch",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    },
+    {
+      "scenario": "dc_clos_service",
+      "problem": "web_dos_attack",
+      "topo_size": "l",
+      "root_cause_category": null,
+      "split": "test"
+    }
+  ]
+}
