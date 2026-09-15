@@ -19,6 +19,7 @@ from agent.sandbox.config import load_sandbox_env_values
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.sandbox.sbx.client import (
     list_sbx_custom_secrets,
+    list_sbx_custom_secret_entries,
     list_sbx_secret_services,
     run_sbx_checked,
     sbx_available,
@@ -242,6 +243,25 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
     return f"Missing Docker Sandboxes credential for {service}."
 
 
+def _host_covered(targets: str, host: str) -> bool:
+    """True when *host* is already listed in a custom-secret TARGETS cell."""
+    wanted = host.strip().lower()
+    if not wanted:
+        return False
+    for item in targets.replace(",", " ").split():
+        token = item.strip().lower()
+        if not token:
+            continue
+        if token == wanted or token == f"*.{wanted}" or wanted.endswith("." + token.lstrip("*.")):
+            return True
+        # Exact wildcard forms from sbx docs: *.example.com / **.example.com
+        if token.startswith("*.") and (
+            wanted == token[2:] or wanted.endswith("." + token[2:])
+        ):
+            return True
+    return False
+
+
 def _ensure_custom_secret(
     *,
     host: str,
@@ -249,14 +269,25 @@ def _ensure_custom_secret(
     value: str,
     existing: dict[str, str],
 ) -> str:
-    """Create or reuse a set-custom secret; return its placeholder."""
-    if env_name in existing:
-        return existing[env_name]
+    """Create or replace a set-custom secret; return its placeholder.
+
+    ``sbx secret set-custom`` refuses to overwrite an existing env binding, and
+    the proxy only injects the secret for the registered target host. When the
+    same env (e.g. ``OPENAI_API_KEY``) was previously bound to another host
+    (DeepSeek vs OpenRouter), remove the stale placeholder and recreate.
+    """
+    entries = list_sbx_custom_secret_entries()
+    entry = entries.get(env_name)
+    if entry and _host_covered(entry.get("hosts", ""), host):
+        return entry["placeholder"]
+    if entry:
+        run_sbx_checked(
+            ["secret", "rm", "--placeholder", entry["placeholder"], "-f"]
+        )
     run_sbx_checked(
         [
             "secret",
             "set-custom",
-            "-g",
             "--host",
             host,
             "--env",
