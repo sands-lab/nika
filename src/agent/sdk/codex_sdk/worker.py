@@ -10,7 +10,12 @@ from typing import Any
 
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.cli.codex.codex_display import format_codex_event
-from agent.cli.codex.codex_worker import _build_mcp_toml, prepare_codex_subprocess_env
+from agent.cli.codex.codex_worker import (
+    _build_mcp_toml,
+    _codex_model_provider_id,
+    _codex_provider_base_url,
+    prepare_codex_subprocess_env,
+)
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import (
     MessageLogger,
@@ -107,7 +112,10 @@ class CodexSdkWorker:
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self._codex_home / "config.toml"
-        config_path.write_text(_build_mcp_toml(servers), encoding="utf-8")
+        config_path.write_text(
+            _build_mcp_toml(servers, provider=self.llm_provider),
+            encoding="utf-8",
+        )
 
     def _log_codex_event(self, event: dict[str, Any]) -> None:
         event_type = event.get("type", "codex_event")
@@ -276,6 +284,9 @@ class CodexSdkWorker:
         )
 
         thread_config: dict[str, str] = {}
+        provider_id = _codex_model_provider_id(self.llm_provider)
+        if provider_id and _codex_provider_base_url(self.llm_provider):
+            thread_config["model_provider"] = provider_id
         if self.reasoning_effort is not None:
             thread_config["model_reasoning_effort"] = self.reasoning_effort
 

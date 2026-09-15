@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.tools.structured import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -23,6 +24,7 @@ class SubmissionPhase:
         model: str = "gpt-5-mini",
         scenario_name: str = "",
         reasoning_effort: str | None = None,
+        max_steps: int = 20,
     ):
         session = Session()
         session.load_running_session(session_id=session_id)
@@ -32,6 +34,7 @@ class SubmissionPhase:
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
+        self.max_steps = max_steps
 
         self.llm = load_model(
             llm_provider=llm_provider,
@@ -52,5 +55,11 @@ class SubmissionPhase:
             system_prompt=SUBMIT_PROMPT_TEMPLATE,
             tools=self.tools,
             name=SUBMISSION,
+            middleware=[
+                ModelCallLimitMiddleware(
+                    run_limit=self.max_steps,
+                    exit_behavior="error",
+                )
+            ],
         )
         return agent

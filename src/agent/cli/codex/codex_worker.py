@@ -23,6 +23,7 @@ isolated, per-session workspace.  It handles:
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -153,16 +154,76 @@ def _reconnect_transport_failed(event: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _build_mcp_toml(servers: dict) -> str:
-    """Serialise an MCP server dict (from MCPServerConfig) as TOML."""
+def _codex_model_provider_id(provider: str | None) -> str | None:
+    """Return a non-reserved Codex provider id for custom/DeepSeek endpoints.
+
+    Built-in ids ``openai`` / ``ollama`` / ``lmstudio`` are reserved; Codex also
+    ignores ``OPENAI_BASE_URL`` for third-party hosts, so NIKA must register a
+    ``model_providers.*`` block and set ``model_provider`` to this id.
+    """
+    if not provider or not str(provider).strip():
+        return None
+    match str(provider).strip().lower():
+        case "custom":
+            return "nika_custom"
+        case "deepseek":
+            return "nika_deepseek"
+        case _:
+            return None
+
+
+def _codex_provider_base_url(provider: str | None) -> str:
+    """Resolve the Responses API base URL for a Codex custom/DeepSeek provider."""
+    from agent.utils.provider_env import (
+        DEEPSEEK_OPENAI_BASE_URL,
+        ENV_OPENAI_BASE_URL,
+        resolve_custom_base_url,
+    )
+
+    prov = (provider or "").strip().lower()
+    env_base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
+    if prov == "deepseek":
+        return env_base or DEEPSEEK_OPENAI_BASE_URL
+    if prov == "custom":
+        return env_base or resolve_custom_base_url()
+    return env_base
+
+
+def _build_mcp_toml(
+    servers: dict,
+    *,
+    provider: str | None = None,
+    base_url: str | None = None,
+) -> str:
+    """Serialise Codex ``config.toml``: approvals, optional provider, MCP servers."""
     lines: list[str] = [
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
-        "",
-        "[sandbox_workspace_write]",
-        "network_access = true",
-        "",
     ]
+    provider_id = _codex_model_provider_id(provider)
+    resolved_base = (base_url or "").strip() or _codex_provider_base_url(provider)
+    if provider_id and resolved_base:
+        lines.append(f'model_provider = "{provider_id}"')
+    lines.extend(
+        [
+            "",
+            "[sandbox_workspace_write]",
+            "network_access = true",
+            "",
+        ]
+    )
+    if provider_id and resolved_base:
+        # Codex requires Responses wire_api; chat is rejected on current builds.
+        lines.extend(
+            [
+                f"[model_providers.{provider_id}]",
+                f'name = "{provider_id}"',
+                f'base_url = "{resolved_base}"',
+                'env_key = "OPENAI_API_KEY"',
+                'wire_api = "responses"',
+                "",
+            ]
+        )
     for name, srv in servers.items():
         lines.append(f"[mcp_servers.{name}]")
         if srv.get("transport") == "http":
@@ -323,7 +384,10 @@ class CodexWorker:
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self._codex_home / "config.toml"
-        config_path.write_text(_build_mcp_toml(servers), encoding="utf-8")
+        config_path.write_text(
+            _build_mcp_toml(servers, provider=self.llm_provider),
+            encoding="utf-8",
+        )
 
     # ------------------------------------------------------------------
     # Subprocess invocation
@@ -348,6 +412,9 @@ class CodexWorker:
         )
 
         cmd = ["codex", "exec"]
+        provider_id = _codex_model_provider_id(self.llm_provider)
+        if provider_id and _codex_provider_base_url(self.llm_provider):
+            cmd += ["-c", f"model_provider={provider_id}"]
         if self.reasoning_effort is not None:
             cmd += ["-c", f"model_reasoning_effort={self.reasoning_effort}"]
         cmd += [

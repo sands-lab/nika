@@ -279,7 +279,7 @@ Release runs expand each case to `defaults.n_trials` trials under `{result_dir}/
 
 **`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): outer hard per-trial wall clock (default **2400**; set `0` to disable). Each trial gets this budget. On timeout, NIKA kills the worker. If ground truth exists, NIKA finalizes the counted trial as `agent_failed` with `eval_metrics`, so `--resume` keeps it.
 
-**Inner no-response timeout**: MCP clients use `nika.mcp.read_timeout_sec` in `config/nika.yaml` (default **120**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` only limits agent iterations, not wall time.
+**Inner no-response timeout**: MCP clients use `nika.mcp.read_timeout_sec` in `config/nika.yaml` (default **120**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` limits LLM turns per phase (same unit as eval `steps`), not wall time.
 
 **`--continue-on-error` / `--abort-on-error`** (batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Official `--release` runs default to continuing (`continue_on_error=True`) even when YAML still has `benchmark.continue_on_error: false`; pass `--abort-on-error` to stop on the first failure. Ad-hoc `--config` batches use `benchmark.continue_on_error` from run config. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
 

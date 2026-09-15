@@ -107,7 +107,7 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | `agent.type` | `byo.langgraph` | Agent registry name. Run `uv run nika agent list` for available names. |
 | `agent.provider` | `openai` | Provider name. The selected agent must support it. |
 | `agent.model` | `null` | Canonical model id for the active agent type. |
-| `agent.max_steps` | `20` | Step or turn limit passed to agents that support it. Must be at least `1`. |
+| `agent.max_steps` | `20` | Max LLM turns per phase for agents that support it (same unit as eval `steps` / `llm_end`). For `byo.langgraph`, enforced via model-call limits. Must be at least `1`. |
 | `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
 | `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. Set via YAML, `nika config set agent.custom.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
 | `agent.custom.model` | `null` | Deprecated fallback when `provider: custom` and `agent.model` is unset. |
