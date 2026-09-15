@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 import re
+import time
 
 from nika.service.lab.protocols import SupportsExec
+
+_BGP_ASN_ATTEMPTS = 5
+_BGP_ASN_RETRY_DELAY_SEC = 2.0
+_BGP_ASN_EXEC_TIMEOUT_SEC = 20.0
+_BGP_ASN_FILE_CMD = (
+    "grep -hE '^router bgp ' /etc/frr/frr.conf /etc/frr/bgpd.conf "
+    "2>/dev/null | awk '{print $3}' | head -n1"
+)
 
 
 class FRRAPIMixin:
@@ -76,23 +85,49 @@ class FRRAPIMixin:
         return self.exec_cmd(device_name, command)
 
     def frr_get_bgp_asn_number(self: SupportsExec, node: str) -> int:
-        summary = self.exec_cmd(
-            node, "vtysh -c 'show bgp summary' 2>/dev/null || true"
-        ).strip()
-        match = re.search(r"local AS number\s+(\d+)", summary)
-        if match:
-            return int(match.group(1))
+        """Resolve local BGP ASN from live FRR state, then on-disk config.
 
-        running_config = self.exec_cmd(
-            node,
-            "vtysh -c 'show running-config' 2>/dev/null | grep -E '^router bgp ' | awk '{print $3}' | head -n1",
-        ).strip()
-        if running_config.isdigit():
-            return int(running_config)
+        Large ISP labs can leave ``vtysh`` briefly unable to talk to bgpd even
+        after container deploy. Retry live queries and fall back to the same
+        ``router bgp`` lines inject patches in ``frr.conf`` / ``bgpd.conf``.
+        """
+        last_summary = ""
+        last_running = ""
+        last_file = ""
+        for attempt in range(1, _BGP_ASN_ATTEMPTS + 1):
+            last_summary = self.exec_cmd(
+                node,
+                "vtysh -c 'show bgp summary' 2>/dev/null || true",
+                timeout=_BGP_ASN_EXEC_TIMEOUT_SEC,
+            ).strip()
+            match = re.search(r"local AS number\s+(\d+)", last_summary)
+            if match:
+                return int(match.group(1))
+
+            last_running = self.exec_cmd(
+                node,
+                "vtysh -c 'show running-config' 2>/dev/null | "
+                "grep -E '^router bgp ' | awk '{print $3}' | head -n1",
+                timeout=_BGP_ASN_EXEC_TIMEOUT_SEC,
+            ).strip()
+            if last_running.isdigit():
+                return int(last_running)
+
+            last_file = self.exec_cmd(
+                node,
+                _BGP_ASN_FILE_CMD,
+                timeout=_BGP_ASN_EXEC_TIMEOUT_SEC,
+            ).strip()
+            if last_file.isdigit():
+                return int(last_file)
+
+            if attempt < _BGP_ASN_ATTEMPTS:
+                time.sleep(_BGP_ASN_RETRY_DELAY_SEC)
 
         raise ValueError(
             f"Could not determine BGP ASN for {node!r}. "
-            f"summary={summary!r}, running_config_asn={running_config!r}"
+            f"summary={last_summary!r}, running_config_asn={last_running!r}, "
+            f"file_asn={last_file!r}"
         )
 
     def frr_get_bgp_summary(self: SupportsExec, router_name: str) -> str:

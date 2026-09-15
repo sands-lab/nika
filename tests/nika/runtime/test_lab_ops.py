@@ -193,13 +193,43 @@ class LabOpsTest:
                 ("router1", "vtysh -c 'show bgp summary' 2>/dev/null || true"): "",
                 (
                     "router1",
-                    "vtysh -c 'show running-config' 2>/dev/null | grep -E '^router bgp ' | awk '{print $3}' | head -n1",
+                    "vtysh -c 'show running-config' 2>/dev/null | "
+                    "grep -E '^router bgp ' | awk '{print $3}' | head -n1",
                 ): "2\n",
             }
         )
 
         assert runtime.frr_get_bgp_asn_number("router1") == 2
 
+    def test_frr_get_bgp_asn_number_falls_back_to_frr_conf(self):
+        from nika.service.lab import frr_api
+
+        runtime = _StubRuntime(
+            {
+                ("router1", "vtysh -c 'show bgp summary' 2>/dev/null || true"): "",
+                (
+                    "router1",
+                    "vtysh -c 'show running-config' 2>/dev/null | "
+                    "grep -E '^router bgp ' | awk '{print $3}' | head -n1",
+                ): "",
+                ("router1", frr_api._BGP_ASN_FILE_CMD): "65000\n",
+            }
+        )
+
+        assert runtime.frr_get_bgp_asn_number("router1") == 65000
+
+    def test_frr_get_bgp_asn_number_retries_then_raises(self, monkeypatch):
+        from nika.service.lab import frr_api
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(frr_api.time, "sleep", lambda sec: sleeps.append(sec))
+        runtime = _StubRuntime()
+
+        with pytest.raises(ValueError, match="Could not determine BGP ASN"):
+            runtime.frr_get_bgp_asn_number("router1")
+
+        assert len(sleeps) == frr_api._BGP_ASN_ATTEMPTS - 1
+        assert all(s == frr_api._BGP_ASN_RETRY_DELAY_SEC for s in sleeps)
     def test_process_running(self):
         runtime = _StubRuntime(
             {("pc1", "pgrep -a named 2>/dev/null || echo NONE"): "123 named\n"}
