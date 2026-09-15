@@ -72,6 +72,11 @@ def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
     return {"report": report}
 
 
+def load_frozen_diagnosis_report(session_id: str) -> str | None:
+    """Return the frozen diagnosis report, or ``None`` if not yet frozen."""
+    return _frozen_report(_trajectory_path(session_id))
+
+
 def load_submission_catalog(session_id: str) -> dict[str, Any]:
     """Fault ontology + resources for the submission prompt (no freeze required)."""
     row = SessionStore().get_session(session_id)
@@ -93,7 +98,7 @@ def load_submission_catalog(session_id: str) -> dict[str, Any]:
 
 def load_submission_context(session_id: str) -> dict[str, Any]:
     """Build prompt-only context from immutable trajectory and scenario metadata."""
-    report = _frozen_report(_trajectory_path(session_id))
+    report = load_frozen_diagnosis_report(session_id)
     if report is None:
         raise RuntimeError("Diagnosis must be frozen before submission.")
     catalog = load_submission_catalog(session_id)

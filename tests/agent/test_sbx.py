@@ -312,6 +312,98 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     assert not (session_dir / "codex_sdk_workspace").exists()
 
 
+def test_opaque_workspace_hides_case_key_from_agent_surfaces(
+    tmp_path, monkeypatch
+) -> None:
+    """Readable trial ids must not appear in agent cwd / run.json / hostname."""
+    from agent.sandbox.sbx.policy import sanitize_sandbox_name
+    from agent.sandbox.sbx.workspace import (
+        cleanup_workspace,
+        opaque_agent_workspace_dir,
+    )
+
+    monkeypatch.setattr(
+        "agent.sandbox.sbx.workspace.RUNTIME_DIR",
+        tmp_path / "runtime",
+    )
+    case_key = (
+        "campus_lan__dhcp_missing_subnet__m__host_name-dhcp_server__"
+        "host_name_2-pc_1_1_1_1__subnet-10.1.1.0__t01"
+    )
+    agent_sid = "20260101-120000-a-aabbcc"
+    session_dir = tmp_path / "trials" / case_key
+    session_dir.mkdir(parents=True)
+    (session_dir / "run.json").write_text(
+        json.dumps(
+            {
+                "session_id": case_key,
+                "agent_session_id": agent_sid,
+                "scenario_name": "campus_lan",
+                "backend": "kathara",
+                "status": "running",
+                "problem_names": ["dhcp_missing_subnet"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    workspace = prepare_workspace(
+        session_dir=session_dir,
+        manifest={"session_id": agent_sid, "scenario_name": "campus_lan"},
+        runtime_env={"NIKA_SESSION_ID": agent_sid},
+        agent_session_id=agent_sid,
+    )
+    ws = str(workspace.workspace_dir)
+    assert "dhcp_missing_subnet" not in ws
+    assert "host_name-dhcp_server" not in ws
+    assert case_key not in ws
+    assert opaque_agent_workspace_dir(agent_sid) == workspace.workspace_dir
+    sandbox_run = json.loads(
+        (workspace.workspace_dir / "run.json").read_text(encoding="utf-8")
+    )
+    assert sandbox_run["session_id"] == agent_sid
+    assert "dhcp_missing_subnet" not in sandbox_run["session_id"]
+    assert "problem_names" not in sandbox_run
+    sbx_name = sanitize_sandbox_name(agent_sid)
+    assert "dhcp_missing" not in sbx_name
+    assert "campus_lan" not in sbx_name
+    cleanup_workspace(workspace)
+    # Host trial dir layout unchanged.
+    assert session_dir.is_dir()
+    assert (session_dir / "run.json").is_file()
+
+
+def test_write_manifest_uses_opaque_session_id(tmp_path) -> None:
+    session = SimpleNamespace(
+        session_id=(
+            "campus_lan__dhcp_missing_subnet__m__host_name-dhcp_server__t01"
+        ),
+        agent_session_id="20260101-120000-a-ccddee",
+        session_dir=str(tmp_path),
+        task_description="diagnose the network",
+        scenario_name="campus_lan",
+        backend="kathara",
+    )
+    manager = SbxSandboxManager(resolve_sandbox_config())
+    with patch(
+        "nika.workflows.agent.submission.load_submission_catalog",
+        return_value={"fault_ontology": [], "resources": []},
+    ):
+        manifest = manager.write_manifest(
+            session=session,
+            agent_type="sdk.codex_sdk",
+            model="gpt-test",
+            max_steps=5,
+            reasoning_effort=None,
+            llm_provider="openai",
+            mcp_gateway_agent_url="http://host.docker.internal:9999",
+            stream_output=False,
+        )
+    assert manifest["session_id"] == "20260101-120000-a-ccddee"
+    assert "dhcp_missing_subnet" not in manifest["session_id"]
+    headers = next(iter(manifest["mcp_servers"].values()))["headers"]
+    assert headers["NIKA-Session-Id"] == "20260101-120000-a-ccddee"
+
+
 def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> None:
     session_dir = tmp_path / "session"
     session_dir.mkdir()
@@ -366,7 +458,65 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
     assert (session_dir / "messages.jsonl").read_text(encoding="utf-8") == "message\n"
     assert (session_dir / "submission.json").is_file()
     assert not (session_dir / ".sandbox_run").exists()
+    collected = json.loads(
+        (session_dir / "sandbox_manifest.json").read_text(encoding="utf-8")
+    )
+    assert "session_dir" not in collected
+    assert str(session_dir) not in json.dumps(collected)
 
+
+def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
+    """Host session_dir is a shortcut to ground_truth; never bake it into sandbox."""
+    from nika.utils.session_store import SessionStore
+
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    session_id = "sess-no-shortcut"
+    store = SessionStore()
+    store.create_session(
+        {
+            "session_id": session_id,
+            "lab_name": "lab",
+            "scenario_name": "simple_bgp",
+            "scenario_topo_size": None,
+            "scenario_params": {"backend": "kathara"},
+            "session_dir": str(session_dir),
+            "status": "running",
+            "backend": "kathara",
+        }
+    )
+    session = SimpleNamespace(
+        session_id=session_id,
+        session_dir=str(session_dir),
+        task_description="diagnose",
+        scenario_name="simple_bgp",
+        backend="kathara",
+    )
+    manager = SbxSandboxManager(resolve_sandbox_config(keep_container=False))
+    try:
+        with (
+            patch(
+                "agent.sandbox.sbx.manager.build_sandbox_mcp_servers",
+                return_value={"task_mcp_server": {"transport": "http", "url": "u"}},
+            ),
+        ):
+            manifest = manager.write_manifest(
+                session=session,
+                agent_type="sdk.claude_sdk",
+                model="deepseek-v4-flash",
+                max_steps=10,
+                reasoning_effort=None,
+                llm_provider="deepseek",
+                mcp_gateway_agent_url="http://host.docker.internal:12345",
+                stream_output=False,
+            )
+        assert "session_dir" not in manifest
+        assert str(session_dir) not in json.dumps(manifest)
+        assert "ground_truth" not in json.dumps(manifest)
+        assert "submission_context" in manifest
+        assert set(manifest["submission_context"]) <= {"fault_ontology", "resources"}
+    finally:
+        store.delete_session(session_id)
 
 def test_ensure_sbx_credentials_sets_openai_for_codex(tmp_path) -> None:
     env_file = tmp_path / ".env"
@@ -411,6 +561,15 @@ def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
         patch(
             "agent.sandbox.sbx.credentials.list_sbx_custom_secrets",
             return_value={"ANTHROPIC_API_KEY": "sbx-cs-anth"},
+        ),
+        patch(
+            "agent.sandbox.sbx.credentials.list_sbx_custom_secret_entries",
+            return_value={
+                "ANTHROPIC_API_KEY": {
+                    "hosts": "api.deepseek.com",
+                    "placeholder": "sbx-cs-anth",
+                }
+            },
         ),
         patch("agent.sandbox.sbx.credentials.run_sbx_checked") as run,
         patch.dict(os.environ, {}, clear=True),

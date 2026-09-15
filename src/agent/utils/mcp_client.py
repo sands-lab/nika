@@ -16,7 +16,6 @@ from agent.sandbox.config import (
     ENV_SESSION_DIR,
 )
 from agent.sandbox.manifest import manifest_mcp_servers
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.utils.loggers import MESSAGES_FILENAME
 
@@ -87,12 +86,20 @@ def _freeze_diagnosis_in_workspace(report: str) -> None:
         )
 
 
-def _http_advance_submission_phase(session_id: str, base: str) -> None:
+def _http_advance_submission_phase(
+    session_id: str,
+    base: str,
+    *,
+    diagnosis_report: str = "",
+) -> None:
+    """Freeze (when report provided) and advance phase on the host gateway."""
     url = f"{base}/gateway/sessions/{session_id}/phase"
-    payload = json.dumps({"phase": SUBMISSION}).encode("utf-8")
+    payload: dict[str, str] = {"phase": SUBMISSION}
+    if diagnosis_report:
+        payload["diagnosis_report"] = diagnosis_report
     request = urllib.request.Request(
         url,
-        data=payload,
+        data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
             SESSION_HEADER: session_id,
@@ -113,39 +120,37 @@ def _http_advance_submission_phase(session_id: str, base: str) -> None:
 
 
 def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> None:
-    """Freeze diagnosis and advance the gateway before the submission step."""
-    # SDK microVM: agent tree only — freeze locally and advance via HTTP.
-    if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
-        try:
-            from nika.workflows.agent.submission import freeze_diagnosis
-        except ImportError:
-            _freeze_diagnosis_in_workspace(diagnosis_report)
-            base = _gateway_base_for_phase_advance()
-            if not base:
-                raise RuntimeError(
-                    f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
-                    "MCP phase advance."
-                )
-            _http_advance_submission_phase(session_id, base)
-            return
-        freeze_diagnosis(session_id, diagnosis_report)
-        if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
-            from nika.mcp.gateway.phase import advance_mcp_phase
+    """Freeze diagnosis and advance the gateway before the submission step.
 
-            advance_mcp_phase(session_id, SUBMISSION)
-            return
+    Sandbox agents (no host ``nika`` / no shared process with the gateway) record
+    the freeze in the workspace transcript for collection, then POST the report
+    to the host gateway so ``submit()`` can read the host session trajectory.
+    Host-side callers freeze locally via ``freeze_diagnosis`` and advance either
+    in-process or over HTTP.
+    """
+    from agent.utils.mcp_servers import agent_facing_mcp_session_id
+
+    # Agents / HTTP paths use the opaque handle; freeze/advance accept either key.
+    mcp_session_id = agent_facing_mcp_session_id(session_id)
+
+    if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
+        # Never import host ``nika`` from the sandbox: freeze must go through the
+        # gateway so the host trajectory is updated without mounting session_dir.
+        _freeze_diagnosis_in_workspace(diagnosis_report)
         base = _gateway_base_for_phase_advance()
         if not base:
             raise RuntimeError(
                 f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
                 "MCP phase advance."
             )
-        _http_advance_submission_phase(session_id, base)
+        _http_advance_submission_phase(
+            mcp_session_id, base, diagnosis_report=diagnosis_report
+        )
         return
 
     from nika.workflows.agent.submission import freeze_diagnosis
 
-    freeze_diagnosis(session_id, diagnosis_report)
+    freeze_diagnosis(mcp_session_id, diagnosis_report)
     base = _gateway_base_for_phase_advance()
     use_http = False
     try:
@@ -161,9 +166,10 @@ def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> N
                 f"{ENV_GATEWAY_URL} / {ENV_GATEWAY_AGENT_URL} is not set for "
                 "MCP phase advance."
             )
-        _http_advance_submission_phase(session_id, base)
+        # Host already froze; omit report so the gateway accepts an idempotent advance.
+        _http_advance_submission_phase(mcp_session_id, base)
         return
 
     from nika.mcp.gateway.phase import advance_mcp_phase
 
-    advance_mcp_phase(session_id, SUBMISSION)
+    advance_mcp_phase(mcp_session_id, SUBMISSION)

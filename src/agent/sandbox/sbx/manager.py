@@ -45,6 +45,7 @@ from agent.sandbox.sbx.workspace import (
     prepare_workspace,
 )
 from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
+from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import log_event
 from nika.utils.session import Session
 
@@ -87,9 +88,12 @@ class SbxSandboxManager:
         gateway_url = mcp_gateway_agent_url.rstrip("/")
         scenario_name = getattr(session, "scenario_name", "")
         backend = getattr(session, "backend", "") or "kathara"
+        agent_sid = resolve_agent_session_id(session)
+        # Do not bake host session_dir into the sandbox: it is a filesystem
+        # shortcut to ground_truth.json and other host-only artifacts.
+        # session_id in the manifest is the opaque agent handle only.
         manifest = {
-            "session_id": session.session_id,
-            "session_dir": str(Path(session.session_dir).resolve()),
+            "session_id": agent_sid,
             "agent_type": agent_type,
             "model": model,
             "max_steps": max_steps,
@@ -108,14 +112,16 @@ class SbxSandboxManager:
         # the submission catalog for those shell-template agents.
         from agent.sandbox.sbx.agents import native_sbx_agent, uses_native_sbx_agent
 
-        if uses_native_sbx_agent(agent_type) and native_sbx_agent(agent_type) == "shell":
+        if (
+            uses_native_sbx_agent(agent_type)
+            and native_sbx_agent(agent_type) == "shell"
+        ):
             from nika.workflows.agent.submission import load_submission_catalog
 
-            manifest["submission_context"] = load_submission_catalog(
-                session.session_id
-            )
+            # Catalog load needs the canonical SessionStore key.
+            manifest["submission_context"] = load_submission_catalog(session.session_id)
         manifest["mcp_servers"] = build_sandbox_mcp_servers(
-            session_id=session.session_id,
+            session_id=agent_sid,
             scenario_name=scenario_name,
             backend=backend,
             gateway_agent_url=gateway_url,
@@ -175,10 +181,10 @@ class SbxSandboxManager:
         gateway_port: int,
         stream_output: bool,
     ) -> Iterator[SbxSession]:
-        sandbox_name = sanitize_sandbox_name(session.session_id)
+        agent_sid = resolve_agent_session_id(session)
+        sandbox_name = sanitize_sandbox_name(agent_sid)
         sbx_agent = native_sbx_agent(agent_type)
         session_dir = Path(session.session_dir).resolve()
-        workspace_path = session_dir / ".sandbox_run"
 
         upstream_proxy = resolve_sbx_upstream_proxy(env_file=self.config.env_file)
         ensure_sbx_proxy_config(upstream_proxy)
@@ -197,9 +203,14 @@ class SbxSandboxManager:
             stream_output=stream_output,
         )
 
+        # Workspace path is chosen before prepare so PYTHONPATH matches the mount.
+        from agent.sandbox.sbx.workspace import opaque_agent_workspace_dir
+
+        workspace_path = opaque_agent_workspace_dir(agent_sid)
+
         runtime_env = {
             "NIKA_SANDBOX_EXECUTION": "1",
-            "NIKA_SESSION_ID": session.session_id,
+            "NIKA_SESSION_ID": agent_sid,
             "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
             "PYTHONPATH": str(workspace_path / "agent"),
         }
@@ -218,6 +229,8 @@ class SbxSandboxManager:
             session_dir=session_dir,
             manifest=manifest,
             runtime_env=runtime_env,
+            agent_session_id=agent_sid,
+            workspace_dir=workspace_path,
         )
         if agent_type in SDK_AGENT_TYPES:
             self._bundle_agent_sources(workspace.workspace_dir)
@@ -236,6 +249,7 @@ class SbxSandboxManager:
             "sandbox_start",
             f"Creating native Docker Sandbox ({sbx_agent}) for session {session.session_id}",
             session_id=session.session_id,
+            agent_session_id=agent_sid,
             agent_type=agent_type,
             sandbox_name=sandbox_name,
             native_sbx_agent=sbx_agent,
@@ -395,7 +409,7 @@ class SbxSandboxManager:
 
                 agent = create_agent(
                     agent_type,
-                    session_id=session.session_id,
+                    session_id=resolve_agent_session_id(session),
                     llm_provider=llm_provider,
                     model=model,
                     max_steps=max_steps,
@@ -405,5 +419,6 @@ class SbxSandboxManager:
                 asyncio.run(agent.run(task_description=session.task_description))
 
         return SbxSandboxRunResult(
-            returncode=0, sandbox_name=sanitize_sandbox_name(session.session_id)
+            returncode=0,
+            sandbox_name=sanitize_sandbox_name(resolve_agent_session_id(session)),
         )
