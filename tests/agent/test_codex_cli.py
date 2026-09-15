@@ -65,6 +65,26 @@ class CodexMcpTomlTest:
         )
         assert "required = true" in toml
 
+    def test_registers_custom_model_provider(self, monkeypatch) -> None:
+        monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        toml = _build_mcp_toml({}, provider="custom")
+        assert 'model_provider = "nika_custom"' in toml
+        assert "[model_providers.nika_custom]" in toml
+        assert 'base_url = "https://openrouter.ai/api/v1"' in toml
+        assert 'env_key = "OPENAI_API_KEY"' in toml
+        assert 'wire_api = "responses"' in toml
+
+    def test_registers_deepseek_model_provider(self) -> None:
+        toml = _build_mcp_toml({}, provider="deepseek")
+        assert 'model_provider = "nika_deepseek"' in toml
+        assert "[model_providers.nika_deepseek]" in toml
+        assert "api.deepseek.com" in toml
+
+    def test_openai_provider_skips_custom_block(self) -> None:
+        toml = _build_mcp_toml({}, provider="openai")
+        assert "model_provider" not in toml
+        assert "model_providers." not in toml
+
 
 class CodexProgressDetectionTest:
     """Codex JSONL progress / reconnect stall detection."""

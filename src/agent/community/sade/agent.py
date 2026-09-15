@@ -112,7 +112,7 @@ class SadeAgent:
         msg_logger = MessageLogger(phase=AGENT_TAG, session_dir=self.session_dir)
         logger.info("sade: starting session %s", self.session_id)
 
-        from nika.mcp.registry import SUBMISSION_SERVER
+        from agent.mcp_names import SUBMISSION_SERVER
 
         diagnosis_servers = {
             name: value
@@ -286,7 +286,7 @@ class SadeAgent:
         self, sdk_env: dict[str, str], diagnosis_report: str
     ) -> str:
         """Run the same SADE agent instance with only the final submit tool."""
-        from nika.mcp.registry import SUBMISSION_SERVER
+        from agent.mcp_names import SUBMISSION_SERVER
 
         begin_submission_mcp_phase(self.session_id, diagnosis_report)
         logger = MessageLogger(phase=SUBMISSION, session_dir=self.session_dir)

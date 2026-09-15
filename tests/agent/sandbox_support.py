@@ -27,6 +27,7 @@ from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
 )
+from nika.utils.session_store import SessionStore
 
 SECURITY_PROBE_SCRIPT = Path(__file__).resolve().parent / "security_probe.sh"
 
@@ -72,6 +73,19 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
         session_dir.mkdir()
         ground_truth = session_dir / "ground_truth.json"
         ground_truth.write_text('{"hidden": true}', encoding="utf-8")
+        (session_dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "scenario_name": "simple_bgp",
+                    "backend": "kathara",
+                    "status": "running",
+                    "problem_names": ["link_down"],
+                    "failure_domain": "link_interface",
+                }
+            ),
+            encoding="utf-8",
+        )
         host_probe = Path(tmp) / "host_secret_probe.txt"
         host_probe.write_text("host-only", encoding="utf-8")
 
@@ -93,59 +107,81 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
         shutil.copy(SECURITY_PROBE_SCRIPT, probe_in_workspace)
         probe_in_workspace.chmod(0o755)
 
-        with mcp_gateway_for_session(
-            session_id,
-            scenario_name="simple_bgp",
-            sandbox=True,
-            sandbox_agent_host=agent_host,
-        ) as gateway_manager:
-            gateway_url = os.environ[ENV_GATEWAY_AGENT_URL]
-            manifest["mcp_gateway_agent_url"] = gateway_url
-            workspace.manifest_path.write_text(
-                json.dumps(manifest, indent=2),
-                encoding="utf-8",
-            )
-
-            run_sbx_optional(["rm", "--force", sandbox_name])
-            try:
-                create_cmd = [
-                    "create",
-                    "--name",
-                    sandbox_name,
-                    sbx_agent,
-                    str(workspace.workspace_dir),
-                ]
-                run_sbx_checked(create_cmd)
-                allow_mcp_gateway(sandbox_name=sandbox_name, port=gateway_manager.port)
-
-                env_prefix = (
-                    f"NIKA_SBX_NATIVE=1 "
-                    f"NIKA_MCP_GATEWAY_AGENT_URL={gateway_url} "
-                    f"NIKA_SANDBOX_PROBE_FILE={host_probe} "
-                    f"NIKA_SANDBOX_GROUND_TRUTH={ground_truth}"
+        # mcp_gateway_for_session reads session_dir / node roles from SessionStore.
+        store = SessionStore()
+        store.create_session(
+            {
+                "session_id": session_id,
+                "lab_name": f"security-probe-{session_id}",
+                "scenario_name": "simple_bgp",
+                "scenario_topo_size": None,
+                "scenario_params": {},
+                "session_dir": str(session_dir),
+                "status": "running",
+                "backend": "kathara",
+            }
+        )
+        try:
+            with mcp_gateway_for_session(
+                session_id,
+                scenario_name="simple_bgp",
+                sandbox=True,
+                sandbox_agent_host=agent_host,
+                backend="kathara",
+            ) as gateway_manager:
+                gateway_url = os.environ[ENV_GATEWAY_AGENT_URL]
+                manifest["mcp_gateway_agent_url"] = gateway_url
+                workspace.manifest_path.write_text(
+                    json.dumps(manifest, indent=2),
+                    encoding="utf-8",
                 )
-                result = subprocess.run(
-                    [
-                        "sbx",
-                        "exec",
-                        "-d",
-                        sandbox_name,
-                        "bash",
-                        "-lc",
-                        f"cd {workspace.workspace_dir} && {env_prefix} bash ./security_probe.sh",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                if result.returncode != 0:
-                    raise AssertionError(
-                        f"Security probe failed (code {result.returncode}):\n"
-                        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-                    )
-            finally:
-                deny_mcp_gateway(sandbox_name=sandbox_name, port=gateway_manager.port)
+
                 run_sbx_optional(["rm", "--force", sandbox_name])
+                try:
+                    create_cmd = [
+                        "create",
+                        "--name",
+                        sandbox_name,
+                        sbx_agent,
+                        str(workspace.workspace_dir),
+                    ]
+                    run_sbx_checked(create_cmd)
+                    allow_mcp_gateway(
+                        sandbox_name=sandbox_name, port=gateway_manager.port
+                    )
+
+                    env_prefix = (
+                        f"NIKA_SBX_NATIVE=1 "
+                        f"NIKA_MCP_GATEWAY_AGENT_URL={gateway_url} "
+                        f"NIKA_SANDBOX_PROBE_FILE={host_probe} "
+                        f"NIKA_SANDBOX_GROUND_TRUTH={ground_truth}"
+                    )
+                    result = subprocess.run(
+                        [
+                            "sbx",
+                            "exec",
+                            "-d",
+                            sandbox_name,
+                            "bash",
+                            "-lc",
+                            f"cd {workspace.workspace_dir} && {env_prefix} bash ./security_probe.sh",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    if result.returncode != 0:
+                        raise AssertionError(
+                            f"Security probe failed (code {result.returncode}):\n"
+                            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+                        )
+                finally:
+                    deny_mcp_gateway(
+                        sandbox_name=sandbox_name, port=gateway_manager.port
+                    )
+                    run_sbx_optional(["rm", "--force", sandbox_name])
+        finally:
+            store.delete_session(session_id)
 
 
 def run_cross_sandbox_isolation_probe() -> None:

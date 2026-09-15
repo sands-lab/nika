@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import tempfile
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -112,6 +113,7 @@ def merge_cli(
     max_steps: int | None = None,
     reasoning_effort: str | None = None,
     access_role: str | None = None,
+    base_url: str | None = None,
     result_dir: str | None = None,
     judge_provider: str | None = None,
     judge_model: str | None = None,
@@ -147,6 +149,8 @@ def merge_cli(
         agent_overlay["reasoning_effort"] = reasoning_effort
     if access_role is not None:
         agent_overlay["access"] = {"role": access_role}
+    if base_url is not None:
+        agent_overlay["custom"] = {"base_url": base_url}
     if agent_overlay:
         overlay["agent"] = agent_overlay
 
@@ -229,3 +233,16 @@ def dump_run_config(config: RunConfig, path: Path) -> None:
         allow_unicode=True,
     )
     path.write_text(text, encoding="utf-8")
+
+
+def persist_effective_run_config(config: RunConfig) -> Path:
+    """Write the effective run config and export ``NIKA_RUN_CONFIG``.
+
+    Benchmark trial workers spawn a new process and reload YAML from
+    ``NIKA_RUN_CONFIG`` (they do not inherit the parent ContextVar). Persist the
+    post-``merge_cli`` config so CLI overlays such as ``--base-url`` survive.
+    """
+    directory = Path(tempfile.mkdtemp(prefix="nika-run-config-"))
+    path = directory / "nika.yaml"
+    dump_run_config(config, path)
+    return export_run_config_env(path)

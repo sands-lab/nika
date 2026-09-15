@@ -13,6 +13,7 @@ from agent.sandbox.config import ENV_GATEWAY_AGENT_URL, ENV_GATEWAY_URL
 __all__ = [
     "MCPServerConfig",
     "SESSION_HEADER",
+    "agent_facing_mcp_session_id",
     "harden_mcp_tools",
     "select_diagnosis_servers",
     "select_session_servers",
@@ -20,6 +21,25 @@ __all__ = [
 ]
 
 SESSION_HEADER = "NIKA-Session-Id"
+
+
+def agent_facing_mcp_session_id(session_id: str) -> str:
+    """Return the opaque agent handle for MCP headers when available.
+
+    Host callers pass the canonical SessionStore id; sandbox callers may already
+    pass the opaque id (no store row). Missing ``agent_session_id`` falls back
+    to ``session_id`` for in-flight / legacy sessions.
+    """
+    sid = (session_id or "").strip()
+    if not sid:
+        return sid
+    try:
+        from nika.utils.agent_session_id import resolve_agent_session_id
+        from nika.utils.session_store import SessionStore
+
+        return resolve_agent_session_id(SessionStore().get_session(sid))
+    except (FileNotFoundError, ImportError, ModuleNotFoundError):
+        return sid
 
 
 def select_diagnosis_servers(
@@ -36,7 +56,8 @@ def select_diagnosis_servers(
 
 
 def session_http_headers(session_id: str) -> dict[str, str]:
-    return {SESSION_HEADER: session_id}
+    return {SESSION_HEADER: agent_facing_mcp_session_id(session_id)}
+
 
 
 def _gateway_base_url() -> str:

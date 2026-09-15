@@ -23,6 +23,7 @@ isolated, per-session workspace.  It handles:
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -78,6 +79,48 @@ class CodexSubprocessStallError(Exception):
         super().__init__(f"stalled after {stall_s}s without {reason}")
 
 
+class CodexFatalError(Exception):
+    """Raised when Codex reports a non-retryable API/config failure."""
+
+
+def _fatal_codex_error_message(event: dict) -> str | None:
+    """Return the message when the event is a permanent API/config failure.
+
+    Transient reconnect/timeout noise is ignored so the existing stall timer
+    can still handle transport flakes.  Model-metadata fallback warnings are
+    also ignored — they are not fatal by themselves.
+    """
+    event_type = event.get("type", "")
+    if event_type == "error":
+        message = str(event.get("message") or "")
+    elif event_type == "turn.failed":
+        error = event.get("error") or {}
+        message = str(error.get("message") or event.get("message") or "")
+    elif event_type == "item.completed":
+        item = event.get("item") or {}
+        message = (
+            str(item.get("message") or "") if item.get("type") == "error" else ""
+        )
+    else:
+        message = ""
+    if not message:
+        return None
+    lower = message.lower()
+    if "defaulting to fallback metadata" in lower:
+        return None
+    if "does not exist or you do not have access" in lower:
+        return message
+    if "404" in lower and "not found" in lower and "model" in lower:
+        return message
+    if "invalid api key" in lower or "incorrect api key" in lower:
+        return message
+    if "401" in lower or "unauthorized" in lower:
+        return message
+    if "403" in lower and ("forbidden" in lower or "access" in lower):
+        return message
+    return None
+
+
 def _is_productive_codex_event(event: dict) -> bool:
     """Return True when a JSONL event indicates real agent work, not a reconnect."""
     event_type = event.get("type", "")
@@ -111,16 +154,76 @@ def _reconnect_transport_failed(event: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _build_mcp_toml(servers: dict) -> str:
-    """Serialise an MCP server dict (from MCPServerConfig) as TOML."""
+def _codex_model_provider_id(provider: str | None) -> str | None:
+    """Return a non-reserved Codex provider id for custom/DeepSeek endpoints.
+
+    Built-in ids ``openai`` / ``ollama`` / ``lmstudio`` are reserved; Codex also
+    ignores ``OPENAI_BASE_URL`` for third-party hosts, so NIKA must register a
+    ``model_providers.*`` block and set ``model_provider`` to this id.
+    """
+    if not provider or not str(provider).strip():
+        return None
+    match str(provider).strip().lower():
+        case "custom":
+            return "nika_custom"
+        case "deepseek":
+            return "nika_deepseek"
+        case _:
+            return None
+
+
+def _codex_provider_base_url(provider: str | None) -> str:
+    """Resolve the Responses API base URL for a Codex custom/DeepSeek provider."""
+    from agent.utils.provider_env import (
+        DEEPSEEK_OPENAI_BASE_URL,
+        ENV_OPENAI_BASE_URL,
+        resolve_custom_base_url,
+    )
+
+    prov = (provider or "").strip().lower()
+    env_base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
+    if prov == "deepseek":
+        return env_base or DEEPSEEK_OPENAI_BASE_URL
+    if prov == "custom":
+        return env_base or resolve_custom_base_url()
+    return env_base
+
+
+def _build_mcp_toml(
+    servers: dict,
+    *,
+    provider: str | None = None,
+    base_url: str | None = None,
+) -> str:
+    """Serialise Codex ``config.toml``: approvals, optional provider, MCP servers."""
     lines: list[str] = [
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
-        "",
-        "[sandbox_workspace_write]",
-        "network_access = true",
-        "",
     ]
+    provider_id = _codex_model_provider_id(provider)
+    resolved_base = (base_url or "").strip() or _codex_provider_base_url(provider)
+    if provider_id and resolved_base:
+        lines.append(f'model_provider = "{provider_id}"')
+    lines.extend(
+        [
+            "",
+            "[sandbox_workspace_write]",
+            "network_access = true",
+            "",
+        ]
+    )
+    if provider_id and resolved_base:
+        # Codex requires Responses wire_api; chat is rejected on current builds.
+        lines.extend(
+            [
+                f"[model_providers.{provider_id}]",
+                f'name = "{provider_id}"',
+                f'base_url = "{resolved_base}"',
+                'env_key = "OPENAI_API_KEY"',
+                'wire_api = "responses"',
+                "",
+            ]
+        )
     for name, srv in servers.items():
         lines.append(f"[mcp_servers.{name}]")
         if srv.get("transport") == "http":
@@ -261,7 +364,7 @@ class CodexWorker:
         # current phase.  The gateway enforces this too, but excluding the
         # task server here keeps the diagnosis prompt and tool inventory free
         # of submission-only fault catalog metadata.
-        from nika.mcp.registry import SUBMISSION_SERVER
+        from agent.mcp_names import SUBMISSION_SERVER
 
         if self.phase == SUBMISSION:
             servers = {
@@ -281,7 +384,10 @@ class CodexWorker:
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self._codex_home / "config.toml"
-        config_path.write_text(_build_mcp_toml(servers), encoding="utf-8")
+        config_path.write_text(
+            _build_mcp_toml(servers, provider=self.llm_provider),
+            encoding="utf-8",
+        )
 
     # ------------------------------------------------------------------
     # Subprocess invocation
@@ -290,9 +396,9 @@ class CodexWorker:
     async def run(self, prompt: str) -> str:
         """Execute ``codex exec`` and return the final assistant message.
 
-        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout
-        rather than raising, so the two-phase pipeline can continue to the
-        submission phase with a degraded report.
+        Returns an ``"ERROR: ..."`` string on subprocess failure, fatal API
+        error, stall, or timeout.  The two-phase agent treats diagnosis
+        ``ERROR:`` results as hard failures and skips submission.
         """
         self._setup_workspace()
 
@@ -306,6 +412,9 @@ class CodexWorker:
         )
 
         cmd = ["codex", "exec"]
+        provider_id = _codex_model_provider_id(self.llm_provider)
+        if provider_id and _codex_provider_base_url(self.llm_provider):
+            cmd += ["-c", f"model_provider={provider_id}"]
         if self.reasoning_effort is not None:
             cmd += ["-c", f"model_reasoning_effort={self.reasoning_effort}"]
         cmd += [
@@ -347,6 +456,12 @@ class CodexWorker:
                     cwd=str(self.workspace),
                 )
             returncode, stderr_text = await self._stream_subprocess(proc)
+        except CodexFatalError as exc:
+            self._logger.log(
+                "subprocess_fatal",
+                {"phase": self.phase, "error": str(exc)},
+            )
+            return f"ERROR: {self.phase} phase {exc}"
         except CodexSubprocessStallError as exc:
             self._logger.log(
                 "subprocess_stall",
@@ -425,6 +540,9 @@ class CodexWorker:
     def _track_codex_progress(
         self, event: dict, loop: asyncio.AbstractEventLoop
     ) -> None:
+        fatal = _fatal_codex_error_message(event)
+        if fatal is not None:
+            raise CodexFatalError(fatal)
         if _reconnect_transport_failed(event):
             if self._reconnect_failure_at is None:
                 self._reconnect_failure_at = loop.time()
@@ -486,10 +604,15 @@ class CodexWorker:
                 if not line_bytes:
                     break
 
-                self._handle_stdout_line(
-                    line_bytes.decode("utf-8", errors="replace").rstrip("\n"),
-                    loop=loop,
-                )
+                try:
+                    self._handle_stdout_line(
+                        line_bytes.decode("utf-8", errors="replace").rstrip("\n"),
+                        loop=loop,
+                    )
+                except CodexFatalError:
+                    proc.kill()
+                    await proc.wait()
+                    raise
         finally:
             await stderr_task
 
