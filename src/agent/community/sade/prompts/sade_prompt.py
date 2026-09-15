@@ -36,7 +36,7 @@ Three complementary layers:
 - Submit `root_causes` as `[{resource_id, fault_type}, ...]` using only IDs in the supplied frozen context.
 - `is_anomaly=False` is valid only after Phase 1 plus a complete Phase 4 pass leave nothing implicated.
 - Do not restart devices — the task is diagnosis, not repair.
-- Argument types: `is_anomaly` bool, `root_causes` list[{resource_id, fault_type}]. Unquoted. Validation errors typically terminate the session.
+- Argument types: `is_anomaly` bool, `root_causes` list[{resource_id, fault_type}]. Unquoted. If submit is rejected, fix arguments and call submit again until success.
 
 ## What qualifies as a real symptom
 **Yes:** packet loss or failure in `ping_pair` / pingmesh anomalies; ping or curl timeout, connection refused, TCP RST, ICMP unreachable; DNS NXDOMAIN, SERVFAIL, or a wrong answer for a name the topology declares resolvable; HTTP non-2xx/3xx where traffic should succeed; any device or path explicitly flagged by a helper.
