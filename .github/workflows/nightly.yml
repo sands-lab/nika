@@ -33,7 +33,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Kathara scenario E2E (full verify)
@@ -61,7 +61,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Broad failure E2E
@@ -86,7 +86,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install containerlab
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
@@ -108,7 +108,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: k8s_lab + llmd_lab scenario E2E (serial)

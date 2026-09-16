@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import os
 import shutil
+from typing import Any
 
-import docker
+
+def _docker_mod() -> Any | None:
+    try:
+        import docker
+    except ImportError:
+        return None
+    return docker
 
 
 def docker_available() -> bool:
+    docker = _docker_mod()
+    if docker is None:
+        return False
     try:
         docker.from_env().ping()
     except Exception:
@@ -29,6 +39,8 @@ min3clos_prerequisites = containerlab_prerequisites
 def docker_image_available(image: str) -> bool:
     if not docker_available():
         return False
+    docker = _docker_mod()
+    assert docker is not None
     try:
         return bool(docker.from_env().images.list(name=image))
     except Exception:

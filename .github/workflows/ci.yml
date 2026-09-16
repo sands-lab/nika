@@ -41,7 +41,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (dev)
         run: uv sync --group dev
       - name: Run unit and contract tests
@@ -76,7 +76,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Build and probe image
@@ -111,7 +111,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Light scenario startup
@@ -142,7 +142,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Failure inject smoke
@@ -170,7 +170,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Mock-agent pipeline smoke
@@ -196,7 +196,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
       - name: Mini mock benchmark startup
@@ -222,7 +222,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version-file: .python-version
       - name: Install containerlab
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
