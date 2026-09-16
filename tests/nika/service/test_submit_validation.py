@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from nika.mcp.servers.common.task_server import validate_root_cause_choices
+from nika.mcp.servers.common.task_server import (
+    SubmitRootCause,
+    mcp,
+    validate_root_cause_choices,
+)
 
 _LINK_ID = "link/pc1:eth0--router1:eth0"
 
@@ -49,3 +53,19 @@ class SubmitValidationTest:
         )
         assert errors
         assert "fault ontology" in errors[0]
+
+    def test_submit_tool_schema_requires_root_cause_fields(self) -> None:
+        tool = mcp._tool_manager._tools["submit"]
+        params = tool.parameters
+        root = params["properties"]["root_causes"]
+        item_ref = root["anyOf"][0]["items"]["$ref"]
+        assert item_ref.endswith("/SubmitRootCause")
+        item = params["$defs"]["SubmitRootCause"]
+        assert set(item["required"]) == {"resource_id", "fault_type"}
+        assert item["properties"]["resource_id"]["type"] == "string"
+        assert item["properties"]["fault_type"]["type"] == "string"
+        try:
+            SubmitRootCause.model_validate({})
+            raise AssertionError("empty object should be invalid")
+        except Exception as exc:  # noqa: BLE001 - pydantic ValidationError
+            assert "resource_id" in str(exc) or "fault_type" in str(exc)

@@ -37,6 +37,7 @@ class EvalResult:
     net_env: str = None
     scenario_topo_size: str = None
     session_id: str = None
+    outcome: str = None
     in_tokens: int = None
     out_tokens: int = None
     steps: int = None
@@ -58,6 +59,9 @@ class EvalResult:
     rca_precision: float = None
     rca_recall: float = None
     rca_f1: float = None
+    fault_type_precision: float = None
+    fault_type_recall: float = None
+    fault_type_f1: float = None
 
 
 def _session_duration_seconds(start_time, end_time) -> float | None:
@@ -164,6 +168,7 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
         net_env=run_meta.get("scenario_name"),
         scenario_topo_size=run_meta.get("scenario_topo_size"),
         session_id=run_meta.get("session_id") or session_dir.name,
+        outcome=run_meta.get("outcome"),
         in_tokens=trace_metrics.get("in_tokens"),
         out_tokens=trace_metrics.get("out_tokens"),
         steps=trace_metrics.get("steps"),
@@ -187,6 +192,9 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
         rca_precision=metrics_blob.get("rca_precision", -1.0),
         rca_recall=metrics_blob.get("rca_recall", -1.0),
         rca_f1=metrics_blob.get("rca_f1", -1.0),
+        fault_type_precision=metrics_blob.get("fault_type_precision", -1.0),
+        fault_type_recall=metrics_blob.get("fault_type_recall", -1.0),
+        fault_type_f1=metrics_blob.get("fault_type_f1", -1.0),
     )
 
 

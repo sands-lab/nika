@@ -3,7 +3,7 @@ import os
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from nika.mcp.session_context import get_session_dir
 from nika.problems.rca import RootCause
@@ -12,10 +12,29 @@ from nika.utils.errors import safe_tool
 mcp = FastMCP(
     "task_mcp_server",
     instructions=(
-        "Task API: submit() exactly once using the frozen diagnosis report, fault "
-        "ontology, and canonical resource inventory supplied in your prompt."
+        "Task API: call submit() with is_anomaly and root_causes as "
+        "[{resource_id, fault_type}, ...] from the frozen diagnosis report, "
+        "fault ontology, and resource inventory in the prompt. "
+        "If submit is rejected for invalid arguments, fix the arguments and "
+        "call submit again until it succeeds once."
     ),
 )
+
+
+class SubmitRootCause(BaseModel):
+    """One catalog diagnosis pair for the submit() tool schema."""
+
+    resource_id: str = Field(
+        min_length=1,
+        description=(
+            "Exact canonical resource inventory id "
+            "(e.g. node/pc1, link/pc1:eth0--router1:eth1)."
+        ),
+    )
+    fault_type: str = Field(
+        min_length=1,
+        description="Exact fault ontology id (e.g. link_down, dhcp_missing_subnet).",
+    )
 
 
 def _submission_catalog() -> tuple[set[str], set[str], str]:
@@ -36,6 +55,20 @@ def _submission_catalog() -> tuple[set[str], set[str], str]:
         },
         str(context["diagnosis_report"]),
     )
+
+
+def _as_root_cause_dicts(
+    root_causes: list[SubmitRootCause] | list[dict] | None,
+) -> list[dict]:
+    out: list[dict] = []
+    for item in root_causes or []:
+        if isinstance(item, SubmitRootCause):
+            out.append(item.model_dump())
+        elif isinstance(item, dict):
+            out.append(item)
+        else:
+            out.append(dict(item))
+    return out
 
 
 def validate_root_cause_choices(
@@ -79,7 +112,7 @@ def validate_root_cause_choices(
 @mcp.tool()
 def submit(
     is_anomaly: bool,
-    root_causes: list[dict] | None = None,
+    root_causes: list[SubmitRootCause] | None = None,
 ) -> list[str]:
     """Submit the diagnosis as resource_id + fault_type pairs from frozen context.
 
@@ -87,10 +120,12 @@ def submit(
         is_anomaly: Whether an anomaly was detected.
         root_causes: Diagnoses as [{resource_id, fault_type}, ...] selected
             from the prompt's canonical resource inventory and fault ontology.
+            Use [] when is_anomaly is false. Each object must include both
+            resource_id and fault_type; empty objects are invalid.
     """
     if type(is_anomaly) is not bool:
         return ["Submission rejected: is_anomaly must be a boolean."]
-    causes = list(root_causes or [])
+    causes = _as_root_cause_dicts(root_causes)
     if not is_anomaly and causes:
         return [
             "Submission rejected: healthy/no-fault submissions require root_causes=[]."

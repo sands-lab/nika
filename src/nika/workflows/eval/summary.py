@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from nika.evaluator.result_log import (
@@ -17,6 +18,15 @@ from nika.utils.session_artifacts import (
     is_finished_session,
     iter_session_dirs,
 )
+
+
+@dataclass(frozen=True)
+class SummaryOutcome:
+    """Written CSV path plus the session dirs that fed it."""
+
+    csv_path: Path
+    session_dirs: list[Path]
+    filtered: bool
 
 
 def _matches_filters(
@@ -52,7 +62,7 @@ def _matches_filters(
     return True
 
 
-def run_eval_summary(
+def collect_eval_summary(
     *,
     output_path: str | None = None,
     problems: list[str] | None = None,
@@ -62,8 +72,14 @@ def run_eval_summary(
     agent_types: list[str] | None = None,
     models: list[str] | None = None,
     results_dir: str | None = None,
-) -> Path:
-    """Scan finished sessions under results/, apply filters, and write one CSV file."""
+) -> SummaryOutcome:
+    """Scan finished sessions under results/, apply filters, and write one CSV file.
+
+    Returns the CSV path together with the contributing session dirs, so callers
+    can build a report without rescanning, and a ``filtered`` flag telling them
+    whether the selection is a subset of the run. ``run_eval_summary`` wraps this
+    for callers that only need the CSV path.
+    """
     problem_set = set(problems) if problems else None
     env_set = set(envs) if envs else None
     failure_domain_set = set(failure_domains) if failure_domains else None
@@ -103,4 +119,42 @@ def run_eval_summary(
     out_path = write_eval_summary_csv(
         eval_results, output_path or default_summary_csv_path(results_dir)
     )
-    return out_path
+    return SummaryOutcome(
+        csv_path=out_path,
+        session_dirs=selected,
+        filtered=any(
+            filter_set is not None
+            for filter_set in (
+                problem_set,
+                env_set,
+                failure_domain_set,
+                session_id_set,
+                agent_type_set,
+                model_set,
+            )
+        ),
+    )
+
+
+def run_eval_summary(
+    *,
+    output_path: str | None = None,
+    problems: list[str] | None = None,
+    envs: list[str] | None = None,
+    failure_domains: list[str] | None = None,
+    session_ids: list[str] | None = None,
+    agent_types: list[str] | None = None,
+    models: list[str] | None = None,
+    results_dir: str | None = None,
+) -> Path:
+    """Write the summary CSV and return its path (see ``collect_eval_summary``)."""
+    return collect_eval_summary(
+        output_path=output_path,
+        problems=problems,
+        envs=envs,
+        failure_domains=failure_domains,
+        session_ids=session_ids,
+        agent_types=agent_types,
+        models=models,
+        results_dir=results_dir,
+    ).csv_path

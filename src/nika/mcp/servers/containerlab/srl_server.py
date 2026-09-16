@@ -43,7 +43,7 @@ def srl_show_ip_route(device_name: str) -> str:
     """Get the IPv4 routing table from an SR Linux router."""
     return get_srl_api().srl_exec_cli(
         device_name,
-        "show network-instance default route-table ipv4",
+        "show network-instance default route-table ipv4-unicast summary",
     )
 
 

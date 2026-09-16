@@ -796,6 +796,26 @@ def run_benchmark_trials(
     if release_meta:
         run_id = release_meta.get("run_id") or release_meta.get("job_id")
 
+    def _emit_report() -> None:
+        """Print the visual summary for the finished run.
+
+        Best-effort: a completed run must not fail because reporting did.
+        """
+        try:
+            from nika.utils.session_artifacts import iter_session_dirs
+            from nika.workflows.eval.render import render_summary_report
+            from nika.workflows.eval.report import build_summary_report
+
+            report = build_summary_report(
+                iter_session_dirs(str(results_root)),
+                result_dir=results_root,
+                n_trials_expected=len(trials),
+            )
+            if report.n_trials_present:
+                render_summary_report(report, metric=report.primary_metric)
+        except Exception as report_error:  # noqa: BLE001 - reporting is advisory
+            print(f"WARNING: could not render run summary: {report_error}")
+
     def _refresh_progress(pending: list[int], *, status: str = "running") -> None:
         if not run_id:
             return
@@ -868,6 +888,7 @@ def run_benchmark_trials(
             if attempt > 0:
                 print("\nAll trials completed after retries.")
             _finish_progress([])
+            _emit_report()
             return
         if attempt > 0:
             if previous_pending is not None and len(pending) >= previous_pending:
@@ -892,6 +913,7 @@ def run_benchmark_trials(
             if attempt > 0:
                 print("\nAll trials completed after retries.")
             _finish_progress([])
+            _emit_report()
             return
         if not failures and still_pending:
             # agent_failed trials count as complete; remaining pending means
@@ -912,6 +934,8 @@ def run_benchmark_trials(
         )
         for message in failures:
             print(f"  - {message.splitlines()[0]}")
+
+    _emit_report()
 
 
 def run_benchmark_from_release(
