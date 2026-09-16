@@ -183,7 +183,7 @@ jobs:
           - dc_clos-link_flap
           - campus_lan-ospf_neighbor_missing
           - campus_lan-dhcp_service_down
-          - enterprise_branch-link_packet_corruption
+          - enterprise_branch-link_flap
           - p4_dc_gateway-link_capacity_bottleneck
           - sdn_l3_clos-link_down
     steps:

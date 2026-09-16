@@ -39,9 +39,9 @@ CI_FAILURE_INJECT_CASES: tuple[tuple[str, str, str, str | None, str], ...] = (
     ("campus_lan-ospf_neighbor_missing", "campus_lan", "ospf_neighbor_missing", "s", "kathara"),
     ("campus_lan-dhcp_service_down", "campus_lan", "dhcp_service_down", "s", "kathara"),
     (
-        "enterprise_branch-link_packet_corruption",
+        "enterprise_branch-link_flap",
         "enterprise_branch",
-        "link_packet_corruption",
+        "link_flap",
         "s",
         "kathara",
     ),
