@@ -27,7 +27,7 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -55,7 +55,7 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -80,7 +80,7 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -102,7 +102,7 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
