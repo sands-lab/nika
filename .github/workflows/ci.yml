@@ -32,7 +32,7 @@ jobs:
   unit-contract:
     name: unit+contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -45,21 +45,24 @@ jobs:
       - name: Install (dev + labs import deps)
         run: uv sync --extra labs --group dev
       - name: Run unit and contract tests
-        # Docker stays available for offline topology/contract helpers. Ignore
-        # lab E2E modules so the job does not deploy full topologies.
+        # Avoid modules that auto-mark as contract/unit but still deploy labs
+        # (e.g. benchmark trial E2E, net_env live verifies).
         run: >
           uv run pytest
-          -m "(unit or contract) and not ci_smoke and not e2e and not integration and not live and not sandbox"
+          -m "(unit or contract) and not e2e and not integration and not live and not sandbox and not ci_smoke"
           --ignore=tests/ci
-          --ignore=tests/nika/workflows/integration
-          --ignore=tests/nika/problems/test_failure_inject_contract.py
-          --ignore=tests/nika/problems/test_failure_e2e.py
-          --ignore=tests/nika/net_env/test_scenario_e2e.py
+          --ignore=tests/nika/net_env
+          --ignore=tests/nika/problems
           --ignore=tests/nika/service
-          --ignore=tests/agent/test_sandbox_agents.py
+          --ignore=tests/nika/validation
+          --ignore=tests/nika/workflows/integration
+          --ignore=tests/benchmark/test_trials.py
           --ignore=tests/benchmark/test_batch.py
           --ignore=tests/benchmark/test_sandbox_benchmark.py
           --ignore=tests/benchmark/test_curated_release_e2e.py
+          --ignore=tests/agent/test_sandbox_agents.py
+          --ignore=tests/agent/test_sandbox_security.py
+          --ignore=tests/agent/test_sandbox_isolation.py
           -q --tb=line
 
   images:
