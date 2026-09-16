@@ -110,10 +110,14 @@ uv run pytest tests/agent/test_sandbox_security.py -v
 # Cross-sandbox isolation (unit + sbx peer-gateway probe)
 uv run pytest tests/agent/test_sandbox_isolation.py -v
 
-# Sandbox E2E (Codex needs OpenAI; Claude/SADE need DeepSeek)
+# Sandbox E2E (Codex needs OpenAI; Claude/SADE need DeepSeek).
+# Template images preload when a sandbox agent is configured; manual pull if needed:
+#   docker pull docker/sandbox-templates:codex-docker
+#   docker pull docker/sandbox-templates:claude-code-docker
+#   docker pull docker/sandbox-templates:shell-docker
+# Missing images skip CLI cases.
 uv run pytest tests/agent/test_sandbox_agents.py -v
 ```
-
 ## Benchmark tests (`tests/benchmark/`)
 
 Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`). Offline inject-param generation, ISP option/symptom targeting, healthy-case rules, and task-label contracts live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Batch mode requires explicit `--config` or `--release` (no bare default suite).

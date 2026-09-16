@@ -14,12 +14,15 @@ SESSION_ID_ENV = "NIKA_SESSION_ID"
 
 
 def require_session_id() -> str:
+    """Return the canonical SessionStore session id for the bound agent handle."""
+    from nika.mcp.gateway.session_registry import resolve_canonical_session_id
+
     session_id = get_bound_session_id() or os.getenv(SESSION_ID_ENV)
     if not session_id:
         raise ValueError(
             f"{SESSION_ID_ENV} is not set. MCP tools must be started with a bound session id."
         )
-    return session_id
+    return resolve_canonical_session_id(session_id)
 
 
 def get_session_meta() -> dict[str, Any]:

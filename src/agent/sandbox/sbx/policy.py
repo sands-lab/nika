@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import subprocess
@@ -158,8 +159,23 @@ def deny_mcp_gateway(
         )
 
 
+# Linux HOST_NAME_MAX is typically 64 (including NUL); sethostname rejects longer.
+_SBX_HOSTNAME_MAX = 63
+
+
 def sanitize_sandbox_name(session_id: str) -> str:
-    """Return an sbx-compatible sandbox name for *session_id*."""
+    """Return an sbx-compatible sandbox name for *session_id*.
+
+    Names must fit the Linux hostname limit used by Docker Sandboxes
+    (``sethostname``), while remaining unique for long benchmark trial IDs.
+    """
     cleaned = re.sub(r"[^a-zA-Z0-9.\-+]", "-", session_id.strip())
     cleaned = cleaned.strip(".-+") or "session"
-    return f"nika-{cleaned}"[:128]
+    prefix = "nika-"
+    if len(prefix) + len(cleaned) <= _SBX_HOSTNAME_MAX:
+        return f"{prefix}{cleaned}"
+    digest = hashlib.sha1(cleaned.encode()).hexdigest()[:8]
+    # nika-{head}-{digest}
+    keep = _SBX_HOSTNAME_MAX - len(prefix) - 1 - len(digest)
+    head = cleaned[: max(keep, 1)].rstrip(".-+")
+    return f"{prefix}{head}-{digest}"

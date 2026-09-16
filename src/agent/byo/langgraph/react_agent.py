@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
 from langchain_core.messages import BaseMessage, HumanMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
@@ -25,6 +26,19 @@ load_dotenv()
 
 
 logging.basicConfig(level=logging.INFO)
+
+# Binding LLM-turn limit is ModelCallLimitMiddleware(run_limit=max_steps).
+# create_agent may count before_model/model/after_model/tools as separate
+# recursion steps, so keep recursion_limit as a loose backstop only.
+_RECURSION_STEPS_PER_LLM_TURN = 4
+_RECURSION_LIMIT_SLACK = 10
+
+
+def _react_recursion_limit(max_steps: int) -> int:
+    return max_steps * _RECURSION_STEPS_PER_LLM_TURN + _RECURSION_LIMIT_SLACK
+
+
+_MAX_STEPS_EXCEEDED = (GraphRecursionError, ModelCallLimitExceededError)
 
 
 class AgentState(TypedDict):
@@ -67,6 +81,7 @@ class BasicReActAgent:
             model=model,
             scenario_name=self.session.scenario_name,
             reasoning_effort=reasoning_effort,
+            max_steps=max_steps,
         )
         asyncio.run(diagnosis_phase.load_tools())
         self._diagnosis_runner = diagnosis_phase.get_agent()
@@ -138,7 +153,7 @@ class BasicReActAgent:
                 {"messages": state["messages"]},
                 config={
                     "callbacks": [cb],
-                    "recursion_limit": self.max_steps,
+                    "recursion_limit": _react_recursion_limit(self.max_steps),
                 },
                 debug=True,
             )
@@ -155,10 +170,10 @@ class BasicReActAgent:
                 "diagnosis_report": ["ERROR_VALIDATION"],
                 "is_max_steps_reached": False,
             }
-        except GraphRecursionError:
+        except _MAX_STEPS_EXCEEDED:
             MessageLogger(phase=DIAGNOSIS, session_dir=self.session_dir).log(
                 "error",
-                {"message": "Diagnosis phase reached max recursion limit."},
+                {"message": "Diagnosis phase reached max_steps LLM-turn budget."},
             )
             return {
                 "messages": [],
@@ -194,6 +209,7 @@ class BasicReActAgent:
             model=self.model,
             scenario_name=self.session.scenario_name,
             reasoning_effort=self.reasoning_effort,
+            max_steps=self.max_steps,
         )
         await submission_phase.load_tools()
         submission_runner = submission_phase.get_agent()
@@ -218,14 +234,14 @@ class BasicReActAgent:
                             phase=SUBMISSION, session_dir=self.session_dir
                         )
                     ],
-                    "recursion_limit": self.max_steps,
+                    "recursion_limit": _react_recursion_limit(self.max_steps),
                 },
                 debug=True,
             )
             return {
                 "messages": result["messages"],
             }
-        except GraphRecursionError:
+        except _MAX_STEPS_EXCEEDED:
             # The submit tool records submission.json the moment it is called,
             # so the submission may already be on disk; raising here would fail
             # the whole case and discard it. Either way the evaluator handles
@@ -236,7 +252,7 @@ class BasicReActAgent:
                 "error",
                 {
                     "message": (
-                        "Submission phase reached max recursion limit "
+                        "Submission phase reached max_steps LLM-turn budget "
                         + (
                             "after a successful submission."
                             if submitted

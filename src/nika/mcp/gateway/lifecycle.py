@@ -200,8 +200,10 @@ def mcp_gateway_for_session(
     node_roles = node_roles_for_session(session_id)
     snapshot = policy_snapshot(role=role, policy=policy, node_roles=node_roles)
     session_dir = str(row["session_dir"])
+    agent_session_id = str(row.get("agent_session_id") or "").strip() or None
     register_session(
         session_id,
+        agent_session_id=agent_session_id,
         scenario_name=scenario_name,
         policy_mode=policy_mode,
         session_dir=session_dir,

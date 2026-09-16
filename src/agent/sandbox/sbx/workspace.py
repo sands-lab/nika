@@ -13,11 +13,23 @@ from agent.sandbox.constants import (
     RUNTIME_ENV_FILENAME,
 )
 from agent.utils.skills import resolve_skills_root
+from nika.config import RUNTIME_DIR
 
 SANDBOX_RUN_DIRNAME = ".sandbox_run"
+AGENT_WORKSPACES_DIRNAME = "agent_workspaces"
 SKILLS_DIRNAME = "skills"
 # Standardized session artifacts only — agent CLI/SDK workspaces stay ephemeral.
 COLLECTED_FILES = ("messages.jsonl", "nika.jsonl", "submission.json")
+# Host run.json keeps eval fields (problem_names, failure_domain). The sandbox
+# copy is an isolation boundary: only Session metadata agents need in-VM.
+SANDBOX_RUN_JSON_ALLOWLIST = frozenset(
+    {
+        "session_id",
+        "scenario_name",
+        "backend",
+        "status",
+    }
+)
 
 
 @dataclass
@@ -31,7 +43,32 @@ class SandboxWorkspace:
 
 
 def sandbox_workspace_dir(session_dir: str | Path) -> Path:
+    """Legacy path under the host trial dir (in-flight / tests may still use)."""
     return Path(session_dir).resolve() / SANDBOX_RUN_DIRNAME
+
+
+def opaque_agent_workspace_dir(agent_session_id: str) -> Path:
+    """Workspace path that does not embed benchmark case_key / trial_id."""
+    return (RUNTIME_DIR / AGENT_WORKSPACES_DIRNAME / agent_session_id).resolve()
+
+
+def _write_sandbox_run_json(
+    run_src: Path,
+    run_dst: Path,
+    *,
+    agent_session_id: str,
+) -> None:
+    """Write allowlisted session meta for the sandbox workspace.
+
+    Always emit the opaque ``agent_session_id`` as ``session_id`` so agents never
+    see a readable case_key trial id even when the host run.json still has it.
+    """
+    raw = json.loads(run_src.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"Expected object in {run_src}, got {type(raw).__name__}")
+    filtered = {key: raw[key] for key in SANDBOX_RUN_JSON_ALLOWLIST if key in raw}
+    filtered["session_id"] = agent_session_id
+    run_dst.write_text(json.dumps(filtered, indent=2), encoding="utf-8")
 
 
 def prepare_workspace(
@@ -39,10 +76,24 @@ def prepare_workspace(
     session_dir: str | Path,
     manifest: dict,
     runtime_env: dict[str, str],
+    agent_session_id: str | None = None,
+    workspace_dir: str | Path | None = None,
 ) -> SandboxWorkspace:
-    """Create an isolated workspace with manifest, skills, and runtime env."""
+    """Create an isolated workspace with manifest, skills, and runtime env.
+
+    When ``agent_session_id`` is provided (new sessions), the workspace lives under
+    ``runtime/agent_workspaces/{agent_session_id}/`` so the bind-mount path does
+    not leak the human-readable trial dirname. Legacy callers omit it and keep
+    ``{session_dir}/.sandbox_run``.
+    """
     session_path = Path(session_dir).resolve()
-    workspace = sandbox_workspace_dir(session_path)
+    opaque = (agent_session_id or "").strip()
+    if workspace_dir is not None:
+        workspace = Path(workspace_dir).resolve()
+    elif opaque:
+        workspace = opaque_agent_workspace_dir(opaque)
+    else:
+        workspace = sandbox_workspace_dir(session_path)
     if workspace.exists():
         shutil.rmtree(workspace)
     workspace.mkdir(parents=True, exist_ok=True)
@@ -56,11 +107,15 @@ def prepare_workspace(
         encoding="utf-8",
     )
 
-    # SDK agents run inside the microVM with NIKA_SESSION_DIR pointed at this
-    # workspace; SessionStore is not available there, so mirror run.json in.
+    # Agents see this workspace as NIKA_SESSION_DIR; write only allowlisted
+    # run.json fields so injected failure labels stay on the host.
     run_src = session_path / RUN_FILENAME
     if run_src.is_file():
-        shutil.copy2(run_src, workspace / RUN_FILENAME)
+        _write_sandbox_run_json(
+            run_src,
+            workspace / RUN_FILENAME,
+            agent_session_id=opaque or str(manifest.get("session_id") or ""),
+        )
 
     skills_src = resolve_skills_root()
     skills_dst = workspace / SKILLS_DIRNAME

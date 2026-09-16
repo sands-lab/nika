@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.tools.structured import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -22,6 +23,7 @@ class DiagnosisPhase:
         model: str = "gpt-5-mini",
         scenario_name: str = "",
         reasoning_effort: str | None = None,
+        max_steps: int = 20,
     ):
         mcp_server_config = load_session_mcp_config(
             session_id,
@@ -29,6 +31,7 @@ class DiagnosisPhase:
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
+        self.max_steps = max_steps
         self.llm = load_model(
             llm_provider=llm_provider,
             model=model,
@@ -43,10 +46,19 @@ class DiagnosisPhase:
             tool.handle_validation_error = True
 
     def get_agent(self):
+        # max_steps is LLM turns (same unit as eval ``steps`` / ``llm_end``).
+        # LangGraph recursion_limit counts graph nodes, so enforce the budget
+        # here with an explicit model-call limit.
         agent = create_agent(
             model=self.llm,
             system_prompt=OVERALL_DIAGNOSIS_PROMPT,
             tools=self.tools,
             name=DIAGNOSIS,
+            middleware=[
+                ModelCallLimitMiddleware(
+                    run_limit=self.max_steps,
+                    exit_behavior="error",
+                )
+            ],
         )
         return agent

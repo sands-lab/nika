@@ -29,11 +29,12 @@ Configure shared values in `config/nika.yaml` or override them on `nika agent ru
 | --- | --- | --- |
 | `-a`, `--agent` | `agent.type` | `byo.langgraph` |
 | `-p`, `--provider` | `agent.provider` | `openai` |
-| `-m`, `--model` | `agent.model`, then `agent.models.*` | None |
+| `-m`, `--model` | `agent.model` | None |
 | `-n`, `--max-steps` | `agent.max_steps` | `20`; used by BYO agents, Claude SDK, SADE, and `mock` |
 | `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
+| `--base-url` | `agent.custom.base_url` | None |
 
-See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules. Store provider keys in `.env`. Store custom endpoint URLs and model choices in YAML.
+See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.custom.base_url=...`, or YAML.
 
 | Agent family | Providers |
 | --- | --- |
@@ -56,17 +57,16 @@ BYO agents run on the host and use one framework-specific worker per diagnosis o
 ```yaml
 agent:
   type: byo.langgraph
-  provider: openai
+  provider: deepseek
+  model: deepseek-v4-flash
   max_steps: 20
   reasoning_effort: medium
-  models:
-    langgraph: gpt-5-mini
 ```
 
 ```shell
 uv run nika agent run
-uv run nika agent run -a byo.langgraph -p deepseek -m deepseek-chat -n 20
-uv run nika agent run -a byo.mcp_agent -p anthropic -m claude-haiku-4-5 -e low
+uv run nika agent run -a byo.langgraph -p deepseek -m deepseek-v4-flash -n 20
+uv run nika agent run -a byo.mcp_agent -p deepseek -m deepseek-v4-flash -e low
 ```
 
 ### OpenAI-compatible endpoints
@@ -77,20 +77,26 @@ Use the `custom` provider for Ollama, vLLM, OpenRouter, or another OpenAI-compat
 agent:
   type: byo.langgraph
   provider: custom
-  models:
-    langgraph: qwen2.5:7b
+  model: qwen2.5:7b
   custom:
     base_url: http://localhost:11434/v1
+```
+
+```shell
+uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b \
+  --base-url http://localhost:11434/v1 --problem dc_clos_s_link_down
+uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
+  agent.custom.base_url=http://localhost:11434/v1
 ```
 
 Set `NIKA_CUSTOM_API_KEY` in `.env` only when the endpoint requires authentication.
 
 ## CLI agents
 
-| Agent | Sandbox command | Model key | Authentication |
+| Agent | Sandbox command | Model | Authentication |
 | --- | --- | --- | --- |
-| `cli.codex` | `codex exec` | `agent.models.codex` | OpenAI API key, Codex OAuth, DeepSeek key, or custom endpoint |
-| `cli.claude` | `claude -p` | `agent.models.claude` | Anthropic API key, Claude login, DeepSeek key, or custom endpoint |
+| `cli.codex` | `codex exec` | `agent.model` | OpenAI API key, Codex OAuth, DeepSeek key, or custom endpoint |
+| `cli.claude` | `claude -p` | `agent.model` | Anthropic API key, Claude login, DeepSeek key, or custom endpoint |
 
 ```shell
 uv run nika agent run -a cli.codex -m gpt-5-mini -e medium
@@ -107,10 +113,10 @@ Install SDK agents with:
 uv sync --extra sdk --prerelease=allow
 ```
 
-| Agent | SDK | Model lookup | Step limit |
+| Agent | SDK | Model | Step limit |
 | --- | --- | --- | --- |
-| `sdk.codex_sdk` | `openai-codex` | `agent.models.codex_sdk`, then `agent.models.codex` | `max_steps` is unused |
-| `sdk.claude_sdk` | `claude-agent-sdk` | `agent.models.claude_sdk`, then `agent.models.claude` | `max_turns` per phase |
+| `sdk.codex_sdk` | `openai-codex` | `agent.model` | `max_steps` is unused |
+| `sdk.claude_sdk` | `claude-agent-sdk` | `agent.model` | `max_turns` per phase |
 
 ```shell
 uv run nika agent run -a sdk.codex_sdk -m gpt-5-mini -e medium

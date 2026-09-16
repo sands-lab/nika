@@ -23,6 +23,7 @@ from nika.run_config.loader import (
     export_run_config_env,
     load_run_config,
     merge_cli,
+    persist_effective_run_config,
     resolve_run_config_path,
 )
 from nika.run_config.schema import RunConfig
@@ -129,6 +130,109 @@ def test_load_and_merge_cli(tmp_path: Path) -> None:
     assert merged.agent.max_steps == 30
     assert merged.agent.model == "override-model"
     assert merged.agent.provider == "deepseek"
+
+
+def test_merge_cli_base_url_overrides_yaml(tmp_path: Path) -> None:
+    path = tmp_path / "nika.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "agent": {
+                    "provider": "custom",
+                    "custom": {"base_url": "http://yaml-endpoint/v1"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    cfg = load_run_config(path)
+    merged = merge_cli(cfg, base_url="http://cli-endpoint/v1")
+    assert merged.agent.custom.base_url == "http://cli-endpoint/v1"
+    snapshot = persist_effective_run_config(merged)
+    reloaded = load_run_config(snapshot)
+    assert reloaded.agent.custom.base_url == "http://cli-endpoint/v1"
+
+
+def test_config_set_writes_sparse_yaml(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    out_path.write_text(
+        yaml.safe_dump({"version": 1, "agent": {"type": "byo.langgraph"}}),
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "agent.provider=custom",
+            "agent.model=qwen2.5:7b",
+            "agent.custom.base_url=http://localhost:11434/v1",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = yaml.safe_load(out_path.read_text(encoding="utf-8"))
+    assert data["agent"]["type"] == "byo.langgraph"
+    assert data["agent"]["provider"] == "custom"
+    assert data["agent"]["model"] == "qwen2.5:7b"
+    assert data["agent"]["custom"]["base_url"] == "http://localhost:11434/v1"
+    loaded = load_run_config(out_path)
+    assert loaded.agent.custom.base_url == "http://localhost:11434/v1"
+    assert loaded.agent.model == "qwen2.5:7b"
+
+
+def test_config_set_rejects_unknown_key(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "nika.lab.deploy_attempts=9",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Unsupported key" in result.output
+
+
+def test_config_set_rejects_invalid_provider(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    out_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "agent": {"type": "cli.claude", "provider": "anthropic"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "agent.provider=openai",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid configuration" in result.output
+
+
+def test_example_yaml_loads() -> None:
+    """Tracked template must parse; agent blocks may be commented (defaults apply)."""
+    path = REPO_ROOT / "config" / "nika.example.yaml"
+    cfg = load_run_config(path)
+    assert cfg.version == 1
+    assert cfg.nika.result_dir == "results"
+    assert cfg.agent.type == "byo.langgraph"
+    assert cfg.agent.provider == "openai"
+    assert cfg.agent.model is None
 
 
 def test_provider_validation_via_schema() -> None:
@@ -283,3 +387,176 @@ def test_config_migrate_write_env_keeps_credentials_only(tmp_path: Path) -> None
     assert "NIKA_AGENT_TYPE" not in rewritten
     assert "NIKA_LLM_PROVIDER" not in rewritten
     assert (tmp_path / ".env.bak").is_file()
+
+
+@pytest.mark.parametrize(
+    ("name", "yaml_text", "expected"),
+    [
+        (
+            "langgraph-deepseek.yaml",
+            """
+agent:
+  type: byo.langgraph
+  provider: deepseek
+  model: deepseek-v4-flash
+  max_steps: 20
+  reasoning_effort: medium
+""",
+            {
+                "type": "byo.langgraph",
+                "provider": "deepseek",
+                "model": "deepseek-v4-flash",
+                "max_steps": 20,
+                "reasoning_effort": "medium",
+                "base_url": None,
+            },
+        ),
+        (
+            "codex-gptmini.yaml",
+            """
+agent:
+  type: cli.codex
+  provider: openai
+  model: gpt-5-mini
+  reasoning_effort: medium
+""",
+            {
+                "type": "cli.codex",
+                "provider": "openai",
+                "model": "gpt-5-mini",
+                "max_steps": 20,
+                "reasoning_effort": "medium",
+                "base_url": None,
+            },
+        ),
+        (
+            "claude-haiku.yaml",
+            """
+agent:
+  type: cli.claude
+  provider: anthropic
+  model: claude-haiku-4-5
+""",
+            {
+                "type": "cli.claude",
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5",
+                "max_steps": 20,
+                "reasoning_effort": None,
+                "base_url": None,
+            },
+        ),
+        (
+            "claude-sdk-deepseek.yaml",
+            """
+agent:
+  type: sdk.claude_sdk
+  provider: deepseek
+  model: deepseek-v4-flash
+  max_steps: 20
+""",
+            {
+                "type": "sdk.claude_sdk",
+                "provider": "deepseek",
+                "model": "deepseek-v4-flash",
+                "max_steps": 20,
+                "reasoning_effort": None,
+                "base_url": None,
+            },
+        ),
+        (
+            "custom-openrouter.yaml",
+            """
+agent:
+  type: byo.langgraph
+  provider: custom
+  model: deepseek/deepseek-v4-flash
+  max_steps: 20
+  custom:
+    base_url: https://openrouter.ai/api/v1
+""",
+            {
+                "type": "byo.langgraph",
+                "provider": "custom",
+                "model": "deepseek/deepseek-v4-flash",
+                "max_steps": 20,
+                "reasoning_effort": None,
+                "base_url": "https://openrouter.ai/api/v1",
+            },
+        ),
+    ],
+)
+def test_profile_yaml_loads(
+    tmp_path: Path, name: str, yaml_text: str, expected: dict
+) -> None:
+    path = tmp_path / name
+    path.write_text(yaml_text.strip() + "\n", encoding="utf-8")
+    cfg = load_run_config(path)
+    assert cfg.agent.type == expected["type"]
+    assert cfg.agent.provider == expected["provider"]
+    assert cfg.agent.model == expected["model"]
+    assert cfg.agent.max_steps == expected["max_steps"]
+    assert cfg.agent.reasoning_effort == expected["reasoning_effort"]
+    assert cfg.agent.custom.base_url == expected["base_url"]
+
+
+def test_profile_cli_config_show_accepts_run_config(tmp_path: Path) -> None:
+    path = tmp_path / "codex-gptmini.yaml"
+    path.write_text(
+        "agent:\n  type: cli.codex\n  provider: openai\n  model: gpt-5-mini\n"
+        "  reasoning_effort: medium\n",
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(app, ["config", "show", "--run-config", str(path)])
+    assert result.exit_code == 0, result.output
+    assert "cli.codex" in result.output
+    assert "gpt-5-mini" in result.output
+
+
+def test_profile_merge_cli_base_url_and_model(tmp_path: Path) -> None:
+    path = tmp_path / "custom-openrouter.yaml"
+    path.write_text(
+        "agent:\n  type: byo.langgraph\n  provider: custom\n"
+        "  model: deepseek/deepseek-v4-flash\n  max_steps: 20\n"
+        "  custom:\n    base_url: https://openrouter.ai/api/v1\n",
+        encoding="utf-8",
+    )
+    cfg = load_run_config(path)
+    merged = merge_cli(
+        cfg,
+        model="other/model",
+        base_url="http://localhost:11434/v1",
+        reasoning_effort="low",
+    )
+    assert merged.agent.model == "other/model"
+    assert merged.agent.custom.base_url == "http://localhost:11434/v1"
+    assert merged.agent.reasoning_effort == "low"
+    assert merged.agent.provider == "custom"
+
+
+def test_profile_config_set_on_profile(tmp_path: Path) -> None:
+    path = tmp_path / "langgraph-deepseek.yaml"
+    path.write_text(
+        "agent:\n  type: byo.langgraph\n  provider: deepseek\n"
+        "  model: deepseek-v4-flash\n  max_steps: 20\n",
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "agent.type=cli.codex",
+            "agent.provider=openai",
+            "agent.model=gpt-5-mini",
+            "agent.reasoning_effort=medium",
+            "--run-config",
+            str(path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    cfg = load_run_config(path)
+    assert cfg.agent.type == "cli.codex"
+    assert cfg.agent.provider == "openai"
+    assert cfg.agent.model == "gpt-5-mini"
+    assert cfg.agent.reasoning_effort == "medium"

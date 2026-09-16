@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from nika.utils.dependencies import raise_missing_extra
-from agent.protocols import PHASES
+from agent.protocols import PHASES, SUBMISSION
 from nika.mcp.gateway.middleware import (
     SESSION_HEADER,
     PhaseGateMiddleware,
@@ -128,6 +128,28 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
             {"error": f"phase must be one of {PHASES!r}"},
             status_code=400,
         )
+
+    # Sandbox agents cannot write the host trajectory; freeze on the gateway
+    # when entering submission so submit() can load the immutable report.
+    if phase == SUBMISSION:
+        from nika.workflows.agent.submission import (
+            freeze_diagnosis,
+            load_frozen_diagnosis_report,
+        )
+
+        report = body.get("diagnosis_report")
+        if isinstance(report, str) and report:
+            freeze_diagnosis(session_id, report)
+        elif load_frozen_diagnosis_report(session_id) is None:
+            return JSONResponse(
+                {
+                    "error": (
+                        "diagnosis_report is required to advance to submission "
+                        "when diagnosis is not yet frozen"
+                    )
+                },
+                status_code=400,
+            )
 
     try:
         advance_phase(session_id, phase)  # type: ignore[arg-type]

@@ -32,6 +32,11 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 - Docker for Kathara / Containerlab labs
 - Credentials for the agent you run (see [Authentication](#authentication))
 
+When the run config (or CLI) selects a sandbox-supported agent (`cli.codex`,
+`cli.claude`, `sdk.*`, `community.sade`), NIKA preloads the matching
+`docker/sandbox-templates:*` image during lab image ensure and at the start of
+`nika agent run` / benchmark jobs—not on each case’s `sbx create`.
+
 ## Quick start
 
 ```bash
@@ -50,14 +55,16 @@ uv run nika eval metrics
 Host (NIKA orchestration)          sbx microVM (agent-only)
 ├── Kathara / MCP gateway          ├── codex exec / claude -p  (CLI agents)
 ├── ground_truth.json              └── Python SDK runner         (SDK / SADE)
-├── Host phase / SDK driver            workspace = .sandbox_run/
+├── Host phase / SDK driver            workspace = runtime/agent_workspaces/{agent_session_id}/
 └── sbx create / exec / policy         bundled: agent/ + skills (+ optional wheels)
                                        lab interaction: MCP HTTP only
 ```
 
-Each task uses an ephemeral `results/{session_id}/.sandbox_run/` workspace (manifest and skills). `ground_truth.json` stays on the host and does not mount into the microVM. After the run, NIKA copies the standard session artifacts (`messages.jsonl`, `submission.json`, and `sandbox_manifest.json`) back and discards `.sandbox_run` plus the agent workspaces.
+Each task uses an ephemeral `runtime/agent_workspaces/{agent_session_id}/` workspace (manifest and skills). The opaque `agent_session_id` is minted at env start and is what agents see in `NIKA_SESSION_ID`, MCP `NIKA-Session-Id`, sandbox hostname, and the bind-mount path. The human-readable host `session_id` / trial dirname (`trials/{case_key}__tNN/`) stays on the host for operators and never appears in those agent surfaces—so benchmark case keys cannot leak as shortcuts. Sessions created before this change (no `agent_session_id`) keep working: the gateway accepts the canonical id, and resolvers fall back to `session_id`.
 
-**Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark batches (`--batch-size N`) run one subprocess per case, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
+`ground_truth.json` and host `run.json` fields such as `problem_names` stay on the host and do not mount into the microVM. After the run, NIKA copies the standard session artifacts (`messages.jsonl`, `submission.json`, and `sandbox_manifest.json`) into the host trial dir and discards the opaque workspace plus the agent CLI/SDK workspaces.
+
+**Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{agent_session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark batches (`--batch-size N`) run one subprocess per case, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
 
 **Sandbox boundary:** SDK sandboxes do **not** bundle `nika/` source. The host writes MCP HTTP endpoints into `sandbox_manifest.json` (`mcp_servers`); the in-sandbox runner loads agent code, prompts/skills, and (when enabled) SDK wheels only.
 

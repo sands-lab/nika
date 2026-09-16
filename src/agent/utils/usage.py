@@ -21,12 +21,29 @@ def _get_int(usage: Any, key: str) -> int:
         return 0
 
 
+def _unwrap_usage(usage: Any | None) -> Any | None:
+    """Prefer Codex ``ThreadTokenUsage.last``, then ``total``, else flat usage."""
+    if usage is None:
+        return None
+    last = usage.get("last") if isinstance(usage, dict) else getattr(usage, "last", None)
+    if last is not None:
+        return last
+    total = (
+        usage.get("total") if isinstance(usage, dict) else getattr(usage, "total", None)
+    )
+    if total is not None:
+        return total
+    return usage
+
+
 def normalize_usage(usage: Any | None) -> dict[str, int]:
     """Return ``{input_tokens, output_tokens}`` from provider usage payloads."""
+    usage = _unwrap_usage(usage)
     input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens")
     output_tokens = _get_int(usage, "output_tokens") or _get_int(
         usage, "completion_tokens"
     )
+    output_tokens += _get_int(usage, "reasoning_output_tokens")
     input_tokens += _get_int(usage, "cache_creation_input_tokens")
     input_tokens += _get_int(usage, "cache_read_input_tokens")
     return {"input_tokens": input_tokens, "output_tokens": output_tokens}

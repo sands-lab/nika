@@ -24,6 +24,19 @@ def test_sandbox_names_are_unique_per_session() -> None:
     assert b.startswith("nika-")
 
 
+def test_sandbox_names_fit_linux_hostname_limit() -> None:
+    long_id = (
+        "isp_nobel-eu__bgp_acl_block__m__isis__ibgp_rr__kathara__frr__"
+        "host_name-amsterdam__t01"
+    )
+    name = sanitize_sandbox_name(long_id)
+    assert len(name) <= 63
+    assert name.startswith("nika-")
+    other = sanitize_sandbox_name(long_id.replace("amsterdam", "brussels"))
+    assert name != other
+    assert len(other) <= 63
+
+
 def test_concurrent_gateways_bind_distinct_ephemeral_ports() -> None:
     """Host gateways for parallel agent runs must not share a listen port."""
     port_a = pick_free_port("127.0.0.1")

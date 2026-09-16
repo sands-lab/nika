@@ -88,12 +88,10 @@ class CodexCliAgent:
         """Execute the two-phase pipeline and return diagnosis + submission results."""
         self._print_phase(DIAGNOSIS, "starting network fault analysis")
         diagnosis_report = await self._diagnosis_phase.run(task_description)
-        self._print_phase(
-            DIAGNOSIS,
-            "completed"
-            if not diagnosis_report.startswith("ERROR:")
-            else f"finished with error ({diagnosis_report[:120]})",
-        )
+        if diagnosis_report.startswith("ERROR:"):
+            self._print_phase(DIAGNOSIS, f"failed ({diagnosis_report[:120]})")
+            raise RuntimeError(diagnosis_report)
+        self._print_phase(DIAGNOSIS, "completed")
 
         self._print_phase(SUBMISSION, "recording structured result")
         submission_result = await self._submission_phase.run(diagnosis_report)

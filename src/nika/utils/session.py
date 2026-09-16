@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.config import RESULTS_DIR, resolve_results_root
+from nika.utils.agent_session_id import make_agent_session_id, resolve_agent_session_id
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_finished_session,
@@ -35,6 +36,9 @@ class Session:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         self.session_id = session_id
+        # Opaque handle for agents (env / MCP / sandbox). Never reuse the
+        # human-readable benchmark trial id so case_key shortcuts stay off-agent.
+        self.agent_session_id = make_agent_session_id()
         self.scenario_name = scenario_name
         self.lab_name = lab_name
         self.scenario_topo_size = scenario_topo_size
@@ -59,6 +63,7 @@ class Session:
         self.store.create_session(
             {
                 "session_id": self.session_id,
+                "agent_session_id": self.agent_session_id,
                 "lab_name": self.lab_name,
                 "scenario_name": self.scenario_name,
                 "scenario_topo_size": self.scenario_topo_size,
@@ -72,6 +77,10 @@ class Session:
             }
         )
         self._write_run_json({k: v for k, v in self.__dict__.items() if k != "store"})
+
+    def resolve_agent_session_id(self) -> str:
+        """Agent-facing session handle; falls back to canonical when legacy."""
+        return resolve_agent_session_id(self)
 
     def load_from_run_json(self, session_dir: str | Path) -> "Session":
         """Load session metadata from a mounted ``run.json`` (sandbox execution)."""

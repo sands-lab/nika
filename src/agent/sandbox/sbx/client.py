@@ -26,32 +26,50 @@ def _is_hub_token_error(stderr: str) -> bool:
     return any(marker in text for marker in _HUB_TOKEN_MARKERS)
 
 
-def sbx_authenticated() -> bool:
+def sbx_authenticated(*, attempts: int = 3, delay_sec: float = 2.0) -> bool:
+    """True when Docker Sandboxes has a usable login session.
+
+    ``sbx policy ls`` can briefly report ``Not authenticated`` while a Hub
+    refresh token request fails (for example under an upstream proxy). Retry a
+    few times before treating the host as logged out.
+    """
     if not sbx_available():
         return False
     # ``sbx policy ls`` is slow on some hosts and may hang after the summary;
     # treat partial successful output as authenticated.
-    try:
-        proc = subprocess.run(
-            [SBX_BIN, "policy", "ls"],
-            env=_sbx_env(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=8,
-        )
-        combined = f"{proc.stdout}\n{proc.stderr}"
-        returncode = proc.returncode
-    except subprocess.TimeoutExpired as exc:
-        combined = f"{exc.stdout or ''}\n{exc.stderr or ''}"
-        returncode = -1
-    if "Not authenticated" in combined:
-        return False
-    if "has not been initialized" in combined:
-        return True
-    if "local-policy" in combined or "POLICY" in combined:
-        return True
-    return returncode == 0
+    last_combined = ""
+    last_code = -1
+    for attempt in range(max(1, attempts)):
+        try:
+            proc = subprocess.run(
+                [SBX_BIN, "policy", "ls"],
+                env=_sbx_env(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=8,
+            )
+            combined = f"{proc.stdout}\n{proc.stderr}"
+            returncode = proc.returncode
+        except subprocess.TimeoutExpired as exc:
+            combined = f"{exc.stdout or ''}\n{exc.stderr or ''}"
+            returncode = -1
+        last_combined = combined
+        last_code = returncode
+        if "Not authenticated" in combined:
+            if attempt + 1 < attempts:
+                time.sleep(delay_sec)
+                continue
+            return False
+        if "has not been initialized" in combined:
+            return True
+        if "local-policy" in combined or "POLICY" in combined:
+            return True
+        if returncode == 0:
+            return True
+        if attempt + 1 < attempts:
+            time.sleep(delay_sec)
+    return last_code == 0 and "Not authenticated" not in last_combined
 
 
 def require_sbx_authenticated() -> None:
@@ -156,13 +174,24 @@ def list_sbx_custom_secret_envs() -> set[str]:
 
 def list_sbx_custom_secrets() -> dict[str, str]:
     """Return ``{env_var: placeholder}`` for ``sbx secret set-custom`` entries."""
+    return {
+        env_name: meta["placeholder"]
+        for env_name, meta in list_sbx_custom_secret_entries().items()
+    }
+
+
+def list_sbx_custom_secret_entries() -> dict[str, dict[str, str]]:
+    """Return ``{env_var: {placeholder, hosts}}`` for custom secrets.
+
+    ``hosts`` is the comma-joined TARGETS column from ``sbx secret ls``.
+    """
     proc = run_sbx_optional(["secret", "ls"])
     if proc.returncode != 0:
         raise RuntimeError(
             f"sbx secret ls failed (code {proc.returncode}):\n"
             f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
-    secrets: dict[str, str] = {}
+    secrets: dict[str, dict[str, str]] = {}
     in_custom = False
     for line in proc.stdout.splitlines():
         stripped = line.strip()
@@ -177,7 +206,7 @@ def list_sbx_custom_secrets() -> dict[str, str]:
         if parts[0] in {"SCOPE", "NAME"} or parts[1] == "TARGETS":
             continue
         # SCOPE TARGETS ENV PLACEHOLDER SECRET
-        secrets[parts[2]] = parts[3]
+        secrets[parts[2]] = {"hosts": parts[1], "placeholder": parts[3]}
     return secrets
 
 
