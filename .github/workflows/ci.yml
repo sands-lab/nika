@@ -24,6 +24,7 @@ concurrency:
 
 env:
   UV_VERSION: "0.8.22"
+  GNMIC_VERSION: "0.48.0"
 
 # Shared setup notes:
 # - ubuntu-24.04-arm needs amd64 binfmt for nika/onos (COPY --from amd64 upstream).
@@ -231,7 +232,7 @@ jobs:
       - name: Install containerlab
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
-        run: bash -c "$(curl -fsSL https://get-gnmic.openconfig.net)"
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs + containerlab)
         run: uv sync --extra labs --extra containerlab --group dev
       - name: Clab failure inject smoke
@@ -312,7 +313,7 @@ jobs:
       - name: Install containerlab
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
-        run: bash -c "$(curl -fsSL https://get-gnmic.openconfig.net)"
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs + containerlab)
         run: uv sync --extra labs --extra containerlab --group dev
       - name: min3clos light startup
