@@ -42,10 +42,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - name: Install (dev)
-        run: uv sync --group dev
+      - name: Install (dev + labs import deps)
+        # Labs extra provides docker/kathara packages used at import time by
+        # conftest/problem registry; no Docker daemon required for unit/contract.
+        run: uv sync --extra labs --group dev
       - name: Run unit and contract tests
-        run: uv run pytest -m "unit or contract" -q
+        run: uv run pytest -m "unit or contract" -q --tb=line
 
   images:
     name: image ${{ matrix.image }} (${{ matrix.os }})
