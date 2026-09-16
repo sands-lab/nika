@@ -34,12 +34,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install (dev + labs import deps)
@@ -87,15 +87,15 @@ jobs:
           - nika/fabric-controller
           - nika/routinator:v0.14.2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install (labs)
@@ -121,15 +121,15 @@ jobs:
           - p4_dc_fabric
           - p4_dc_gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install (labs)
@@ -138,6 +138,37 @@ jobs:
         env:
           NIKA_CI_SCENARIO: ${{ matrix.scenario }}
         run: uv run pytest tests/ci/test_scenario_startup.py -q
+
+  scenario-verify:
+    name: verify ${{ matrix.scenario }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        scenario:
+          - dc_clos
+          - campus_lan
+          - sdn_l3_clos
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Full evaluate_scenario
+        env:
+          NIKA_CI_VERIFY_SCENARIO: ${{ matrix.scenario }}
+        run: uv run pytest tests/ci/test_scenario_verify.py -q
 
   failure-inject:
     name: failure ${{ matrix.case }} (${{ matrix.os }})
@@ -148,18 +179,23 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
         case:
-          - simple_bgp-link_down
           - dc_clos-link_down
+          - dc_clos-link_flap
+          - campus_lan-ospf_neighbor_missing
+          - campus_lan-dhcp_service_down
+          - enterprise_branch-link_packet_corruption
+          - p4_dc_gateway-link_capacity_bottleneck
+          - sdn_l3_clos-link_down
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install (labs)
@@ -169,24 +205,58 @@ jobs:
           NIKA_CI_FAILURE_CASE: ${{ matrix.case }}
         run: uv run pytest tests/ci/test_failure_inject_smoke.py -q
 
-  pipeline:
-    name: pipeline kathara (${{ matrix.os }})
+  clab-failure-inject:
+    name: clab failure ${{ matrix.case }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        case:
+          - min3clos-link_down
+          - min3clos-bgp_asn_misconfig
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install containerlab
+        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+      - name: Install gnmic
+        run: bash -c "$(curl -fsSL https://get-gnmic.openconfig.net)"
+      - name: Install (labs + containerlab)
+        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Clab failure inject smoke
+        env:
+          NIKA_CI_FAILURE_CASE: ${{ matrix.case }}
+        run: uv run pytest tests/ci/test_failure_inject_smoke.py -q
+
+  pipeline:
+    name: pipeline kathara dc_clos (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install (labs)
@@ -203,15 +273,15 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install (labs)
@@ -228,15 +298,15 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
       - name: Install containerlab
