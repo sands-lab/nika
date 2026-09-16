@@ -21,6 +21,11 @@ pytestmark = [
     pytest.mark.skipif(not docker_available(), reason="Docker not available"),
 ]
 
+# Images whose Dockerfiles FROM another locally built nika/* tag.
+_NIKA_IMAGE_DEPS: dict[str, tuple[str, ...]] = {
+    "nika/fabric-controller": ("nika/base",),
+}
+
 
 def _selected_images() -> list[str]:
     selected = os.environ.get("NIKA_CI_IMAGE", "").strip()
@@ -33,10 +38,17 @@ def _selected_images() -> list[str]:
     return list(CI_NIKA_IMAGES)
 
 
+def _ensure_image(image: str) -> None:
+    for dep in _NIKA_IMAGE_DEPS.get(image, ()):
+        if not image_exists(dep):
+            build_nika_image(dep)
+    build_nika_image(image)
+
+
 @pytest.mark.parametrize("image", _selected_images(), ids=lambda i: i.replace("/", "_").replace(":", "_"))
 def test_nika_image_build_and_arch(image: str) -> None:
     """Build (or rebuild) one nika image and assert host-arch + creatable."""
-    build_nika_image(image)
+    _ensure_image(image)
     assert image_exists(image), f"{image} missing after build"
 
     expected = host_machine_arch()
