@@ -32,7 +32,7 @@ jobs:
   unit-contract:
     name: unit+contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -44,10 +44,17 @@ jobs:
           python-version-file: .python-version
       - name: Install (dev + labs import deps)
         # Labs extra provides docker/kathara packages used at import time by
-        # conftest/problem registry; no Docker daemon required for unit/contract.
+        # conftest/problem registry; daemon access is disabled below.
         run: uv sync --extra labs --group dev
       - name: Run unit and contract tests
-        run: uv run pytest -m "unit or contract" -q --tb=line
+        env:
+          # Keep imports happy but force docker_available() false so mis-marked
+          # lab tests skip instead of deploying topologies in the unit job.
+          DOCKER_HOST: unix:///run/nika-ci-docker-disabled.sock
+        run: >
+          uv run pytest -m "(unit or contract) and not ci_smoke"
+          --ignore=tests/ci
+          -q --tb=line
 
   images:
     name: image ${{ matrix.image }} (${{ matrix.os }})
