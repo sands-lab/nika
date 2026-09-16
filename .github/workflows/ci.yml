@@ -43,10 +43,14 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (dev + labs import deps)
-        run: uv sync --extra labs --group dev
+        run: uv sync --extra labs --extra sade --extra sdk --group dev
       - name: Run unit and contract tests
         # Avoid modules that auto-mark as contract/unit but still deploy labs
         # (e.g. benchmark trial E2E, net_env live verifies).
+        env:
+          COLUMNS: "120"
+          NO_COLOR: "1"
+          TERM: dumb
         run: >
           uv run pytest
           -m "(unit or contract) and not e2e and not integration and not live and not sandbox and not ci_smoke"

@@ -140,7 +140,7 @@ class CliSmokeTest:
         with patch(
             "nika.cli.commands.benchmark.run_benchmark_from_yaml"
         ) as run_from_yaml:
-            result = _RUNNER.invoke(app, ["benchmark", "run"])
+            result = _RUNNER.invoke(app, ["benchmark", "run", "-m", "mock-v1"])
         assert result.exit_code == 0, result.output
         assert run_from_yaml.call_args.kwargs["benchmark_file"].endswith(
             "benchmark/working/pool"
@@ -155,6 +155,8 @@ class CliSmokeTest:
                 "benchmark/working/pool",
                 "--release",
                 "0.1.0",
+                "-m",
+                "mock-v1",
             ],
         )
         assert both.exit_code != 0
@@ -162,7 +164,9 @@ class CliSmokeTest:
         assert "--config" in both_text and "--release" in both_text
 
     def test_benchmark_run_help_includes_split(self) -> None:
-        result = _RUNNER.invoke(app, ["benchmark", "run", "--help"])
+        result = _RUNNER.invoke(
+            app, ["benchmark", "run", "--help"], env={"COLUMNS": "120", "NO_COLOR": "1"}
+        )
         assert result.exit_code == 0, result.output
         assert "--split" in result.output
 
@@ -181,6 +185,8 @@ class CliSmokeTest:
                     "dev",
                     "--result_dir",
                     "/tmp/nika-split-smoke",
+                    "-m",
+                    "mock-v1",
                 ],
             )
         assert result.exit_code == 0, result.output

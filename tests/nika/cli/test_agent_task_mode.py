@@ -16,7 +16,9 @@ _RUNNER = CliRunner()
 @pytest.mark.unit
 class TestAgentRunTaskMode:
     def test_help_mentions_problem(self) -> None:
-        result = _RUNNER.invoke(app, ["agent", "run", "--help"])
+        result = _RUNNER.invoke(
+            app, ["agent", "run", "--help"], env={"COLUMNS": "120", "NO_COLOR": "1"}
+        )
         assert result.exit_code == 0
         assert "--problem" in result.output
 
@@ -28,11 +30,14 @@ class TestAgentRunTaskMode:
                 "run",
                 "-a",
                 "cli.claude",
+                "-m",
+                "mock-v1",
                 "--problem",
                 "simple_bgp_link_down",
                 "--session_id",
                 "fake-session",
             ],
+            env={"COLUMNS": "120", "NO_COLOR": "1"},
         )
         assert result.exit_code != 0
         combined = f"{result.output}\n{result.stderr or ''}"
@@ -41,7 +46,8 @@ class TestAgentRunTaskMode:
     def test_set_without_problem_rejected(self) -> None:
         result = _RUNNER.invoke(
             app,
-            ["agent", "run", "-a", "cli.claude", "--set", "host_name=pc1"],
+            ["agent", "run", "-a", "cli.claude", "-m", "mock-v1", "--set", "host_name=pc1"],
+            env={"COLUMNS": "120", "NO_COLOR": "1"},
         )
         assert result.exit_code != 0
         combined = f"{result.output}\n{result.stderr or ''}"
