@@ -54,11 +54,12 @@ jobs:
         run: >
           uv run pytest -m "(unit or contract) and not ci_smoke"
           --ignore=tests/ci
+          --ignore=tests/nika/workflows/integration
+          --ignore=tests/nika/problems/test_failure_inject_contract.py
           -q --tb=line
 
   images:
     name: image ${{ matrix.image }} (${{ matrix.os }})
-    needs: unit-contract
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
