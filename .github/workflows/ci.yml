@@ -1,0 +1,233 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.8.22"
+
+# Shared setup notes:
+# - ubuntu-24.04-arm needs amd64 binfmt for nika/onos (COPY --from amd64 upstream).
+
+jobs:
+  unit-contract:
+    name: unit+contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (dev)
+        run: uv sync --group dev
+      - name: Run unit and contract tests
+        run: uv run pytest -m "unit or contract" -q
+
+  images:
+    name: image ${{ matrix.image }} (${{ matrix.os }})
+    needs: unit-contract
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        image:
+          - nika/base
+          - nika/frr
+          - nika/nginx
+          - nika/wireguard
+          - nika/pox
+          - nika/onos
+          - nika/fabric-controller
+          - nika/routinator:v0.14.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Build and probe image
+        env:
+          NIKA_CI_IMAGE: ${{ matrix.image }}
+        run: uv run pytest tests/ci/test_images.py -q
+
+  scenario-startup:
+    name: startup ${{ matrix.scenario }} (${{ matrix.os }})
+    needs: unit-contract
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        scenario:
+          - dc_clos
+          - campus_lan
+          - enterprise_branch
+          - sdn_l3_clos
+          - p4_dc_fabric
+          - p4_dc_gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Light scenario startup
+        env:
+          NIKA_CI_SCENARIO: ${{ matrix.scenario }}
+        run: uv run pytest tests/ci/test_scenario_startup.py -q
+
+  failure-inject:
+    name: failure ${{ matrix.case }} (${{ matrix.os }})
+    needs: unit-contract
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        case:
+          - simple_bgp-link_down
+          - dc_clos-link_down
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Failure inject smoke
+        env:
+          NIKA_CI_FAILURE_CASE: ${{ matrix.case }}
+        run: uv run pytest tests/ci/test_failure_inject_smoke.py -q
+
+  pipeline:
+    name: pipeline kathara (${{ matrix.os }})
+    needs: unit-contract
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Mock-agent pipeline smoke
+        run: uv run pytest tests/ci/test_pipeline_smoke.py -q
+
+  benchmark-startup:
+    name: benchmark startup (${{ matrix.os }})
+    needs: unit-contract
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Mini mock benchmark startup
+        run: uv run pytest tests/ci/test_benchmark_startup.py -q
+
+  clab-startup:
+    name: clab min3clos (${{ matrix.os }})
+    needs: unit-contract
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install containerlab
+        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+      - name: Install gnmic
+        run: bash -c "$(curl -fsSL https://get-gnmic.openconfig.net)"
+      - name: Install (labs + containerlab)
+        run: uv sync --extra labs --extra containerlab --group dev
+      - name: min3clos light startup
+        run: uv run pytest tests/ci/test_clab_startup.py -q

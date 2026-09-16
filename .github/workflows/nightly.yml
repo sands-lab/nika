@@ -1,0 +1,118 @@
+name: Nightly
+
+on:
+  schedule:
+    # 05:15 UTC daily
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.8.22"
+
+jobs:
+  full-scenario-verify:
+    name: full evaluate_scenario (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Kathara scenario E2E (full verify)
+        run: >
+          uv run pytest
+          tests/nika/net_env/test_scenario_e2e.py::KatharaScenarioE2ETest
+          -q
+
+  failure-e2e:
+    name: failure e2e (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Broad failure E2E
+        run: uv run pytest tests/nika/problems/test_failure_e2e.py -q
+
+  isp-integration:
+    name: ISP integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install containerlab
+        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+      - name: Install gnmic
+        run: bash -c "$(curl -fsSL https://get-gnmic.openconfig.net)"
+      - name: Install (labs + containerlab)
+        run: uv sync --extra labs --extra containerlab --group dev
+      - name: ISP integration matrix
+        run: uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
+
+  k8s-llmd-sequential:
+    name: k8s + llmd (amd64 sequential)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: k8s_lab + llmd_lab scenario E2E (serial)
+        run: >
+          uv run pytest
+          tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
+          -q --maxfail=1

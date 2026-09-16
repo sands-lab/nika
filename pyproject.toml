@@ -75,6 +75,8 @@ markers = [
     "sandbox: sandbox isolation and security probes",
     "e2e: full user flows (mock agent benchmark/pipeline)",
     "live: real LLM, GitHub, or Batfish live tests (credentials required)",
+    "ci_smoke: curated dual-arch GitHub Actions smoke (images, startup, pipeline)",
+    "nightly: heavy suites for scheduled/self-hosted runners (k8s, llmd, full verify)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:fs",
