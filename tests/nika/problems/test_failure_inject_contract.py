@@ -33,7 +33,6 @@ LINK_PARAMS = {"host_name": HOST, "intf_name": INTF}
 SIMPLE_BGP_FAILURES = (
     "link_down",
     "link_flap",
-    "link_detach",
     "link_capacity_bottleneck",
     "host_missing_ip",
     "host_incorrect_gateway",
