@@ -5,11 +5,6 @@ on:
     # 05:15 UTC daily (takes effect only after this file is on the default branch)
     - cron: "15 5 * * *"
   workflow_dispatch:
-  # Trial runs from the CI PR branch before merge to main.
-  push:
-    branches: [ci/github-actions-dual-arch]
-    paths:
-      - ".github/workflows/nightly.yml"
 
 concurrency:
   group: nightly-${{ github.workflow }}
@@ -47,6 +42,91 @@ jobs:
           uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::KatharaScenarioE2ETest
           -q
+
+  curated-scenario-verify:
+    name: curated verify ${{ matrix.scenario }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        scenario:
+          - dc_clos
+          - campus_lan
+          - sdn_l3_clos
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Curated evaluate_scenario smoke
+        env:
+          NIKA_CI_VERIFY_SCENARIO: ${{ matrix.scenario }}
+        run: uv run pytest tests/ci/test_scenario_verify.py -q
+
+  failure-inject-contract:
+    name: failure inject contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --extra labs --group dev
+      - name: Kathara failure inject contract
+        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_kathara_failure_inject_contract -q
+
+  clab-failure-inject-contract:
+    name: clab failure inject contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install containerlab
+        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+      - name: Install gnmic
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install (labs + containerlab)
+        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Clab failure inject contract
+        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q
 
   failure-e2e:
     name: failure e2e (${{ matrix.os }})

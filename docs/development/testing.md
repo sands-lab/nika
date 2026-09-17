@@ -73,10 +73,10 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract`; `nika/*` image matrix; equal-coverage Kathara light startups + curated full `evaluate_scenario`; multi-scenario failure inject (Kathara + Containerlab); `dc_clos` mock pipeline; benchmark smoke; Containerlab `min3clos` startup |
-| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Broad `evaluate_scenario`, full failure E2E, ISP matrix, k8s/llmd |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (incl. offline inject/submit contracts); dual-arch `nika/*` images; Kathara light startups; curated probes (`dc_clos` failure + pipeline + benchmark; clab `min3clos` startup/failure) |
+| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Full `evaluate_scenario`, curated verify shards, wide failure inject contract, failure E2E, ISP, k8s/llmd |
 
-PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. Light startup relies on the default `nika.runtime_validation.depth: light` path inside `nika env run`. Curated CI cases use published net-env pool scenarios (not test-only fixtures) so a local `nika env run` / inject / verify reproduces the same path.
+PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
 
 Shard locally the same way Actions does:
 
@@ -87,11 +87,11 @@ NIKA_CI_IMAGE=nika/onos uv run pytest tests/ci/test_images.py -q
 # One scenario light startup
 NIKA_CI_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_startup.py -q
 
-# One full evaluate_scenario
-NIKA_CI_VERIFY_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_verify.py -q
-
-# One failure-inject case
+# One failure-inject case (PR curated)
 NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_inject_smoke.py -q
+
+# Nightly-style curated full verify
+NIKA_CI_VERIFY_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_verify.py -q
 ```
 
 ## Shared support (`tests/support/`)

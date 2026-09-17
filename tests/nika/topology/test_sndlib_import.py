@@ -45,12 +45,28 @@ GOLDEN_COUNTS: dict[str, tuple[int, int, int]] = {
 }
 
 
+CI_SNDLIB_SAMPLE: tuple[str, ...] = ("polska", "atlanta", "geant")
+
+
 def test_catalog_lists_all_expected_topologies() -> None:
     names = list_sndlib_topologies()
     assert names == sorted(SNDLIB_TOPOLOGY_NAMES)
     assert set(names) == set(GOLDEN_COUNTS)
 
 
+@pytest.mark.parametrize("name", CI_SNDLIB_SAMPLE)
+def test_sample_topology_converts(name: str) -> None:
+    topo = load_sndlib_topology(name)
+    nodes_n, links_n, demands_n = GOLDEN_COUNTS[name]
+
+    assert topo.name == name
+    assert topo.source_format == "sndlib-xml"
+    assert len(topo.nodes) == nodes_n
+    assert len(topo.links) == links_n
+    assert len(topo.demands) == demands_n
+
+
+@pytest.mark.nightly
 @pytest.mark.parametrize("name", sorted(GOLDEN_COUNTS))
 def test_each_topology_converts(name: str) -> None:
     topo = load_sndlib_topology(name)

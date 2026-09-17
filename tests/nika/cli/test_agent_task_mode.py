@@ -33,7 +33,7 @@ class TestAgentRunTaskMode:
                 "-m",
                 "mock-v1",
                 "--problem",
-                "simple_bgp_link_down",
+                "dc_clos_s_link_down",
                 "--session_id",
                 "fake-session",
             ],
@@ -79,16 +79,16 @@ class TestAgentRunTaskMode:
                     "-a",
                     "cli.claude",
                     "--problem",
-                    "simple_bgp_link_down",
+                    "dc_clos_s_link_down",
                     "--result_dir",
                     str(tmp_path),
                 ],
             )
 
         assert result.exit_code == 0, result.output
-        assert captured["scenario"] == "simple_bgp"
+        assert captured["scenario"] == "dc_clos"
         assert captured["problem"] == "link_down"
-        assert captured["topo_size"] == ""
+        assert captured["topo_size"] == "s"
         assert captured["agent_type"] == "cli.claude"
         assert captured["inject_params"] == {"host_name": "pc2", "intf_name": "eth0"}
         assert captured["result_dir"] == str(tmp_path)

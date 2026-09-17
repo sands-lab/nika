@@ -28,12 +28,14 @@ env:
 
 # Shared setup notes:
 # - ubuntu-24.04-arm needs amd64 binfmt for nika/onos (COPY --from amd64 upstream).
+# - No per-job path filters: any matching push runs the full PR job set.
+# - Full evaluate_scenario and broad failure inject live in nightly.yml.
 
 jobs:
   unit-contract:
     name: unit+contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v10.1.0
@@ -46,19 +48,57 @@ jobs:
       - name: Install (dev + labs import deps)
         run: uv sync --extra labs --extra sade --extra sdk --group dev
       - name: Run unit and contract tests
-        # Avoid modules that auto-mark as contract/unit but still deploy labs
-        # (e.g. benchmark trial E2E, net_env live verifies).
+        # Offline contracts under problems/service/net_env are included;
+        # Docker E2E modules stay ignored.
         env:
           COLUMNS: "120"
           NO_COLOR: "1"
           TERM: dumb
         run: >
           uv run pytest
-          -m "(unit or contract) and not e2e and not integration and not live and not sandbox and not ci_smoke"
+          -m "(unit or contract) and not e2e and not integration and not live and not sandbox and not ci_smoke and not nightly"
           --ignore=tests/ci
-          --ignore=tests/nika/net_env
-          --ignore=tests/nika/problems
-          --ignore=tests/nika/service
+          --ignore=tests/nika/net_env/isp
+          --ignore=tests/nika/net_env/test_scenario_e2e.py
+          --ignore=tests/nika/net_env/test_docker_images.py
+          --ignore=tests/nika/net_env/test_kathara_verify.py
+          --ignore=tests/nika/net_env/test_clab_min3clos_verify.py
+          --ignore=tests/nika/net_env/test_containerlab_mgmt_subnet.py
+          --ignore=tests/nika/net_env/test_k8s_lab_verify.py
+          --ignore=tests/nika/net_env/test_llmd_lab_verify.py
+          --ignore=tests/nika/net_env/test_iosxr_simple_bgp_verify.py
+          --ignore=tests/nika/net_env/test_enterprise_branch_wireguard.py
+          --ignore=tests/nika/net_env/test_p4_dc_fabric.py
+          --ignore=tests/nika/net_env/test_p4_dc_fabric_live.py
+          --ignore=tests/nika/net_env/test_p4_dc_gateway.py
+          --ignore=tests/nika/net_env/test_sdn_l3_clos.py
+          --ignore=tests/nika/net_env/test_k8s_workload_cache.py
+          --ignore=tests/nika/net_env/test_k8s_workload_cache_live.py
+          --ignore=tests/nika/problems/test_failure_e2e.py
+          --ignore=tests/nika/problems/test_failure_inject_contract.py
+          --ignore=tests/nika/problems/test_scenario_failure_compat.py
+          --ignore=tests/nika/problems/test_bgp_missing_route_advertisement_e2e.py
+          --ignore=tests/nika/problems/test_bgp_max_prefix_exceeded_e2e.py
+          --ignore=tests/nika/problems/test_bgp_rpki_invalid_route_leak_e2e.py
+          --ignore=tests/nika/problems/test_bgp_blackhole_community_leak_e2e.py
+          --ignore=tests/nika/problems/test_p4runtime_partial_write_e2e.py
+          --ignore=tests/nika/problems/test_p4_table_entry_fabric_e2e.py
+          --ignore=tests/nika/problems/test_multi_fault_agent_e2e.py
+          --ignore=tests/nika/problems/test_multi_fault_inject.py
+          --ignore=tests/nika/problems/test_web_dos_attack.py
+          --ignore=tests/nika/problems/test_gateway_nat_failures.py
+          --ignore=tests/nika/problems/test_device_forwarding_packet_corruption.py
+          --ignore=tests/nika/problems/test_link_packet_corruption.py
+          --ignore=tests/nika/problems/test_pmtu_blackhole_combo.py
+          --ignore=tests/nika/service/mcp_gateway
+          --ignore=tests/nika/service/pingmesh
+          --ignore=tests/nika/service/kathara
+          --ignore=tests/nika/service/containerlab
+          --ignore=tests/nika/service/test_k8s_mcp_gateway_e2e.py
+          --ignore=tests/nika/service/test_k8s_mcp_server.py
+          --ignore=tests/nika/service/test_mcp_access_e2e.py
+          --ignore=tests/nika/service/test_mcp_tools_live.py
+          --ignore=tests/nika/service/test_packet_capture.py
           --ignore=tests/nika/validation
           --ignore=tests/nika/workflows/integration
           --ignore=tests/benchmark/test_trials.py
@@ -140,37 +180,6 @@ jobs:
           NIKA_CI_SCENARIO: ${{ matrix.scenario }}
         run: uv run pytest tests/ci/test_scenario_startup.py -q
 
-  scenario-verify:
-    name: verify ${{ matrix.scenario }} (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
-        scenario:
-          - dc_clos
-          - campus_lan
-          - sdn_l3_clos
-    steps:
-      - uses: actions/checkout@v5
-      - name: Enable amd64 binfmt (ONOS foreign stage)
-        if: matrix.os == 'ubuntu-24.04-arm'
-        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v10.1.0
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v6
-        with:
-          python-version-file: .python-version
-      - name: Install (labs)
-        run: uv sync --extra labs --group dev
-      - name: Full evaluate_scenario
-        env:
-          NIKA_CI_VERIFY_SCENARIO: ${{ matrix.scenario }}
-        run: uv run pytest tests/ci/test_scenario_verify.py -q
-
   failure-inject:
     name: failure ${{ matrix.case }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -181,12 +190,6 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
         case:
           - dc_clos-link_down
-          - dc_clos-link_flap
-          - campus_lan-ospf_neighbor_missing
-          - campus_lan-dhcp_service_down
-          - enterprise_branch-link_flap
-          - p4_dc_gateway-link_capacity_bottleneck
-          - sdn_l3_clos-link_down
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
@@ -216,7 +219,6 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
         case:
           - min3clos-link_down
-          - min3clos-bgp_asn_misconfig
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
