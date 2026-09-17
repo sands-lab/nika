@@ -274,15 +274,11 @@ NIKA imports SNDlib XML through a backend-neutral topology model. It converts ea
 
 Each vendored SNDlib graph is a separate scenario ID (`isp_abilene`, `isp_france`, …). Topology identity is the scenario name. Relative size `s` / `m` / `l` is fixed metadata for benchmark sampling (by node-count tier), not a CLI flag.
 
-```text
-pc_A -- router_A ===== router_B -- pc_B
-           \            /
-            === router_C === router_D -- pc_D
-                  |
-                 pc_C
+Abilene is one example. The map shows its 12 routers and 15 links; NIKA also attaches a `pc_<router>` traffic host to each router.
 
-Each ===== link comes from the selected SNDlib graph.
-```
+<img src="../../assets/images/abilene-sndlib-topology.svg" alt="Abilene SNDlib backbone with 12 routers and 15 links across the United States" width="800">
+
+Map: [TopoHub's Abilene topology](https://www.topohub.org/?topology=sndlib%2Fabilene), based on [SNDlib](https://sndlib.put.poznan.pl/networks.overview.action). © Piotr Jurkiewicz; [MIT license](../../assets/images/abilene-sndlib-topology.LICENSE). The topology matches the vendored [`abilene/network.xml`](../../src/nika/net_env/isp/sndlib/abilene/network.xml).
 
 ```shell
 # Default: Kathara, IS-IS, constant metric 10, no BGP
