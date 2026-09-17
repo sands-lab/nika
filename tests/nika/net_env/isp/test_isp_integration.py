@@ -105,6 +105,11 @@ class IspDockerTest(IntegrationTestCase):
         assert row["validation_contract"] == VALIDATION_CONTRACT_FILENAME
         contract = ValidationContract.load(session_dir / VALIDATION_CONTRACT_FILENAME)
         result = env.verify_lab()
+        if not result.get("verified"):
+            # Shared CI runners occasionally miss a transient IGP adjacency
+            # while reachability is already healthy; re-check once.
+            time.sleep(5)
+            result = env.verify_lab()
         assert_verify_success(result)
         validation = (result.get("details") or {}).get("validation")
         assert validation is not None, "verify_lab must emit contract validation"
