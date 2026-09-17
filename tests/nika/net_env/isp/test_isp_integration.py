@@ -51,8 +51,23 @@ def _integration_topos() -> list[str]:
 
 ALL_TOPOS = _integration_topos()
 ALL_IGPS = ("isis", "ospf")
-ALL_BGP_MODES = ("ibgp_rr", "ebgp")
 _CI_TOPO_SET = set(ALL_TOPOS) if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip() else None
+
+
+def _integration_bgp_modes() -> tuple[str, ...]:
+    """Full BGP modes locally; optional CI subset via NIKA_CI_ISP_BGP_MODES."""
+    available = ("ibgp_rr", "ebgp")
+    raw = os.environ.get("NIKA_CI_ISP_BGP_MODES", "").strip()
+    if not raw:
+        return available
+    selected = tuple(item.strip() for item in raw.split(",") if item.strip())
+    unknown = [name for name in selected if name not in available]
+    if unknown:
+        raise ValueError(f"Unknown NIKA_CI_ISP_BGP_MODES entries: {unknown}")
+    return selected
+
+
+ALL_BGP_MODES = _integration_bgp_modes()
 
 
 def _ci_filter(topos: tuple[str, ...]) -> tuple[str, ...]:
@@ -68,9 +83,10 @@ SAMPLED_ISP_INJECT = tuple(
     for item in (
         ("polska", "isis", "none", "link_down"),
         ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
-        ("polska", "isis", "ebgp", "bgp_hijacking"),
+        ("pdh", "isis", "ibgp_rr", "bgp_asn_misconfig"),
     )
-    if _CI_TOPO_SET is None or item[0] in _CI_TOPO_SET
+    if (_CI_TOPO_SET is None or item[0] in _CI_TOPO_SET)
+    and (not os.environ.get("NIKA_CI_ISP_BGP_MODES") or item[2] in ("none", *ALL_BGP_MODES))
 )
 
 
@@ -482,7 +498,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         finally:
             self._close_session(session_id)
 
-    @pytest.mark.parametrize("topo_name", ("polska", "abilene"))
+    @pytest.mark.parametrize("topo_name", _ci_filter(("polska", "abilene")))
     def test_dynamic_fixture_replay(self, topo_name: str, tmp_path) -> None:
         cache_root = tmp_path / ".nika_cache"
         self._write_dynamic_fixture(topo_name, cache_root)
