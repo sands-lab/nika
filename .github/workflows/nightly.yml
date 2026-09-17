@@ -32,8 +32,15 @@ jobs:
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
       - name: Load lab kernel modules
         run: |
-          sudo modprobe vrf
           sudo modprobe wireguard || true
+          # Azure GitHub runners often lack vrf.ko; probe create instead of failing.
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -149,8 +156,15 @@ jobs:
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
       - name: Load lab kernel modules
         run: |
-          sudo modprobe vrf
           sudo modprobe wireguard || true
+          # Azure GitHub runners often lack vrf.ko; probe create instead of failing.
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -178,8 +192,15 @@ jobs:
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
       - name: Load lab kernel modules
         run: |
-          sudo modprobe vrf
           sudo modprobe wireguard || true
+          # Azure GitHub runners often lack vrf.ko; probe create instead of failing.
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}

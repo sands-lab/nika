@@ -19,7 +19,12 @@ from tests.support.failure_contract import (
     inject_and_assert_ground_truth,
     resolve_inject_params,
 )
-from tests.support.prerequisites import docker_available
+from tests.support.prerequisites import docker_available, linux_vrf_available
+from tests.support.test_scenarios import register_test_scenarios
+
+# Parametrize runs before pytest_collection_modifyitems; register the
+# test-only simple_bgp fixture before building Kathara cases.
+register_test_scenarios()
 
 HOST = "pc1"
 INTF = "eth0"
@@ -148,6 +153,8 @@ def test_kathara_failure_inject_contract(
     problem: str,
     inject_params: dict[str, str],
 ) -> None:
+    if scenario == "enterprise_branch" and not linux_vrf_available():
+        pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
     topo_size = None
     if "-s" in env_run_args:
         topo_size = env_run_args[env_run_args.index("-s") + 1]

@@ -9,6 +9,7 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
     docker_available,
+    linux_vrf_available,
     privileged_lab_supported,
 )
 from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
@@ -60,6 +61,8 @@ class KatharaScenarioE2ETest(IntegrationTestCase):
     def test_evaluate_scenario(self, case: ScenarioE2ECase) -> None:
         if case.scenario == "iosxr_simple_bgp" and not _iosxr_image_available():
             pytest.skip("XRd Control Plane image not installed locally")
+        if case.scenario == "enterprise_branch" and not linux_vrf_available():
+            pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
         session_id = self._start_env(case.scenario, list(case.env_run_args))
         try:
             row = self._assert_session_ready(session_id, case.scenario)

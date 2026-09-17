@@ -56,3 +56,40 @@ def privileged_lab_supported() -> bool:
     if os.geteuid() == 0:
         return True
     return docker_available()
+
+
+def linux_vrf_available() -> bool:
+    """Return True when the host kernel can create Linux VRF devices.
+
+    Kathara/enterprise_branch VRFs use the host kernel. GitHub-hosted Azure
+    kernels often omit ``vrf.ko``; CI sets ``NIKA_CI_VRF=0|1`` after a probe.
+    """
+    forced = os.environ.get("NIKA_CI_VRF", "").strip()
+    if forced == "0":
+        return False
+    if forced == "1":
+        return True
+
+    import subprocess
+
+    name = "nika_vrf_probe"
+    create = subprocess.run(
+        ["ip", "link", "add", name, "type", "vrf", "table", "110"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if create.returncode != 0:
+        create = subprocess.run(
+            ["sudo", "-n", "ip", "link", "add", name, "type", "vrf", "table", "110"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    if create.returncode != 0:
+        return False
+    subprocess.run(["ip", "link", "del", name], capture_output=True, check=False)
+    subprocess.run(
+        ["sudo", "-n", "ip", "link", "del", name], capture_output=True, check=False
+    )
+    return True
