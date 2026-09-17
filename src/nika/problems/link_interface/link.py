@@ -644,6 +644,17 @@ class LinkDetach(ProblemBase):
         self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
         self.runtime.exec(host, f"ip netns add {netns}")
         self.runtime.exec(host, f"ip link set dev {intf_name} netns {netns}")
+        # Brief settle: some runners still list the iface until the move commits.
+        import time
+
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            out = self.runtime.exec(
+                host, f"ip link show {intf_name} 2>&1 || true", timeout=10
+            )
+            if intf_name not in (out or "") or "not found" in (out or "").lower():
+                break
+            time.sleep(0.2)
         system_logger.info(
             f"Injected link detach on {host}:{intf_name} (moved to netns {netns})"
         )

@@ -56,7 +56,10 @@ def _resolve_lab_and_size(
                 meta = store.get_session(str(matches[0]["session_id"]))
                 scenario = meta.get("scenario_name")
                 if scenario:
-                    return str(scenario), size or meta.get("scenario_topo_size")
+                    resolved_size = size or meta.get("scenario_topo_size")
+                    if not scenario_requires_topo_size(str(scenario)) and size is None:
+                        resolved_size = None
+                    return str(scenario), resolved_size
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
             pass
     try:
@@ -82,7 +85,11 @@ def _resolve_lab_and_size(
         raise typer.BadParameter(
             "Session has no scenario_name; run `nika env run` or pass --lab."
         )
-    return resolved_lab, resolved_size
+    # Sessions may record a placeholder topo_size for size-less scenarios (ISP).
+    # Only honor an explicit CLI -s/--size in that case.
+    if not scenario_requires_topo_size(str(resolved_lab)) and size is None:
+        resolved_size = None
+    return str(resolved_lab), resolved_size
 
 
 def _normalize_size(raw: str | None) -> str | None:

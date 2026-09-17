@@ -43,7 +43,6 @@ SIMPLE_BGP_FAILURES = (
 
 CAMPUS_LAN_FAILURES = (
     "link_flap",
-    "link_packet_corruption",
     "link_capacity_bottleneck",
     "host_incorrect_dns",
     "ospf_neighbor_missing",

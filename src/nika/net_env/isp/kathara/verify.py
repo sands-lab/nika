@@ -56,6 +56,9 @@ def verify_isp_lab_startup(
     }
     if bgp_plan is not None:
         check_functions["bgp_sessions"] = lambda: _bgp_sessions_ok(runtime, bgp_plan)
+        check_functions["bgp_prefixes_propagated"] = lambda: (
+            _bgp_prefixes_propagated_ok(runtime, bgp_plan)
+        )
     checks = dict(
         zip(
             check_functions,
