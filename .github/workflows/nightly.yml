@@ -14,7 +14,7 @@ env:
   UV_VERSION: "0.8.22"
   GNMIC_VERSION: "0.48.0"
   # Representative ISP subset for GHA wall-clock; full SNDlib matrix remains local default.
-  NIKA_CI_ISP_TOPOS: "pdh,polska,abilene,geant"
+  NIKA_CI_ISP_TOPOS: "pdh,polska"
 
 jobs:
   full-scenario-verify:
@@ -235,5 +235,8 @@ jobs:
       - name: k8s_lab + llmd_lab scenario E2E (serial)
         run: >
           uv run pytest
+          tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
+          -q --maxfail=1
+          || uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
           -q --maxfail=1

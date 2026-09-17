@@ -179,7 +179,8 @@ class Isp(NetworkEnvBase):
         cap = 2400 if self.plan.igp == "ospf" else 1200
         wait = max(180, min(cap, 60 + node_n * per_node + link_n + host_n * 5))
         if self.bgp_plan is not None:
-            wait = max(wait, min(2400, 120 + node_n * 12 + link_n))
+            # eBGP prefix fan-out needs a longer settle on shared CI runners.
+            wait = max(wait, min(2400, 300 + node_n * 20 + link_n * 2))
         if self.bgp_plan is not None and self.bgp_plan.inventory.get("rpki"):
             wait = max(wait, 900)
         self.VERIFY_MAX_WAIT_SEC = wait

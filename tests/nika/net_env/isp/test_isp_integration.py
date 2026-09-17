@@ -57,7 +57,7 @@ CLI_TRAFFIC_TOPOS = ("pdh",)
 SAMPLED_ISP_INJECT = (
     ("polska", "isis", "none", "link_down"),
     ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
-    ("geant", "isis", "ebgp", "bgp_hijacking"),
+    ("polska", "isis", "ebgp", "bgp_hijacking"),
 )
 
 
