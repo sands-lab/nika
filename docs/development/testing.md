@@ -92,6 +92,9 @@ NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_injec
 
 # Nightly-style curated full verify
 NIKA_CI_VERIFY_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_verify.py -q
+
+# Optional ISP nightly subset (default is the full SNDlib catalog)
+NIKA_CI_ISP_TOPOS=pdh,polska,abilene,geant uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
 
 ## Shared support (`tests/support/`)

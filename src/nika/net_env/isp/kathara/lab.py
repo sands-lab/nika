@@ -310,12 +310,13 @@ class Isp(NetworkEnvBase):
                         f"{self._rpki_attachment['prefixlen']} "
                         f"dev {self._rpki_attachment['router_iface']}"
                     )
-                if startup and startup[-1] == "service frr start":
+                if "service frr start" in startup:
+                    idx = startup.index("service frr start")
                     post_frr: list[str] = []
                     if bgp_node is not None and bgp_node.rpki_cache is not None:
                         # RPKI module must be started after bgpd is up.
                         post_frr.append("vtysh -c 'rpki start'")
-                    startup = startup[:-1] + extras + [startup[-1]] + post_frr
+                    startup = startup[:idx] + extras + startup[idx:] + post_frr
                 else:
                     startup = startup + extras
                     if bgp_node is not None and bgp_node.rpki_cache is not None:

@@ -463,5 +463,15 @@ def _startup_commands(
     cmds = [f"ip addr add {loopback}/32 dev lo"]
     for iface in interfaces:
         cmds.append(f"ip addr add {iface.address}/{iface.prefixlen} dev {iface.name}")
-    cmds.append("service frr start")
+    # FRR 10.x mgmtd can apply frr.conf incompletely on first boot (IS-IS LSPs
+    # missing IP reachability TLVs). Re-apply once the daemon is listening.
+    cmds.extend(
+        [
+            "service frr start",
+            # Wait for mgmtd/vtysh before re-applying; FRR 10 can otherwise keep
+            # incomplete IS-IS LSPs from the first config pass.
+            "bash -c 'for i in 1 2 3 4 5 6 7 8 9 10; do vtysh -c \"show version\" >/dev/null 2>&1 && break; sleep 1; done'",
+            "vtysh -f /etc/frr/frr.conf",
+        ]
+    )
     return tuple(cmds)

@@ -13,6 +13,8 @@ concurrency:
 env:
   UV_VERSION: "0.8.22"
   GNMIC_VERSION: "0.48.0"
+  # Representative ISP subset for GHA wall-clock; full SNDlib matrix remains local default.
+  NIKA_CI_ISP_TOPOS: "pdh,polska,abilene,geant"
 
 jobs:
   full-scenario-verify:
@@ -28,6 +30,10 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe vrf
+          sudo modprobe wireguard || true
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -141,6 +147,10 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe vrf
+          sudo modprobe wireguard || true
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -156,7 +166,7 @@ jobs:
   isp-integration:
     name: ISP integration (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
@@ -166,6 +176,10 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe vrf
+          sudo modprobe wireguard || true
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}

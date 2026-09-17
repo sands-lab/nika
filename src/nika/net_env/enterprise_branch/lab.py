@@ -354,6 +354,8 @@ class EnterpriseBranch(NetworkEnvBase):
         for site in self.spec.sites.values():
             edge = self._edges[site.name]
             # Create Linux VRFs before enslaving LAN interfaces.
+            # Host kernel must provide the vrf module (CI loads it explicitly).
+            edge.cmd_list.append("modprobe vrf 2>/dev/null || true")
             for lan in site.lans:
                 table = VRF_TABLE[lan.role]
                 edge.cmd_list.append(f"ip link add {lan.vrf} type vrf table {table}")

@@ -50,6 +50,9 @@ def verify_isp_lab_startup(
         "nodes_deployed": lambda: nodes_deployed(runtime, expected),
         "frr_active": lambda: _frr_active(runtime, plan),
         "igp_adjacencies": lambda: _igp_adjacencies_ok(runtime, plan),
+        # Adjacency alone is a false ready signal on FRR 10.x: LSPs can lack
+        # reachability TLVs until config fully applies and SPF runs.
+        "loopbacks_reachable": lambda: _loopbacks_reachable(runtime, plan),
     }
     if bgp_plan is not None:
         check_functions["bgp_sessions"] = lambda: _bgp_sessions_ok(runtime, bgp_plan)
