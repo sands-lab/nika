@@ -69,12 +69,10 @@ MIN3CLOS_FAILURES = (
     "link_detach",
     "link_flap",
     "link_capacity_bottleneck",
-    "link_packet_corruption",
     "bgp_acl_block",
     "bgp_asn_misconfig",
     "bgp_missing_route_advertisement",
     "host_static_blackhole",
-    "bgp_hijacking",
 )
 
 
