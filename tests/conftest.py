@@ -23,6 +23,7 @@ _TEST_SCENARIO_PATH_TOKENS = (
     "test_sandbox.py",
     "test_sbx.py",
     "test_failure_inject",
+    "test_failure_e2e",
     "test_scenario_e2e",
     "test_trials.py",
     "test_batch.py",

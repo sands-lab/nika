@@ -11,8 +11,12 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
     docker_available,
+    linux_vrf_available,
     privileged_lab_supported,
 )
+from tests.support.test_scenarios import register_test_scenarios
+
+register_test_scenarios()
 
 
 @dataclass(frozen=True)
@@ -203,6 +207,8 @@ def _case_id(case: FailureE2ECase) -> str:
 def _skip_reason(case: FailureE2ECase) -> str | None:
     if not docker_available():
         return "docker required"
+    if case.scenario == "enterprise_branch" and not linux_vrf_available():
+        return "host kernel lacks Linux VRF"
     if case.scenario == "min3clos" and not containerlab_prerequisites():
         return "containerlab/gnmic not available"
     if case.problem != "link_flap":
