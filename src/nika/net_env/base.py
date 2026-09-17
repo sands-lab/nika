@@ -95,6 +95,10 @@ class NetworkEnvBase:
         topology = sorted(topology.items(), key=lambda x: x[0])
         topo_list = []
         for link, machines in topology:
+            # A link with a single endpoint (e.g. vrnetlab's reserved
+            # placeholder interface) isn't a pairwise connection to report.
+            if len(machines) < 2:
+                continue
             topo_list.append((machines[0], machines[1]))
         return topo_list
 

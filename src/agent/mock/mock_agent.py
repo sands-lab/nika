@@ -20,6 +20,7 @@ from typing import Any
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from agent.utils.loggers import tool_event_payload
+from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.utils.mcp_servers import select_diagnosis_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.problems.rca import RootCause
@@ -177,6 +178,8 @@ def _mock_diagnosis_tool_calls(
             calls.append(("frr_show_ip_route", {"router_name": router}))
         elif router and "kathara_iosxr_mcp_server" in server_names:
             calls.append(("iosxr_show_route", {"router_name": router}))
+        elif router and "kathara_routeros_mcp_server" in server_names:
+            calls.append(("routeros_show_route", {"router_name": router}))
     return calls
 
 
