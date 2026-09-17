@@ -2,9 +2,14 @@ name: Nightly
 
 on:
   schedule:
-    # 05:15 UTC daily
+    # 05:15 UTC daily (takes effect only after this file is on the default branch)
     - cron: "15 5 * * *"
   workflow_dispatch:
+  # Trial runs from the CI PR branch before merge to main.
+  push:
+    branches: [ci/github-actions-dual-arch]
+    paths:
+      - ".github/workflows/nightly.yml"
 
 concurrency:
   group: nightly-${{ github.workflow }}
