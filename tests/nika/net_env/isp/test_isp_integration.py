@@ -52,12 +52,25 @@ def _integration_topos() -> list[str]:
 ALL_TOPOS = _integration_topos()
 ALL_IGPS = ("isis", "ospf")
 ALL_BGP_MODES = ("ibgp_rr", "ebgp")
-REPR_TOPOS = ("pdh", "polska", "abilene")
-CLI_TRAFFIC_TOPOS = ("pdh",)
-SAMPLED_ISP_INJECT = (
-    ("polska", "isis", "none", "link_down"),
-    ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
-    ("polska", "isis", "ebgp", "bgp_hijacking"),
+_CI_TOPO_SET = set(ALL_TOPOS) if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip() else None
+
+
+def _ci_filter(topos: tuple[str, ...]) -> tuple[str, ...]:
+    if _CI_TOPO_SET is None:
+        return topos
+    return tuple(name for name in topos if name in _CI_TOPO_SET)
+
+
+REPR_TOPOS = _ci_filter(("pdh", "polska", "abilene"))
+CLI_TRAFFIC_TOPOS = _ci_filter(("pdh",))
+SAMPLED_ISP_INJECT = tuple(
+    item
+    for item in (
+        ("polska", "isis", "none", "link_down"),
+        ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
+        ("polska", "isis", "ebgp", "bgp_hijacking"),
+    )
+    if _CI_TOPO_SET is None or item[0] in _CI_TOPO_SET
 )
 
 
@@ -199,6 +212,8 @@ class IspDockerTest(IntegrationTestCase):
                 assert not env.lab_exists()
 
     def test_abilene_ospf_ebgp_respects_as_boundaries(self) -> None:
+        if _CI_TOPO_SET is not None and "abilene" not in _CI_TOPO_SET:
+            pytest.skip("abilene excluded from NIKA_CI_ISP_TOPOS")
         session_id = self._start_env(
             "isp_abilene",
             ["--igp", "ospf", "--bgp-mode", "ebgp"],
@@ -288,7 +303,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
     just a non-empty return payload.
     """
 
-    TRAFFIC_TOPOS = ("pdh", "polska", "abilene")
+    TRAFFIC_TOPOS = _ci_filter(("pdh", "polska", "abilene"))
 
     def _tiny_series(
         self, series, *, n_flows: int = 3, duration_sec: int = 8, max_intervals: int = 1
