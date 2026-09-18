@@ -215,6 +215,9 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
     # Shared GHA runners: netns move for link_detach is unreliable.
     if case.problem == "link_detach" and artifact_verify_only():
         return "link_detach netns move unreliable under artifact CI"
+    # k3s on shared GHA runners is flaky; dedicated k8s+llmd job covers startup.
+    if case.scenario == "k8s_lab" and artifact_verify_only():
+        return "k8s_lab covered by dedicated nightly k8s startup job"
     if case.problem != "link_flap":
         return None
     flap = FLAP_BY_SCENARIO.get(case.scenario)
