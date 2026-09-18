@@ -137,7 +137,15 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+        run: |
+          for attempt in 1 2 3; do
+            if bash -c "$(curl -fsSL https://get.containerlab.dev)"; then
+              exit 0
+            fi
+            echo "containerlab install attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs + containerlab)
@@ -213,7 +221,15 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+        run: |
+          for attempt in 1 2 3; do
+            if bash -c "$(curl -fsSL https://get.containerlab.dev)"; then
+              exit 0
+            fi
+            echo "containerlab install attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs + containerlab)
