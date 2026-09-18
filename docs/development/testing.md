@@ -74,7 +74,7 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
 | [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (incl. offline inject/submit contracts); dual-arch `nika/*` images; Kathara light startups; curated probes (`dc_clos` failure + pipeline + benchmark; clab `min3clos` startup/failure) |
-| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Full `evaluate_scenario`, curated verify shards, wide failure inject contract, failure E2E, ISP, k8s/llmd |
+| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
 
 PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
 
@@ -90,11 +90,12 @@ NIKA_CI_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_startup.py -q
 # One failure-inject case (PR curated)
 NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_inject_smoke.py -q
 
-# Nightly-style curated full verify
-NIKA_CI_VERIFY_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_verify.py -q
+# Nightly-style curated scenario shard (artifact depth on GHA)
+NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_VERIFY_SCENARIO=dc_clos \
+  uv run pytest tests/ci/test_scenario_verify.py -q
 
 # Optional ISP nightly subset (default is the full SNDlib catalog)
-NIKA_CI_ISP_TOPOS=pdh,polska NIKA_CI_ISP_BGP_MODES=ibgp_rr \
+NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,polska NIKA_CI_ISP_BGP_MODES=ibgp_rr \
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
 

@@ -14,7 +14,8 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
 # Locally buildable nika/* images exercised by the image matrix.
 CI_NIKA_IMAGES: tuple[str, ...] = tuple(NIKA_IMAGE_DOCKERFILES.keys())
 
-# Kathara light-startup scenarios (topo_size=s). Same list on both arches.
+# Artifact / light startup scenarios (topo_size=s). Same list on both arches.
+# Full evaluate_scenario remains local-only unless NIKA_CI_VERIFY_DEPTH is unset.
 CI_KATHARA_STARTUP_SCENARIOS: tuple[str, ...] = (
     "dc_clos",
     "campus_lan",
@@ -24,7 +25,7 @@ CI_KATHARA_STARTUP_SCENARIOS: tuple[str, ...] = (
     "p4_dc_gateway",
 )
 
-# Full behavioral verify (evaluate_scenario) — Nightly / local, not PR CI.
+# Nightly curated scenario shards (artifact/light by default on GHA).
 CI_KATHARA_VERIFY_SCENARIOS: tuple[str, ...] = (
     "dc_clos",
     "campus_lan",

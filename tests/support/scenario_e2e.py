@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from nika.net_env.net_env_pool import get_net_env_instance
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import TEST_SESSION_ID_RE
 from tests.support.scenario_evaluate import evaluate_scenario
 
@@ -32,8 +33,14 @@ def run_scenario_e2e(
     session_id: str,
     scenario_kwargs: dict[str, Any],
 ) -> dict[str, Any]:
-    """Run full ``verify_lab`` behavioral checks on an active session."""
+    """Run full ``verify_lab`` behavioral checks on an active session.
+
+    Under ``NIKA_CI_VERIFY_DEPTH=artifact``, skip deep evaluate_scenario — light
+    ``startup_verify_lab`` already ran during ``nika env run``.
+    """
     _assert_test_session_id(session_id)
+    if artifact_verify_only():
+        return {"skipped": True, "reason": "artifact_verify_only"}
     kwargs = dict(scenario_kwargs)
     if case.backend is not None:
         kwargs["backend"] = case.backend

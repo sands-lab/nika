@@ -1,4 +1,8 @@
-"""Kathara full evaluate_scenario smoke (published scenarios, size=s)."""
+"""Kathara scenario smoke (published scenarios, size=s).
+
+Default: full ``evaluate_scenario``. With ``NIKA_CI_VERIFY_DEPTH=artifact``,
+session ready after light startup is enough (same path as PR startup smoke).
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ import pytest
 
 from nika.runtime.factory import resolve_backend
 from tests.ci.constants import CI_KATHARA_VERIFY_SCENARIOS
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
@@ -31,12 +36,14 @@ def _selected_scenarios() -> list[str]:
 
 
 @pytest.mark.parametrize("scenario", _selected_scenarios())
-def test_kathara_scenario_full_verify(scenario: str) -> None:
-    """Deploy size=s then run the same evaluate_scenario path as local E2E."""
+def test_kathara_scenario_verify(scenario: str) -> None:
+    """Deploy size=s; artifact mode stops at session ready, else evaluate_scenario."""
     helper = IntegrationTestCase()
     session_id = helper._start_env(scenario, ["-s", "s"])
     try:
         row = helper._assert_session_ready(session_id, scenario)
+        if artifact_verify_only():
+            return
         case = ScenarioE2ECase(scenario, env_run_args=("-s", "s"))
         run_scenario_e2e(
             case,

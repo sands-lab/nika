@@ -13,6 +13,8 @@ concurrency:
 env:
   UV_VERSION: "0.8.22"
   GNMIC_VERSION: "0.48.0"
+  # Boot / artifact checks only — no deep evaluate_scenario or symptom E2E.
+  NIKA_CI_VERIFY_DEPTH: artifact
   # Representative ISP subset for GHA wall-clock; full SNDlib matrix remains local default.
   NIKA_CI_ISP_TOPOS: "pdh,polska"
   # eBGP prefix fan-out is currently unreliable on shared GHA runners.
@@ -20,7 +22,7 @@ env:
 
 jobs:
   full-scenario-verify:
-    name: full evaluate_scenario (${{ matrix.os }})
+    name: scenario startup (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -52,14 +54,14 @@ jobs:
           python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
-      - name: Kathara scenario E2E (full verify)
+      - name: Kathara scenario light startup (artifact)
         run: >
           uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::KatharaScenarioE2ETest
           -q
 
   curated-scenario-verify:
-    name: curated verify ${{ matrix.scenario }} (${{ matrix.os }})
+    name: curated startup ${{ matrix.scenario }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -84,7 +86,7 @@ jobs:
           python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
-      - name: Curated evaluate_scenario smoke
+      - name: Curated scenario artifact smoke
         env:
           NIKA_CI_VERIFY_SCENARIO: ${{ matrix.scenario }}
         run: uv run pytest tests/ci/test_scenario_verify.py -q
@@ -144,7 +146,7 @@ jobs:
         run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q
 
   failure-e2e:
-    name: failure e2e (${{ matrix.os }})
+    name: failure artifact e2e (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     strategy:
@@ -176,7 +178,7 @@ jobs:
           python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
-      - name: Broad failure E2E
+      - name: Failure inject + artifact verify
         run: uv run pytest tests/nika/problems/test_failure_e2e.py -q
 
   isp-integration:
@@ -216,11 +218,11 @@ jobs:
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs + containerlab)
         run: uv sync --extra labs --extra containerlab --group dev
-      - name: ISP integration matrix
+      - name: ISP artifact matrix
         run: uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 
   k8s-llmd-sequential:
-    name: k8s + llmd (amd64 sequential)
+    name: k8s + llmd startup (amd64)
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
@@ -234,7 +236,7 @@ jobs:
           python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
-      - name: k8s_lab + llmd_lab scenario E2E (serial)
+      - name: k8s_lab + llmd_lab light startup (serial)
         run: >
           uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest

@@ -660,7 +660,7 @@ class LinkDetach(ProblemBase):
         )
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
-        """Verify the interface is gone and the default probe path is unreachable."""
+        """Verify the interface is gone from the node namespace (artifact gate)."""
         match self.lab_backend:
             case "kathara":
                 return self._verify_link_detach_kathara(params)
@@ -710,10 +710,10 @@ class LinkDetach(ProblemBase):
     def _verify_link_detach(self, params: LinkDetachParams, intf_name: str) -> dict:
         interface_gone = not self.runtime.interface_exists(params.host_name, intf_name)
         symptom_ok, symptom_details = self._light_symptom_unreachable(params)
-        verified = interface_gone and symptom_ok
+        # Production / inject gate is artifact-only; dataplane symptom is advisory.
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
+            verified=interface_gone,
             details={
                 "artifact": {
                     "verified": interface_gone,

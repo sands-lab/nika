@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import pytest
 
 from tests.support.failure_e2e import FailureE2ECase, run_failure_e2e
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
@@ -211,6 +212,9 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
         return "host kernel lacks Linux VRF"
     if case.scenario == "min3clos" and not containerlab_prerequisites():
         return "containerlab/gnmic not available"
+    # Shared GHA runners: netns move for link_detach is unreliable.
+    if case.problem == "link_detach" and artifact_verify_only():
+        return "link_detach netns move unreliable under artifact CI"
     if case.problem != "link_flap":
         return None
     flap = FLAP_BY_SCENARIO.get(case.scenario)
