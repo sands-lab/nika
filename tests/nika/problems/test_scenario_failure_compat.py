@@ -160,9 +160,11 @@ def _p4_fabric_smoke(runtime, model) -> dict[str, bool]:
 def _sdn_smoke(runtime, model) -> dict[str, bool]:
     src = model.client_endpoints()[0]
     dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
+    same = next(w for w in model.web_endpoints() if w.leaf_id == src.leaf_id)
     return {
         "cross_rack_ping": ping_ok(runtime, src.name, dst.ip),
         "cross_rack_http": http_ok(runtime, src.name, f"http://{dst.ip}/"),
+        "same_rack_ping": ping_ok(runtime, src.name, same.ip),
     }
 
 

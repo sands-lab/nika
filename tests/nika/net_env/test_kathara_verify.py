@@ -329,6 +329,22 @@ class KatharaVerifyUnitTest:
             )
         )
 
+    def test_sdn_l3_clos_startup_same_rack_failure(self) -> None:
+        model = build_clos_fabric_model("s")
+        # Same-rack pair is client_1_1 -> web_1 (10.0.1.11).
+        result = verify_sdn_l3_clos_lab_startup(
+            FakeRuntime(
+                overrides={
+                    ("client_1_1", "ping -c 1 -W 2 10.0.1.11"): "0 packets received",
+                }
+            ),
+            scenario_name="sdn_l3_clos",
+            model=model,
+        )
+        assert not result["verified"]
+        assert not result["checks"]["same_rack_ping"]
+        assert result["checks"]["cross_rack_ping"]
+
     def test_k8s_startup_verify_passes(self) -> None:
         assert_verify_success(verify_k8s_lab_startup(FakeRuntime(), scenario_name="x"))
 
