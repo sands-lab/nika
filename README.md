@@ -117,44 +117,46 @@ See [MCP servers](docs/agents/mcp-servers.md) for the full tool list and session
 
 ## 📦 Installation
 
-**Requirements**: Python 3.12+, and [uv](https://docs.astral.sh/uv/) for dependency management. Additionally, NIKA needs Docker and at least one network emulation backend. Currently supported backends are:
-
-- **[Kathará](https://www.kathara.org/)** — install with `--extra kathara` option below.
-- **[Containerlab](https://containerlab.dev/)** — install with `--extra containerlab` option below.
-- **Both** — install with `--extra labs` option below.
-
-`switch_internal_packet_corruption` also needs controller-host eBPF build
-tooling. On Debian or Ubuntu, install it with:
-
 ```shell
-sudo apt-get update
-sudo apt-get install -y clang iproute2
-```
-
-This is a controller-host prerequisite. It is not installed in lab nodes or
-Agent sandboxes.
-
-### Basic setup
-
-```shell
-git clone https://github.com/sands-lab/nika
+git clone https://github.com/sands-lab/nika.git
 cd nika
-uv sync --extra labs   # or --extra kathara / --extra containerlab / (no extra)
-source .venv/bin/activate
-cp .env.example .env
+./scripts/install.sh
 ```
+
+Prerequisites: Linux, Python 3.12+, `curl`, `sudo`.
+
+The script installs:
+
+- Docker (if not already usable)
+- [uv](https://docs.astral.sh/uv/) and Kathará (`uv sync --extra labs`)
+- [Containerlab](https://containerlab.dev/) and gnmic
+- `clang` and `iproute2` on Debian/Ubuntu (eBPF for [`device_forwarding_packet_corruption`](docs/operations/failures.md#forwarding-encapsulation--policy))
+- `.env` and `config/nika.yaml` from the example templates when missing
+
+If Docker was just installed, open a new shell or run `newgrp docker`.
+
+### Agent sandboxing
+
+For sandboxed agents (`cli.*`, `sdk.*`, `community.sade`), install `sbx` and sign in:
+
+```shell
+curl -fsSL https://get.docker.com | sudo SBX=1 sh
+sbx login
+```
+
+If Docker is already installed by `./scripts/install.sh`, use `sudo apt install docker-sbx` instead, then `sbx login`. Not required for host agents such as `byo.langgraph`. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
+
+For installing NIKA in remote environments, see [remote lab execution](docs/operations/remote.md).
 
 ### API keys and credentials
 
-Keys live in `.env`; agent/benchmark settings live in `config/nika.yaml` (CLI flags override YAML). Copy the templates, then edit:
+Keys live in `.env`; agent and benchmark settings live in `config/nika.yaml` (CLI flags override YAML). Edit the files from the install script, then:
 
 ```shell
-cp .env.example .env
-cp config/nika.example.yaml config/nika.yaml
-nika config show
+uv run nika config show
 ```
 
-If an existing `.env` contains operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/operations/configuration.md) for precedence, defaults, and validation rules.
+If an existing `.env` still holds operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/operations/configuration.md) for precedence, defaults, and validation rules.
 
 **Provider** — use a built-in provider (`openai` / `anthropic` / `deepseek`). Put the matching API key in `.env`, and set `agent.provider` in YAML:
 
@@ -181,30 +183,25 @@ agent:
     model: null
 ```
 
-### Remote Deployments:
-
-- **Agent Sandboxing**: See the [agent sandbox guide](docs/operations/agent-sandbox.md) for sandboxed execution requirements.
-- **Remote Mode**: Use [remote lab execution](docs/operations/remote.md) to run the emulated network and telemetry MCP gateways on a separate server while the agent runs locally.
-
 ## 🚀 Quick start
 
-Run one incident end-to-end with a task label (`{scenario}_{problem}`, or `{scenario}_{s|m|l}_{problem}` when the scenario is sized):
+Run a frozen benchmark release:
 
 ```shell
-nika agent list
-nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
+export OPENAI_API_KEY=...   # or set it in .env
+uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run --batch-size 4
+uv run nika eval summary --result_dir results/my-run
+```
+
+Smoke one incident with a task label (`{scenario}_{problem}`, or `{scenario}_{s|m|l}_{problem}` when the scenario is sized):
+
+```shell
+uv run nika agent list
+uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
   --problem dc_clos_s_link_down
 ```
 
 That deploys the lab, injects the fault, runs the agent, closes the session, and writes evaluation results.
-
-To run a frozen benchmark release:
-
-```shell
-nika benchmark run --release 0.2.0 --split test --result_dir results/my-run --batch-size 4
-nika eval summary --result_dir results/my-run
-```
-
 
 For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](docs/operations/cli-reference.md).
 

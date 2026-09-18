@@ -27,8 +27,15 @@ NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docke
 
 ## Prerequisites
 
-- `sbx` CLI installed and logged in (`sbx login`)
-- KVM available on Linux
+- `sbx` CLI installed and logged in:
+
+  ```shell
+  curl -fsSL https://get.docker.com | sudo SBX=1 sh
+  sbx login
+  ```
+
+  On a host that already has Docker's apt repo: `sudo apt install docker-sbx`. See the [Docker Sandboxes install guide](https://docs.docker.com/ai/sandboxes/install/).
+- KVM available on Linux (`/dev/kvm`); your user must be in the `kvm` group (or otherwise have read/write on the device)—`sbx diagnose` reports this under Virtualization
 - Docker for Kathara / Containerlab labs
 - Credentials for the agent you run (see [Authentication](#authentication))
 
