@@ -130,9 +130,11 @@ def build_forwarding_rules(model: ClosFabricModel) -> dict[str, Any]:
                 }
             )
         else:
-            flood = ",".join(p.name for p in host_ports)
             for hport in host_ports:
-                others = ",".join(p.name for p in host_ports if p.name != hport.name)
+                # Canonical ovs-ofctl form: output:eth1,output:eth2 (not output:eth1,eth2).
+                others = ",".join(
+                    f"output:{p.name}" for p in host_ports if p.name != hport.name
+                )
                 flows.append(
                     {
                         "switch": leaf,
@@ -140,11 +142,10 @@ def build_forwarding_rules(model: ClosFabricModel) -> dict[str, Any]:
                         "table": 0,
                         "priority": 42000,
                         "match": f"arp,in_port={hport.name}",
-                        "actions": f"output:{others}" if others else "drop",
+                        "actions": others if others else "drop",
                         "cookie": "0x1001",
                     }
                 )
-            _ = flood
 
         # Gateway ARP: reply for virtual router (Nicira extensions)
         gw = gateway_ip(leaf_id)

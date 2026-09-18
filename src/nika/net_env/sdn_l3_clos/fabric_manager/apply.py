@@ -212,6 +212,13 @@ def _parse_match(match: str, port_map: dict[str, str]) -> list[dict[str, Any]] |
     return criteria or None
 
 
+def _is_bare_output_port_token(token: str) -> bool:
+    """True for compact multi-port tails like eth2 in output:eth1,eth2,eth3."""
+    if not token or ":" in token:
+        return False
+    return token not in {"dec_ttl", "in_port", "drop"}
+
+
 def _parse_actions(
     actions: str, port_map: dict[str, str]
 ) -> list[dict[str, Any]] | None:
@@ -221,10 +228,10 @@ def _parse_actions(
     instructions: list[dict[str, Any]] = []
     if actions.strip() == "drop":
         return instructions
-    for part in actions.split(","):
-        part = part.strip()
-        if not part:
-            continue
+    parts = [part.strip() for part in actions.split(",") if part.strip()]
+    i = 0
+    while i < len(parts):
+        part = parts[i]
         if part == "dec_ttl":
             instructions.append({"type": "L3MODIFICATION", "subtype": "DEC_TTL"})
         elif part.startswith("mod_dl_src:"):
@@ -248,7 +255,13 @@ def _parse_actions(
                 {"type": "GROUP", "groupId": int(part.split(":", 1)[1])}
             )
         elif part.startswith("output:"):
-            for port_tok in part.split(":", 1)[1].split(","):
+            port_tokens = [part.split(":", 1)[1]]
+            # Compact form output:eth1,eth2,eth3 survives a naive comma split as
+            # ["output:eth1", "eth2", "eth3"]; consume bare port continuations.
+            while i + 1 < len(parts) and _is_bare_output_port_token(parts[i + 1]):
+                i += 1
+                port_tokens.append(parts[i])
+            for port_tok in port_tokens:
                 instructions.append(
                     {
                         "type": "OUTPUT",
@@ -259,7 +272,20 @@ def _parse_actions(
             instructions.append({"type": "OUTPUT", "port": "IN_PORT"})
         else:
             return None
+        i += 1
     return instructions
+
+
+def _is_skippable_unsupported_flow(flow: dict[str, Any]) -> bool:
+    """Nicira gateway ARP is covered by static host neigh; other skips are bugs."""
+    match = str(flow.get("match") or "")
+    actions = str(flow.get("actions") or "")
+    return (
+        "arp_tpa=" in match
+        or "arp_op=" in match
+        or "move:" in actions
+        or "load:" in actions
+    )
 
 
 def _onos_batch(
@@ -553,9 +579,17 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
         try:
             body = _install_onos_flow_body(flow, port_maps[flow["switch"]])
             if body is None:
-                skipped += 1
-                continue
+                if _is_skippable_unsupported_flow(flow):
+                    skipped += 1
+                    continue
+                raise RuntimeError(
+                    "required flow could not be translated on "
+                    f"{flow.get('switch')}: match={flow.get('match')!r} "
+                    f"actions={flow.get('actions')!r}"
+                )
             flow_ops.append(("POST", f"/onos/v1/flows/{flow['device_id']}", body))
+        except RuntimeError:
+            raise
         except Exception as exc:  # noqa: BLE001
             logger.warning("ONOS flow build failed on %s: %s", flow["switch"], exc)
     if flow_ops:

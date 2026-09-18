@@ -131,6 +131,23 @@ def test_prune_groups_removes_only_failed_link_buckets(
     assert len(waits[0]) == 6
 
 
+def test_local_arp_flood_actions_translate_at_all_sizes() -> None:
+    """Multi-host racks must keep local ARP flood rules installable."""
+    for size in ("s", "m", "l"):
+        model = build_clos_fabric_model(size)
+        arp = [
+            f for f in build_forwarding_rules(model)["flows"] if f["priority"] == 42000
+        ]
+        assert arp
+        for flow in arp:
+            ports = {
+                p.name: str(i)
+                for i, p in enumerate(model.ports[flow["switch"]], start=1)
+            }
+            body = fabric_apply._install_onos_flow_body(flow, ports)
+            assert body is not None, (size, flow["match"], flow["actions"])
+
+
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
     """Topology-change recovery (not a benchmark failure)."""
@@ -142,8 +159,10 @@ class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
             runtime = runtime_for_session(row)
             model = build_clos_fabric_model("s")
             src = model.client_endpoints()[0]
+            same = next(w for w in model.web_endpoints() if w.leaf_id == src.leaf_id)
             dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
 
+            assert ping_ok(runtime, src.name, same.ip)
             assert ping_ok(runtime, src.name, dst.ip)
             assert http_ok(runtime, src.name, f"http://{dst.ip}/")
 
@@ -159,6 +178,7 @@ class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
             runtime.set_interface_state(leaf, leaf_port.name, "up")
             apply_forwarding(runtime, model)
             time.sleep(5)
+            assert ping_ok(runtime, src.name, same.ip)
             assert ping_ok(runtime, src.name, dst.ip)
             assert http_ok(runtime, src.name, f"http://{dst.ip}/")
         finally:
