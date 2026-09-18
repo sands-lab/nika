@@ -64,6 +64,13 @@ FLAP_SEEDS = (0, 1, 4, 7)
 FLAP_BY_SCENARIO = {flap.scenario: flap for flap in FLAP_SCENARIOS}
 
 
+def _flap_seeds(scenario: str) -> tuple[int, ...]:
+    # Shared runners: one k3s cold-start is enough under artifact depth.
+    if artifact_verify_only() and scenario == "k8s_lab":
+        return (0,)
+    return FLAP_SEEDS
+
+
 def _flap_e2e_cases() -> list[FailureE2ECase]:
     return [
         FailureE2ECase(
@@ -75,7 +82,7 @@ def _flap_e2e_cases() -> list[FailureE2ECase]:
             isp_options=flap.isp_options,
         )
         for flap in FLAP_SCENARIOS
-        for seed in FLAP_SEEDS
+        for seed in _flap_seeds(flap.scenario)
     ]
 
 
@@ -215,9 +222,6 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
     # Shared GHA runners: netns move for link_detach is unreliable.
     if case.problem == "link_detach" and artifact_verify_only():
         return "link_detach netns move unreliable under artifact CI"
-    # k3s on shared GHA runners is flaky; dedicated k8s+llmd job covers startup.
-    if case.scenario == "k8s_lab" and artifact_verify_only():
-        return "k8s_lab covered by dedicated nightly k8s startup job"
     if case.problem != "link_flap":
         return None
     flap = FLAP_BY_SCENARIO.get(case.scenario)
@@ -233,6 +237,28 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
 @pytest.mark.integration
 @pytest.mark.parametrize("case", _all_e2e_cases(), ids=_case_id)
 class TestFailureE2E(IntegrationTestCase):
+    def _start_case_session(self, case: FailureE2ECase) -> str:
+        """Start env; retry once for k8s_lab (shared-runner k3s flake)."""
+        attempts = 2 if case.scenario == "k8s_lab" else 1
+        last_exc: BaseException | None = None
+        for attempt in range(attempts):
+            session_id = None
+            try:
+                session_id = self._start_env(case.scenario, list(case.env_run_args))
+                self._assert_session_ready(session_id, case.scenario)
+                return session_id
+            except BaseException as exc:
+                last_exc = exc
+                if session_id is not None:
+                    try:
+                        self._close_session(session_id)
+                    except Exception:  # noqa: BLE001
+                        pass
+                if attempt + 1 >= attempts:
+                    raise
+        assert last_exc is not None
+        raise last_exc
+
     def test_inject_verify_symptom_recover(self, case: FailureE2ECase) -> None:
         skip = _skip_reason(case)
         if skip:
@@ -240,8 +266,7 @@ class TestFailureE2E(IntegrationTestCase):
 
         session_id = None
         try:
-            session_id = self._start_env(case.scenario, list(case.env_run_args))
-            self._assert_session_ready(session_id, case.scenario)
+            session_id = self._start_case_session(case)
             run_failure_e2e(
                 case,
                 scenario_kwargs=self._scenario_kwargs(session_id),
