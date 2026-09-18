@@ -10,9 +10,12 @@ uv run nika env list
 
 ## Backend requirements
 
-Kathará scenarios need Docker and the Kathará dependency group. Containerlab scenarios need Docker, `clab`, and the Containerlab dependency group.
+| Backend | Needs |
+| --- | --- |
+| Kathará | Docker, Kathará Python package (`uv sync --extra labs`) |
+| Containerlab | Docker, `clab`, and `gnmic` (SR Linux labs) |
 
-Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../../README.md#-installation) covers the full installation flow.
+Install with [`./scripts/install.sh`](../../scripts/install.sh). See the root [README](../../README.md#-installation).
 
 `min3clos` also calls `gnmic` and uses Nokia SR Linux and the multi-arch `wbitt/network-multitool` image. The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image; see [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
 
