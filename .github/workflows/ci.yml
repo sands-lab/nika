@@ -42,6 +42,29 @@ env:
 # - Full evaluate_scenario and broad failure inject live in nightly.yml.
 
 jobs:
+  install:
+    name: one-shot install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run one-shot installer
+        run: ./scripts/install.sh
+      - name: Verify installed user environment
+        run: |
+          export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
+          docker info >/dev/null
+          uv run nika --help >/dev/null
+          uv run python -c 'import Kathara, docker, kubernetes'
+          clab version
+          gnmic version
+          cmp --silent .env .env.example
+          cmp --silent config/nika.yaml config/nika.example.yaml
+
   unit-contract:
     name: unit+contract
     runs-on: ubuntu-24.04
