@@ -1,34 +1,28 @@
-"""Helpers for optional dependency extras."""
+"""Helpers for optional lab dependencies."""
 
 from __future__ import annotations
 
 from typing import NoReturn
 
+_LABS_HINT = "Install with: uv sync (installs the 'labs' dependency group by default)."
+
 _EXTRA_HINTS: dict[str, str] = {
-    "kathara": (
-        "Kathara support requires the 'kathara' extra. "
-        "Install with: uv sync --extra kathara   # or: uv sync --extra labs"
-    ),
+    "kathara": f"Kathara support requires the 'kathara' package. {_LABS_HINT}",
     "containerlab": (
-        "Containerlab support requires the 'containerlab' extra (Docker SDK). "
+        "Containerlab support requires the Docker SDK. "
         "Also install the external `clab` binary (and `gnmic` for SRL scenarios). "
-        "Install with: uv sync --extra containerlab   # or: uv sync --extra labs"
+        f"{_LABS_HINT}"
     ),
-    "docker": (
-        "Docker SDK support requires a lab extra. Install with: uv sync --extra labs"
-    ),
-    "kubernetes": (
-        "Kubernetes support requires the 'kathara' extra. "
-        "Install with: uv sync --extra kathara   # or: uv sync --extra labs"
-    ),
+    "docker": f"Docker SDK support requires the 'docker' package. {_LABS_HINT}",
+    "kubernetes": f"Kubernetes support requires the 'kubernetes' package. {_LABS_HINT}",
 }
 
 
 def missing_extra_message(extra: str) -> str:
-    """Return the install hint for a missing optional lab extra."""
+    """Return the install hint for a missing optional lab dependency."""
     return _EXTRA_HINTS.get(
         extra,
-        f"Missing optional dependency for '{extra}'. Install with: uv sync --extra labs",
+        f"Missing optional dependency for '{extra}'. {_LABS_HINT}",
     )
 
 

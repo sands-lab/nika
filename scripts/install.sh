@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Docker, uv, lab deps (Kathará), Containerlab, gnmic, and eBPF tools.
+# Install Docker, uv, lab deps (Kathará), Containerlab, gnmic, and fault-injection tools.
 # Usage: ./scripts/install.sh
 set -euo pipefail
 
@@ -10,8 +10,8 @@ usage() {
 Usage: ./scripts/install.sh
 
 Installs Docker (if needed), uv, lab Python deps (Kathará), Containerlab,
-gnmic, and eBPF tools (clang, iproute2 on Debian/Ubuntu). Creates .env and
-config/nika.yaml from examples when missing.
+gnmic, plus clang and iproute2 for fault injection (via apt-get). Creates
+.env and config/nika.yaml from examples when missing.
 
   -h, --help    Show this help
 EOF
@@ -115,8 +115,8 @@ install_uv() {
 sync_python() {
   ensure_path_uv
   need_cmd uv
-  log "Syncing Python deps (uv sync --extra labs)"
-  uv sync --extra labs
+  log "Syncing Python deps (uv sync)"
+  uv sync
   log "Python lab deps ready (Kathará via PyPI)"
 }
 
@@ -175,13 +175,13 @@ bootstrap_config() {
   fi
 }
 
-install_ebpf_tools() {
+install_fault_injection_tools() {
   if ! command -v apt-get >/dev/null 2>&1; then
-    log "Skipping eBPF tools (clang, iproute2): apt-get not found; install them manually for device_forwarding_packet_corruption"
+    log "Skipping clang and iproute2: apt-get not found; install them manually for fault injection"
     return
   fi
   need_cmd sudo
-  log "Installing eBPF build tools (clang, iproute2)"
+  log "Installing fault-injection tools (clang for eBPF, iproute2 for tc)"
   sudo apt-get update
   sudo apt-get install -y clang iproute2
 }
@@ -213,7 +213,7 @@ main() {
   install_containerlab
   install_gnmic
   bootstrap_config
-  install_ebpf_tools
+  install_fault_injection_tools
   print_next_steps
 }
 

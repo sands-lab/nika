@@ -8,7 +8,7 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 
 | Side | Install | Responsibility |
 |------|---------|----------------|
-| **Local (agent host)** | `uv sync` (+ sdk/sade as needed); optional [`sbx`](agent-sandbox.md) | CLI entrypoint, agent process, canonical `results/` |
+| **Local (agent host)** | `uv sync --no-group labs` (+ sdk/sade as needed); optional [`sbx`](agent-sandbox.md) | CLI entrypoint, agent process, canonical `results/` |
 | **Remote (lab host)** | `./scripts/install.sh` | `nika remote serve`, labs, MCP gateway, runtime state |
 
 ## Set up the remote lab host
@@ -30,9 +30,11 @@ Ensure the local machine can reach:
 ```shell
 git clone https://github.com/sands-lab/nika.git
 cd nika
-uv sync
-# optional: uv sync --extra sdk   # or --extra sade
+uv sync --no-group labs
+# optional: uv sync --no-group labs --extra sdk   # or --extra sade
 ```
+
+The `labs` group holds the Kathará and Docker SDK packages, which only the lab host needs.
 
 For sandboxed agents, install [`sbx`](agent-sandbox.md). Not required for `byo.*`.
 
