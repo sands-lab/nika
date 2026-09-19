@@ -28,7 +28,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
 | `tests/support/` | Not applicable | Shared bases, prerequisites, and pipeline helpers |
 
-Local lab integration tests expect lab extras installed (`uv sync --extra labs --group dev`). Core/agent unit tests should run without Kathara/Containerlab packages.
+Local lab integration tests need the `labs` dependency group, which `uv sync` installs by default.
 
 Packet capture inspect tests and live inspect operations require `tshark` on lab nodes (`nika/base` and `nika/frr` images). Rebuild those images after Dockerfile changes. Capture uses `tcpdump` or `dumpcap` when present on the node.
 

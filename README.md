@@ -27,11 +27,11 @@
 
 ## ❓ What is NIKA?
 
-Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **N**etwork **I**ncident Benchmar**k** for **A**I Agents, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces hundreds of realistic faults covering data center networks, campus networks, ISP backbones, SDN fabrics, overlay networks, and Kubernetes CNIs. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **N**etwork **I**ncident Benchmar**k** for **A**I Agents, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing labs. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
 
 ## ✨ Features
 
-- **Live network incidents:** Inject faults into running data center, campus, ISP, SDN, P4, and Kubernetes labs. NIKA supports [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/) backends.
+- **Live network incidents:** Inject faults into labs for [data centers, campus LANs, enterprise WANs, ISP backbones, SDN and P4 fabrics, Kubernetes networking, and vendor routing](#network-types). Each scenario runs on [Kathará](https://www.kathara.org/) or [Containerlab](https://containerlab.dev/) as listed below.
 - **Evidence from the network:** Agents can use [MCP tools](#mcp-servers) for host probes, router and switch commands, packet capture, Pingmesh, and scenario-specific INT telemetry.
 - **Root-cause evaluation:** Score submitted resource and fault-type IDs against [benchmark ground truth](docs/benchmarks/root-cause-evaluation.md). Cases also include healthy controls and multiple faults.
 - **Your choice of agent:** Run a registered agent or [integrate your own](docs/agents/custom-agents.md); supported agents can run in a [sandbox](docs/operations/agent-sandbox.md).
@@ -62,17 +62,20 @@ NIKA combines two components:
 
 ### Network types
 
-Choose a lab that matches the network you want to troubleshoot. The [network scenario reference](docs/operations/network-scenarios.md) lists each scenario's backend and requirements.
+Choose a lab that matches the network you want to troubleshoot. The diagram shows six representative topology families. The table lists all supported network types, and the [network scenario reference](docs/operations/network-scenarios.md) provides backend requirements and deployment details.
 
-| Network | Example scenarios | What they run |
-| --- | --- | --- |
-| Data center | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Routed Clos fabrics on FRR or Nokia SR Linux |
-| Campus | [`campus_lan`](docs/operations/network-scenarios.md#campus-lan-scenario) | OSPF campus network with DHCP, DNS, and web services |
-| Enterprise WAN | [`enterprise_branch`](docs/operations/network-scenarios.md#enterprise_branch) | Provider underlay and WireGuard/eBGP overlay |
-| ISP | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), etc. | SNDlib backbone topologies with configurable routing |
-| SDN and P4 | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos), [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | ONOS/OVS and BMv2 fabrics |
-| Kubernetes | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | k3s workloads in network labs |
-| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#iosxr_simple_bgp) | Cisco XRd eBGP lab |
+![Representative NIKA network topology types: data center Clos, campus LAN, enterprise branch WAN, ISP backbone, SDN L3 Clos, and P4-programmable fabric](./assets/images/nika_net_scenarios.png)
+
+| Network type | Scenarios | Lab backend | What they run |
+| --- | --- | --- | --- |
+| Data center Clos | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Kathará (`dc_clos`), Containerlab (`min3clos`) | FRR or Nokia SR Linux routed fabrics |
+| Campus LAN | [`campus_lan`](docs/operations/network-scenarios.md#campus-lan-scenario) | Kathará | OSPF, DHCP, DNS, and web services |
+| Enterprise WAN | [`enterprise_branch`](docs/operations/network-scenarios.md#enterprise_branch) | Kathará | Provider underlay and WireGuard/eBGP overlay |
+| ISP backbone | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), and other SNDlib topologies | Kathará or Containerlab | SNDlib backbone graphs with configurable routing |
+| SDN fabric | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos) | Kathará | ONOS and OVS Clos fabric |
+| P4 fabric | [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | Kathará | BMv2 switches and P4Runtime |
+| Kubernetes networking | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | Kathará | k3s clusters in network labs |
+| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#iosxr_simple_bgp) | Kathará | Cisco XRd eBGP router pair |
 
 
 ### Network incidents
@@ -94,25 +97,13 @@ The table summarizes registered failure types and working-matrix cases by [failu
 
 Run `uv run nika failure describe <failure_id>` to see a failure's injection parameters. The [failure reference](docs/operations/failures.md#registered-failures) lists every ID and its verification contract.
 
+### Pluggable agents
+
+NIKA includes host-run framework agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex) and [Claude](https://github.com/anthropics/claude-code) agents driven through their CLIs or SDKs; and community integrations such as [SADE](docs/agents/community/sade.md). Every registered agent follows the same diagnosis and root-cause submission contract. See [built-in agents](docs/agents/agent-implementations.md) or [integrate your own agent](docs/agents/custom-agents.md).
+
 ### MCP servers
 
-NIKA mounts host diagnostics, Pingmesh, and packet capture for every diagnosis session. It adds other servers according to the scenario and backend. Submission uses a separate server after diagnosis.
-
-| Server | Available in | Main use |
-| --- | --- | --- |
-| `kathara_base_mcp_server` | All scenarios, on either backend | Host probes, network configuration, and shell commands |
-| `pingmesh_mcp_server` | All scenarios | On-demand endpoint reachability, packet loss, and RTT |
-| `packet_capture_mcp_server` | All scenarios | Start, stop, and inspect packet captures |
-| `kathara_frr_mcp_server` | Kathará routing scenarios | FRR routes, configuration, and BGP/OSPF state |
-| `kathara_iosxr_mcp_server` | `iosxr_simple_bgp` | IOS-XR configuration, routes, and CLI commands |
-| `kathara_bmv2_mcp_server` | Kathará P4 scenarios | BMv2 switch state through P4Runtime |
-| `kathara_sdn_mcp_server` | `sdn_l3_clos` | ONOS and OVS state and commands |
-| `kathara_telemetry_mcp_server` | `p4_dc_gateway` on Kathará | Observed INT-MX packet paths and hop data |
-| `k8s_mcp_server` | Kubernetes scenarios when MCP access is enabled | Nodes, pods, services, logs, and connectivity |
-| `containerlab_srl_mcp_server` | Containerlab routing scenarios | SR Linux routes, BGP state, configuration, and CLI commands |
-| `task_mcp_server` | Submission phase of every session | Submit the agent's root-cause diagnosis |
-
-See [MCP servers](docs/agents/mcp-servers.md) for the full tool list and session access rules.
+Depending on the scenario, MCP tools expose live host, router, switch, and Kubernetes state. Agents can also use Pingmesh reachability, loss, and RTT snapshots; packet capture; and INT-MX hop telemetry. See [MCP servers](docs/agents/mcp-servers.md) for server availability and tool names.
 
 
 ## 📦 Installation
@@ -128,10 +119,14 @@ Prerequisites: Linux, Python 3.12+, `curl`, `sudo`.
 The script installs:
 
 - Docker (if not already usable)
-- [uv](https://docs.astral.sh/uv/) and Kathará (`uv sync --extra labs`)
+- [uv](https://docs.astral.sh/uv/)
+- [Kathará](https://kathara.org/) and the Python dependencies (via `uv sync`)
 - [Containerlab](https://containerlab.dev/) and gnmic
-- `clang` and `iproute2` on Debian/Ubuntu (eBPF for [`device_forwarding_packet_corruption`](docs/operations/failures.md#forwarding-encapsulation--policy))
+- `clang` (compiles the eBPF program for [`device_forwarding_packet_corruption`](docs/operations/failures.md#forwarding-encapsulation--policy))
+- `iproute2` (host-side `tc` for [link and interface failures](docs/operations/failures.md#link--interface) on Containerlab)
 - `.env` and `config/nika.yaml` from the example templates when missing
+
+The script pulls `clang` and `iproute2` with `apt-get`. On other distributions, install both packages yourself.
 
 If Docker was just installed, open a new shell or run `newgrp docker`.
 
@@ -148,7 +143,7 @@ If Docker is already installed by `./scripts/install.sh`, use `sudo apt install 
 
 For installing NIKA in remote environments, see [remote lab execution](docs/operations/remote.md).
 
-### API keys and credentials
+### Choose and configure an agent
 
 Keys live in `.env`; agent and benchmark settings live in `config/nika.yaml` (CLI flags override YAML). Edit the files from the install script, then:
 
@@ -181,6 +176,13 @@ agent:
   custom:
     base_url: https://openrouter.ai/api/v1
     model: null
+```
+
+For repeatable evaluations, keep a separate run-config YAML for each agent type, such as `config/langgraph.yaml`, `config/codex.yaml`, or `config/claude.yaml`, and select it with `--run-config`.
+
+```shell
+uv run nika benchmark run --release 0.2.0 --split test \
+  --run-config config/codex.yaml --result_dir results/codex
 ```
 
 ## 🚀 Quick start
