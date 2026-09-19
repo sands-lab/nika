@@ -1,22 +1,23 @@
-"""Single-case mock benchmark startup smoke."""
+"""Single-case benchmark smoke through the installed user CLI."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+import os
+import subprocess
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from nika.workflows.benchmark.release import (
-    JOB_FILENAME,
-    RUN_CONFIG_FILENAME,
-    freeze_release,
-    load_run_config,
+from agent.protocols import DIAGNOSIS, SUBMISSION
+from nika.utils.session_store import SessionStore
+from nika.workflows.benchmark.trials import (
+    case_key_for_row,
+    is_valid_trial,
+    trial_dir,
+    trial_dirname,
 )
-from nika.workflows.benchmark.run import run_benchmark_from_release
-from nika.workflows.benchmark.trials import case_key_for_row, is_valid_trial, trial_dir
+from nika.workflows.session.close import close_session
 from tests.benchmark.trial_helpers import ROW_A, mini_cases_yaml
 from tests.support.prerequisites import docker_available
 
@@ -25,47 +26,89 @@ pytestmark = [
     pytest.mark.skipif(not docker_available(), reason="Docker not available"),
 ]
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 def test_mini_benchmark_startup_smoke(tmp_path: Path) -> None:
-    """One dc_clos/link_down case × 1 mock trial through release run."""
-    source = mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
-    release = freeze_release(
-        version="ci-smoke-release",
-        source_cases=source,
-        out_dir=tmp_path / "releases" / "ci-smoke-release",
-    )
-    release = replace(release, defaults={**release.defaults, "n_trials": 1})
-    assert release.case_count == 1
-    assert release.n_trials == 1
-
+    """Run the documented YAML benchmark path and require a successful trial."""
+    cases_path = mini_cases_yaml(tmp_path / "cases.yaml", rows=[ROW_A])
     result_dir = tmp_path / "ci-smoke-run"
-    runs_dir = tmp_path / "benchmark_runs"
+    subprocess_tmp = tmp_path / "tmp"
+    subprocess_tmp.mkdir()
+    key = case_key_for_row(ROW_A)
+    expected_session_id = trial_dirname(key, 1)
+    store = SessionStore()
+    running_before = {str(row["session_id"]) for row in store.list_running_sessions()}
 
-    with patch(
-        "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
-        runs_dir,
-    ):
-        run_benchmark_from_release(
-            release_ref="ci-smoke-release",
-            split="dev",
-            agent_type="mock",
-            llm_provider=None,
-            model="mock-v1",
-            max_steps=20,
-            result_dir=str(result_dir),
-            case_timeout=0,
-            check_images=False,
-            release=release,
+    try:
+        proc = subprocess.run(
+            [
+                "uv",
+                "run",
+                "nika",
+                "benchmark",
+                "run",
+                "--config",
+                str(cases_path),
+                "--agent",
+                "mock",
+                "--model",
+                "mock-v1",
+                "--max-steps",
+                "20",
+                "--batch-size",
+                "1",
+                "--case-timeout",
+                "300",
+                "--abort-on-error",
+                "--result_dir",
+                str(result_dir),
+            ],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            check=False,
+            env={**os.environ, "TMPDIR": str(subprocess_tmp)},
+            text=True,
+            timeout=360,
         )
+        output = proc.stdout + proc.stderr
+        assert proc.returncode == 0, output
+        assert "benchmark_done" in output
+    finally:
+        for row in store.list_running_sessions():
+            session_id = str(row["session_id"])
+            session_dir = Path(str(row.get("session_dir") or ""))
+            if session_id not in running_before and session_dir.is_relative_to(
+                result_dir
+            ):
+                close_session(session_id=session_id)
 
-    job = load_run_config(result_dir)
-    assert job is not None
-    assert (result_dir / RUN_CONFIG_FILENAME).is_file()
-    assert (result_dir / JOB_FILENAME).is_file()
-
-    key = case_key_for_row(release.cases[0])
     path = trial_dir(result_dir, key, 1)
     assert is_valid_trial(path)
     trial_meta = json.loads((path / "run.json").read_text(encoding="utf-8"))
     assert trial_meta["status"] == "finished"
-    assert trial_meta["outcome"] in {"success", "agent_failed"}
+    assert trial_meta["outcome"] == "success"
+    assert trial_meta["session_id"] == expected_session_id
+
+    for name in (
+        "ground_truth.json",
+        "messages.jsonl",
+        "submission.json",
+        "eval_metrics.json",
+    ):
+        assert (path / name).is_file(), f"missing benchmark artifact: {name}"
+
+    messages = [
+        json.loads(line)
+        for line in (path / "messages.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert {entry["phase"] for entry in messages} >= {DIAGNOSIS, SUBMISSION}
+
+    metrics = json.loads((path / "eval_metrics.json").read_text(encoding="utf-8"))
+    assert metrics["detection_score"] == 1.0
+    assert metrics["rca_accuracy"] == 1.0
+    assert metrics["tool_calls"] > 0
+
+    with pytest.raises(FileNotFoundError):
+        store.get_session(expected_session_id)

@@ -73,7 +73,7 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (incl. offline inject/submit contracts); dual-arch `nika/*` images; Kathara light startups; curated probes (`dc_clos` failure + pipeline + benchmark; clab `min3clos` startup/failure) |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code and benchmark paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; user CLI benchmark smoke; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
 | [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
 
 PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).

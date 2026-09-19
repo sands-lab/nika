@@ -6,16 +6,26 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "benchmark/**"
+      - "config/**"
+      - "scripts/**"
+      - "install.sh"
+      - ".python-version"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "src/**"
       - "tests/**"
+      - "benchmark/**"
+      - "config/**"
+      - "scripts/**"
+      - "install.sh"
+      - ".python-version"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 concurrency:
@@ -320,3 +330,32 @@ jobs:
         run: uv sync --extra labs --extra containerlab --group dev
       - name: min3clos light startup
         run: uv run pytest tests/ci/test_clab_startup.py -q
+
+  clab-pipeline:
+    name: pipeline containerlab min3clos (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install containerlab
+        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+      - name: Install gnmic
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install (labs + containerlab)
+        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Containerlab mock-agent pipeline
+        run: uv run pytest tests/nika/workflows/integration/test_pipeline_clab.py -q
