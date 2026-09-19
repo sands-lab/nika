@@ -42,10 +42,10 @@ env:
 # - Full evaluate_scenario and broad failure inject live in nightly.yml.
 
 jobs:
-  install:
-    name: one-shot install (${{ matrix.os }})
+  install-benchmark-e2e:
+    name: install to benchmark e2e (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +64,10 @@ jobs:
           gnmic version
           cmp --silent .env .env.example
           cmp --silent config/nika.yaml config/nika.example.yaml
+      - name: Run installed benchmark E2E
+        run: |
+          export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
+          uv run pytest tests/ci/test_benchmark_startup.py -q
 
   unit-contract:
     name: unit+contract
@@ -299,31 +303,6 @@ jobs:
         run: uv sync --extra labs --group dev
       - name: Mock-agent pipeline smoke
         run: uv run pytest tests/ci/test_pipeline_smoke.py -q
-
-  benchmark-startup:
-    name: benchmark startup (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
-    steps:
-      - uses: actions/checkout@v5
-      - name: Enable amd64 binfmt (ONOS foreign stage)
-        if: matrix.os == 'ubuntu-24.04-arm'
-        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
-      - uses: astral-sh/setup-uv@v10.1.0
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - uses: actions/setup-python@v6
-        with:
-          python-version-file: .python-version
-      - name: Install (labs)
-        run: uv sync --extra labs --group dev
-      - name: Mini mock benchmark startup
-        run: uv run pytest tests/ci/test_benchmark_startup.py -q
 
   clab-startup:
     name: clab min3clos (${{ matrix.os }})
