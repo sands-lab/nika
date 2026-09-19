@@ -10,9 +10,12 @@ uv run nika env list
 
 ## Backend requirements
 
-Kathará scenarios need Docker and the Kathará dependency group. Containerlab scenarios need Docker, `clab`, and the Containerlab dependency group.
+| Backend | Needs |
+| --- | --- |
+| Kathará | Docker, Kathará Python package (`uv sync --extra labs`) |
+| Containerlab | Docker, `clab`, and `gnmic` (SR Linux labs) |
 
-Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../../README.md#-installation) covers the full installation flow.
+Install with [`./scripts/install.sh`](../../scripts/install.sh). See the root [README](../../README.md#-installation).
 
 `min3clos` also calls `gnmic` and uses Nokia SR Linux and the multi-arch `wbitt/network-multitool` image. The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image; see [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
 
@@ -274,15 +277,11 @@ NIKA imports SNDlib XML through a backend-neutral topology model. It converts ea
 
 Each vendored SNDlib graph is a separate scenario ID (`isp_abilene`, `isp_france`, …). Topology identity is the scenario name. Relative size `s` / `m` / `l` is fixed metadata for benchmark sampling (by node-count tier), not a CLI flag.
 
-```text
-pc_A -- router_A ===== router_B -- pc_B
-           \            /
-            === router_C === router_D -- pc_D
-                  |
-                 pc_C
+Abilene is one example. The map shows its 12 routers and 15 links; NIKA also attaches a `pc_<router>` traffic host to each router.
 
-Each ===== link comes from the selected SNDlib graph.
-```
+<img src="../../assets/images/abilene-sndlib-topology.svg" alt="Abilene SNDlib backbone with 12 routers and 15 links across the United States" width="800">
+
+Map: [TopoHub's Abilene topology](https://www.topohub.org/?topology=sndlib%2Fabilene), based on [SNDlib](https://sndlib.put.poznan.pl/networks.overview.action). © Piotr Jurkiewicz; [MIT license](../../assets/images/abilene-sndlib-topology.LICENSE). The topology matches the vendored [`abilene/network.xml`](../../src/nika/net_env/isp/sndlib/abilene/network.xml).
 
 ```shell
 # Default: Kathara, IS-IS, constant metric 10, no BGP

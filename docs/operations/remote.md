@@ -8,17 +8,15 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 
 | Side | Install | Responsibility |
 |------|---------|----------------|
-| **Local (agent host)** | `uv sync` (+ sdk/sade as needed), Docker Sandboxes/`sbx` for non-BYO agents | CLI entrypoint, agent process, canonical `results/` |
-| **Remote (lab host)** | `uv sync --extra labs` (or `kathara` / `containerlab`), Docker, Kathara/clab | `nika remote serve`, labs, MCP gateway, runtime state |
+| **Local (agent host)** | `uv sync` (+ sdk/sade as needed); optional [`sbx`](agent-sandbox.md) | CLI entrypoint, agent process, canonical `results/` |
+| **Remote (lab host)** | `./scripts/install.sh` | `nika remote serve`, labs, MCP gateway, runtime state |
 
 ## Set up the remote lab host
 
 ```shell
-git clone https://github.com/sands-lab/nika
+git clone https://github.com/sands-lab/nika.git
 cd nika
-uv sync --extra labs
-source .venv/bin/activate
-
+./scripts/install.sh
 nika remote serve --host 0.0.0.0 --port 8700
 ```
 
@@ -28,6 +26,15 @@ Ensure the local machine can reach:
 2. Ephemeral MCP gateway ports opened by the daemon for each agent run (firewall must allow them from the agent host)
 
 ## Set up the local agent host
+
+```shell
+git clone https://github.com/sands-lab/nika.git
+cd nika
+uv sync
+# optional: uv sync --extra sdk   # or --extra sade
+```
+
+For sandboxed agents, install [`sbx`](agent-sandbox.md). Not required for `byo.*`.
 
 In `config/nika.yaml`:
 

@@ -1,6 +1,6 @@
 # NIKA documentation
 
-Start with the root [README](../README.md) to install NIKA and run one incident. Then choose the page that matches your task.
+Start with the root [README](../README.md) to install NIKA and run one incident. Use the references below to choose a network, inspect available agent tools, or run a benchmark.
 
 ## Start and operate a lab
 
@@ -8,7 +8,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | --- | --- | --- |
 | Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](operations/configuration.md) | Reference |
 | Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
-| Select a scenario, backend, scale, or prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
+| Compare network types, scenarios, backends, and prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
 | Run a supported agent in a Docker Sandbox microVM | [Docker Sandbox execution](operations/agent-sandbox.md) | How-to |
@@ -19,7 +19,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | --- | --- | --- |
 | Compare registered agents, providers, and execution modes | [Agent implementation reference](agents/agent-implementations.md) | Reference |
 | Implement and register a `TroubleshootingAgent` | [Custom agent integration](agents/custom-agents.md) | How-to |
-| See which MCP servers a session mounts and how to use packet capture | [MCP servers](agents/mcp-servers.md) | Reference |
+| Find Pingmesh, INT, packet capture, and other agent tools | [MCP servers](agents/mcp-servers.md) | Reference |
 | Add reusable instructions for Claude or Codex agents | [Configure agent skills](agents/agent-skills.md) | How-to |
 | Configure a community-maintained agent | [Community agent references](agents/community/README.md) | Reference |
 

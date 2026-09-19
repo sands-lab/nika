@@ -93,6 +93,19 @@ def _no_normal_or_stp(runtime: LabRuntime, model: ClosFabricModel) -> bool:
     return True
 
 
+def _same_rack_ping(runtime: LabRuntime, model: ClosFabricModel) -> bool:
+    """Ping a same-rack client→web pair (requires local ARP flood rules)."""
+    webs = model.web_endpoints()
+    clients = model.client_endpoints()
+    if not webs or not clients:
+        return False
+    web = webs[0]
+    client = next((c for c in clients if c.leaf_id == web.leaf_id), None)
+    if client is None:
+        return False
+    return ping_ok(runtime, client.name, web.ip)
+
+
 def _sparse_cross_rack_ping(runtime: LabRuntime, model: ClosFabricModel) -> bool:
     """Ping a few representative cross-rack destinations (not full mesh)."""
     clients = model.client_endpoints() or model.endpoints
@@ -139,6 +152,9 @@ def verify_sdn_l3_clos_lab_startup(
         ),
         "ovs_switches_ready": _ovs_ready(runtime, model.spines[:1] + model.leaves[:2]),
         "of_sessions": _of_sessions_ok(runtime, model),
+        # Default light validation must still catch a broken healthy baseline.
+        "same_rack_ping": _same_rack_ping(runtime, model),
+        "cross_rack_ping": _sparse_cross_rack_ping(runtime, model),
     }
     return build_lab_verify_result(
         scenario_name=scenario_name,
@@ -176,6 +192,7 @@ def verify_sdn_l3_clos_lab(
         "controller_dataplane_consistent": _controller_dataplane_consistent(
             runtime, model
         ),
+        "same_rack_ping": _same_rack_ping(runtime, model),
         "cross_rack_ping": _sparse_cross_rack_ping(runtime, model),
         "cross_rack_http": _sparse_cross_rack_http(runtime, model),
     }
