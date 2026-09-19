@@ -154,13 +154,26 @@ jobs:
         run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q
 
   failure-e2e:
-    name: failure artifact e2e (${{ matrix.os }})
+    name: failure artifact e2e ${{ matrix.shard.name }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
+        shard:
+          - name: baseline
+            select: "not link_flap"
+          - name: routing-flap
+            select: >-
+              link_flap and (simple_bgp or dc_clos or campus_lan or
+              enterprise_branch or isp_)
+          - name: programmable-flap
+            select: >-
+              link_flap and (p4_dc_fabric or p4_dc_gateway or sdn_l3_clos)
+          - name: platform-flap
+            select: "link_flap and (k8s_lab or min3clos)"
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
@@ -186,8 +199,12 @@ jobs:
           python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --extra labs --group dev
-      - name: Failure inject + artifact verify
-        run: uv run pytest tests/nika/problems/test_failure_e2e.py -q
+      - name: Failure inject + artifact verify (${{ matrix.shard.name }})
+        env:
+          PYTEST_SELECT: ${{ matrix.shard.select }}
+        run: >-
+          uv run pytest tests/nika/problems/test_failure_e2e.py
+          -q -k "$PYTEST_SELECT"
 
   isp-integration:
     name: ISP integration (${{ matrix.os }})
