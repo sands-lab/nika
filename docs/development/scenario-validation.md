@@ -214,7 +214,7 @@ Each `isp_<topology>` ID deploys one SNDlib graph with IS-IS or OSPF, optional B
 Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run.
 
 ```shell
-uv sync --extra kathara --extra batfish
+uv sync --extra batfish
 uv run nika env run isp_abilene --igp ospf --static-validation
 ```
 

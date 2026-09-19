@@ -12,7 +12,7 @@ uv run nika env list
 
 | Backend | Needs |
 | --- | --- |
-| Kathará | Docker, Kathará Python package (`uv sync --extra labs`) |
+| Kathará | Docker, Kathará Python package (`uv sync`) |
 | Containerlab | Docker, `clab`, and `gnmic` (SR Linux labs) |
 
 Install with [`./scripts/install.sh`](../../scripts/install.sh). See the root [README](../../README.md#-installation).

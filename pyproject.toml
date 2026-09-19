@@ -33,12 +33,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Local Kathara labs (also covers Kubernetes scenarios under net_env/kathara/kubernetes).
-kathara = ["kathara", "kubernetes>=31.0.0", "docker"]
-# Containerlab labs (requires the external `clab` binary; SRL scenarios also need `gnmic`).
-containerlab = ["docker"]
-# Both lab backends.
-labs = ["kathara", "kubernetes>=31.0.0", "docker"]
 # SADE community agent (src/agent/community/sade) drives Claude Code via the SDK.
 sade = ["claude-agent-sdk"]
 # SDK agents (src/agent/sdk/claude_sdk, src/agent/sdk/codex_sdk).
@@ -63,6 +57,10 @@ include = ["nika*", "agent*", "traffic*"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]
+# Both lab backends, installed by default (see `tool.uv.default-groups`). Kathara also
+# covers the Kubernetes scenarios. Containerlab needs the external `clab` binary, plus
+# `gnmic` for SR Linux. Agent-only hosts skip this group with `uv sync --no-group labs`.
+labs = ["kathara", "kubernetes>=31.0.0", "docker"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
@@ -84,3 +82,4 @@ filterwarnings = [
 
 [tool.uv]
 prerelease = "allow"
+default-groups = ["dev", "labs"]
