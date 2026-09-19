@@ -12,9 +12,10 @@ import shutil
 import pytest
 
 from nika.mcp.session_context import SESSION_ID_ENV
+from nika.utils.session_id import resolve_session_tag
 from nika.workflows.env.start import start_net_env
 from nika.workflows.session.close import close_session
-from nika.utils.session_id import resolve_session_tag
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.failure_contract import (
     inject_and_assert_ground_truth,
     resolve_inject_params,
@@ -33,6 +34,7 @@ LINK_PARAMS = {"host_name": HOST, "intf_name": INTF}
 SIMPLE_BGP_FAILURES = (
     "link_down",
     "link_flap",
+    "link_detach",
     "link_capacity_bottleneck",
     "host_missing_ip",
     "host_incorrect_gateway",
@@ -42,6 +44,7 @@ SIMPLE_BGP_FAILURES = (
 
 CAMPUS_LAN_FAILURES = (
     "link_flap",
+    "link_packet_corruption",
     "link_capacity_bottleneck",
     "host_incorrect_dns",
     "ospf_neighbor_missing",
@@ -87,9 +90,7 @@ def _kathara_cases():
             }
         elif problem == "host_missing_ip":
             params = {"host_name": HOST, "intf_name": INTF}
-        elif problem == "host_incorrect_gateway":
-            params = {"host_name": HOST}
-        elif problem == "host_incorrect_ip":
+        elif problem == "host_incorrect_gateway" or problem == "host_incorrect_ip":
             params = {"host_name": HOST}
         else:
             params = resolve_inject_params("simple_bgp", problem)
@@ -151,6 +152,11 @@ def test_kathara_failure_inject_contract(
 ) -> None:
     if scenario == "enterprise_branch" and not linux_vrf_available():
         pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
+    if artifact_verify_only() and problem in {
+        "link_detach",
+        "link_packet_corruption",
+    }:
+        pytest.skip(f"{problem} is unreliable on shared artifact-depth runners")
     topo_size = None
     if "-s" in env_run_args:
         topo_size = env_run_args[env_run_args.index("-s") + 1]

@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import (
     FailureDomain,
-    build_verify_result,
     ProblemBase,
+    build_verify_result,
 )
 from nika.problems.rca.inventory import (
     interface_on,
@@ -14,8 +14,8 @@ from nika.problems.rca.inventory import (
     parse_endpoint,
 )
 from nika.runtime.base import RuntimeCapabilityError
-from nika.service.containerlab.host_tc import HostTcController
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.service.containerlab.host_tc import HostTcController
 from nika.utils.logger import system_logger
 
 
@@ -497,9 +497,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 controller = HostTcController(self.runtime)
                 controller.peer_name(params.host_name, intf)
             except RuntimeCapabilityError:
-                verified = self.runtime.tc_qdisc_contains(
-                    params.host_name, intf, "tbf"
-                )
+                verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
@@ -660,7 +658,7 @@ class LinkDetach(ProblemBase):
         )
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
-        """Verify the interface is gone from the node namespace (artifact gate)."""
+        """Verify the interface is gone and the default probe path is unreachable."""
         match self.lab_backend:
             case "kathara":
                 return self._verify_link_detach_kathara(params)
@@ -710,10 +708,10 @@ class LinkDetach(ProblemBase):
     def _verify_link_detach(self, params: LinkDetachParams, intf_name: str) -> dict:
         interface_gone = not self.runtime.interface_exists(params.host_name, intf_name)
         symptom_ok, symptom_details = self._light_symptom_unreachable(params)
-        # Production / inject gate is artifact-only; dataplane symptom is advisory.
+        verified = interface_gone and symptom_ok
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=interface_gone,
+            verified=verified,
             details={
                 "artifact": {
                     "verified": interface_gone,

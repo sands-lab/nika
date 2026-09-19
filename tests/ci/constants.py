@@ -25,13 +25,6 @@ CI_KATHARA_STARTUP_SCENARIOS: tuple[str, ...] = (
     "p4_dc_gateway",
 )
 
-# Nightly curated scenario shards (artifact/light by default on GHA).
-CI_KATHARA_VERIFY_SCENARIOS: tuple[str, ...] = (
-    "dc_clos",
-    "campus_lan",
-    "sdn_l3_clos",
-)
-
 # PR-curated failure-inject smoke: one Kathara + one Containerlab path.
 # Wider inject coverage lives in tests/nika/problems/test_failure_inject_contract.py (Nightly).
 CI_FAILURE_INJECT_CASES: tuple[tuple[str, str, str, str | None, str], ...] = (
