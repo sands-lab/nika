@@ -53,7 +53,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Kathara scenario light startup (artifact)
         run: >
           uv run pytest
@@ -81,7 +81,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Kathara failure inject contract
         run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_kathara_failure_inject_contract -q
 
@@ -117,8 +117,8 @@ jobs:
           exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
-      - name: Install (labs + containerlab)
-        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
       - name: Clab failure inject contract
         run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q
 
@@ -167,7 +167,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Failure inject + artifact verify (${{ matrix.shard.name }})
         env:
           PYTEST_SELECT: ${{ matrix.shard.select }}
@@ -218,8 +218,8 @@ jobs:
           exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
-      - name: Install (labs + containerlab)
-        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
       - name: ISP artifact matrix
         run: uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 
@@ -237,7 +237,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: k8s_lab + llmd_lab light startup (serial)
         run: >
           uv run pytest

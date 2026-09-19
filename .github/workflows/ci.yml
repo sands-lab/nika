@@ -83,7 +83,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (dev + labs import deps)
-        run: uv sync --extra labs --extra sade --extra sdk --group dev
+        run: uv sync --group labs --extra sade --extra sdk --group dev
       - name: Run unit and contract tests
         # Offline contracts under problems/service/net_env are included;
         # Docker E2E modules stay ignored.
@@ -177,7 +177,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Build and probe image
         env:
           NIKA_CI_IMAGE: ${{ matrix.image }}
@@ -211,7 +211,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Light scenario startup
         env:
           NIKA_CI_SCENARIO: ${{ matrix.scenario }}
@@ -240,7 +240,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Failure inject smoke
         env:
           NIKA_CI_FAILURE_CASE: ${{ matrix.case }}
@@ -272,8 +272,8 @@ jobs:
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
-      - name: Install (labs + containerlab)
-        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
       - name: Clab failure inject smoke
         env:
           NIKA_CI_FAILURE_CASE: ${{ matrix.case }}
@@ -300,7 +300,7 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install (labs)
-        run: uv sync --extra labs --group dev
+        run: uv sync --group labs --group dev
       - name: Mock-agent pipeline smoke
         run: uv run pytest tests/ci/test_pipeline_smoke.py -q
 
@@ -328,8 +328,8 @@ jobs:
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
-      - name: Install (labs + containerlab)
-        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
       - name: min3clos light startup
         run: uv run pytest tests/ci/test_clab_startup.py -q
 
@@ -357,7 +357,7 @@ jobs:
         run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
-      - name: Install (labs + containerlab)
-        run: uv sync --extra labs --extra containerlab --group dev
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
       - name: Containerlab mock-agent pipeline
         run: uv run pytest tests/nika/workflows/integration/test_pipeline_clab.py -q
