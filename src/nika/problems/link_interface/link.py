@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import (
     FailureDomain,
-    build_verify_result,
     ProblemBase,
+    build_verify_result,
 )
 from nika.problems.rca.inventory import (
     interface_on,
@@ -14,8 +14,8 @@ from nika.problems.rca.inventory import (
     parse_endpoint,
 )
 from nika.runtime.base import RuntimeCapabilityError
-from nika.service.containerlab.host_tc import HostTcController
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.service.containerlab.host_tc import HostTcController
 from nika.utils.logger import system_logger
 
 
@@ -497,9 +497,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 controller = HostTcController(self.runtime)
                 controller.peer_name(params.host_name, intf)
             except RuntimeCapabilityError:
-                verified = self.runtime.tc_qdisc_contains(
-                    params.host_name, intf, "tbf"
-                )
+                verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
@@ -644,6 +642,17 @@ class LinkDetach(ProblemBase):
         self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
         self.runtime.exec(host, f"ip netns add {netns}")
         self.runtime.exec(host, f"ip link set dev {intf_name} netns {netns}")
+        # Brief settle: some runners still list the iface until the move commits.
+        import time
+
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            out = self.runtime.exec(
+                host, f"ip link show {intf_name} 2>&1 || true", timeout=10
+            )
+            if intf_name not in (out or "") or "not found" in (out or "").lower():
+                break
+            time.sleep(0.2)
         system_logger.info(
             f"Injected link detach on {host}:{intf_name} (moved to netns {netns})"
         )

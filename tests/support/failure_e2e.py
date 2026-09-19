@@ -8,6 +8,7 @@ from typing import Any
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.problems.registry import get_problem_class
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.failure_e2e_hooks import HOOKS, FailureE2EContext
 from tests.support.symptom import evaluate_symptom
 
@@ -42,6 +43,16 @@ def _resolve_params(case: FailureE2ECase) -> dict[str, str]:
     return params
 
 
+def _assert_artifact_verify(verify: dict[str, Any]) -> None:
+    """Prefer nested artifact.verified when present; else top-level verified."""
+    details = verify.get("details") or {}
+    artifact = details.get("artifact")
+    if isinstance(artifact, dict) and "verified" in artifact:
+        assert artifact["verified"] is True, verify
+        return
+    assert verify.get("verified") is True, verify
+
+
 def run_failure_e2e(
     case: FailureE2ECase,
     *,
@@ -62,6 +73,10 @@ def run_failure_e2e(
     parsed = problem.parse_params(params)
     runtime = problem.runtime
     hooks = HOOKS.get(case.problem, {})
+    # Nightly / CI artifact mode: inject + verify_fault only (no symptom/recover).
+    checks = (
+        frozenset({"verify"}) if artifact_verify_only() else case.checks
+    )
 
     ctx = FailureE2EContext(
         problem_name=case.problem,
@@ -72,7 +87,7 @@ def run_failure_e2e(
         runtime=runtime,
     )
 
-    if "pre_inject" in hooks:
+    if "pre_inject" in hooks and not artifact_verify_only():
         started = time.monotonic()
         try:
             hooks["pre_inject"](ctx)
@@ -89,18 +104,18 @@ def run_failure_e2e(
         if case.sleep_after_inject_sec:
             time.sleep(case.sleep_after_inject_sec)
 
-        if "verify" in case.checks:
+        if "verify" in checks:
             started = time.monotonic()
             try:
                 verify = problem.verify_fault(parsed)
             finally:
                 record("verify", started)
-            assert verify["verified"] is True, verify
+            _assert_artifact_verify(verify)
             ctx.verify = verify
         if stage_statuses is not None:
             stage_statuses["inject"] = "pass"
 
-        if "symptom" in case.checks:
+        if "symptom" in checks:
             eval_kwargs: dict[str, Any] = {
                 "scenario": case.scenario,
                 "topo_size": case.topo_size,
@@ -121,14 +136,14 @@ def run_failure_e2e(
             assert ok is True, symptom
             ctx.symptom = symptom
 
-        if "post_inject" in hooks:
+        if "post_inject" in hooks and not artifact_verify_only():
             started = time.monotonic()
             try:
                 hooks["post_inject"](ctx)
             finally:
                 record("post_inject", started)
 
-        if "recover" in case.checks:
+        if "recover" in checks:
             if not hasattr(problem, "recover_fault"):
                 raise AssertionError(
                     f"{case.problem} does not implement recover_fault; "

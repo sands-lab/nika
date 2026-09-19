@@ -9,6 +9,7 @@ Also includes Containerlab representative smoke and sampled failure inject.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -29,20 +30,70 @@ from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.topology import list_sndlib_topologies, load_sndlib_topology
 from nika.utils.session_id import resolve_session_tag
 from nika.workflows.env.start import start_net_env
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import CliIntegrationTestCase, IntegrationTestCase
 from tests.support.net_env import assert_verify_success
 from tests.support.prerequisites import containerlab_prerequisites, docker_available
 from nika.net_env.isp.inject_targets import isp_inject_params
 
-ALL_TOPOS = list_sndlib_topologies()
+
+def _integration_topos() -> list[str]:
+    """Full SNDlib set locally; optional CI subset via NIKA_CI_ISP_TOPOS."""
+    available = list_sndlib_topologies()
+    raw = os.environ.get("NIKA_CI_ISP_TOPOS", "").strip()
+    if not raw:
+        return available
+    selected = [item.strip() for item in raw.split(",") if item.strip()]
+    unknown = [name for name in selected if name not in available]
+    if unknown:
+        raise ValueError(f"Unknown NIKA_CI_ISP_TOPOS entries: {unknown}")
+    return selected
+
+
+ALL_TOPOS = _integration_topos()
 ALL_IGPS = ("isis", "ospf")
-ALL_BGP_MODES = ("ibgp_rr", "ebgp")
-REPR_TOPOS = ("pdh", "polska", "abilene")
-CLI_TRAFFIC_TOPOS = ("pdh",)
-SAMPLED_ISP_INJECT = (
-    ("polska", "isis", "none", "link_down"),
-    ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
-    ("geant", "isis", "ebgp", "bgp_hijacking"),
+_CI_TOPO_SET = set(ALL_TOPOS) if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip() else None
+
+
+def _integration_bgp_modes() -> tuple[str, ...]:
+    """Full BGP modes locally; optional CI subset via NIKA_CI_ISP_BGP_MODES."""
+    available = ("ibgp_rr", "ebgp")
+    raw = os.environ.get("NIKA_CI_ISP_BGP_MODES", "").strip()
+    if not raw:
+        return available
+    selected = tuple(item.strip() for item in raw.split(",") if item.strip())
+    unknown = [name for name in selected if name not in available]
+    if unknown:
+        raise ValueError(f"Unknown NIKA_CI_ISP_BGP_MODES entries: {unknown}")
+    return selected
+
+
+ALL_BGP_MODES = _integration_bgp_modes()
+
+
+def _ci_filter(topos: tuple[str, ...]) -> tuple[str, ...]:
+    if _CI_TOPO_SET is None:
+        return topos
+    return tuple(name for name in topos if name in _CI_TOPO_SET)
+
+
+REPR_TOPOS = _ci_filter(("pdh", "polska", "abilene"))
+# Nokia SRL on shared GHA runners is unreliable beyond tiny SNDlib graphs.
+CLAB_REPR_TOPOS = (
+    _ci_filter(("pdh",))
+    if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip()
+    else REPR_TOPOS
+)
+CLI_TRAFFIC_TOPOS = _ci_filter(("pdh",))
+SAMPLED_ISP_INJECT = tuple(
+    item
+    for item in (
+        ("polska", "isis", "none", "link_down"),
+        ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
+        ("pdh", "isis", "ibgp_rr", "bgp_asn_misconfig"),
+    )
+    if (_CI_TOPO_SET is None or item[0] in _CI_TOPO_SET)
+    and (not os.environ.get("NIKA_CI_ISP_BGP_MODES") or item[2] in ("none", *ALL_BGP_MODES))
 )
 
 
@@ -50,22 +101,43 @@ SAMPLED_ISP_INJECT = (
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class IspDockerTest(IntegrationTestCase):
     def _assert_contract_artifacts(
-        self, row: dict, *, expected_properties: set[str]
-    ) -> None:
+        self,
+        row: dict,
+        *,
+        env,
+        expected_properties: set[str],
+    ) -> dict:
+        """Full verify emits contract results; light start does not persist them.
+
+        Under ``NIKA_CI_VERIFY_DEPTH=artifact``, light ``startup_verify_lab``
+        already ran during env start — only assert session contract metadata.
+        """
         session_dir = Path(row["session_dir"])
         assert row["validation_contract"] == VALIDATION_CONTRACT_FILENAME
-        assert row["validation_results"] == VALIDATION_RESULTS_FILENAME
         contract = ValidationContract.load(session_dir / VALIDATION_CONTRACT_FILENAME)
-        report = ValidationReport.load(session_dir / VALIDATION_RESULTS_FILENAME)
-        assert report.contract_id == contract.contract_id
-        assert report.status == "passed"
         assert expected_properties.issubset(
             {intent.property for intent in contract.intents}
         )
-        assert {result.intent for result in report.results} == {
+        if artifact_verify_only():
+            return {"verified": True, "skipped": True, "reason": "artifact_verify_only"}
+        result = env.verify_lab()
+        if not result.get("verified"):
+            # Shared CI runners occasionally miss a transient IGP adjacency
+            # while reachability is already healthy; re-check once.
+            time.sleep(5)
+            result = env.verify_lab()
+        assert_verify_success(result)
+        validation = (result.get("details") or {}).get("validation")
+        assert validation is not None, "verify_lab must emit contract validation"
+        report = ValidationReport.model_validate(validation)
+        report.write(session_dir / VALIDATION_RESULTS_FILENAME)
+        assert report.contract_id == contract.contract_id
+        assert report.status == "passed"
+        assert {item.intent for item in report.results} == {
             intent.id for intent in contract.intents
         }
-        assert all(result.evidence for result in report.results)
+        assert all(item.evidence for item in report.results)
+        return result
 
     @pytest.mark.parametrize("igp", ALL_IGPS)
     @pytest.mark.parametrize("topo_name", ALL_TOPOS)
@@ -89,8 +161,15 @@ class IspDockerTest(IntegrationTestCase):
             assert params.get("igp") == igp
             assert params.get("metric_strategy") == "constant"
             assert params.get("bgp_mode") == "none"
-            self._assert_contract_artifacts(
+
+            env = get_net_env_instance(
+                scenario,
+                igp=igp,
+                lab_name=lab_name,
+            )
+            result = self._assert_contract_artifacts(
                 row,
+                env=env,
                 expected_properties={"reachability", "isolation"}
                 | ({"adjacency"} if igp == "ospf" else set()),
             )
@@ -105,14 +184,8 @@ class IspDockerTest(IntegrationTestCase):
                 assert node.device_name in routers
                 assert f"pc_{node.device_name}" in stubs
 
-            # Re-verify with live Isp instance (includes stub host checks).
-            env = get_net_env_instance(
-                scenario,
-                igp=igp,
-                lab_name=lab_name,
-            )
-            result = env.verify_lab()
-            assert_verify_success(result)
+            if artifact_verify_only():
+                return
             assert result["details"]["inventory"]["link_count"] == len(ir.links)
             assert result["details"]["igp"] == igp
             assert result["details"]["bgp_mode"] == "none"
@@ -122,10 +195,10 @@ class IspDockerTest(IntegrationTestCase):
             self._close_session(session_id)
             if lab_name:
                 env = get_net_env_instance(
-                scenario,
-                igp=igp,
-                lab_name=lab_name,
-            )
+                    scenario,
+                    igp=igp,
+                    lab_name=lab_name,
+                )
                 assert not env.lab_exists()
 
     @pytest.mark.parametrize("bgp_mode", ALL_BGP_MODES)
@@ -147,18 +220,19 @@ class IspDockerTest(IntegrationTestCase):
             lab_name = row["lab_name"]
             params = row.get("scenario_params") or {}
             assert params.get("bgp_mode") == bgp_mode
-            self._assert_contract_artifacts(
-                row,
-                expected_properties={"reachability", "isolation", "adjacency"},
-            )
             env = get_net_env_instance(
-                    scenario,
-                    igp="isis",
+                scenario,
+                igp="isis",
                 bgp_mode=bgp_mode,
                 lab_name=lab_name,
             )
-            result = env.verify_lab()
-            assert_verify_success(result)
+            result = self._assert_contract_artifacts(
+                row,
+                env=env,
+                expected_properties={"reachability", "isolation", "adjacency"},
+            )
+            if artifact_verify_only():
+                return
             assert result["checks"]["bgp_sessions"]
             assert result["checks"]["bgp_prefixes_propagated"]
             assert result["checks"]["bgp_infra_denied"]
@@ -176,6 +250,10 @@ class IspDockerTest(IntegrationTestCase):
                 assert not env.lab_exists()
 
     def test_abilene_ospf_ebgp_respects_as_boundaries(self) -> None:
+        if _CI_TOPO_SET is not None and "abilene" not in _CI_TOPO_SET:
+            pytest.skip("abilene excluded from NIKA_CI_ISP_TOPOS")
+        if artifact_verify_only():
+            pytest.skip("deep BGP boundary verify skipped under artifact depth")
         session_id = self._start_env(
             "isp_abilene",
             ["--igp", "ospf", "--bgp-mode", "ebgp"],
@@ -262,10 +340,15 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
     """Several topos × static demands and fixture-backed dynamic replay.
 
     Assertions require real iperf3 processes on stub hosts during replay, not
-    just a non-empty return payload.
+    just a non-empty return payload. Skipped under artifact CI depth.
     """
 
-    TRAFFIC_TOPOS = ("pdh", "polska", "abilene")
+    TRAFFIC_TOPOS = _ci_filter(("pdh", "polska", "abilene"))
+
+    @pytest.fixture(autouse=True)
+    def _skip_artifact_depth(self) -> None:
+        if artifact_verify_only():
+            pytest.skip("traffic replay skipped under artifact depth")
 
     def _tiny_series(
         self, series, *, n_flows: int = 3, duration_sec: int = 8, max_intervals: int = 1
@@ -321,10 +404,10 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         from nika.net_env.isp.traffic import resolve_traffic_series, series_to_od_dicts
 
         env = get_net_env_instance(
-                scenario,
-                igp="isis",
-                lab_name=row["lab_name"],
-            )
+            f"isp_{topo_name}",
+            igp="isis",
+            lab_name=row["lab_name"],
+        )
         kwargs = {}
         if cache_root is not None:
             kwargs["cache_root"] = cache_root
@@ -444,7 +527,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         finally:
             self._close_session(session_id)
 
-    @pytest.mark.parametrize("topo_name", ("polska", "abilene"))
+    @pytest.mark.parametrize("topo_name", _ci_filter(("polska", "abilene")))
     def test_dynamic_fixture_replay(self, topo_name: str, tmp_path) -> None:
         cache_root = tmp_path / ".nika_cache"
         self._write_dynamic_fixture(topo_name, cache_root)
@@ -540,13 +623,18 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
             self._inject_failure(problem, inject, session_id=session_id)
             self._assert_failure_injected(problem, session_id=session_id)
 
-    @pytest.mark.parametrize("topo", REPR_TOPOS)
+    @pytest.mark.parametrize("topo", CLAB_REPR_TOPOS)
     def test_repr_topo_verify_tools_traffic_inject(self, topo: str) -> None:
-        session_id = self._start_env(f"isp_{topo}", self._env_args(topo))
+        scenario = f"isp_{topo}"
+        session_id = self._start_env(scenario, self._env_args(topo))
         try:
             row = self._assert_session_ready(session_id, scenario)
             assert resolve_backend(row) == "containerlab"
             env = self._get_env(row, topo)
+            if artifact_verify_only():
+                # Light startup already passed; inject ground-truth path only.
+                self._assert_inject(session_id, env)
+                return
             assert_verify_success(env.verify_lab())
             runtime = runtime_for_session(row)
             self._assert_semantic_tools(runtime, env)

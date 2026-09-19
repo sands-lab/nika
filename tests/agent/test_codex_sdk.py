@@ -1,6 +1,5 @@
 from __future__ import annotations
 import pytest
-import unittest.mock
 from agent.sdk.codex_sdk.config import (
     codex_sdk_local_auth_available,
     validate_reasoning_effort,
@@ -20,8 +19,24 @@ class CodexSdkConfigTest:
         with pytest.raises(ValueError):
             validate_reasoning_effort("invalid")
 
-    def test_local_auth_detection(self) -> None:
-        with unittest.mock.patch("agent.sdk.codex_sdk.config.Path") as mock_path:
-            mock_home = mock_path.home.return_value
-            mock_home.__truediv__.return_value.is_file.return_value = True
-            assert codex_sdk_local_auth_available()
+    def test_local_auth_detection(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        monkeypatch.setattr(
+            "agent.sdk.codex_sdk.config.sbx_openai_credential_available",
+            lambda: False,
+            raising=False,
+        )
+        # Patch the credentials import path used inside the function.
+        monkeypatch.setattr(
+            "agent.sandbox.sbx.credentials.sbx_openai_credential_available",
+            lambda: False,
+            raising=False,
+        )
+        auth_file = tmp_path / ".codex" / "auth.json"
+        auth_file.parent.mkdir(parents=True)
+        auth_file.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(
+            "agent.sdk.codex_sdk.config.Path.home", lambda: tmp_path
+        )
+        assert codex_sdk_local_auth_available()

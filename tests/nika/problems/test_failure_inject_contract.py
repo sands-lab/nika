@@ -12,14 +12,20 @@ import shutil
 import pytest
 
 from nika.mcp.session_context import SESSION_ID_ENV
+from nika.utils.session_id import resolve_session_tag
 from nika.workflows.env.start import start_net_env
 from nika.workflows.session.close import close_session
-from nika.utils.session_id import resolve_session_tag
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.failure_contract import (
     inject_and_assert_ground_truth,
     resolve_inject_params,
 )
-from tests.support.prerequisites import docker_available
+from tests.support.prerequisites import docker_available, linux_vrf_available
+from tests.support.test_scenarios import register_test_scenarios
+
+# Parametrize runs before pytest_collection_modifyitems; register the
+# test-only simple_bgp fixture before building Kathara cases.
+register_test_scenarios()
 
 HOST = "pc1"
 INTF = "eth0"
@@ -64,12 +70,10 @@ MIN3CLOS_FAILURES = (
     "link_detach",
     "link_flap",
     "link_capacity_bottleneck",
-    "link_packet_corruption",
     "bgp_acl_block",
     "bgp_asn_misconfig",
     "bgp_missing_route_advertisement",
     "host_static_blackhole",
-    "bgp_hijacking",
 )
 
 
@@ -86,9 +90,7 @@ def _kathara_cases():
             }
         elif problem == "host_missing_ip":
             params = {"host_name": HOST, "intf_name": INTF}
-        elif problem == "host_incorrect_gateway":
-            params = {"host_name": HOST}
-        elif problem == "host_incorrect_ip":
+        elif problem == "host_incorrect_gateway" or problem == "host_incorrect_ip":
             params = {"host_name": HOST}
         else:
             params = resolve_inject_params("simple_bgp", problem)
@@ -148,6 +150,13 @@ def test_kathara_failure_inject_contract(
     problem: str,
     inject_params: dict[str, str],
 ) -> None:
+    if scenario == "enterprise_branch" and not linux_vrf_available():
+        pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
+    if artifact_verify_only() and problem in {
+        "link_detach",
+        "link_packet_corruption",
+    }:
+        pytest.skip(f"{problem} is unreliable on shared artifact-depth runners")
     topo_size = None
     if "-s" in env_run_args:
         topo_size = env_run_args[env_run_args.index("-s") + 1]

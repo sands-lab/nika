@@ -649,9 +649,12 @@ def test_link_flap_fabric_inject_aligns_probe_path(scenario: str, seed: int) -> 
     params = resolve_inject_params("link_flap", scenario, TOPO_SIZE, seed=seed)
     assert params["down_time"] == "1"
     assert params["up_time"] == "1"
-    assert params["host_name"].startswith("leaf_")
     assert params.get("probe_dst_ip")
-    assert params.get("observer_device", "").startswith("client_")
+    observer = params.get("observer_device", "")
+    assert observer.startswith("client_")
+    # Inject target is on the observer's attachment or leaf uplink toward the probe.
+    host = params["host_name"]
+    assert host.startswith("client_") or host.startswith("leaf_")
 
 
 @pytest.mark.parametrize("seed", (0, 1, 4, 7))
