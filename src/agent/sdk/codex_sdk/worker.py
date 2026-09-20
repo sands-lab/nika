@@ -162,17 +162,6 @@ class CodexSdkWorker:
                             tool_call_id=item_id,
                         ),
                     )
-                    self._log_codex_event(
-                        {
-                            "type": "item.started",
-                            "item": {
-                                "type": "mcp_tool_call",
-                                "server": item.server,
-                                "tool": item.tool,
-                                "arguments": item.arguments,
-                            },
-                        }
-                    )
             elif (
                 isinstance(payload, ItemCompletedNotification)
                 and payload.turn_id == turn_id
@@ -206,20 +195,6 @@ class CodexSdkWorker:
                                 "output_type": "tool_result",
                             },
                         )
-                    self._log_codex_event(
-                        {
-                            "type": "item.completed",
-                            "item": {
-                                "type": "mcp_tool_call",
-                                "server": item.server,
-                                "tool": item.tool,
-                                "status": getattr(
-                                    item.status, "value", str(item.status)
-                                ),
-                                "result": output,
-                            },
-                        }
-                    )
                 elif isinstance(item, AgentMessageThreadItem) and item.text:
                     agent_text.append(item.text)
                     self._log_codex_event(

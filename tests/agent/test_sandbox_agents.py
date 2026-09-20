@@ -7,7 +7,7 @@ from agent.protocols import DIAGNOSIS
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 from nika.utils.session_store import SessionStore
-from tests.agent._assertions import assert_phase_messages
+from tests.agent._assertions import assert_phase_messages, assert_no_codex_tool_item_mirrors
 from tests.agent.sandbox_support import (
     sandbox_anthropic_credential_available,
     sandbox_openai_credential_available,
@@ -129,6 +129,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             require_diagnosis_tools=True,
             require_submission_tools=False,
         )
+        assert_no_codex_tool_item_mirrors(messages)
         phases = {e["phase"] for e in messages}
         assert DIAGNOSIS in phases
 

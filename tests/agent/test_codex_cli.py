@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -185,6 +186,117 @@ class CodexWorkerConfigTest:
             for name in ("kathara_base_mcp_server", "task_mcp_server")
             if name in config
         } == expected_servers
+
+
+class CodexToolLoggingTest:
+    """Canonical messages.jsonl rows for Codex MCP tool calls."""
+
+    def test_mcp_tool_call_emits_tool_events_not_item_mirrors(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-log",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            stream_output=False,
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.started",
+                "item": {
+                    "type": "mcp_tool_call",
+                    "id": "call_1",
+                    "tool": "show_bgp_summary",
+                    "arguments": {"device": "router1"},
+                },
+            }
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "mcp_tool_call",
+                    "id": "call_1",
+                    "tool": "show_bgp_summary",
+                    "arguments": {"device": "router1"},
+                    "status": "completed",
+                    "result": {
+                        "content": [{"type": "text", "text": "neighbor down"}]
+                    },
+                },
+            }
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "BGP is down."},
+            }
+        )
+
+        path = tmp_path / "messages.jsonl"
+        rows = [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert [r["event"] for r in rows] == [
+            "tool_start",
+            "tool_end",
+            "item.completed",
+        ]
+        assert rows[0]["tool"]["name"] == "show_bgp_summary"
+        assert '"device": "router1"' in rows[0]["input"] or rows[0]["input"] == {
+            "device": "router1"
+        }
+        assert "neighbor down" in str(rows[1].get("output"))
+        assert rows[2]["codex_event"]["item"]["type"] == "agent_message"
+        # UTC-aware timestamps from MessageLogger
+        assert rows[0]["timestamp"].endswith("+00:00") or rows[0][
+            "timestamp"
+        ].endswith("Z")
+
+    def test_command_execution_emits_bash_tool_events(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-bash",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            stream_output=False,
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.started",
+                "item": {
+                    "type": "command_execution",
+                    "id": "item_2",
+                    "command": "/bin/bash -lc 'echo hi'",
+                    "status": "in_progress",
+                },
+            }
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "id": "item_2",
+                    "command": "/bin/bash -lc 'echo hi'",
+                    "aggregated_output": "hi\n",
+                    "exit_code": 0,
+                    "status": "completed",
+                },
+            }
+        )
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / "messages.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        assert [r["event"] for r in rows] == ["tool_start", "tool_end"]
+        assert rows[0]["tool"]["name"] == "bash"
+        assert "echo hi" in str(rows[0]["input"])
+        assert rows[1]["output"] == "hi\n"
 
 
 class CodexDisplayTest:

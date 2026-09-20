@@ -17,12 +17,16 @@ Bind a session directory (call once session_dir is known):
     bind_session_dir("/path/to/results/20260608-153412-ab3c1f")
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import threading
-from datetime import datetime
+import time
+from datetime import datetime, UTC
 from pathlib import Path
+from typing import Any
 
 _session_dir: str | None = None
 _session_events_path: str | None = None
@@ -38,11 +42,14 @@ class _JsonlHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         entry: dict = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
             "event": getattr(record, "event_type", "system"),
             "message": record.getMessage(),
         }
+        duration_ms = getattr(record, "duration_ms", None)
+        if duration_ms is not None:
+            entry["duration_ms"] = duration_ms
         extra = getattr(record, "data", None)
         if extra:
             entry["data"] = extra
@@ -106,18 +113,52 @@ def bind_session_dir(session_dir: str | Path) -> None:
         _attach_jsonl_handler(_session_events_path)
 
 
-def log_event(event_type: str, message: str, **data) -> None:
+def elapsed_ms(started: float) -> float:
+    """Milliseconds since ``time.perf_counter()`` value *started*."""
+    return round((time.perf_counter() - started) * 1000, 1)
+
+
+def _split_duration(data: dict[str, Any]) -> tuple[float | None, dict[str, Any]]:
+    if "duration_ms" not in data:
+        return None, data
+    payload = dict(data)
+    raw = payload.pop("duration_ms")
+    try:
+        duration = float(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        duration = None
+    return duration, payload
+
+
+def log_event(event_type: str, message: str, **data: Any) -> None:
     """Log a structured event with optional key/value metadata.
 
     Writes a structured JSON line to nika.jsonl when a session dir is bound.
+    Pass ``duration_ms`` for a top-level wall-clock field (audit / view).
 
     Example::
         log_event("env_start", "Lab deployed", scenario="dc_clos", session_id="...")
         log_error_event("failure_inject_error", "Inject failed", error="timeout")
     """
-    system_logger.info(message, extra={"event_type": event_type, "data": data or None})
+    duration_ms, payload = _split_duration(data)
+    system_logger.info(
+        message,
+        extra={
+            "event_type": event_type,
+            "data": payload or None,
+            "duration_ms": duration_ms,
+        },
+    )
 
 
-def log_error_event(event_type: str, message: str, **data) -> None:
+def log_error_event(event_type: str, message: str, **data: Any) -> None:
     """Log a structured ERROR-level event to nika.jsonl when a session dir is bound."""
-    system_logger.error(message, extra={"event_type": event_type, "data": data or None})
+    duration_ms, payload = _split_duration(data)
+    system_logger.error(
+        message,
+        extra={
+            "event_type": event_type,
+            "data": payload or None,
+            "duration_ms": duration_ms,
+        },
+    )

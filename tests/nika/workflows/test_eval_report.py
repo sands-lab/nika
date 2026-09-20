@@ -54,7 +54,7 @@ def _write_trial(
             "session_id": session_dir.name,
             "scenario_name": scenario,
             "scenario_topo_size": topo_size,
-            "problem_names": [] if healthy else [problem],
+            "problem_names": [HEALTHY_PROBLEM] if healthy else [problem],
             "agent_type": "byo.langgraph",
             "model": "test-model",
         },

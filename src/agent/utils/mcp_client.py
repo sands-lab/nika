@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 from agent.sandbox.config import (
@@ -14,6 +15,7 @@ from agent.sandbox.config import (
     ENV_GATEWAY_URL,
     ENV_SANDBOX_EXECUTION,
     ENV_SESSION_DIR,
+    SANDBOX_GATEWAY_HOST_BRIDGE,
 )
 from agent.sandbox.manifest import manifest_mcp_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
@@ -50,12 +52,38 @@ def load_session_mcp_config(
     )
 
 
+def _host_can_resolve(hostname: str) -> bool:
+    try:
+        socket.getaddrinfo(hostname, None)
+        return True
+    except OSError:
+        return False
+
+
+def _rewrite_gateway_base_for_client(base: str) -> str:
+    """Map sandbox-facing URLs to something the current process can dial."""
+    if not base:
+        return base
+    if base.startswith("http://0.0.0.0:"):
+        base = "http://127.0.0.1:" + base.removeprefix("http://0.0.0.0:")
+    elif base.startswith("https://0.0.0.0:"):
+        base = "https://127.0.0.1:" + base.removeprefix("https://0.0.0.0:")
+    # CLI agents orchestrate on the host with NIKA_SANDBOX_EXECUTION=1, but
+    # Linux hosts typically cannot resolve host.docker.internal (microVMs can).
+    if SANDBOX_GATEWAY_HOST_BRIDGE in base and not _host_can_resolve(
+        SANDBOX_GATEWAY_HOST_BRIDGE
+    ):
+        base = base.replace(SANDBOX_GATEWAY_HOST_BRIDGE, "127.0.0.1")
+    return base
+
+
 def _gateway_base_for_phase_advance() -> str:
     if os.environ.get(ENV_SANDBOX_EXECUTION) == "1":
         agent_url = os.environ.get(ENV_GATEWAY_AGENT_URL, "").strip().rstrip("/")
         if agent_url:
-            return agent_url
-    return os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
+            return _rewrite_gateway_base_for_client(agent_url)
+    base = os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
+    return _rewrite_gateway_base_for_client(base)
 
 
 def _freeze_diagnosis_in_workspace(report: str) -> None:
@@ -75,7 +103,7 @@ def _freeze_diagnosis_in_workspace(report: str) -> None:
         handle.write(
             json.dumps(
                 {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "phase": DIAGNOSIS,
                     "event": "diagnosis_frozen",
                     "report": report,
