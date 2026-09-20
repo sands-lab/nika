@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import shutil
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,7 +47,7 @@ from agent.sandbox.sbx.workspace import (
 )
 from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from nika.utils.agent_session_id import resolve_agent_session_id
-from nika.utils.logger import log_event
+from nika.utils.logger import elapsed_ms, log_event
 from nika.utils.session import Session
 
 logger = logging.getLogger(__name__)
@@ -108,18 +109,13 @@ class SbxSandboxManager:
         # Bake the session-specific gateway URL into the workspace.  Parallel
         # CLI trials share the host process environment, so resolving this URL
         # later from NIKA_MCP_GATEWAY_* can pick up a sibling trial's value.
-        # SDK/SADE microVMs ship only the agent package (no SessionStore); bake
-        # the submission catalog for those shell-template agents.
-        from agent.sandbox.sbx.agents import native_sbx_agent, uses_native_sbx_agent
+        # Bake the submission catalog for every sandbox agent: SDK microVMs have
+        # no SessionStore, and host-side CLI orchestrators only hold the opaque
+        # agent session id when NIKA_SANDBOX_EXECUTION=1.
+        from nika.workflows.agent.submission import load_submission_catalog
 
-        if (
-            uses_native_sbx_agent(agent_type)
-            and native_sbx_agent(agent_type) == "shell"
-        ):
-            from nika.workflows.agent.submission import load_submission_catalog
-
-            # Catalog load needs the canonical SessionStore key.
-            manifest["submission_context"] = load_submission_catalog(session.session_id)
+        # Catalog load needs the canonical SessionStore key.
+        manifest["submission_context"] = load_submission_catalog(session.session_id)
         manifest["mcp_servers"] = build_sandbox_mcp_servers(
             session_id=agent_sid,
             scenario_name=scenario_name,
@@ -259,6 +255,7 @@ class SbxSandboxManager:
             sbx_command=redact_text("sbx " + " ".join(create_cmd)),
             env=format_env_for_log(runtime_env),
         )
+        sandbox_started = time.perf_counter()
 
         prior_session_dir = os.environ.get(ENV_SESSION_DIR)
         prior_sbx_name = os.environ.get(ENV_SBX_SANDBOX_NAME)
@@ -342,6 +339,7 @@ class SbxSandboxManager:
                             session_id=session.session_id,
                             agent_type=agent_type,
                             sandbox_name=sandbox_name,
+                            duration_ms=elapsed_ms(sandbox_started),
                         )
 
     def _run_sdk_in_sandbox(

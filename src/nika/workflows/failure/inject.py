@@ -12,7 +12,7 @@ from nika.problems.registry import (
     list_avail_problem_names,
     resolve_problem_name,
 )
-from nika.utils.logger import bind_session_dir, log_error_event, log_event
+from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 
@@ -205,6 +205,7 @@ def inject_failure(
         failure_rows.append((failure_id, resolved_names[0]))
 
     if ParamsClass is not None:
+        inject_started = time.perf_counter()
         try:
             inject_problem.inject_fault(params=fault_params)
         except Exception as exc:
@@ -221,9 +222,12 @@ def inject_failure(
                 problems=problem_names,
                 error=str(exc),
                 error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(inject_started),
             )
             raise
+        inject_duration_ms = elapsed_ms(inject_started)
     else:
+        inject_started = time.perf_counter()
         try:
             inject_problem.inject_fault()
         except Exception as exc:
@@ -240,13 +244,18 @@ def inject_failure(
                 problems=problem_names,
                 error=str(exc),
                 error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(inject_started),
             )
             raise
+        inject_duration_ms = elapsed_ms(inject_started)
 
     if not hasattr(inject_problem, "verify_fault"):
         raise RuntimeError(f"Problem {problem_names} does not implement verify_fault")
 
+    workflow_started = inject_started
+    verify_started = time.perf_counter()
     verify_result = _verify_with_retry(inject_problem, fault_params)
+    verify_duration_ms = elapsed_ms(verify_started)
     verify_payload = _json_safe(verify_result)
     if not verify_result.get("verified", False):
         for failure_id, _problem_name in failure_rows:
@@ -261,6 +270,7 @@ def inject_failure(
             session_id=session.session_id,
             problems=problem_names,
             verify_result=verify_payload,
+            duration_ms=verify_duration_ms,
         )
         hint = ""
         if "[TIMEOUT]" in json.dumps(verify_payload):
@@ -288,6 +298,7 @@ def inject_failure(
             f"Failure injected: session={session.session_id}, problem={problem_name}",
             session_id=session.session_id,
             problem=problem_name,
+            duration_ms=inject_duration_ms,
         )
     log_event(
         "failure_verified",
@@ -295,6 +306,7 @@ def inject_failure(
         session_id=session.session_id,
         problems=problem_names,
         verify_result=verify_payload,
+        duration_ms=verify_duration_ms,
     )
 
     log_event(
@@ -303,6 +315,7 @@ def inject_failure(
         session_id=session.session_id,
         problems=problem_names,
         scenario=session.scenario_name,
+        duration_ms=elapsed_ms(workflow_started),
     )
     task_description = inject_problem.get_task_description()
     session.update_session("task_description", task_description)

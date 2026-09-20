@@ -51,4 +51,4 @@ def write_healthy_session_artifacts(session_id: str) -> None:
     )
     session.write_gt(healthy_ground_truth().model_dump(mode="json", exclude_none=True))
     session.update_session("task_description", healthy_task_description(net_env))
-    session.update_session("problem_names", [])
+    session.update_session("problem_names", [HEALTHY_PROBLEM])

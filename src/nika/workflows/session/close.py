@@ -3,6 +3,7 @@
 import json
 import shutil
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from nika.config import (
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.runtime.meta import meta_get, meta_path
-from nika.utils.logger import bind_session_dir, log_error_event, log_event
+from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
 from nika.utils.session_resolve import resolve_running_session_id
@@ -332,6 +333,7 @@ def _stop_session_record(
         backend == "containerlab" and topology_file and topology_file.is_file()
     )
     if undeploy and (net_env.lab_exists() or topology_cleanup_available):
+        stop_started = time.perf_counter()
         try:
             net_env.undeploy()
         except Exception as exc:
@@ -343,6 +345,7 @@ def _stop_session_record(
                 backend=backend,
                 error=str(exc),
                 error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(stop_started),
             )
             raise
         log_event(
@@ -351,6 +354,7 @@ def _stop_session_record(
             scenario=scenario,
             session_id=session.session_id,
             backend=backend,
+            duration_ms=elapsed_ms(stop_started),
         )
         if backend == "containerlab":
             remove_orphaned_containerlab_management_network(session.lab_name)

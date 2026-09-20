@@ -643,73 +643,124 @@ class CodexWorker:
 
     def _log_codex_event(self, event: dict) -> None:
         event_type = event.get("type", "codex_event")
-        self._logger.log(event_type, {"codex_event": event})
-
         item = event.get("item") or {}
-        if item.get("type") == "mcp_tool_call":
-            tool = str(item.get("tool", ""))
-            item_id = item.get("id")
-            if event_type == "item.started":
-                arguments = item.get("arguments")
-                self._logger.log(
-                    "tool_start",
-                    self._pending_tool_calls.register(
-                        name=tool,
-                        input=arguments,
-                        tool_call_id=item_id,
-                    ),
-                )
-            elif event_type == "item.completed":
-                if item.get("error") is not None:
-                    resolved = self._pending_tool_calls.resolve(
-                        name=tool,
-                        tool_call_id=item_id,
-                        input=item.get("arguments"),
-                    )
-                    self._logger.log(
-                        "tool_error",
-                        tool_event_payload(
-                            name=tool or resolved.get("name") or None,
-                            input=resolved.get("input") or item.get("arguments"),
-                            tool_call_id=item_id,
-                            output=str(item.get("error")),
-                        ),
-                    )
-                else:
-                    result = item.get("result")
-                    if isinstance(result, dict):
-                        content = result.get("content")
-                        if isinstance(content, list):
-                            output = "\n".join(
-                                str(block.get("text", ""))
-                                for block in content
-                                if isinstance(block, dict)
-                                and block.get("type") == "text"
-                            )
-                        else:
-                            output = json.dumps(result, ensure_ascii=False)
-                    else:
-                        output = str(result or "")
-                    resolved = self._pending_tool_calls.resolve(
-                        name=tool,
-                        tool_call_id=item_id,
-                        input=item.get("arguments"),
-                    )
-                    self._logger.log(
-                        "tool_end",
-                        tool_event_payload(
-                            name=tool or resolved.get("name") or None,
-                            input=resolved.get("input") or item.get("arguments"),
-                            tool_call_id=item_id,
-                            output=output,
-                            output_type="tool_result",
-                        ),
-                    )
+        item_type = item.get("type")
+
+        # Canonical tool_* for MCP and shell — avoid raw item.* tool mirrors.
+        if item_type == "mcp_tool_call":
+            self._log_mcp_tool_item(event_type, item)
+        elif item_type == "command_execution":
+            self._log_command_execution_item(event_type, item)
+        else:
+            self._logger.log(event_type, {"codex_event": event})
 
         if self._stream_output:
             display = format_codex_event(event)
             if display:
                 print(display, flush=True)
+
+    def _log_mcp_tool_item(self, event_type: str, item: dict) -> None:
+        tool = str(item.get("tool", ""))
+        item_id = item.get("id")
+        if event_type == "item.started":
+            self._logger.log(
+                "tool_start",
+                self._pending_tool_calls.register(
+                    name=tool,
+                    input=item.get("arguments"),
+                    tool_call_id=item_id,
+                ),
+            )
+            return
+        if event_type != "item.completed":
+            return
+        if item.get("error") is not None:
+            resolved = self._pending_tool_calls.resolve(
+                name=tool,
+                tool_call_id=item_id,
+                input=item.get("arguments"),
+            )
+            self._logger.log(
+                "tool_error",
+                tool_event_payload(
+                    name=tool or resolved.get("name") or None,
+                    input=resolved.get("input") or item.get("arguments"),
+                    tool_call_id=item_id,
+                    output=str(item.get("error")),
+                ),
+            )
+            return
+        result = item.get("result")
+        if isinstance(result, dict):
+            content = result.get("content")
+            if isinstance(content, list):
+                output = "\n".join(
+                    str(block.get("text", ""))
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            else:
+                output = json.dumps(result, ensure_ascii=False)
+        else:
+            output = str(result or "")
+        resolved = self._pending_tool_calls.resolve(
+            name=tool,
+            tool_call_id=item_id,
+            input=item.get("arguments"),
+        )
+        self._logger.log(
+            "tool_end",
+            tool_event_payload(
+                name=tool or resolved.get("name") or None,
+                input=resolved.get("input") or item.get("arguments"),
+                tool_call_id=item_id,
+                output=output,
+                output_type="tool_result",
+            ),
+        )
+
+    def _log_command_execution_item(self, event_type: str, item: dict) -> None:
+        item_id = item.get("id")
+        command = item.get("command")
+        tool_input = {"command": command} if command is not None else None
+        if event_type == "item.started":
+            self._logger.log(
+                "tool_start",
+                self._pending_tool_calls.register(
+                    name="bash",
+                    input=tool_input,
+                    tool_call_id=item_id,
+                ),
+            )
+            return
+        if event_type != "item.completed":
+            return
+        resolved = self._pending_tool_calls.resolve(
+            name="bash",
+            tool_call_id=item_id,
+            input=tool_input,
+        )
+        output = item.get("aggregated_output")
+        if output is None:
+            output = ""
+        exit_code = item.get("exit_code")
+        failed = item.get("status") == "failed" or (
+            exit_code is not None and exit_code != 0
+        )
+        payload = tool_event_payload(
+            name=resolved.get("name") or "bash",
+            input=resolved.get("input") or tool_input,
+            tool_call_id=item_id,
+            output=str(output),
+            output_type="tool_result",
+        )
+        if failed:
+            self._logger.log(
+                "tool_error",
+                {**payload, "error": f"exit_code={exit_code}"},
+            )
+        else:
+            self._logger.log("tool_end", payload)
 
     def _forward_jsonl_events(self, text: str) -> None:
         """Parse ``codex --json`` JSONL lines and forward them to messages.jsonl."""

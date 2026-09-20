@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
+import time
 
 from nika.net_env.isp.bgp.config import (
     DEFAULT_BGP_MODE,
@@ -40,6 +41,7 @@ from nika.net_env.verify import verify_lab_with_retry
 from nika.run_config.loader import get_run_config
 from nika.utils.logger import (
     bind_session_dir,
+    elapsed_ms,
     log_error_event,
     log_event,
     refresh_logger,
@@ -342,6 +344,7 @@ def start_net_env(
         )
 
     try:
+        env_started = time.perf_counter()
         if static_validation_enabled and contract is not None:
             static_reports = run_static_validation(
                 net_env=net_env,
@@ -403,7 +406,9 @@ def start_net_env(
                     error_type=type(sync_exc).__name__,
                 )
 
+        verify_started = time.perf_counter()
         verify_result = verify_lab_with_retry(net_env)
+        verify_duration_ms = elapsed_ms(verify_started)
         if verify_result is not None:
             validation_payload = (verify_result.get("details") or {}).get("validation")
             if validation_payload is not None:
@@ -428,6 +433,7 @@ def start_net_env(
                 scenario=scenario,
                 lab_name=net_env.name,
                 checks=verify_result.get("checks"),
+                duration_ms=verify_duration_ms,
             )
 
         try:
@@ -460,6 +466,7 @@ def start_net_env(
                 lab_name=net_env.name,
                 error=str(exc),
                 error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(env_started),
             )
         else:
             log_error_event(
@@ -472,6 +479,7 @@ def start_net_env(
                 lab_name=net_env.name,
                 error=str(exc) or type(exc).__name__,
                 error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(env_started),
             )
         try:
             from nika.workflows.session.close import (
@@ -517,5 +525,6 @@ def start_net_env(
         session_id=resolved_session_id,
         lab_name=net_env.name,
         metadata=getattr(net_env, "metadata", None) or metadata,
+        duration_ms=elapsed_ms(env_started),
     )
     return resolved_session_id

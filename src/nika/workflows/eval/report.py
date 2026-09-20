@@ -47,10 +47,13 @@ _UNKNOWN = "<unknown>"
 # Display label for no-fault control cases, mirroring
 # ``nika.workflows.benchmark.healthy.HEALTHY_PROBLEM``. That module is not
 # imported here because its package eagerly loads the whole benchmark runner,
-# which reporting has no reason to depend on. Nothing is decided by this string:
-# a session is healthy when run.json lists no ``problem_names``, which is the
-# authoritative signal for a result directory. A test pins the two together.
+# which reporting has no reason to depend on. A session is healthy when
+# ``problem_names`` is empty or solely this label.
 _HEALTHY_LABEL = "healthy"
+
+
+def _is_healthy_names(names: list[str]) -> bool:
+    return not names or names == [_HEALTHY_LABEL]
 
 
 @dataclass
@@ -149,7 +152,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _problem_names(run_meta: dict[str, Any]) -> list[str]:
-    """Injected fault ids for a session; empty means a healthy control case."""
+    """Injected fault ids for a session; empty / ``healthy`` means a control case."""
     names = run_meta.get("problem_names")
     if isinstance(names, list):
         return [str(name) for name in names if str(name).strip()]
@@ -162,7 +165,7 @@ def _problem_names(run_meta: dict[str, Any]) -> list[str]:
 
 
 def _primary_problem(names: list[str]) -> str:
-    if not names:
+    if _is_healthy_names(names):
         return _HEALTHY_LABEL
     if len(names) > 1:
         return "+".join(names)
@@ -306,7 +309,7 @@ def build_summary_report(
         records.append(
             _TrialRecord(
                 result=result,
-                is_healthy=not problem_names,
+                is_healthy=_is_healthy_names(problem_names),
                 failure_domain=_failure_domain(session_dir, run_meta),
                 topo_size=str(run_meta.get("scenario_topo_size") or "") or _UNKNOWN,
                 agent_type=str(run_meta.get("agent_type") or ""),

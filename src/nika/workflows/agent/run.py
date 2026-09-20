@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import time
 
 from agent.registry import create_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
@@ -18,7 +19,7 @@ from nika.utils.agent_config import (
     resolve_max_steps,
     resolve_reasoning_effort,
 )
-from nika.utils.logger import bind_session_dir, log_error_event, log_event
+from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from agent.utils.provider_env import provider_env_context
 from nika.utils.session import Session
 
@@ -91,6 +92,7 @@ def start_agent(
         model=model,
         sandbox=use_sandbox,
     )
+    agent_started = time.perf_counter()
     if agent_type == "cli.codex" and stream_output:
         effort_line = (
             f" | Reasoning effort: {reasoning_effort}" if reasoning_effort else ""
@@ -205,6 +207,7 @@ def start_agent(
             model=model,
             error=str(exc),
             error_type=type(exc).__name__,
+            duration_ms=elapsed_ms(agent_started),
         )
         raise
 
@@ -214,6 +217,7 @@ def start_agent(
         f"Agent run completed for session {session.session_id}",
         session_id=session.session_id,
         agent_type=agent_type,
+        duration_ms=elapsed_ms(agent_started),
     )
     if agent_type == "cli.codex" and stream_output:
         print(f"\nDone. Results saved to {session.session_dir}\n", flush=True)

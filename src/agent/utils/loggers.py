@@ -17,7 +17,7 @@ unchanged to the JSONL record.
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -129,7 +129,7 @@ class MessageLogger:
 
     def log(self, event_type: str, payload: dict[str, Any]) -> None:
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "phase": self.phase,
             "event": event_type,
             **payload,

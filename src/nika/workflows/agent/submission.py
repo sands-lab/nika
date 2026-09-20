@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +60,7 @@ def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
         handle.write(
             json.dumps(
                 {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "phase": DIAGNOSIS,
                     "event": "diagnosis_frozen",
                     "report": report,
