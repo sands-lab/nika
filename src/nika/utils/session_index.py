@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +91,7 @@ _UPSERT_COLUMNS = (
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _json_dumps(value: Any) -> str | None:
@@ -379,8 +379,14 @@ class SessionIndex:
                 problem_names = fields.get("problem_names") or run_meta.get(
                     "problem_names"
                 )
-                if problem_names:
-                    fields["failure_count"] = len(problem_names)
+                if isinstance(problem_names, list):
+                    from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
+
+                    faults = [
+                        p for p in problem_names if str(p) != HEALTHY_PROBLEM
+                    ]
+                    if faults:
+                        fields["failure_count"] = len(faults)
 
             self.upsert(fields)
             count += 1

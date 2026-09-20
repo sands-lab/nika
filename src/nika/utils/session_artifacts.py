@@ -18,21 +18,51 @@ def is_finished_session(run_meta: dict) -> bool:
 def iter_session_dirs(results_dir: str | Path | None = None) -> list[Path]:
     """Discover session/trial dirs that contain ``run.json``.
 
-    Supports flat ``{root}/{session_id}/`` and one nesting level such as
-    trial runs under ``{root}/trials/{trial_id}/``. Skips ``0_summary``.
-    Root-level ``run.json`` (run config) is not a session directory.
+    Walks the results tree recursively and keeps only **session leaves**:
+    directories with ``run.json`` that are not containers for nested trials
+    (a dir with both ``run.json`` and a ``trials/`` child that itself holds
+    sessions is treated as a job/run folder, not a session).
+
+    Skips ``0_summary`` and hidden directories. Caps depth to avoid runaway walks.
     """
     root = Path(results_dir or RESULTS_DIR)
-    if not root.exists():
+    if not root.is_dir():
         return []
+
+    skip_names = {"0_summary", "node_modules", "__pycache__"}
     session_dirs: list[Path] = []
-    for entry in sorted(root.iterdir()):
-        if not entry.is_dir() or entry.name == "0_summary":
-            continue
-        if (entry / RUN_FILENAME).exists():
-            session_dirs.append(entry)
-            continue
-        for sub in sorted(entry.iterdir()):
-            if sub.is_dir() and (sub / RUN_FILENAME).exists():
-                session_dirs.append(sub)
+
+    def is_session_leaf(path: Path) -> bool:
+        if not (path / RUN_FILENAME).is_file():
+            return False
+        trials = path / "trials"
+        if not trials.is_dir():
+            return True
+        try:
+            for child in trials.iterdir():
+                if child.is_dir() and (child / RUN_FILENAME).is_file():
+                    return False
+        except OSError:
+            return True
+        return True
+
+    def walk(dir_path: Path, depth: int) -> None:
+        if depth > 16:
+            return
+        try:
+            entries = sorted(dir_path.iterdir(), key=lambda p: p.name.lower())
+        except OSError:
+            return
+        for entry in entries:
+            if not entry.is_dir():
+                continue
+            name = entry.name
+            if name.startswith(".") or name in skip_names:
+                continue
+            if is_session_leaf(entry):
+                session_dirs.append(entry)
+                continue
+            walk(entry, depth + 1)
+
+    walk(root, 0)
     return session_dirs

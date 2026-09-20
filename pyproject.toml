@@ -30,6 +30,8 @@ dependencies = [
     "ruff>=0.15.20",
     "langchain-anthropic>=1.5.6",
     "huggingface_hub>=0.30.0",
+    "starlette>=0.40.0",
+    "uvicorn>=0.30.0",
 ]
 
 [project.optional-dependencies]
@@ -54,6 +56,7 @@ include = ["nika*", "agent*", "traffic*"]
 [tool.setuptools.package-data]
 "nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]
 "nika.problems.forwarding_encapsulation_policy" = ["*.bpf.c"]
+"nika.view" = ["www/dist/**/*"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]
