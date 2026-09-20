@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
-from nika.view.adapters import adapt_agent_event, adapt_nika_event
-from nika.view.catalog import list_sessions, summarize_session_dir
-from nika.view.models import CanonicalTraceEvent
-from nika.view.server import create_view_app
-from nika.view.timeline import merge_timelines
+from nika.inspect.adapters import adapt_agent_event, adapt_nika_event
+from nika.inspect.catalog import list_sessions, summarize_session_dir
+from nika.inspect.models import CanonicalTraceEvent
+from nika.inspect.server import create_inspect_app
+from nika.inspect.timeline import merge_timelines
 
 
 def _write_json(path: Path, data: dict) -> None:
@@ -251,7 +251,7 @@ class TestAdapters:
     def test_load_agent_events_keeps_tool_and_message_rows(
         self, tmp_path: Path
     ) -> None:
-        from nika.view.adapters import load_agent_events
+        from nika.inspect.adapters import load_agent_events
 
         session = tmp_path / "sess"
         session.mkdir()
@@ -417,7 +417,7 @@ class TestCatalog:
         assert summary.benchmark_label == "nika-pilot@0.2.0"
         assert summary.trial_index == 1
 
-        from nika.view.catalog import aggregate_benchmark_runs
+        from nika.inspect.catalog import aggregate_benchmark_runs
 
         runs = aggregate_benchmark_runs([summary])
         assert len(runs) == 1
@@ -449,7 +449,7 @@ class TestCatalog:
 
 class TestViewApi:
     def test_api_smoke(self, fixture_root: Path) -> None:
-        app = create_view_app(results_root=fixture_root)
+        app = create_inspect_app(results_root=fixture_root)
         client = TestClient(app)
 
         health = client.get("/api/health")
@@ -493,7 +493,7 @@ class TestViewApi:
 
 class TestBindHost:
     def test_allows_loopback_and_all_interfaces(self) -> None:
-        from nika.view.serve import validate_bind_host
+        from nika.inspect.serve import validate_bind_host
 
         assert validate_bind_host("127.0.0.1") == "127.0.0.1"
         assert validate_bind_host("0.0.0.0") == "0.0.0.0"
@@ -501,7 +501,7 @@ class TestBindHost:
         assert validate_bind_host("LocalHost") == "localhost"
 
     def test_rejects_specific_interface_ip(self) -> None:
-        from nika.view.serve import validate_bind_host
+        from nika.inspect.serve import validate_bind_host
 
         with pytest.raises(ValueError, match="not a specific interface IP"):
             validate_bind_host("192.168.1.10")
@@ -509,7 +509,7 @@ class TestBindHost:
 
 class TestCatalogSafety:
     def test_find_session_dir_rejects_path_escape(self, tmp_path: Path) -> None:
-        from nika.view.catalog import find_session_dir
+        from nika.inspect.catalog import find_session_dir
 
         root = tmp_path / "results"
         root.mkdir()

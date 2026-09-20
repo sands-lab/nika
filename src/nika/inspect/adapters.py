@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from nika.view.models import CanonicalTraceEvent, EventKind, ToolPayload
+from nika.inspect.models import CanonicalTraceEvent, EventKind, ToolPayload
 
 _LIFECYCLE_EVENTS = frozenset(
     {
