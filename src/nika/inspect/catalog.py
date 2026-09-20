@@ -13,7 +13,7 @@ from nika.utils.session_artifacts import (
     is_finished_session,
     iter_session_dirs,
 )
-from nika.view.models import (
+from nika.inspect.models import (
     ArtifactFlags,
     BenchmarkRunSummary,
     ScoresResponse,

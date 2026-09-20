@@ -12,7 +12,7 @@ From a git checkout, build the front end once. Wheel installs already include `w
 2. Build the UI:
 
 ```shell
-cd src/nika/view/www
+cd src/nika/inspect/www
 npm install
 npm run build
 ```
@@ -38,12 +38,12 @@ Success: stderr prints `url: http://127.0.0.1:<port>/` and the browser shows the
 
 ## Change the UI
 
-Source: [`src/nika/view/www`](../../src/nika/view/www).
+Source: [`src/nika/inspect/www`](../../src/nika/inspect/www).
 
 Hot reload:
 
 ```shell
-cd src/nika/view/www
+cd src/nika/inspect/www
 npm install
 npm run dev
 ```
@@ -53,6 +53,6 @@ Proxy `/api` to a running `nika inspect --no-open` on port 7580.
 Production build (writes `dist/`):
 
 ```shell
-cd src/nika/view/www
+cd src/nika/inspect/www
 npm run build
 ```

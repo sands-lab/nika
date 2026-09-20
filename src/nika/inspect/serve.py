@@ -11,7 +11,7 @@ from pathlib import Path
 import uvicorn
 
 from nika.config import resolve_results_root
-from nika.view.server import create_view_app
+from nika.inspect.server import create_inspect_app
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 7580
@@ -91,7 +91,7 @@ def _pick_port(host: str, port: int) -> int:
         return int(sock.getsockname()[1])
 
 
-def serve_view(
+def serve_inspect(
     *,
     result_dir: str | Path | None = None,
     host: str = DEFAULT_HOST,
@@ -107,7 +107,7 @@ def serve_view(
 
     results_root = resolve_results_root(result_dir)
     bind_port = _pick_port(host, port)
-    app = create_view_app(results_root=results_root)
+    app = create_inspect_app(results_root=results_root)
     # Browsers treat 0.0.0.0 poorly; always print a loopback URL for local open.
     if host in {"0.0.0.0", "::"}:
         browse_host = "127.0.0.1"

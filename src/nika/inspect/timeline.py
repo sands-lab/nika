@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from nika.view.adapters import load_agent_events, load_nika_events
-from nika.view.models import CanonicalTraceEvent
+from nika.inspect.adapters import load_agent_events, load_nika_events
+from nika.inspect.models import CanonicalTraceEvent
 
 
 def _parse_ts(value: str | None) -> datetime | None:

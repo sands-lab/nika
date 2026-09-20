@@ -56,7 +56,7 @@ include = ["nika*", "agent*", "traffic*"]
 [tool.setuptools.package-data]
 "nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]
 "nika.problems.forwarding_encapsulation_policy" = ["*.bpf.c"]
-"nika.view" = ["www/dist/**/*"]
+"nika.inspect" = ["www/dist/**/*"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]

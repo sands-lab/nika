@@ -11,7 +11,7 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from nika.view.catalog import (
+from nika.inspect.catalog import (
     RAW_ALLOWLIST,
     aggregate_benchmark_runs,
     build_session_facets,
@@ -24,8 +24,8 @@ from nika.view.catalog import (
     read_raw_artifact,
     resolve_results_selection,
 )
-from nika.view.models import ResultsRootsResponse, SessionListResponse, TimelineResponse
-from nika.view.timeline import build_session_timeline
+from nika.inspect.models import ResultsRootsResponse, SessionListResponse, TimelineResponse
+from nika.inspect.timeline import build_session_timeline
 
 _WWW_DIST = Path(__file__).resolve().parent / "www" / "dist"
 
@@ -39,7 +39,7 @@ def _error(
     )
 
 
-def create_view_app(*, results_root: Path) -> Starlette:
+def create_inspect_app(*, results_root: Path) -> Starlette:
     """Build the read-only view API + static SPA."""
 
     base_root = Path(results_root).resolve()
@@ -210,7 +210,7 @@ def create_view_app(*, results_root: Path) -> Starlette:
         index = _WWW_DIST / "index.html"
         if not index.is_file():
             return _error(
-                "Inspect UI assets missing. Build src/nika/view/www or reinstall nika.",
+                "Inspect UI assets missing. Build src/nika/inspect/www or reinstall nika.",
                 status=503,
                 error_type="AssetsMissing",
             )

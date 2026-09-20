@@ -34,10 +34,10 @@ def inspect_command(
     ),
 ) -> None:
     """Start a local web UI for session trajectories, scores, and timelines."""
-    from nika.view.serve import serve_view
+    from nika.inspect.serve import serve_inspect
 
     try:
-        serve_view(
+        serve_inspect(
             result_dir=result_dir,
             host=host,
             port=port,
