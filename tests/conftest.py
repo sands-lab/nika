@@ -9,39 +9,9 @@ from tests.support.integration_pipeline import load_test_env
 from tests.support.test_scenarios import register_test_scenarios
 
 load_test_env()
+register_test_scenarios()
 
 _SANDBOX_E2E_LOCK = Path("/tmp/nika-sandbox-e2e.lock")
-
-# Paths that may deploy the test-only simple_bgp fixture or need it registered.
-_TEST_SCENARIO_PATH_TOKENS = (
-    "tests/ci/",
-    "workflows/integration",
-    "test_sandbox_agents",
-    "test_sandbox_security",
-    "test_sandbox_isolation",
-    "test_sandbox_benchmark",
-    "test_sandbox.py",
-    "test_sbx.py",
-    "test_failure_inject",
-    "test_failure_e2e",
-    "test_scenario_e2e",
-    "test_trials.py",
-    "test_batch.py",
-    "test_inject_resolve",
-    "test_resource_mapping",
-    "test_migrate",
-    "test_env_start",
-    "test_remote",
-    "test_session_close",
-    "support/simple_bgp",
-    "service/kathara",
-    "service/containerlab",
-)
-
-
-def _needs_test_scenarios(path: str) -> bool:
-    norm = path.replace("\\", "/")
-    return any(token in norm for token in _TEST_SCENARIO_PATH_TOKENS)
 
 
 def _is_sandbox_e2e_test(node_path: str) -> bool:
@@ -70,9 +40,6 @@ def sandbox_e2e_serial(request: pytest.FixtureRequest):
 
 def pytest_collection_modifyitems(config, items):
     """Apply tier markers from path/name conventions when not explicitly set."""
-    if any(_needs_test_scenarios(str(item.fspath)) for item in items):
-        register_test_scenarios()
-
     for item in items:
         if item.get_closest_marker("unit") or item.get_closest_marker("contract"):
             continue

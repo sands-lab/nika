@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 
 import pytest
 
-from tests.support.failure_e2e import FailureE2ECase, run_failure_e2e
 from tests.support.ci_depth import artifact_verify_only
+from tests.support.failure_e2e import FailureE2ECase, run_failure_e2e
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
@@ -15,9 +16,6 @@ from tests.support.prerequisites import (
     linux_vrf_available,
     privileged_lab_supported,
 )
-from tests.support.test_scenarios import register_test_scenarios
-
-register_test_scenarios()
 
 
 @dataclass(frozen=True)
@@ -250,10 +248,8 @@ class TestFailureE2E(IntegrationTestCase):
             except BaseException as exc:
                 last_exc = exc
                 if session_id is not None:
-                    try:
+                    with suppress(Exception):
                         self._close_session(session_id)
-                    except Exception:  # noqa: BLE001
-                        pass
                 if attempt + 1 >= attempts:
                     raise
         assert last_exc is not None
