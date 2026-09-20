@@ -21,7 +21,7 @@ Each release run treats `--result_dir` as **one run** and writes:
 |------|------|
 | `run.json` (and legacy `benchmark_job.json`) | Durable run config: release version/`split`, agent/model/`n_trials`, timeout, `official`, stable `run_id` |
 | `RELEASE.lock.json` | Slim identity lock |
-| `trials/{case_key}__tNN/` | One counted trial (session artifacts) |
+| `trials/{task_id}__tNN/` | One counted trial. `task_id` is the public case id (same string as filesystem `case_key`). List and describe cases with `nika benchmark list` / `describe`; re-run one trial with `nika benchmark run --task-id`. See the [CLI reference](../operations/cli-reference.md#task-ids). |
 
 Active run progress is recorded under `runtime/benchmark_runs/{run_id}.json`.
 

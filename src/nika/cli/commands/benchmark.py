@@ -1,11 +1,15 @@
 """Benchmark runner: env → fault → agent → close + metrics."""
 
 from pathlib import Path
+from typing import Any
 
 import typer
+import yaml
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
+from nika.cli.utils import fmt_table
 from nika.net_env.net_env_pool import scenario_requires_topo_size
+from nika.run_config.legacy import warn_legacy_operational_env
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -14,7 +18,6 @@ from nika.run_config.loader import (
     persist_effective_run_config,
     set_run_config,
 )
-from nika.run_config.legacy import warn_legacy_operational_env
 from nika.utils.agent_config import (
     apply_custom_provider_env,
     resolve_agent_model,
@@ -69,14 +72,70 @@ def _exit_release_error(exc: Exception) -> None:
 
 def _default_split_for_version(version: str) -> str:
     """Read ``default_split_for_release`` from ``RELEASE.yaml`` (fallback: test)."""
-    import yaml
-
     manifest_path = resolve_release_dir(version) / "RELEASE.yaml"
     data = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
     return normalize_split(
         str(data.get("default_split_for_release") or "test"),
         default="test",
     )
+
+
+def _deploy_label(entry: dict[str, Any]) -> str:
+    size = str(entry.get("topo_size") or "-")
+    extra: list[str] = []
+    backend = entry.get("backend")
+    profile = entry.get("device_profile")
+    if backend and profile:
+        extra.append(f"{backend}/{profile}")
+    elif backend:
+        extra.append(str(backend))
+    if entry.get("igp"):
+        extra.append(str(entry["igp"]))
+    if entry.get("bgp_mode"):
+        extra.append(str(entry["bgp_mode"]))
+    if entry.get("rpki"):
+        extra.append("rpki")
+    if extra:
+        return f"{size}; " + "; ".join(extra)
+    return size
+
+
+def _load_catalog_rows(
+    *,
+    config: Path | None,
+    release: str | None,
+    split: str | None,
+    run_config: str | None,
+) -> list[dict[str, Any]]:
+    if config is not None and release is not None:
+        raise typer.BadParameter("Use either --config or --release, not both.")
+    cfg_path = export_run_config_env(run_config)
+    cfg = load_run_config(cfg_path)
+    resolved_release = release if release is not None else cfg.benchmark.release
+    if config is None and resolved_release is None:
+        config = Path(default_benchmark_yaml_path())
+    if config is not None:
+        if split is not None:
+            raise typer.BadParameter("--split applies to --release mode only.")
+        from nika.workflows.benchmark.load_config import load_benchmark_input
+
+        rows = load_benchmark_input(config)
+        if not rows:
+            raise typer.BadParameter(f"No benchmark cases found in {config}")
+        return rows
+    try:
+        _, version = parse_release_ref(resolved_release)
+        split_override = split if split is not None else cfg.benchmark.split
+        resolved_split = (
+            normalize_split(split_override, default="test")
+            if split_override
+            else _default_split_for_version(version)
+        )
+        loaded = load_release(resolved_release, split=resolved_split)
+        return list(loaded.cases)
+    except (ReleaseError, ValueError) as exc:
+        _exit_release_error(exc)
+    raise AssertionError("unreachable")
 
 
 @benchmark_app.command("releases")
@@ -110,6 +169,120 @@ def benchmark_releases() -> None:
         raise typer.Exit(code=1)
 
 
+@benchmark_app.command("list")
+def benchmark_list(
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="Ad-hoc benchmark YAML path. Mutually exclusive with --release.",
+    ),
+    release: str | None = typer.Option(
+        None,
+        "--release",
+        "-d",
+        help=(
+            f"Frozen release version or ref (e.g. {DEFAULT_RELEASE_VERSION}). "
+            "Mutually exclusive with --config."
+        ),
+    ),
+    split: str | None = typer.Option(
+        None,
+        "--split",
+        help="Release split: dev or test. Release mode only.",
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print catalog entries as JSON.",
+    ),
+) -> None:
+    """List public task ids for a release or YAML matrix."""
+    from nika.workflows.benchmark.trials import catalog_entries
+
+    rows = _load_catalog_rows(
+        config=config, release=release, split=split, run_config=run_config
+    )
+    try:
+        entries = catalog_entries(rows)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(entries, indent=2, default=str))
+        return
+    table_rows = [
+        [
+            str(entry["scenario"]),
+            str(entry["problem"]),
+            _deploy_label(entry),
+            str(entry["task_id"]),
+        ]
+        for entry in entries
+    ]
+    typer.echo(fmt_table(["SCENARIO", "PROBLEM", "DEPLOY", "TASK_ID"], table_rows))
+
+
+@benchmark_app.command("describe")
+def benchmark_describe(
+    task_id: str = typer.Argument(
+        ..., metavar="TASK_ID", help="Task id or trial dirname ({task_id}__tNN)."
+    ),
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="Ad-hoc benchmark YAML path. Mutually exclusive with --release.",
+    ),
+    release: str | None = typer.Option(
+        None,
+        "--release",
+        "-d",
+        help=(
+            f"Frozen release version or ref (e.g. {DEFAULT_RELEASE_VERSION}). "
+            "Mutually exclusive with --config."
+        ),
+    ),
+    split: str | None = typer.Option(
+        None,
+        "--split",
+        help="Release split: dev or test. Release mode only.",
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
+    ),
+) -> None:
+    """Print the decomposed fields for one task id."""
+    from nika.workflows.benchmark.trials import (
+        describe_task_payload,
+        resolve_catalog_row,
+    )
+
+    rows = _load_catalog_rows(
+        config=config, release=release, split=split, run_config=run_config
+    )
+    try:
+        row = resolve_catalog_row(rows, task_id)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        yaml.dump(
+            describe_task_payload(row),
+            sort_keys=False,
+            allow_unicode=True,
+        ).rstrip()
+    )
+
+
 @benchmark_app.command("run")
 def benchmark_run(
     scenario: str | None = typer.Argument(
@@ -139,6 +312,14 @@ def benchmark_run(
         help=(
             "Release split: dev or test. Overrides config/nika.yaml benchmark.split "
             "and RELEASE.yaml default_split_for_release. Release mode only."
+        ),
+    ),
+    task_ids: list[str] | None = typer.Option(
+        None,
+        "--task-id",
+        help=(
+            "Batch mode: run only these task ids. Repeatable. "
+            "Accepts a case task_id or a trial dirname ({task_id}__tNN)."
         ),
     ),
     problem: str | None = typer.Option(
@@ -306,9 +487,7 @@ def benchmark_run(
     apply_custom_provider_env(cfg)
     # Resolve before scheduling so spawn kwargs are concrete when CLI omitted them.
     agent_type = resolve_agent_type(agent_type, config=cfg)
-    llm_provider = resolve_llm_provider(
-        llm_provider, agent_type=agent_type, config=cfg
-    )
+    llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type, config=cfg)
     model = resolve_agent_model(
         agent_type, model, llm_provider=llm_provider, config=cfg
     )
@@ -350,6 +529,10 @@ def benchmark_run(
         if retry_passes:
             raise typer.BadParameter(
                 "--retry-passes applies to batch mode only; omit it for a single case."
+            )
+        if task_ids:
+            raise typer.BadParameter(
+                "--task-id applies to batch mode only; omit it for a single case."
             )
         if not problem:
             raise typer.BadParameter("--problem is required when SCENARIO is given.")
@@ -398,28 +581,30 @@ def benchmark_run(
     if config is not None:
         if split is not None:
             raise typer.BadParameter("--split applies to --release mode only.")
-        run_benchmark_from_yaml(
-            benchmark_file=str(config),
-            agent_type=agent_type,
-            llm_provider=llm_provider,
-            model=model,
-            max_steps=max_steps,
-            batch_size=resolved_batch_size,
-            result_dir=resolved_result_dir,
-            resume=resolved_resume,
-            session_tag=resolved_session_tag,
-            case_timeout=(
-                case_timeout if case_timeout is not None else bench.case_timeout_sec
-            ),
-            continue_on_error=resolved_continue,
-            retry_passes=resolved_retry,
-        )
+        try:
+            run_benchmark_from_yaml(
+                benchmark_file=str(config),
+                agent_type=agent_type,
+                llm_provider=llm_provider,
+                model=model,
+                max_steps=max_steps,
+                batch_size=resolved_batch_size,
+                result_dir=resolved_result_dir,
+                resume=resolved_resume,
+                session_tag=resolved_session_tag,
+                case_timeout=(
+                    case_timeout if case_timeout is not None else bench.case_timeout_sec
+                ),
+                continue_on_error=resolved_continue,
+                retry_passes=resolved_retry,
+                task_ids=task_ids,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
         return
 
     # Release path: continue past trial failures unless --abort-on-error.
-    release_continue = (
-        continue_on_error if continue_on_error is not None else True
-    )
+    release_continue = continue_on_error if continue_on_error is not None else True
     try:
         split_override = bench.split
         _, version = parse_release_ref(resolved_release)
@@ -444,6 +629,7 @@ def benchmark_run(
             ),
             continue_on_error=release_continue,
             retry_passes=resolved_retry,
+            task_ids=task_ids,
         )
     except (ReleaseError, ValueError) as exc:
         _exit_release_error(exc)

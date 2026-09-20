@@ -16,10 +16,10 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika env` | List / deploy Kathará or Containerlab scenarios and create a session |
 | `nika failure` | List, describe, inject, and inspect faults for a running session |
 | `nika exec` | Run a shell command inside a lab host container |
-| `nika agent` | Run an end-to-end task, or run an agent on a selected session |
-| `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
-| `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
 | `nika config` | Show effective run config or migrate legacy `.env` ops into YAML |
+| `nika agent` | Run an end-to-end task, or run an agent on a selected session |
+| `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
+| `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika leaderboard` | Pack, validate, and submit scores (GitHub PR) + trajectories (HF PR) from official release runs |
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
@@ -47,28 +47,29 @@ This flag is reused on **`nika benchmark run`** and **`nika traffic run`** when 
 
 ### Results directory (`--result_dir`)
 
-- **Ad-hoc / single-case / env**: session artifacts under **`{result_dir}/{session_id}/`** for bare single-case CLI; batch `--config` uses the same **`{result_dir}/trials/{case_key}__t01/`** trials/ layout as release runs (`n_trials=1`).
-- **Release run**: `--result_dir` is one run. It contains `{result_dir}/run.json` and `{result_dir}/trials/{case_key}__tNN/`.
+`--result_dir` chooses the parent folder for session and benchmark artifacts. Default is `results/` at the repository root. You can also set `nika.result_dir` in `config/nika.yaml`. The CLI flag wins over YAML. Relative paths resolve from the repository root (`results/list1` → `<repo>/results/list1/`).
 
-Use separate directories to isolate experiments (different datasets, models, agents, or release runs).
+Use a fresh directory for each experiment (agent, model, release split, or ad-hoc YAML). Resume and skip look only inside the directory you pass.
 
-| Source | Variable / flag | Default |
-|--------|-----------------|---------|
-| CLI | `--result_dir PATH` on `nika env run`, `nika benchmark run` | `results/` at repo root |
-| YAML | `nika.result_dir` in `config/nika.yaml` | same as default |
+| Command | Layout under `--result_dir` |
+|---------|-----------------------------|
+| `nika env run` | `{session_id}/` (timestamp-style id) |
+| `nika benchmark run SCENARIO --problem …` | `{session_id}/` |
+| `nika benchmark run --config …` | `run.json` plus `trials/{task_id}__t01/` (`n_trials=1`) |
+| `nika benchmark run --release …` | `run.json` plus `trials/{task_id}__tNN/` (`n_trials` from the release) |
 
-CLI `--result_dir` overrides YAML. Relative paths resolve from the repository root (e.g. `results/list1` → `<repo>/results/list1/`).
+`task_id` is the public case id (see [Task ids](#task-ids)). A trial directory name is `{task_id}__t01`, `{task_id}__t02`, and so on.
 
 ```shell
 nika env run dc_clos -s s --result_dir results/list1
 # → results/list1/20260702-053412-abc123/
 
-nika benchmark run --config benchmark/working/cases.yaml --result_dir results/my-release-run
-# → results/my-release-run/run.json
-# → results/my-release-run/trials/<case_key>__t01/ …
+nika benchmark run --config benchmark/working/cases.yaml --result_dir results/my-run
+# → results/my-run/run.json
+# → results/my-run/trials/<task_id>__t01/ …
 ```
 
-**Benchmark resume** (batch mode, `--resume` by default): before running, NIKA scans **only** the resolved `--result_dir` trials. Completed trials (`outcome` in `{success, agent_failed}`) are skipped; finished dirs with a submission but missing final metrics/`outcome` are **healed** (metrics rebuilt and success inferred) instead of deleted. Remaining incomplete/`running` dirs are cleaned and re-run in place. Pass **`--no-resume`** to clear trial slots and re-execute every trial.
+Batch resume only looks at this directory. See [`--resume`](#batch-run-options).
 
 ### Agent options
 
@@ -93,6 +94,7 @@ Aligned with `nika agent run`:
 - **`nika session close [--session_id ID] [-y]`**: undeploy the lab, mark failure records ended, and remove the runtime session file. If you omit `--session_id` with one running session, NIKA selects it. **`-y`** skips the confirmation prompt.
 - **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
 
+---
 ---
 
 ## `nika inspect`
@@ -121,6 +123,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
+---
 
 ## `nika failure`
 
@@ -129,6 +132,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika failure inject PROBLEM [PROBLEM …] [--session_id ID] [--set key=value …]`**: inject for a selected running session and write ground truth. Repeat **`--set`** to override injection parameters (see `describe` for valid keys).
 - **`nika failure ps [--session_id ID]`**: list persisted failure injection records for one session.
 
+---
 ---
 
 ## `nika exec`
@@ -145,6 +149,20 @@ nika exec HOST COMMAND… [--session_id ID] [--timeout SECONDS]
 
 Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
 
+---
+---
+
+## `nika config`
+
+- **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
+- **`nika config set KEY=VALUE... [--run-config PATH]`**: write important keys into the YAML file (sparse update). Allowed keys: `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, `agent.reasoning_effort`, `agent.custom.base_url`, `nika.result_dir`, `nika.enable_skills`, `nika.judge.provider`, `nika.judge.model`. Lab/MCP/k8s and other knobs stay YAML-only.
+- **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing; confirm with `y` (`[y/N]`, default no). If `.env` has no ops keys, it tells you to prefer `cp config/nika.example.yaml config/nika.yaml`. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
+
+The tracked template is `config/nika.example.yaml` (preferred for new setups). Precedence is CLI flags → YAML → built-in defaults. Use `--base-url` / `-m` / `-p` on `nika agent run` and `nika benchmark run` for one-shot overrides; use `nika config set` to persist. Provider API keys stay in the repo-root `.env`. Leftover operational keys in `.env` are ignored at runtime (NIKA prints a one-shot warning); migrate them instead of relying on env.
+
+Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
+
+---
 ---
 
 ## `nika agent`
@@ -195,6 +213,121 @@ Example: `nika exec pc1 ping -c 3 10.0.0.2 --timeout 30`
 
   Manual lab/session commands are documented under **`nika env`**, **`nika failure`**, and **`nika session`** below.
 
+---
+---
+
+## `nika benchmark`
+
+Implements the experiment pipeline: start env → inject → agent → close session → rule-based metrics. Use **`nika eval judge`** / **`nika eval summary`** afterward for LLM judge and CSV aggregation.
+
+### Batch mode
+
+Omit the `SCENARIO` positional argument to run a case matrix. Pass **`--release`** for a frozen suite or **`--config`** for a YAML file or candidate pool.
+
+```shell
+# Frozen release (0.1.0 is deprecated; use 0.2.0)
+nika benchmark releases
+nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+
+# Ad-hoc YAML or full candidate pool
+nika benchmark run --config benchmark/working/cases.yaml --result_dir results/my-run
+nika benchmark run                              # defaults to benchmark/working/pool
+nika benchmark run --config benchmark/working/pool --batch-size 4
+```
+
+**Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
+
+### Task ids
+
+Each benchmark case has a public `task_id`. NIKA derives it from scenario, problem, deploy options, and inject params. The same string is the filesystem `case_key`. Trial directories append `__tNN` (`{task_id}__t01`).
+
+Use these commands when you need to look up a case or re-run one failed trial without rebuilding `--set` flags by hand:
+
+```shell
+nika benchmark list --release 0.2.0 --split test
+nika benchmark describe dc_clos__link_detach__m__host_name-client_0__intf_name-eth0 \
+  --release 0.2.0 --split test
+nika benchmark run --release 0.2.0 --split test \
+  --task-id dc_clos__link_detach__m__host_name-client_0__intf_name-eth0__t01 \
+  --result_dir results/one-case
+```
+
+| Command | What it does |
+|---------|----------------|
+| `nika benchmark list` | Prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for a `--release` split or `--config` YAML. Add `--json` for scripts. Source defaults match `nika benchmark run` (configured release, otherwise the candidate pool). |
+| `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. |
+| `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
+
+### Run layout and artifacts
+
+Release runs expand each case to `defaults.n_trials` trials under `{result_dir}/trials/{task_id}__tNN/`. Ad-hoc `--config` uses the same layout with `n_trials=1`.
+
+For batch `--config` or `--release`, `--result_dir` is the run root (see [Results directory](#results-directory---result_dir)). Resume and skip inspect only that directory.
+
+Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live progress is under `runtime/benchmark_runs/{run_id}.json`.
+
+### Batch run options
+
+**`--resume` / `--no-resume`** (default: resume):
+
+| `--resume` | `--no-resume` |
+|------------|---------------|
+| Skip trials with `outcome` in `{success, agent_failed}` | Delete every trial slot under the run |
+| Rebuild metrics if a finished dir still lacks `outcome` | Re-run all trials |
+| Delete incomplete / `running` dirs, then run the rest | |
+
+Scoped to the current `--result_dir` only.
+
+**`--batch-size`**: parallel trials per batch (default `1`). Parallel groups and timeouts use spawn processes. Batch mode only.
+
+**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec`, default **2400**; `0` disables): kill the trial worker when the budget expires. If `ground_truth.json` exists, finalize as `agent_failed` so `--resume` keeps the slot.
+
+**Inner no-response timeout**: `nika.mcp.read_timeout_sec` in `config/nika.yaml` (default **120**). Hung MCP calls fail on that timer, not the full case budget. Lab `exec` stays ~10s. `max_steps` caps LLM turns, not wall time.
+
+**`--continue-on-error` / `--abort-on-error`**: after a failed trial, either keep going (summarize at the end) or stop. Official `--release` defaults to continue; ad-hoc `--config` uses `benchmark.continue_on_error`. With `--resume`, only incomplete trials retry (`agent_failed` stays finished).
+
+**`--retry-passes N`** (`benchmark.retry_passes`): after the first pass, retry incomplete trials up to `N` more times (implies `--continue-on-error`). Stops early if a pass finishes no new trial. `agent_failed` trials stay finished.
+
+```bash
+nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-passes 2 --result_dir results/my-run
+```
+
+### Freeze a release
+
+**`nika benchmark freeze --version VERSION --source DIRECTORY`** copies validated `dev.yaml` and `test.yaml` into `benchmark/releases/VERSION/`. It refuses to overwrite an existing destination.
+
+### Migrate root causes
+
+**`nika benchmark migrate`**: read a YAML case matrix with a top-level `cases` field, derive `root_causes` from injection parameters and topology, then write a report. The command writes unresolved rows and exits with status 1 unless `--allow-unresolved` is set. Do not pass a release `RELEASE.yaml` manifest. Working-matrix and release generation already materialize these labels. See [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
+
+### YAML case fields
+
+| Field | Meaning |
+|-------|---------|
+| `problem` | Problem id (same as `nika failure inject`) |
+| `scenario` | Scenario id (same as `nika env run`) |
+| `topo_size` | Size `s`, `m`, or `l`; **null/empty** for scenarios without sizes |
+| `inject` | Map of `--set key=value` pairs passed to `nika failure inject` |
+| `root_causes` | Materialized diagnoses (`resource` + `fault_type`); `resource_id` is derived on submit and scoring; see [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md) |
+
+Benchmark exposes `-a`, `-p`, `-m`, and `-n`; `-n` affects `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, and `sdk.claude_sdk`. It does not expose `-e`; configure reasoning through `agent.reasoning_effort` in `config/nika.yaml` for benchmark runs.
+
+### Single-case mode
+
+Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`), plus **`--problem`**:
+
+```shell
+nika benchmark run dc_clos --problem bgp_asn_misconfig -s s \
+  -a byo.langgraph -p openai -m gpt-5-mini -n 20
+nika eval judge -p openai -m gpt-5-mini --result_dir results/
+nika eval summary --result_dir results/
+```
+
+- **`-s` / `--size`**: required only when `SCENARIO` is scalable.
+- Each benchmark case gets its own lab; the lab is torn down when the session closes (before metrics).
+- LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
+
+---
 ---
 
 ## `nika eval`
@@ -252,17 +385,6 @@ Scoring matches `nika leaderboard pack`, so the headline here and a submission b
 The same report prints automatically when `nika benchmark run` finishes.
 
 ---
-
-## `nika config`
-
-- **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
-- **`nika config set KEY=VALUE... [--run-config PATH]`**: write important keys into the YAML file (sparse update). Allowed keys: `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, `agent.reasoning_effort`, `agent.custom.base_url`, `nika.result_dir`, `nika.enable_skills`, `nika.judge.provider`, `nika.judge.model`. Lab/MCP/k8s and other knobs stay YAML-only.
-- **`nika config migrate [--env-file PATH] [-o PATH] [--write-env] [-y]`**: convert legacy operational `.env` keys into versioned YAML. It prints the proposed YAML before writing; confirm with `y` (`[y/N]`, default no). If `.env` has no ops keys, it tells you to prefer `cp config/nika.example.yaml config/nika.yaml`. With `--write-env`, it backs up `.env` and rewrites it to credential-only entries after confirmation; `-y` skips prompts.
-
-The tracked template is `config/nika.example.yaml` (preferred for new setups). Precedence is CLI flags → YAML → built-in defaults. Use `--base-url` / `-m` / `-p` on `nika agent run` and `nika benchmark run` for one-shot overrides; use `nika config set` to persist. Provider API keys stay in the repo-root `.env`. Leftover operational keys in `.env` are ignored at runtime (NIKA prints a one-shot warning); migrate them instead of relying on env.
-
-Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
-
 ---
 
 ## `nika leaderboard`
@@ -279,85 +401,6 @@ nika leaderboard submit --result_dir results/my-run \
 `submit` packs `{result_dir}/{YYYYMMDD}_{slug}/` plus sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens PRs. Pack or validate failures exit before any remote submit. Requires authenticated [`gh`](https://cli.github.com/) and `HF_TOKEN`. Scores PR target: `sands-lab/nika-leaderboard` (`--repo`). Trajectories dataset PR: `Zhihao98/nika-trajectories` (`--traj-repo`). Use `--skip-github` / `--skip-trajectories` to submit only one side.
 
 ---
-
-## `nika benchmark`
-
-Implements the experiment pipeline: start env → inject → agent → close session → rule-based metrics. Use **`nika eval judge`** / **`nika eval summary`** afterward for LLM judge and CSV aggregation.
-
-### Batch mode
-
-Omit the `SCENARIO` positional argument to run the candidate catalog. Pass **`--release`** for a frozen suite or **`--config`** for another catalog or flat case file.
-
-```shell
-# 0.1.0 is deprecated; 0.2.0 is the current frozen release
-nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
-nika benchmark run --config benchmark/working/cases.yaml
-nika benchmark run --config benchmark/working/cases.yaml --result_dir results/my-run
-nika benchmark releases                         # list + verify each release
-nika benchmark run                              # complete candidate pool
-nika benchmark run --config benchmark/working/pool
-nika benchmark migrate --input cases.yaml --output /tmp/labeled.yaml --report /tmp/migrate_report.yaml
-nika benchmark freeze --version 0.2.0 --source path/to/split-files
-nika benchmark run --config benchmark/working/cases.yaml --batch-size 4
-nika benchmark run --config benchmark/working/cases.yaml --result_dir results/list1
-nika benchmark run --config benchmark/working/cases.yaml --result_dir results/list1 --batch-size 4
-```
-
-**Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
-
-**`nika benchmark freeze --version VERSION --source DIRECTORY`** creates `benchmark/releases/VERSION/` from a validated candidate directory that already contains `dev.yaml` and `test.yaml`. It refuses to overwrite an existing destination.
-
-Release runs expand each case to `defaults.n_trials` trials under `{result_dir}/trials/{case_key}__tNN/`. Ad-hoc `--config` uses the same layout with `n_trials=1`. Resume skips completed trials (including `agent_failed`); incomplete trials are re-run without creating extra trial indices.
-
-**Artifacts**: release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`, and stamp each trial `run.json` with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live run progress (completed/pending trials) is written to `runtime/benchmark_runs/{run_id}.json`.
-
-**`--result_dir`**: for batch `--config` or `--release`, this directory is the run root (see [Results directory](#results-directory---result_dir)). Resume and skip logic inspect this directory. They do not inspect other folders under `results/` or the SQLite index.
-
-**`--resume` / `--no-resume`** (batch mode): when `--resume` (default), scan `--result_dir` first, skip finished trials (rebuilding metrics for solved trials interrupted during finalization), clean the remaining incomplete ones, then run the rest. **`--no-resume`** clears existing trial slots under the run, then executes every trial. Works with any `--batch-size`.
-
-**`--batch-size`**: number of trials to run simultaneously per batch (default `1`). Trials are chunked into groups of this size; each parallel group runs via spawn processes (and timeouts also use spawn). Applies to batch mode only.
-
-**`--case-timeout SECONDS`** (`benchmark.case_timeout_sec` in YAML, batch mode): outer hard per-trial wall clock (default **2400**; set `0` to disable). Each trial gets this budget. On timeout, NIKA kills the worker. If ground truth exists, NIKA finalizes the counted trial as `agent_failed` with `eval_metrics`, so `--resume` keeps it.
-
-**Inner no-response timeout**: MCP clients use `nika.mcp.read_timeout_sec` in `config/nika.yaml` (default **120**). A hung tool/`ListTools` call fails without waiting for the full case budget; the trial then follows the same agent-failed + eval finalize path. Lab `exec` remains ~10s per command. `max_steps` limits LLM turns per phase (same unit as eval `steps`), not wall time.
-
-**`--continue-on-error` / `--abort-on-error`** (batch mode): keep going after a failed trial instead of aborting the run; failures are summarized at the end. Official `--release` runs default to continuing (`continue_on_error=True`) even when YAML still has `benchmark.continue_on_error: false`; pass `--abort-on-error` to stop on the first failure. Ad-hoc `--config` batches use `benchmark.continue_on_error` from run config. Re-running the same command with `--resume` retries only incomplete trials (counted `agent_failed` trials are kept).
-
-**`--retry-passes N`** (`benchmark.retry_passes`, batch mode): after the first pass, scan and retry incomplete trials up to `N` extra passes (implies `--continue-on-error`). NIKA preserves `agent_failed` trials. Retries stop when a pass completes no new trial. Example for an unattended run:
-
-```bash
-nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-passes 2 --result_dir results/my-run
-```
-
-**`nika benchmark migrate`**: read a YAML case matrix with a top-level `cases` field, derive `root_causes` from injection parameters and topology, then write a report. The command writes unresolved rows and exits with status 1 unless `--allow-unresolved` is set. Do not pass a release `RELEASE.yaml` manifest. Working-matrix and release generation already materialize these labels. See [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
-
-**YAML case fields**:
-
-| Field | Meaning |
-|-------|---------|
-| `problem` | Problem id (same as `nika failure inject`) |
-| `scenario` | Scenario id (same as `nika env run`) |
-| `topo_size` | Size `s`, `m`, or `l`; **null/empty** for scenarios without sizes |
-| `inject` | Map of `--set key=value` pairs passed to `nika failure inject` |
-| `root_causes` | Materialized diagnoses (`resource` + `fault_type`); `resource_id` is derived on submit and scoring; see [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md) |
-
-Benchmark exposes `-a`, `-p`, `-m`, and `-n`; `-n` affects `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `community.sade`, and `sdk.claude_sdk`. It does not expose `-e`; configure reasoning through `agent.reasoning_effort` in `config/nika.yaml` for benchmark runs.
-
-### Single-case mode
-
-Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`), plus **`--problem`**:
-
-```shell
-nika benchmark run dc_clos --problem bgp_asn_misconfig -s s \
-  -a byo.langgraph -p openai -m gpt-5-mini -n 20
-nika eval judge -p openai -m gpt-5-mini --result_dir results/
-nika eval summary --result_dir results/
-```
-
-- **`-s` / `--size`**: required only when `SCENARIO` is scalable.
-- Each benchmark case gets its own lab; the lab is torn down when the session closes (before metrics).
-- LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
-
 ---
 
 ## `nika remote`
@@ -369,6 +412,7 @@ Optional control plane for splitting the agent host from the lab host. See [remo
 
 When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
 
+---
 ---
 
 ## `nika traffic`
@@ -421,6 +465,7 @@ Options:
 - **`--pages-min`**, **`--pages-max`**
 - **`--no-loop`**: one browsing session per client host then exit
 
+---
 ---
 
 ## Helpful paths

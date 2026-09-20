@@ -9,15 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nika.workflows.benchmark.trials import (
-    case_key_for_row,
-    expand_trials,
-    is_valid_trial,
-    merge_run_config,
-    scan_trials,
-    trial_dir,
-    trial_dirname,
-)
+from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
 from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     RUN_CONFIG_FILENAME,
@@ -25,14 +17,28 @@ from nika.workflows.benchmark.release import (
     load_run_config,
 )
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
-from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
 from nika.workflows.benchmark.run import (
     _finalize_timed_out_trial,
     _require_submission,
     run_benchmark_from_release,
     run_benchmark_trials,
 )
-from tests.benchmark.trial_helpers import ROW_A, ROW_B, mini_cases_yaml, write_valid_trial
+from nika.workflows.benchmark.trials import (
+    case_key_for_row,
+    expand_trials,
+    is_valid_trial,
+    merge_run_config,
+    scan_trials,
+    task_id_for_row,
+    trial_dir,
+    trial_dirname,
+)
+from tests.benchmark.trial_helpers import (
+    ROW_A,
+    ROW_B,
+    mini_cases_yaml,
+    write_valid_trial,
+)
 from tests.support.prerequisites import docker_available
 
 HEALTHY_ROW = {
@@ -69,6 +75,7 @@ class TestTrialHelpers:
         assert trial_dirname(key, 1) == f"{key}__t01"
         assert trial_dirname(key, 12) == f"{key}__t12"
         assert case_key_for_row(ROW_A) == key
+        assert task_id_for_row(ROW_A) == key
 
     def test_expand_trials(self) -> None:
         trials = expand_trials([ROW_A, ROW_B], n_trials=2)
