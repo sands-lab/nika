@@ -21,6 +21,7 @@ from nika.net_env.sdn_l3_clos.topology_model import (
     dpid_for_leaf,
     dpid_for_spine,
 )
+from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab_startup
 from nika.net_env.verify import http_ok, ping_ok
 from nika.runtime.factory import runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
@@ -148,9 +149,66 @@ def test_local_arp_flood_actions_translate_at_all_sizes() -> None:
             assert body is not None, (size, flow["match"], flow["actions"])
 
 
+def test_apply_forwarding_fails_on_group_build_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_build(*_args):
+        raise KeyError("missing port")
+
+    model = build_clos_fabric_model("s")
+    monkeypatch.setattr(
+        fabric_apply,
+        "build_forwarding_rules",
+        lambda _model: {
+            "groups": [{"switch": "leaf_1", "device_id": "of:1"}],
+            "flows": [],
+        },
+    )
+    monkeypatch.setattr(fabric_apply, "_set_dpid", lambda *_args: None)
+    monkeypatch.setattr(fabric_apply, "_ofport_map", lambda *_args: {})
+    monkeypatch.setattr(fabric_apply, "_clear_rest_flows_groups", lambda *_args: None)
+    monkeypatch.setattr(
+        fabric_apply,
+        "_install_onos_group_body",
+        fail_build,
+    )
+
+    with pytest.raises(RuntimeError, match="ONOS group build failed on leaf_1"):
+        apply_forwarding(object(), model)  # type: ignore[arg-type]
+
+
+def test_apply_forwarding_fails_on_flow_build_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_build(*_args):
+        raise KeyError("missing port")
+
+    model = build_clos_fabric_model("s")
+    monkeypatch.setattr(
+        fabric_apply,
+        "build_forwarding_rules",
+        lambda _model: {
+            "groups": [],
+            "flows": [{"switch": "leaf_1", "device_id": "of:1"}],
+        },
+    )
+    monkeypatch.setattr(fabric_apply, "_set_dpid", lambda *_args: None)
+    monkeypatch.setattr(fabric_apply, "_ofport_map", lambda *_args: {})
+    monkeypatch.setattr(fabric_apply, "_clear_rest_flows_groups", lambda *_args: None)
+    monkeypatch.setattr(fabric_apply, "onos_group_snapshot", lambda *_args: {})
+    monkeypatch.setattr(
+        fabric_apply,
+        "_install_onos_flow_body",
+        fail_build,
+    )
+
+    with pytest.raises(RuntimeError, match="ONOS flow build failed on leaf_1"):
+        apply_forwarding(object(), model)  # type: ignore[arg-type]
+
+
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
-    """Topology-change recovery (not a benchmark failure)."""
+    """SDN Clos dataplane recovery and startup validation regressions."""
 
     def test_leaf_spine_link_down_recovers(self) -> None:
         session_id = self._start_env("sdn_l3_clos", ["-s", "s"])
@@ -163,6 +221,7 @@ class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
             dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
 
             assert ping_ok(runtime, src.name, same.ip)
+            assert http_ok(runtime, src.name, f"http://{same.ip}/")
             assert ping_ok(runtime, src.name, dst.ip)
             assert http_ok(runtime, src.name, f"http://{dst.ip}/")
 
@@ -179,7 +238,45 @@ class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
             apply_forwarding(runtime, model)
             time.sleep(5)
             assert ping_ok(runtime, src.name, same.ip)
+            assert http_ok(runtime, src.name, f"http://{same.ip}/")
             assert ping_ok(runtime, src.name, dst.ip)
             assert http_ok(runtime, src.name, f"http://{dst.ip}/")
+        finally:
+            self._close_session(session_id)
+
+    def test_startup_rejects_broken_same_rack_arp(self) -> None:
+        session_id = self._start_env("sdn_l3_clos", ["-s", "s"])
+        try:
+            row = self._assert_session_ready(session_id, "sdn_l3_clos")
+            runtime = runtime_for_session(row)
+            model = build_clos_fabric_model("s")
+            src = model.client_endpoints()[0]
+            same = next(w for w in model.web_endpoints() if w.leaf_id == src.leaf_id)
+            leaf = model.leaves[src.leaf_id - 1]
+            source_port = model.port_to_peer(leaf, src.name)
+            assert source_port is not None
+
+            assert ping_ok(runtime, src.name, same.ip)
+            assert http_ok(runtime, src.name, f"http://{same.ip}/")
+
+            runtime.exec(
+                leaf,
+                "ovs-ofctl -O OpenFlow13 add-flow "
+                f"{leaf} 'table=0,priority=65000,arp,"
+                f"in_port={source_port.name},actions=drop'",
+            )
+            runtime.exec(src.name, f"ip neigh del {same.ip} dev eth0 || true")
+
+            flows = runtime.exec(leaf, f"ovs-ofctl -O OpenFlow13 dump-flows {leaf}")
+            assert "priority=65000" in flows
+
+            result = verify_sdn_l3_clos_lab_startup(
+                runtime,
+                scenario_name="sdn_l3_clos",
+                model=model,
+            )
+            assert not result["verified"]
+            assert not result["checks"]["same_rack_ping"]
+            assert result["checks"]["cross_rack_ping"]
         finally:
             self._close_session(session_id)

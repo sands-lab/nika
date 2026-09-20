@@ -552,7 +552,9 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
             body = _install_onos_group_body(group, port_maps[group["switch"]])
             group_ops.append(("POST", f"/onos/v1/groups/{group['device_id']}", body))
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ONOS group build failed on %s: %s", group["switch"], exc)
+            raise RuntimeError(
+                f"ONOS group build failed on {group.get('switch')}: {exc}"
+            ) from exc
     if group_ops:
         result = _onos_batch(runtime, group_ops)
         _require_onos_batch_success(result, operation="group install")
@@ -591,7 +593,9 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
         except RuntimeError:
             raise
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ONOS flow build failed on %s: %s", flow["switch"], exc)
+            raise RuntimeError(
+                f"ONOS flow build failed on {flow.get('switch')}: {exc}"
+            ) from exc
     if flow_ops:
         result = _onos_batch(runtime, flow_ops)
         _require_onos_batch_success(result, operation="flow install")
