@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import os
 import shutil
+from typing import Any
 
-import docker
+
+def _docker_mod() -> Any | None:
+    try:
+        import docker
+    except ImportError:
+        return None
+    return docker
 
 
 def docker_available() -> bool:
+    docker = _docker_mod()
+    if docker is None:
+        return False
     try:
         docker.from_env().ping()
     except Exception:
@@ -29,6 +39,8 @@ min3clos_prerequisites = containerlab_prerequisites
 def docker_image_available(image: str) -> bool:
     if not docker_available():
         return False
+    docker = _docker_mod()
+    assert docker is not None
     try:
         return bool(docker.from_env().images.list(name=image))
     except Exception:
@@ -44,3 +56,40 @@ def privileged_lab_supported() -> bool:
     if os.geteuid() == 0:
         return True
     return docker_available()
+
+
+def linux_vrf_available() -> bool:
+    """Return True when the host kernel can create Linux VRF devices.
+
+    Kathara/enterprise_branch VRFs use the host kernel. GitHub-hosted Azure
+    kernels often omit ``vrf.ko``; CI sets ``NIKA_CI_VRF=0|1`` after a probe.
+    """
+    forced = os.environ.get("NIKA_CI_VRF", "").strip()
+    if forced == "0":
+        return False
+    if forced == "1":
+        return True
+
+    import subprocess
+
+    name = "nika_vrf_probe"
+    create = subprocess.run(
+        ["ip", "link", "add", name, "type", "vrf", "table", "110"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if create.returncode != 0:
+        create = subprocess.run(
+            ["sudo", "-n", "ip", "link", "add", name, "type", "vrf", "table", "110"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    if create.returncode != 0:
+        return False
+    subprocess.run(["ip", "link", "del", name], capture_output=True, check=False)
+    subprocess.run(
+        ["sudo", "-n", "ip", "link", "del", name], capture_output=True, check=False
+    )
+    return True

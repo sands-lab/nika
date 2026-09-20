@@ -1,0 +1,248 @@
+name: Nightly
+
+on:
+  schedule:
+    # 05:15 UTC daily (takes effect only after this file is on the default branch)
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.8.22"
+  GNMIC_VERSION: "0.48.0"
+  # Boot / artifact checks only — no deep evaluate_scenario or symptom E2E.
+  NIKA_CI_VERIFY_DEPTH: artifact
+  # Representative ISP subset for GHA wall-clock; full SNDlib matrix remains local default.
+  NIKA_CI_ISP_TOPOS: "pdh,polska"
+  # eBGP prefix fan-out is currently unreliable on shared GHA runners.
+  NIKA_CI_ISP_BGP_MODES: "ibgp_rr"
+
+jobs:
+  full-scenario-verify:
+    name: scenario startup (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe wireguard || true
+          # Azure GitHub runners often lack vrf.ko; probe create instead of failing.
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Kathara scenario light startup (artifact)
+        run: >
+          uv run pytest
+          tests/nika/net_env/test_scenario_e2e.py::KatharaScenarioE2ETest
+          -q
+
+  failure-inject-contract:
+    name: failure inject contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Kathara failure inject contract
+        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_kathara_failure_inject_contract -q
+
+  clab-failure-inject-contract:
+    name: clab failure inject contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install containerlab
+        run: |
+          for attempt in 1 2 3; do
+            if bash -c "$(curl -fsSL https://get.containerlab.dev)"; then
+              exit 0
+            fi
+            echo "containerlab install attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 5))
+          done
+          exit 1
+      - name: Install gnmic
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Clab failure inject contract
+        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q
+
+  failure-e2e:
+    name: failure artifact e2e ${{ matrix.shard.name }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        shard:
+          - name: baseline
+            select: "not link_flap"
+          - name: routing-flap
+            select: >-
+              link_flap and (simple_bgp or dc_clos or campus_lan or
+              enterprise_branch or isp_)
+          - name: programmable-flap
+            select: >-
+              link_flap and (p4_dc_fabric or p4_dc_gateway or sdn_l3_clos)
+          - name: platform-flap
+            select: "link_flap and (k8s_lab or min3clos)"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe wireguard || true
+          # Azure GitHub runners often lack vrf.ko; probe create instead of failing.
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Failure inject + artifact verify (${{ matrix.shard.name }})
+        env:
+          PYTEST_SELECT: ${{ matrix.shard.select }}
+        run: >-
+          uv run pytest tests/nika/problems/test_failure_e2e.py
+          -q -k "$PYTEST_SELECT"
+
+  isp-integration:
+    name: ISP integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe wireguard || true
+          # Azure GitHub runners often lack vrf.ko; probe create instead of failing.
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install containerlab
+        run: |
+          for attempt in 1 2 3; do
+            if bash -c "$(curl -fsSL https://get.containerlab.dev)"; then
+              exit 0
+            fi
+            echo "containerlab install attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 5))
+          done
+          exit 1
+      - name: Install gnmic
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: ISP artifact matrix
+        run: uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
+
+  k8s-llmd-sequential:
+    name: k8s + llmd startup (amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: k8s_lab + llmd_lab light startup (serial)
+        run: >
+          uv run pytest
+          tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
+          -q --maxfail=1
+          || uv run pytest
+          tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
+          -q --maxfail=1

@@ -64,6 +64,15 @@ class TestDeprecatedRelease010:
             )
 
 
+def test_published_0_2_0_release_preflight() -> None:
+    """The documented release must load and pass its complete contract gate."""
+    release = load_release("0.2.0", split="test")
+
+    assert release.case_count == 85
+    assert release.n_trials == 3
+    preflight_release(release, check_images=False)
+
+
 class TestFreezeRelease:
     def test_freeze_writes_versioned_manifest(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")

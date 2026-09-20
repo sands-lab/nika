@@ -8,6 +8,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 - `tests/nika/` → `src/nika/`
 - `tests/benchmark/` → `nika benchmark` (YAML cases + `src/nika/workflows/benchmark/`)
 - `tests/leaderboard/` → `nika leaderboard` (submit packs/validates + release→submit E2E)
+- `tests/ci/` → curated dual-arch GitHub Actions smoke
 - `tests/support/` → shared helpers
 
 ## Layout
@@ -17,6 +18,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
 | `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, release, trials, sandbox benchmark runs; runner YAML load contracts |
 | `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
+| `tests/ci/` | GitHub Actions smoke | Dual-arch image build, light startup, failure/pipeline/clab curated jobs |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
 | `tests/nika/workflows/integration/` | end-to-end session pipeline | env → inject → mock agent → close → metrics → summary |
 | `tests/nika/problems/` | `src/nika/problems/` | Failure injection smoke tests (Kathara + Containerlab) |
@@ -42,10 +44,15 @@ Markers are registered in `pyproject.toml` and auto-applied from path convention
 | `sandbox` | Sandbox isolation and security |
 | `e2e` | Full mock-agent pipeline and benchmark flows |
 | `live` | Real LLM / GitHub / Batfish (credentials required) |
+| `ci_smoke` | Curated dual-arch GitHub Actions smoke (`tests/ci/`) |
+| `nightly` | Heavy suites for scheduled runners |
 
 ```shell
 # Fast local smoke (no Docker)
 uv run pytest -m "unit or contract" -q
+
+# Curated CI smoke (Docker; same set as Actions)
+uv run pytest -m ci_smoke -q
 
 # Emulator / lab integration (Docker / containerlab)
 uv run pytest -m integration -q
@@ -60,7 +67,33 @@ uv run pytest -m sandbox -q
 uv run pytest -m live -q
 ```
 
-Run these tiers locally; there is no GitHub Actions workflow for them yet (lab backends and credentials are not available on shared CI runners).
+## GitHub Actions
+
+Workflows live under [`.github/workflows/`](../../.github/workflows/):
+
+| Workflow | When | Runners | What |
+|----------|------|---------|------|
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code and benchmark paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
+| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
+
+PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
+
+Shard locally the same way Actions does:
+
+```shell
+# One image on the host arch
+NIKA_CI_IMAGE=nika/onos uv run pytest tests/ci/test_images.py -q
+
+# One scenario light startup
+NIKA_CI_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_startup.py -q
+
+# One failure-inject case (PR curated)
+NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_inject_smoke.py -q
+
+# Optional ISP nightly subset (default is the full SNDlib catalog)
+NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,polska NIKA_CI_ISP_BGP_MODES=ibgp_rr \
+  uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
+```
 
 ## Shared support (`tests/support/`)
 

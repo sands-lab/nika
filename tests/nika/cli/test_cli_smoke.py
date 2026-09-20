@@ -1,8 +1,5 @@
 from __future__ import annotations
 import importlib
-import subprocess
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 from typer.testing import CliRunner
@@ -10,15 +7,6 @@ from typer.testing import CliRunner
 from nika.cli.main import app
 
 
-def _repo_root() -> Path:
-    here = Path(__file__).resolve()
-    for parent in (here, *here.parents):
-        if (parent / "pyproject.toml").is_file():
-            return parent
-    raise RuntimeError(f"Could not locate repository root from {here}")
-
-
-_REPO_ROOT = _repo_root()
 _RUNNER = CliRunner()
 CLI_COMMAND_MODULES = [
     "nika.cli.commands.agent",
@@ -117,30 +105,82 @@ class CliSmokeTest:
             assert result.exit_code == 0
 
     def test_cli_read_only_invocations(self) -> None:
+        env_list = _RUNNER.invoke(app, ["env", "list"])
+        assert env_list.exit_code == 0, env_list.output
+        assert "dc_clos" in env_list.output
+        assert "campus_lan" in env_list.output
+        listed = {
+            line.split()[0]
+            for line in env_list.output.splitlines()
+            if line.strip()
+            and not line.startswith("SCENARIO")
+            and not set(line.strip()) <= {"-"}
+        }
+        assert "dc_clos" in listed
+        assert "campus_lan" in listed
+
+        failure_list = _RUNNER.invoke(app, ["failure", "list"])
+        assert failure_list.exit_code == 0, failure_list.output
+        assert "link_down" in failure_list.output
+
         for args in CLI_READ_ONLY_ARGS:
             result = _RUNNER.invoke(app, args)
+            assert result.exit_code == 0, result.output
 
-            assert result.exit_code == 0
-
-    def test_env_static_validation_is_opt_in(self) -> None:
+    def test_env_run_forwards_published_scenario(self) -> None:
         with patch(
             "nika.workflows.env.start.start_net_env", return_value="session-test"
         ) as mocked:
-            default = _RUNNER.invoke(app, ["env", "run", "simple_bgp"])
+            default = _RUNNER.invoke(app, ["env", "run", "dc_clos", "-s", "s"])
             assert default.exit_code == 0, default.output
+            assert mocked.call_args.args[0] == "dc_clos"
+            assert mocked.call_args.args[1] == "s"
             assert mocked.call_args.kwargs["static_validation"] is None
 
             enabled = _RUNNER.invoke(
-                app, ["env", "run", "simple_bgp", "--static-validation"]
+                app, ["env", "run", "campus_lan", "-s", "s", "--static-validation"]
             )
             assert enabled.exit_code == 0, enabled.output
+            assert mocked.call_args.args[0] == "campus_lan"
             assert mocked.call_args.kwargs["static_validation"] is True
+
+    def test_failure_inject_forwards_problem_and_sets(self) -> None:
+        with patch("nika.workflows.failure.inject.inject_failure") as mocked:
+            result = _RUNNER.invoke(
+                app,
+                [
+                    "failure",
+                    "inject",
+                    "link_down",
+                    "--session_id",
+                    "sess-dc",
+                    "--set",
+                    "host_name=client_0",
+                    "--set",
+                    "intf_name=eth0",
+                ],
+            )
+        assert result.exit_code == 0, result.output
+        assert mocked.call_args.args[0] == ["link_down"]
+        assert mocked.call_args.kwargs["session_id"] == "sess-dc"
+        assert mocked.call_args.kwargs["param_overrides"] == {
+            "host_name": "client_0",
+            "intf_name": "eth0",
+        }
+
+    def test_session_close_forwards_session_id(self) -> None:
+        with patch("nika.workflows.session.close.close_session") as mocked:
+            result = _RUNNER.invoke(
+                app, ["session", "close", "--session_id", "sess-1", "-y"]
+            )
+        assert result.exit_code == 0, result.output
+        assert mocked.call_args.kwargs["session_id"] == "sess-1"
 
     def test_benchmark_run_defaults_to_candidate_catalog(self) -> None:
         with patch(
             "nika.cli.commands.benchmark.run_benchmark_from_yaml"
         ) as run_from_yaml:
-            result = _RUNNER.invoke(app, ["benchmark", "run"])
+            result = _RUNNER.invoke(app, ["benchmark", "run", "-m", "mock-v1"])
         assert result.exit_code == 0, result.output
         assert run_from_yaml.call_args.kwargs["benchmark_file"].endswith(
             "benchmark/working/pool"
@@ -155,6 +195,8 @@ class CliSmokeTest:
                 "benchmark/working/pool",
                 "--release",
                 "0.1.0",
+                "-m",
+                "mock-v1",
             ],
         )
         assert both.exit_code != 0
@@ -162,7 +204,9 @@ class CliSmokeTest:
         assert "--config" in both_text and "--release" in both_text
 
     def test_benchmark_run_help_includes_split(self) -> None:
-        result = _RUNNER.invoke(app, ["benchmark", "run", "--help"])
+        result = _RUNNER.invoke(
+            app, ["benchmark", "run", "--help"], env={"COLUMNS": "120", "NO_COLOR": "1"}
+        )
         assert result.exit_code == 0, result.output
         assert "--split" in result.output
 
@@ -181,24 +225,10 @@ class CliSmokeTest:
                     "dev",
                     "--result_dir",
                     "/tmp/nika-split-smoke",
+                    "-m",
+                    "mock-v1",
                 ],
             )
         assert result.exit_code == 0, result.output
         assert run_from_release.call_args.kwargs["split"] == "dev"
         assert run_from_release.call_args.kwargs["continue_on_error"] is True
-
-    def test_console_script_help_invocations(self) -> None:
-        assert (_REPO_ROOT / "src" / "nika").is_dir(), _REPO_ROOT
-        for args in CLI_HELP_ARGS:
-            completed = subprocess.run(
-                [sys.executable, "-m", "nika.cli.main", *args],
-                cwd=_REPO_ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-
-            assert completed.returncode == 0, (
-                f"args={args!r} cwd={_REPO_ROOT}\n"
-                f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
-            )

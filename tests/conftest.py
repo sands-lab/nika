@@ -45,6 +45,12 @@ def pytest_collection_modifyitems(config, items):
             continue
         path = str(item.fspath)
         name = item.nodeid
+        norm_path = path.replace("\\", "/")
+
+        if "tests/ci/" in norm_path:
+            if not item.get_closest_marker("ci_smoke"):
+                item.add_marker(pytest.mark.ci_smoke)
+            continue
 
         if any(
             token in path
@@ -98,6 +104,8 @@ def pytest_collection_modifyitems(config, items):
                 "test_healthy_cases",
                 "test_validation_contract",
                 "test_pack_validate",
+                "test_submit_validation",
+                "test_symptom_contracts",
                 "leaderboard/test_submit_unit",
             )
         ):
