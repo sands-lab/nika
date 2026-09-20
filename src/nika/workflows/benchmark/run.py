@@ -974,9 +974,10 @@ def run_benchmark_from_release(
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
     n_trials = resolved.n_trials
-    planned_trials = expand_trials(resolved.cases, n_trials)
+    # Validate --task-id before preflight / image pulls so bad selectors fail fast.
+    planned: list[Trial] | None = None
     if task_ids:
-        planned_trials = select_trials(planned_trials, task_ids)
+        planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
     preflight_release(resolved, check_images=check_images)
     if check_images:
         from agent.sandbox.sbx.images import ensure_sbx_template_images
@@ -1004,12 +1005,15 @@ def run_benchmark_from_release(
     )
     existing = load_run_config(results_root)
     job = merge_run_config(existing=existing, proposed=proposed)
-    total_trials = len(planned_trials)
-    # Scoped --task-id runs must record the planned denominator so later
-    # `nika eval summary --report` does not score against the full release.
-    if task_ids:
-        job["task_ids"] = list(task_ids)
+    if planned is not None:
+        total_trials = len(planned)
+        job["task_ids"] = list(task_ids or [])
         job["planned_trial_count"] = total_trials
+        case_count = len({trial.case_key for trial in planned})
+        scope = f"{case_count} cases, {total_trials} trials"
+    else:
+        total_trials = int(resolved.case_count) * int(n_trials)
+        scope = f"{resolved.case_count} cases × {n_trials} trials"
     job_path = write_job_metadata(results_root, job)
     run_id = str(job.get("run_id") or job.get("job_id"))
     write_progress(
@@ -1024,11 +1028,6 @@ def run_benchmark_from_release(
         agent_type=job.get("agent_type"),
         model=job.get("model"),
     )
-    if task_ids:
-        case_count = len({trial.case_key for trial in planned_trials})
-        scope = f"{case_count} cases, {total_trials} trials"
-    else:
-        scope = f"{resolved.case_count} cases × {n_trials} trials"
     print(
         f"Running {resolved.ref} split={resolved.split} "
         f"({scope}, "

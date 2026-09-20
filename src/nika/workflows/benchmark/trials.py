@@ -174,37 +174,6 @@ def resolve_catalog_row(rows: list[dict[str, Any]], selector: str) -> dict[str, 
     return row
 
 
-def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
-    """Filter expanded trials by ``task_id`` and/or ``{task_id}__tNN`` selectors."""
-    if not selectors:
-        return list(trials)
-    by_task: dict[str, list[Trial]] = {}
-    by_trial: dict[str, Trial] = {}
-    for trial in trials:
-        by_task.setdefault(trial.case_key, []).append(trial)
-        by_trial[trial.trial_id] = trial
-    selected: list[Trial] = []
-    seen: set[str] = set()
-    for raw in selectors:
-        task_id, trial_index = parse_task_selector(raw)
-        if trial_index is not None:
-            trial = by_trial.get(trial_dirname(task_id, trial_index))
-            if trial is None:
-                raise ValueError(f"Unknown task id {raw!r}")
-            if trial.trial_id not in seen:
-                selected.append(trial)
-                seen.add(trial.trial_id)
-            continue
-        matches = by_task.get(task_id)
-        if not matches:
-            raise ValueError(f"Unknown task id {raw!r}")
-        for trial in matches:
-            if trial.trial_id not in seen:
-                selected.append(trial)
-                seen.add(trial.trial_id)
-    return selected
-
-
 def trials_root(result_dir: Path) -> Path:
     return result_dir / TRIALS_DIRNAME
 
@@ -252,6 +221,38 @@ def expand_trials(
                 )
             )
     return trials
+
+
+def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
+    """Filter expanded trials by ``task_id`` and/or ``{task_id}__tNN`` selectors."""
+    if not selectors:
+        return list(trials)
+    by_task: dict[str, list[Trial]] = {}
+    by_trial: dict[str, Trial] = {}
+    for trial in trials:
+        by_task.setdefault(trial.case_key, []).append(trial)
+        by_trial[trial.trial_id] = trial
+    selected: list[Trial] = []
+    seen: set[str] = set()
+    for raw in selectors:
+        task_id, trial_index = parse_task_selector(raw)
+        if trial_index is not None:
+            trial = by_trial.get(trial_dirname(task_id, trial_index))
+            if trial is None:
+                raise ValueError(f"Unknown task id {raw!r}")
+            if trial.trial_id not in seen:
+                selected.append(trial)
+                seen.add(trial.trial_id)
+            continue
+        matches = by_task.get(task_id)
+        if not matches:
+            raise ValueError(f"Unknown task id {raw!r}")
+        for trial in matches:
+            if trial.trial_id not in seen:
+                selected.append(trial)
+                seen.add(trial.trial_id)
+    return selected
+
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
