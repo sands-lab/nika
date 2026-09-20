@@ -329,7 +329,18 @@ class RunConfig(BaseModel):
                 return None
 
     def to_display_dict(self) -> dict[str, Any]:
-        return self.model_dump(mode="python")
+        """Effective config for ``nika config show`` (new agent.model shape).
+
+        Resolves ``agent.model`` from the canonical field or legacy
+        ``agent.models.*``, and omits the deprecated ``models`` map so the
+        dump matches the post-convergence YAML style.
+        """
+        data = self.model_dump(mode="python")
+        agent = data.get("agent")
+        if isinstance(agent, dict):
+            agent["model"] = self.model_for_agent()
+            agent.pop("models", None)
+        return data
 
 
 def default_run_config() -> RunConfig:
