@@ -51,6 +51,11 @@ LAZY_COMMANDS.update(
             "config_app",
             "Run configuration (config/nika.yaml).",
         ),
+        "inspect": LazyCommandSpec(
+            "nika.cli.commands.inspect_cmd",
+            "inspect_app",
+            "Browse session trajectories in a local web UI.",
+        ),
     }
 )
 

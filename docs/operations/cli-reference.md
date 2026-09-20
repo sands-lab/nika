@@ -21,6 +21,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
 | `nika config` | Show effective run config or migrate legacy `.env` ops into YAML |
 | `nika leaderboard` | Pack, validate, and submit scores (GitHub PR) + trajectories (HF PR) from official release runs |
+| `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`) against the running lab |
 
@@ -91,6 +92,25 @@ Aligned with `nika agent run`:
 - **`nika session containers [--session_id ID]`**: list containers in the session lab (CONTAINER ID, NAME, IMAGE, STATUS, NAMES). Auto-selects when only one session is running.
 - **`nika session close [--session_id ID] [-y]`**: undeploy the lab, mark failure records ended, and remove the runtime session file. If you omit `--session_id` with one running session, NIKA selects it. **`-y`** skips the confirmation prompt.
 - **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
+
+---
+
+## `nika inspect`
+
+Open a local web UI over a results root: folder tree, filters, merged agent/NIKA timeline, scores, and raw artifacts.
+
+How-to (front-end build, bind host, Vite): [Browse sessions with `nika inspect`](session-inspect.md).
+
+```shell
+nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
+```
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--result-dir` | `nika.result_dir` / `results/` | Results root to scan (session dirs with `run.json`) |
+| `--host` | `127.0.0.1` | `127.0.0.1`, `localhost`, `::1`, `0.0.0.0`, or `::` (not a specific NIC IP) |
+| `--port` | `7580` | If busy, NIKA picks a free port and prints it |
+| `--no-open` | off | Skip opening a browser (always skipped under SSH or WSL) |
 
 ---
 
