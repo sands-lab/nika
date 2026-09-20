@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from nika.config import resolve_results_root
+from nika.utils.session_artifacts import (
+    RUN_FILENAME,
+    is_finished_session,
+    iter_session_dirs,
+)
 from nika.view.models import (
     ArtifactFlags,
     BenchmarkRunSummary,
@@ -15,11 +20,6 @@ from nika.view.models import (
     SessionDetail,
     SessionFacets,
     SessionSummary,
-)
-from nika.utils.session_artifacts import (
-    RUN_FILENAME,
-    is_finished_session,
-    iter_session_dirs,
 )
 
 ARTIFACT_FILES = {

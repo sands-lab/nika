@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from nika.view.adapters import load_agent_events, load_nika_events
@@ -21,8 +21,8 @@ def _parse_ts(value: str | None) -> datetime | None:
         return None
     # Normalize so mixed naive (legacy) and aware (UTC writers) logs can sort.
     if ts.tzinfo is None:
-        return ts.replace(tzinfo=timezone.utc)
-    return ts.astimezone(timezone.utc)
+        return ts.replace(tzinfo=UTC)
+    return ts.astimezone(UTC)
 
 
 def merge_timelines(
