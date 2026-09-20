@@ -241,9 +241,16 @@ def _empty_metric_families(session_dirs: list[Path]) -> list[str]:
 
 
 def _expected_trial_count(result_dir: Path) -> int | None:
-    """``case_count x n_trials`` from the run config at the result-dir root."""
+    """Expected trial count from the run config at the result-dir root.
+
+    Prefers ``planned_trial_count`` (scoped ``--task-id`` runs), else
+    ``case_count * n_trials``.
+    """
     for name in (RUN_FILENAME, "benchmark_job.json"):
         run_cfg = _read_json(result_dir / name)
+        planned = run_cfg.get("planned_trial_count")
+        if isinstance(planned, int) and planned > 0:
+            return planned
         case_count = run_cfg.get("case_count")
         n_trials = run_cfg.get("n_trials")
         if (

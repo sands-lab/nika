@@ -16,24 +16,15 @@ from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
 from nika.workflows.agent.run import start_agent
-from nika.workflows.benchmark.trials import (
-    Trial,
-    count_completed_trials,
-    expand_trials,
-    heal_trial_outcome,
-    is_valid_trial,
-    merge_run_config,
-    scan_trials,
-    trial_dir,
-)
 from nika.workflows.benchmark.healthy import (
     is_healthy_case,
     write_healthy_session_artifacts,
 )
 from nika.workflows.benchmark.load_config import load_benchmark_input
+from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
 from nika.workflows.benchmark.release import (
-    BenchmarkRelease,
     DEFAULT_RELEASE_VERSION,
+    BenchmarkRelease,
     SplitName,
     build_job_metadata,
     load_release,
@@ -43,18 +34,28 @@ from nika.workflows.benchmark.release import (
     release_fields_for_session,
     write_job_metadata,
 )
+from nika.workflows.benchmark.resume import (
+    benchmark_row_fingerprint,
+    benchmark_row_from_case,
+)
 from nika.workflows.benchmark.run_progress import (
     update_progress,
     update_progress_from_scan,
     write_progress,
 )
-from nika.workflows.benchmark.resume import (
-    benchmark_row_fingerprint,
-    benchmark_row_from_case,
+from nika.workflows.benchmark.trials import (
+    Trial,
+    count_completed_trials,
+    expand_trials,
+    heal_trial_outcome,
+    is_valid_trial,
+    merge_run_config,
+    scan_trials,
+    select_trials,
+    trial_dir,
 )
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import eval_results, run_eval_metrics
-from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
@@ -556,6 +557,7 @@ def run_benchmark_from_yaml(
     continue_on_error: bool = False,
     retry_passes: int = 0,
     release_meta: dict | None = None,
+    task_ids: list[str] | None = None,
 ) -> None:
     """Run ad-hoc YAML cases via the shared trial runner (``n_trials=1``).
 
@@ -577,6 +579,7 @@ def run_benchmark_from_yaml(
         continue_on_error=continue_on_error,
         retry_passes=retry_passes,
         release_meta=release_meta,
+        task_ids=task_ids,
     )
 
 
@@ -760,6 +763,7 @@ def run_benchmark_trials(
     continue_on_error: bool = False,
     retry_passes: int = 0,
     release_meta: dict | None = None,
+    task_ids: list[str] | None = None,
 ) -> None:
     """Run cases × ``n_trials`` under ``{result_dir}/trials/`` (shared batch kernel)."""
     if batch_size < 1:
@@ -770,12 +774,6 @@ def run_benchmark_trials(
         raise ValueError("retry_passes must be >= 0")
     if retry_passes and not continue_on_error:
         continue_on_error = True
-
-    from agent.sandbox.sbx.images import ensure_sbx_template_images
-
-    # Once per job, before any case/lab deploy, so parallel trials do not race
-    # on the first ``sbx create`` Docker Hub pull.
-    ensure_sbx_template_images([agent_type])
 
     rows = load_benchmark_input(benchmark_file)
     if not rows:
@@ -791,6 +789,14 @@ def run_benchmark_trials(
     )
 
     trials = expand_trials(rows, n_trials)
+    if task_ids:
+        trials = select_trials(trials, task_ids)
+
+    from agent.sandbox.sbx.images import ensure_sbx_template_images
+
+    # Once per job, before any case/lab deploy, so parallel trials do not race
+    # on the first ``sbx create`` Docker Hub pull.
+    ensure_sbx_template_images([agent_type])
     results_root = resolve_results_root(result_dir)
     run_id = None
     if release_meta:
@@ -955,6 +961,7 @@ def run_benchmark_from_release(
     retry_passes: int = 0,
     check_images: bool = True,
     release: BenchmarkRelease | None = None,
+    task_ids: list[str] | None = None,
 ) -> None:
     """Run a frozen ``nika-bench`` release split after preflight validation.
 
@@ -966,6 +973,10 @@ def run_benchmark_from_release(
     resolved = release or load_release(release_ref, split=resolved_split)
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
+    n_trials = resolved.n_trials
+    planned_trials = expand_trials(resolved.cases, n_trials)
+    if task_ids:
+        planned_trials = select_trials(planned_trials, task_ids)
     preflight_release(resolved, check_images=check_images)
     if check_images:
         from agent.sandbox.sbx.images import ensure_sbx_template_images
@@ -978,7 +989,6 @@ def run_benchmark_from_release(
 
         case_timeout = int(BenchmarkSettings.model_fields["case_timeout_sec"].default)
     effective_timeout = int(case_timeout)
-    n_trials = resolved.n_trials
     official = True
 
     results_root = resolve_results_root(result_dir)
@@ -994,9 +1004,14 @@ def run_benchmark_from_release(
     )
     existing = load_run_config(results_root)
     job = merge_run_config(existing=existing, proposed=proposed)
+    total_trials = len(planned_trials)
+    # Scoped --task-id runs must record the planned denominator so later
+    # `nika eval summary --report` does not score against the full release.
+    if task_ids:
+        job["task_ids"] = list(task_ids)
+        job["planned_trial_count"] = total_trials
     job_path = write_job_metadata(results_root, job)
     run_id = str(job.get("run_id") or job.get("job_id"))
-    total_trials = int(resolved.case_count) * int(n_trials)
     write_progress(
         run_id,
         result_dir=results_root,
@@ -1009,9 +1024,14 @@ def run_benchmark_from_release(
         agent_type=job.get("agent_type"),
         model=job.get("model"),
     )
+    if task_ids:
+        case_count = len({trial.case_key for trial in planned_trials})
+        scope = f"{case_count} cases, {total_trials} trials"
+    else:
+        scope = f"{resolved.case_count} cases × {n_trials} trials"
     print(
         f"Running {resolved.ref} split={resolved.split} "
-        f"({resolved.case_count} cases × {n_trials} trials, "
+        f"({scope}, "
         f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
     )
 
@@ -1030,4 +1050,5 @@ def run_benchmark_from_release(
         continue_on_error=continue_on_error,
         retry_passes=retry_passes,
         release_meta=job,
+        task_ids=task_ids,
     )

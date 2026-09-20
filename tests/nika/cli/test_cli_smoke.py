@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 import importlib
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
 from nika.cli.main import app
-
 
 _RUNNER = CliRunner()
 CLI_COMMAND_MODULES = [
@@ -43,6 +43,8 @@ CLI_HELP_ARGS = [
     ["agent", "run", "--help"],
     ["benchmark", "--help"],
     ["benchmark", "run", "--help"],
+    ["benchmark", "list", "--help"],
+    ["benchmark", "describe", "--help"],
     ["config", "--help"],
     ["config", "show", "--help"],
     ["config", "migrate", "--help"],
@@ -211,6 +213,7 @@ class CliSmokeTest:
         )
         assert result.exit_code == 0, result.output
         assert "--split" in result.output
+        assert "--task-id" in result.output
 
     def test_benchmark_run_forwards_split(self) -> None:
         with patch(

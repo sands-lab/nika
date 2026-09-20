@@ -12,11 +12,11 @@ from typing import Any
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
-from nika.workflows.eval.session import build_eval_metrics_payload
 from nika.workflows.benchmark.resume import (
     benchmark_row_identity,
     cleanup_benchmark_session,
 )
+from nika.workflows.eval.session import build_eval_metrics_payload
 
 TRIALS_DIRNAME = "trials"
 VALID_TRIAL_OUTCOMES = frozenset({"success", "agent_failed"})
@@ -81,6 +81,128 @@ def trial_dirname(case_key: str, trial_index: int) -> str:
     if trial_index < 1:
         raise ValueError("trial_index must be >= 1")
     return f"{case_key}__t{trial_index:02d}"
+
+
+_TRIAL_SUFFIX_RE = re.compile(r"^(.*)__t(\d+)$")
+_CATALOG_DEPLOY_KEYS = (
+    "topo_size",
+    "topo",
+    "igp",
+    "bgp_mode",
+    "backend",
+    "device_profile",
+)
+
+
+def task_id_for_row(row: dict[str, Any]) -> str:
+    """Public case id. Same string as ``case_key_for_row``."""
+    return case_key_for_row(row)
+
+
+def parse_task_selector(selector: str) -> tuple[str, int | None]:
+    """Split a public id into ``(task_id, trial_index)``.
+
+    ``trial_index`` is set when *selector* is a trial dirname (``{task_id}__tNN``).
+    """
+    text = (selector or "").strip()
+    if not text:
+        raise ValueError("Task id must be a non-empty string.")
+    match = _TRIAL_SUFFIX_RE.fullmatch(text)
+    if match is None:
+        return text, None
+    task_id = match.group(1)
+    trial_index = int(match.group(2))
+    if not task_id or trial_index < 1:
+        raise ValueError(f"Invalid trial id {selector!r}")
+    return task_id, trial_index
+
+
+def index_rows_by_task_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Map each row's public ``task_id`` to the row. Duplicate ids raise."""
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        task_id = task_id_for_row(row)
+        if task_id in indexed:
+            raise ValueError(f"Duplicate task_id {task_id!r}")
+        indexed[task_id] = row
+    return indexed
+
+
+def task_catalog_entry(row: dict[str, Any]) -> dict[str, Any]:
+    """Compact operator-facing fields for ``nika benchmark list``."""
+    entry: dict[str, Any] = {
+        "task_id": task_id_for_row(row),
+        "scenario": row["scenario"],
+        "problem": row["problem"],
+    }
+    for key in _CATALOG_DEPLOY_KEYS:
+        value = row.get(key)
+        if value not in (None, ""):
+            entry[key] = value
+    if row.get("rpki"):
+        entry["rpki"] = True
+    return entry
+
+
+def catalog_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    index_rows_by_task_id(rows)
+    return [task_catalog_entry(row) for row in rows]
+
+
+def describe_task_payload(row: dict[str, Any]) -> dict[str, Any]:
+    """Decomposed case fields for ``nika benchmark describe``."""
+    payload = task_catalog_entry(row)
+    payload["inject"] = dict(row.get("inject") or {})
+    problems = row.get("problems")
+    if isinstance(problems, list) and len(problems) > 1:
+        payload["problems"] = list(problems)
+    if "root_causes" in row:
+        payload["root_causes"] = row["root_causes"]
+    status = row.get("root_causes_status")
+    if status:
+        payload["root_causes_status"] = status
+    return payload
+
+
+def resolve_catalog_row(rows: list[dict[str, Any]], selector: str) -> dict[str, Any]:
+    """Find one row by ``task_id`` or trial dirname. Unknown ids raise."""
+    task_id, _trial_index = parse_task_selector(selector)
+    indexed = index_rows_by_task_id(rows)
+    row = indexed.get(task_id)
+    if row is None:
+        raise ValueError(f"Unknown task id {selector!r}")
+    return row
+
+
+def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
+    """Filter expanded trials by ``task_id`` and/or ``{task_id}__tNN`` selectors."""
+    if not selectors:
+        return list(trials)
+    by_task: dict[str, list[Trial]] = {}
+    by_trial: dict[str, Trial] = {}
+    for trial in trials:
+        by_task.setdefault(trial.case_key, []).append(trial)
+        by_trial[trial.trial_id] = trial
+    selected: list[Trial] = []
+    seen: set[str] = set()
+    for raw in selectors:
+        task_id, trial_index = parse_task_selector(raw)
+        if trial_index is not None:
+            trial = by_trial.get(trial_dirname(task_id, trial_index))
+            if trial is None:
+                raise ValueError(f"Unknown task id {raw!r}")
+            if trial.trial_id not in seen:
+                selected.append(trial)
+                seen.add(trial.trial_id)
+            continue
+        matches = by_task.get(task_id)
+        if not matches:
+            raise ValueError(f"Unknown task id {raw!r}")
+        for trial in matches:
+            if trial.trial_id not in seen:
+                selected.append(trial)
+                seen.add(trial.trial_id)
+    return selected
 
 
 def trials_root(result_dir: Path) -> Path:
