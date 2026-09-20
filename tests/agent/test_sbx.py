@@ -434,6 +434,12 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
             side_effect=OSError("policy cleanup failed"),
         ),
         patch("agent.sandbox.sbx.manager.log_event"),
+        # open_session always bakes submission_context; stub catalog so this
+        # test stays focused on policy-cleanup artifact collection.
+        patch(
+            "nika.workflows.agent.submission.load_submission_catalog",
+            return_value={"fault_ontology": [], "resources": []},
+        ),
     ):
         with pytest.raises(OSError, match="policy cleanup failed"):
             with manager.open_session(
