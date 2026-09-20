@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import fcntl
-import faulthandler
-import sys
 from pathlib import Path
 
 import pytest
@@ -12,21 +10,6 @@ from tests.support.test_scenarios import register_test_scenarios
 
 load_test_env()
 register_test_scenarios()
-
-# Surface stuck tests on CI (unit+contract job has hung at ~30% without a node id).
-faulthandler.enable(file=sys.__stderr__, all_threads=True)
-faulthandler.dump_traceback_later(120, repeat=True, file=sys.__stderr__)
-
-
-def pytest_runtest_logstart(nodeid: str, location) -> None:
-    # Bypass pytest capture so CI logs show the active node under -q.
-    sys.__stderr__.write(f"NIKA_TEST_START {nodeid}\n")
-    sys.__stderr__.flush()
-
-
-def pytest_runtest_logfinish(nodeid: str, location) -> None:
-    sys.__stderr__.write(f"NIKA_TEST_END {nodeid}\n")
-    sys.__stderr__.flush()
 
 _SANDBOX_E2E_LOCK = Path("/tmp/nika-sandbox-e2e.lock")
 

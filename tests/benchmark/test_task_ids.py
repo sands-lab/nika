@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from nika.cli.main import app
+from nika.run_config.loader import ENV_RUN_CONFIG, reset_run_config
 from nika.workflows.benchmark.release import load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import (
@@ -30,6 +31,15 @@ pytestmark = pytest.mark.unit
 _RUNNER = CliRunner()
 TASK_A = "dc_clos__link_down__s__host_name-client_0__intf_name-eth0"
 TASK_B = "dc_clos__link_flap__s__host_name-client_0__intf_name-eth0"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_run_config(monkeypatch: pytest.MonkeyPatch):
+    """CLI invokes persist effective config; do not leak release into later tests."""
+    monkeypatch.delenv(ENV_RUN_CONFIG, raising=False)
+    reset_run_config()
+    yield
+    reset_run_config()
 
 
 class TestTaskSelectors:
