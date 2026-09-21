@@ -559,7 +559,7 @@ class TestAgentFailedFinalization:
             sid, sdir = run_single_case(
                 problem="link_down",
                 scenario="dc_clos",
-                topo_size="",
+                topo_size=str(ROW_A.get("topo_size") or "s"),
                 agent_type="mock",
                 llm_provider=None,
                 model="mock-v1",
