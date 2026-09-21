@@ -30,11 +30,15 @@ def get_session_meta() -> dict[str, Any]:
     try:
         meta = SessionStore().get_session(session_id)
     except FileNotFoundError:
-        from nika.workflows.session.close import load_session_meta_for_close
+        try:
+            from nika.workflows.session.close import load_session_meta_for_close
 
-        meta = load_session_meta_for_close(session_id)
+            meta = load_session_meta_for_close(session_id)
+        except FileNotFoundError as exc:
+            # Host loaders embed the canonical trial id; never echo it to agents.
+            raise FileNotFoundError("Session not found.") from exc
     if meta.get("status") != "running":
-        raise ValueError(f"Session '{session_id}' is not running.")
+        raise ValueError("Session is not running.")
     return meta
 
 
@@ -43,7 +47,7 @@ def _lab_name_from_meta(meta: dict[str, Any]) -> str:
         "lab_name"
     )
     if not lab_name:
-        raise ValueError(f"Session '{meta.get('session_id')}' has no lab_name.")
+        raise ValueError("Session has no lab_name.")
     return str(lab_name)
 
 

@@ -154,13 +154,19 @@ def submit(
         "is_anomaly": is_anomaly,
         "root_causes": causes,
     }
-    session_dir = get_session_dir()
-    os.makedirs(session_dir, exist_ok=True)
-    submission_path = os.path.join(session_dir, "submission.json")
-    if os.path.exists(submission_path):
+    try:
+        session_dir = get_session_dir()
+        os.makedirs(session_dir, exist_ok=True)
+        submission_path = os.path.join(session_dir, "submission.json")
+        if os.path.exists(submission_path):
+            return ["Submission rejected: a canonical submission already exists."]
+        with open(submission_path, "x", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(submission_dict))
+    except FileExistsError:
         return ["Submission rejected: a canonical submission already exists."]
-    with open(submission_path, "x", encoding="utf-8") as log_file:
-        log_file.write(json.dumps(submission_dict))
+    except OSError:
+        # Host trial paths embed case keys; never surface path text to agents.
+        return ["Submission failed."]
 
     return ["Submission success."]
 
