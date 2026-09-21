@@ -25,6 +25,16 @@ logger = system_logger
 
 _ONOS_AUTH = "onos:rocks"
 _REST_APP = "org.onosproject.rest"
+_TRANSIENT_ONOS_ERROR_MARKERS = (
+    "connection refused",
+    "errno 111",
+    "timed out",
+    "timeout",
+    "temporary failure",
+    "connection reset",
+    "remote end closed",
+    "network is unreachable",
+)
 
 
 def _exec(runtime: LabRuntime, host: str, cmd: str, timeout: float = 60.0) -> str:
@@ -76,12 +86,32 @@ def _onos_request(
     return _exec(runtime, "fabric_mgr", cmd, timeout=timeout)
 
 
-def wait_for_onos(runtime: LabRuntime, *, timeout_sec: float = 180.0) -> bool:
+def _is_transient_onos_failure(response: dict[str, Any]) -> bool:
+    """True when ONOS REST was unreachable or briefly overloaded."""
+    status = response.get("status")
+    if isinstance(status, int) and status in {502, 503, 504}:
+        return True
+    error = str(response.get("error") or "").lower()
+    return any(marker in error for marker in _TRANSIENT_ONOS_ERROR_MARKERS)
+
+
+def wait_for_onos(
+    runtime: LabRuntime,
+    *,
+    timeout_sec: float = 180.0,
+    stable_checks: int = 3,
+) -> bool:
+    """Wait until ONOS REST answers stably (avoids one-shot false positives)."""
     deadline = time.time() + timeout_sec
+    consecutive = 0
     while time.time() < deadline:
         out = _onos_get(runtime, "/onos/v1/devices")
         if "devices" in out and "FAIL" not in out:
-            return True
+            consecutive += 1
+            if consecutive >= stable_checks:
+                return True
+        else:
+            consecutive = 0
         time.sleep(3)
     return False
 
@@ -374,6 +404,76 @@ def _require_onos_batch_success(result: str, *, operation: str) -> None:
         raise RuntimeError(f"ONOS {operation} failed: {failures}")
 
 
+def _onos_batch_resilient(
+    runtime: LabRuntime,
+    ops: list[tuple[str, str, dict[str, Any] | None]],
+    *,
+    operation: str,
+    retries: int = 5,
+) -> str:
+    """Run ONOS REST ops, retrying only transport / overload failures.
+
+    Matches reported #54 failures such as::
+
+        ONOS group install failed: [{'path': '...', 'error':
+        '<urlopen error [Errno 111] Connection refused>', 'status': None}]
+
+    Invalid JSON or mismatched batch shapes are not retried: ``_onos_batch``
+    may already have applied earlier sub-batches, and re-POSTing/DELETEing
+    those ops would create duplicate state or hard 404 failures.
+    """
+    if not ops:
+        return "[]"
+    pending = list(ops)
+    last_result = "[]"
+    for attempt in range(retries):
+        if attempt > 0:
+            logger.warning(
+                "Retrying ONOS %s (%s op(s) left) after transient REST failure",
+                operation,
+                len(pending),
+            )
+            if not wait_for_onos(runtime, timeout_sec=90.0, stable_checks=2):
+                raise RuntimeError(f"ONOS REST unavailable while retrying {operation}")
+            time.sleep(min(2 * attempt, 10))
+        result = _onos_batch(runtime, pending)
+        last_result = result
+        try:
+            responses = json.loads(result)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"ONOS {operation} returned invalid JSON: {result[:500]}"
+            ) from exc
+        if not isinstance(responses, list) or len(responses) != len(pending):
+            raise RuntimeError(
+                f"ONOS {operation} returned unexpected batch shape: {result[:500]}"
+            )
+        next_pending: list[tuple[str, str, dict[str, Any] | None]] = []
+        hard_failures: list[Any] = []
+        for op, response in zip(pending, responses, strict=True):
+            if not isinstance(response, dict):
+                hard_failures.append(response)
+                continue
+            method = op[0]
+            status = response.get("status")
+            if isinstance(status, int) and 200 <= status < 300:
+                continue
+            # Idempotent: clear/reinstall may DELETE resources already gone.
+            if method == "DELETE" and status == 404:
+                continue
+            if _is_transient_onos_failure(response):
+                next_pending.append(op)
+            else:
+                hard_failures.append(response)
+        if hard_failures:
+            raise RuntimeError(f"ONOS {operation} failed: {hard_failures}")
+        pending = next_pending
+        if not pending:
+            return result
+    _require_onos_batch_success(last_result, operation=operation)
+    return last_result
+
+
 def _bucket_ids_for_output_port(
     runtime: LabRuntime, device_id: str, cookie: str, output_port: str
 ) -> list[str]:
@@ -462,8 +562,7 @@ def _clear_rest_flows_groups(runtime: LabRuntime, device_ids: list[str]) -> None
                 continue
             ops.append(("DELETE", f"/onos/v1/groups/{device_id}/{cookie}", None))
     if ops:
-        result = _onos_batch(runtime, ops)
-        _require_onos_batch_success(result, operation="fabric clear")
+        _onos_batch_resilient(runtime, ops, operation="fabric clear")
         if not _wait_for_rest_resources_absent(runtime, device_ids):
             raise RuntimeError(
                 "ONOS REST flows/groups did not disappear before reinstall"
@@ -556,8 +655,7 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
                 f"ONOS group build failed on {group.get('switch')}: {exc}"
             ) from exc
     if group_ops:
-        result = _onos_batch(runtime, group_ops)
-        _require_onos_batch_success(result, operation="group install")
+        result = _onos_batch_resilient(runtime, group_ops, operation="group install")
         logger.info("ONOS group install batch: %s", result[:500])
 
     deadline = time.time() + 90
@@ -597,8 +695,7 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
                 f"ONOS flow build failed on {flow.get('switch')}: {exc}"
             ) from exc
     if flow_ops:
-        result = _onos_batch(runtime, flow_ops)
-        _require_onos_batch_success(result, operation="flow install")
+        result = _onos_batch_resilient(runtime, flow_ops, operation="flow install")
         logger.info("ONOS flow install batch: %s", result[:500])
     if skipped:
         logger.info(
@@ -621,12 +718,14 @@ def reconcile_fabric(
 
     if wait_onos:
         if not wait_for_onos(runtime):
-            logger.warning("ONOS REST not ready; applying rules anyway")
-        else:
-            activate_onos_apps(runtime)
-            ensure_controllers_attached(runtime, model)
-            if not wait_for_of_sessions(runtime, model, timeout_sec=120):
-                logger.warning("ONOS OF discovery incomplete; applying rules anyway")
+            raise RuntimeError("ONOS REST not ready within timeout before fabric apply")
+        activate_onos_apps(runtime)
+        # App activate/deactivate can briefly bounce Jetty; wait again.
+        if not wait_for_onos(runtime, timeout_sec=120.0, stable_checks=2):
+            raise RuntimeError("ONOS REST not ready after activating apps")
+        ensure_controllers_attached(runtime, model)
+        if not wait_for_of_sessions(runtime, model, timeout_sec=180):
+            logger.warning("ONOS OF discovery incomplete; applying rules anyway")
     else:
         ensure_controllers_attached(runtime, model)
 
@@ -682,8 +781,7 @@ def prune_groups_for_down_link(
             )
         )
     if delete_ops:
-        result = _onos_batch(runtime, delete_ops)
-        _require_onos_batch_success(result, operation="group bucket delete")
+        _onos_batch_resilient(runtime, delete_ops, operation="group bucket delete")
         if not _wait_for_group_bucket_removal(runtime, expected):
             raise RuntimeError("ONOS groups did not remove the failed-link buckets")
     return rules
