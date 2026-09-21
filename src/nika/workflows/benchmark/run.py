@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
+from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
 from nika.workflows.benchmark.healthy import (
     is_healthy_case,
@@ -60,6 +62,127 @@ from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
+
+# Worker processes for timed/isolated trials. Ctrl+C reaches only the main
+# thread, so ThreadPoolExecutor workers blocked in ``Process.join`` never see
+# KeyboardInterrupt — the parent must terminate these explicitly.
+_active_trial_procs: set[Any] = set()
+_active_trial_procs_lock = threading.Lock()
+# Set while parent interrupt cleanup is killing workers so pool threads do not
+# stamp killed trials as counted ``agent_failed`` outcomes.
+_interrupt_cleanup_active = False
+
+
+def _is_user_interrupt(exc: BaseException) -> bool:
+    return isinstance(exc, (KeyboardInterrupt, SystemExit))
+
+
+def _register_trial_proc(proc: Any) -> None:
+    with _active_trial_procs_lock:
+        _active_trial_procs.add(proc)
+
+
+def _unregister_trial_proc(proc: Any) -> None:
+    with _active_trial_procs_lock:
+        _active_trial_procs.discard(proc)
+
+
+def _terminate_active_trial_workers() -> None:
+    """Best-effort SIGTERM/SIGKILL for in-flight trial worker processes."""
+    with _active_trial_procs_lock:
+        procs = list(_active_trial_procs)
+    for proc in procs:
+        try:
+            if getattr(proc, "is_alive", lambda: False)():
+                proc.terminate()
+        except Exception:  # noqa: BLE001 - best effort
+            pass
+    for proc in procs:
+        try:
+            proc.join(10)
+            if getattr(proc, "is_alive", lambda: False)():
+                proc.kill()
+                proc.join(5)
+        except Exception:  # noqa: BLE001 - best effort
+            pass
+        finally:
+            _unregister_trial_proc(proc)
+
+
+def _session_belongs_to_result_dir(
+    *,
+    session_id: str,
+    session_dir: str | Path | None,
+    result_root: Path,
+) -> Path | None:
+    """Return the session_dir path when this running session is part of the run.
+
+    When the running record has an explicit ``session_dir``, only match if it
+    lives under ``result_root``. Do not fall back to ``trials/{session_id}`` in
+    that case — deterministic trial ids are shared across concurrent runs.
+    """
+    if session_dir:
+        try:
+            resolved = Path(session_dir).resolve()
+            if resolved.is_relative_to(result_root):
+                return resolved
+        except (OSError, RuntimeError, ValueError):
+            pass
+        return None
+    trial_path = result_root / "trials" / session_id
+    if trial_path.is_dir():
+        return trial_path.resolve()
+    legacy = result_root / session_id
+    if legacy.is_dir():
+        return legacy.resolve()
+    return None
+
+
+def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
+    """Undeploy labs for running sessions under ``result_dir`` after Ctrl+C.
+
+    Kills isolated trial workers first so they cannot race with undeploy, then
+    closes every still-running session whose artifacts live under this run.
+    Returns how many sessions close was attempted for.
+    """
+    global _interrupt_cleanup_active
+    _interrupt_cleanup_active = True
+    _terminate_active_trial_workers()
+    if result_dir is None:
+        return 0
+    result_root = Path(result_dir).resolve()
+    closed = 0
+    try:
+        running = SessionStore().list_running_sessions()
+    except Exception as list_error:  # noqa: BLE001 - still try nothing
+        print(f"WARNING: could not list running sessions after interrupt: {list_error}")
+        return 0
+
+    for row in running:
+        session_id = str(row.get("session_id") or "")
+        if not session_id:
+            continue
+        matched = _session_belongs_to_result_dir(
+            session_id=session_id,
+            session_dir=row.get("session_dir"),
+            result_root=result_root,
+        )
+        if matched is None:
+            continue
+        try:
+            close_session(
+                session_id=session_id,
+                undeploy=True,
+                session_dir=matched,
+            )
+            closed += 1
+            print(f"cleaned up interrupted session {session_id} (lab undeployed)")
+        except Exception as cleanup_error:  # noqa: BLE001 - best effort
+            print(
+                f"WARNING: could not clean up interrupted session "
+                f"{session_id}: {cleanup_error}"
+            )
+    return closed
 
 
 def default_benchmark_yaml_path() -> str:
@@ -504,6 +627,21 @@ def run_single_case(
             except Exception:  # noqa: BLE001 - still mark outcome on disk
                 _set_trial_outcome(session_dir, outcome="success")
     except BaseException as exc:
+        # Ctrl+C / SystemExit: undeploy the lab, leave the trial incomplete for
+        # --resume, and re-raise. Do not count as agent_failed.
+        if _is_user_interrupt(exc):
+            try:
+                close_session(
+                    session_id=session_id, undeploy=True, session_dir=session_dir
+                )
+                print(f"cleaned up interrupted session {session_id} (lab undeployed)")
+            except Exception as cleanup_error:  # noqa: BLE001 - best effort
+                print(
+                    f"WARNING: could not clean up interrupted session "
+                    f"{session_id}: {cleanup_error}"
+                )
+            raise
+
         # Batch runs ( --config / --release): post-inject failures become
         # counted agent_failed outcomes. Bare single-case CLI (no trial_id)
         # still raises so abort-on-error behavior is preserved.
@@ -658,37 +796,62 @@ def _run_trial_with_timeout(
     ctx = multiprocessing.get_context("spawn")
     proc = ctx.Process(target=_run_trial, kwargs={"trial": trial, **kwargs})
     proc.start()
+    _register_trial_proc(proc)
     join_timeout = case_timeout if case_timeout > 0 else None
-    proc.join(join_timeout)
-    if case_timeout > 0 and proc.is_alive():
-        proc.terminate()
-        proc.join(15)
+    try:
+        try:
+            proc.join(join_timeout)
+        except KeyboardInterrupt:
+            if proc.is_alive():
+                proc.terminate()
+                proc.join(15)
+                if proc.is_alive():
+                    proc.kill()
+                    proc.join(5)
+            raise
+        # Parent interrupt cleanup may have killed this worker; do not stamp
+        # agent_failed — leave the trial incomplete for --resume.
+        if _interrupt_cleanup_active:
+            if proc.is_alive():
+                proc.terminate()
+                proc.join(15)
+                if proc.is_alive():
+                    proc.kill()
+                    proc.join(5)
+            raise KeyboardInterrupt()
+        if case_timeout > 0 and proc.is_alive():
+            proc.terminate()
+            proc.join(15)
+            if proc.is_alive():
+                proc.kill()
+                proc.join(5)
+            timeout_error = RuntimeError(
+                f"[{trial.trial_id}] case exceeded --case-timeout ({case_timeout}s) "
+                "and was killed. Its lab may be leaked — check `nika session ps`."
+            )
+            _finalize_timed_out_trial(trial, result_dir=result_dir, error=timeout_error)
+            raise timeout_error
         if proc.is_alive():
-            proc.kill()
-            proc.join(5)
-        timeout_error = RuntimeError(
-            f"[{trial.trial_id}] case exceeded --case-timeout ({case_timeout}s) "
-            "and was killed. Its lab may be leaked — check `nika session ps`."
-        )
-        _finalize_timed_out_trial(trial, result_dir=result_dir, error=timeout_error)
-        raise timeout_error
-    if proc.is_alive():
-        proc.terminate()
-        proc.join(15)
-        raise RuntimeError(f"[{trial.trial_id}] trial worker did not exit")
-    if proc.exitcode not in (0, None):
-        # Worker may have finalized agent_failed already; if not and GT exists,
-        # count the crash as agent_failed so resume does not delete progress.
-        crash_error = RuntimeError(
-            f"[{trial.trial_id}] trial worker exited with code {proc.exitcode}"
-        )
-        results_root = resolve_results_root(result_dir)
-        session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
-        if (session_dir / "ground_truth.json").is_file() and not (
-            is_valid_trial(session_dir) or heal_trial_outcome(session_dir)
-        ):
-            _finalize_timed_out_trial(trial, result_dir=result_dir, error=crash_error)
-        raise crash_error
+            proc.terminate()
+            proc.join(15)
+            raise RuntimeError(f"[{trial.trial_id}] trial worker did not exit")
+        if proc.exitcode not in (0, None):
+            # Worker may have finalized agent_failed already; if not and GT exists,
+            # count the crash as agent_failed so resume does not delete progress.
+            crash_error = RuntimeError(
+                f"[{trial.trial_id}] trial worker exited with code {proc.exitcode}"
+            )
+            results_root = resolve_results_root(result_dir)
+            session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
+            if (session_dir / "ground_truth.json").is_file() and not (
+                is_valid_trial(session_dir) or heal_trial_outcome(session_dir)
+            ):
+                _finalize_timed_out_trial(
+                    trial, result_dir=result_dir, error=crash_error
+                )
+            raise crash_error
+    finally:
+        _unregister_trial_proc(proc)
 
 
 def _run_trials_batch(
@@ -723,6 +886,9 @@ def _run_trials_batch(
         trial = trials_batch[0]
         try:
             _run_trial_with_timeout(trial, **shared)
+        except KeyboardInterrupt:
+            cleanup_benchmark_interrupt(result_dir)
+            raise
         except Exception as e:  # noqa: BLE001
             if not continue_on_error:
                 raise
@@ -730,7 +896,11 @@ def _run_trials_batch(
             failures.append(f"[{trial.trial_id}] {e}")
         return failures
 
-    with ThreadPoolExecutor(max_workers=len(trials_batch)) as pool:
+    # Avoid ``with ThreadPoolExecutor``: on Ctrl+C its __exit__ joins worker
+    # threads that are blocked in Process.join, hanging forever. Shut down
+    # without waiting after terminating child processes.
+    pool = ThreadPoolExecutor(max_workers=len(trials_batch))
+    try:
         futures = {
             pool.submit(_run_trial_with_timeout, trial, **shared): trial
             for trial in trials_batch
@@ -739,11 +909,19 @@ def _run_trials_batch(
             trial = futures[future]
             try:
                 future.result()
+            except KeyboardInterrupt:
+                cleanup_benchmark_interrupt(result_dir)
+                raise
             except Exception as e:  # noqa: BLE001
                 if not continue_on_error:
                     raise
                 print(f"TRIAL FAILED (continuing): [{trial.trial_id}] {e}")
                 failures.append(f"[{trial.trial_id}] {e}")
+    except KeyboardInterrupt:
+        cleanup_benchmark_interrupt(result_dir)
+        raise
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     return failures
 
 
@@ -774,6 +952,9 @@ def run_benchmark_trials(
         raise ValueError("retry_passes must be >= 0")
     if retry_passes and not continue_on_error:
         continue_on_error = True
+
+    global _interrupt_cleanup_active
+    _interrupt_cleanup_active = False
 
     rows = load_benchmark_input(benchmark_file)
     if not rows:
@@ -883,48 +1064,76 @@ def run_benchmark_trials(
 
     failures: list[str] = []
     previous_pending: int | None = None
-    for attempt in range(retry_passes + 1):
-        _root, pending = scan_trials(
-            trials=trials,
-            result_dir=results_root,
-            resume=resume or attempt > 0,
-        )
-        _refresh_progress(pending)
-        if not pending:
-            if attempt > 0:
-                print("\nAll trials completed after retries.")
-            _finish_progress([])
-            _emit_report()
-            return
-        if attempt > 0:
-            if previous_pending is not None and len(pending) >= previous_pending:
-                print(
-                    f"\nRetry made no progress ({len(pending)} trial(s) still "
-                    "incomplete); stopping retries."
-                )
-                break
-            print(
-                f"\n[retry {attempt}/{retry_passes}] retrying {len(pending)} incomplete trial(s)"
+    try:
+        for attempt in range(retry_passes + 1):
+            _root, pending = scan_trials(
+                trials=trials,
+                result_dir=results_root,
+                resume=resume or attempt > 0,
             )
-        previous_pending = len(pending)
-        failures = _run_pending(pending)
-        # agent_failed trials count as complete; only incomplete trials remain.
-        _root, still_pending = scan_trials(
-            trials=trials,
-            result_dir=results_root,
-            resume=True,
-        )
-        _refresh_progress(still_pending)
-        if not still_pending:
+            _refresh_progress(pending)
+            if not pending:
+                if attempt > 0:
+                    print("\nAll trials completed after retries.")
+                _finish_progress([])
+                _emit_report()
+                return
             if attempt > 0:
-                print("\nAll trials completed after retries.")
-            _finish_progress([])
-            _emit_report()
-            return
-        if not failures and still_pending:
-            # agent_failed trials count as complete; remaining pending means
-            # incomplete artifacts after the pass.
-            failures = [f"incomplete trial {trials[i].trial_id}" for i in still_pending]
+                if previous_pending is not None and len(pending) >= previous_pending:
+                    print(
+                        f"\nRetry made no progress ({len(pending)} trial(s) still "
+                        "incomplete); stopping retries."
+                    )
+                    break
+                print(
+                    f"\n[retry {attempt}/{retry_passes}] retrying "
+                    f"{len(pending)} incomplete trial(s)"
+                )
+            previous_pending = len(pending)
+            failures = _run_pending(pending)
+            # agent_failed trials count as complete; only incomplete trials remain.
+            _root, still_pending = scan_trials(
+                trials=trials,
+                result_dir=results_root,
+                resume=True,
+            )
+            _refresh_progress(still_pending)
+            if not still_pending:
+                if attempt > 0:
+                    print("\nAll trials completed after retries.")
+                _finish_progress([])
+                _emit_report()
+                return
+            if not failures and still_pending:
+                # agent_failed trials count as complete; remaining pending means
+                # incomplete artifacts after the pass.
+                failures = [
+                    f"incomplete trial {trials[i].trial_id}" for i in still_pending
+                ]
+    except KeyboardInterrupt:
+        print(
+            "\nInterrupted — cleaning up running benchmark sessions "
+            f"under {results_root}…"
+        )
+        cleanup_benchmark_interrupt(results_root)
+        if run_id:
+            try:
+                _root, pending = scan_trials(
+                    trials=trials,
+                    result_dir=results_root,
+                    resume=True,
+                )
+                update_progress_from_scan(
+                    str(run_id),
+                    result_dir=results_root,
+                    total_trials=len(trials),
+                    pending=pending,
+                    status="interrupted",
+                    release_meta=release_meta,
+                )
+            except Exception:  # noqa: BLE001 - progress is advisory
+                pass
+        raise
 
     _, final_pending = scan_trials(
         trials=trials,
