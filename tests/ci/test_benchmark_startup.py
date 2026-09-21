@@ -61,6 +61,7 @@ def test_mini_benchmark_startup_smoke(tmp_path: Path) -> None:
                 "--case-timeout",
                 "300",
                 "--abort-on-error",
+                "-y",
                 "--result_dir",
                 str(result_dir),
             ],
@@ -73,7 +74,8 @@ def test_mini_benchmark_startup_smoke(tmp_path: Path) -> None:
         )
         output = proc.stdout + proc.stderr
         assert proc.returncode == 0, output
-        assert "benchmark_done" in output
+        # Quiet default omits per-trial ``benchmark_done`` lines; success is
+        # asserted via trial artifacts below.
     finally:
         for row in store.list_running_sessions():
             session_id = str(row["session_id"])

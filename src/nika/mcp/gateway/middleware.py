@@ -8,6 +8,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from agent.protocols import DIAGNOSIS
+from nika.mcp.fastmcp_settings import ensure_fastmcp_settings_ready
 from nika.mcp.gateway.access import decide_diagnosis_access
 from nika.mcp.gateway.context import bind_session, reset_session
 from nika.mcp.gateway.policy import is_server_allowed
@@ -16,6 +17,7 @@ from nika.mcp.gateway.session_registry import get_session
 SESSION_HEADER = "NIKA-Session-Id"
 _MCP_JSON = "application/json"
 
+ensure_fastmcp_settings_ready()
 _empty_mcp = FastMCP("nika_phase_blocked")
 
 

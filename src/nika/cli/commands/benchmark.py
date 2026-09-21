@@ -8,6 +8,7 @@ import yaml
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from nika.cli.utils import fmt_table
+from nika.cli.warning_capture import install_warning_capture
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.run_config.legacy import warn_legacy_operational_env
 from nika.run_config.loader import (
@@ -446,12 +447,27 @@ def benchmark_run(
             "retry failed/incomplete cases up to this many extra passes."
         ),
     ),
+    yes: bool = typer.Option(
+        False,
+        "-y",
+        "--yes",
+        help="Skip the pre-run confirmation prompt (also skipped when stdin is not a TTY).",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="Print per-trial operational lines (skip/clean/running/benchmark_done).",
+    ),
 ) -> None:
     """Run a frozen release, an ad-hoc YAML batch, or a single case.
 
     With no explicit mode or configured release, batch mode runs the generated
     benchmark candidate catalog.
     """
+    # Capture warnings into a post-run panel (also quiet noisy loggers).
+    install_warning_capture()
+
     if reasoning_effort is not None and reasoning_effort not in REASONING_EFFORT_LEVELS:
         raise typer.BadParameter(
             f"reasoning_effort must be one of {', '.join(REASONING_EFFORT_LEVELS)}"
@@ -598,6 +614,8 @@ def benchmark_run(
                 continue_on_error=resolved_continue,
                 retry_passes=resolved_retry,
                 task_ids=task_ids,
+                yes=yes,
+                verbose=verbose,
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -630,6 +648,8 @@ def benchmark_run(
             continue_on_error=release_continue,
             retry_passes=resolved_retry,
             task_ids=task_ids,
+            yes=yes,
+            verbose=verbose,
         )
     except (ReleaseError, ValueError) as exc:
         _exit_release_error(exc)

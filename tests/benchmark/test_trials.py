@@ -26,6 +26,7 @@ from nika.workflows.benchmark.run import (
 from nika.workflows.benchmark.trials import (
     case_key_for_row,
     expand_trials,
+    format_trial_label,
     is_valid_trial,
     merge_run_config,
     scan_trials,
@@ -84,6 +85,24 @@ class TestTrialHelpers:
         assert trials[0].case_key == case_key_for_row(ROW_A)
         assert trials[0].trial_id == trial_dirname(trials[0].case_key, 1)
         assert trials[1].trial_id == trial_dirname(trials[0].case_key, 2)
+        assert trials[0].label == format_trial_label(ROW_A, trial_index=1)
+        assert "t01" in trials[0].label
+        assert "[" not in trials[0].label
+
+    def test_format_trial_label_includes_inject(self) -> None:
+        label = format_trial_label(
+            {
+                "scenario": "campus_lan",
+                "problem": "link_down",
+                "topo_size": "s",
+                "inject": {
+                    "host_name": "backend_web_0",
+                    "intf_name": "eth0",
+                },
+            },
+            trial_index=2,
+        )
+        assert label == "campus_lan/link_down s host=backend_web_0 intf=eth0 t02"
 
     def test_is_valid_trial_requires_artifacts(self, tmp_path: Path) -> None:
         path = tmp_path / "t01"
@@ -246,6 +265,40 @@ class TestTrialHelpers:
         _root, pending = scan_trials(trials=trials, result_dir=tmp_path, resume=False)
         assert pending == [0]
         assert not path.exists()
+
+    def test_preflight_scan_does_not_mutate(self, tmp_path: Path) -> None:
+        """Plan/confirm path must not clear or clean slots before the user accepts."""
+        trials = expand_trials([ROW_A], n_trials=2)
+        done = trial_dir(tmp_path, trials[0].case_key, 1)
+        incomplete = trial_dir(tmp_path, trials[1].case_key, 2)
+        _write_valid_trial(done, outcome="success")
+        incomplete.mkdir(parents=True)
+        (incomplete / "run.json").write_text(
+            json.dumps({"session_id": incomplete.name, "status": "running"}),
+            encoding="utf-8",
+        )
+
+        _root, pending = scan_trials(
+            trials=trials,
+            result_dir=tmp_path,
+            resume=True,
+            mutate=False,
+            announce=False,
+        )
+        assert pending == [1]
+        assert done.exists()
+        assert incomplete.exists()
+
+        _root, pending = scan_trials(
+            trials=trials,
+            result_dir=tmp_path,
+            resume=False,
+            mutate=False,
+            announce=False,
+        )
+        assert pending == [0, 1]
+        assert done.exists()
+        assert incomplete.exists()
 
     def test_merge_run_config_keeps_run_id(self) -> None:
         proposed = {

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import pytest
 import json
-import re
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import NamedTuple
+
+import pytest
 import yaml
+
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session_id import resolve_session_tag
 from nika.utils.session_store import SESSIONS_DIR, SessionStore
@@ -15,9 +16,6 @@ from tests.benchmark.helpers import inject_params_from_benchmark_yaml
 from tests.support.integration_base import IntegrationTestCase
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_BENCHMARK_DONE_RE = re.compile(
-    "benchmark_done session_id=(\\S+) scenario=(\\S+) problem=(\\S+) session_dir=(\\S+)"
-)
 
 
 class ScenarioCase(NamedTuple):
@@ -39,6 +37,35 @@ SCENARIO_CASES: list[ScenarioCase] = [
 
 def _case_key(case: ScenarioCase) -> str:
     return f"{case.scenario}:{case.problem}"
+
+
+def _discover_trial(
+    result_root: Path, case: ScenarioCase
+) -> tuple[str, Path] | RuntimeError:
+    """Locate a finished trial under ``result_dir/trials/`` (quiet CLI has no done line)."""
+    trials_root = result_root / "trials"
+    if not trials_root.is_dir():
+        return RuntimeError(f"trials/ missing under {result_root}")
+    for path in sorted(trials_root.iterdir()):
+        if not path.is_dir():
+            continue
+        run_path = path / "run.json"
+        if not run_path.is_file():
+            continue
+        try:
+            run = json.loads(run_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if run.get("scenario_name") != case.scenario:
+            continue
+        problems = run.get("problem_names") or []
+        if case.problem not in problems and case.problem not in path.name:
+            continue
+        session_id = str(run.get("session_id") or path.name)
+        return session_id, path
+    return RuntimeError(
+        f"No finished trial for {case.scenario}:{case.problem} under {trials_root}"
+    )
 
 
 class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
@@ -87,6 +114,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                     "mock-v1",
                     "-n",
                     "5",
+                    "-y",
                     "--result_dir",
                     str(result_root),
                     "--session-tag",
@@ -95,6 +123,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 cwd=_REPO_ROOT,
                 capture_output=True,
                 text=True,
+                check=False,
             )
             output = proc.stdout
             if proc.stderr:
@@ -103,19 +132,10 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 raise RuntimeError(
                     f"`nika benchmark run --batch-size 3` exited {proc.returncode}:\n{output}"
                 )
-            parsed: dict[str, tuple[str, Path]] = {}
-            for match in _BENCHMARK_DONE_RE.finditer(output):
-                session_id, scenario, problem, session_dir = match.groups()
-                parsed[f"{scenario}:{problem}"] = (session_id, Path(session_dir))
             results: dict[str, tuple[str, Path] | BaseException] = {}
             for case in SCENARIO_CASES:
                 key = _case_key(case)
-                if key not in parsed:
-                    results[key] = RuntimeError(
-                        f"benchmark_done line missing for {key} in output:\n{output}"
-                    )
-                else:
-                    results[key] = parsed[key]
+                results[key] = _discover_trial(result_root, case)
             type(self)._pipeline_results = results
         finally:
             Path(yaml_path).unlink(missing_ok=True)

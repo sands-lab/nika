@@ -1,9 +1,8 @@
 """Root Typer application for the ``nika`` console script (``nika.cli``)."""
 
-import nika.config  # noqa: F401 — load .env before Typer reads envvar defaults
-
 import typer
 
+import nika.config  # noqa: F401 — load .env before Typer reads envvar defaults
 from nika.cli.lazy_group import LAZY_COMMANDS, LazyCommandSpec, LazyTyperGroup
 
 LAZY_COMMANDS.update(
@@ -72,7 +71,20 @@ def _root() -> None:
 
 def main() -> None:
     """Console entrypoint for setuptools `[project.scripts]`."""
-    app()
+    # Before lazy command imports pull MCP FastMCP / pydantic_settings.
+    # Do not quiet third-party loggers here — only ``nika benchmark run`` does.
+    from nika.cli.warning_capture import (
+        install_warning_capture,
+        print_deferred_warnings,
+    )
+
+    install_warning_capture(quiet_loggers=False)
+    try:
+        app()
+    finally:
+        # Flush any warnings buffered for non-benchmark commands (benchmark
+        # run also prints them after its report; a second call is a no-op).
+        print_deferred_warnings()
 
 
 if __name__ == "__main__":
