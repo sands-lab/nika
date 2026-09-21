@@ -79,7 +79,7 @@ def set_remote_upstream(session_id: str, server_name: str, base_url: str) -> Non
     with _lock:
         entry = _sessions.get(session_id)
         if entry is None:
-            raise KeyError(f"MCP gateway session not registered: {session_id!r}")
+            raise KeyError("MCP gateway session not registered")
         entry.remote_upstreams[server_name] = base_url.rstrip("/")
 
 
@@ -115,7 +115,7 @@ def advance_phase(session_id: str, phase: Phase) -> None:
     with _lock:
         entry = _sessions.get(session_id)
         if entry is None:
-            raise KeyError(f"MCP gateway session not registered: {session_id!r}")
+            raise KeyError("MCP gateway session not registered")
         if entry.phase == SUBMISSION and phase != SUBMISSION:
             raise ValueError("MCP phase cannot move back from submission")
         if entry.phase == DIAGNOSIS and phase != SUBMISSION:

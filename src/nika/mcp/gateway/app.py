@@ -153,8 +153,8 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
 
     try:
         advance_phase(session_id, phase)  # type: ignore[arg-type]
-    except KeyError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=404)
+    except KeyError:
+        return JSONResponse({"error": "session not registered"}, status_code=404)
 
     return JSONResponse({"ok": True, "phase": phase})
 

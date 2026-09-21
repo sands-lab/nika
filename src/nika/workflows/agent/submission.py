@@ -31,7 +31,7 @@ def _case_ontology(row: dict[str, Any]) -> list[str]:
 def _trajectory_path(session_id: str) -> Path:
     entry = get_session(session_id)
     if entry is None:
-        raise KeyError(f"MCP gateway session not registered: {session_id!r}")
+        raise KeyError("MCP gateway session not registered")
     return Path(entry.session_dir) / MESSAGES_FILENAME
 
 

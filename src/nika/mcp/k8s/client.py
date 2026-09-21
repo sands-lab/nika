@@ -55,7 +55,7 @@ def resolve_kubeconfig_path(meta: dict[str, Any] | None = None) -> Path:
             return path
 
     raise FileNotFoundError(
-        f"No kubeconfig.yaml for session {session_meta.get('session_id')!r}. "
+        "No kubeconfig.yaml for this session. "
         "Ensure post_deploy wrote the host kubeconfig for this k8s lab."
     )
 
