@@ -49,6 +49,12 @@ def start_agent(
     from nika.run_config.legacy import warn_legacy_operational_env
     from nika.utils.agent_config import apply_custom_provider_env
 
+    # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
+    if not stream_output:
+        from nika.workflows.benchmark.display import quiet_third_party_logging
+
+        quiet_third_party_logging()
+
     warn_legacy_operational_env()
     apply_custom_provider_env()
 
@@ -83,6 +89,12 @@ def start_agent(
     session.start_session()
 
     bind_session_dir(session.session_dir)
+    # Re-apply after agent imports may call ``basicConfig(INFO)``.
+    if not stream_output:
+        from nika.workflows.benchmark.display import quiet_third_party_logging
+
+        quiet_third_party_logging()
+
     log_event(
         "agent_start",
         f"Starting agent: {agent_type} (model={model}) in session {session.session_id}"

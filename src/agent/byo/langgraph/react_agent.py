@@ -155,7 +155,9 @@ class BasicReActAgent:
                     "callbacks": [cb],
                     "recursion_limit": _react_recursion_limit(self.max_steps),
                 },
-                debug=True,
+                # debug=True dumps every graph update (huge tool payloads) to
+                # stdout and flashes over the benchmark Live dashboard.
+                debug=False,
             )
             return {
                 "diagnosis_report": [diagnosis_report["messages"][-1].content],
@@ -236,7 +238,7 @@ class BasicReActAgent:
                     ],
                     "recursion_limit": _react_recursion_limit(self.max_steps),
                 },
-                debug=True,
+                debug=False,
             )
             return {
                 "messages": result["messages"],

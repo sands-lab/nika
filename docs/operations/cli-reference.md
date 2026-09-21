@@ -266,6 +266,19 @@ For batch `--config` or `--release`, `--result_dir` is the run root (see [Result
 
 Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live progress is under `runtime/benchmark_runs/{run_id}.json`.
 
+### Console output
+
+`nika benchmark run` first prints a compact **Plan** with **Done** / **Pending** label lists (no full paths) and asks for confirmation. The plan shows run counts plus **cases × trials/case**; progress is over flattened runs.
+
+It then opens a Rich Live dashboard on the **alternate screen**: a fixed-height job panel (progress, scores, `trials/s` / `req/s`, token min/avg/max) and one fixed-height session box per running trial, whose trajectory scrolls inside the box. Width resize clears the surface; height-only resize does not.
+
+Python library warnings are buffered and printed once afterward in a yellow **Warnings** panel. After the run you get the final dashboard frame on the main screen, Rich summary tables, an `nika inspect --result-dir …` hint, and Warnings if any.
+
+| Flag | Effect |
+|------|--------|
+| `-y` / `--yes` | Skip the confirmation prompt (also skipped when stdin is not a TTY) |
+| `-v` / `--verbose` | Full plan lists plus per-trial skip/clean/running lines |
+
 ### Batch run options
 
 **`--resume` / `--no-resume`** (default: resume):

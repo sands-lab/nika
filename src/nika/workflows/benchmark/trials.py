@@ -29,6 +29,24 @@ REQUIRED_TRIAL_ARTIFACTS = (
 
 _SAFE_TOKEN_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
+# Short keys for human-facing trial labels (plan / progress panels).
+_INJECT_LABEL_KEYS = (
+    "host_name",
+    "host_name_2",
+    "intf_name",
+    "router_name",
+    "src",
+    "dst",
+    "node",
+    "vip",
+)
+_INJECT_KEY_SHORT = {
+    "host_name": "host",
+    "host_name_2": "host2",
+    "intf_name": "intf",
+    "router_name": "router",
+}
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -37,6 +55,43 @@ def _utc_now_iso() -> str:
 def sanitize_token(value: str) -> str:
     cleaned = _SAFE_TOKEN_RE.sub("_", value.strip())
     return cleaned.strip("._-") or "case"
+
+
+def _inject_label_parts(inject: Any) -> list[str]:
+    """Compact inject summary for CLI labels (preferred keys first)."""
+    if not isinstance(inject, dict) or not inject:
+        return []
+    parts: list[str] = []
+    seen: set[str] = set()
+
+    def _add(key: str, value: Any) -> None:
+        if key in seen or value in (None, ""):
+            return
+        if isinstance(value, dict):
+            return
+        seen.add(key)
+        short = _INJECT_KEY_SHORT.get(key, key)
+        parts.append(f"{short}={value}")
+
+    for key in _INJECT_LABEL_KEYS:
+        if key in inject:
+            _add(key, inject[key])
+    for key, value in sorted(inject.items()):
+        _add(str(key), value)
+    return parts
+
+
+def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
+    """Human-facing trial id: scenario/problem, size, inject, tNN."""
+    scenario = str(row.get("scenario") or "?")
+    problem = str(row.get("problem") or "?")
+    bits = [f"{scenario}/{problem}"]
+    topo = row.get("topo_size") or row.get("topo") or ""
+    if topo != "":
+        bits.append(str(topo))
+    bits.extend(_inject_label_parts(row.get("inject")))
+    bits.append(f"t{trial_index:02d}")
+    return " ".join(bits)
 
 
 def _inject_case_key_parts(inject: Any) -> list[str]:
@@ -194,10 +249,7 @@ class Trial:
 
     @property
     def label(self) -> str:
-        return (
-            f"[{self.case_index + 1}:{self.trial_index}] "
-            f"{self.row['scenario']}/{self.row['problem']}"
-        )
+        return format_trial_label(self.row, trial_index=self.trial_index)
 
 
 def expand_trials(
@@ -320,7 +372,7 @@ def _restore_success_eval_metrics(path: Path) -> bool:
     return True
 
 
-def heal_trial_outcome(session_dir: str | Path) -> bool:
+def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> bool:
     """Repair solved trials missing final metrics or ``outcome``.
 
     When ``status=finished``, rebuild missing metrics from a submission and
@@ -331,6 +383,8 @@ def heal_trial_outcome(session_dir: str | Path) -> bool:
 
     Returns True when the directory is a valid counted trial afterwards.
     """
+    from nika.workflows.benchmark.display import vprint
+
     path = Path(session_dir)
     if is_valid_trial(path):
         return True
@@ -365,7 +419,7 @@ def heal_trial_outcome(session_dir: str | Path) -> bool:
     except OSError:
         return False
 
-    print(f"Healed trial outcome={inferred} under {path}")
+    vprint(verbose, f"Healed trial outcome={inferred} under {path}")
     return is_valid_trial(path)
 
 
@@ -389,8 +443,21 @@ def scan_trials(
     trials: list[Trial],
     result_dir: str | Path,
     resume: bool,
+    verbose: bool = False,
+    announce: bool = True,
+    mutate: bool = True,
 ) -> tuple[Path, list[int]]:
-    """Return indices of trials that still need to run under ``result_dir``."""
+    """Return indices of trials that still need to run under ``result_dir``.
+
+    When ``announce`` is False, skip resume/clear summary lines (used for
+    internal re-scans during a run so the CLI is not spammed).
+
+    When ``mutate`` is False, only classify slots (for preflight plan /
+    confirmation) — do not clear ``--no-resume`` dirs or clean incomplete
+    resume slots.
+    """
+    from nika.workflows.benchmark.display import vprint
+
     results_root = Path(result_dir)
     results_root.mkdir(parents=True, exist_ok=True)
     trials_dir = trials_root(results_root)
@@ -398,53 +465,76 @@ def scan_trials(
     total = len(trials)
 
     if not resume:
+        if not mutate:
+            return results_root, list(range(total))
         # Explicit re-run: wipe existing slots so init_session cannot leave a
         # hybrid running run.json over old artifacts that resume would delete.
+        cleared = 0
         for trial in trials:
             path = trial_dir(results_root, trial.case_key, trial.trial_index)
             if path.exists():
                 run_meta = _read_json(path / "run.json") or {}
-                print(f"{trial.label} {trial.trial_id} clearing slot (--no-resume)")
+                vprint(
+                    verbose,
+                    f"{trial.label} {trial.trial_id} clearing slot (--no-resume)",
+                )
                 cleanup_benchmark_session(
                     str(run_meta.get("session_id") or path.name),
                     path,
                 )
+                cleared += 1
+        if cleared and announce and not verbose:
+            print(f"Cleared {cleared} existing trial slot(s) (--no-resume)")
         return results_root, list(range(total))
 
     pending: list[int] = []
     completed = 0
+    cleaned = 0
 
     for index, trial in enumerate(trials):
         path = trial_dir(results_root, trial.case_key, trial.trial_index)
         label = f"{trial.label} {trial.trial_id}"
 
-        if path.is_dir() and (is_valid_trial(path) or heal_trial_outcome(path)):
+        if path.is_dir() and is_valid_trial(path):
             completed += 1
-            print(f"{label} skip (already complete: {path})")
+            vprint(verbose, f"{label} skip (already complete: {path})")
+            continue
+
+        if mutate and path.is_dir() and heal_trial_outcome(path, verbose=verbose):
+            completed += 1
+            vprint(verbose, f"{label} skip (already complete: {path})")
             continue
 
         if path.exists():
+            if not mutate:
+                # Preflight only: leave incomplete slots untouched.
+                pending.append(index)
+                continue
             run_meta = _read_json(path / "run.json") or {}
             # Never delete a counted agent_failed / success trial.
-            if is_valid_trial(path) or heal_trial_outcome(path):
+            if is_valid_trial(path) or heal_trial_outcome(path, verbose=verbose):
                 completed += 1
-                print(f"{label} skip (already complete: {path})")
+                vprint(verbose, f"{label} skip (already complete: {path})")
                 continue
-            print(f"{label} cleaning incomplete trial")
+            vprint(verbose, f"{label} cleaning incomplete trial")
             cleanup_benchmark_session(
                 str(run_meta.get("session_id") or path.name),
                 path,
             )
+            cleaned += 1
 
         pending.append(index)
 
-    if completed and pending:
-        print(
-            f"Resuming run: {completed}/{total} trials complete, "
-            f"{len(pending)} remaining under {results_root}"
-        )
-    elif not pending:
-        print(f"All {total} trial(s) already complete under {results_root}")
+    if announce:
+        if completed and pending:
+            print(
+                f"Resuming run: {completed}/{total} trials complete, "
+                f"{len(pending)} remaining under {results_root}"
+            )
+        elif not pending:
+            print(f"All {total} trial(s) already complete under {results_root}")
+    if cleaned and not verbose:
+        print(f"Cleaned {cleaned} incomplete trial slot(s)")
 
     return results_root, pending
 

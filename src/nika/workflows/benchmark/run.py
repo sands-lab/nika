@@ -18,6 +18,18 @@ from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME
 from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
+from nika.workflows.benchmark.display import (
+    BenchmarkProgress,
+    RunPlan,
+    apply_worker_warning_env,
+    confirm_run,
+    print_deferred_warnings,
+    print_inspect_hint,
+    print_run_plan,
+    quiet_third_party_logging,
+    read_trial_metrics,
+    vprint,
+)
 from nika.workflows.benchmark.healthy import (
     is_healthy_case,
     write_healthy_session_artifacts,
@@ -460,6 +472,9 @@ def run_single_case(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
+    progress_label: str | None = None,
 ) -> tuple[str, Path]:
     """Run one benchmark case (env → inject → agent → close + metrics).
 
@@ -469,6 +484,11 @@ def run_single_case(
     Returns:
         The session id and session directory for the completed run.
     """
+
+    def _phase(name: str) -> None:
+        if progress is not None and progress_label:
+            progress.set_phase(progress_label, name)
+
     isp_bits = []
     if topo:
         isp_bits.append(f"Topo: {topo}")
@@ -482,11 +502,17 @@ def run_single_case(
         isp_bits.append(f"Backend: {backend}")
     if device_profile:
         isp_bits.append(f"Device: {device_profile}")
-    print(
-        f"Running benchmark for Problem: {problem}, Scenario: {scenario}, Topo Size: {topo_size}"
-        + (f", {', '.join(isp_bits)}" if isp_bits else "")
-        + (f", Trial: {trial_id}" if trial_id else "")
-    )
+    # Batch trials stay quiet unless -v; bare single-case CLI keeps the banner.
+    if verbose or not trial_id:
+        print(
+            f"Running benchmark for Problem: {problem}, Scenario: {scenario}, "
+            f"Topo Size: {topo_size}"
+            + (f", {', '.join(isp_bits)}" if isp_bits else "")
+            + (f", Trial: {trial_id}" if trial_id else "")
+        )
+
+    if not verbose:
+        quiet_third_party_logging()
 
     size = topo_size if topo_size else None
     if scenario_requires_topo_size(scenario) and not size:
@@ -539,6 +565,10 @@ def run_single_case(
         case_key = resolved_case_key
         trial_index = int(resolved_trial_index)
 
+    if progress is not None and progress_label and predetermined_dir:
+        progress.attach_session(progress_label, predetermined_dir)
+
+    _phase("deploy")
     session_id = start_net_env(
         scenario,
         size,
@@ -563,6 +593,7 @@ def run_single_case(
         if is_healthy_case(problem):
             write_healthy_session_artifacts(session_id)
         else:
+            _phase("inject")
             inject_failure(
                 problem_names=resolved_problems,
                 session_id=session_id,
@@ -598,6 +629,7 @@ def run_single_case(
             case_key=case_key,
         )
 
+        _phase("agent")
         start_agent(
             agent_type=agent_type,
             llm_provider=llm_provider,
@@ -608,6 +640,7 @@ def run_single_case(
         )
         _require_submission(session_dir)
 
+        _phase("eval")
         if trial_id:
             # Batch trials: close then stamp outcome before metrics so a kill
             # mid-eval still leaves a counted success for --resume.
@@ -652,15 +685,16 @@ def run_single_case(
                 result_dir=result_dir,
                 error=exc,
             )
-            print(
+            vprint(
+                verbose or not trial_id,
                 f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} scenario={scenario} "
-                f"problem={problem} session_dir={session_dir} outcome=agent_failed"
+                f"problem={problem} session_dir={session_dir} outcome=agent_failed",
             )
             return session_id, session_dir
 
         try:
             close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
-            print(f"cleaned up failed session {session_id} (lab undeployed)")
+            vprint(verbose, f"cleaned up failed session {session_id} (lab undeployed)")
         except Exception as cleanup_error:  # noqa: BLE001 - best effort
             print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
         try:
@@ -673,9 +707,10 @@ def run_single_case(
             pass
         raise
 
-    print(
+    vprint(
+        verbose or not trial_id,
         f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} scenario={scenario} "
-        f"problem={problem} session_dir={session_dir}"
+        f"problem={problem} session_dir={session_dir}",
     )
     return session_id, session_dir
 
@@ -696,6 +731,9 @@ def run_benchmark_from_yaml(
     retry_passes: int = 0,
     release_meta: dict | None = None,
     task_ids: list[str] | None = None,
+    yes: bool = False,
+    verbose: bool = False,
+    plan_header: str | None = None,
 ) -> None:
     """Run ad-hoc YAML cases via the shared trial runner (``n_trials=1``).
 
@@ -718,6 +756,9 @@ def run_benchmark_from_yaml(
         retry_passes=retry_passes,
         release_meta=release_meta,
         task_ids=task_ids,
+        yes=yes,
+        verbose=verbose,
+        plan_header=plan_header,
     )
 
 
@@ -731,7 +772,11 @@ def _run_trial(
     result_dir: str | None,
     session_tag: str | None,
     release_meta: dict | None,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
 ) -> None:
+    # Runs in-process or as a spawn worker; silence before FastMCP re-import noise.
+    quiet_third_party_logging()
     row = trial.row
     run_single_case(
         problem=row["problem"],
@@ -761,6 +806,9 @@ def _run_trial(
         rpki=row.get("rpki"),
         backend=row.get("backend"),
         device_profile=row.get("device_profile"),
+        verbose=verbose,
+        progress=progress,
+        progress_label=trial.label if progress is not None else None,
     )
 
 
@@ -776,6 +824,8 @@ def _run_trial_with_timeout(
     session_tag: str | None,
     release_meta: dict | None,
     isolate: bool = False,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
 ) -> None:
     """Run one trial; spawn a process when ``case_timeout`` > 0 or ``isolate``."""
     kwargs = dict(
@@ -786,15 +836,21 @@ def _run_trial_with_timeout(
         result_dir=result_dir,
         session_tag=session_tag,
         release_meta=release_meta,
+        verbose=verbose,
     )
     if case_timeout <= 0 and not isolate:
-        _run_trial(trial, **kwargs)
+        # In-process: Live can receive phase hooks directly.
+        _run_trial(trial, progress=progress, **kwargs)
         return
 
     import multiprocessing
 
+    from nika.workflows.benchmark._trial_worker import run_trial_worker
+
+    apply_worker_warning_env()
     ctx = multiprocessing.get_context("spawn")
-    proc = ctx.Process(target=_run_trial, kwargs={"trial": trial, **kwargs})
+    # Spawn worker must not receive the Live progress object.
+    proc = ctx.Process(target=run_trial_worker, kwargs={"trial": trial, **kwargs})
     proc.start()
     _register_trial_proc(proc)
     join_timeout = case_timeout if case_timeout > 0 else None
@@ -866,6 +922,8 @@ def _run_trials_batch(
     result_dir: str | None,
     session_tag: str | None,
     release_meta: dict | None,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
 ) -> list[str]:
     """Run a batch of trials; parallel batches use spawn processes for isolation."""
     failures: list[str] = []
@@ -881,19 +939,75 @@ def _run_trials_batch(
         session_tag=session_tag,
         release_meta=release_meta,
         isolate=isolate,
+        verbose=verbose,
     )
+    results_root = resolve_results_root(result_dir)
+    if progress is not None:
+        progress.start_trials([t.label for t in trials_batch])
+        for trial in trials_batch:
+            progress.attach_session(
+                trial.label,
+                trial_dir(results_root, trial.case_key, trial.trial_index),
+            )
+            # Spawn workers cannot push phases; start at deploy then agent.
+            progress.set_phase(trial.label, "deploy")
+            if case_timeout > 0 or isolate:
+                progress.set_phase(trial.label, "agent")
+    elif verbose:
+        if len(trials_batch) == 1 and case_timeout <= 0:
+            trial = trials_batch[0]
+            print(f"{trial.label} {trial.trial_id} running")
+        else:
+            print(
+                f"[batch] running {len(trials_batch)} trial(s)"
+                + (" in parallel" if len(trials_batch) > 1 else "")
+            )
+
+    def _on_finished(trial: Trial, *, failed: bool = False) -> None:
+        if progress is None:
+            return
+        session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
+        # Only advance the Live counter for counted slots. Incomplete failures
+        # stay retryable and must not inflate completed / success stats.
+        if is_valid_trial(session_dir) or heal_trial_outcome(session_dir):
+            run_meta: dict[str, Any] = {}
+            try:
+                raw = (session_dir / "run.json").read_text(encoding="utf-8")
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    run_meta = parsed
+            except (OSError, json.JSONDecodeError):
+                pass
+            counted_fail = failed or run_meta.get("outcome") == "agent_failed"
+            progress.finish_trial(
+                trial.label,
+                metrics=read_trial_metrics(session_dir),
+                failed=counted_fail,
+            )
+        else:
+            progress.abandon_trial(trial.label)
+
+    def _report_failure(trial: Trial, error: Exception) -> None:
+        msg = f"TRIAL FAILED (continuing): [{trial.trial_id}] {error}"
+        if progress is not None:
+            progress.log(msg)
+        else:
+            print(msg)
+        failures.append(f"[{trial.trial_id}] {error}")
+
     if len(trials_batch) == 1:
         trial = trials_batch[0]
         try:
-            _run_trial_with_timeout(trial, **shared)
+            _run_trial_with_timeout(trial, progress=progress, **shared)
+            _on_finished(trial)
         except KeyboardInterrupt:
             cleanup_benchmark_interrupt(result_dir)
             raise
         except Exception as e:  # noqa: BLE001
+            _on_finished(trial, failed=True)
             if not continue_on_error:
                 raise
-            print(f"TRIAL FAILED (continuing): [{trial.trial_id}] {e}")
-            failures.append(f"[{trial.trial_id}] {e}")
+            _report_failure(trial, e)
         return failures
 
     # Avoid ``with ThreadPoolExecutor``: on Ctrl+C its __exit__ joins worker
@@ -902,21 +1016,24 @@ def _run_trials_batch(
     pool = ThreadPoolExecutor(max_workers=len(trials_batch))
     try:
         futures = {
-            pool.submit(_run_trial_with_timeout, trial, **shared): trial
+            pool.submit(
+                _run_trial_with_timeout, trial, progress=progress, **shared
+            ): trial
             for trial in trials_batch
         }
         for future in as_completed(futures):
             trial = futures[future]
             try:
                 future.result()
+                _on_finished(trial)
             except KeyboardInterrupt:
                 cleanup_benchmark_interrupt(result_dir)
                 raise
             except Exception as e:  # noqa: BLE001
+                _on_finished(trial, failed=True)
                 if not continue_on_error:
                     raise
-                print(f"TRIAL FAILED (continuing): [{trial.trial_id}] {e}")
-                failures.append(f"[{trial.trial_id}] {e}")
+                _report_failure(trial, e)
     except KeyboardInterrupt:
         cleanup_benchmark_interrupt(result_dir)
         raise
@@ -942,6 +1059,9 @@ def run_benchmark_trials(
     retry_passes: int = 0,
     release_meta: dict | None = None,
     task_ids: list[str] | None = None,
+    yes: bool = False,
+    verbose: bool = False,
+    plan_header: str | None = None,
 ) -> None:
     """Run cases × ``n_trials`` under ``{result_dir}/trials/`` (shared batch kernel)."""
     if batch_size < 1:
@@ -955,6 +1075,9 @@ def run_benchmark_trials(
 
     global _interrupt_cleanup_active
     _interrupt_cleanup_active = False
+
+    # Quiet MCP/httpx before lab deploy and agent work (default CLI UX).
+    quiet_third_party_logging()
 
     rows = load_benchmark_input(benchmark_file)
     if not rows:
@@ -1002,6 +1125,8 @@ def run_benchmark_trials(
                 render_summary_report(report, metric=report.primary_metric)
         except Exception as report_error:  # noqa: BLE001 - reporting is advisory
             print(f"WARNING: could not render run summary: {report_error}")
+        print_inspect_hint(results_root)
+        print_deferred_warnings()
 
     def _refresh_progress(pending: list[int], *, status: str = "running") -> None:
         if not run_id:
@@ -1020,20 +1145,13 @@ def run_benchmark_trials(
             return
         _refresh_progress(pending, status="finished")
 
-    def _run_pending(pending: list[int]) -> list[str]:
+    def _run_pending(
+        pending: list[int], *, progress: BenchmarkProgress | None
+    ) -> list[str]:
         failures: list[str] = []
         for chunk_start in range(0, len(pending), batch_size):
             chunk_indices = pending[chunk_start : chunk_start + batch_size]
             batch = [trials[index] for index in chunk_indices]
-            if len(batch) == 1 and case_timeout <= 0:
-                trial = batch[0]
-                print(f"{trial.label} {trial.trial_id} running")
-            else:
-                print(
-                    f"[batch {chunk_start // batch_size + 1}] running "
-                    f"{len(batch)} trial(s)"
-                    + (" in parallel" if len(batch) > 1 else "")
-                )
             failures += _run_trials_batch(
                 batch,
                 continue_on_error=continue_on_error,
@@ -1045,6 +1163,8 @@ def run_benchmark_trials(
                 result_dir=str(results_root),
                 session_tag=session_tag,
                 release_meta=release_meta,
+                verbose=verbose,
+                progress=progress,
             )
             if run_id:
                 completed = count_completed_trials(
@@ -1062,54 +1182,125 @@ def run_benchmark_trials(
                 )
         return failures
 
+    # Preflight plan only — do not clear/cleanup slots until the user confirms.
+    # announce=False: the Plan below owns the resume summary (no skip/path spam).
+    _, plan_pending = scan_trials(
+        trials=trials,
+        result_dir=results_root,
+        resume=resume,
+        verbose=verbose,
+        announce=False,
+        mutate=False,
+    )
+    pending_set = set(plan_pending)
+    print_run_plan(
+        RunPlan(
+            total_trials=len(trials),
+            pending_count=len(plan_pending),
+            skipped_count=len(trials) - len(plan_pending),
+            agent_type=agent_type,
+            model=model,
+            result_dir=str(results_root),
+            pending_labels=[trials[i].label for i in plan_pending],
+            skipped_labels=[
+                trials[i].label for i in range(len(trials)) if i not in pending_set
+            ],
+            header=plan_header,
+            batch_size=batch_size,
+            case_count=len(rows),
+            n_trials=n_trials,
+        ),
+        **({"max_labels": 10_000} if verbose else {}),
+    )
+    if not plan_pending:
+        _finish_progress([])
+        _emit_report()
+        return
+    if not confirm_run(yes=yes):
+        print("Aborted.")
+        _refresh_progress(plan_pending, status="aborted")
+        return
+
+    # Confirmed: mutate slots (clear --no-resume / clean incomplete) then run.
+    _, initial_pending = scan_trials(
+        trials=trials,
+        result_dir=results_root,
+        resume=resume,
+        verbose=verbose,
+        announce=False,
+        mutate=True,
+    )
+    _refresh_progress(initial_pending)
+    if not initial_pending:
+        _finish_progress([])
+        _emit_report()
+        return
+
     failures: list[str] = []
     previous_pending: int | None = None
     try:
-        for attempt in range(retry_passes + 1):
-            _root, pending = scan_trials(
-                trials=trials,
-                result_dir=results_root,
-                resume=resume or attempt > 0,
-            )
-            _refresh_progress(pending)
-            if not pending:
-                if attempt > 0:
-                    print("\nAll trials completed after retries.")
-                _finish_progress([])
-                _emit_report()
-                return
-            if attempt > 0:
-                if previous_pending is not None and len(pending) >= previous_pending:
-                    print(
-                        f"\nRetry made no progress ({len(pending)} trial(s) still "
-                        "incomplete); stopping retries."
+        with BenchmarkProgress(
+            len(trials),
+            initial_completed=len(trials) - len(initial_pending),
+            agent_type=agent_type,
+            model=model,
+            case_count=len(rows),
+            n_trials=n_trials,
+        ) as progress:
+            for attempt in range(retry_passes + 1):
+                if attempt == 0:
+                    pending = initial_pending
+                else:
+                    _root, pending = scan_trials(
+                        trials=trials,
+                        result_dir=results_root,
+                        resume=True,
+                        verbose=verbose,
+                        announce=False,
                     )
+                    progress.set_completed(len(trials) - len(pending))
+                    _refresh_progress(pending)
+                if not pending:
+                    if attempt > 0:
+                        print("\nAll trials completed after retries.")
+                    _finish_progress([])
                     break
-                print(
-                    f"\n[retry {attempt}/{retry_passes}] retrying "
-                    f"{len(pending)} incomplete trial(s)"
-                )
-            previous_pending = len(pending)
-            failures = _run_pending(pending)
-            # agent_failed trials count as complete; only incomplete trials remain.
-            _root, still_pending = scan_trials(
-                trials=trials,
-                result_dir=results_root,
-                resume=True,
-            )
-            _refresh_progress(still_pending)
-            if not still_pending:
                 if attempt > 0:
-                    print("\nAll trials completed after retries.")
-                _finish_progress([])
-                _emit_report()
-                return
-            if not failures and still_pending:
-                # agent_failed trials count as complete; remaining pending means
-                # incomplete artifacts after the pass.
-                failures = [
-                    f"incomplete trial {trials[i].trial_id}" for i in still_pending
-                ]
+                    if (
+                        previous_pending is not None
+                        and len(pending) >= previous_pending
+                    ):
+                        print(
+                            f"\nRetry made no progress ({len(pending)} trial(s) still "
+                            "incomplete); stopping retries."
+                        )
+                        break
+                    print(
+                        f"\n[retry {attempt}/{retry_passes}] retrying "
+                        f"{len(pending)} incomplete trial(s)"
+                    )
+                previous_pending = len(pending)
+                failures = _run_pending(pending, progress=progress)
+                # agent_failed trials count as complete; only incomplete remain.
+                _root, still_pending = scan_trials(
+                    trials=trials,
+                    result_dir=results_root,
+                    resume=True,
+                    verbose=verbose,
+                    announce=False,
+                )
+                _refresh_progress(still_pending)
+                if not still_pending:
+                    if attempt > 0:
+                        print("\nAll trials completed after retries.")
+                    _finish_progress([])
+                    break
+                if not failures and still_pending:
+                    # agent_failed trials count as complete; remaining pending
+                    # means incomplete artifacts after the pass.
+                    failures = [
+                        f"incomplete trial {trials[i].trial_id}" for i in still_pending
+                    ]
     except KeyboardInterrupt:
         print(
             "\nInterrupted — cleaning up running benchmark sessions "
@@ -1122,6 +1313,8 @@ def run_benchmark_trials(
                     trials=trials,
                     result_dir=results_root,
                     resume=True,
+                    verbose=verbose,
+                    announce=False,
                 )
                 update_progress_from_scan(
                     str(run_id),
@@ -1139,6 +1332,8 @@ def run_benchmark_trials(
         trials=trials,
         result_dir=results_root,
         resume=True,
+        verbose=verbose,
+        announce=False,
     )
     _finish_progress(final_pending)
 
@@ -1171,6 +1366,8 @@ def run_benchmark_from_release(
     check_images: bool = True,
     release: BenchmarkRelease | None = None,
     task_ids: list[str] | None = None,
+    yes: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Run a frozen ``nika-bench`` release split after preflight validation.
 
@@ -1237,8 +1434,8 @@ def run_benchmark_from_release(
         agent_type=job.get("agent_type"),
         model=job.get("model"),
     )
-    print(
-        f"Running {resolved.ref} split={resolved.split} "
+    plan_header = (
+        f"Release {resolved.ref} split={resolved.split} "
         f"({scope}, "
         f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
     )
@@ -1259,4 +1456,7 @@ def run_benchmark_from_release(
         retry_passes=retry_passes,
         release_meta=job,
         task_ids=task_ids,
+        yes=yes,
+        verbose=verbose,
+        plan_header=plan_header,
     )
