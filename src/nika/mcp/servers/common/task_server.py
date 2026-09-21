@@ -162,6 +162,8 @@ def submit(
             return ["Submission rejected: a canonical submission already exists."]
         with open(submission_path, "x", encoding="utf-8") as log_file:
             log_file.write(json.dumps(submission_dict))
+    except FileExistsError:
+        return ["Submission rejected: a canonical submission already exists."]
     except OSError:
         # Host trial paths embed case keys; never surface path text to agents.
         return ["Submission failed."]
