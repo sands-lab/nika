@@ -1,22 +1,27 @@
 """Start a network lab for one scenario and persist a new session."""
 
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
-import time
 
-from nika.net_env.isp.bgp.config import (
-    DEFAULT_BGP_MODE,
-    ISP_BGP_MODES,
-    normalize_bgp_mode,
-)
 from nika.net_env.contract import (
     VALIDATION_CONTRACT_FILENAME,
     VALIDATION_RESULTS_FILENAME,
     ValidationReport,
 )
+from nika.net_env.isp.bgp.config import (
+    DEFAULT_BGP_MODE,
+    ISP_BGP_MODES,
+    normalize_bgp_mode,
+)
 from nika.net_env.isp.bgp.errors import BgpConfigError
+from nika.net_env.isp.identity import (
+    is_isp_base_topology,
+    is_isp_named_special,
+    is_isp_scenario,
+)
 from nika.net_env.isp.igp.config import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
@@ -37,7 +42,7 @@ from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
 )
-from nika.net_env.verify import verify_lab_with_retry
+from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.run_config.loader import get_run_config
 from nika.utils.logger import (
     bind_session_dir,
@@ -48,10 +53,9 @@ from nika.utils.logger import (
 )
 from nika.utils.session import Session
 from nika.utils.session_id import make_session_id
-from nika.net_env.isp.identity import (
-    is_isp_base_topology,
-    is_isp_named_special,
-    is_isp_scenario,
+from nika.utils.session_log_summaries import (
+    failed_checks_map,
+    summarize_lab_verify,
 )
 from nika.workflows.validation.static import (
     STATIC_VALIDATION_FILENAME,
@@ -131,8 +135,7 @@ def _resolve_isp_kwargs(
 
     if topo is not None:
         raise ValueError(
-            f"Scenario '{scenario}' bakes topology into the scenario name; "
-            "omit --topo."
+            f"Scenario '{scenario}' bakes topology into the scenario name; omit --topo."
         )
     if rpki:
         raise ValueError(
@@ -427,12 +430,20 @@ def start_net_env(
                     validation=validation_payload,
                     path=str(result_path),
                 )
+            try:
+                depth = get_run_config().nika.runtime_validation.depth
+            except Exception:  # noqa: BLE001
+                depth = "light"
             log_event(
                 "env_verify",
-                f"Lab verification passed for {scenario} ({net_env.name})",
+                f"Lab verification passed for {scenario} ({net_env.name}): "
+                f"{summarize_lab_verify(verify_result)}",
                 scenario=scenario,
                 lab_name=net_env.name,
+                depth=depth,
                 checks=verify_result.get("checks"),
+                details=verify_result.get("details") or {},
+                failed_checks=[],
                 duration_ms=verify_duration_ms,
             )
 
@@ -456,18 +467,34 @@ def start_net_env(
             event_type = (
                 "env_verify_failed" if net_env.lab_exists() else "env_start_failed"
             )
-            log_error_event(
-                event_type,
-                f"Failed to start network environment: {scenario} ({resolved_session_id}): {exc}",
-                scenario=scenario,
-                backend=resolved_backend,
-                topo_size=recorded_size,
-                session_id=resolved_session_id,
-                lab_name=net_env.name,
-                error=str(exc),
-                error_type=type(exc).__name__,
-                duration_ms=elapsed_ms(env_started),
-            )
+            error_payload: dict = {
+                "scenario": scenario,
+                "backend": resolved_backend,
+                "topo_size": recorded_size,
+                "session_id": resolved_session_id,
+                "lab_name": net_env.name,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "duration_ms": elapsed_ms(env_started),
+            }
+            if isinstance(exc, LabVerifyTimeoutError):
+                last = exc.last_result or {}
+                error_payload["checks"] = last.get("checks")
+                error_payload["details"] = last.get("details") or {}
+                error_payload["failed_checks"] = exc.failed_checks or failed_checks_map(
+                    last.get("checks")
+                )
+                error_payload["max_wait_sec"] = exc.max_wait_sec
+                message = (
+                    f"Lab verification failed for {scenario} ({resolved_session_id}): "
+                    f"{summarize_lab_verify(last)}"
+                )
+            else:
+                message = (
+                    f"Failed to start network environment: {scenario} "
+                    f"({resolved_session_id}): {exc}"
+                )
+            log_error_event(event_type, message, **error_payload)
         else:
             log_error_event(
                 "env_start_interrupted",

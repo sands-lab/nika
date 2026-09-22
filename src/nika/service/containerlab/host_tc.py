@@ -12,6 +12,7 @@ import shlex
 import subprocess
 
 from nika.runtime.base import RuntimeCapabilityError
+from nika.utils.network_change_log import log_network_change
 
 
 class HostTcController:
@@ -78,6 +79,15 @@ class HostTcController:
             "corrupt",
             f"{percentage}%",
         )
+        log_network_change(
+            f"host_tc netem corrupt on {node}:{intf} peer={peer} corrupt={percentage}%",
+            mechanism="host_tc",
+            host=node,
+            intf=intf,
+            peer=peer,
+            params={"corrupt": percentage},
+            action="netem_corrupt",
+        )
         return peer
 
     def set_netem_corrupt_bidirectional(
@@ -98,6 +108,16 @@ class HostTcController:
                 "corrupt",
                 f"{percentage}%",
             )
+            log_network_change(
+                f"host_tc netem corrupt on {peer_node}:{peer_intf} "
+                f"peer={peer_veth} corrupt={percentage}%",
+                mechanism="host_tc",
+                host=peer_node,
+                intf=peer_intf,
+                peer=peer_veth,
+                params={"corrupt": percentage},
+                action="netem_corrupt",
+            )
         return host_peer, peer_veth
 
     def set_link_down(self, node: str, intf: str) -> tuple[str, str]:
@@ -110,8 +130,25 @@ class HostTcController:
             peer = self.peer_name(node, intf)
         except RuntimeCapabilityError:
             self.set_node_link_down(node, intf)
+            log_network_change(
+                f"host_tc link down via node intf {node}:{intf}",
+                mechanism="host_tc",
+                host=node,
+                intf=intf,
+                action="link_down",
+                mode="node_intf",
+            )
             return "node_intf", f"{node}:{intf}"
         self._run("ip", "link", "set", "dev", peer, "down")
+        log_network_change(
+            f"host_tc link down via host peer {peer} for {node}:{intf}",
+            mechanism="host_tc",
+            host=node,
+            intf=intf,
+            peer=peer,
+            action="link_down",
+            mode="host_peer",
+        )
         return "host_peer", peer
 
     def set_node_link_down(self, node: str, intf: str) -> None:
@@ -161,6 +198,15 @@ class HostTcController:
             "loss",
             f"{percentage}%",
         )
+        log_network_change(
+            f"host_tc netem loss on {node}:{intf} peer={peer} loss={percentage}%",
+            mechanism="host_tc",
+            host=node,
+            intf=intf,
+            peer=peer,
+            params={"loss": percentage},
+            action="netem_loss",
+        )
         return peer
 
     def set_tbf(
@@ -195,7 +241,19 @@ class HostTcController:
                 "limit",
                 limit,
             )
-            return f"node:{node}:{intf}"
+            target = f"node:{node}:{intf}"
+            log_network_change(
+                f"host_tc tbf on {node}:{intf} (node ns) "
+                f"rate={rate} burst={burst} limit={limit}",
+                mechanism="host_tc",
+                host=node,
+                intf=intf,
+                peer=target,
+                params={"rate": rate, "burst": burst, "limit": limit},
+                action="tbf",
+                mode="node_intf",
+            )
+            return target
         self._run(
             "tc",
             "qdisc",
@@ -210,6 +268,17 @@ class HostTcController:
             burst,
             "limit",
             limit,
+        )
+        log_network_change(
+            f"host_tc tbf on {node}:{intf} peer={peer} "
+            f"rate={rate} burst={burst} limit={limit}",
+            mechanism="host_tc",
+            host=node,
+            intf=intf,
+            peer=peer,
+            params={"rate": rate, "burst": burst, "limit": limit},
+            action="tbf",
+            mode="host_peer",
         )
         return peer
 

@@ -23,7 +23,17 @@ class SemanticOpsMixin:
         self: SupportsExec, node: str, intf: str, state: Literal["up", "down"]
     ) -> str:
         quoted = shlex.quote(intf)
-        return self.exec_cmd(node, f"ip link set {quoted} {state}")
+        result = self.exec_cmd(node, f"ip link set {quoted} {state}")
+        from nika.utils.network_change_log import log_network_change
+
+        log_network_change(
+            f"link {state} on {node}:{intf}",
+            mechanism="link_operstate",
+            host=node,
+            intf=intf,
+            action=state,
+        )
+        return result
 
     def get_host_ip(
         self: SupportsExec,

@@ -41,6 +41,11 @@ def verify_dc_clos_lab_startup(
         scenario_name=scenario_name,
         verified=all(checks.values()),
         checks=checks,
+        details={
+            "nodes": list(_SERVICE_EXPECTED),
+            "bgp_router": "super_spine_router_0",
+            "client_ipv4": {"host": "client_0", "address": "192.168.0.2"},
+        },
     )
 
 
@@ -64,4 +69,15 @@ def verify_dc_clos_lab(
         scenario_name=scenario_name,
         verified=all(checks.values()),
         checks=checks,
+        details={
+            "nodes": list(_SERVICE_EXPECTED),
+            "bgp_router": "super_spine_router_0",
+            "client_ipv4": {"host": "client_0", "address": "192.168.0.2"},
+            "ping": [
+                {"host": "client_0", "target": "10.0.0.2", "role": "dns"},
+                {"host": "client_0", "target": "10.0.1.2", "role": "web"},
+            ],
+            "http": {"host": "client_0", "url": "http://web0.pod0/"},
+            "service": {"host": "dns_pod0", "unit": "named"},
+        },
     )

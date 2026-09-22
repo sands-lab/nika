@@ -134,6 +134,17 @@ class NFTableMixin:
                 node,
                 f"{_NFT_PATH}nft add rule {family} {table} {chain_name} {rule}",
             )
+        from nika.utils.network_change_log import log_network_change
+
+        log_network_change(
+            f"nft drop rule on {node} table={family}/{table}: {rule}",
+            mechanism="nft",
+            host=node,
+            table=table,
+            family=family,
+            rule=rule,
+            action="add_drop_rule",
+        )
 
     def delete_nft_table(
         self: SupportsExec,
@@ -143,6 +154,16 @@ class NFTableMixin:
         family: str = "inet",
     ) -> None:
         self.exec_cmd(node, f"{_NFT_PATH}nft delete table {family} {table}")
+        from nika.utils.network_change_log import log_network_change
+
+        log_network_change(
+            f"nft delete table on {node}: {family}/{table}",
+            mechanism="nft",
+            host=node,
+            table=table,
+            family=family,
+            action="delete_table",
+        )
 
     def nft_ruleset_contains(self: SupportsExec, node: str, pattern: str) -> bool:
         return pattern in self.list_nft_ruleset(node)
