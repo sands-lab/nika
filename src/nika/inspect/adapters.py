@@ -13,11 +13,13 @@ _LIFECYCLE_EVENTS = frozenset(
     {
         "env_start",
         "env_verify",
+        "env_verify_progress",
         "env_ready",
         "failure_injected",
         "failure_verified",
         "failure_inject_complete",
         "failure_inject_error",
+        "network_change",
         "traffic_start",
         "traffic_stop",
         # Session bookends (nika.jsonl): agent_start → agent_end | agent_error

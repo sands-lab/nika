@@ -48,7 +48,20 @@ class FRRAPIMixin:
         for cmd in conf_commands:
             command += f' -c "{cmd}"'
         command += ' -c "end" -c "write"'
-        return self.exec_cmd(device_name, command)
+        result = self.exec_cmd(device_name, command)
+        from nika.utils.network_change_log import log_network_change
+
+        preview = "; ".join(conf_commands[:4])
+        if len(conf_commands) > 4:
+            preview = f"{preview}; +{len(conf_commands) - 4} more"
+        log_network_change(
+            f"frr conf on {device_name}: {preview}",
+            mechanism="frr_conf",
+            host=device_name,
+            commands=conf_commands[:8],
+            command_count=len(conf_commands),
+        )
+        return result
 
     def frr_add_route(
         self: SupportsExec, device_name: str, route: str, next_hop: str

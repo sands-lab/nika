@@ -14,6 +14,7 @@ from nika.problems.registry import (
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
+from nika.utils.session_log_summaries import summarize_fault_verify, summarize_injection
 from nika.utils.session_store import SessionStore
 
 
@@ -142,7 +143,7 @@ def inject_failure(
     for key, value in taxonomy.items():
         session.update_session(key, value)
 
-    failure_rows: list[tuple[int, str]] = []
+    failure_rows: list[tuple[int, str, dict[str, Any]]] = []
     now_ts = datetime.now().timestamp()
     ParamsClass = getattr(type(inject_problem), "Params", None)
     if hasattr(inject_problem, "resolve_params"):
@@ -179,7 +180,7 @@ def inject_failure(
                     "start_time": now_ts,
                 }
             )
-            failure_rows.append((failure_id, problem_name))
+            failure_rows.append((failure_id, problem_name, params_snapshot))
     else:
         params_snapshot = _extract_injection_params(inject_problem)
         if fault_params is not None:
@@ -202,14 +203,14 @@ def inject_failure(
                 "start_time": now_ts,
             }
         )
-        failure_rows.append((failure_id, resolved_names[0]))
+        failure_rows.append((failure_id, resolved_names[0], params_snapshot))
 
     if ParamsClass is not None:
         inject_started = time.perf_counter()
         try:
             inject_problem.inject_fault(params=fault_params)
         except Exception as exc:
-            for failure_id, problem_name in failure_rows:
+            for failure_id, problem_name, _params in failure_rows:
                 store.update_failure_injection(
                     session.session_id,
                     failure_id,
@@ -231,7 +232,7 @@ def inject_failure(
         try:
             inject_problem.inject_fault()
         except Exception as exc:
-            for failure_id, problem_name in failure_rows:
+            for failure_id, problem_name, _params in failure_rows:
                 store.update_failure_injection(
                     session.session_id,
                     failure_id,
@@ -257,8 +258,9 @@ def inject_failure(
     verify_result = _verify_with_retry(inject_problem, fault_params)
     verify_duration_ms = elapsed_ms(verify_started)
     verify_payload = _json_safe(verify_result)
+    verify_summary = summarize_fault_verify(verify_payload)
     if not verify_result.get("verified", False):
-        for failure_id, _problem_name in failure_rows:
+        for failure_id, _problem_name, _params in failure_rows:
             store.update_failure_injection(
                 session.session_id,
                 failure_id,
@@ -266,7 +268,8 @@ def inject_failure(
             )
         log_error_event(
             "failure_verify_failed",
-            f"Failure verification failed: session={session.session_id}, problems={problem_names}",
+            f"Failure verification failed: session={session.session_id}, "
+            f"problems={problem_names}; {verify_summary}",
             session_id=session.session_id,
             problems=problem_names,
             verify_result=verify_payload,
@@ -287,22 +290,27 @@ def inject_failure(
             f"{verify_result}.{hint}"
         )
 
-    for failure_id, problem_name in failure_rows:
+    for failure_id, problem_name, row_params in failure_rows:
         store.update_failure_injection(
             session.session_id,
             failure_id,
             {"status": "injected", "verify_result": verify_payload},
         )
+        inject_summary = summarize_injection(problem_name, row_params)
+        resolved = row_params.get("resolved_params")
         log_event(
             "failure_injected",
-            f"Failure injected: session={session.session_id}, problem={problem_name}",
+            f"Failure injected: session={session.session_id}, {inject_summary}",
             session_id=session.session_id,
             problem=problem_name,
+            injection_params=row_params,
+            resolved_params=resolved if isinstance(resolved, dict) else None,
             duration_ms=inject_duration_ms,
         )
     log_event(
         "failure_verified",
-        f"Failure verified: session={session.session_id}, problems={problem_names}",
+        f"Failure verified: session={session.session_id}, problems={problem_names}; "
+        f"{verify_summary}",
         session_id=session.session_id,
         problems=problem_names,
         verify_result=verify_payload,
@@ -358,7 +366,7 @@ def inject_failure(
                 str(Path(session.session_dir) / FAILURE_EFFECT_FILENAME)
             )
         session.update_session("validation_failure_effect", FAILURE_EFFECT_FILENAME)
-        for failure_id, _problem_name in failure_rows:
+        for failure_id, _problem_name, _params in failure_rows:
             store.update_failure_injection(
                 session.session_id,
                 failure_id,

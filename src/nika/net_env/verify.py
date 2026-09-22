@@ -655,9 +655,7 @@ def compare_symptom(
         loss_degraded = False
         if after_loss_raw is not None:
             after_loss = float(after_loss_raw)
-            before_loss = (
-                float(before_loss_raw) if before_loss_raw is not None else 0.0
-            )
+            before_loss = float(before_loss_raw) if before_loss_raw is not None else 0.0
             loss_degraded = after_loss >= loss_min_percent and after_loss > before_loss
         onlink = after.get("route_onlink")
         ok = (
@@ -813,6 +811,23 @@ def _runtime_validation_depth() -> Literal["light", "full"]:
         return "light"
 
 
+class LabVerifyTimeoutError(RuntimeError):
+    """Lab readiness polling exhausted without a verified result."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        last_result: dict[str, Any] | None = None,
+        failed_checks: dict[str, bool] | None = None,
+        max_wait_sec: float | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.last_result = last_result or {}
+        self.failed_checks = failed_checks or {}
+        self.max_wait_sec = max_wait_sec
+
+
 def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     """Poll startup or full lab verification until success or timeout.
 
@@ -822,6 +837,9 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
 
     Returns ``None`` when the scenario defines no startup verification.
     """
+    from nika.utils.logger import log_event
+    from nika.utils.session_log_summaries import failed_checks_map, summarize_lab_verify
+
     if _runtime_validation_depth() == "full":
         verify = net_env.verify_lab
     else:
@@ -833,10 +851,12 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     default_wait, default_delay = _lab_ready_defaults()
     max_wait_sec = getattr(net_env, "VERIFY_MAX_WAIT_SEC", default_wait)
     retry_delay_sec = getattr(net_env, "VERIFY_RETRY_DELAY_SEC", default_delay)
-    deadline = time.time() + max_wait_sec
+    started = time.time()
+    deadline = started + max_wait_sec
     last_result = result
     dead_since: float | None = None
     restarted = False
+    progress_logged = False
     while time.time() < deadline:
         nodes_ok, dead_nodes = _k8s_lab_nodes_running(net_env)
         if not nodes_ok:
@@ -861,12 +881,28 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
         last_result = verify()
         if last_result.get("verified", False):
             return last_result
+        if (
+            not progress_logged
+            and max_wait_sec > 0
+            and (time.time() - started) >= (max_wait_sec / 2)
+        ):
+            progress_logged = True
+            log_event(
+                "env_verify_progress",
+                f"Lab verification still pending for {net_env.name}: "
+                f"{summarize_lab_verify(last_result)}",
+                lab_name=net_env.name,
+                checks=last_result.get("checks"),
+                details=last_result.get("details") or {},
+                failed_checks=failed_checks_map(last_result.get("checks")),
+            )
         time.sleep(retry_delay_sec)
 
-    failed_checks = {
-        name: ok for name, ok in (last_result.get("checks") or {}).items() if not ok
-    }
-    raise RuntimeError(
+    failed_checks = failed_checks_map(last_result.get("checks"))
+    raise LabVerifyTimeoutError(
         f"Lab verification failed for {net_env.name!r} "
-        f"within {max_wait_sec}s; failed checks: {failed_checks or last_result}"
+        f"within {max_wait_sec}s; failed checks: {failed_checks or last_result}",
+        last_result=last_result,
+        failed_checks=failed_checks,
+        max_wait_sec=max_wait_sec,
     )
