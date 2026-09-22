@@ -2,6 +2,8 @@
 
 Start with the root [README](../README.md) to install NIKA and run one incident. Use the references below to choose a network, inspect available agent tools, or run a benchmark.
 
+Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for questions, agent discussion, and contributions.
+
 ## Start and operate a lab
 
 | Goal | Read | Type |
