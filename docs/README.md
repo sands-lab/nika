@@ -12,6 +12,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
 | Browse finished or running session trajectories in a browser | [Browse sessions with `nika inspect`](operations/session-inspect.md) | How-to |
 | Compare network types, scenarios, backends, and prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
+| Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
 | Run a supported agent in a Docker Sandbox microVM | [Docker Sandbox execution](operations/agent-sandbox.md) | How-to |

@@ -365,6 +365,8 @@ The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux con
 
 Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
+If verification aborts with `k3s node container(s) not running: ['controller']`, raise host inotify limits. See [Troubleshooting: k3s controller container not running](troubleshooting.md#k3s-controller-container-not-running-k8s_lab--llmd_lab).
+
 First deployment pulls k3s and in-cluster workload images from the network. Host Docker images are reused automatically when already present. To warm workload image tars and llmd Helm charts before starting a lab:
 
 ```shell

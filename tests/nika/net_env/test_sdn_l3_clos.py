@@ -85,6 +85,88 @@ def test_onos_batch_splits_large_command_payload() -> None:
     assert len(__import__("json").loads(result)) == len(runtime.commands)
 
 
+def test_is_transient_onos_failure_matches_connection_refused() -> None:
+    assert fabric_apply._is_transient_onos_failure(
+        {
+            "path": "/onos/v1/groups/of:0000000000001001",
+            "error": "<urlopen error [Errno 111] Connection refused>",
+            "status": None,
+        }
+    )
+    assert fabric_apply._is_transient_onos_failure({"status": 503, "error": "busy"})
+    assert not fabric_apply._is_transient_onos_failure(
+        {"status": 400, "error": "bad request"}
+    )
+
+
+def test_onos_batch_resilient_retries_connection_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+
+    def fake_batch(_runtime, ops, **_kwargs):
+        calls.append(len(ops))
+        if len(calls) == 1:
+            return __import__("json").dumps(
+                [
+                    {
+                        "path": ops[0][1],
+                        "error": "<urlopen error [Errno 111] Connection refused>",
+                        "status": None,
+                    }
+                    for _ in ops
+                ]
+            )
+        return __import__("json").dumps([{"path": op[1], "status": 200} for op in ops])
+
+    monkeypatch.setattr(fabric_apply, "_onos_batch", fake_batch)
+    monkeypatch.setattr(fabric_apply, "wait_for_onos", lambda *_a, **_k: True)
+    monkeypatch.setattr(fabric_apply.time, "sleep", lambda *_a, **_k: None)
+
+    ops = [
+        ("POST", "/onos/v1/groups/of:0000000000001001", {"type": "SELECT"}),
+        ("POST", "/onos/v1/groups/of:0000000000001002", {"type": "SELECT"}),
+    ]
+    result = fabric_apply._onos_batch_resilient(
+        object(), ops, operation="group install"
+    )
+    assert calls == [2, 2]
+    assert all(item["status"] == 200 for item in __import__("json").loads(result))
+
+
+def test_onos_batch_resilient_treats_delete_404_as_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_batch(_runtime, ops, **_kwargs):
+        return __import__("json").dumps(
+            [{"path": op[1], "status": 404, "error": "not found"} for op in ops]
+        )
+
+    monkeypatch.setattr(fabric_apply, "_onos_batch", fake_batch)
+    ops = [("DELETE", "/onos/v1/groups/of:1/cookie", None)]
+    result = fabric_apply._onos_batch_resilient(object(), ops, operation="fabric clear")
+    assert __import__("json").loads(result)[0]["status"] == 404
+
+
+def test_onos_batch_resilient_does_not_retry_invalid_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"n": 0}
+
+    def fake_batch(_runtime, ops, **_kwargs):
+        calls["n"] += 1
+        return "not-json"
+
+    monkeypatch.setattr(fabric_apply, "_onos_batch", fake_batch)
+    with pytest.raises(RuntimeError, match="invalid JSON"):
+        fabric_apply._onos_batch_resilient(
+            object(),
+            [("POST", "/onos/v1/groups/of:1", {})],
+            operation="group install",
+        )
+    assert calls["n"] == 1
+
+
 def test_prune_groups_removes_only_failed_link_buckets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
