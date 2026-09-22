@@ -507,7 +507,7 @@ def resolve_scenario_backend(
         return default_when_ambiguous
     raise ValueError(
         f"Scenario '{scenario_name}' supports multiple backends "
-        f"({', '.join(supported)}); pass --backend."
+        f"({', '.join(supported)}); pass --backend (CLI) or set backend in case YAML / API."
     )
 
 

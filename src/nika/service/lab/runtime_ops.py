@@ -163,6 +163,30 @@ class ExecSemanticOpsMixin:
     def uses_srl_router(self, node: str) -> bool:
         return self._api().uses_srl_router(node)
 
+    def uses_iosxr_router(self, node: str) -> bool:
+        return self._api().uses_iosxr_router(node)
+
+    def iosxr_get_bgp_asn_number(self, node: str) -> int:
+        return self._api().iosxr_get_bgp_asn_number(node)
+
+    def iosxr_set_bgp_asn(self, node: str, asn: int) -> None:
+        self._api().iosxr_set_bgp_asn(node, asn)
+
+    def iosxr_list_bgp_networks(self, node: str) -> list[str]:
+        return self._api().iosxr_list_bgp_networks(node)
+
+    def iosxr_withdraw_bgp_prefix(self, node: str, prefix: str) -> None:
+        self._api().iosxr_withdraw_bgp_prefix(node, prefix)
+
+    def iosxr_bgp_prefix_withdrawn(self, node: str, prefix: str) -> bool:
+        return self._api().iosxr_bgp_prefix_withdrawn(node, prefix)
+
+    def iosxr_apply_config(self, node: str, config_lines: list[str]) -> str:
+        return self._api().iosxr_apply_config(node, config_lines)
+
+    def iosxr_get_bgp_conf(self, node: str) -> str:
+        return self._api().iosxr_get_bgp_conf(node)
+
     def srl_get_bgp_as(self, node: str) -> int:
         return self._api().srl_get_bgp_as(node)
 

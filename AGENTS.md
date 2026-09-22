@@ -9,6 +9,28 @@ NIKA is a platform for generating and running executable benchmarks for network 
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
 * Do not weaken tests to make changes pass.
 * Avoid introducing feature-specific helpers, wrappers, mocks, or abstractions unless they have clear reuse value.
+* When the user repeatedly emphasizes a reusable coding or workflow preference, add it to the matching section of this file. Do not record task-specific or one-off decisions.
+
+## Git and pull requests
+
+1. Branch off `dev`: `feat/<issue>-<slug>` or `fix/<issue>-<slug>`.
+2. Develop on that branch.
+3. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
+
+`dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
+
+### Commit message (PR title = squash subject)
+
+Conventional Commits + GitHub auto-close, e.g.:
+`fix(benchmark): resolve serial batching race in run scheduler`
+
+- `type(scope): imperative summary` — type: `feat/fix/docs/refactor/perf/test/chore/ci/build/revert`.
+- Don't append the PR number — GitHub's squash-and-merge (UI or `gh pr merge --squash`) adds `(#N)` automatically. Just verify it's still there before confirming.
+- Body: short summary plus `Fixes #<issue>` (or `Closes`/`Resolves`) so merging auto-closes it. Skip the keyword if there is no issue. Multiple issues: one keyword each.
+
+`gh pr merge --squash` must pass both `--subject` and `--body`. Subject is the Conventional Commit line (no `(#N)`). Body is the summary above, not the PR's commit list. `--subject` alone still uses GitHub's default squash body, which concatenates every PR commit and repeats `Co-authored-by: Cursor` once per commit. Do not amend+force-push `dev` to clean that up.
+
+Never merge into `dev` via manual local `git merge --squash` + push — bypasses review and the auto-appended PR number.
 
 ## Scenarios and failures
 

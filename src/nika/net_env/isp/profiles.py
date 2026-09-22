@@ -4,14 +4,20 @@ from __future__ import annotations
 
 from typing import Literal
 
-IspDeviceProfile = Literal["frr", "nokia_srlinux"]
+IspDeviceProfile = Literal["frr", "nokia_srlinux", "iosxr"]
 
-SUPPORTED_DEVICE_PROFILES: tuple[IspDeviceProfile, ...] = ("frr", "nokia_srlinux")
+SUPPORTED_DEVICE_PROFILES: tuple[IspDeviceProfile, ...] = (
+    "frr",
+    "nokia_srlinux",
+    "iosxr",
+)
 
-# v1 allowed (backend, device_profile) pairs.
+# Allowed (backend, device_profile) pairs. ISP Kathara + iosxr is accepted by
+# the type system but rejected at lab construct (no SNDlib→XR renderer yet).
 SUPPORTED_BACKEND_PROFILE_PAIRS: frozenset[tuple[str, IspDeviceProfile]] = frozenset(
     {
         ("kathara", "frr"),
+        ("kathara", "iosxr"),
         ("containerlab", "nokia_srlinux"),
     }
 )
