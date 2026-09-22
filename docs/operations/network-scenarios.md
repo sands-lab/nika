@@ -15,11 +15,11 @@ uv run nika env list
 | Kathará | Docker, Kathará Python package (`uv sync`) |
 | Containerlab | Docker, `clab`, `gnmic` |
 
-Install with [`./scripts/install.sh`](../../scripts/install.sh). See the root [README](../../README.md#-installation).
+Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer options: [Installation](installation.md). Overview: root [README](../../README.md#-installation).
 
 Every Containerlab scenario runs Nokia SR Linux, which NIKA configures over gNMI, so `gnmic` is required for all of them. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
-Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually. See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
+Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`, or manually); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
 
 ### Concurrency and `--batch-size`
 
@@ -39,6 +39,7 @@ Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-mul
 | `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
 | `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
 | `iosxr_simple_bgp` | Kathara | Fixed |  | Two Cisco XRd routers with eBGP and two PCs |
+| `routeros_simple_bgp` | Kathara | Fixed |  | Two MikroTik RouterOS routers with eBGP and two PCs |
 | `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR or SR Linux |
 | `isp_abilene_ebgp_rpki` / `isp_geant_ebgp_rpki` | Kathara | Fixed | — | Named eBGP + offline RPKI overlays |
 | `isp_abilene_ebgp_rtbh` / `isp_dfn-bwin_ebgp_rtbh` | Kathara | Fixed | — | Named eBGP + RTBH blackhole overlays |
@@ -251,6 +252,15 @@ uv run nika traffic run burst --sources client_1,client_2 --destination service_
 
 Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. Cisco licensing blocks redistributing or auto-building the image like `nika/*`, so you load and tag it before deploy.
 
+One-shot from a local Cisco tarball (no public download URL):
+
+```shell
+./scripts/install.sh --with-vendor-images --skip-routeros \
+  --xrd-tarball /path/to/xrd-control-plane-container-x86_64-<version>.tgz
+```
+
+Or place the file at `vendor/xrd-*.tgz` and run `./scripts/install.sh --with-vendor-images --skip-routeros`. Manual steps:
+
 1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
 
 2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
@@ -272,6 +282,50 @@ uv run nika env run iosxr_simple_bgp
 ```
 
 Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.py`). XRd ZTP can briefly race the container network namespace at first boot; the router startup scripts retry config apply until that clears, so a slow first boot is expected.
+
+## RouterOS simple BGP scenario
+
+### `routeros_simple_bgp`
+
+Two MikroTik RouterOS Cloud Hosted Router (CHR) routers peer over eBGP, each with one Linux PC. RouterOS via `vrnetlab` boots a full QEMU VM inside the container (unlike XRd's native container process), and MikroTik's licensing blocks redistributing or auto-building the image like `nika/*`, so you build and tag it before deploy.
+
+One-shot (downloads CHR from MikroTik and builds the vrnetlab image):
+
+```shell
+./scripts/install.sh --with-vendor-images --skip-xrd
+```
+
+Manual steps:
+
+1. Download a CHR image from [mikrotik.com/download](https://mikrotik.com/download) (the `.vmdk` variant for x86, or `.vdi` for arm64). Match the image architecture to the Docker host. Direct links for 7.21.5: `https://download.mikrotik.com/routeros/7.21.5/chr-7.21.5.vmdk.zip` (amd64) and `https://download.mikrotik.com/routeros/7.21.5/chr-7.21.5-arm64.vdi.zip` (arm64).
+
+2. Clone `hellt/vrnetlab` and build the RouterOS image from its `mikrotik/routeros` directory. NIKA reaches RouterOS's internal management API via `sshpass`+`ssh` inside the container (see [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py)). Recent `vrnetlab-base` images already ship `sshpass` and `openssh-client`; if your build's base does not, add them to the Dockerfile's `apt-get install` list. Do not change the image's `ENTRYPOINT`/`--connection-mode`: the scenario passes `--connection-mode macvtap` as a Kathara machine argument at deploy time instead, because Kathara attaches interfaces before the container starts and vrnetlab's default `vrxcon`/`tc` datapaths expect a data interface to appear only after boot.
+
+```shell
+git clone https://github.com/hellt/vrnetlab
+cd vrnetlab/mikrotik/routeros
+# copy the downloaded CHR .vmdk/.vdi into this directory, add sshpass to docker/Dockerfile
+make docker-image
+```
+
+3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/kathara/interdomain_routing/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
+
+```shell
+docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5
+docker images | grep routeros
+```
+
+If the tag is missing, `nika env run routeros_simple_bgp` raises a `RuntimeError` with the same build/tag steps instead of deploying a broken lab.
+
+4. RouterOS/vrnetlab boots a full QEMU VM per router, so the host needs KVM / nested virtualization available (`/dev/kvm` present; nested virtualization enabled at the hypervisor level if the host itself is a VM). Without KVM, boot is dramatically slower or may not complete.
+
+5. Deploy:
+
+```shell
+uv run nika env run routeros_simple_bgp
+```
+
+Boot is slower than the FRR and XRd scenarios because each router boots a nested VM; the scenario's verification window accounts for this, so a slow first boot is expected and not a failure.
 
 ## SNDlib ISP scenarios
 

@@ -209,6 +209,13 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         tags=("arp", "link", "bgp", "icmp", "iosxr", "pc"),
         supported_backends=("kathara",),
     ),
+    "routeros_simple_bgp": NetEnvSpec(
+        lab_name="routeros_simple_bgp",
+        module="nika.net_env.kathara.interdomain_routing.routeros_simple_bgp.lab",
+        class_name="RouterOsSimpleBGP",
+        tags=("arp", "link", "bgp", "icmp", "routeros", "pc"),
+        supported_backends=("kathara",),
+    ),
     "isp_abilene_ebgp_rtbh": NetEnvSpec(
         lab_name="isp_abilene_ebgp_rtbh",
         module="nika.net_env.isp.specials.rtbh",

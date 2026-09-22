@@ -95,6 +95,10 @@ class NetworkEnvBase:
         topology = sorted(topology.items(), key=lambda x: x[0])
         topo_list = []
         for link, machines in topology:
+            # A link with a single endpoint (e.g. vrnetlab's reserved
+            # placeholder interface) isn't a pairwise connection to report.
+            if len(machines) < 2:
+                continue
             topo_list.append((machines[0], machines[1]))
         return topo_list
 
@@ -118,7 +122,18 @@ class NetworkEnvBase:
                     f"{server_type.capitalize()} Servers: {', '.join(server_list)}\n"
                 )
         if self.routers:
-            summary += f"Routers (FRRRouting): {', '.join(self.routers)}\n"
+            router_caps: set[str] = set()
+            for name in self.routers:
+                identity = self.machine_identities.get(name)
+                if identity is not None:
+                    router_caps.update(identity.capabilities)
+            if "routeros" in router_caps:
+                router_label = "MikroTik RouterOS"
+            elif "iosxr" in router_caps:
+                router_label = "IOS-XR"
+            else:
+                router_label = "FRRRouting"
+            summary += f"Routers ({router_label}): {', '.join(self.routers)}\n"
         if self.links:
             summary += f"Links: {', '.join(self.links)}\n"
         summary += (

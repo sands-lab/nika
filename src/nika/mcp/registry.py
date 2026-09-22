@@ -17,6 +17,7 @@ ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
 ROUTING_KEYWORDS = frozenset({"bgp", "ebgp", "ospf", "rip", "frr", "routing", "rpki"})
 IOSXR_KEYWORDS = frozenset({"iosxr", "xrd"})
+ROUTEROS_KEYWORDS = frozenset({"mikrotik", "routeros"})
 # P4/BMv2 only — OVS SDN scenarios use kathara_sdn_mcp_server.
 SWITCH_KEYWORDS = frozenset({"p4", "bmv2", "bloom", "mpls", "int", "counter"})
 SDN_KEYWORDS = frozenset({"sdn"})
@@ -77,6 +78,12 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         backend="kathara",
         role="routing",
         module="kathara/iosxr_server.py",
+    ),
+    "kathara_routeros_mcp_server": MCPServerSpec(
+        name="kathara_routeros_mcp_server",
+        backend="kathara",
+        role="routing",
+        module="kathara/routeros_server.py",
     ),
     "kathara_bmv2_mcp_server": MCPServerSpec(
         name="kathara_bmv2_mcp_server",
@@ -188,6 +195,8 @@ def select_diagnosis_servers(
         servers.append("containerlab_srl_mcp_server")
     elif backend != "containerlab" and tokens & IOSXR_KEYWORDS:
         servers.append("kathara_iosxr_mcp_server")
+    elif backend != "containerlab" and tokens & ROUTEROS_KEYWORDS:
+        servers.append("kathara_routeros_mcp_server")
     elif backend != "containerlab" and tokens & ROUTING_KEYWORDS:
         servers.append("kathara_frr_mcp_server")
     if tokens & SWITCH_KEYWORDS:
