@@ -16,7 +16,7 @@ from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.utils.session import Session
-from nika.utils.session_artifacts import RUN_FILENAME
+from nika.utils.session_artifacts import RUN_FILENAME, last_session_error
 from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
 from nika.workflows.benchmark.display import (
@@ -943,11 +943,15 @@ def _run_trial_with_timeout(
         if proc.exitcode not in (0, None):
             # Worker may have finalized agent_failed already; if not and GT exists,
             # count the crash as agent_failed so resume does not delete progress.
-            crash_error = RuntimeError(
-                f"[{trial.trial_id}] trial worker exited with code {proc.exitcode}"
-            )
             results_root = resolve_results_root(result_dir)
             session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
+            # The worker logged the real cause before dying; surface it here so
+            # the run summary is actionable without opening each trial dir.
+            logged = last_session_error(session_dir)
+            crash_error = RuntimeError(
+                f"[{trial.trial_id}] trial worker exited with code {proc.exitcode}"
+                + (f": {logged}" if logged else "")
+            )
             if (session_dir / "ground_truth.json").is_file() and not (
                 is_valid_trial(session_dir) or heal_trial_outcome(session_dir)
             ):
@@ -1331,12 +1335,15 @@ def run_benchmark_trials(
                 previous_pending = len(pending)
                 failures = _run_pending(pending, progress=progress)
                 # agent_failed trials count as complete; only incomplete remain.
+                # Read-only: a failed slot keeps its nika.jsonl so the user can
+                # see why it died. The next pass's scan clears it before re-running.
                 _root, still_pending = scan_trials(
                     trials=trials,
                     result_dir=results_root,
                     resume=True,
                     verbose=verbose,
                     announce=False,
+                    mutate=False,
                 )
                 _refresh_progress(still_pending)
                 if not still_pending:
@@ -1364,6 +1371,7 @@ def run_benchmark_trials(
                     resume=True,
                     verbose=verbose,
                     announce=False,
+                    mutate=False,
                 )
                 update_progress_from_scan(
                     str(run_id),
@@ -1383,6 +1391,7 @@ def run_benchmark_trials(
         resume=True,
         verbose=verbose,
         announce=False,
+        mutate=False,
     )
     _finish_progress(final_pending)
 

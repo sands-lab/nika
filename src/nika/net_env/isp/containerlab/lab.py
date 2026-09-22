@@ -11,6 +11,7 @@ import yaml
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
+from nika.utils.dependencies import require_gnmic
 from nika.net_env.isp.bgp import (
     DEFAULT_BGP_MODE,
     BgpPlan,
@@ -413,6 +414,7 @@ exit "$FAILED"
         setup.chmod(0o755)
 
     def deploy(self) -> None:
+        require_gnmic()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:

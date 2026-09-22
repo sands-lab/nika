@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Literal
 
 from nika.config import RESULTS_DIR
 
 RUN_FILENAME = "run.json"
+SESSION_EVENTS_FILENAME = "nika.jsonl"
 
 SessionStatus = Literal["running", "finished", "aborted", "error"]
 
@@ -44,6 +46,33 @@ def normalize_session_status(run_meta: dict) -> SessionStatus:
     if run_meta.get("end_time") is not None or raw in _TERMINAL_STATUSES:
         return "finished"
     return "running"
+
+
+def last_session_error(session_dir: str | Path) -> str | None:
+    """Return the last ERROR message recorded in the session's ``nika.jsonl``.
+
+    Lets a supervisor report *why* a session died instead of only that it did.
+    Returns None when the log is absent or holds no ERROR record.
+    """
+    path = Path(session_dir) / SESSION_EVENTS_FILENAME
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict) or record.get("level") != "ERROR":
+            continue
+        message = str(record.get("message") or "").strip()
+        if message:
+            return message
+    return None
 
 
 def iter_session_dirs(results_dir: str | Path | None = None) -> list[Path]:
