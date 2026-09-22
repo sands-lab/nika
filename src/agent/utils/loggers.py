@@ -8,6 +8,23 @@ Both diagnosis and submission pipeline phases are persisted. The final
 submission is also represented by ``submission.json``; system events live in
 ``nika.jsonl``.
 
+Lifecycle event contract
+------------------------
+Two layers (keep names stable so inspect can match uniformly):
+
+* **Session** (``nika.jsonl``, written by NIKA workflows):
+  ``agent_start`` → ``agent_end`` | ``agent_error``
+  Covers the whole agent process for one trial.
+
+* **Phase** (``messages.jsonl``, written by every agent implementation):
+  ``agent_start`` → ``agent_done`` | ``agent_error``
+  One pair per pipeline phase (diagnosis / submission).
+
+All agents (Codex SDK, Claude SDK, CLI, BYO, …) should emit the phase
+bookends via :meth:`MessageLogger.log_agent_start` /
+:meth:`MessageLogger.log_agent_done` /
+:meth:`MessageLogger.log_agent_error` so inspect pairing stays agent-agnostic.
+
 Extending
 ---------
 Add new event types by calling ``log(event_type, payload)`` directly.
@@ -17,7 +34,7 @@ unchanged to the JSONL record.
 
 import json
 import os
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,9 +43,6 @@ from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.outputs.generation import Generation
 
 from agent.utils.usage import normalize_usage
-
-MESSAGES_FILENAME = "messages.jsonl"
-
 
 MESSAGES_FILENAME = "messages.jsonl"
 
@@ -136,6 +150,18 @@ class MessageLogger:
         }
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+
+    def log_agent_start(self, **fields: Any) -> None:
+        """Phase bookend: phase work is beginning."""
+        self.log("agent_start", fields)
+
+    def log_agent_done(self, **fields: Any) -> None:
+        """Phase bookend: phase work finished successfully."""
+        self.log("agent_done", fields)
+
+    def log_agent_error(self, error: Any, **fields: Any) -> None:
+        """Phase bookend: phase work failed."""
+        self.log("agent_error", {"error": str(error), **fields})
 
 
 class AgentCallbackLogger(BaseCallbackHandler):

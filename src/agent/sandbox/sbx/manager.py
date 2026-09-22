@@ -6,15 +6,17 @@ import asyncio
 import logging
 import os
 import shutil
+import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 from agent.sandbox.config import ENV_SESSION_DIR, SandboxConfig
 from agent.sandbox.constants import MANIFEST_FILENAME
 from agent.sandbox.env import format_env_for_log
+from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from agent.sandbox.redact import redact_text
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME, native_sbx_agent
 from agent.sandbox.sbx.client import (
@@ -45,7 +47,6 @@ from agent.sandbox.sbx.workspace import (
     collect_artifacts,
     prepare_workspace,
 )
-from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
 from nika.utils.session import Session
@@ -53,6 +54,12 @@ from nika.utils.session import Session
 logger = logging.getLogger(__name__)
 
 SDK_AGENT_TYPES = frozenset({"sdk.codex_sdk", "sdk.claude_sdk", "community.sade"})
+
+# Host-side CLI sandboxes read ``NIKA_SBX_SANDBOX_NAME`` / ``NIKA_SESSION_DIR``
+# from process env. Concurrent sessions in one process must not interleave
+# save/restore of those keys (benchmark parallel batches use spawn workers;
+# this lock still protects in-process callers and nested contexts).
+_sandbox_env_lock = threading.RLock()
 
 
 @dataclass
@@ -241,22 +248,14 @@ class SbxSandboxManager:
             workspace_dir=workspace.workspace_dir,
             agent_type=agent_type,
         )
-        log_event(
-            "sandbox_start",
-            f"Creating native Docker Sandbox ({sbx_agent}) for session {session.session_id}",
-            session_id=session.session_id,
-            agent_session_id=agent_sid,
-            agent_type=agent_type,
-            sandbox_name=sandbox_name,
-            native_sbx_agent=sbx_agent,
-            mcp_gateway=mcp_gateway_agent_url,
-            upstream_proxy=upstream_proxy,
-            offline_sdk_wheels=self.config.offline_sdk_wheels,
-            sbx_command=redact_text("sbx " + " ".join(create_cmd)),
-            env=format_env_for_log(runtime_env),
-        )
-        sandbox_started = time.perf_counter()
+        # Lifetime covers create → agent run → teardown; setup span is logged
+        # on sandbox_start once the sandbox is ready (env_start-style).
+        lifetime_started = time.perf_counter()
+        setup_started = lifetime_started
 
+        # Serialize host env mutation for the lifetime of this sandbox session so
+        # a sibling session cannot restore/clobber our NIKA_SBX_* values mid-run.
+        _sandbox_env_lock.acquire()
         prior_session_dir = os.environ.get(ENV_SESSION_DIR)
         prior_sbx_name = os.environ.get(ENV_SBX_SANDBOX_NAME)
         prior_runtime_env = {key: os.environ.get(key) for key in runtime_env}
@@ -274,6 +273,21 @@ class SbxSandboxManager:
                 sandbox_name=sandbox_name,
                 port=gateway_port,
                 gateway_url=mcp_gateway_agent_url,
+            )
+            log_event(
+                "sandbox_start",
+                f"Created native Docker Sandbox ({sbx_agent}) for session {session.session_id}",
+                session_id=session.session_id,
+                agent_session_id=agent_sid,
+                agent_type=agent_type,
+                sandbox_name=sandbox_name,
+                native_sbx_agent=sbx_agent,
+                mcp_gateway=mcp_gateway_agent_url,
+                upstream_proxy=upstream_proxy,
+                offline_sdk_wheels=self.config.offline_sdk_wheels,
+                sbx_command=redact_text("sbx " + " ".join(create_cmd)),
+                env=format_env_for_log(runtime_env),
+                duration_ms=elapsed_ms(setup_started),
             )
             os.environ[ENV_SBX_SANDBOX_NAME] = sandbox_name
             os.environ[ENV_SESSION_DIR] = str(workspace.workspace_dir)
@@ -326,6 +340,7 @@ class SbxSandboxManager:
                     try:
                         collect_artifacts(workspace)
                     finally:
+                        _sandbox_env_lock.release()
                         # Keep the manifest even when artifact collection or
                         # earlier sandbox cleanup fails.
                         (session_dir / MANIFEST_FILENAME).write_text(
@@ -339,7 +354,7 @@ class SbxSandboxManager:
                             session_id=session.session_id,
                             agent_type=agent_type,
                             sandbox_name=sandbox_name,
-                            duration_ms=elapsed_ms(sandbox_started),
+                            duration_ms=elapsed_ms(lifetime_started),
                         )
 
     def _run_sdk_in_sandbox(

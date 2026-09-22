@@ -250,6 +250,7 @@ class CodexSdkWorker:
 
         self._setup_workspace()
 
+        self._logger.log_agent_start()
         self._logger.log(
             "llm_start",
             {
@@ -293,13 +294,11 @@ class CodexSdkWorker:
                 finally:
                     await stream.aclose()
         except Exception as exc:
-            self._logger.log("agent_error", {"phase": self.phase, "error": str(exc)})
+            self._logger.log_agent_error(exc)
             if self._stream_output:
                 print(f"ERROR: {exc}", file=sys.stderr, flush=True)
             return f"ERROR: {exc}"
 
         final = result.final_response or ""
-        self._logger.log(
-            "agent_done", {"phase": self.phase, "report_length": len(final)}
-        )
+        self._logger.log_agent_done(report_length=len(final))
         return final

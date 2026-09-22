@@ -221,6 +221,7 @@ class MockAgent:
 
     async def _run_diagnosis(self, task_description: str) -> str:
         logger = self._make_logger(DIAGNOSIS)
+        logger.log_agent_start(task_preview=task_description[:200])
         logger.log(
             "llm_start",
             {
@@ -278,6 +279,7 @@ class MockAgent:
             )
 
         logger.log("llm_end", {"text": diagnosis_report})
+        logger.log_agent_done(report_length=len(diagnosis_report))
         return diagnosis_report
 
     async def _run_submission(self, diagnosis_report: str) -> None:
@@ -286,6 +288,7 @@ class MockAgent:
         scenario = str(getattr(self.session, "scenario_name", "") or "")
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
 
+        logger.log_agent_start()
         logger.log(
             "llm_start",
             {
@@ -375,6 +378,7 @@ class MockAgent:
             "llm_end",
             {"text": (f"Submitted: root_causes = {chosen}")},
         )
+        logger.log_agent_done()
 
     def _make_logger(self, agent_name: str):
         """Return a MessageLogger for *agent_name*."""
