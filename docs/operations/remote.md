@@ -9,7 +9,7 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 | Side | Install | Responsibility |
 |------|---------|----------------|
 | **Local (agent host)** | `uv sync --no-group labs` (+ sdk/sade as needed); optional [`sbx`](agent-sandbox.md) | CLI entrypoint, agent process, canonical `results/` |
-| **Remote (lab host)** | `./scripts/install.sh` | `nika remote serve`, labs, MCP gateway, runtime state |
+| **Remote (lab host)** | `./scripts/install.sh` ([options](installation.md)) | `nika remote serve`, labs, MCP gateway, runtime state |
 
 ## Set up the remote lab host
 

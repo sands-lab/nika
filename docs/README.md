@@ -8,6 +8,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 
 | Goal | Read | Type |
 | --- | --- | --- |
+| Install NIKA and use installer options | [Installation](operations/installation.md) | How-to |
 | Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](operations/configuration.md) | Reference |
 | Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
 | Browse finished or running session trajectories in a browser | [Browse sessions with `nika inspect`](operations/session-inspect.md) | How-to |

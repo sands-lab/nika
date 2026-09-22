@@ -76,7 +76,7 @@ Choose a lab that matches the network you want to troubleshoot. The diagram show
 | SDN fabric | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos) | Kathará | ONOS and OVS Clos fabric |
 | P4 fabric | [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | Kathará | BMv2 switches and P4Runtime |
 | Kubernetes networking | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | Kathará | k3s clusters in network labs |
-| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#iosxr_simple_bgp) | Kathará | Cisco XRd eBGP router pair |
+| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#iosxr-simple-bgp-scenario), [`routeros_simple_bgp`](docs/operations/network-scenarios.md#routeros-simple-bgp-scenario) | Kathará | Cisco XRd or MikroTik RouterOS eBGP router pair |
 
 
 ### Network incidents
@@ -115,21 +115,10 @@ cd nika
 ./scripts/install.sh
 ```
 
-Prerequisites: Linux, Python 3.12+, `curl`, `sudo`.
+Prerequisites: Linux, Python 3.12+, `curl`, `sudo`. If Docker was just installed, open a new shell or run `newgrp docker`.
 
-The script installs:
-
-- Docker (if not already usable)
-- [uv](https://docs.astral.sh/uv/)
-- [Kathará](https://kathara.org/) and the Python dependencies (via `uv sync`)
-- [Containerlab](https://containerlab.dev/) and gnmic
-- `clang` (compiles the eBPF program for [`device_forwarding_packet_corruption`](docs/operations/failures.md#forwarding-encapsulation--policy))
-- `iproute2` (host-side `tc` for [link and interface failures](docs/operations/failures.md#link--interface) on Containerlab)
-- `.env` and `config/nika.yaml` from the example templates when missing
-
-The script pulls `clang` and `iproute2` with `apt-get`. On other distributions, install both packages yourself.
-
-If Docker was just installed, open a new shell or run `newgrp docker`.
+More install options: [Installation](docs/operations/installation.md).
+For installing NIKA in remote environments, see [remote lab execution](docs/operations/remote.md).
 
 ### Agent sandboxing
 
@@ -141,8 +130,6 @@ sbx login
 ```
 
 If Docker is already installed by `./scripts/install.sh`, use `sudo apt install docker-sbx` instead, then `sbx login`. Not required for host agents such as `byo.langgraph`. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
-
-For installing NIKA in remote environments, see [remote lab execution](docs/operations/remote.md).
 
 ### Choose and configure an agent
 

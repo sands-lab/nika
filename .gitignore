@@ -42,3 +42,7 @@ config/**
 !config/**/
 !config/**/*.example.yaml
 !config/**/*.example.yml
+
+# Local vendor router artifacts (XRd tarballs, CHR disks); not redistributable.
+/vendor/*
+!/vendor/.gitkeep
