@@ -3,16 +3,47 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from nika.config import RESULTS_DIR
 
 RUN_FILENAME = "run.json"
 
+SessionStatus = Literal["running", "finished", "aborted", "error"]
+
+_TERMINAL_STATUSES = frozenset({"finished", "aborted", "error", "interrupted", "failed"})
+
 
 def is_finished_session(run_meta: dict) -> bool:
-    if run_meta.get("status") == "finished":
+    """True when the session is no longer actively running.
+
+    Includes normal finish as well as aborted/error terminals (any end_time
+    or explicit non-running status). Callers that need only successful
+    completion should check ``normalize_session_status(...) == "finished"``.
+    """
+    status = normalize_session_status(run_meta)
+    if status != "running":
         return True
     return run_meta.get("end_time") is not None
+
+
+def normalize_session_status(run_meta: dict) -> SessionStatus:
+    """Map ``run.json`` status / end_time into the inspect status chip set."""
+    raw = str(run_meta.get("status") or "").strip().lower()
+    if raw in {"aborted", "interrupted"}:
+        return "aborted"
+    if raw in {"error", "failed"}:
+        return "error"
+    if raw == "finished":
+        return "finished"
+    if raw == "running" or not raw:
+        if run_meta.get("end_time") is not None:
+            return "finished"
+        return "running"
+    # Unknown explicit status with an end_time → treat as finished terminal.
+    if run_meta.get("end_time") is not None or raw in _TERMINAL_STATUSES:
+        return "finished"
+    return "running"
 
 
 def iter_session_dirs(results_dir: str | Path | None = None) -> list[Path]:

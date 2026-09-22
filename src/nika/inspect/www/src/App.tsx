@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   CanonicalTraceEvent,
+  BrowseEntry,
   formatScore,
   formatTs,
+  fetchBrowse,
   fetchRaw,
+  fetchRoots,
   fetchScores,
   fetchSession,
   fetchSessions,
@@ -22,16 +25,24 @@ import {
   collapsePairedEvents,
   displayDurationMs,
   formatDuration,
+  formatOverviewClock,
   formatTokenCount,
   buildLlmTurnDetail,
   extractModelName,
   layoutOverviewSpans,
   llmTokenUsage,
   OverviewLayoutMode,
+  overviewLaneHeightPx,
+  overviewStackBarGeometry,
+  overviewTurnBoundaryPcts,
+  assignLaneStackRows,
+  type LaidOutOverviewSpan,
   parseLlmMessageContent,
   parseTs,
+  projectOverviewSpans,
   roleLabel,
   Role,
+  isToolDisplay,
 } from "./roles";
 
 type Tab = "timeline" | "agent" | "nika" | "scores" | "raw";
@@ -62,11 +73,22 @@ function overlapsBrush(
 ): boolean {
   if (startMs == null) return false;
   const end = endMs ?? startMs;
-  return startMs < brush.endMs && end > brush.startMs;
+  // Inclusive: point events at brush.startMs (typical for equal-mode chip
+  // selection) must match; half-open (start, end) left them out.
+  return startMs <= brush.endMs && end >= brush.startMs;
 }
 
 function rowInBrush(row: DisplayEvent, brush: TimeBrush): boolean {
-  return overlapsBrush(parseTs(row.timestamp), parseTs(row.endTimestamp), brush);
+  const startMs = parseTs(row.timestamp);
+  if (startMs == null) return false;
+  const endFromTs = parseTs(row.endTimestamp);
+  const endMs =
+    endFromTs != null
+      ? endFromTs
+      : row.durationMs != null
+        ? startMs + row.durationMs
+        : startMs;
+  return overlapsBrush(startMs, endMs, brush);
 }
 
 
@@ -229,7 +251,7 @@ function SessionsTable({
 
   const statusOptions = columnFilters?.facets.statuses.length
     ? columnFilters.facets.statuses
-    : ["running", "finished"];
+    : ["running", "finished", "aborted", "error"];
 
   const sortTh = (key: SessionSortKey, label: string) => {
     const active = sortKey === key;
@@ -683,6 +705,15 @@ function sessionsUnderSelection(
   });
 }
 
+function findPathNode(nodes: PathTreeNode[], path: string): PathTreeNode | null {
+  for (const node of nodes) {
+    if (node.path === path) return node;
+    const child = findPathNode(node.children, path);
+    if (child) return child;
+  }
+  return null;
+}
+
 const TREE_EXPANDED_KEY = "nika-inspect-tree-expanded";
 
 function loadTreeExpanded(): Set<string> {
@@ -716,9 +747,9 @@ function FolderGlyph() {
   );
 }
 
-const SIDEBAR_WIDTH_KEY = "nika-inspect-sidebar-width";
-const SIDEBAR_WIDTH_DEFAULT = 300;
-const SIDEBAR_WIDTH_MIN = 180;
+const SIDEBAR_WIDTH_KEY = "nika-inspect-sidebar-width-v2";
+const SIDEBAR_WIDTH_DEFAULT = 220;
+const SIDEBAR_WIDTH_MIN = 160;
 const SIDEBAR_WIDTH_MAX = 520;
 
 function loadSidebarWidth(): number {
@@ -735,10 +766,12 @@ function loadSidebarWidth(): number {
 
 function ViewShell({
   sessionId,
+  root,
   onOpenSession,
   onClearSession,
 }: {
   sessionId: string | null;
+  root: string;
   onOpenSession: (id: string) => void;
   onClearSession: () => void;
 }) {
@@ -765,7 +798,6 @@ function ViewShell({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [selectedMembers, setSelectedMembers] = useState<string[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(loadTreeExpanded);
   const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth);
   const sidebarDragging = useRef(false);
@@ -815,32 +847,37 @@ function ViewShell({
     if (topoSize) params.set("topo_size", topoSize);
     if (trial) params.set("trial_index", trial);
     if (q.trim()) params.set("q", q.trim());
-    setLoading(true);
-    fetchSessions(params)
-      .then((data) => {
-        if (cancelled) return;
-        setSessions(data.sessions);
-        if (data.facets) setFacets(data.facets);
-        setResultsRoot(data.results_root);
-        setError(null);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const load = (background: boolean) => {
+      if (!background) setLoading(true);
+      fetchSessions(params, root)
+        .then((data) => {
+          if (cancelled) return;
+          setSessions(data.sessions);
+          if (data.facets) setFacets(data.facets);
+          setResultsRoot(data.results_root);
+          setError(null);
+        })
+        .catch((err: Error) => {
+          if (!cancelled && !background) setError(err.message);
+        })
+        .finally(() => {
+          if (!cancelled && !background) setLoading(false);
+        });
+    };
+    load(false);
+    const poll = window.setInterval(() => load(true), 3000);
     return () => {
       cancelled = true;
+      window.clearInterval(poll);
     };
-  }, [status, trial, scenario, agent, model, problem, topoSize, q]);
+  }, [root, status, trial, scenario, agent, model, problem, topoSize, q]);
 
   const tree = useMemo(() => buildPathTree(sessions), [sessions]);
 
   useEffect(() => {
-    if (selectedPath != null || loading || !tree.length) return;
+    if (loading || !tree.length) return;
+    if (selectedPath != null && findPathNode(tree, selectedPath)) return;
     setSelectedPath(tree[0].path);
-    setSelectedMembers(tree[0].memberKeys ?? null);
     setExpanded((prev) => {
       const next = new Set(prev);
       next.add(tree[0].path);
@@ -849,12 +886,17 @@ function ViewShell({
     });
   }, [selectedPath, loading, tree]);
 
+  const selectedNode = useMemo(
+    () => (selectedPath == null ? null : findPathNode(tree, selectedPath)),
+    [tree, selectedPath],
+  );
+
   const visibleSessions = useMemo(
     () =>
       selectedPath == null
         ? []
-        : sessionsUnderSelection(sessions, selectedPath, selectedMembers),
-    [sessions, selectedPath, selectedMembers],
+        : sessionsUnderSelection(sessions, selectedPath, selectedNode?.memberKeys),
+    [sessions, selectedPath, selectedNode],
   );
 
   const breadcrumb = selectedPath
@@ -903,7 +945,6 @@ function ViewShell({
 
   const selectNode = (node: PathTreeNode) => {
     setSelectedPath(node.path);
-    setSelectedMembers(node.memberKeys ?? null);
     onClearSession();
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -1000,6 +1041,7 @@ function ViewShell({
         {sessionId ? (
           <SessionView
             sessionId={sessionId}
+            root={root}
             onBack={onClearSession}
           />
         ) : (
@@ -1042,12 +1084,14 @@ function roleBadgeLabel(row: DisplayEvent): string {
 }
 
 function nameBadgeLabel(row: DisplayEvent): string {
-  if (row.role === "tool") return row.title || "tool";
+  if (isToolDisplay(row)) return row.title || "tool";
   if (row.role === "nika") return row.event?.replaceAll("_", " ") || row.title;
   if (row.role === "assistant") {
     return row.event === "llm" || row.kind === "llm" ? "llm" : row.event || row.title;
   }
-  return row.event || row.title || "—";
+  // System / other: prefer human title (e.g. "warning") over raw event
+  // names like "item.completed".
+  return row.title || row.event || "—";
 }
 
 const OVERVIEW_LAYOUT_KEY = "nika-inspect-overview-layout";
@@ -1055,12 +1099,49 @@ const OVERVIEW_LAYOUT_KEY = "nika-inspect-overview-layout";
 function loadOverviewLayout(): OverviewLayoutMode {
   try {
     const raw = localStorage.getItem(OVERVIEW_LAYOUT_KEY);
-    if (raw === "equal" || raw === "duration") return raw;
+    if (raw === "equal" || raw === "duration" || raw === "actual") return raw;
   } catch {
     /* ignore */
   }
   return "equal";
 }
+
+function overviewSpanTitle(span: {
+  label: string;
+  startMs: number;
+  endMs: number;
+}): string {
+  const dur = Math.max(0, span.endMs - span.startMs);
+  return `${span.label} · ${formatOverviewClock(span.startMs)} – ${formatOverviewClock(span.endMs)} · ${formatDuration(dur)}`;
+}
+
+/** Bars in the same lane whose visual slots overlap on x. */
+function overlappingGroup(
+  target: LaidOutOverviewSpan,
+  laneItems: LaidOutOverviewSpan[],
+): LaidOutOverviewSpan[] {
+  const tL = target.leftPct;
+  const tR = tL + Math.max(target.widthPct, 0);
+  return laneItems
+    .filter((it) => {
+      const l = it.leftPct;
+      const r = l + Math.max(it.widthPct, 0);
+      return l < tR && r > tL;
+    })
+    .sort(
+      (a, b) =>
+        a.leftPct - b.leftPct ||
+        a.widthPct - b.widthPct ||
+        a.span.id.localeCompare(b.span.id),
+    );
+}
+
+type OverlapPopup = {
+  items: LaidOutOverviewSpan[];
+  /** Fixed position near the click. */
+  left: number;
+  top: number;
+};
 
 function OverviewTimeline({
   events,
@@ -1076,10 +1157,13 @@ function OverviewTimeline({
   onBrushChange: (brush: TimeBrush | null) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
+  const wheelCleanupRef = useRef<(() => void) | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     originX: number;
-    originMs: number;
+    originY: number;
+    originPct: number;
     moved: boolean;
   } | null>(null);
   const panRef = useRef<{
@@ -1089,13 +1173,17 @@ function OverviewTimeline({
     moved: boolean;
     pannable: boolean;
   } | null>(null);
-  const [draft, setDraft] = useState<TimeBrush | null>(null);
+  /** Visual brush draft in track % (equal and duration). */
+  const [draftPct, setDraftPct] = useState<{ a: number; b: number } | null>(null);
   const [viewport, setViewport] = useState<TimeBrush | null>(null);
   const [panning, setPanning] = useState(false);
   const [layoutMode, setLayoutMode] = useState<OverviewLayoutMode>(loadOverviewLayout);
+  const [overlapPop, setOverlapPop] = useState<OverlapPopup | null>(null);
 
   const setLayout = (mode: OverviewLayoutMode) => {
     setLayoutMode(mode);
+    setViewport(null);
+    setOverlapPop(null);
     try {
       localStorage.setItem(OVERVIEW_LAYOUT_KEY, mode);
     } catch {
@@ -1104,12 +1192,26 @@ function OverviewTimeline({
   };
 
   const spans = useMemo(() => buildOverviewSpans(events), [events]);
+
+  // Zoom forces a timed projection; equal → actual wall-clock while zoomed.
+  const paintMode: OverviewLayoutMode = viewport
+    ? layoutMode === "equal"
+      ? "actual"
+      : layoutMode
+    : layoutMode;
+
+  // Domain spans: duration mode uses idle-compressed coordinates for zoom/pan.
+  const domainSpans = useMemo(
+    () => projectOverviewSpans(spans, paintMode),
+    [spans, paintMode],
+  );
+
   const fullDomain = useMemo(() => {
-    if (spans.length === 0) return null;
-    const start = Math.min(...spans.map((s) => s.startMs));
-    const end = Math.max(...spans.map((s) => s.endMs));
+    if (domainSpans.length === 0) return null;
+    const start = Math.min(...domainSpans.map((s) => s.startMs));
+    const end = Math.max(...domainSpans.map((s) => s.endMs));
     return { start, end: Math.max(end, start + 1) };
-  }, [spans]);
+  }, [domainSpans]);
 
   // Drop a stale viewport when the session domain changes.
   useEffect(() => {
@@ -1133,60 +1235,124 @@ function OverviewTimeline({
 
   const laidOut = useMemo(() => {
     if (!viewDomain) return [];
-    // Zoom/pan is a time-domain transform (DeepSeek-style). Force duration
-    // layout while zoomed so equal-mode doesn't reshuffle chip order.
-    const mode: OverviewLayoutMode = viewport ? "duration" : layoutMode;
-    return layoutOverviewSpans(spans, viewDomain.start, viewDomain.end, mode);
-  }, [spans, viewDomain, layoutMode, viewport]);
+    return layoutOverviewSpans(spans, viewDomain.start, viewDomain.end, paintMode);
+  }, [spans, viewDomain, paintMode]);
+
+  const stacked = useMemo(() => assignLaneStackRows(laidOut), [laidOut]);
+
+  const laneHeights = useMemo(() => {
+    // Fixed compact lanes — overlaps stay stacked with a slight height nudge.
+    return LANES.map(() => overviewLaneHeightPx());
+  }, []);
+
+  const turnBoundaries = useMemo(
+    () => overviewTurnBoundaryPcts(laidOut),
+    [laidOut],
+  );
 
   const viewDomainRef = useRef(viewDomain);
   const fullDomainRef = useRef(fullDomain);
   viewDomainRef.current = viewDomain;
   fullDomainRef.current = fullDomain;
 
-  // Non-passive wheel zoom (DeepSeek Harness-style), anchored under the cursor.
-  // Depend on fullDomain so we attach after the track mounts (events load async).
-  useEffect(() => {
+  const onWheelZoom = useCallback((event: WheelEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
     const track = trackRef.current;
-    if (!track || !fullDomain) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const domain = fullDomainRef.current;
-      const visible = viewDomainRef.current;
-      if (!domain || !visible) return;
-      const fullMs = domain.end - domain.start;
-      const currentMs = visible.end - visible.start;
-      const rect = track.getBoundingClientRect();
-      if (rect.width <= 0) return;
-      const anchorFraction = Math.min(
-        1,
-        Math.max(0, (event.clientX - rect.left) / rect.width),
-      );
-      // Normalize wheel/trackpad deltas (pixels / lines / pages).
-      let dy = event.deltaY;
-      if (event.deltaMode === 1) dy *= 16;
-      else if (event.deltaMode === 2) dy *= rect.height;
-      const clamped = Math.max(-120, Math.min(120, dy));
-      const minMs = Math.min(fullMs, Math.max(50, fullMs * 0.002));
-      const nextMs = Math.min(
-        fullMs,
-        Math.max(minMs, currentMs * Math.exp(clamped * 0.008)),
-      );
-      if (nextMs >= fullMs * 0.999) {
-        setViewport(null);
+    const domain = fullDomainRef.current;
+    const visible = viewDomainRef.current;
+    if (!track || !domain || !visible) return;
+    const fullMs = domain.end - domain.start;
+    const currentMs = visible.end - visible.start;
+    const rect = track.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const anchorFraction = Math.min(
+      1,
+      Math.max(0, (event.clientX - rect.left) / rect.width),
+    );
+    // Normalize wheel/trackpad deltas (pixels / lines / pages).
+    let dy = event.deltaY;
+    if (event.deltaMode === 1) dy *= 16;
+    else if (event.deltaMode === 2) dy *= rect.height;
+    const clamped = Math.max(-160, Math.min(160, dy));
+    // Discrete-enough steps so pixel-mode trackpads still feel responsive.
+    const intensity = Math.max(0.1, Math.min(1, Math.abs(clamped) / 90));
+    const direction = Math.sign(clamped) || 1;
+    const minMs = Math.min(fullMs, Math.max(50, fullMs * 0.002));
+    const nextMs = Math.min(
+      fullMs,
+      Math.max(minMs, currentMs * Math.exp(direction * intensity * 0.55)),
+    );
+    if (nextMs >= fullMs * 0.999) {
+      setViewport(null);
+      return;
+    }
+    const anchorTime = visible.start + anchorFraction * currentMs;
+    const nextStart = Math.min(
+      Math.max(anchorTime - anchorFraction * nextMs, domain.start),
+      domain.end - nextMs,
+    );
+    setViewport({ startMs: nextStart, endMs: nextStart + nextMs });
+  }, []);
+
+  // Attach non-passive wheel on the track node itself (callback ref survives
+  // fullDomain object churn from polling).
+  const setTrackNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      wheelCleanupRef.current?.();
+      wheelCleanupRef.current = null;
+      trackRef.current = node;
+      if (!node) return;
+      node.addEventListener("wheel", onWheelZoom, { passive: false });
+      wheelCleanupRef.current = () => {
+        node.removeEventListener("wheel", onWheelZoom);
+      };
+    },
+    [onWheelZoom],
+  );
+
+  useLayoutEffect(() => () => {
+    wheelCleanupRef.current?.();
+    wheelCleanupRef.current = null;
+  }, []);
+
+  // Escape closes overlap zoom, then clears the brush (Harness-style).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (overlapPop) {
+        setOverlapPop(null);
         return;
       }
-      const anchorTime = visible.start + anchorFraction * currentMs;
-      const nextStart = Math.min(
-        Math.max(anchorTime - anchorFraction * nextMs, domain.start),
-        domain.end - nextMs,
-      );
-      setViewport({ startMs: nextStart, endMs: nextStart + nextMs });
+      setDraftPct(null);
+      onBrushChange(null);
     };
-    track.addEventListener("wheel", onWheel, { passive: false });
-    return () => track.removeEventListener("wheel", onWheel);
-  }, [fullDomain]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onBrushChange, overlapPop]);
+
+  const openOverlapPopup = (
+    hit: LaidOutOverviewSpan,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const laneItems = stacked.filter((it) => it.span.lane === hit.span.lane);
+    const group = overlappingGroup(hit, laneItems);
+    onSelect(hit.span.eventId);
+    if (group.length <= 1) {
+      setOverlapPop(null);
+      return;
+    }
+    const plot = plotRef.current;
+    const rect = plot?.getBoundingClientRect();
+    const left = rect
+      ? Math.min(Math.max(8, clientX - rect.left - 20), Math.max(8, rect.width - 320))
+      : clientX;
+    const top = rect
+      ? Math.min(Math.max(8, clientY - rect.top + 12), Math.max(8, rect.height - 40))
+      : clientY;
+    setOverlapPop({ items: group, left, top });
+  };
 
   const pctAtClientX = (clientX: number): number | null => {
     const el = trackRef.current;
@@ -1196,17 +1362,71 @@ function OverviewTimeline({
     return Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100));
   };
 
-  const msAtClientX = (clientX: number): number | null => {
-    if (!viewDomain) return null;
-    const pct = pctAtClientX(clientX);
-    if (pct == null) return null;
-    return viewDomain.start + (pct / 100) * (viewDomain.end - viewDomain.start);
+  /** Prefer the bar under the cursor (lane + vertical stack), not the globally shortest. */
+  const hitTestBar = (clientX: number, clientY: number) => {
+    const el = trackRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const pct = Math.min(
+      100,
+      Math.max(0, ((clientX - rect.left) / rect.width) * 100),
+    );
+    const y = clientY - rect.top;
+    const gap = 4;
+    let yCursor = 0;
+    let laneIndex = -1;
+    for (let i = 0; i < LANES.length; i++) {
+      const h = laneHeights[i] ?? 14;
+      if (y >= yCursor && y < yCursor + h) {
+        laneIndex = i;
+        break;
+      }
+      yCursor += h + gap;
+    }
+    if (laneIndex < 0) return null;
+    const laneId = LANES[laneIndex].id;
+    const laneH = laneHeights[laneIndex] ?? 14;
+    const localY = y - yCursor;
+    const laneItems = stacked.filter((it) => it.span.lane === laneId);
+    const layerCount =
+      laneItems.reduce((m, x) => Math.max(m, x.stackRow), 0) + 1;
+    const xHits = laneItems.filter(
+      (it) => pct >= it.leftPct && pct <= it.leftPct + it.widthPct,
+    );
+    if (xHits.length === 0) return null;
+    const scored = xHits.map((it) => {
+      const g = overviewStackBarGeometry(it.stackRow, laneH, layerCount);
+      const contains = localY >= g.top && localY <= g.top + g.height;
+      const dist = contains
+        ? 0
+        : Math.min(
+            Math.abs(localY - g.top),
+            Math.abs(localY - (g.top + g.height)),
+          );
+      return { it, contains, dist, stackRow: it.stackRow, widthPct: it.widthPct };
+    });
+    scored.sort(
+      (a, b) =>
+        Number(b.contains) - Number(a.contains) ||
+        a.dist - b.dist ||
+        b.stackRow - a.stackRow ||
+        a.widthPct - b.widthPct,
+    );
+    return scored[0]?.it ?? null;
   };
 
-  const brushFromPts = (a: number, b: number): TimeBrush => {
-    const startMs = Math.min(a, b);
-    const endMs = Math.max(a, b);
-    return { startMs, endMs: Math.max(endMs, startMs + 1) };
+  const brushFromVisualPct = (a: number, b: number): TimeBrush | null => {
+    const left = Math.min(a, b);
+    const right = Math.max(a, b);
+    const hits = stacked.filter(
+      ({ leftPct, widthPct }) => leftPct < right && leftPct + widthPct > left,
+    );
+    if (hits.length === 0) return null;
+    return {
+      startMs: Math.min(...hits.map((h) => h.span.startMs)),
+      endMs: Math.max(...hits.map((h) => h.span.endMs)),
+    };
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -1226,15 +1446,16 @@ function OverviewTimeline({
     }
     if (e.button !== 0) return;
 
-    const ms = msAtClientX(e.clientX);
-    if (ms == null) return;
+    const pct = pctAtClientX(e.clientX);
+    if (pct == null) return;
     dragRef.current = {
       pointerId: e.pointerId,
       originX: e.clientX,
-      originMs: ms,
+      originY: e.clientY,
+      originPct: pct,
       moved: false,
     };
-    setDraft(null);
+    setDraftPct(null);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
@@ -1258,11 +1479,12 @@ function OverviewTimeline({
 
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
-    const ms = msAtClientX(e.clientX);
-    if (ms == null) return;
+    const pct = pctAtClientX(e.clientX);
+    if (pct == null) return;
     if (!drag.moved && Math.abs(e.clientX - drag.originX) < 4) return;
     drag.moved = true;
-    setDraft(brushFromPts(drag.originMs, ms));
+    setOverlapPop(null);
+    setDraftPct({ a: drag.originPct, b: pct });
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -1278,7 +1500,7 @@ function OverviewTimeline({
         /* already released */
       }
       if (!moved) {
-        setDraft(null);
+        setDraftPct(null);
         onBrushChange(null);
       }
       return;
@@ -1294,42 +1516,22 @@ function OverviewTimeline({
     }
 
     if (drag.moved) {
-      const ms = msAtClientX(e.clientX) ?? drag.originMs;
-      const next = brushFromPts(drag.originMs, ms);
-      const minMs = (viewDomain.end - viewDomain.start) * 0.008;
-      if (next.endMs - next.startMs >= minMs) {
-        onBrushChange(next);
+      const pct = pctAtClientX(e.clientX) ?? drag.originPct;
+      const left = Math.min(drag.originPct, pct);
+      const right = Math.max(drag.originPct, pct);
+      if (right - left >= 0.8) {
+        const next = brushFromVisualPct(left, right);
+        if (next) onBrushChange(next);
       }
-      setDraft(null);
+      setDraftPct(null);
       return;
     }
 
-    setDraft(null);
-    // Click without drag: hit painted bars (equal mode uses visual slots).
-    if (layoutMode === "equal") {
-      const el = trackRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const pct = ((drag.originX - rect.left) / rect.width) * 100;
-      const hit = [...laidOut]
-        .filter(({ leftPct, widthPct }) => pct >= leftPct && pct <= leftPct + widthPct)
-        .sort((a, b) => a.widthPct - b.widthPct)[0];
-      if (hit) onSelect(hit.span.eventId);
-      return;
-    }
-    const ms = drag.originMs;
-    const hits = spans
-      .filter(
-        (s) =>
-          s.startMs <= ms &&
-          ms <= s.endMs &&
-          s.endMs > viewDomain.start &&
-          s.startMs < viewDomain.end,
-      )
-      .sort(
-        (a, b) => a.endMs - a.startMs - (b.endMs - b.startMs) || a.id.localeCompare(b.id),
-      );
-    if (hits[0]) onSelect(hits[0].eventId);
+    setDraftPct(null);
+    // Click without drag: lane + vertical stack aware (so long underlays stay selectable).
+    const hit = hitTestBar(drag.originX, drag.originY);
+    if (hit) openOverlapPopup(hit, drag.originX, drag.originY);
+    else setOverlapPop(null);
   };
 
   const onContextMenu = (e: ReactMouseEvent) => {
@@ -1340,25 +1542,21 @@ function OverviewTimeline({
     return <div className="overview empty-inline">No timed events</div>;
   }
 
-  const domainMs = viewDomain.end - viewDomain.start;
   const byLane = (lane: OverviewLane) =>
-    laidOut.filter(({ span }) => span.lane === lane);
+    stacked.filter(({ span }) => span.lane === lane);
 
-  const activeBrush = draft ?? brush;
   let brushLeftPct: number | null = null;
   let brushRightPct: number | null = null;
-  if (activeBrush) {
-    if (layoutMode === "equal") {
-      const hits = laidOut.filter(({ span }) =>
-        overlapsBrush(span.startMs, span.endMs, activeBrush),
-      );
-      if (hits.length > 0) {
-        brushLeftPct = Math.min(...hits.map((h) => h.leftPct));
-        brushRightPct = Math.max(...hits.map((h) => h.leftPct + h.widthPct));
-      }
-    } else {
-      brushLeftPct = ((activeBrush.startMs - viewDomain.start) / domainMs) * 100;
-      brushRightPct = ((activeBrush.endMs - viewDomain.start) / domainMs) * 100;
+  if (draftPct) {
+    brushLeftPct = Math.min(draftPct.a, draftPct.b);
+    brushRightPct = Math.max(draftPct.a, draftPct.b);
+  } else if (brush) {
+    const hits = stacked.filter(({ span }) =>
+      overlapsBrush(span.startMs, span.endMs, brush),
+    );
+    if (hits.length > 0) {
+      brushLeftPct = Math.min(...hits.map((h) => h.leftPct));
+      brushRightPct = Math.max(...hits.map((h) => h.leftPct + h.widthPct));
     }
   }
   const brushStyle: CSSProperties | undefined =
@@ -1370,15 +1568,39 @@ function OverviewTimeline({
       : undefined;
 
   const zoomed = viewport != null;
+  const timedPaint = paintMode === "duration" || paintMode === "actual";
 
   return (
     <div className="overview">
       <div className="overview-toolbar">
         <span className="overview-hint">
-          {zoomed
-            ? "Scroll to zoom · drag to select · right-drag to pan · right-click to clear"
-            : "Scroll to zoom · drag to select · right-click to clear"}
+          Scroll to zoom · drag to select · click overlap to zoom · Esc to clear
+          {zoomed ? " · right-drag to pan" : ""}
         </span>
+        <div className="overview-mode-group" role="group" aria-label="Overview layout">
+          {(
+            [
+              ["equal", "Equal", "Equal-width bars in chronological order"],
+              [
+                "duration",
+                "Duration",
+                "Real durations with idle gaps compressed (Harness-style)",
+              ],
+              ["actual", "Wall clock", "Real durations on the full wall-clock axis"],
+            ] as const
+          ).map(([id, label, tip]) => (
+            <button
+              key={id}
+              type="button"
+              className={`overview-duration-toggle${layoutMode === id ? " active" : ""}`}
+              aria-pressed={layoutMode === id}
+              title={tip}
+              onClick={() => setLayout(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {zoomed && (
           <button
             type="button"
@@ -1388,24 +1610,12 @@ function OverviewTimeline({
             Reset zoom
           </button>
         )}
-        <button
-          type="button"
-          className={`overview-duration-toggle${layoutMode === "duration" ? " active" : ""}`}
-          aria-pressed={layoutMode === "duration"}
-          title={
-            layoutMode === "duration"
-              ? "Showing true execution duration — click for equal width"
-              : "Equal-width bars in chronological order — click for true duration"
-          }
-          onClick={() =>
-            setLayout(layoutMode === "duration" ? "equal" : "duration")
-          }
-        >
-          By duration
-        </button>
       </div>
-      <div className="overview-plot">
-        <div className="overview-labels">
+      <div className="overview-plot" ref={plotRef}>
+        <div
+          className="overview-labels"
+          style={{ gridTemplateRows: laneHeights.map((h) => `${h}px`).join(" ") }}
+        >
           {LANES.map((l) => (
             <div key={l.id} className="overview-label">
               {l.label}
@@ -1413,15 +1623,19 @@ function OverviewTimeline({
           ))}
         </div>
         <div
-          ref={trackRef}
-          className={`overview-track${draft ? " brushing" : ""}${panning ? " panning" : ""}${layoutMode === "duration" ? " duration-mode" : ""}`}
-          onPointerDown={onPointerDown}
+          ref={setTrackNode}
+          className={`overview-track${draftPct ? " brushing" : ""}${panning ? " panning" : ""}${timedPaint ? " duration-mode" : ""}`}
+          style={{ gridTemplateRows: laneHeights.map((h) => `${h}px`).join(" ") }}
+          onPointerDown={(e) => {
+            setOverlapPop(null);
+            onPointerDown(e);
+          }}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={() => {
             dragRef.current = null;
             panRef.current = null;
-            setDraft(null);
+            setDraftPct(null);
             setPanning(false);
           }}
           onContextMenu={onContextMenu}
@@ -1429,43 +1643,177 @@ function OverviewTimeline({
             e.preventDefault();
             setViewport(null);
             onBrushChange(null);
+            setOverlapPop(null);
           }}
         >
-          {LANES.map((l) => (
-            <div key={l.id} className="overview-lane">
-              {byLane(l.id).map(({ span, leftPct, widthPct }, index) => {
-                const spanMs = Math.max(1, span.endMs - span.startMs);
-                const spanRightPct = leftPct + Math.max(widthPct, 0);
-                const dimmed =
-                  brushLeftPct != null &&
-                  brushRightPct != null &&
-                  !(leftPct < brushRightPct && spanRightPct > brushLeftPct);
-                return (
-                  <div
-                    key={span.id}
-                    title={`${span.label} · ${formatDuration(spanMs)}`}
-                    className={[
-                      "overview-span",
-                      `role-${span.role}`,
-                      span.error ? "error" : "",
-                      selectedId === span.eventId ? "selected" : "",
-                      dimmed ? "dimmed" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    style={{
-                      left: `${leftPct}%`,
-                      width: `${Math.max(widthPct, 0)}%`,
-                      minWidth: widthPct > 0 ? "1px" : 0,
-                      zIndex: selectedId === span.eventId ? 5 : index + 1,
-                    }}
-                  />
-                );
-              })}
-            </div>
+          {turnBoundaries.map((pct) => (
+            <div
+              key={`turn-${pct}`}
+              className="overview-turn-boundary"
+              style={{ left: `${pct}%` }}
+            />
           ))}
+          {LANES.map((l, laneIndex) => {
+            const laneH = laneHeights[laneIndex] ?? 16;
+            const laneItems = byLane(l.id);
+            const layerCount =
+              laneItems.reduce((m, x) => Math.max(m, x.stackRow), 0) + 1;
+            return (
+              <div
+                key={l.id}
+                className="overview-lane"
+                style={{ height: laneH }}
+              >
+                {laneItems.map(({ span, leftPct, widthPct, stackRow }) => {
+                  const spanRightPct = leftPct + Math.max(widthPct, 0);
+                  const dimmedByBrush =
+                    brushLeftPct != null &&
+                    brushRightPct != null &&
+                    !(leftPct < brushRightPct && spanRightPct > brushLeftPct);
+                  const dimmedBySelect =
+                    selectedId != null && span.eventId !== selectedId;
+                  const dimmed = dimmedBySelect || dimmedByBrush;
+                  const { top, height, depth } = overviewStackBarGeometry(
+                    stackRow,
+                    laneH,
+                    layerCount,
+                  );
+                  return (
+                    <div
+                      key={span.id}
+                      title={overviewSpanTitle(span)}
+                      className={[
+                        "overview-span",
+                        `role-${span.role}`,
+                        span.error ? "error" : "",
+                        selectedId === span.eventId ? "selected" : "",
+                        dimmed ? "dimmed" : "",
+                        depth > 0 ? "overlap" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={{
+                        left: `${leftPct}%`,
+                        width: `${Math.max(widthPct, 0)}%`,
+                        top,
+                        height,
+                        minWidth: widthPct > 0 ? "1px" : 0,
+                        ["--stack-depth" as string]: depth,
+                        zIndex:
+                          selectedId === span.eventId
+                            ? 30
+                            : 5 + stackRow,
+                      }}
+                      onPointerDown={(ev) => {
+                        // Select / open overlap zoom; don't start a track brush.
+                        if (ev.button !== 0) return;
+                        ev.stopPropagation();
+                        openOverlapPopup(
+                          { span, leftPct, widthPct, stackRow },
+                          ev.clientX,
+                          ev.clientY,
+                        );
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
           {brushStyle && <div className="overview-brush" style={brushStyle} />}
         </div>
+        {overlapPop && (
+          <div
+            className="overview-overlap-pop"
+            style={{ left: overlapPop.left, top: overlapPop.top }}
+            onPointerDown={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Overlapping events"
+          >
+            <div className="overview-overlap-pop-head">
+              <span>{overlapPop.items.length} overlapping</span>
+              <button
+                type="button"
+                className="overview-overlap-pop-close"
+                onClick={() => setOverlapPop(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div
+              className="overview-overlap-pop-track"
+              style={{
+                height: Math.max(48, overlapPop.items.length * 22 + 12),
+              }}
+            >
+              {(() => {
+                const clusterLeft = Math.min(
+                  ...overlapPop.items.map((it) => it.leftPct),
+                );
+                const clusterRight = Math.max(
+                  ...overlapPop.items.map(
+                    (it) => it.leftPct + Math.max(it.widthPct, 0),
+                  ),
+                );
+                const clusterW = Math.max(clusterRight - clusterLeft, 0.5);
+                return overlapPop.items.map((it, i) => {
+                  const left =
+                    ((it.leftPct - clusterLeft) / clusterW) * 100;
+                  const width = (Math.max(it.widthPct, 0) / clusterW) * 100;
+                  return (
+                    <button
+                      key={it.span.id}
+                      type="button"
+                      title={overviewSpanTitle(it.span)}
+                      className={[
+                        "overview-overlap-pop-bar",
+                        `role-${it.span.role}`,
+                        it.span.error ? "error" : "",
+                        selectedId === it.span.eventId ? "selected" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={{
+                        left: `${left}%`,
+                        width: `${Math.max(width, 2)}%`,
+                        top: 6 + i * 20,
+                      }}
+                      onClick={() => {
+                        onSelect(it.span.eventId);
+                      }}
+                    >
+                      <span className="overview-overlap-pop-label">
+                        {it.span.label}
+                      </span>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+            <ul className="overview-overlap-pop-list">
+              {overlapPop.items.map((it) => (
+                <li key={`row-${it.span.id}`}>
+                  <button
+                    type="button"
+                    className={
+                      selectedId === it.span.eventId ? "selected" : undefined
+                    }
+                    onClick={() => onSelect(it.span.eventId)}
+                  >
+                    <span className={`dot role-${it.span.role}`} aria-hidden />
+                    <span className="name">{it.span.label}</span>
+                    <span className="dur">
+                      {formatDuration(
+                        Math.max(0, it.span.endMs - it.span.startMs),
+                      )}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1575,6 +1923,16 @@ function unescapeNewlines(text: string): string {
     .replace(/\u0000/g, "\\");
 }
 
+/** Cap recursive unwrap / pretty-print so provider dumps cannot freeze the UI. */
+const DISPLAY_STR_LIMIT = 12_000;
+const DISPLAY_PRETTY_LIMIT = 48_000;
+const DISPLAY_ARRAY_LIMIT = 60;
+
+function clipDisplayString(text: string, limit = DISPLAY_STR_LIMIT): string {
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}… [${text.length} chars total]`;
+}
+
 /** Unwrap LangChain tool blobs and nested JSON into a display value. */
 function normalizeDisplayValue(value: unknown, depth = 0): unknown {
   if (value == null || depth > 6) return value;
@@ -1590,7 +1948,14 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
       ) {
         return normalizeDisplayValue((value[0] as { text: string }).text, depth + 1);
       }
-      return value.map((item) => normalizeDisplayValue(item, depth + 1));
+      const items = value.length > DISPLAY_ARRAY_LIMIT
+        ? value.slice(0, DISPLAY_ARRAY_LIMIT)
+        : value;
+      const mapped = items.map((item) => normalizeDisplayValue(item, depth + 1));
+      if (value.length > DISPLAY_ARRAY_LIMIT) {
+        mapped.push(`… [${value.length - DISPLAY_ARRAY_LIMIT} more items]`);
+      }
+      return mapped;
     }
     const obj = value as Record<string, unknown>;
     if (typeof obj.content === "string" || Array.isArray(obj.content)) {
@@ -1605,6 +1970,10 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
   }
 
   if (typeof value !== "string") return value;
+  // Do not JSON-unwrap multi-MB provider error dumps that embed full transcripts.
+  if (value.length > DISPLAY_STR_LIMIT) {
+    return clipDisplayString(value);
+  }
   const trimmed = value.trim();
   if (!trimmed) return value;
 
@@ -1635,12 +2004,13 @@ function formatPretty(value: unknown): string {
     return String(normalized);
   }
   if (typeof normalized === "string") {
-    return normalized.trim() ? normalized : "—";
+    const text = normalized.trim() ? normalized : "—";
+    return text === "—" ? text : clipDisplayString(text, DISPLAY_PRETTY_LIMIT);
   }
   try {
-    return JSON.stringify(normalized, null, 2);
+    return clipDisplayString(JSON.stringify(normalized, null, 2), DISPLAY_PRETTY_LIMIT);
   } catch {
-    return String(normalized);
+    return clipDisplayString(String(normalized), DISPLAY_PRETTY_LIMIT);
   }
 }
 
@@ -1739,6 +2109,10 @@ function isIdentBoundary(source: string, index: number, len: number): boolean {
 }
 
 function highlightJson(text: string): ReactNode {
+  // Regex tokenization on huge blobs freezes the inspector; plain text is enough.
+  if (text.length > DISPLAY_PRETTY_LIMIT) {
+    return clipDisplayString(text, DISPLAY_PRETTY_LIMIT);
+  }
   const parts: ReactNode[] = [];
   const re =
     /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(\btrue\b|\bfalse\b|\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],])/g;
@@ -1802,9 +2176,25 @@ function shouldRenderHumanSections(value: unknown): value is Record<string, unkn
   return multiline >= 1 && entries.every(([, v]) => typeof v !== "object" || v == null);
 }
 
+/** Payload tab: full event as one pretty-printed JSON block (no field grid). */
+function EventPayloadView({ raw }: { raw: Record<string, unknown> }) {
+  const text = formatPretty(raw);
+  const trimmed = text.trim();
+  const looksJson =
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"));
+  return (
+    <pre className={`pretty-block${looksJson ? " is-json" : ""}`}>
+      {looksJson ? highlightJson(text) : text}
+    </pre>
+  );
+}
+
 function PrettyValue({ value }: { value: unknown }) {
   const normalized = normalizeDisplayValue(value);
 
+  // Results / Parameters may still use section cards for multi-line dumps;
+  // Payload tab never goes through this path.
   if (shouldRenderHumanSections(normalized)) {
     return (
       <div className="human-blocks">
@@ -2039,13 +2429,13 @@ function Inspector({
   onOpenEvent: (id: string) => void;
 }) {
   const role: Role | null = row?.role ?? null;
-  const isTool = role === "tool";
+  const isTool = row ? isToolDisplay(row) : false;
   const isAssistant = role === "assistant";
   const tabs = isTool
     ? (["overview", "parameters", "results", "raw", "timing"] as const)
     : isAssistant
       ? (["overview", "preview", "raw", "timing"] as const)
-      : (["overview", "data", "raw", "timing"] as const);
+      : (["overview", "payload", "raw", "timing"] as const);
   const [tab, setTab] = useState<string>(isAssistant ? "preview" : "overview");
 
   useEffect(() => {
@@ -2213,13 +2603,21 @@ function Inspector({
           />
         )}
 
-        {tab === "data" && (
-          <PrettyValue value={start.raw.data ?? start.raw.message ?? start.raw} />
-        )}
+        {tab === "payload" && <EventPayloadView raw={start.raw} />}
 
         {tab === "raw" && (
           <PrettyValue
-            value={end ? { start: start.raw, end: end.raw } : start.raw}
+            value={
+              end || (row.interiors && row.interiors.length)
+                ? {
+                    start: start.raw,
+                    ...(row.interiors?.length
+                      ? { interiors: row.interiors.map((e) => e.raw) }
+                      : {}),
+                    ...(end ? { end: end.raw } : {}),
+                  }
+                : start.raw
+            }
           />
         )}
 
@@ -2234,7 +2632,9 @@ function Inspector({
             <dt>Timing source</dt>
             <dd>
               {row.event === "llm" || row.kind === "llm"
-                ? "llm_start → llm_end"
+                ? row.start.event === "turn.started"
+                  ? "turn.started → turn.completed"
+                  : "llm_start → llm_end"
                 : isTool && end
                   ? "tool_start → tool_end"
                   : "Session timestamps"}
@@ -2572,14 +2972,20 @@ function ScoresPanel({ scores }: { scores: ScoresResponse | null }) {
   );
 }
 
-function RawPanel({ sessionId }: { sessionId: string }) {
+function RawPanel({
+  sessionId,
+  root,
+}: {
+  sessionId: string;
+  root: string;
+}) {
   const [filename, setFilename] = useState("run.json");
   const [data, setData] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchRaw(sessionId, filename)
+    fetchRaw(sessionId, filename, root)
       .then((res) => {
         if (!cancelled) {
           setData(res.data);
@@ -2595,7 +3001,7 @@ function RawPanel({ sessionId }: { sessionId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, filename]);
+  }, [sessionId, filename, root]);
 
   return (
     <div className="raw">
@@ -2616,9 +3022,11 @@ function RawPanel({ sessionId }: { sessionId: string }) {
 
 function SessionView({
   sessionId,
+  root,
   onBack,
 }: {
   sessionId: string;
+  root: string;
   onBack: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("timeline");
@@ -2629,7 +3037,21 @@ function SessionView({
   const [scores, setScores] = useState<ScoresResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const rows = useMemo(() => collapsePairedEvents(events), [events]);
+  const rows = useMemo(() => {
+    const collapsed = collapsePairedEvents(events);
+    return [...collapsed].sort((a, b) => {
+      const ta = parseTs(a.timestamp);
+      const tb = parseTs(b.timestamp);
+      if (ta == null && tb == null) return a.id.localeCompare(b.id);
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      if (ta !== tb) return ta - tb;
+      const ea = parseTs(a.endTimestamp) ?? ta;
+      const eb = parseTs(b.endTimestamp) ?? tb;
+      if (ea !== eb) return ea - eb;
+      return a.id.localeCompare(b.id);
+    });
+  }, [events]);
   const visibleRows = useMemo(
     () => (brush ? rows.filter((r) => rowInBrush(r, brush)) : rows),
     [rows, brush],
@@ -2641,34 +3063,52 @@ function SessionView({
 
   useEffect(() => {
     setBrush(null);
-  }, [sessionId]);
+  }, [sessionId, root]);
 
   useEffect(() => {
     if (!selectedId) return;
     if (visibleRows.some((r) => r.id === selectedId)) return;
+    // Keep overview/ledger selection reachable: drop brush instead of the pick.
+    if (brush && rows.some((r) => r.id === selectedId)) {
+      setBrush(null);
+      return;
+    }
     setSelectedId(null);
-  }, [visibleRows, selectedId]);
+  }, [visibleRows, selectedId, brush, rows]);
 
   useEffect(() => {
     let cancelled = false;
-    fetchSession(sessionId)
-      .then((d) => {
-        if (!cancelled) setDetail(d);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
+    let finished = false;
+    const load = (background: boolean) =>
+      fetchSession(sessionId, root)
+        .then((d) => {
+          if (cancelled) return;
+          setDetail(d);
+          finished = d.status !== "running";
+        })
+        .catch((err: Error) => {
+          if (!cancelled && !background) setError(err.message);
+        });
+    void load(false);
+    const poll = window.setInterval(() => {
+      if (finished) {
+        window.clearInterval(poll);
+        return;
+      }
+      void load(true);
+    }, 3000);
     return () => {
       cancelled = true;
+      window.clearInterval(poll);
     };
-  }, [sessionId]);
+  }, [sessionId, root]);
 
   useEffect(() => {
     if (tab === "scores" || tab === "raw") return;
     let cancelled = false;
     const source =
       tab === "agent" ? "agent" : tab === "nika" ? "nika" : "merged";
-    fetchTimeline(sessionId, source)
+    fetchTimeline(sessionId, source, root)
       .then((data) => {
         if (cancelled) return;
         setEvents(data.events);
@@ -2685,25 +3125,37 @@ function SessionView({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, tab]);
+  }, [sessionId, tab, root]);
 
   useEffect(() => {
     if (tab === "scores" || tab === "raw") return;
-    if (detail?.status !== "running") return;
     const source =
       tab === "agent" ? "agent" : tab === "nika" ? "nika" : "merged";
-    const poll = window.setInterval(() => {
-      fetchTimeline(sessionId, source).then((data) =>
-        setEvents(data.events),
-      );
-    }, 3000);
-    return () => window.clearInterval(poll);
-  }, [sessionId, tab, detail?.status]);
+    let cancelled = false;
+    const tick = () =>
+      fetchTimeline(sessionId, source, root)
+        .then((data) => {
+          if (!cancelled) setEvents(data.events);
+        })
+        .catch(() => undefined);
+    if (detail?.status === "finished" || detail?.status === "aborted" || detail?.status === "error") {
+      void tick();
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (detail?.status !== "running") return;
+    const poll = window.setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+    };
+  }, [sessionId, tab, detail?.status, root]);
 
   useEffect(() => {
     if (tab !== "scores") return;
     let cancelled = false;
-    fetchScores(sessionId)
+    fetchScores(sessionId, root)
       .then((data) => {
         if (!cancelled) setScores(data);
       })
@@ -2713,11 +3165,11 @@ function SessionView({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, tab]);
+  }, [sessionId, tab, root]);
 
   const stats = useMemo(() => {
     const nika = visibleRows.filter((r) => r.role === "nika").length;
-    const tools = visibleRows.filter((r) => r.role === "tool").length;
+    const tools = visibleRows.filter((r) => isToolDisplay(r)).length;
     const model = visibleRows.filter((r) => r.role === "assistant").length;
     return { nika, tools, model, total: visibleRows.length };
   }, [visibleRows]);
@@ -2793,7 +3245,10 @@ function SessionView({
             <OverviewTimeline
               events={events}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={(id) => {
+                setSelectedId(id);
+                setBrush(null);
+              }}
               brush={brush}
               onBrushChange={setBrush}
             />
@@ -2824,34 +3279,312 @@ function SessionView({
       )}
       {!error && tab === "scores" && <ScoresPanel scores={scores} />}
       {!error && tab === "raw" && (
-        <RawPanel sessionId={sessionId} />
+        <RawPanel sessionId={sessionId} root={root} />
       )}
     </div>
   );
 }
 
+const RESULTS_ROOT_KEY = "nika-inspect-results-root";
+
+function loadCachedResultsRoot(): string | null {
+  try {
+    const raw = localStorage.getItem(RESULTS_ROOT_KEY)?.trim();
+    return raw || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedResultsRoot(path: string) {
+  try {
+    const trimmed = path.trim();
+    if (!trimmed) localStorage.removeItem(RESULTS_ROOT_KEY);
+    else localStorage.setItem(RESULTS_ROOT_KEY, trimmed);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function clearCachedResultsRoot() {
+  try {
+    localStorage.removeItem(RESULTS_ROOT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Map a validated roots response into the App root selection state. */
+function selectionFromRoots(
+  requested: string,
+  data: { base_root: string; results_root: string },
+): { selectedRoot: string; activePath: string } {
+  const trimmed = requested.trim();
+  const selectedRoot =
+    trimmed === data.base_root ||
+    trimmed === `${data.base_root}/` ||
+    trimmed === "."
+      ? "."
+      : trimmed;
+  return { selectedRoot, activePath: data.results_root };
+}
+
 export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [resultsHint, setResultsHint] = useState("");
+  const [selectedRoot, setSelectedRoot] = useState(".");
+  const [baseRoot, setBaseRoot] = useState("");
+  const [activePath, setActivePath] = useState("");
+  const [draftPath, setDraftPath] = useState("");
+  const [rootError, setRootError] = useState<string | null>(null);
+  const [rootBusy, setRootBusy] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browsePath, setBrowsePath] = useState("");
+  const [browseParent, setBrowseParent] = useState<string | null>(null);
+  const [browseEntries, setBrowseEntries] = useState<BrowseEntry[]>([]);
+  const [browseError, setBrowseError] = useState<string | null>(null);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const rootPickerRef = useRef<HTMLDivElement>(null);
+  const rootInputRef = useRef<HTMLInputElement>(null);
+  const selectedRootRef = useRef(selectedRoot);
+  selectedRootRef.current = selectedRoot;
 
   useEffect(() => {
-    fetchSessions(new URLSearchParams({ status: "all" }))
-      .then((data) => setResultsHint(data.results_root))
-      .catch(() => undefined);
+    let cancelled = false;
+    const boot = async () => {
+      const cached = loadCachedResultsRoot();
+      if (cached) {
+        try {
+          const data = await fetchRoots(cached);
+          if (cancelled) return;
+          const { selectedRoot: next, activePath: path } = selectionFromRoots(
+            cached,
+            data,
+          );
+          setBaseRoot(data.base_root);
+          setSelectedRoot(next);
+          selectedRootRef.current = next;
+          setActivePath(path);
+          setDraftPath(path);
+          saveCachedResultsRoot(path);
+          return;
+        } catch {
+          // Cached folder gone or outside allowed roots — fall back.
+          clearCachedResultsRoot();
+        }
+      }
+      try {
+        const data = await fetchRoots();
+        if (cancelled) return;
+        setBaseRoot(data.base_root);
+        setActivePath(data.results_root);
+        setDraftPath(data.results_root);
+      } catch {
+        /* ignore boot failure; UI shows empty until user picks a path */
+      }
+    };
+    void boot();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!browserOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootPickerRef.current?.contains(e.target as Node)) {
+        setBrowserOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setBrowserOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [browserOpen]);
+
+  const loadBrowse = (path: string) => {
+    setBrowseLoading(true);
+    setBrowseError(null);
+    fetchBrowse(path || undefined)
+      .then((data) => {
+        setBrowsePath(data.path);
+        setBrowseParent(data.parent ?? null);
+        setBrowseEntries(data.entries);
+        if (!baseRoot) setBaseRoot(data.base_root);
+      })
+      .catch((err: Error) => {
+        setBrowseError(err.message);
+        setBrowseEntries([]);
+      })
+      .finally(() => setBrowseLoading(false));
+  };
+
+  const openBrowser = () => {
+    const start = draftPath.trim() || activePath || baseRoot || ".";
+    setBrowserOpen(true);
+    loadBrowse(start);
+  };
+
+  const commitRoot = async (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed || rootBusy) return;
+    setRootBusy(true);
+    try {
+      const data = await fetchRoots(trimmed);
+      const { selectedRoot: next, activePath: path } = selectionFromRoots(
+        trimmed,
+        data,
+      );
+      setBaseRoot(data.base_root);
+      setSelectedRoot(next);
+      selectedRootRef.current = next;
+      setSessionId(null);
+      setRootError(null);
+      setActivePath(path);
+      setDraftPath(path);
+      saveCachedResultsRoot(path);
+      setBrowserOpen(false);
+    } catch (err) {
+      setRootError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRootBusy(false);
+    }
+  };
+
+  const submitRoot = () => {
+    void commitRoot(rootInputRef.current?.value ?? draftPath);
+  };
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          NIKA <span>View</span>
+          NIKA <span>Inspect</span>
         </div>
-        <div className="topbar-meta" title={resultsHint || undefined}>
-          {resultsHint || "results/"}
+        <div className="topbar-meta" ref={rootPickerRef}>
+          <div className="root-picker">
+            <input
+              ref={rootInputRef}
+              className="topbar-root topbar-root-input"
+              aria-label="Results folder"
+              placeholder="Results path…"
+              spellCheck={false}
+              value={draftPath}
+              onChange={(e) => {
+                setDraftPath(e.target.value);
+                if (rootError) setRootError(null);
+              }}
+              onFocus={() => {
+                if (!browserOpen) openBrowser();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitRoot();
+                } else if (e.key === "Escape") {
+                  setDraftPath(activePath);
+                  setRootError(null);
+                  setBrowserOpen(false);
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  openBrowser();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="root-picker-toggle"
+              aria-label="Browse results folders"
+              aria-expanded={browserOpen}
+              onClick={() => (browserOpen ? setBrowserOpen(false) : openBrowser())}
+            >
+              ▾
+            </button>
+            {browserOpen && (
+              <div className="root-browser" role="dialog" aria-label="Results folder browser">
+                <div className="root-browser-bar">
+                  <button
+                    type="button"
+                    className="root-browser-up"
+                    disabled={!browseParent || browseLoading}
+                    onClick={() => browseParent && loadBrowse(browseParent)}
+                  >
+                    ↑ Up
+                  </button>
+                  <div className="root-browser-path" title={browsePath}>
+                    {browsePath || "…"}
+                  </div>
+                  <button
+                    type="button"
+                    className="root-browser-select"
+                    disabled={!browsePath || browseLoading || rootBusy}
+                    onClick={() => void commitRoot(browsePath)}
+                  >
+                    Open
+                  </button>
+                </div>
+                {browseError && (
+                  <div className="root-browser-empty">{browseError}</div>
+                )}
+                {!browseError && browseLoading && browseEntries.length === 0 && (
+                  <div className="root-browser-empty">Loading…</div>
+                )}
+                {!browseError && !browseLoading && browseEntries.length === 0 && (
+                  <div className="root-browser-empty">No subfolders</div>
+                )}
+                {!browseError && browseEntries.length > 0 && (
+                  <ul className={`root-browser-list${browseLoading ? " is-loading" : ""}`}>
+                    {browseEntries.map((entry) => (
+                      <li key={entry.path}>
+                        <button
+                          type="button"
+                          className="root-browser-row"
+                          onClick={() => loadBrowse(entry.path)}
+                          onDoubleClick={() => void commitRoot(entry.path)}
+                          title={entry.path}
+                        >
+                          <span className="root-browser-folder" aria-hidden>
+                            <FolderGlyph />
+                          </span>
+                          <span className="root-browser-name">{entry.name}</span>
+                          {entry.has_sessions && (
+                            <span className="root-browser-badge">sessions</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="root-browser-hint">
+                  Click a folder to enter · Double-click or Open to select
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            className="topbar-root-go"
+            disabled={rootBusy}
+            onClick={submitRoot}
+          >
+            Go
+          </button>
+          {rootError && (
+            <span className="topbar-root-error" title={rootError}>
+              {rootError}
+            </span>
+          )}
         </div>
       </header>
       <div className="app-body">
         <ViewShell
+          key={selectedRoot}
+          root={selectedRoot}
           sessionId={sessionId}
           onOpenSession={setSessionId}
           onClearSession={() => setSessionId(null)}

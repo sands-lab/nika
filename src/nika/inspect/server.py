@@ -19,12 +19,18 @@ from nika.inspect.catalog import (
     discover_sessions,
     filter_sessions,
     find_session_dir,
+    list_browse_entries,
     list_selectable_roots,
     load_scores,
     read_raw_artifact,
     resolve_results_selection,
 )
-from nika.inspect.models import ResultsRootsResponse, SessionListResponse, TimelineResponse
+from nika.inspect.models import (
+    BrowseResponse,
+    ResultsRootsResponse,
+    SessionListResponse,
+    TimelineResponse,
+)
 from nika.inspect.timeline import build_session_timeline
 
 _WWW_DIST = Path(__file__).resolve().parent / "www" / "dist"
@@ -75,13 +81,21 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         )
         return JSONResponse(body.model_dump())
 
+    async def browse(request: Request) -> JSONResponse:
+        selected = request.query_params.get("path") or request.query_params.get("root")
+        try:
+            body = BrowseResponse(**list_browse_entries(base_root, path=selected))
+        except ValueError as exc:
+            return _error(str(exc), status=400)
+        return JSONResponse(body.model_dump())
+
     async def sessions(request: Request) -> JSONResponse:
         active = _active_root(request)
         if isinstance(active, JSONResponse):
             return active
         status = request.query_params.get("status", "all")
-        if status not in {"running", "finished", "all"}:
-            return _error("status must be running, finished, or all")
+        if status not in {"running", "finished", "aborted", "error", "all"}:
+            return _error("status must be running, finished, aborted, error, or all")
         has_score_raw = request.query_params.get("has_score")
         has_score: bool | None = None
         if has_score_raw in {"1", "true", "yes"}:
@@ -219,6 +233,7 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
     routes: list[Any] = [
         Route("/api/health", health),
         Route("/api/roots", roots),
+        Route("/api/browse", browse),
         Route("/api/sessions", sessions),
         Route("/api/sessions/{session_id:path}/timeline", session_timeline),
         Route("/api/sessions/{session_id:path}/messages", session_messages),

@@ -29,17 +29,17 @@ import sys
 from pathlib import Path
 
 from agent.cli.codex.codex_display import format_codex_event
+from agent.protocols import PHASES, SUBMISSION
+from agent.sandbox.sbx.auth import apply_codex_auth
+from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
     tool_event_payload,
 )
-from agent.sandbox.sbx.auth import apply_codex_auth
-from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.protocols import PHASES, SUBMISSION
-from agent.utils.skills import prepare_codex_workspace
 from agent.utils.provider_env import build_agent_subprocess_env
+from agent.utils.skills import prepare_codex_workspace
 
 REASONING_EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh")
 DEFAULT_STALL_TIMEOUT_S = 300
@@ -327,6 +327,7 @@ class CodexWorker:
         self._codex_home = self.workspace / ".codex_home"
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._stream_output = stream_output
+        self._agent_message_texts: list[str] = []
         self._pending_tool_calls = PendingToolCallTracker()
 
     # ------------------------------------------------------------------
@@ -404,6 +405,7 @@ class CodexWorker:
 
         output_file = self.workspace / f"{self.phase}_output.txt"
         output_file.unlink(missing_ok=True)
+        self._agent_message_texts = []
 
         # Provider-mapped credentials only; override CODEX_HOME for isolation.
         env = prepare_codex_subprocess_env(
@@ -431,6 +433,7 @@ class CodexWorker:
             prompt,
         ]
 
+        self._logger.log_agent_start()
         self._logger.log(
             "subprocess_start",
             {"command": " ".join(cmd[:6] + ["..."]), "phase": self.phase},
@@ -461,6 +464,7 @@ class CodexWorker:
                 "subprocess_fatal",
                 {"phase": self.phase, "error": str(exc)},
             )
+            self._logger.log_agent_error(exc)
             return f"ERROR: {self.phase} phase {exc}"
         except CodexSubprocessStallError as exc:
             self._logger.log(
@@ -471,39 +475,77 @@ class CodexWorker:
                     "reconnect_failure": exc.reconnect_failure,
                 },
             )
+            self._logger.log_agent_error(exc)
             return f"ERROR: {self.phase} phase {exc}"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._logger.log(
                 "subprocess_timeout", {"phase": self.phase, "timeout_s": self.timeout}
+            )
+            self._logger.log_agent_error(
+                f"timed out after {self.timeout}s", timeout_s=self.timeout
             )
             return f"ERROR: {self.phase} phase timed out after {self.timeout}s"
         except FileNotFoundError:
             self._logger.log(
                 "subprocess_error", {"error": "codex binary not found in PATH"}
             )
+            self._logger.log_agent_error("codex binary not found in PATH")
             return "ERROR: 'codex' not found in PATH — is Codex CLI installed?"
 
         if returncode != 0:
+            recovered = self._resolved_phase_output(output_file)
+            if recovered:
+                self._logger.log(
+                    "subprocess_nonzero_recovered",
+                    {
+                        "phase": self.phase,
+                        "returncode": returncode,
+                        "output_length": len(recovered),
+                        "stderr": stderr_text[:500],
+                    },
+                )
+                if self._stream_output and stderr_text.strip():
+                    print(stderr_text, file=sys.stderr, flush=True)
+                self._logger.log_agent_done(
+                    output_length=len(recovered), returncode=returncode
+                )
+                return recovered
             self._logger.log(
                 "subprocess_error",
                 {"returncode": returncode, "stderr": stderr_text[:2000]},
             )
             if self._stream_output and stderr_text.strip():
                 print(stderr_text, file=sys.stderr, flush=True)
+            self._logger.log_agent_error(
+                f"exited with code {returncode}", returncode=returncode
+            )
             return (
                 f"ERROR: {self.phase} phase exited with code {returncode}. "
                 f"stderr: {stderr_text[:400]}"
             )
 
-        if output_file.exists():
-            result = output_file.read_text(encoding="utf-8").strip()
+        result = self._resolved_phase_output(output_file)
+        if result:
             self._logger.log(
                 "subprocess_done", {"phase": self.phase, "output_length": len(result)}
             )
+            self._logger.log_agent_done(output_length=len(result))
             return result
 
         self._logger.log("subprocess_error", {"error": "output file not created"})
+        self._logger.log_agent_error("output file not created")
         return f"ERROR: {self.phase} phase produced no output"
+
+    def _resolved_phase_output(self, output_file: Path) -> str:
+        """Prefer Codex ``--output-last-message``, else last streamed agent_message."""
+        if output_file.exists():
+            text = output_file.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+        for text in reversed(self._agent_message_texts):
+            if text.strip():
+                return text.strip()
+        return ""
 
     def _remaining_before_stall(self, loop: asyncio.AbstractEventLoop) -> float:
         now = loop.time()
@@ -578,7 +620,7 @@ class CodexWorker:
                 if hard_remaining <= 0:
                     proc.kill()
                     await proc.wait()
-                    raise asyncio.TimeoutError
+                    raise TimeoutError
 
                 stall_remaining = self._remaining_before_stall(loop)
                 remaining = min(hard_remaining, stall_remaining)
@@ -586,13 +628,13 @@ class CodexWorker:
                     proc.kill()
                     await proc.wait()
                     self._raise_if_stalled(loop)
-                    raise asyncio.TimeoutError
+                    raise TimeoutError
 
                 try:
                     line_bytes = await asyncio.wait_for(
                         proc.stdout.readline(), timeout=remaining
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     proc.kill()
                     await proc.wait()
                     try:
@@ -653,6 +695,13 @@ class CodexWorker:
             self._log_command_execution_item(event_type, item)
         else:
             self._logger.log(event_type, {"codex_event": event})
+            if (
+                event_type == "item.completed"
+                and item_type == "agent_message"
+            ):
+                text = str(item.get("text") or "").strip()
+                if text:
+                    self._agent_message_texts.append(text)
 
         if self._stream_output:
             display = format_codex_event(event)

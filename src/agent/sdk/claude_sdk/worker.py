@@ -87,6 +87,7 @@ class ClaudeSdkWorker:
             session_id=self.session_id, provider=self.llm_provider
         )
 
+        self._logger.log_agent_start()
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(mcp_servers.keys())},
@@ -205,10 +206,8 @@ class ClaudeSdkWorker:
                         )
                         break
         except Exception as exc:
-            self._logger.log("agent_error", {"phase": self.phase, "error": str(exc)})
+            self._logger.log_agent_error(exc)
             return f"ERROR: {exc}"
 
-        self._logger.log(
-            "agent_done", {"phase": self.phase, "report_length": len(result_text)}
-        )
+        self._logger.log_agent_done(report_length=len(result_text))
         return result_text
