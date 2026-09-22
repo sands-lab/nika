@@ -164,7 +164,7 @@
   <text x="604" y="281" text-anchor="middle" font-size="8.5" fill="#fbbf24">Public leaderboard</text>
 
   <rect x="516" y="302" width="150" height="46" rx="9" fill="#1a1200" stroke="#fbbf24" stroke-width="0.4" opacity="0.85"/>
-  <text x="591" y="319" text-anchor="middle" font-size="8" fill="#fcd34d">GPT · Claude · Gemini</text>
+  <text x="591" y="319" text-anchor="middle" font-size="8" fill="#fcd34d">GPT · Claude · DeepSeek</text>
   <text x="591" y="334" text-anchor="middle" font-size="8" fill="#fcd34d">Llama · open models</text>
 
   <path d="M110,50 Q150,54 186,74" fill="none" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4 2.5" opacity="0.6" marker-end="url(#arrow)"/>

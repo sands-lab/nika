@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0" />
+    <title>Join the NIKA Community — Slack</title>
+    <meta
+      name="description"
+      content="Join the NIKA Slack workspace to discuss network troubleshooting benchmarks, agents, and contributions."
+    />
+    <meta property="og:title" content="Join the NIKA Community" />
+    <meta
+      property="og:description"
+      content="Join the NIKA Slack workspace to discuss network troubleshooting benchmarks, agents, and contributions."
+    />
+    <meta property="og:url" content="https://sands-lab.github.io/nika/community/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://sands-lab.github.io/nika/assets/images/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Join the NIKA Community" />
+    <meta
+      name="twitter:description"
+      content="Join the NIKA Slack workspace to discuss network troubleshooting benchmarks, agents, and contributions."
+    />
+    <meta name="twitter:image" content="https://sands-lab.github.io/nika/assets/images/og-image.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/images/favicon.svg" />
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .community-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 212, 255, 0.12), transparent 55%),
+          radial-gradient(ellipse 60% 40% at 80% 80%, rgba(59, 130, 246, 0.08), transparent 50%),
+          var(--bg);
+      }
+      .community-nav {
+        padding: 20px 24px;
+      }
+      .community-nav-inner {
+        max-width: 720px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .community-main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px 80px;
+      }
+      .community-card {
+        max-width: 560px;
+        text-align: center;
+      }
+      .community-brand {
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 28px;
+      }
+      .community-card h1 {
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #fff;
+        margin-bottom: 16px;
+        line-height: 1.2;
+      }
+      .community-card p {
+        font-size: 1.0625rem;
+        color: var(--text-muted);
+        margin-bottom: 32px;
+        line-height: 1.6;
+      }
+      .community-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+      }
+      .community-footer {
+        padding: 24px;
+        text-align: center;
+        font-size: 0.8125rem;
+        color: var(--text-dim);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="community-page">
+      <header class="community-nav">
+        <div class="community-nav-inner">
+          <a href="../" class="nav-logo">
+            <span class="logo-n">N</span><span class="logo-rest">IKA</span>
+          </a>
+          <a class="btn btn-ghost btn-sm" href="../">Back to site</a>
+        </div>
+      </header>
+
+      <main class="community-main">
+        <div class="community-card">
+          <div class="community-brand">
+            <span class="logo-n">N</span><span class="logo-rest">IKA</span>
+          </div>
+          <h1>Join the NIKA community</h1>
+          <p>
+            Chat with users and contributors about network troubleshooting
+            benchmarks, agents, and new scenarios on Slack.
+          </p>
+          <div class="community-actions">
+            <a
+              id="join-slack"
+              class="btn btn-primary btn-lg"
+              href="#"
+              target="_blank"
+              rel="noopener"
+            >
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M6 15a2 2 0 01-2 2 2 2 0 110-4h2v2zm1 0V9a1 1 0 012 0v6a1 1 0 01-2 0zm5 5a2 2 0 01-2-2 2 2 0 014 0h-2zm0-1h6a1 1 0 010 2h-6a1 1 0 010-2zm5-5a2 2 0 012-2 2 2 0 110 4h-2v-2zm-1 0v6a1 1 0 01-2 0v-6a1 1 0 012 0zm-5-5a2 2 0 012 2 2 2 0 01-4 0h2zm0 1H6a1 1 0 010-2h6a1 1 0 010 2z"
+                />
+              </svg>
+              Join Slack
+            </a>
+          </div>
+        </div>
+      </main>
+
+      <footer class="community-footer">
+        <a href="https://github.com/sands-lab/nika" target="_blank" rel="noopener">GitHub</a>
+        ·
+        <a href="https://sands.kaust.edu.sa/" target="_blank" rel="noopener">SANDS Lab</a>
+      </footer>
+    </div>
+
+    <script src="invite-url.js"></script>
+    <script>
+      (function () {
+        var btn = document.getElementById("join-slack");
+        var url = window.NIKA_SLACK_INVITE_URL;
+        if (btn && url) {
+          btn.href = url;
+        }
+      })();
+    </script>
+  </body>
+</html>

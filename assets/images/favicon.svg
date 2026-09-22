@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="NIKA">
+  <rect width="32" height="32" rx="7" fill="#080d18"/>
+  <path
+    fill="#00d4ff"
+    d="M9 25V7h4.2l7.1 11.6V7H25v18h-4.2L13.7 13.4V25H9z"
+  />
+</svg>

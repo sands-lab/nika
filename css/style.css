@@ -170,7 +170,7 @@ code {
 .nav-inner {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 20px;
   width: 100%;
   max-width: 1160px;
   margin: 0 auto;
@@ -180,26 +180,36 @@ code {
   font-weight: 800;
   letter-spacing: -0.02em;
   text-decoration: none !important;
+  flex-shrink: 0;
 }
 .logo-n    { color: var(--cyan); }
 .logo-rest { color: #fff; }
 
 .nav-links {
   display: flex;
-  gap: 24px;
+  align-items: center;
+  gap: 10px;
   flex: 1;
+  min-width: 0;
 }
 .nav-links a {
   color: var(--text-muted);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   transition: color var(--transition);
   text-decoration: none;
+  white-space: nowrap;
 }
 .nav-links a:hover  { color: var(--text); }
 .nav-links a.active { color: var(--cyan); }
 
-.nav-actions { display: flex; gap: 8px; margin-left: auto; }
+.nav-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.nav-actions .btn {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  gap: 6px;
+}
 
 .mobile-menu { display: none; }
 
@@ -515,6 +525,7 @@ code {
   border-radius: 100px;
 }
 .scenario-badge.scalable { background: rgba(16,185,129,0.15); color: var(--green); }
+.scenario-badge.fixed    { background: rgba(56,189,248,0.15); color: var(--cyan, #38bdf8); }
 .scenario-badge.wip      { background: rgba(234,179,8,0.15);  color: var(--yellow); }
 
 .scenario-card h3 {
@@ -525,6 +536,19 @@ code {
   padding-right: 70px;
 }
 .scenario-card p { font-size: 0.8125rem; color: var(--text-muted); line-height: 1.55; margin-bottom: 16px; }
+
+.scenario-visual {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 320 / 176;
+  object-fit: cover;
+  object-position: center;
+  margin: 0 0 16px;
+  border-radius: 6px;
+  background: #0d1525;
+  border: 1px solid var(--border);
+}
 
 .scenario-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .scenario-tags span {
@@ -576,9 +600,20 @@ code {
 .issue-cat-icon.blue   { background: rgba(59,130,246,0.12);  color: var(--blue); }
 .issue-cat-icon.purple { background: rgba(139,92,246,0.12);  color: var(--purple); }
 .issue-cat-icon.pink   { background: rgba(236,72,153,0.12);  color: var(--pink); }
+.issue-cat-icon.teal   { background: rgba(20,184,166,0.12);  color: var(--cyan); }
+.issue-cat-icon.green  { background: rgba(34,197,94,0.12);   color: #22c55e; }
 
 .issue-cat-header h3 { font-size: 0.9375rem; font-weight: 700; color: #fff; }
 .issue-count { font-size: 0.75rem; color: var(--text-dim); }
+.issue-category > p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+.issue-category > p code {
+  font-size: 0.75rem;
+}
 
 .issue-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .issue-list li {
@@ -742,17 +777,24 @@ code {
 .mcp-server-icon.pink   { background: rgba(236,72,153,0.12); color: var(--pink); }
 
 .mcp-server-header h3 { font-size: 0.9375rem; font-weight: 700; color: #fff; }
+.mcp-server-header h3 a {
+  color: var(--cyan);
+  text-decoration: none;
+  font-weight: 600;
+}
+.mcp-server-header h3 a:hover { text-decoration: underline; }
 
 .mcp-tools { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .mcp-tools li {
   font-size: 0.8125rem;
   color: var(--text-muted);
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  line-height: 1.4;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
-.mcp-tools code { font-size: 0.75rem; }
+.mcp-tools code {
+  font-size: 0.75rem;
+  color: var(--cyan);
+}
 
 .mcp-note {
   text-align: center;
@@ -793,7 +835,7 @@ code {
 .agent-logo small { font-size: 0.75rem; color: var(--text-dim); }
 .agent-logo.openai svg    { color: #10a37f; }
 .agent-logo.anthropic svg { color: #d97757; }
-.agent-logo.gemini svg    { color: #4285f4; }
+.agent-logo.deepseek svg  { color: #4d6bfe; }
 .agent-logo.byo svg       { color: var(--cyan); }
 
 .agents-grid {
@@ -902,7 +944,7 @@ code {
 /* ── CITATION ────────────────────────────────────────────────────────────── */
 .cite-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 24px;
 }
 .cite-card {
@@ -910,14 +952,36 @@ code {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  min-width: 0;
 }
 .cite-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 20px 24px 16px;
 }
-.cite-card-header h3 { font-size: 0.9375rem; font-weight: 700; color: #fff; }
+.cite-card-header h3 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #fff;
+  min-width: 0;
+}
+.cite-card-header .btn { flex-shrink: 0; }
+.cite-card .code-block {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+.cite-card .code-block pre {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
 
 /* ── FOOTER ──────────────────────────────────────────────────────────────── */
 .footer {
@@ -989,7 +1053,7 @@ code {
 }
 
 /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .nav-links   { display: none; }
   .nav-actions { display: none; }
   .nav-hamburger { display: flex; }
