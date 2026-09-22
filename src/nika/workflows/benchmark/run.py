@@ -176,6 +176,8 @@ def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
 
     Kills isolated trial workers first so they cannot race with undeploy, then
     closes every still-running session whose artifacts live under this run.
+    Marks each closed trial ``run.json`` as ``status=aborted`` so inspect can
+    distinguish Ctrl+C from a normal finish.
     Returns how many sessions close was attempted for.
     """
     global _interrupt_cleanup_active
@@ -208,6 +210,7 @@ def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
                 undeploy=True,
                 session_dir=matched,
             )
+            _mark_session_aborted(matched)
             closed += 1
             print(f"cleaned up interrupted session {session_id} (lab undeployed)")
         except Exception as cleanup_error:  # noqa: BLE001 - best effort
@@ -216,6 +219,23 @@ def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
                 f"{session_id}: {cleanup_error}"
             )
     return closed
+
+
+def _mark_session_aborted(session_dir: Path) -> None:
+    """Stamp ``run.json`` as aborted after Ctrl+C cleanup (overrides finished)."""
+    run_path = session_dir / RUN_FILENAME
+    if not run_path.is_file():
+        return
+    try:
+        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    if not isinstance(run_meta, dict):
+        return
+    run_meta["status"] = "aborted"
+    if not run_meta.get("outcome"):
+        run_meta["outcome"] = "aborted"
+    run_path.write_text(json.dumps(run_meta, indent=2, default=str), encoding="utf-8")
 
 
 def default_benchmark_yaml_path() -> str:
@@ -692,6 +712,7 @@ def run_single_case(
                 close_session(
                     session_id=session_id, undeploy=True, session_dir=session_dir
                 )
+                _mark_session_aborted(session_dir)
                 print(f"cleaned up interrupted session {session_id} (lab undeployed)")
             except Exception as cleanup_error:  # noqa: BLE001 - best effort
                 print(
@@ -725,9 +746,12 @@ def run_single_case(
         try:
             run_path = session_dir / RUN_FILENAME
             run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-            if run_meta.get("status") == "finished":
-                run_meta["status"] = "error"
-                run_path.write_text(json.dumps(run_meta, indent=2), encoding="utf-8")
+            run_meta["status"] = "error"
+            if not run_meta.get("outcome"):
+                run_meta["outcome"] = "error"
+            run_path.write_text(
+                json.dumps(run_meta, indent=2, default=str), encoding="utf-8"
+            )
         except Exception:  # noqa: BLE001 - best effort
             pass
         raise
@@ -1346,7 +1370,7 @@ def run_benchmark_trials(
                     result_dir=results_root,
                     total_trials=len(trials),
                     pending=pending,
-                    status="interrupted",
+                    status="aborted",
                     release_meta=release_meta,
                 )
             except Exception:  # noqa: BLE001 - progress is advisory

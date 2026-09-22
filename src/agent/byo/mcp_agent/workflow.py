@@ -67,9 +67,7 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
     async def _run_diagnosis(self, task_description: str) -> tuple[str, bool]:
         logger = MessageLogger(phase=DIAGNOSIS, session_dir=self._session_dir)
         self._print_phase(DIAGNOSIS, "starting network fault analysis")
-        logger.log(
-            "agent_start", {"phase": DIAGNOSIS, "task_preview": task_description[:200]}
-        )
+        logger.log_agent_start(task_preview=task_description[:200])
 
         phase = McpDiagnosisPhase(
             session_dir=self._session_dir,
@@ -82,25 +80,19 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
         try:
             report, is_max_steps_reached = await phase.run(task_description)
         except Exception as exc:
-            logger.log("agent_error", {"phase": DIAGNOSIS, "error": str(exc)})
+            logger.log_agent_error(exc)
             return f"ERROR: {exc}", False
 
         if is_max_steps_reached:
             logger.log(
                 "error", {"message": "Diagnosis phase reached max iteration limit."}
             )
-            logger.log(
-                "agent_done",
-                {"phase": DIAGNOSIS, "is_error": True, "report_length": len(report)},
-            )
+            logger.log_agent_done(is_error=True, report_length=len(report))
             self._print_phase(DIAGNOSIS, "stopped: max steps reached")
             return report, True
 
         is_error = report.startswith("ERROR:")
-        logger.log(
-            "agent_done",
-            {"phase": DIAGNOSIS, "is_error": is_error, "report_length": len(report)},
-        )
+        logger.log_agent_done(is_error=is_error, report_length=len(report))
         self._print_phase(
             DIAGNOSIS,
             "completed" if not is_error else f"finished with error ({report[:120]})",
@@ -110,7 +102,7 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
     async def _run_submission(self, diagnosis_report: str) -> str:
         logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
         self._print_phase(SUBMISSION, "recording structured result")
-        logger.log("agent_start", {"phase": SUBMISSION})
+        logger.log_agent_start()
 
         phase = McpSubmissionPhase(
             session_id=self._session_id,
@@ -124,10 +116,10 @@ class NikaTroubleshootingWorkflow(Workflow[dict[str, Any]]):
         try:
             result = await phase.run(diagnosis_report)
         except Exception as exc:
-            logger.log("agent_error", {"phase": SUBMISSION, "error": str(exc)})
+            logger.log_agent_error(exc)
             return ""
 
-        logger.log("agent_done", {"phase": SUBMISSION, "result_length": len(result)})
+        logger.log_agent_done(result_length=len(result))
         self._print_phase(SUBMISSION, "completed")
         return result
 

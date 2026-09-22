@@ -8,6 +8,7 @@ import time
 from agent.registry import create_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
 from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
+from agent.utils.provider_env import provider_env_context
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
@@ -20,7 +21,6 @@ from nika.utils.agent_config import (
     resolve_reasoning_effort,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
-from agent.utils.provider_env import provider_env_context
 from nika.utils.session import Session
 
 logging.basicConfig(level=logging.INFO)
@@ -95,6 +95,8 @@ def start_agent(
 
         quiet_third_party_logging()
 
+    # Session lifecycle (nika.jsonl): agent_start → agent_end | agent_error.
+    # Phase bookends (messages.jsonl) use agent_start → agent_done | agent_error.
     log_event(
         "agent_start",
         f"Starting agent: {agent_type} (model={model}) in session {session.session_id}"

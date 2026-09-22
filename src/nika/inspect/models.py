@@ -61,7 +61,7 @@ class SessionSummary(BaseModel):
     # multiple benchmark runs (relative path under the results root).
     session_key: str | None = None
     session_dir: str
-    status: Literal["running", "finished"]
+    status: Literal["running", "finished", "aborted", "error"]
     lab_name: str | None = None
     scenario_name: str | None = None
     scenario_topo_size: str | None = None
@@ -155,6 +155,19 @@ class ResultsRootsResponse(BaseModel):
     selected_root: str = "."
     results_root: str
     roots: list[ResultsRootOption] = Field(default_factory=list)
+
+
+class BrowseEntry(BaseModel):
+    name: str
+    path: str
+    has_sessions: bool = False
+
+
+class BrowseResponse(BaseModel):
+    path: str
+    parent: str | None = None
+    base_root: str
+    entries: list[BrowseEntry] = Field(default_factory=list)
 
 
 class TimelineResponse(BaseModel):

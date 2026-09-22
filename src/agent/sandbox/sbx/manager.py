@@ -254,21 +254,10 @@ class SbxSandboxManager:
             workspace_dir=workspace.workspace_dir,
             agent_type=agent_type,
         )
-        log_event(
-            "sandbox_start",
-            f"Creating native Docker Sandbox ({sbx_agent}) for session {session.session_id}",
-            session_id=session.session_id,
-            agent_session_id=agent_sid,
-            agent_type=agent_type,
-            sandbox_name=sandbox_name,
-            native_sbx_agent=sbx_agent,
-            mcp_gateway=mcp_gateway_agent_url,
-            upstream_proxy=upstream_proxy,
-            offline_sdk_wheels=self.config.offline_sdk_wheels,
-            sbx_command=redact_text("sbx " + " ".join(create_cmd)),
-            env=format_env_for_log(runtime_env),
-        )
-        sandbox_started = time.perf_counter()
+        # Lifetime covers create → agent run → teardown; setup span is logged
+        # on sandbox_start once the sandbox is ready (env_start-style).
+        lifetime_started = time.perf_counter()
+        setup_started = lifetime_started
 
         # Serialize host env mutation for the lifetime of this sandbox session so
         # a sibling session cannot restore/clobber our NIKA_SBX_* values mid-run.
@@ -290,6 +279,21 @@ class SbxSandboxManager:
                 sandbox_name=sandbox_name,
                 port=gateway_port,
                 gateway_url=mcp_gateway_agent_url,
+            )
+            log_event(
+                "sandbox_start",
+                f"Created native Docker Sandbox ({sbx_agent}) for session {session.session_id}",
+                session_id=session.session_id,
+                agent_session_id=agent_sid,
+                agent_type=agent_type,
+                sandbox_name=sandbox_name,
+                native_sbx_agent=sbx_agent,
+                mcp_gateway=mcp_gateway_agent_url,
+                upstream_proxy=upstream_proxy,
+                offline_sdk_wheels=self.config.offline_sdk_wheels,
+                sbx_command=redact_text("sbx " + " ".join(create_cmd)),
+                env=format_env_for_log(runtime_env),
+                duration_ms=elapsed_ms(setup_started),
             )
             os.environ[ENV_SBX_SANDBOX_NAME] = sandbox_name
             os.environ[ENV_SESSION_DIR] = str(workspace.workspace_dir)
@@ -356,7 +360,7 @@ class SbxSandboxManager:
                                 session_id=session.session_id,
                                 agent_type=agent_type,
                                 sandbox_name=sandbox_name,
-                                duration_ms=elapsed_ms(sandbox_started),
+                                duration_ms=elapsed_ms(lifetime_started),
                             )
             finally:
                 _sandbox_env_lock.release()

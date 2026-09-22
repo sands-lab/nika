@@ -9,7 +9,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from nika.inspect.adapters import adapt_agent_event, adapt_nika_event
-from nika.inspect.catalog import list_sessions, summarize_session_dir
+from nika.inspect.catalog import discover_sessions, list_sessions, summarize_session_dir
 from nika.inspect.models import CanonicalTraceEvent
 from nika.inspect.server import create_inspect_app
 from nika.inspect.timeline import merge_timelines
@@ -291,6 +291,279 @@ class TestAdapters:
         assert events[1].tool.output == {"ok": True}
         assert events[2].kind == "llm"
 
+    def test_codex_error_summarizes_without_embedded_transcript(self) -> None:
+        """Provider errors that echo the full chat must not blow up the timeline."""
+        messages = [
+            {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "x" * 200}]}
+            for _ in range(50)
+        ]
+        inner = (
+            "197 validation errors:\n"
+            "  {'type': 'string_type', 'loc': ('body', 'input', 'str'), "
+            "'msg': 'Input should be a valid string', 'input': "
+            + repr(messages)
+            + "}"
+        )
+        blob = json.dumps({"error": {"message": inner, "type": "invalid_request_error"}})
+        assert len(blob) > 5_000
+
+        event = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:00",
+                "phase": "diagnosis",
+                "event": "error",
+                "codex_event": {"type": "error", "message": blob},
+            },
+            index=0,
+        )
+        assert event.event == "error"
+        assert "197 validation errors" in event.summary
+        assert "Input should be a valid string" in event.summary
+        assert "input_text" not in event.summary
+        raw_msg = ((event.raw.get("codex_event") or {}).get("message"))
+        assert isinstance(raw_msg, str)
+        assert len(raw_msg) < len(blob)
+        assert "chars total]" in raw_msg
+
+        failed = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:01",
+                "phase": "diagnosis",
+                "event": "turn.failed",
+                "codex_event": {
+                    "type": "turn.failed",
+                    "error": {"message": blob},
+                },
+            },
+            index=1,
+        )
+        assert failed.event == "turn.failed"
+        assert "Input should be a valid string" in failed.summary
+
+    def test_codex_item_error_uses_message_field(self) -> None:
+        event = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:00",
+                "event": "item.completed",
+                "codex_event": {
+                    "item": {
+                        "type": "error",
+                        "message": "Model metadata for `qwen-local` not found.",
+                    }
+                },
+            },
+            index=0,
+        )
+        assert event.title == "warning"
+        assert event.kind == "system"
+        assert "qwen-local" in event.summary
+
+    def test_codex_turn_failed_is_llm_kind(self) -> None:
+        started = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:00",
+                "phase": "diagnosis",
+                "event": "turn.started",
+                "codex_event": {"type": "turn.started"},
+            },
+            index=0,
+        )
+        assert started.kind == "llm"
+        assert started.event == "turn.started"
+
+        failed = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:01",
+                "phase": "diagnosis",
+                "event": "turn.failed",
+                "codex_event": {
+                    "type": "turn.failed",
+                    "error": {"message": "stream disconnected before completion"},
+                },
+            },
+            index=1,
+        )
+        assert failed.kind == "llm"
+        assert failed.event == "turn.failed"
+        assert "stream disconnected" in failed.summary
+
+    def test_codex_bookkeeping_and_reconnect_are_system(self) -> None:
+        for event_name, title in (
+            ("mcp_config", "mcp_config"),
+            ("subprocess_start", "subprocess_start"),
+            ("thread.started", "thread started"),
+        ):
+            adapted = adapt_agent_event(
+                {
+                    "timestamp": "2026-01-01T12:00:00",
+                    "phase": "diagnosis",
+                    "event": event_name,
+                },
+                index=0,
+            )
+            assert adapted.kind == "system", event_name
+            assert adapted.title == title
+
+        reconnect = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:01",
+                "phase": "diagnosis",
+                "event": "error",
+                "codex_event": {
+                    "type": "error",
+                    "message": "Reconnecting... 1/5 (stream disconnected)",
+                },
+            },
+            index=1,
+        )
+        assert reconnect.kind == "system"
+        assert reconnect.title == "error"
+        assert "Reconnecting" in reconnect.summary
+
+        sub = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:02",
+                "phase": "diagnosis",
+                "event": "subprocess_error",
+                "returncode": 1,
+                "stderr": (
+                    "Reading additional input from stdin...\n"
+                    "2026-01-01T12:00:02Z ERROR codex_core::tools::router: "
+                    "error=unsupported call: frr_show_ip_route\n"
+                ),
+            },
+            index=2,
+        )
+        assert sub.kind == "system"
+        assert sub.title == "subprocess_error"
+        assert "unsupported call: frr_show_ip_route" in sub.summary
+        assert "Reading additional input" not in sub.summary
+
+    def test_claude_stream_json_tool_and_text(self) -> None:
+        text = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:00",
+                "phase": "diagnosis",
+                "event": "assistant",
+                "claude_event": {
+                    "type": "assistant",
+                    "message": {
+                        "model": "claude-test",
+                        "content": [{"type": "text", "text": "Checking link state"}],
+                    },
+                },
+            },
+            index=0,
+        )
+        assert text.kind == "llm"
+        assert "Checking link state" in text.summary
+
+        start = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:01",
+                "phase": "diagnosis",
+                "event": "assistant",
+                "claude_event": {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "call_1",
+                                "name": "mcp__kathara__ethtool",
+                                "input": {"host_name": "s1", "intf_name": "eth0"},
+                            }
+                        ]
+                    },
+                },
+            },
+            index=1,
+        )
+        assert start.kind == "tool_call"
+        assert start.tool is not None
+        assert start.tool.name == "mcp__kathara__ethtool"
+        assert start.tool.tool_call_id == "call_1"
+        assert start.tool.input == {"host_name": "s1", "intf_name": "eth0"}
+
+        end = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:02",
+                "phase": "diagnosis",
+                "event": "user",
+                "claude_event": {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_1",
+                                "content": "Link detected: no",
+                            }
+                        ],
+                    },
+                },
+            },
+            index=2,
+        )
+        assert end.kind == "tool_result"
+        assert end.tool is not None
+        assert end.tool.tool_call_id == "call_1"
+        assert end.tool.output == "Link detected: no"
+
+        err = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:03",
+                "event": "user",
+                "claude_event": {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_2",
+                                "content": "NIKA access denied",
+                                "is_error": True,
+                            }
+                        ]
+                    },
+                },
+            },
+            index=3,
+        )
+        assert err.kind == "tool_error"
+        assert err.tool is not None
+        assert err.tool.output == "NIKA access denied"
+        assert err.tool.error == "NIKA access denied"
+
+    def test_claude_string_message_tool_result(self) -> None:
+        """Claude sometimes logs tool errors as a string message + tool_use_result."""
+        end = adapt_agent_event(
+            {
+                "timestamp": "2026-09-21T15:47:41.860823+00:00",
+                "phase": "diagnosis",
+                "event": "user",
+                "claude_event": {
+                    "type": "user",
+                    "message": (
+                        "Error executing tool frr_show_ip_route: "
+                        "Session 'x' is not running."
+                    ),
+                    "parent_tool_use_id": None,
+                    "tool_use_result": (
+                        "Error: Error executing tool frr_show_ip_route: "
+                        "Session 'x' is not running."
+                    ),
+                },
+            },
+            index=0,
+        )
+        assert end.kind == "tool_error"
+        assert end.tool is not None
+        assert end.tool.output is not None
+        assert "frr_show_ip_route" in str(end.tool.output)
+        assert end.tool.error is not None
+
     def test_nika_lifecycle_event(self) -> None:
         event = adapt_nika_event(
             {
@@ -358,11 +631,67 @@ class TestCatalog:
         assert len(filtered) == 1
         assert filtered[0].status == "running"
 
+    def test_discover_skips_session_with_invalid_metrics(self, tmp_path: Path) -> None:
+        good = tmp_path / "good"
+        good.mkdir()
+        _write_json(good / "run.json", {"session_id": "good", "status": "running"})
+        bad = tmp_path / "bad"
+        bad.mkdir()
+        _write_json(bad / "run.json", {"session_id": "bad", "status": "finished"})
+        _write_json(bad / "eval_metrics.json", {"rca_f1": {"nested": True}})
+        items = discover_sessions(results_root=tmp_path)
+        assert [s.session_id for s in items] == ["good"]
+
     def test_summarize_running(self, fixture_root: Path) -> None:
         summary = summarize_session_dir(fixture_root / "20260101-130000-run999")
         assert summary is not None
         assert summary.status == "running"
         assert summary.is_benchmark is False
+
+    def test_summarize_aborted_and_error_status(self, tmp_path: Path) -> None:
+        aborted = tmp_path / "aborted"
+        aborted.mkdir()
+        _write_json(
+            aborted / "run.json",
+            {
+                "session_id": "aborted",
+                "status": "aborted",
+                "end_time": "2026-01-01T12:00:00",
+            },
+        )
+        errored = tmp_path / "errored"
+        errored.mkdir()
+        _write_json(
+            errored / "run.json",
+            {
+                "session_id": "errored",
+                "status": "error",
+                "end_time": "2026-01-01T12:00:00",
+            },
+        )
+        interrupted = tmp_path / "interrupted"
+        interrupted.mkdir()
+        _write_json(
+            interrupted / "run.json",
+            {
+                "session_id": "interrupted",
+                "status": "interrupted",
+                "end_time": "2026-01-01T12:00:00",
+            },
+        )
+
+        assert summarize_session_dir(aborted).status == "aborted"
+        assert summarize_session_dir(errored).status == "error"
+        # Legacy progress wording maps to aborted.
+        assert summarize_session_dir(interrupted).status == "aborted"
+
+        assert {s.session_id for s in list_sessions(results_root=tmp_path, status="aborted")} == {
+            "aborted",
+            "interrupted",
+        }
+        assert [
+            s.session_id for s in list_sessions(results_root=tmp_path, status="error")
+        ] == ["errored"]
 
     def test_benchmark_trial_enrichment(self, tmp_path: Path) -> None:
         run_root = tmp_path / "bench-demo-run"
@@ -456,6 +785,19 @@ class TestViewApi:
         assert health.status_code == 200
         assert health.json()["status"] == "ok"
 
+        roots = client.get("/api/roots")
+        assert roots.status_code == 200
+        roots_body = roots.json()
+        assert roots_body["base_root"] == str(fixture_root.resolve())
+        assert roots_body["selected_root"] == "."
+        assert any(r["id"] == "." for r in roots_body["roots"])
+
+        browse = client.get("/api/browse")
+        assert browse.status_code == 200
+        browse_body = browse.json()
+        assert browse_body["path"] == str(fixture_root.resolve())
+        assert isinstance(browse_body["entries"], list)
+
         listed = client.get("/api/sessions")
         assert listed.status_code == 200
         body = listed.json()
@@ -519,6 +861,49 @@ class TestCatalogSafety:
 
         assert find_session_dir("../outside", results_root=root) is None
         assert find_session_dir(str(outside), results_root=root) is None
+
+    def test_resolve_results_selection_allows_symlink_child(
+        self, tmp_path: Path
+    ) -> None:
+        from nika.inspect.catalog import (
+            list_selectable_roots,
+            resolve_results_selection,
+        )
+
+        base = tmp_path / "results"
+        base.mkdir()
+        outside = tmp_path / "outside-run"
+        trial = outside / "sess"
+        trial.mkdir(parents=True)
+        _write_json(trial / "run.json", {"session_id": "sess", "status": "finished"})
+        (base / "linked").symlink_to(outside)
+
+        roots = list_selectable_roots(base)
+        assert any(r["id"] == "linked" for r in roots)
+        assert any(r["path"].endswith("/results/linked") for r in roots)
+
+        selected = resolve_results_selection(base, "linked")
+        assert selected == base / "linked"
+        assert selected.is_dir()
+
+        with pytest.raises(ValueError, match="Invalid results folder"):
+            resolve_results_selection(base, "../outside-run")
+
+    def test_resolve_results_selection_nested_and_absolute(
+        self, tmp_path: Path
+    ) -> None:
+        from nika.inspect.catalog import resolve_results_selection
+
+        base = tmp_path / "results"
+        nested = base / "run-a" / "trials"
+        nested.mkdir(parents=True)
+        other = tmp_path / "other-results"
+        other.mkdir()
+
+        assert resolve_results_selection(base, "run-a/trials") == nested
+        assert resolve_results_selection(base, str(other)) == other.resolve()
+        with pytest.raises(ValueError, match="not found"):
+            resolve_results_selection(base, str(tmp_path / "missing"))
 
 
 class TestTimelineMergeAware:

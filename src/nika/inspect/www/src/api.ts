@@ -47,7 +47,7 @@ export interface SessionSummary {
   session_id: string;
   session_key?: string | null;
   session_dir: string;
-  status: "running" | "finished";
+  status: "running" | "finished" | "aborted" | "error";
   lab_name?: string | null;
   scenario_name?: string | null;
   scenario_topo_size?: string | null;
@@ -137,6 +137,19 @@ export interface ResultsRootsResponse {
   roots: ResultsRootOption[];
 }
 
+export interface BrowseEntry {
+  name: string;
+  path: string;
+  has_sessions: boolean;
+}
+
+export interface BrowseResponse {
+  path: string;
+  parent?: string | null;
+  base_root: string;
+  entries: BrowseEntry[];
+}
+
 export interface TimelineResponse {
   session_id: string;
   events: CanonicalTraceEvent[];
@@ -175,6 +188,13 @@ function rootQuery(root?: string | null): string {
 export function fetchRoots(root?: string | null) {
   const q = rootQuery(root);
   return getJson<ResultsRootsResponse>(`/api/roots${q}`);
+}
+
+export function fetchBrowse(path?: string | null) {
+  const params = new URLSearchParams();
+  if (path) params.set("path", path);
+  const q = params.toString();
+  return getJson<BrowseResponse>(`/api/browse${q ? `?${q}` : ""}`);
 }
 
 export function fetchSessions(params: URLSearchParams, root?: string | null) {

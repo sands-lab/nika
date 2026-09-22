@@ -8,11 +8,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from nika.config import resolve_results_root
-from nika.utils.session_artifacts import (
-    RUN_FILENAME,
-    is_finished_session,
-    iter_session_dirs,
-)
 from nika.inspect.models import (
     ArtifactFlags,
     BenchmarkRunSummary,
@@ -20,6 +15,11 @@ from nika.inspect.models import (
     SessionDetail,
     SessionFacets,
     SessionSummary,
+)
+from nika.utils.session_artifacts import (
+    RUN_FILENAME,
+    iter_session_dirs,
+    normalize_session_status,
 )
 
 ARTIFACT_FILES = {
@@ -264,7 +264,7 @@ def summarize_session_dir(
     if run is None:
         return None
     session_id = str(run.get("session_id") or session_dir.name)
-    finished = is_finished_session(run)
+    status = normalize_session_status(run)
     metrics = _read_json(session_dir / "eval_metrics.json")
     problem_names = run.get("problem_names") or []
     if not isinstance(problem_names, list):
@@ -275,7 +275,7 @@ def summarize_session_dir(
         session_id=session_id,
         session_key=_session_key(session_dir, results_root),
         session_dir=str(session_dir.resolve()),
-        status="finished" if finished else "running",
+        status=status,
         lab_name=run.get("lab_name"),
         scenario_name=run.get("scenario_name"),
         scenario_topo_size=run.get("scenario_topo_size"),
@@ -372,7 +372,8 @@ def list_selectable_roots(results_root: Path) -> list[dict[str, str]]:
             {
                 "id": child.name,
                 "label": child.name,
-                "path": str(child.resolve()),
+                # Keep the path under the results root (don't follow symlinks out).
+                "path": str(child.absolute()),
             }
         )
     return items
@@ -381,20 +382,89 @@ def list_selectable_roots(results_root: Path) -> list[dict[str, str]]:
 def resolve_results_selection(
     results_root: Path, root_id: str | None
 ) -> Path:
-    """Resolve a UI-selected folder id to a path under ``results_root``."""
+    """Resolve a UI-selected folder to a concrete results directory.
+
+    Accepts:
+    - ``.`` / empty — the inspect base root
+    - an immediate child name under the base (symlink children allowed)
+    - a relative path under the base (``..`` rejected)
+    - an absolute path to an existing directory (local inspect may leave the
+      base root so operators can point at another results tree without restart)
+    """
     base = Path(results_root).resolve()
-    if not root_id or root_id in {".", ""}:
+    raw = str(root_id or "").strip()
+    if not raw or raw in {".", ""}:
         return base
-    if root_id in {".."} or "/" in root_id or "\\" in root_id or root_id.startswith("."):
-        raise ValueError(f"Invalid results folder: {root_id}")
-    candidate = (base / root_id).resolve()
-    if not candidate.is_dir():
-        raise ValueError(f"Results folder not found: {root_id}")
+
+    candidate = Path(raw).expanduser()
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+        if not resolved.is_dir():
+            raise ValueError(f"Results folder not found: {raw}")
+        return resolved
+
+    if ".." in Path(raw).parts:
+        raise ValueError(f"Invalid results folder: {raw}")
+    # Relative path under the base (may contain `/` for nested folders).
+    relative = base / raw
     try:
-        candidate.relative_to(base)
+        relative.absolute().relative_to(base.absolute())
     except ValueError as exc:
-        raise ValueError(f"Results folder escapes root: {root_id}") from exc
-    return candidate
+        raise ValueError(f"Results folder escapes root: {raw}") from exc
+    if not relative.is_dir():
+        raise ValueError(f"Results folder not found: {raw}")
+    return relative
+
+
+def list_browse_entries(
+    results_root: Path, *, path: str | None = None
+) -> dict[str, Any]:
+    """List immediate child folders for the inspect path browser."""
+    base = Path(results_root).resolve()
+    active = resolve_results_selection(base, path)
+    entries: list[dict[str, Any]] = []
+    try:
+        children = sorted(active.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        children = []
+    for child in children:
+        try:
+            if not child.is_dir():
+                continue
+            name = child.name
+            if name.startswith(".") or name in {"0_summary", "node_modules", "__pycache__"}:
+                continue
+            if name in {".", ".."}:
+                continue
+            # Shallow only — avoid walking large trial trees just for a badge.
+            has_sessions = (child / RUN_FILENAME).is_file() or (child / "trials").is_dir()
+            if not has_sessions:
+                for grand in child.iterdir():
+                    if grand.is_dir() and (grand / RUN_FILENAME).is_file():
+                        has_sessions = True
+                        break
+        except OSError:
+            continue
+        entries.append(
+            {
+                "name": name,
+                "path": str(child.absolute()),
+                "has_sessions": has_sessions,
+            }
+        )
+    parent: str | None = None
+    try:
+        parent_path = active.parent
+        if parent_path != active:
+            parent = str(parent_path.absolute())
+    except OSError:
+        parent = None
+    return {
+        "path": str(active.absolute()),
+        "parent": parent,
+        "base_root": str(base),
+        "entries": entries,
+    }
 
 
 def discover_sessions(*, results_root: Path | None = None) -> list[SessionSummary]:
@@ -402,7 +472,11 @@ def discover_sessions(*, results_root: Path | None = None) -> list[SessionSummar
     root = Path(results_root or resolve_results_root())
     sessions: list[SessionSummary] = []
     for session_dir in iter_session_dirs(root):
-        summary = summarize_session_dir(session_dir, results_root=root)
+        try:
+            summary = summarize_session_dir(session_dir, results_root=root)
+        except (OSError, TypeError, ValueError):
+            # Skip a session mid-write rather than failing the whole catalog.
+            continue
         if summary is not None:
             sessions.append(summary)
     sessions.sort(key=lambda s: s.start_time or s.session_id, reverse=True)
@@ -438,7 +512,7 @@ def build_session_facets(sessions: list[SessionSummary]) -> SessionFacets:
 def filter_sessions(
     sessions: list[SessionSummary],
     *,
-    status: Literal["running", "finished", "all"] = "all",
+    status: Literal["running", "finished", "aborted", "error", "all"] = "all",
     scenario: str | None = None,
     agent: str | None = None,
     model: str | None = None,
@@ -509,7 +583,7 @@ def filter_sessions(
 def list_sessions(
     *,
     results_root: Path | None = None,
-    status: Literal["running", "finished", "all"] = "all",
+    status: Literal["running", "finished", "aborted", "error", "all"] = "all",
     scenario: str | None = None,
     agent: str | None = None,
     model: str | None = None,
