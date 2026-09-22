@@ -108,6 +108,21 @@ def resolve_canonical_session_id(session_id: str) -> str:
     entry = get_session(session_id)
     if entry is not None:
         return entry.canonical_session_id
+    # Registry miss (wrong process, race, or host-side tool path): fall back to
+    # SessionStore so parallel sessions are not looked up under the opaque id.
+    try:
+        from nika.utils.session_store import SessionStore
+
+        store = SessionStore()
+        try:
+            store.get_session(session_id)
+            return session_id
+        except FileNotFoundError:
+            meta = store.find_by_agent_session_id(session_id)
+            if meta and meta.get("session_id"):
+                return str(meta["session_id"])
+    except Exception:  # noqa: BLE001 — best-effort isolation fallback
+        pass
     return session_id
 
 

@@ -143,3 +143,67 @@ def test_mcp_errors_omit_canonical_case_key(tmp_path: Path, monkeypatch) -> None
     submit_result = task_server.submit(is_anomaly=False, root_causes=[])
     assert submit_result == ["Submission failed."]
     assert CASE_KEY not in submit_result[0]
+
+
+def test_resolve_canonical_falls_back_to_session_store(tmp_path: Path, monkeypatch) -> None:
+    """Opaque ids still resolve when the in-process gateway registry misses."""
+    from nika.utils.session_store import SessionStore
+
+    sessions_dir = tmp_path / "sessions"
+    db_path = tmp_path / "sessions.db"
+    store = SessionStore(sessions_dir, db_path)
+    store.create_session(
+        {
+            "session_id": CASE_KEY,
+            "agent_session_id": OPAQUE,
+            "status": "running",
+            "session_dir": str(tmp_path / "trial"),
+            "lab_name": "lab-x",
+            "scenario_name": "campus_lan",
+        }
+    )
+    monkeypatch.setattr(
+        "nika.utils.session_store.SessionStore",
+        lambda *args, **kwargs: SessionStore(sessions_dir, db_path),
+    )
+    clear_sessions()
+    assert resolve_canonical_session_id(OPAQUE) == CASE_KEY
+    assert store.find_by_agent_session_id(OPAQUE)["session_id"] == CASE_KEY
+
+
+def test_sibling_gateway_shutdown_keeps_live_managers() -> None:
+    """Stopping one gateway must not reset FastMCP state while another is live."""
+    from unittest.mock import MagicMock, patch
+
+    from nika.mcp.gateway import lifecycle as life
+
+    life._live_managers.clear()
+    life._active_manager = None
+
+    a = MagicMock()
+    a.base_url = "http://127.0.0.1:1111"
+    a.host = "127.0.0.1"
+    a.port = 1111
+    a.backend = "kathara"
+    b = MagicMock()
+    b.base_url = "http://127.0.0.1:2222"
+    b.host = "127.0.0.1"
+    b.port = 2222
+    b.backend = "kathara"
+
+    with life._manager_lock:
+        life._live_managers.add(a)
+        life._live_managers.add(b)
+        life._active_manager = b
+
+    with patch.object(life, "reset_gateway_mcp_state") as reset:
+        life._shutdown_manager(a, clear_registry=False)
+        reset.assert_not_called()
+    assert a not in life._live_managers
+    assert b in life._live_managers
+    a.stop.assert_called_once()
+
+    with patch.object(life, "reset_gateway_mcp_state") as reset:
+        life._shutdown_manager(b, clear_registry=False)
+        reset.assert_called_once()
+    assert not life._live_managers

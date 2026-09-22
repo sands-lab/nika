@@ -160,14 +160,18 @@ def prepare_claude_subprocess_env(
     """
     from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
     from agent.sandbox.sbx.exec import sandbox_name_from_env
+    from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
 
     prov = _resolve_provider(provider)
     host = dict(base if base is not None else os.environ)
 
     def _is_placeholder(value: str) -> bool:
         text = value.strip()
-        return text == PROXY_MANAGED_SENTINEL or text.startswith("sbx-cs-")
-
+        return (
+            text == PROXY_MANAGED_SENTINEL
+            or text == CUSTOM_UNAUTHENTICATED_API_KEY
+            or text.startswith("sbx-cs-")
+        )
     # Support a legacy manual token and base URL long enough to emit a migration warning.
     if (
         prov == "anthropic"

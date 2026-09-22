@@ -193,7 +193,6 @@ class SbxSandboxManager:
         ensure_sbx_proxy_config(upstream_proxy)
         require_sbx_authenticated()
         ensure_sbx_ready()
-        ensure_llm_network_policy()
 
         manifest = self.write_manifest(
             session=session,
@@ -227,6 +226,13 @@ class SbxSandboxManager:
             provider=llm_provider,
             agent_type=agent_type,
         )
+        # Allow custom / self-hosted LLM hosts in addition to the stock list.
+        from agent.sandbox.sbx.policy import llm_network_resources_for_url
+
+        extra_hosts: list[str] = []
+        for url in (cred_plan.openai_base_url, cred_plan.anthropic_base_url):
+            extra_hosts.extend(llm_network_resources_for_url(url))
+        ensure_llm_network_policy(*extra_hosts)
         runtime_env.update(cred_plan.sentinel_runtime_env())
         workspace = prepare_workspace(
             session_dir=session_dir,
@@ -312,50 +318,52 @@ class SbxSandboxManager:
                 gateway_port=gateway_port,
             )
         finally:
-            if prior_sbx_name is None:
-                os.environ.pop(ENV_SBX_SANDBOX_NAME, None)
-            else:
-                os.environ[ENV_SBX_SANDBOX_NAME] = prior_sbx_name
-            if prior_session_dir is None:
-                os.environ.pop(ENV_SESSION_DIR, None)
-            else:
-                os.environ[ENV_SESSION_DIR] = prior_session_dir
-            for key, prior_value in prior_runtime_env.items():
-                if prior_value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = prior_value
-
             try:
-                deny_mcp_gateway(
-                    sandbox_name=sandbox_name,
-                    port=gateway_port,
-                    gateway_url=mcp_gateway_agent_url,
-                )
-            finally:
+                if prior_sbx_name is None:
+                    os.environ.pop(ENV_SBX_SANDBOX_NAME, None)
+                else:
+                    os.environ[ENV_SBX_SANDBOX_NAME] = prior_sbx_name
+                if prior_session_dir is None:
+                    os.environ.pop(ENV_SESSION_DIR, None)
+                else:
+                    os.environ[ENV_SESSION_DIR] = prior_session_dir
+                for key, prior_value in prior_runtime_env.items():
+                    if prior_value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = prior_value
+
                 try:
-                    if not self.config.keep_container:
-                        run_sbx_optional(["rm", "--force", sandbox_name])
+                    deny_mcp_gateway(
+                        sandbox_name=sandbox_name,
+                        port=gateway_port,
+                        gateway_url=mcp_gateway_agent_url,
+                    )
                 finally:
                     try:
-                        collect_artifacts(workspace)
+                        if not self.config.keep_container:
+                            run_sbx_optional(["rm", "--force", sandbox_name])
                     finally:
-                        _sandbox_env_lock.release()
-                        # Keep the manifest even when artifact collection or
-                        # earlier sandbox cleanup fails.
-                        (session_dir / MANIFEST_FILENAME).write_text(
-                            __import__("json").dumps(manifest, indent=2),
-                            encoding="utf-8",
-                        )
-                        cleanup_workspace(workspace)
-                        log_event(
-                            "sandbox_end",
-                            f"Docker Sandbox finished for session {session.session_id}",
-                            session_id=session.session_id,
-                            agent_type=agent_type,
-                            sandbox_name=sandbox_name,
-                            duration_ms=elapsed_ms(lifetime_started),
-                        )
+                        try:
+                            collect_artifacts(workspace)
+                        finally:
+                            # Keep the manifest even when artifact collection or
+                            # earlier sandbox cleanup fails.
+                            (session_dir / MANIFEST_FILENAME).write_text(
+                                __import__("json").dumps(manifest, indent=2),
+                                encoding="utf-8",
+                            )
+                            cleanup_workspace(workspace)
+                            log_event(
+                                "sandbox_end",
+                                f"Docker Sandbox finished for session {session.session_id}",
+                                session_id=session.session_id,
+                                agent_type=agent_type,
+                                sandbox_name=sandbox_name,
+                                duration_ms=elapsed_ms(lifetime_started),
+                            )
+            finally:
+                _sandbox_env_lock.release()
 
     def _run_sdk_in_sandbox(
         self,

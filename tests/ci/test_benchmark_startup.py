@@ -11,6 +11,7 @@ import pytest
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session_store import SessionStore
+from nika.workflows.benchmark.run import store_session_id_for_trial
 from nika.workflows.benchmark.trials import (
     case_key_for_row,
     is_valid_trial,
@@ -36,7 +37,7 @@ def test_mini_benchmark_startup_smoke(tmp_path: Path) -> None:
     subprocess_tmp = tmp_path / "tmp"
     subprocess_tmp.mkdir()
     key = case_key_for_row(ROW_A)
-    expected_session_id = trial_dirname(key, 1)
+    expected_session_id = store_session_id_for_trial(trial_dirname(key, 1), result_dir)
     store = SessionStore()
     running_before = {str(row["session_id"]) for row in store.list_running_sessions()}
 

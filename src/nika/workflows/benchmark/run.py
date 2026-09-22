@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -72,6 +73,26 @@ from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import eval_results, run_eval_metrics
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
+
+
+def store_session_id_for_trial(
+    trial_id: str | None, result_dir: str | Path | None
+) -> str | None:
+    """Return a SessionStore key that stays unique across parallel result roots.
+
+    Benchmark trial *slots* live under ``{result_dir}/trials/{trial_id}/``. The
+    global SessionStore file is ``runtime/sessions/{session_id}.json``. Using the
+    bare ``trial_id`` as ``session_id`` makes two concurrent ``nika benchmark
+    run`` processes on the same task (different ``--result_dir``) clobber one
+    lab/session. Suffix a short hash of the resolved result root so parallel
+    agents stay isolated while resume within one result root stays stable.
+    """
+    if not trial_id:
+        return None
+    if not result_dir:
+        return trial_id
+    digest = hashlib.sha1(str(Path(result_dir).resolve()).encode()).hexdigest()[:8]
+    return f"{trial_id}__r{digest}"
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
 
@@ -429,7 +450,8 @@ def _finalize_timed_out_trial(
         f"[{trial.trial_id}] finalizing timed-out trial as agent_failed under {session_dir}"
     )
     _finalize_agent_failed_trial(
-        session_id=trial.trial_id,
+        session_id=store_session_id_for_trial(trial.trial_id, result_dir)
+        or trial.trial_id,
         session_dir=session_dir,
         result_dir=result_dir,
         error=error,
@@ -589,13 +611,16 @@ def run_single_case(
         progress.attach_session(progress_label, predetermined_dir)
 
     _phase("deploy")
+    # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
+    # incorporate result_dir so parallel same-task runs do not share a lab.
+    store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
     session_id = start_net_env(
         scenario,
         size,
         redeploy=True,
         result_dir=result_dir,
         session_tag=session_tag,
-        session_id=trial_id,
+        session_id=store_session_id,
         session_dir=predetermined_dir,
         topo=topo,
         igp=igp,

@@ -130,12 +130,20 @@ def collect_artifacts(workspace: SandboxWorkspace) -> None:
 
     Agent workspaces (``codex_workspace``, ``claude_workspace``, SDK variants)
     are intentionally not retained — same session layout as BYO agents.
+
+    ``submission.json`` is special: MCP ``submit()`` writes it on the host
+    session dir. Do not overwrite an existing host submission when collecting
+    from the sandbox workspace.
     """
     session_dir = workspace.session_dir
     for name in COLLECTED_FILES:
         src = workspace.workspace_dir / name
-        if src.is_file():
-            shutil.copy2(src, session_dir / name)
+        if not src.is_file():
+            continue
+        dest = session_dir / name
+        if name == "submission.json" and dest.is_file():
+            continue
+        shutil.copy2(src, dest)
 
     manifest_src = workspace.manifest_path
     if manifest_src.is_file():

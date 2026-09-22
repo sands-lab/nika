@@ -22,6 +22,7 @@ with warnings.catch_warnings():
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.mcp_servers import mcp_read_timeout_seconds, select_diagnosis_servers
 from agent.utils.provider_env import (
+    CUSTOM_UNAUTHENTICATED_API_KEY,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_BASE_URL,
@@ -101,7 +102,13 @@ def _openai_settings_for_provider(
         )
     if prov == "custom":
         base = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL) or None
-        key = resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or None
+        # Match langgraph/autogen: unauthenticated OpenAI-compat servers need a
+        # non-empty key string for the client library.
+        key = (
+            resolve_custom_api_key()
+            or os.environ.get(ENV_OPENAI_API_KEY)
+            or CUSTOM_UNAUTHENTICATED_API_KEY
+        )
         kwargs: dict = {
             "default_model": model,
             "api_key": key,
