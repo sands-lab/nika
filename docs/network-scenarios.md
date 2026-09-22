@@ -273,12 +273,12 @@ Two MikroTik RouterOS Cloud Hosted Router (CHR) routers peer over eBGP, each wit
 
 1. Download a CHR image from [mikrotik.com/download](https://mikrotik.com/download) (the `.vmdk` variant for x86, or `.vdi` for arm64).
 
-2. Clone `hellt/vrnetlab` and build the RouterOS image from its `mikrotik/routeros` directory, adding `sshpass` to the Dockerfile's `apt-get install` list (NIKA execs `sshpass`+`ssh` into the container to reach RouterOS's internal management API — see [`routeros_api.py`](../src/nika/service/lab/routeros_api.py)). Do not change the image's `ENTRYPOINT`/`--connection-mode`: the scenario passes `--connection-mode macvtap` as a Kathara machine argument at deploy time instead, because Kathara attaches interfaces before the container starts and vrnetlab's default `vrxcon`/`tc` datapaths expect a data interface to appear only after boot.
+2. Clone `hellt/vrnetlab` and build the RouterOS image from its `mikrotik/routeros` directory (its base image already ships `sshpass`, which NIKA execs alongside `ssh` to reach RouterOS's internal management API — see [`routeros_api.py`](../src/nika/service/lab/routeros_api.py)). Do not change the image's `ENTRYPOINT`/`--connection-mode`: the scenario passes `--connection-mode macvtap` as a Kathara machine argument at deploy time instead, because Kathara attaches interfaces before the container starts and vrnetlab's default `vrxcon`/`tc` datapaths expect a data interface to appear only after boot.
 
 ```shell
 git clone https://github.com/hellt/vrnetlab
 cd vrnetlab/mikrotik/routeros
-# copy the downloaded CHR .vmdk/.vdi into this directory, add sshpass to docker/Dockerfile
+# copy the downloaded CHR .vmdk/.vdi into this directory
 make docker-image
 ```
 
