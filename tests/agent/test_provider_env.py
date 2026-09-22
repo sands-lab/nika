@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from agent.utils.provider_env import (
+    CUSTOM_UNAUTHENTICATED_API_KEY,
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     build_agent_subprocess_env,
@@ -111,8 +112,50 @@ def test_custom_without_api_key() -> None:
     )
     assert mapped["NIKA_CUSTOM_BASE_URL"] == "http://localhost:11434/v1"
     assert "NIKA_CUSTOM_API_KEY" not in mapped
-    assert "OPENAI_API_KEY" not in mapped
+    assert mapped["OPENAI_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
+    assert mapped["OPENAI_BASE_URL"] == "http://localhost:11434/v1"
 
+
+def test_custom_without_api_key_maps_for_codex() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.codex",
+        provider="custom",
+        sources={"NIKA_CUSTOM_BASE_URL": "http://mcnode32:8000/v1"},
+    )
+    assert mapped["OPENAI_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
+    assert mapped["OPENAI_BASE_URL"] == "http://mcnode32:8000/v1"
+
+
+def test_custom_without_api_key_maps_for_claude() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.claude",
+        provider="custom",
+        sources={"NIKA_CUSTOM_BASE_URL": "http://gateway.example/anthropic"},
+    )
+    assert mapped["ANTHROPIC_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
+    assert mapped["ANTHROPIC_AUTH_TOKEN"] == CUSTOM_UNAUTHENTICATED_API_KEY
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example/anthropic"
+
+
+def test_custom_openai_compat_strips_v1_for_claude() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.claude",
+        provider="custom",
+        sources={"NIKA_CUSTOM_BASE_URL": "http://mcnode33:8000/v1"},
+    )
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://mcnode33:8000"
+
+
+def test_anthropic_provider_adapts_custom_openai_compat_url() -> None:
+    mapped = map_provider_credentials(
+        agent_type="sdk.claude_sdk",
+        provider="anthropic",
+        sources={
+            "ANTHROPIC_API_KEY": "sk-ant",
+            "NIKA_CUSTOM_BASE_URL": "http://mcnode33:8000/v1",
+        },
+    )
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://mcnode33:8000"
 
 def test_custom_openai_compat_maps_key() -> None:
     mapped = map_provider_credentials(

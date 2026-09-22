@@ -61,10 +61,44 @@ def mcp_policy_resource_from_url(url: str, *, fallback_port: int | None = None) 
     return mcp_policy_resource(port, host=host)
 
 
-def ensure_llm_network_policy() -> None:
-    """Allow outbound LLM API hosts needed for NIKA sandbox agents."""
+def llm_network_resources_for_url(url: str) -> list[str]:
+    """Return sbx ``policy allow network`` resources for an LLM base URL.
+
+    Remote hosts are allowed by hostname. Host-bridge URLs
+    (``host.docker.internal`` / localhost) are reached as ``localhost:port``
+    inside the microVM and need an explicit host:port allow rule.
+    """
+    parsed = urlparse((url or "").strip())
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return []
+    if host in {SANDBOX_GATEWAY_HOST_BRIDGE, "localhost", "127.0.0.1"}:
+        if parsed.port is not None:
+            port = parsed.port
+        elif parsed.scheme == "https":
+            port = 443
+        else:
+            port = 80
+        return [mcp_policy_resource(port, host="localhost")]
+    return [host]
+
+
+def ensure_llm_network_policy(*extra_hosts: str) -> None:
+    """Allow outbound LLM API hosts needed for NIKA sandbox agents.
+
+    *extra_hosts* covers custom / self-hosted endpoints (hostnames or
+    ``host:port`` resources from :func:`llm_network_resources_for_url`).
+    """
     ensure_sbx_ready()
-    for host in _LLM_NETWORK_HOSTS:
+    seen: set[str] = set()
+    hosts: list[str] = []
+    for host in (*_LLM_NETWORK_HOSTS, *extra_hosts):
+        cleaned = (host or "").strip().lower()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        hosts.append(cleaned)
+    for host in hosts:
         proc = run_sbx_optional(["policy", "allow", "network", host])
         if proc.returncode != 0:
             combined = f"{proc.stdout}\n{proc.stderr}".lower()

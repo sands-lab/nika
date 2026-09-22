@@ -30,9 +30,14 @@ SANDBOX_GATEWAY_AGENT_HOST = "host.docker.internal"
 
 _manager_lock = threading.Lock()
 _active_manager: "McpGatewayManager | None" = None
+# Concurrent ``mcp_gateway_for_session`` callers in one process each own a
+# manager. FastMCP server objects are process-global, so resetting them while
+# a sibling gateway is still live drops in-flight MCP sessions for every
+# gateway sharing this process.
+_live_managers: set["McpGatewayManager"] = set()
 
 
-@dataclass
+@dataclass(eq=False)
 class McpGatewayManager:
     host: str
     port: int
@@ -117,6 +122,7 @@ def start_gateway(
     manager.start()
     with _manager_lock:
         _active_manager = manager
+        _live_managers.add(manager)
     os.environ[ENV_GATEWAY_URL] = manager.base_url
     return manager
 
@@ -138,22 +144,45 @@ def _shutdown_manager(
     """Stop *manager* without clobbering a sibling gateway in this process."""
     global _active_manager
     if manager is None:
-        if clear_registry:
+        with _manager_lock:
+            others_live = bool(_live_managers)
+        if clear_registry and not others_live:
             reset_gateway_mcp_state()
             os.environ.pop(ENV_GATEWAY_URL, None)
             os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
             clear_sessions()
         return
+
     with _manager_lock:
+        _live_managers.discard(manager)
         if _active_manager is manager:
             _active_manager = None
+        others_live = bool(_live_managers)
+        # Prefer a still-live sibling as the process "active" gateway.
+        if _active_manager is None and _live_managers:
+            _active_manager = next(iter(_live_managers))
+
     manager.stop()
     if os.environ.get(ENV_GATEWAY_URL) == manager.base_url:
         os.environ.pop(ENV_GATEWAY_URL, None)
         os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
-    reset_gateway_mcp_state(backend=manager.backend)
-    if clear_registry:
-        clear_sessions()
+        # Restore env to a sibling gateway URL when one remains.
+        with _manager_lock:
+            sibling = _active_manager
+        if sibling is not None:
+            os.environ[ENV_GATEWAY_URL] = sibling.base_url
+            prior_agent = os.environ.get(ENV_GATEWAY_AGENT_URL, "").strip()
+            # Keep a container-reachable agent URL when sandboxes are in use.
+            if prior_agent or sibling.host in {"0.0.0.0", "::"}:
+                os.environ[ENV_GATEWAY_AGENT_URL] = (
+                    f"http://{SANDBOX_GATEWAY_AGENT_HOST}:{sibling.port}"
+                )
+
+    # Shared FastMCP objects must stay intact while another gateway is live.
+    if not others_live:
+        reset_gateway_mcp_state(backend=manager.backend)
+        if clear_registry:
+            clear_sessions()
 
 
 def _resolve_session_backend(scenario_name: str) -> str | None:

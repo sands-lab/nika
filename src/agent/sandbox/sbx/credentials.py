@@ -25,6 +25,7 @@ from agent.sandbox.sbx.client import (
     sbx_available,
 )
 from agent.utils.provider_env import (
+    CUSTOM_UNAUTHENTICATED_API_KEY,
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
@@ -177,13 +178,16 @@ def is_official_anthropic_base_url(base_url: str) -> bool:
 
 
 def _anthropic_base_url(sources: dict[str, str], provider: str) -> str:
+    from agent.utils.provider_env import openai_compat_to_anthropic_base_url
+
     raw = sources.get(ENV_ANTHROPIC_BASE_URL, "").strip()
     if raw:
         return raw
     if provider == "deepseek" or sources.get(ENV_DEEPSEEK_API_KEY, "").strip():
         return DEEPSEEK_ANTHROPIC_BASE_URL
     if provider == "custom":
-        return resolve_custom_base_url(sources)
+        custom = resolve_custom_base_url(sources)
+        return openai_compat_to_anthropic_base_url(custom) if custom else ""
     return ""
 
 
@@ -340,14 +344,22 @@ def ensure_sbx_credentials(
 
     openai_key = _openai_secret_value(sources) if need_openai else ""
     if need_openai:
-        if openai_key and third_party_oai:
-            host = urlparse(openai_base).hostname or DEEPSEEK_HOST
-            placeholders["OPENAI_API_KEY"] = _ensure_custom_secret(
-                host=host,
-                env_name="OPENAI_API_KEY",
-                value=openai_key,
-                existing=custom,
-            )
+        if third_party_oai and openai_base:
+            # Custom / third-party OpenAI-compat endpoint: always forward
+            # OPENAI_BASE_URL into the sandbox. Unauthenticated endpoints use
+            # a sentinel key without registering an sbx secret.
+            if openai_key and openai_key != CUSTOM_UNAUTHENTICATED_API_KEY:
+                host = urlparse(openai_base).hostname or DEEPSEEK_HOST
+                placeholders["OPENAI_API_KEY"] = _ensure_custom_secret(
+                    host=host,
+                    env_name="OPENAI_API_KEY",
+                    value=openai_key,
+                    existing=custom,
+                )
+            else:
+                placeholders["OPENAI_API_KEY"] = (
+                    openai_key or CUSTOM_UNAUTHENTICATED_API_KEY
+                )
             third_party_oai_synced = True
             api_key_services.add(SERVICE_OPENAI)
             satisfied.add(SERVICE_OPENAI)
@@ -364,14 +376,19 @@ def ensure_sbx_credentials(
 
     anthropic_key = _anthropic_secret_value(sources) if need_anthropic else ""
     if need_anthropic:
-        if anthropic_key and third_party_anth:
-            host = urlparse(base_url).hostname or DEEPSEEK_HOST
-            placeholders["ANTHROPIC_API_KEY"] = _ensure_custom_secret(
-                host=host,
-                env_name="ANTHROPIC_API_KEY",
-                value=anthropic_key,
-                existing=custom,
-            )
+        if third_party_anth and base_url:
+            if anthropic_key and anthropic_key != CUSTOM_UNAUTHENTICATED_API_KEY:
+                host = urlparse(base_url).hostname or DEEPSEEK_HOST
+                placeholders["ANTHROPIC_API_KEY"] = _ensure_custom_secret(
+                    host=host,
+                    env_name="ANTHROPIC_API_KEY",
+                    value=anthropic_key,
+                    existing=custom,
+                )
+            else:
+                placeholders["ANTHROPIC_API_KEY"] = (
+                    anthropic_key or CUSTOM_UNAUTHENTICATED_API_KEY
+                )
             third_party_synced = True
             api_key_services.add(SERVICE_ANTHROPIC)
             satisfied.add(SERVICE_ANTHROPIC)

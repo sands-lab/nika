@@ -10,6 +10,8 @@ from pathlib import Path
 from agent.sandbox.config import ENV_SESSION_DIR
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
+from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
+
 
 _INNER_ENV_ALLOWLIST = frozenset(
     {
@@ -65,8 +67,11 @@ def _inner_path(
 
 
 def _looks_like_placeholder(value: str) -> bool:
-    return value == PROXY_MANAGED_SENTINEL or value.startswith("sbx-cs-")
-
+    return (
+        value == PROXY_MANAGED_SENTINEL
+        or value == CUSTOM_UNAUTHENTICATED_API_KEY
+        or value.startswith("sbx-cs-")
+    )
 
 def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str:
     """Never forward real credentials into the microVM for proxy-managed services."""

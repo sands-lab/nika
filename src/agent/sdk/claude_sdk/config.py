@@ -31,6 +31,14 @@ def prepare_claude_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
             "(see docs/operations/agent-sandbox.md)."
         )
     from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL, in_sandbox
+    from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
+
+    def _is_placeholder(value: str) -> bool:
+        return (
+            value == PROXY_MANAGED_SENTINEL
+            or value == CUSTOM_UNAUTHENTICATED_API_KEY
+            or value.startswith("sbx-cs-")
+        )
 
     env = prepare_claude_subprocess_env(provider=provider, agent_type="sdk.claude_sdk")
     env["NIKA_SESSION_ID"] = session_id
@@ -43,9 +51,9 @@ def prepare_claude_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
         )
         env["ANTHROPIC_API_KEY"] = api_key
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip()
-        if auth_token == PROXY_MANAGED_SENTINEL or auth_token.startswith("sbx-cs-"):
+        if _is_placeholder(auth_token):
             env["ANTHROPIC_AUTH_TOKEN"] = auth_token
-        elif api_key == PROXY_MANAGED_SENTINEL or api_key.startswith("sbx-cs-"):
+        elif _is_placeholder(api_key):
             # DeepSeek Claude Code docs prefer AUTH_TOKEN; alias the placeholder.
             env["ANTHROPIC_AUTH_TOKEN"] = api_key
         else:

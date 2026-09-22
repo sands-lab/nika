@@ -24,6 +24,8 @@ ENV_DEEPSEEK_API_KEY = "DEEPSEEK_API_KEY"
 ENV_CUSTOM_BASE_URL = "NIKA_CUSTOM_BASE_URL"
 ENV_CUSTOM_API_KEY = "NIKA_CUSTOM_API_KEY"
 ENV_CUSTOM_MODEL = "NIKA_CUSTOM_MODEL"
+# Sentinel for unauthenticated custom endpoints (OpenAI client libs require a key).
+CUSTOM_UNAUTHENTICATED_API_KEY = "no-key"
 
 # Deprecated aliases (still read with a warning)
 _DEPRECATED_CUSTOM_BASE = "CUSTOM_API_BASE"
@@ -149,6 +151,19 @@ def resolve_custom_base_url(sources: Mapping[str, str] | None = None) -> str:
     return ""
 
 
+def openai_compat_to_anthropic_base_url(url: str) -> str:
+    """Strip a trailing ``/v1`` so Anthropic clients do not request ``/v1/v1/messages``.
+
+    OpenAI-compatible gateways are usually configured as ``http://host:port/v1``.
+    The Anthropic SDK appends ``/v1/messages`` itself, so Claude family agents need
+    the host root (or an Anthropic-native path like ``.../anthropic``).
+    """
+    text = (url or "").strip().rstrip("/")
+    if text.endswith("/v1"):
+        return text[:-3] or text
+    return (url or "").strip()
+
+
 def resolve_custom_api_key(sources: Mapping[str, str] | None = None) -> str:
     """Return custom API key if set (optional for unauthenticated endpoints)."""
     if value := _env_get(ENV_CUSTOM_API_KEY, sources):
@@ -259,11 +274,11 @@ def map_provider_credentials(
         if key:
             out[ENV_ANTHROPIC_API_KEY] = key
         # Official Anthropic needs no base URL. agent.custom.base_url selects a gateway.
-        base = _env_get(ENV_ANTHROPIC_BASE_URL, sources) or resolve_custom_base_url(
-            sources
-        )
-        if base:
-            out[ENV_ANTHROPIC_BASE_URL] = base
+        # Prefer an explicit Anthropic URL; otherwise adapt OpenAI-compat custom URLs.
+        if explicit := _env_get(ENV_ANTHROPIC_BASE_URL, sources):
+            out[ENV_ANTHROPIC_BASE_URL] = explicit
+        elif custom := resolve_custom_base_url(sources):
+            out[ENV_ANTHROPIC_BASE_URL] = openai_compat_to_anthropic_base_url(custom)
         return out
 
     if provider == "deepseek":
@@ -292,6 +307,10 @@ def map_provider_credentials(
     if key:
         out[ENV_CUSTOM_API_KEY] = key
         out[_DEPRECATED_CUSTOM_KEY] = key
+    # Unauthenticated custom endpoints still need a non-empty family key for
+    # Codex/Claude clients (and for sandbox runtime_env forwarding).
+    if base and not key:
+        key = CUSTOM_UNAUTHENTICATED_API_KEY
     model = resolve_custom_model(sources)
     if model:
         out[ENV_CUSTOM_MODEL] = model
@@ -301,7 +320,7 @@ def map_provider_credentials(
             out[ENV_ANTHROPIC_API_KEY] = key
             out[ENV_ANTHROPIC_AUTH_TOKEN] = key
         if base:
-            out[ENV_ANTHROPIC_BASE_URL] = base
+            out[ENV_ANTHROPIC_BASE_URL] = openai_compat_to_anthropic_base_url(base)
     elif agent in _OPENAI_FAMILY or agent == "mock":
         if key:
             out[ENV_OPENAI_API_KEY] = key

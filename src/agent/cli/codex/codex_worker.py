@@ -212,6 +212,18 @@ def _build_mcp_toml(
             "",
         ]
     )
+    # Custom / local models often ignore Responses ``namespace`` tools and emit
+    # bare nested names (``frr_show_ip_route``). Without this feature Codex
+    # returns ``unsupported call: <short name>`` and never hits MCP.
+    # Keep this off for OpenAI-hosted models that already emit namespace calls.
+    if (provider or "").strip().lower() == "custom":
+        lines.extend(
+            [
+                "[features]",
+                "non_prefixed_mcp_tool_names = true",
+                "",
+            ]
+        )
     if provider_id and resolved_base:
         # Codex requires Responses wire_api; chat is rejected on current builds.
         lines.extend(
@@ -327,6 +339,7 @@ class CodexWorker:
         self._codex_home = self.workspace / ".codex_home"
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._stream_output = stream_output
+        self._agent_message_texts: list[str] = []
         self._pending_tool_calls = PendingToolCallTracker()
 
     # ------------------------------------------------------------------
@@ -404,6 +417,7 @@ class CodexWorker:
 
         output_file = self.workspace / f"{self.phase}_output.txt"
         output_file.unlink(missing_ok=True)
+        self._agent_message_texts = []
 
         # Provider-mapped credentials only; override CODEX_HOME for isolation.
         env = prepare_codex_subprocess_env(
@@ -484,6 +498,20 @@ class CodexWorker:
             return "ERROR: 'codex' not found in PATH — is Codex CLI installed?"
 
         if returncode != 0:
+            recovered = self._resolved_phase_output(output_file)
+            if recovered:
+                self._logger.log(
+                    "subprocess_nonzero_recovered",
+                    {
+                        "phase": self.phase,
+                        "returncode": returncode,
+                        "output_length": len(recovered),
+                        "stderr": stderr_text[:500],
+                    },
+                )
+                if self._stream_output and stderr_text.strip():
+                    print(stderr_text, file=sys.stderr, flush=True)
+                return recovered
             self._logger.log(
                 "subprocess_error",
                 {"returncode": returncode, "stderr": stderr_text[:2000]},
@@ -495,8 +523,8 @@ class CodexWorker:
                 f"stderr: {stderr_text[:400]}"
             )
 
-        if output_file.exists():
-            result = output_file.read_text(encoding="utf-8").strip()
+        result = self._resolved_phase_output(output_file)
+        if result:
             self._logger.log(
                 "subprocess_done", {"phase": self.phase, "output_length": len(result)}
             )
@@ -504,6 +532,14 @@ class CodexWorker:
 
         self._logger.log("subprocess_error", {"error": "output file not created"})
         return f"ERROR: {self.phase} phase produced no output"
+
+    def _resolved_phase_output(self, output_file: Path) -> str:
+        """Prefer Codex ``--output-last-message``, else streamed agent_message text."""
+        if output_file.exists():
+            text = output_file.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+        return "\n\n".join(t for t in self._agent_message_texts if t.strip()).strip()
 
     def _remaining_before_stall(self, loop: asyncio.AbstractEventLoop) -> float:
         now = loop.time()
@@ -653,6 +689,13 @@ class CodexWorker:
             self._log_command_execution_item(event_type, item)
         else:
             self._logger.log(event_type, {"codex_event": event})
+            if (
+                event_type == "item.completed"
+                and item_type == "agent_message"
+            ):
+                text = str(item.get("text") or "").strip()
+                if text:
+                    self._agent_message_texts.append(text)
 
         if self._stream_output:
             display = format_codex_event(event)

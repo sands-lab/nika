@@ -75,6 +75,30 @@ class SessionStore:
     def get_session(self, session_id: str) -> dict[str, Any]:
         return self._read(session_id)
 
+    def find_by_agent_session_id(self, agent_session_id: str) -> dict[str, Any] | None:
+        """Return the session document keyed by opaque agent handle, if any.
+
+        Used when MCP tools see ``NIKA_SESSION_ID`` / header values that are the
+        agent-facing id, but SessionStore files are named by the canonical trial
+        id. Prefer the gateway registry; this is a durable disk fallback so
+        concurrent sessions do not fail with a false ``Session not found``.
+        """
+        needle = (agent_session_id or "").strip()
+        if not needle:
+            return None
+        # Fast path: opaque id already matches the document name (legacy).
+        path = self._path(needle)
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+        for candidate in self.sessions_dir.glob("*.json"):
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if str(data.get("agent_session_id") or "").strip() == needle:
+                return data
+        return None
+
     def delete_session(self, session_id: str) -> None:
         """Remove the runtime session document after results have been persisted."""
         doc: dict[str, Any] | None = None
