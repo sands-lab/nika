@@ -85,8 +85,8 @@ def env_run(
         None,
         "--device-profile",
         help=(
-            "ISP device profile: frr (kathara) or nokia_srlinux (containerlab). "
-            "Defaults from --backend."
+            "ISP device profile: frr or iosxr (kathara), nokia_srlinux (containerlab). "
+            "Defaults from --backend. ISP+iosxr is rejected at lab construct; use iosxr_simple_bgp."
         ),
     ),
     no_redeploy: bool = typer.Option(

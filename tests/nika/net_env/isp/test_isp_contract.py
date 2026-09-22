@@ -166,7 +166,7 @@ def test_isp_backend_resolution() -> None:
     assert (
         resolve_scenario_backend("isp_abilene", default_when_ambiguous="kathara") == "kathara"
     )
-    with pytest.raises(ValueError, match="pass --backend"):
+    with pytest.raises(ValueError, match="--backend"):
         resolve_scenario_backend("isp_abilene")
 
 

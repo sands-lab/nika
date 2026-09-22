@@ -98,7 +98,7 @@ healthy:
     - topo_size: m
 ```
 
-Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios that are not yet validated, such as `iosxr_simple_bgp`, are excluded from generation.
+Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
 
 ### Selected cases
 

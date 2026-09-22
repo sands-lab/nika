@@ -25,7 +25,7 @@ Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-mul
 
 `--batch-size` defaults to `1` (see [`benchmark` settings](configuration.md#benchmark-settings)). Keep that default for any run that includes `k8s_lab`, `llmd_lab`, `min3clos`, or a Containerlab `isp_<topology>` scenario. A higher value starts several of these labs at once on one host:
 
-- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. See [k3s controller container not running](troubleshooting.md#k3s-controller-container-not-running-k8s_lab--llmd_lab).
+- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 - Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once.
 
 ## Scenario catalog
@@ -253,7 +253,7 @@ Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. Cisc
 
 1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
 
-2. Load and tag it to the image reference in [`lab.py`](../../src/nika/net_env/kathara/interdomain_routing/iosxr_simple_bgp/lab.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
+2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
 
 ```shell
 docker load -i xrd-control-plane-container-x86_64-<version>.tgz
@@ -263,12 +263,7 @@ docker images | grep xrd-control-plane
 
 If the tag is missing, `nika env run iosxr_simple_bgp` raises a `RuntimeError` with the same `docker load` / `docker tag` steps instead of deploying a broken lab.
 
-3. Raise host inotify limits (XRd Control Plane, IOS XR >= 7.9.2). See the [XRd host setup tutorial](https://xrdocs.io/virtual-routing/tutorials/2022-08-22-setting-up-host-environment-to-run-xrd):
-
-```shell
-sysctl -w fs.inotify.max_user_instances=64000
-sysctl -w fs.inotify.max_user_watches=64000
-```
+3. Raise host inotify limits for XRd (IOS XR >= 7.9.2). Follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
 4. Deploy:
 
@@ -306,7 +301,7 @@ uv run nika env run isp_france --backend containerlab \
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
 | `--backend` | `kathara`, `containerlab` | `kathara` | Selects FRR or SR Linux rendering |
-| `--device-profile` | `frr`, `nokia_srlinux` | Derived from backend | Validates the router profile |
+| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr` | Derived from backend | Router profile; `iosxr` is accepted then rejected for SNDlib ISP (use `iosxr_simple_bgp`) |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
@@ -374,7 +369,7 @@ The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux con
 
 Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
-If verification aborts with `k3s node container(s) not running: ['controller']`, raise host inotify limits. See [Troubleshooting: k3s controller container not running](troubleshooting.md#k3s-controller-container-not-running-k8s_lab--llmd_lab).
+If verification aborts with `k3s node container(s) not running: ['controller']`, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
 First deployment pulls k3s and in-cluster workload images from the network. Host Docker images are reused automatically when already present. To warm workload image tars and llmd Helm charts before starting a lab:
 

@@ -4,7 +4,6 @@ Covers matrix-compatible scenarios with two-tier checks:
 artifact ``verify_fault`` + ``evaluate_symptom`` (path_ping).
 
 Skipped by design (not practical here):
-- ``iosxr_simple_bgp`` — needs XRd images
 - ``k8s_lab`` — unrelated bring-up flakiness
 - ``geant`` / large SNDlib — wall-clock cost
 """

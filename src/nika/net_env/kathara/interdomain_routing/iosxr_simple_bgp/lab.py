@@ -1,7 +1,7 @@
 """IOS-XR (XRd Control Plane) simple BGP lab.
 
 Requires the XRd Control Plane image manually loaded and tagged as
-``IMAGE`` below — Cisco's licensing means it cannot be built automatically
+``IMAGE`` — Cisco's licensing means it cannot be built automatically
 like the ``nika/*`` images.
 """
 
@@ -11,17 +11,18 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
+from nika.net_env.iosxr.common import (
+    CONFIG_FILE_PATH,
+    IMAGE,
+    XR_ZTP_DISABLE_ENV,
+    build_xr_interfaces_env,
+    build_xr_startup_script,
+    require_xrd_image,
+)
 from nika.runtime.spec import NodeRole
-
-IMAGE = "ios-xr/xrd-control-plane:26.2.1"
 
 LINK_IFACE = "GigabitEthernet0/0/0/0"
 PC_IFACE = "GigabitEthernet0/0/0/1"
-CONFIG_FILE_PATH = "disk0:/startup-config.cfg"
-
-CLI_COMMAND = '/pkg/bin/xr_cli "{command}"'
-ZTP_APPLY_COMMAND = "/bin/bash -c 'source /pkg/bin/ztp_helper.sh; xrapply {file}'"
 
 ROUTERS = {
     "router1": {
@@ -79,55 +80,6 @@ def _build_startup_config(name: str, router: dict) -> str:
     )
 
 
-def _build_startup_script(config_path: str) -> list:
-    check_cmd_1 = (
-        CLI_COMMAND.format(command="show run")
-        + " | egrep -e 'No configuration change' -e 'No such file or directory'"
-    )
-    check_cmd_2 = (
-        CLI_COMMAND.format(command=f"sh ip interface {LINK_IFACE}")
-        + " | egrep -e 'ipv4 protocol is Down'"
-    )
-    check_cmd_3 = (
-        CLI_COMMAND.format(command=f"sh ipv6 interface {LINK_IFACE}")
-        + " | egrep -e 'ipv6 protocol is Down'"
-    )
-
-    # xrapply can fail with "Cannot open network namespace" if it runs the
-    # instant Kathara's startup script starts, before XR has finished
-    # creating the "xrnns" netns: the config is silently never applied and
-    # the container stays "running" with the data interfaces down. Retry
-    # until that specific error goes away.
-    apply_cmd = ZTP_APPLY_COMMAND.format(file=config_path)
-    apply_with_retry = "\n".join(
-        [
-            "apply_ok=0",
-            "for _xr_apply_try in $(seq 1 40); do",
-            f"  _xr_apply_out=$({apply_cmd} 2>&1)",
-            '  echo "$_xr_apply_out"',
-            '  if ! echo "$_xr_apply_out" | grep -q "Cannot open network namespace"; then',
-            "    apply_ok=1",
-            "    break",
-            "  fi",
-            "  sleep 3",
-            "done",
-            '[[ "$apply_ok" -eq 1 ]] || echo "ERROR: xrapply did not succeed after retries"',
-        ]
-    )
-
-    return [
-        "pgrep xrd-startup; while [[ $? -eq 0 ]]; do sleep 3; pgrep xrd-startup; done",
-        check_cmd_1,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_1}; done",
-        check_cmd_2,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_2}; done",
-        check_cmd_3,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_3}; done",
-        "source /pkg/bin/ztp_helper.sh; ztp_disable; ztp_kill_all; killall -9 pyztp2",
-        apply_with_retry,
-    ]
-
-
 class IosXrSimpleBGP(NetworkEnvBase):
     LAB_NAME = "iosxr_simple_bgp"
     VERIFY_MAX_WAIT_SEC = 480
@@ -154,14 +106,18 @@ class IosXrSimpleBGP(NetworkEnvBase):
             machine.add_meta("ipv6", True)
             machine.add_meta(
                 "env",
-                f"XR_INTERFACES=linux:eth0,xr_name={LINK_IFACE};linux:eth1,xr_name={PC_IFACE}",
+                build_xr_interfaces_env(
+                    ("eth0", LINK_IFACE),
+                    ("eth1", PC_IFACE),
+                ),
             )
-            machine.add_meta("env", "XR_ZTP_ENABLE=0")
+            machine.add_meta("env", XR_ZTP_DISABLE_ENV)
             machine.create_file_from_string(
                 _build_startup_config(router_name, router), CONFIG_FILE_PATH
             )
             self.lab.create_file_from_list(
-                _build_startup_script(CONFIG_FILE_PATH), f"{router_name}.startup"
+                build_xr_startup_script(CONFIG_FILE_PATH, wait_iface=LINK_IFACE),
+                f"{router_name}.startup",
             )
 
         pc1 = self.lab.new_machine("pc1", **{"image": "nika/base"})
@@ -202,13 +158,7 @@ class IosXrSimpleBGP(NetworkEnvBase):
         self.load_machines()
 
     def deploy(self):
-        if not image_exists(IMAGE):
-            raise RuntimeError(
-                f"XRd Control Plane image {IMAGE!r} not found locally. Cisco's "
-                "license requires loading it by hand, e.g.:\n"
-                "  docker load -i xrd-control-plane-container-x86.<version>.tgz\n"
-                f"  docker tag <loaded-tag> {IMAGE}"
-            )
+        require_xrd_image(IMAGE)
         super().deploy()
 
     def startup_verify_lab(self) -> dict:

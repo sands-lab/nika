@@ -34,6 +34,8 @@ from nika.workflows.benchmark.isp_options import (
 )
 from nika.workflows.benchmark.resume import benchmark_option_id
 
+# Tiny fixed labs (e.g. iosxr_simple_bgp) stay in E2E/unit tests only —
+# not part of the executable benchmark candidate pool.
 EXCLUDED_SCENARIOS = frozenset({"iosxr_simple_bgp"})
 WORKING_DIRNAME = "working"
 POOL_DIRNAME = "pool"
