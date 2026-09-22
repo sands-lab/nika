@@ -7,9 +7,12 @@ import subprocess
 import time
 from typing import ClassVar
 
+from nika.config import RUNTIME_DIR
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
-from nika.config import RUNTIME_DIR
+from nika.utils.dependencies import require_gnmic
+
+
 class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     # ref: https://containerlab.dev/lab-examples/min-clos/
     LAB_NAME = "min3clos"
@@ -106,6 +109,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         setup_dst.chmod(0o755)
 
     def deploy(self) -> None:
+        require_gnmic()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:

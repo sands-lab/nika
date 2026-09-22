@@ -110,15 +110,20 @@ class ContainerlabRuntime(LabRuntime):
         if self.exists():
             print(f"Lab {self._lab_name} exists")
             return
-        result = self._run_clab(
-            "deploy",
-            "-t",
-            str(self._topology_file),
-            "--reconfigure",
-        )
-        if result.returncode != 0:
+        last_error = ""
+        for attempt in range(1, 3):
+            result = self._run_clab(
+                "deploy",
+                "-t",
+                str(self._topology_file),
+                "--reconfigure",
+            )
+            if result.returncode == 0:
+                time.sleep(5)
+                self._refresh_node_map()
+                return
             err = (result.stderr or result.stdout or "").strip()
-            hint = ""
+            last_error = err
             low = err.lower()
             if any(
                 marker in low
@@ -140,11 +145,24 @@ class ContainerlabRuntime(LabRuntime):
                     f" Leftover Docker network br-{self._lab_name} may be "
                     "blocking deploy; run: nika session wipe -y"
                 )
-            raise RuntimeError(
-                f"clab deploy failed for {self._lab_name}: {err}{hint}"
-            )
-        time.sleep(5)
-        self._refresh_node_map()
+                raise RuntimeError(
+                    f"clab deploy failed for {self._lab_name}: {err}{hint}"
+                )
+            # SRL mgmt gRPC can reject keepalives under parallel post-deploy load.
+            if attempt < 2 and ("too_many_pings" in low or "enhance_your_calm" in low):
+                try:
+                    self._run_clab(
+                        "destroy",
+                        "-t",
+                        str(self._topology_file),
+                        "--cleanup",
+                    )
+                except Exception:  # noqa: BLE001 - best-effort before retry
+                    pass
+                time.sleep(5)
+                continue
+            break
+        raise RuntimeError(f"clab deploy failed for {self._lab_name}: {last_error}")
 
     def destroy(self) -> None:
         # Host-side flap workers are outside containerlab's inventory.

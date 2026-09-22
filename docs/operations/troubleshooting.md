@@ -2,7 +2,7 @@
 
 Match the error or symptom below, apply the fix, then re-run the same command. Sections cover host and lab bring-up today; agent and eval failures can land here later.
 
-Related references: [Network scenarios](network-scenarios.md), [CLI reference](cli-reference.md).
+Related references: [Network scenarios](network-scenarios.md), [CLI reference](cli-reference.md), [NIKA Slack community](https://sands-lab.github.io/nika/community/).
 
 ## k3s controller container not running (`k8s_lab` / `llmd_lab`)
 
@@ -60,4 +60,4 @@ uv run nika env run k8s_lab
 
 ## Still stuck?
 
-If the steps above do not clear the failure, [open a GitHub issue](https://github.com/sands-lab/nika/issues/new) with the error text, `nika` / OS versions, how you launched the run (`nika env run …` or `nika benchmark run …`, including `--batch-size` when relevant), and the relevant logs from your result dir (`nika.jsonl`, `run.json`, `messages.jsonl`, worker logs under `trials/`).
+If the steps above do not clear the failure, ask on the [NIKA Slack community](https://sands-lab.github.io/nika/community/) or [open a GitHub issue](https://github.com/sands-lab/nika/issues/new) with the error text, `nika` / OS versions, how you launched the run (`nika env run …` or `nika benchmark run …`, including `--batch-size` when relevant), and the relevant logs from your result dir (`nika.jsonl`, `run.json`, `messages.jsonl`, worker logs under `trials/`).

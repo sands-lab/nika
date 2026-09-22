@@ -640,19 +640,25 @@ class LinkDetach(ProblemBase):
         self._detach_netns = netns
         host = params.host_name
         self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
-        self.runtime.exec(host, f"ip netns add {netns}")
-        self.runtime.exec(host, f"ip link set dev {intf_name} netns {netns}")
+        add_out = self.runtime.exec(host, f"ip netns add {netns} 2>&1")
+        move_out = self.runtime.exec(
+            host, f"ip link set dev {intf_name} netns {netns} 2>&1"
+        )
         # Brief settle: some runners still list the iface until the move commits.
         import time
 
         deadline = time.time() + 5.0
         while time.time() < deadline:
-            out = self.runtime.exec(
-                host, f"ip link show {intf_name} 2>&1 || true", timeout=10
-            )
-            if intf_name not in (out or "") or "not found" in (out or "").lower():
+            if not self.runtime.interface_exists(host, intf_name):
                 break
             time.sleep(0.2)
+        else:
+            raise RuntimeError(
+                f"link_detach failed: {host}:{intf_name} still present after "
+                f"moving to netns {netns}. netns add output={add_out!r}; "
+                f"move output={move_out!r}. Containers need NET_ADMIN/SYS_ADMIN "
+                "(or privileged) for `ip link set … netns`."
+            )
         system_logger.info(
             f"Injected link detach on {host}:{intf_name} (moved to netns {netns})"
         )

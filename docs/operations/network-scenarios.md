@@ -13,11 +13,20 @@ uv run nika env list
 | Backend | Needs |
 | --- | --- |
 | Kathará | Docker, Kathará Python package (`uv sync`) |
-| Containerlab | Docker, `clab`, and `gnmic` (SR Linux labs) |
+| Containerlab | Docker, `clab`, `gnmic` |
 
 Install with [`./scripts/install.sh`](../../scripts/install.sh). See the root [README](../../README.md#-installation).
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and the multi-arch `wbitt/network-multitool` image. The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image; see [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
+Every Containerlab scenario runs Nokia SR Linux, which NIKA configures over gNMI, so `gnmic` is required for all of them. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
+
+Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually. See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
+
+### Concurrency and `--batch-size`
+
+`--batch-size` defaults to `1` (see [`benchmark` settings](configuration.md#benchmark-settings)). Keep that default for any run that includes `k8s_lab`, `llmd_lab`, `min3clos`, or a Containerlab `isp_<topology>` scenario. A higher value starts several of these labs at once on one host:
+
+- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. See [k3s controller container not running](troubleshooting.md#k3s-controller-container-not-running-k8s_lab--llmd_lab).
+- Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once.
 
 ## Scenario catalog
 
