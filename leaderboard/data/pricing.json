@@ -1,0 +1,50 @@
+{
+  "as_of": "2026-09-22",
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "notes": "Reference token prices used to turn a submission's token counts into a monetary cost on the leaderboard's cost-performance chart. Proprietary models use the vendor's list API price. Open-weight models have no vendor price, so they carry a public hosted-inference quote for the same weights as a reference rate; that is a market price for someone else's serving, not the submitter's own cost. Every entry records the date its quote was collected in `retrieved`; vendor and hosted prices both move, so re-check before citing. Prices are editable in the UI without changing this file.",
+  "models": {
+    "GPT-5": {
+      "input": 1.25,
+      "output": 10.0,
+      "basis": "api",
+      "provider": "OpenAI",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "retrieved": "2026-09-22"
+    },
+    "GPT-5-mini": {
+      "input": 0.25,
+      "output": 2.0,
+      "basis": "api",
+      "provider": "OpenAI",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "retrieved": "2026-09-22",
+      "note": "OpenAI has announced this model shuts down 2026-12-11; the price will stop being refreshable after that."
+    },
+    "GPT-OSS-20B": {
+      "input": 0.018,
+      "output": 0.09,
+      "basis": "hosted_open_weight",
+      "provider": "OpenRouter",
+      "source": "https://openrouter.ai/openai/gpt-oss-20b",
+      "retrieved": "2026-09-22"
+    },
+    "Qwen3.5-27B": {
+      "input": 0.6,
+      "output": 3.0,
+      "basis": "hosted_open_weight",
+      "provider": "Groq",
+      "source": "https://pricepertoken.com/",
+      "retrieved": "2026-09-22",
+      "note": "No hosted quote published for this exact checkpoint; uses the Qwen3 27B rate as a stand-in."
+    },
+    "Qwen3.6-27B": {
+      "input": 0.6,
+      "output": 3.0,
+      "basis": "hosted_open_weight",
+      "provider": "Groq",
+      "source": "https://pricepertoken.com/",
+      "retrieved": "2026-09-22"
+    }
+  }
+}

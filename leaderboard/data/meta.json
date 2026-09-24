@@ -32,5 +32,6 @@
       "test"
     ]
   },
-  "primary_metric": "mean_rca_f1"
+  "primary_metric": "mean_rca_f1",
+  "generated_at": "2026-09-24T14:58:42+00:00"
 }
