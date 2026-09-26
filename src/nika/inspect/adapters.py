@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +32,6 @@ _LIFECYCLE_EVENTS = frozenset(
         "agent_error",
         "sandbox_start",
         "sandbox_end",
-        "eval_metrics_saved",
-        "eval_publish",
         "session_close",
         "session_closed",
         "lab_undeploy",
@@ -66,6 +65,30 @@ def _truncate(value: Any, limit: int = 160) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1] + "…"
+
+
+def _opt_text(value: Any) -> str | None:
+    """Coerce a loosely typed log field to ``str | None`` (empty → ``None``)."""
+    if value is None or value == "" or value == {} or value == []:
+        return None
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _timestamp(value: Any) -> str | None:
+    """ISO timestamp from a string or epoch seconds; anything else → ``None``."""
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(value, UTC).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return None
+    return None
 
 
 def _unwrap_error_message(text: str) -> str:
@@ -170,6 +193,7 @@ def _summarize_subprocess_stderr(value: Any) -> str:
         if " error " in f" {lower} " or lower.startswith("error"):
             return _truncate(stripped)
     return _truncate(text)
+
 
 def _slim_raw(value: Any, *, depth: int = 0) -> Any:
     """Truncate oversized strings/lists in event ``raw`` for the timeline API."""
@@ -316,11 +340,15 @@ def _tool_from_entry(entry: dict[str, Any], *, error: str | None = None) -> Tool
     input_value = entry.get("input", tool.get("input"))
     output_value = entry.get("output", tool.get("output"))
     if codex_item and codex_item.get("type") == "mcp_tool_call":
-        input_value = input_value if input_value is not None else (
-            codex_item.get("arguments") or codex_item.get("input")
+        input_value = (
+            input_value
+            if input_value is not None
+            else (codex_item.get("arguments") or codex_item.get("input"))
         )
-        output_value = output_value if output_value is not None else (
-            codex_item.get("result") or codex_item.get("output")
+        output_value = (
+            output_value
+            if output_value is not None
+            else (codex_item.get("result") or codex_item.get("output"))
         )
         if not tool_call_id and codex_item.get("id") is not None:
             tool_call_id = codex_item.get("id")
@@ -348,7 +376,7 @@ def _tool_from_entry(entry: dict[str, Any], *, error: str | None = None) -> Tool
         input=_maybe_json(input_value),
         output=_maybe_json(output_value),
         tool_call_id=str(tool_call_id) if tool_call_id else None,
-        error=error or entry.get("error"),
+        error=error or _opt_text(entry.get("error")),
     )
 
 
@@ -428,36 +456,49 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
     if event == "turn.started":
         return "llm", "turn", ""
     if event == "turn.completed":
-        return "llm", "turn completed", _truncate(
-            entry.get("text") or entry.get("messages")
+        return (
+            "llm",
+            "turn completed",
+            _truncate(entry.get("text") or entry.get("messages")),
         )
     if event == "turn.failed":
         return "llm", "turn failed", _summarize_error_blob(_codex_error_text(entry))
     if event in {"llm_start", "llm_end", "assistant"}:
         return "llm", event, _truncate(entry.get("text") or entry.get("messages"))
+    if event == "llm_retry":
+        # HTTP/provider retry inside one LangChain run (see ReasoningChatOpenAI).
+        return "llm", "llm_retry", _summarize_error_blob(entry.get("error"))
     if event == "error":
         # Stream reconnect chatter stays system-level; fold into the turn in UI.
         return "system", "error", _summarize_error_blob(_codex_error_text(entry))
-    if event in {"llm_end_error", "agent_error"}:
-        return "other", event, _summarize_error_blob(
-            entry.get("error") or _codex_error_text(entry)
+    if event == "llm_end_error":
+        return (
+            "llm",
+            event,
+            _summarize_error_blob(entry.get("error") or _codex_error_text(entry)),
+        )
+    if event == "agent_error":
+        return (
+            "other",
+            event,
+            _summarize_error_blob(entry.get("error") or _codex_error_text(entry)),
         )
     if event == "subprocess_error":
         return (
             "system",
             "subprocess_error",
             _summarize_subprocess_stderr(
-                entry.get("stderr")
-                or entry.get("error")
-                or _codex_error_text(entry)
+                entry.get("stderr") or entry.get("error") or _codex_error_text(entry)
             ),
         )
     # Codex / CLI bookkeeping — keep off the Agent/Other flood.
     if event in {"mcp_config", "subprocess_start", "thread.started"}:
-        return "system", event.replace(".", " "), _truncate(
-            entry.get("command")
-            or entry.get("servers")
-            or entry.get("message")
+        return (
+            "system",
+            event.replace(".", " "),
+            _truncate(
+                entry.get("command") or entry.get("servers") or entry.get("message")
+            ),
         )
     # Phase bookends — same names across Codex / Claude / BYO / CLI.
     if event in {"agent_start", "agent_done"}:
@@ -478,8 +519,12 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
             event,
             _truncate(entry.get("stderr") or entry.get("message")),
         )
-    return "other", event, _truncate(
-        entry.get("message") or entry.get("text") or _codex_error_text(entry)
+    return (
+        "other",
+        event,
+        _truncate(
+            entry.get("message") or entry.get("text") or _codex_error_text(entry)
+        ),
     )
 
 
@@ -488,20 +533,18 @@ def adapt_agent_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEve
     event = str(entry.get("event") or "other")
     tool = None
     if kind in {"tool_call", "tool_result", "tool_error"}:
-        tool = _tool_from_entry(
-            entry, error=str(entry["error"]) if entry.get("error") else None
-        )
+        tool = _tool_from_entry(entry, error=_opt_text(entry.get("error")))
         if tool and (tool.input is not None or tool.output is not None or tool.error):
             summary = _truncate(tool.error or tool.output or tool.input) or summary
 
     return CanonicalTraceEvent(
         id=f"agent-{index}",
-        timestamp=entry.get("timestamp"),
+        timestamp=_timestamp(entry.get("timestamp")),
         source="agent",
         kind=kind,
         title=title,
         summary=summary,
-        phase=entry.get("phase"),
+        phase=entry.get("phase") if isinstance(entry.get("phase"), str) else None,
         event=event,
         tool=tool,
         raw=_slim_raw(entry) if isinstance(entry, dict) else {},
@@ -512,10 +555,10 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
     event = str(entry.get("event") or "system")
     message = entry.get("message") or ""
     data = entry.get("data")
-    if event in _LIFECYCLE_EVENTS:
-        kind: EventKind = "lifecycle"
-    elif event in {"eval_metrics_saved", "eval_publish"}:
-        kind = "score"
+    if event in {"eval_metrics_saved", "eval_publish"}:
+        kind: EventKind = "score"
+    elif event in _LIFECYCLE_EVENTS:
+        kind = "lifecycle"
     elif event == "system":
         kind = "system"
     else:
@@ -541,7 +584,7 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
 
     return CanonicalTraceEvent(
         id=f"nika-{index}",
-        timestamp=entry.get("timestamp"),
+        timestamp=_timestamp(entry.get("timestamp")),
         source="nika",
         kind=kind,
         title=event.replace("_", " "),
@@ -555,7 +598,8 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
 def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
     if not path.is_file():
         return
-    with path.open(encoding="utf-8") as handle:
+    # Live writers may leave a partial UTF-8 sequence at the end of the file.
+    with path.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             line = line.strip()
             if not line:

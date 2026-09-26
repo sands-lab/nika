@@ -56,10 +56,10 @@ def build_session_timeline(
 
     ``source`` may be ``agent``, ``nika``, or ``None`` for the merged view.
     """
-    agent = load_agent_events(session_dir)
-    nika = load_nika_events(session_dir)
     if source == "nika":
-        return nika
+        return load_nika_events(session_dir)
     if source == "agent":
-        return agent
-    return merge_timelines(agent, nika)
+        return load_agent_events(session_dir)
+    return merge_timelines(
+        load_agent_events(session_dir), load_nika_events(session_dir)
+    )

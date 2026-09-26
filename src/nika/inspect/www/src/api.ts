@@ -49,6 +49,7 @@ export interface SessionSummary {
   session_dir: string;
   status: "running" | "finished" | "aborted" | "error";
   lab_name?: string | null;
+  backend?: string | null;
   scenario_name?: string | null;
   scenario_topo_size?: string | null;
   agent_type?: string | null;
@@ -97,6 +98,25 @@ export interface BenchmarkRunSummary {
   session_count: number;
   finished_count: number;
   mean_rca_f1?: number | null;
+}
+
+export interface BenchmarkProgressDoc {
+  run_id: string;
+  result_dir: string;
+  status: string;
+  total_trials: number;
+  completed_trials: number;
+  pending_trials: number;
+  updated_at?: string | null;
+  benchmark_id?: string | null;
+  version?: string | null;
+  agent_type?: string | null;
+  model?: string | null;
+}
+
+export interface BenchmarkProgressResponse {
+  runs: BenchmarkProgressDoc[];
+  total: number;
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -201,10 +221,40 @@ export function fetchSessions(params: URLSearchParams, root?: string | null) {
   return getJson<SessionListResponse>(`/api/sessions?${withRoot(params, root)}`);
 }
 
+export function fetchBenchmarkProgress(opts?: {
+  root?: string | null;
+  under?: string | null;
+  status?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.under) params.set("under", opts.under);
+  const q = withRoot(params, opts?.root).toString();
+  return getJson<BenchmarkProgressResponse>(
+    `/api/benchmark-progress${q ? `?${q}` : ""}`,
+  );
+}
+
 export function fetchSession(id: string, root?: string | null) {
   return getJson<SessionDetail>(
     `/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`,
   );
+}
+
+export async function deleteSession(id: string, root?: string | null) {
+  const res = await fetch(
+    `/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<{
+    deleted: boolean;
+    session_id: string;
+    session_dir: string;
+  }>;
 }
 
 export function fetchTimeline(id: string, source?: string, root?: string | null) {

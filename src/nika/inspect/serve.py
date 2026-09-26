@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import socket
 import sys
+import threading
+import time
 import webbrowser
 from pathlib import Path
 
@@ -17,9 +19,12 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 7580
 
 # Loopback, or all-interfaces. Specific NIC IPs are rejected.
-_ALLOWED_BIND_HOSTS = frozenset(
-    {"127.0.0.1", "localhost", "::1", "0.0.0.0", "::"}
-)
+_ALLOWED_BIND_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "0.0.0.0", "::"})
+
+# One background viewer per process (benchmark auto-start).
+_background_lock = threading.Lock()
+_background_url: str | None = None
+_background_server: uvicorn.Server | None = None
 
 
 def validate_bind_host(host: str) -> str:
@@ -91,23 +96,7 @@ def _pick_port(host: str, port: int) -> int:
         return int(sock.getsockname()[1])
 
 
-def serve_inspect(
-    *,
-    result_dir: str | Path | None = None,
-    host: str = DEFAULT_HOST,
-    port: int = DEFAULT_PORT,
-    open_browser: bool = True,
-) -> None:
-    """Start the session viewer (blocking).
-
-    Default bind is loopback. ``0.0.0.0`` / ``::`` listen on all interfaces;
-    specific interface IPs are rejected.
-    """
-    host = validate_bind_host(host)
-
-    results_root = resolve_results_root(result_dir)
-    bind_port = _pick_port(host, port)
-    app = create_inspect_app(results_root=results_root)
+def _browse_url(host: str, port: int) -> str:
     # Browsers treat 0.0.0.0 poorly; always print a loopback URL for local open.
     if host in {"0.0.0.0", "::"}:
         browse_host = "127.0.0.1"
@@ -115,8 +104,17 @@ def serve_inspect(
         browse_host = f"[{host}]"
     else:
         browse_host = host
-    url = f"http://{browse_host}:{bind_port}/"
+    return f"http://{browse_host}:{port}/"
 
+
+def _print_startup(
+    *,
+    results_root: Path,
+    host: str,
+    bind_port: int,
+    url: str,
+    open_browser: bool,
+) -> None:
     print("NIKA inspect", file=sys.stderr)
     print(f"  results: {results_root}", file=sys.stderr)
     print(f"  url:     {url}", file=sys.stderr)
@@ -135,12 +133,92 @@ def serve_inspect(
             "  tip:     open the URL in Windows (WSL has no GUI browser here)",
             file=sys.stderr,
         )
-    elif _should_open_browser(open_browser=open_browser) and not _try_open_browser(
-        url
-    ):
+    elif _should_open_browser(open_browser=open_browser) and not _try_open_browser(url):
         print(
             "  tip:     open the URL above in a browser (--no-open to skip)",
             file=sys.stderr,
         )
 
+
+def serve_inspect(
+    *,
+    result_dir: str | Path | None = None,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+    open_browser: bool = True,
+) -> None:
+    """Start the session viewer (blocking).
+
+    Default bind is loopback. ``0.0.0.0`` / ``::`` listen on all interfaces;
+    specific interface IPs are rejected.
+    """
+    host = validate_bind_host(host)
+
+    results_root = resolve_results_root(result_dir)
+    bind_port = _pick_port(host, port)
+    app = create_inspect_app(results_root=results_root, bind_host=host)
+    url = _browse_url(host, bind_port)
+    _print_startup(
+        results_root=results_root,
+        host=host,
+        bind_port=bind_port,
+        url=url,
+        open_browser=open_browser,
+    )
+
     uvicorn.run(app, host=host, port=bind_port, log_level="warning")
+
+
+def start_inspect_background(
+    *,
+    result_dir: str | Path | None = None,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> str:
+    """Start the session viewer in a daemon thread; return the browse URL.
+
+    Idempotent within a process: a second call returns the existing URL.
+    Does not open a browser (callers surface the URL themselves).
+    """
+    global _background_url, _background_server
+
+    with _background_lock:
+        if _background_url is not None:
+            return _background_url
+
+        host = validate_bind_host(host)
+        results_root = resolve_results_root(result_dir)
+        bind_port = _pick_port(host, port)
+        app = create_inspect_app(results_root=results_root, bind_host=host)
+        url = _browse_url(host, bind_port)
+
+        config = uvicorn.Config(app, host=host, port=bind_port, log_level="warning")
+        server = uvicorn.Server(config)
+        # Keep Ctrl+C / signals on the owning CLI process (benchmark run).
+        server.install_signal_handlers = False
+
+        thread = threading.Thread(
+            target=server.run,
+            name="nika-inspect-background",
+            daemon=True,
+        )
+        # Publish before wait so a concurrent caller can reuse this attempt.
+        _background_server = server
+        _background_url = url
+        thread.start()
+
+    deadline = time.monotonic() + 5.0
+    while not server.started and time.monotonic() < deadline:
+        if not thread.is_alive():
+            with _background_lock:
+                _background_url = None
+                _background_server = None
+            raise RuntimeError("nika inspect background server exited early")
+        time.sleep(0.05)
+    if not server.started:
+        with _background_lock:
+            _background_url = None
+            _background_server = None
+        raise RuntimeError("nika inspect background server failed to start")
+
+    return url

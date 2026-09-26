@@ -4,8 +4,11 @@ import remarkGfm from "remark-gfm";
 import {
   CanonicalTraceEvent,
   BrowseEntry,
+  BenchmarkProgressDoc,
+  deleteSession,
   formatScore,
   formatTs,
+  fetchBenchmarkProgress,
   fetchBrowse,
   fetchRaw,
   fetchRoots,
@@ -23,13 +26,16 @@ import {
   DisplayEvent,
   buildOverviewSpans,
   collapsePairedEvents,
+  annotateLlmRetryAttempts,
+  closeSupersededOpenSpans,
   displayDurationMs,
   formatDuration,
   formatOverviewClock,
   formatTokenCount,
   buildLlmTurnDetail,
   extractModelName,
-  layoutOverviewSpans,
+  isRunningSpan,
+  llmDurationStats,
   llmTokenUsage,
   OverviewLayoutMode,
   overviewLaneHeightPx,
@@ -39,13 +45,13 @@ import {
   type LaidOutOverviewSpan,
   parseLlmMessageContent,
   parseTs,
-  projectOverviewSpans,
+  projectOverviewDomain,
   roleLabel,
   Role,
   isToolDisplay,
 } from "./roles";
 
-type Tab = "timeline" | "agent" | "nika" | "scores" | "raw";
+type Tab = "overview" | "timeline" | "agent" | "nika" | "scores" | "raw";
 
 const RAW_FILES = [
   "run.json",
@@ -102,21 +108,122 @@ function sessionTitle(s: Pick<SessionSummary, "problem_names" | "scenario_name" 
   return "—";
 }
 
-
-/** Inject / localization params as "host_name=dns_pod0 · intf_name=eth1". */
-function sessionLocation(s: Pick<SessionSummary, "inject_params">): string | null {
-  const params = s.inject_params;
-  if (!params) return null;
-  const entries = Object.entries(params);
-  if (!entries.length) return null;
-  return entries.map(([k, v]) => `${k}=${v}`).join(" · ");
+function sessionDuration(s: SessionSummary, nowMs: number = Date.now()): string {
+  const start = parseTs(s.start_time);
+  if (start == null) return "—";
+  if (s.status === "running") {
+    return formatDuration(Math.max(0, nowMs - start));
+  }
+  const end = parseTs(s.end_time);
+  if (end == null || end < start) return "—";
+  return formatDuration(end - start);
 }
 
-function sessionDuration(s: SessionSummary): string {
+/** Elapsed wall time; only running sessions extend to ``nowMs`` when end_time is missing. */
+function sessionElapsedMs(s: SessionSummary, nowMs: number = Date.now()): number | null {
   const start = parseTs(s.start_time);
-  const end = parseTs(s.end_time);
-  if (start == null || end == null || end < start) return "—";
-  return formatDuration(end - start);
+  if (start == null) return null;
+  const end =
+    s.status === "running"
+      ? (parseTs(s.end_time) ?? nowMs)
+      : parseTs(s.end_time);
+  if (end == null || end < start) return null;
+  return end - start;
+}
+
+/** Whole-second duration for the run monitor (e.g. ``12s``, ``5m 3s``). */
+function formatDurationSeconds(ms: number | null): string {
+  if (ms == null || ms < 0) return "—";
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return secs === 0 ? `${mins}m` : `${mins}m ${secs}s`;
+}
+
+function labDurationStats(sessions: SessionSummary[]): {
+  minMs: number | null;
+  avgMs: number | null;
+  maxMs: number | null;
+  n: number;
+} {
+  const values: number[] = [];
+  for (const s of sessions) {
+    if (s.status !== "finished") continue;
+    const ms = sessionElapsedMs(s);
+    if (ms != null) values.push(ms);
+  }
+  if (!values.length) {
+    return { minMs: null, avgMs: null, maxMs: null, n: 0 };
+  }
+  const sum = values.reduce((a, b) => a + b, 0);
+  return {
+    minMs: Math.min(...values),
+    avgMs: sum / values.length,
+    maxMs: Math.max(...values),
+    n: values.length,
+  };
+}
+
+/**
+ * Active suite time: union of session [start, end] intervals.
+ * Idle gaps (suite paused between trials) are excluded; parallel sessions
+ * are not double-counted. Running sessions extend to ``nowMs``.
+ */
+function suiteElapsedMs(
+  sessions: SessionSummary[],
+  nowMs: number = Date.now(),
+): number | null {
+  const intervals: Array<[number, number]> = [];
+  for (const s of sessions) {
+    const start = parseTs(s.start_time);
+    if (start == null) continue;
+    const end = s.status === "running" ? nowMs : parseTs(s.end_time);
+    if (end == null || end < start) continue;
+    intervals.push([start, end]);
+  }
+  if (!intervals.length) return null;
+  intervals.sort((a, b) => a[0] - b[0]);
+  let total = 0;
+  let curStart = intervals[0][0];
+  let curEnd = intervals[0][1];
+  for (let i = 1; i < intervals.length; i++) {
+    const [s, e] = intervals[i];
+    if (s <= curEnd) {
+      if (e > curEnd) curEnd = e;
+    } else {
+      total += curEnd - curStart;
+      curStart = s;
+      curEnd = e;
+    }
+  }
+  total += curEnd - curStart;
+  return total;
+}
+
+function trialsPerHour(
+  completed: number,
+  elapsedMs: number | null,
+): number | null {
+  if (elapsedMs == null || elapsedMs <= 0 || completed <= 0) return null;
+  return completed / (elapsedMs / 3_600_000);
+}
+
+/** Completion-token generation rate over suite active elapsed. */
+function outTokensPerSec(
+  sumOutTok: number | null,
+  elapsedMs: number | null,
+): number | null {
+  if (elapsedMs == null || elapsedMs <= 0 || sumOutTok == null || sumOutTok <= 0)
+    return null;
+  return sumOutTok / (elapsedMs / 1000);
+}
+
+function fmtTokPerSec(value: number | null): string {
+  if (value == null) return "—";
+  if (value >= 100) return `${Math.round(value)}/s`;
+  if (value >= 10) return `${value.toFixed(1)}/s`;
+  return `${value.toFixed(2)}/s`;
 }
 
 /** Compact wall time for the sessions table (sortable via start_time). */
@@ -142,7 +249,6 @@ type SessionSortKey =
   | "failure"
   | "scenario"
   | "size"
-  | "location"
   | "agent"
   | "model"
   | "rca_f1"
@@ -161,8 +267,6 @@ function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | numb
       return (s.scenario_name || "").toLowerCase();
     case "size":
       return (s.scenario_topo_size || "").toLowerCase();
-    case "location":
-      return (sessionLocation(s) || "").toLowerCase();
     case "agent":
       return (s.agent_type || "").toLowerCase();
     case "model":
@@ -173,8 +277,10 @@ function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | numb
       return parseTs(s.start_time);
     case "duration": {
       const start = parseTs(s.start_time);
+      if (start == null) return null;
+      if (s.status === "running") return Date.now() - start;
       const end = parseTs(s.end_time);
-      if (start == null || end == null || end < start) return null;
+      if (end == null || end < start) return null;
       return end - start;
     }
   }
@@ -221,11 +327,13 @@ type SessionColumnFilters = {
 function SessionsTable({
   sessions,
   onOpen,
+  onDelete,
   showTrial,
   columnFilters,
 }: {
   sessions: SessionSummary[];
   onOpen: (id: string) => void;
+  onDelete?: (session: SessionSummary) => void | Promise<void>;
   showTrial?: boolean;
   columnFilters?: SessionColumnFilters;
 }) {
@@ -233,6 +341,18 @@ function SessionsTable({
     showTrial ? "trial" : "failure",
   );
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const hasRunning = useMemo(
+    () => sessions.some((s) => s.status === "running"),
+    [sessions],
+  );
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasRunning) return;
+    setNowMs(Date.now());
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [hasRunning]);
 
   const sorted = useMemo(() => {
     return [...sessions].sort((a, b) => compareSessions(a, b, sortKey, sortDir));
@@ -278,6 +398,27 @@ function SessionsTable({
   const filterCell = (node: ReactNode) => <th className="th-filter-cell">{node}</th>;
   const filterEmpty = () => <th className="th-filter-cell" />;
 
+  const requestDelete = async (s: SessionSummary) => {
+    if (!onDelete || deletingId) return;
+    if (s.status === "running") {
+      window.alert(
+        "This session is still running. Stop it before deleting the result.",
+      );
+      return;
+    }
+    const id = sessionOpenId(s);
+    const ok = window.confirm(
+      `Delete result for “${sessionTitle(s)}”?\n\nThis removes the session folder under results/ and cannot be undone.`,
+    );
+    if (!ok) return;
+    setDeletingId(id);
+    try {
+      await onDelete(s);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="table-wrap">
       <table className="sessions">
@@ -293,7 +434,7 @@ function SessionsTable({
             {sortTh("rca_f1", "RCA F1")}
             {sortTh("time", "Time")}
             {sortTh("duration", "Duration")}
-            {sortTh("location", "Location")}
+            {onDelete ? <th className="th-actions">Actions</th> : null}
           </tr>
           {columnFilters ? (
             <tr className="th-filter-row">
@@ -406,18 +547,16 @@ function SessionsTable({
               {filterEmpty()}
               {filterEmpty()}
               {filterEmpty()}
-              {filterEmpty()}
+              {onDelete ? filterEmpty() : null}
             </tr>
           ) : null}
         </thead>
         <tbody>
           {sorted.map((s) => {
-            const location = sessionLocation(s);
+            const id = sessionOpenId(s);
+            const busy = deletingId === id;
             return (
-              <tr
-                key={sessionOpenId(s)}
-                onClick={() => onOpen(sessionOpenId(s))}
-              >
+              <tr key={id} onClick={() => onOpen(id)}>
                 <td>
                   <span className={`chip ${s.status}`}>{s.status}</span>
                 </td>
@@ -443,7 +582,11 @@ function SessionsTable({
                 <td>{s.scenario_name || "—"}</td>
                 <td>{s.scenario_topo_size || "—"}</td>
                 <td>{s.agent_type || "—"}</td>
-                <td>{s.model || "—"}</td>
+                <td>
+                  <span className="session-model" title={s.model || undefined}>
+                    {s.model || "—"}
+                  </span>
+                </td>
                 <td>
                   {s.rca_f1 != null ? (
                     <span className="chip score">{formatScore(s.rca_f1)}</span>
@@ -454,16 +597,28 @@ function SessionsTable({
                 <td title={s.start_time || undefined}>
                   <span className="session-time">{sessionShortTime(s)}</span>
                 </td>
-                <td>{sessionDuration(s)}</td>
-                <td>
-                  {location ? (
-                    <span className="session-location" title={location}>
-                      {location}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
-                </td>
+                <td>{sessionDuration(s, nowMs)}</td>
+                {onDelete ? (
+                  <td className="td-actions">
+                    <button
+                      type="button"
+                      className="row-delete"
+                      disabled={busy || s.status === "running"}
+                      title={
+                        s.status === "running"
+                          ? "Stop the session before deleting its result"
+                          : "Delete this session result folder"
+                      }
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void requestDelete(s);
+                      }}
+                    >
+                      {busy ? "…" : "Delete"}
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             );
           })}
@@ -747,8 +902,573 @@ function FolderGlyph() {
   );
 }
 
-const SIDEBAR_WIDTH_KEY = "nika-inspect-sidebar-width-v2";
-const SIDEBAR_WIDTH_DEFAULT = 220;
+function joinFsPath(root: string, rel: string | null): string {
+  const base = root.replace(/\/+$/, "");
+  if (!rel || rel === "." || rel === "") return base;
+  return `${base}/${rel.replace(/^\/+/, "")}`;
+}
+
+function pathIsUnder(child: string, parent: string): boolean {
+  const c = child.replace(/\/+$/, "");
+  const p = parent.replace(/\/+$/, "");
+  return c === p || c.startsWith(`${p}/`);
+}
+
+function pathsOverlap(a: string, b: string): boolean {
+  return pathIsUnder(a, b) || pathIsUnder(b, a);
+}
+
+function sessionsUnderResultDir(
+  sessions: SessionSummary[],
+  resultDir: string,
+): SessionSummary[] {
+  const root = resultDir.replace(/\/+$/, "");
+  return sessions.filter((s) => pathIsUnder(s.session_dir, root));
+}
+
+function meanOf(values: number[]): number | null {
+  if (!values.length) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+type RunMonitorStats = {
+  nika: { running: number; finished: number; aborted: number; error: number };
+  agent: {
+    ok: number;
+    fail: number;
+    passRate: number | null;
+    meanRca: number | null;
+    meanLoc: number | null;
+    meanDet: number | null;
+    meanInTok: number | null;
+    meanOutTok: number | null;
+    meanSteps: number | null;
+    meanTools: number | null;
+    sumInTok: number | null;
+    sumOutTok: number | null;
+  };
+};
+
+function aggregateRunSessions(sessions: SessionSummary[]): RunMonitorStats {
+  const nika = { running: 0, finished: 0, aborted: 0, error: 0 };
+  let ok = 0;
+  let fail = 0;
+  const rca: number[] = [];
+  const loc: number[] = [];
+  const det: number[] = [];
+  const inTok: number[] = [];
+  const outTok: number[] = [];
+  const steps: number[] = [];
+  const tools: number[] = [];
+  for (const s of sessions) {
+    if (s.status === "running") nika.running += 1;
+    else if (s.status === "finished") nika.finished += 1;
+    else if (s.status === "aborted") nika.aborted += 1;
+    else if (s.status === "error") nika.error += 1;
+    if (s.outcome === "success") ok += 1;
+    else if (s.outcome === "agent_failed") fail += 1;
+    if (s.rca_f1 != null) rca.push(s.rca_f1);
+    if (s.localization_f1 != null) loc.push(s.localization_f1);
+    if (s.detection_score != null) det.push(s.detection_score);
+    if (s.in_tokens != null) inTok.push(s.in_tokens);
+    if (s.out_tokens != null) outTok.push(s.out_tokens);
+    if (s.steps != null) steps.push(s.steps);
+    if (s.tool_calls != null) tools.push(s.tool_calls);
+  }
+  const decided = ok + fail;
+  return {
+    nika,
+    agent: {
+      ok,
+      fail,
+      passRate: decided > 0 ? (ok / decided) * 100 : null,
+      meanRca: meanOf(rca),
+      meanLoc: meanOf(loc),
+      meanDet: meanOf(det),
+      meanInTok: meanOf(inTok),
+      meanOutTok: meanOf(outTok),
+      meanSteps: meanOf(steps),
+      meanTools: meanOf(tools),
+      sumInTok: inTok.length ? inTok.reduce((a, b) => a + b, 0) : null,
+      sumOutTok: outTok.length ? outTok.reduce((a, b) => a + b, 0) : null,
+    },
+  };
+}
+
+/**
+ * Progress doc for the selected folder: a running run first, else the latest
+ * stopped one. Running runs also match ancestor folders; stopped runs only
+ * match their own result folder (or a folder inside it).
+ */
+function pickRunProgress(
+  runs: BenchmarkProgressDoc[],
+  folderAbs: string,
+): BenchmarkProgressDoc | null {
+  const matches = runs.filter((r) =>
+    r.status === "running"
+      ? pathsOverlap(r.result_dir, folderAbs)
+      : pathIsUnder(folderAbs, r.result_dir),
+  );
+  if (!matches.length) return null;
+  matches.sort((a, b) => {
+    const ra = a.status === "running" ? 1 : 0;
+    const rb = b.status === "running" ? 1 : 0;
+    if (ra !== rb) return rb - ra;
+    const ta = a.updated_at || "";
+    const tb = b.updated_at || "";
+    if (ta !== tb) return tb.localeCompare(ta);
+    return b.run_id.localeCompare(a.run_id);
+  });
+  return matches[0];
+}
+
+function fmtAvg(value: number | null, digits = 0): string {
+  if (value == null) return "—";
+  return digits === 0 ? String(Math.round(value)) : value.toFixed(digits);
+}
+
+function fmtCompactCount(value: number | null): string {
+  if (value == null) return "—";
+  const n = Math.round(value);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function fmtRate(value: number | null, digits = 1): string {
+  if (value == null) return "—";
+  return `${value.toFixed(digits)}%`;
+}
+
+function fmtPace(value: number | null): string {
+  if (value == null) return "—";
+  if (value >= 10) return value.toFixed(1);
+  return value.toFixed(2);
+}
+
+function AgentStat({
+  label,
+  value,
+  tip,
+  tone,
+  active,
+  onSelect,
+}: {
+  label: string;
+  value: string;
+  tip: string;
+  tone?: "good" | "bad" | "warn" | "neutral";
+  active?: boolean;
+  onSelect?: () => void;
+}) {
+  const clickable = onSelect != null;
+  const className = [
+    "run-stat",
+    tone ? `run-stat-${tone}` : "",
+    clickable ? "run-stat-clickable" : "",
+    active ? "run-stat-active" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        className={className}
+        title={tip}
+        aria-pressed={active}
+        onClick={onSelect}
+      >
+        <span className="run-stat-key">{label}</span>
+        <span className="run-stat-value">{value}</span>
+      </button>
+    );
+  }
+  return (
+    <span className={className} title={tip}>
+      <span className="run-stat-key">{label}</span>
+      <span className="run-stat-value">{value}</span>
+    </span>
+  );
+}
+
+type MonitorListFilter =
+  | { kind: "status"; value: "running" | "finished" | "aborted" | "error" }
+  | { kind: "outcome"; value: "success" | "agent_failed" };
+
+function monitorFilterLabel(filter: MonitorListFilter): string {
+  if (filter.kind === "status") return `status=${filter.value}`;
+  if (filter.value === "agent_failed") return "outcome=agent_failed";
+  return "outcome=success";
+}
+
+function applyMonitorListFilter(
+  sessions: SessionSummary[],
+  filter: MonitorListFilter | null,
+): SessionSummary[] {
+  if (!filter) return sessions;
+  if (filter.kind === "status") {
+    return sessions.filter((s) => s.status === filter.value);
+  }
+  return sessions.filter((s) => s.outcome === filter.value);
+}
+
+function toggleMonitorFilter(
+  current: MonitorListFilter | null,
+  next: MonitorListFilter,
+): MonitorListFilter | null {
+  if (
+    current &&
+    current.kind === next.kind &&
+    current.value === next.value
+  ) {
+    return null;
+  }
+  return next;
+}
+
+/** Hover copy for run-monitor chips (operator reference). */
+const RUN_MONITOR_TIPS = {
+  status: "Suite status from runtime/benchmark_runs: running, finished, or aborted.",
+  progress:
+    "completed / total. Pending = total - completed from the progress file.",
+  updated: "Last write time of the suite progress file.",
+  running: "Sessions with status=running. Click to filter the list.",
+  finished: "Sessions with status=finished. Click to filter the list.",
+  error: "Sessions with status=error. Click to filter the list.",
+  aborted: "Sessions with status=aborted. Click to filter the list.",
+  labMin: (n: number) =>
+    `Shortest finished-lab duration among ${n} sessions. min(end - start).`,
+  labAvg: (n: number) =>
+    `Mean finished-lab duration among ${n} sessions. avg(end - start).`,
+  labMax: (n: number) =>
+    `Longest finished-lab duration among ${n} sessions. max(end - start).`,
+  suiteElapsed:
+    "Active execution time: union of session intervals (idle gaps when the suite is paused are excluded).",
+  trialsPerHour:
+    "completed / suite_elapsed_hours. Throughput of finished trials so far.",
+  ok: "Trials with outcome=success. Click to filter the list.",
+  fail: "Trials with outcome=agent_failed. Click to filter the list.",
+  passRate: "success / (success + agent_failed) × 100.",
+  avgRca: "avg(rca_f1) over trials that reported it.",
+  avgLoc: "avg(localization_f1) over trials that reported it.",
+  avgDet: "avg(detection_score) over trials that reported it.",
+  avgInTok: "avg(in_tokens) over trials that reported it (prompt tokens).",
+  avgOutTok: "avg(out_tokens) over trials that reported it (completion tokens).",
+  outTokPerSec:
+    "sum(out_tokens) / suite_elapsed_seconds. Completion-token generation rate over active suite time.",
+  avgSteps: "avg(steps) over trials that reported it.",
+  avgTools: "avg(tool_calls) over trials that reported it.",
+  llmMin: "Shortest completed LLM request duration in this run.",
+  llmAvg: "Mean completed LLM request duration in this run.",
+  llmMax: "Longest completed LLM request duration in this run.",
+} as const;
+
+function RunMonitor({
+  progress,
+  sessions,
+  root,
+  listFilter,
+  onListFilter,
+}: {
+  progress: BenchmarkProgressDoc | null;
+  sessions: SessionSummary[];
+  root: string;
+  listFilter: MonitorListFilter | null;
+  onListFilter: (next: MonitorListFilter | null) => void;
+}) {
+  const stats = useMemo(() => aggregateRunSessions(sessions), [sessions]);
+  const durationStats = useMemo(() => labDurationStats(sessions), [sessions]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const elapsedMs = useMemo(
+    () => suiteElapsedMs(sessions, nowMs),
+    [sessions, nowMs],
+  );
+  const [llmRows, setLlmRows] = useState<DisplayEvent[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!sessions.length) {
+      setLlmRows([]);
+      return;
+    }
+    void Promise.all(
+      sessions.map((s) => {
+        const id = sessionOpenId(s);
+        const live = s.status === "running";
+        return fetchTimeline(id, "agent", root)
+          .then((t) => {
+            // Match SessionView: freeze unpaired llm_start once the session is
+            // done, otherwise LLM max keeps ticking past the lab timeline.
+            const collapsed = collapsePairedEvents(t.events);
+            const closed = closeSupersededOpenSpans(collapsed);
+            if (live) return closed;
+            return closed.map((r) =>
+              isRunningSpan(r)
+                ? {
+                    ...r,
+                    stale: true,
+                    summary:
+                      r.summary === "in progress"
+                        ? "no end logged"
+                        : r.summary,
+                  }
+                : r,
+            );
+          })
+          .catch(() => [] as DisplayEvent[]);
+      }),
+    ).then((parts) => {
+      if (!cancelled) setLlmRows(parts.flat());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessions, root]);
+  const llmStats = useMemo(() => llmDurationStats(llmRows), [llmRows]);
+  const label =
+    progress?.benchmark_id != null
+      ? `${progress.benchmark_id}${progress.version ? `@${progress.version}` : ""}`
+      : sessions.find((s) => s.benchmark_label)?.benchmark_label ||
+        sessions.find((s) => s.benchmark_id)?.benchmark_id ||
+        "Benchmark";
+  const agentType =
+    progress?.agent_type || sessions.find((s) => s.agent_type)?.agent_type;
+  const model = progress?.model || sessions.find((s) => s.model)?.model;
+  const completed =
+    progress?.completed_trials ??
+    sessions.filter((s) => s.outcome === "success" || s.outcome === "agent_failed")
+      .length;
+  const total =
+    progress?.total_trials ||
+    sessions.find((s) => s.benchmark_n_trials)?.benchmark_n_trials ||
+    sessions.length;
+  const pending =
+    progress?.pending_trials ?? Math.max(0, total - completed);
+  const status =
+    progress?.status ||
+    (sessions.some((s) => s.status === "running")
+      ? "running"
+      : sessions.some((s) => s.status === "aborted")
+        ? "aborted"
+        : "finished");
+  const nFinished = durationStats.n;
+  const pace = trialsPerHour(completed, elapsedMs);
+  const tokRate = outTokensPerSec(stats.agent.sumOutTok, elapsedMs);
+
+  const selectStatus = (
+    value: "running" | "finished" | "aborted" | "error",
+  ) => {
+    onListFilter(
+      toggleMonitorFilter(listFilter, { kind: "status", value }),
+    );
+  };
+  const selectOutcome = (value: "success" | "agent_failed") => {
+    onListFilter(
+      toggleMonitorFilter(listFilter, { kind: "outcome", value }),
+    );
+  };
+  const isStatus = (value: string) =>
+    listFilter?.kind === "status" && listFilter.value === value;
+  const isOutcome = (value: string) =>
+    listFilter?.kind === "outcome" && listFilter.value === value;
+
+  return (
+    <div className="run-monitor benchmark-card">
+      <div className="benchmark-card-head run-monitor-head">
+        <div>
+          <div className="run-monitor-title-row">
+            <span className={`chip ${status}`} title={RUN_MONITOR_TIPS.status}>
+              {status}
+            </span>
+            <h2>{label}</h2>
+          </div>
+          <div className="benchmark-meta">
+            {[agentType, model].filter(Boolean).join(" · ") || "—"}
+            {progress?.run_id ? ` · run ${progress.run_id}` : ""}
+          </div>
+        </div>
+        <div className="benchmark-stats run-monitor-progress">
+          <span className="run-monitor-progress-text" title={RUN_MONITOR_TIPS.progress}>
+            <strong>
+              {completed}/{total}
+            </strong>
+            {pending > 0 ? ` · ${pending} pending` : ""}
+          </span>
+          {progress?.updated_at && (
+            <span
+              className="run-monitor-updated"
+              title={`${RUN_MONITOR_TIPS.updated} ${progress.updated_at}`}
+            >
+              updated {formatTs(progress.updated_at)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="run-monitor-body">
+        <div className="run-monitor-row">
+          <span className="run-monitor-label">NIKA</span>
+          <div className="run-monitor-metrics">
+            <AgentStat
+              label="Running"
+              value={String(stats.nika.running)}
+              tone="warn"
+              tip={RUN_MONITOR_TIPS.running}
+              active={isStatus("running")}
+              onSelect={() => selectStatus("running")}
+            />
+            <AgentStat
+              label="Finished"
+              value={String(stats.nika.finished)}
+              tone="good"
+              tip={RUN_MONITOR_TIPS.finished}
+              active={isStatus("finished")}
+              onSelect={() => selectStatus("finished")}
+            />
+            <AgentStat
+              label="Error"
+              value={String(stats.nika.error)}
+              tone="bad"
+              tip={RUN_MONITOR_TIPS.error}
+              active={isStatus("error")}
+              onSelect={() => selectStatus("error")}
+            />
+            <AgentStat
+              label="Aborted"
+              value={String(stats.nika.aborted)}
+              tip={RUN_MONITOR_TIPS.aborted}
+              active={isStatus("aborted")}
+              onSelect={() => selectStatus("aborted")}
+            />
+            <span className="run-monitor-sep" aria-hidden />
+            {nFinished > 0 && (
+              <>
+                <AgentStat
+                  label="Lab min"
+                  value={formatDurationSeconds(durationStats.minMs)}
+                  tip={RUN_MONITOR_TIPS.labMin(nFinished)}
+                />
+                <AgentStat
+                  label="Lab avg"
+                  value={formatDurationSeconds(durationStats.avgMs)}
+                  tip={RUN_MONITOR_TIPS.labAvg(nFinished)}
+                />
+                <AgentStat
+                  label="Lab max"
+                  value={formatDurationSeconds(durationStats.maxMs)}
+                  tip={RUN_MONITOR_TIPS.labMax(nFinished)}
+                />
+                <span className="run-monitor-sep" aria-hidden />
+              </>
+            )}
+            <AgentStat
+              label="Suite elapsed"
+              value={formatDurationSeconds(elapsedMs)}
+              tip={RUN_MONITOR_TIPS.suiteElapsed}
+            />
+            <AgentStat
+              label="Trials / h"
+              value={fmtPace(pace)}
+              tip={RUN_MONITOR_TIPS.trialsPerHour}
+            />
+          </div>
+        </div>
+        <div className="run-monitor-row">
+          <span className="run-monitor-label">Agent</span>
+          <div className="run-monitor-metrics">
+            <AgentStat
+              label="Success"
+              value={String(stats.agent.ok)}
+              tone="good"
+              tip={RUN_MONITOR_TIPS.ok}
+              active={isOutcome("success")}
+              onSelect={() => selectOutcome("success")}
+            />
+            <AgentStat
+              label="Failed"
+              value={String(stats.agent.fail)}
+              tone="bad"
+              tip={RUN_MONITOR_TIPS.fail}
+              active={isOutcome("agent_failed")}
+              onSelect={() => selectOutcome("agent_failed")}
+            />
+            <AgentStat
+              label="Pass rate"
+              value={fmtRate(stats.agent.passRate, 0)}
+              tip={RUN_MONITOR_TIPS.passRate}
+            />
+            <span className="run-monitor-sep" aria-hidden />
+            <AgentStat
+              label="Avg RCA"
+              value={formatScore(stats.agent.meanRca)}
+              tip={RUN_MONITOR_TIPS.avgRca}
+            />
+            <AgentStat
+              label="Avg loc"
+              value={formatScore(stats.agent.meanLoc)}
+              tip={RUN_MONITOR_TIPS.avgLoc}
+            />
+            <AgentStat
+              label="Avg det"
+              value={formatScore(stats.agent.meanDet)}
+              tip={RUN_MONITOR_TIPS.avgDet}
+            />
+            <span className="run-monitor-sep" aria-hidden />
+            <AgentStat
+              label="Avg in tokens"
+              value={fmtCompactCount(stats.agent.meanInTok)}
+              tip={RUN_MONITOR_TIPS.avgInTok}
+            />
+            <AgentStat
+              label="Avg out tokens"
+              value={fmtCompactCount(stats.agent.meanOutTok)}
+              tip={RUN_MONITOR_TIPS.avgOutTok}
+            />
+            <AgentStat
+              label="Out tok/s"
+              value={fmtTokPerSec(tokRate)}
+              tip={RUN_MONITOR_TIPS.outTokPerSec}
+            />
+            <span className="run-monitor-sep" aria-hidden />
+            <AgentStat
+              label="LLM min"
+              value={formatDuration(llmStats.minMs)}
+              tip={RUN_MONITOR_TIPS.llmMin}
+            />
+            <AgentStat
+              label="LLM avg"
+              value={formatDuration(llmStats.avgMs)}
+              tip={RUN_MONITOR_TIPS.llmAvg}
+            />
+            <AgentStat
+              label="LLM max"
+              value={formatDuration(llmStats.maxMs)}
+              tip={RUN_MONITOR_TIPS.llmMax}
+            />
+            <span className="run-monitor-sep" aria-hidden />
+            <AgentStat
+              label="Avg steps"
+              value={fmtAvg(stats.agent.meanSteps)}
+              tip={RUN_MONITOR_TIPS.avgSteps}
+            />
+            <AgentStat
+              label="Avg tools"
+              value={fmtAvg(stats.agent.meanTools, 1)}
+              tip={RUN_MONITOR_TIPS.avgTools}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SIDEBAR_WIDTH_KEY = "nika-inspect-sidebar-width-v3";
+const SIDEBAR_WIDTH_DEFAULT = 176;
 const SIDEBAR_WIDTH_MIN = 160;
 const SIDEBAR_WIDTH_MAX = 520;
 
@@ -787,6 +1507,7 @@ function ViewShell({
     trial_indices: [],
   });
   const [resultsRoot, setResultsRoot] = useState("");
+  const [runProgress, setRunProgress] = useState<BenchmarkProgressDoc[]>([]);
   const [status, setStatus] = useState("all");
   const [trial, setTrial] = useState("");
   const [scenario, setScenario] = useState("");
@@ -795,10 +1516,15 @@ function ViewShell({
   const [problem, setProblem] = useState("");
   const [topoSize, setTopoSize] = useState("");
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Bumped on delete so an in-flight poll cannot bring the row back. */
+  const listGenRef = useRef(0);
+  const viewingSession = sessionId != null;
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(loadTreeExpanded);
+  const [listFilter, setListFilter] = useState<MonitorListFilter | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth);
   const sidebarDragging = useRef(false);
   const sidebarWidthRef = useRef(sidebarWidth);
@@ -838,6 +1564,18 @@ function ViewShell({
   }, []);
 
   useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQ(q), 250);
+    return () => window.clearTimeout(id);
+  }, [q]);
+
+  // A different results root is a different list: show loading once.
+  useEffect(() => {
+    setLoading(true);
+  }, [root]);
+
+  // Poll the list only while it is on screen; filter changes keep the old
+  // table visible (only the very first load shows "Loading sessions…").
+  useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ status });
     if (scenario) params.set("scenario", scenario);
@@ -846,12 +1584,12 @@ function ViewShell({
     if (problem) params.set("problem", problem);
     if (topoSize) params.set("topo_size", topoSize);
     if (trial) params.set("trial_index", trial);
-    if (q.trim()) params.set("q", q.trim());
+    if (debouncedQ.trim()) params.set("q", debouncedQ.trim());
     const load = (background: boolean) => {
-      if (!background) setLoading(true);
+      const gen = listGenRef.current;
       fetchSessions(params, root)
         .then((data) => {
-          if (cancelled) return;
+          if (cancelled || gen !== listGenRef.current) return;
           setSessions(data.sessions);
           if (data.facets) setFacets(data.facets);
           setResultsRoot(data.results_root);
@@ -865,12 +1603,44 @@ function ViewShell({
         });
     };
     load(false);
-    const poll = window.setInterval(() => load(true), 3000);
+    const poll = viewingSession
+      ? undefined
+      : window.setInterval(() => load(true), 3000);
     return () => {
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [root, status, trial, scenario, agent, model, problem, topoSize, q]);
+  }, [
+    root,
+    status,
+    trial,
+    scenario,
+    agent,
+    model,
+    problem,
+    topoSize,
+    debouncedQ,
+    viewingSession,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetchBenchmarkProgress({ root, status: "all" })
+        .then((data) => {
+          if (!cancelled) setRunProgress(data.runs);
+        })
+        .catch(() => {
+          if (!cancelled) setRunProgress([]);
+        });
+    };
+    load();
+    const poll = viewingSession ? undefined : window.setInterval(load, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+    };
+  }, [root, viewingSession]);
 
   const tree = useMemo(() => buildPathTree(sessions), [sessions]);
 
@@ -898,6 +1668,58 @@ function ViewShell({
         : sessionsUnderSelection(sessions, selectedPath, selectedNode?.memberKeys),
     [sessions, selectedPath, selectedNode],
   );
+
+  const folderAbs = useMemo(() => {
+    if (!resultsRoot || selectedPath == null) return null;
+    return joinFsPath(resultsRoot, selectedPath);
+  }, [resultsRoot, selectedPath]);
+
+  const activeProgress = useMemo(() => {
+    if (!folderAbs) return null;
+    return pickRunProgress(runProgress, folderAbs);
+  }, [runProgress, folderAbs]);
+
+  const monitorSessions = useMemo(() => {
+    if (activeProgress) {
+      return sessionsUnderResultDir(sessions, activeProgress.result_dir);
+    }
+    if (!folderAbs || selectedPath == null) return [];
+    const under = sessionsUnderSelection(
+      sessions,
+      selectedPath,
+      selectedNode?.memberKeys,
+    );
+    const bench = under.filter((s) => s.is_benchmark);
+    if (bench.some((s) => s.status === "running")) return bench;
+    // Runs without a progress doc (e.g. from a cases file) stay visible after
+    // they stop, as long as the folder holds a single agent/model/benchmark.
+    // Sessions aborted before run metadata was written carry no identity.
+    const runKeys = new Set(
+      bench
+        .map((s) => [s.agent_type, s.model, s.benchmark_id, s.benchmark_run_id])
+        .filter((k) => k.some((v) => v != null && v !== ""))
+        .map((k) => k.join("|")),
+    );
+    return runKeys.size === 1 ? bench : [];
+  }, [activeProgress, sessions, folderAbs, selectedPath, selectedNode]);
+
+  const showMonitor =
+    !sessionId && (activeProgress != null || monitorSessions.length > 0);
+
+  // Monitor click-filters apply across the whole run, not just the selected trial folder.
+  const tableSessions = useMemo(() => {
+    if (listFilter && monitorSessions.length) {
+      return applyMonitorListFilter(monitorSessions, listFilter);
+    }
+    return applyMonitorListFilter(visibleSessions, listFilter);
+  }, [listFilter, monitorSessions, visibleSessions]);
+
+  const onMonitorListFilter = useCallback((next: MonitorListFilter | null) => {
+    setListFilter(next);
+    // Outcome filters need every status; reset the table Status dropdown.
+    if (next?.kind === "outcome") setStatus("all");
+    if (next?.kind === "status") setStatus("all");
+  }, []);
 
   const breadcrumb = selectedPath
     ? selectedPath
@@ -1046,10 +1868,30 @@ function ViewShell({
           />
         ) : (
           <div className="main pane-list">
+            {showMonitor && (
+              <RunMonitor
+                progress={activeProgress}
+                sessions={monitorSessions}
+                root={root}
+                listFilter={listFilter}
+                onListFilter={onMonitorListFilter}
+              />
+            )}
             <div className="home-toolbar">
               <div className="home-breadcrumb" title={breadcrumb}>
                 {breadcrumb || "Select a folder"}
               </div>
+              {listFilter && (
+                <button
+                  type="button"
+                  className="home-filter-chip"
+                  title="Clear monitor filter"
+                  onClick={() => setListFilter(null)}
+                >
+                  Filter: {monitorFilterLabel(listFilter)}
+                  <span aria-hidden> ×</span>
+                </button>
+              )}
               <input
                 className="home-search"
                 type="search"
@@ -1062,12 +1904,30 @@ function ViewShell({
               <div className="empty">Loading sessions…</div>
             ) : selectedPath == null ? (
               <div className="empty">Select a folder on the left</div>
-            ) : visibleSessions.length === 0 ? (
-              <div className="empty">No sessions in this folder</div>
+            ) : tableSessions.length === 0 ? (
+              <div className="empty">
+                {listFilter
+                  ? `No sessions match ${monitorFilterLabel(listFilter)}`
+                  : "No sessions in this folder"}
+              </div>
             ) : (
               <SessionsTable
-                sessions={visibleSessions}
+                sessions={tableSessions}
                 onOpen={onOpenSession}
+                onDelete={async (s) => {
+                  const id = sessionOpenId(s);
+                  try {
+                    await deleteSession(id, root);
+                    listGenRef.current += 1;
+                    setSessions((prev) =>
+                      prev.filter((x) => sessionOpenId(x) !== id),
+                    );
+                  } catch (err) {
+                    window.alert(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  }
+                }}
                 showTrial={showTrialCol}
                 columnFilters={columnFilters}
               />
@@ -1087,7 +1947,10 @@ function nameBadgeLabel(row: DisplayEvent): string {
   if (isToolDisplay(row)) return row.title || "tool";
   if (row.role === "nika") return row.event?.replaceAll("_", " ") || row.title;
   if (row.role === "assistant") {
-    return row.event === "llm" || row.kind === "llm" ? "llm" : row.event || row.title;
+    if (row.event === "llm" || row.kind === "llm") {
+      return row.attempt != null ? `llm attempt #${row.attempt}` : row.title;
+    }
+    return row.event || row.title;
   }
   // System / other: prefer human title (e.g. "warning") over raw event
   // names like "item.completed".
@@ -1143,6 +2006,29 @@ type OverlapPopup = {
   top: number;
 };
 
+/** Drag threshold before a press becomes a brush / pan (px). */
+const OVERVIEW_DRAG_PX = 3;
+/** Smallest zoom window: sequence units in equal mode, ms otherwise. */
+const OVERVIEW_MIN_ZOOM_UNITS = 4;
+const OVERVIEW_MIN_ZOOM_MS = 20;
+/** Edge auto-pan while brushing a zoomed track (Harness defaults). */
+const OVERVIEW_EDGE_ZONE_FRACTION = 0.08;
+const OVERVIEW_EDGE_STEP_FRACTION = 0.025;
+const OVERVIEW_MAX_EDGE_PX = 32;
+/** Equal-mode chip inset per side, in sequence units (scales with zoom). */
+const OVERVIEW_EQUAL_INSET = 0.08;
+
+/** Range in the active overview domain (sequence units or ms). */
+type DomainRange = { start: number; end: number };
+
+function orderedRange(a: number, b: number): DomainRange {
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function OverviewTimeline({
   events,
   selectedId,
@@ -1152,7 +2038,7 @@ function OverviewTimeline({
 }: {
   events: CanonicalTraceEvent[];
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   brush: TimeBrush | null;
   onBrushChange: (brush: TimeBrush | null) => void;
 }) {
@@ -1161,9 +2047,9 @@ function OverviewTimeline({
   const wheelCleanupRef = useRef<(() => void) | null>(null);
   const dragRef = useRef<{
     pointerId: number;
+    anchorX: number;
     originX: number;
     originY: number;
-    originPct: number;
     moved: boolean;
   } | null>(null);
   const panRef = useRef<{
@@ -1173,9 +2059,14 @@ function OverviewTimeline({
     moved: boolean;
     pannable: boolean;
   } | null>(null);
-  /** Visual brush draft in track % (equal and duration). */
-  const [draftPct, setDraftPct] = useState<{ a: number; b: number } | null>(null);
-  const [viewport, setViewport] = useState<TimeBrush | null>(null);
+  /** In-progress brush, in domain coordinates (survives edge auto-pan). */
+  const [draft, setDraft] = useState<DomainRange | null>(null);
+  /** Last committed brush with the exact domain range the user dragged. */
+  const [committed, setCommitted] = useState<{
+    range: DomainRange;
+    brush: TimeBrush;
+  } | null>(null);
+  const [viewport, setViewport] = useState<DomainRange | null>(null);
   const [panning, setPanning] = useState(false);
   const [layoutMode, setLayoutMode] = useState<OverviewLayoutMode>(loadOverviewLayout);
   const [overlapPop, setOverlapPop] = useState<OverlapPopup | null>(null);
@@ -1183,6 +2074,8 @@ function OverviewTimeline({
   const setLayout = (mode: OverviewLayoutMode) => {
     setLayoutMode(mode);
     setViewport(null);
+    setDraft(null);
+    setCommitted(null);
     setOverlapPop(null);
     try {
       localStorage.setItem(OVERVIEW_LAYOUT_KEY, mode);
@@ -1193,52 +2086,73 @@ function OverviewTimeline({
 
   const spans = useMemo(() => buildOverviewSpans(events), [events]);
 
-  // Zoom forces a timed projection; equal → actual wall-clock while zoomed.
-  const paintMode: OverviewLayoutMode = viewport
-    ? layoutMode === "equal"
-      ? "actual"
-      : layoutMode
-    : layoutMode;
-
-  // Domain spans: duration mode uses idle-compressed coordinates for zoom/pan.
-  const domainSpans = useMemo(
-    () => projectOverviewSpans(spans, paintMode),
-    [spans, paintMode],
+  // One domain per mode; zoom/pan/brush never switch the projection.
+  const domain = useMemo(
+    () => projectOverviewDomain(spans, layoutMode),
+    [spans, layoutMode],
   );
 
-  const fullDomain = useMemo(() => {
-    if (domainSpans.length === 0) return null;
-    const start = Math.min(...domainSpans.map((s) => s.startMs));
-    const end = Math.max(...domainSpans.map((s) => s.endMs));
-    return { start, end: Math.max(end, start + 1) };
-  }, [domainSpans]);
+  // Stack rows on the full domain so overlap layers stay put while zooming.
+  const stackedFull = useMemo(() => {
+    if (!domain) return [];
+    const fullLen = domain.end - domain.start;
+    return assignLaneStackRows(
+      domain.items.map((it) => ({
+        ...it,
+        leftPct: ((it.x0 - domain.start) / fullLen) * 100,
+        widthPct: ((it.x1 - it.x0) / fullLen) * 100,
+      })),
+    );
+  }, [domain]);
 
   // Drop a stale viewport when the session domain changes.
   useEffect(() => {
-    if (!fullDomain || !viewport) return;
-    if (viewport.endMs < fullDomain.start || viewport.startMs > fullDomain.end) {
+    if (!domain || !viewport) return;
+    if (viewport.end < domain.start || viewport.start > domain.end) {
       setViewport(null);
     }
-  }, [fullDomain, viewport]);
+  }, [domain, viewport]);
 
-  const viewDomain = useMemo(() => {
-    if (!fullDomain) return null;
-    if (!viewport) return fullDomain;
-    const fullMs = fullDomain.end - fullDomain.start;
-    const dur = Math.min(fullMs, Math.max(1, viewport.endMs - viewport.startMs));
-    const start = Math.min(
-      Math.max(viewport.startMs, fullDomain.start),
-      fullDomain.end - dur,
-    );
-    return { start, end: start + dur };
-  }, [fullDomain, viewport]);
+  const viewDomain = useMemo((): DomainRange | null => {
+    if (!domain) return null;
+    if (!viewport) return { start: domain.start, end: domain.end };
+    const fullLen = domain.end - domain.start;
+    const len = Math.min(fullLen, Math.max(1e-6, viewport.end - viewport.start));
+    const start = clampNumber(viewport.start, domain.start, domain.end - len);
+    return { start, end: start + len };
+  }, [domain, viewport]);
+
+  // Keep the selected event on screen while zoomed (Harness-style follow).
+  useEffect(() => {
+    if (!domain || !selectedId) return;
+    const hit = domain.items.find((it) => it.span.eventId === selectedId);
+    if (!hit) return;
+    setViewport((current) => {
+      if (!current) return current;
+      if (hit.x1 > current.start && hit.x0 < current.end) return current;
+      const len = current.end - current.start;
+      const desired = hit.x1 <= current.start ? hit.x0 : hit.x1 - len;
+      const start = clampNumber(desired, domain.start, domain.end - len);
+      return start === current.start ? current : { start, end: start + len };
+    });
+  }, [domain, selectedId]);
 
   const laidOut = useMemo(() => {
     if (!viewDomain) return [];
-    return layoutOverviewSpans(spans, viewDomain.start, viewDomain.end, paintMode);
-  }, [spans, viewDomain, paintMode]);
-
-  const stacked = useMemo(() => assignLaneStackRows(laidOut), [laidOut]);
+    const viewLen = viewDomain.end - viewDomain.start;
+    const inset = layoutMode === "equal" ? OVERVIEW_EQUAL_INSET : 0;
+    return stackedFull
+      .filter((it) => it.x1 >= viewDomain.start && it.x0 <= viewDomain.end)
+      .map((it) => {
+        const x0 = it.x0 + inset;
+        const x1 = Math.max(x0, it.x1 - inset);
+        return {
+          ...it,
+          leftPct: ((x0 - viewDomain.start) / viewLen) * 100,
+          widthPct: ((x1 - x0) / viewLen) * 100,
+        };
+      });
+  }, [stackedFull, viewDomain, layoutMode]);
 
   const laneHeights = useMemo(() => {
     // Fixed compact lanes — overlaps stay stacked with a slight height nudge.
@@ -1246,57 +2160,74 @@ function OverviewTimeline({
   }, []);
 
   const turnBoundaries = useMemo(
-    () => overviewTurnBoundaryPcts(laidOut),
+    () => overviewTurnBoundaryPcts(laidOut).filter((p) => p > 0 && p < 100),
     [laidOut],
   );
 
+  const domainRef = useRef(domain);
   const viewDomainRef = useRef(viewDomain);
-  const fullDomainRef = useRef(fullDomain);
+  const layoutModeRef = useRef(layoutMode);
+  domainRef.current = domain;
   viewDomainRef.current = viewDomain;
-  fullDomainRef.current = fullDomain;
+  layoutModeRef.current = layoutMode;
 
   const onWheelZoom = useCallback((event: WheelEvent) => {
     event.preventDefault();
     event.stopPropagation();
     const track = trackRef.current;
-    const domain = fullDomainRef.current;
+    const d = domainRef.current;
     const visible = viewDomainRef.current;
-    if (!track || !domain || !visible) return;
-    const fullMs = domain.end - domain.start;
-    const currentMs = visible.end - visible.start;
+    if (!track || !d || !visible) return;
     const rect = track.getBoundingClientRect();
     if (rect.width <= 0) return;
-    const anchorFraction = Math.min(
-      1,
-      Math.max(0, (event.clientX - rect.left) / rect.width),
-    );
     // Normalize wheel/trackpad deltas (pixels / lines / pages).
-    let dy = event.deltaY;
-    if (event.deltaMode === 1) dy *= 16;
-    else if (event.deltaMode === 2) dy *= rect.height;
-    const clamped = Math.max(-160, Math.min(160, dy));
-    // Discrete-enough steps so pixel-mode trackpads still feel responsive.
-    const intensity = Math.max(0.1, Math.min(1, Math.abs(clamped) / 90));
-    const direction = Math.sign(clamped) || 1;
-    const minMs = Math.min(fullMs, Math.max(50, fullMs * 0.002));
-    const nextMs = Math.min(
-      fullMs,
-      Math.max(minMs, currentMs * Math.exp(direction * intensity * 0.55)),
-    );
-    if (nextMs >= fullMs * 0.999) {
-      setViewport(null);
-      return;
+    const unit =
+      event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.width : 1;
+    const dx = event.deltaX * unit;
+    const dy = event.deltaY * unit;
+    const fullLen = d.end - d.start;
+    const viewLen = visible.end - visible.start;
+    let next: DomainRange | null;
+    if (Math.abs(dx) > Math.abs(dy) || event.shiftKey) {
+      // Horizontal wheel / shift+wheel pans a zoomed viewport.
+      if (viewLen >= fullLen) return;
+      const px = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+      const start = clampNumber(
+        visible.start + (px / rect.width) * viewLen,
+        d.start,
+        d.end - viewLen,
+      );
+      next = { start, end: start + viewLen };
+    } else {
+      const minLen = Math.min(
+        fullLen,
+        layoutModeRef.current === "equal"
+          ? OVERVIEW_MIN_ZOOM_UNITS
+          : OVERVIEW_MIN_ZOOM_MS,
+      );
+      const step = clampNumber(dy, -300, 300) * 0.0015;
+      const nextLen = clampNumber(viewLen * Math.exp(step), minLen, fullLen);
+      if (nextLen >= fullLen * 0.999) {
+        next = null;
+      } else {
+        const anchor = clampNumber((event.clientX - rect.left) / rect.width, 0, 1);
+        const anchorX = visible.start + anchor * viewLen;
+        const start = clampNumber(
+          anchorX - anchor * nextLen,
+          d.start,
+          d.end - nextLen,
+        );
+        next = { start, end: start + nextLen };
+      }
     }
-    const anchorTime = visible.start + anchorFraction * currentMs;
-    const nextStart = Math.min(
-      Math.max(anchorTime - anchorFraction * nextMs, domain.start),
-      domain.end - nextMs,
-    );
-    setViewport({ startMs: nextStart, endMs: nextStart + nextMs });
+    // Several wheel events can land before React re-renders; chain from the
+    // latest viewport instead of the last rendered one.
+    viewDomainRef.current = next ?? { start: d.start, end: d.end };
+    setViewport(next);
   }, []);
 
   // Attach non-passive wheel on the track node itself (callback ref survives
-  // fullDomain object churn from polling).
+  // domain object churn from polling).
   const setTrackNode = useCallback(
     (node: HTMLDivElement | null) => {
       wheelCleanupRef.current?.();
@@ -1316,28 +2247,42 @@ function OverviewTimeline({
     wheelCleanupRef.current = null;
   }, []);
 
+  const clearBrush = useCallback(() => {
+    setDraft(null);
+    setCommitted(null);
+    onBrushChange(null);
+  }, [onBrushChange]);
+
   // Escape closes overlap zoom, then clears the brush (Harness-style).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Escape inside a field (path input, search) belongs to that field.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable]")) return;
       if (overlapPop) {
         setOverlapPop(null);
         return;
       }
-      setDraftPct(null);
-      onBrushChange(null);
+      clearBrush();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBrushChange, overlapPop]);
+  }, [clearBrush, overlapPop]);
 
   const openOverlapPopup = (
     hit: LaidOutOverviewSpan,
     clientX: number,
     clientY: number,
   ) => {
-    const laneItems = stacked.filter((it) => it.span.lane === hit.span.lane);
+    const laneItems = laidOut.filter((it) => it.span.lane === hit.span.lane);
     const group = overlappingGroup(hit, laneItems);
+    // Same bar again clears selection (and any overlap picker).
+    if (selectedId === hit.span.eventId) {
+      onSelect(null);
+      setOverlapPop(null);
+      return;
+    }
     onSelect(hit.span.eventId);
     if (group.length <= 1) {
       setOverlapPop(null);
@@ -1354,12 +2299,13 @@ function OverviewTimeline({
     setOverlapPop({ items: group, left, top });
   };
 
-  const pctAtClientX = (clientX: number): number | null => {
+  /** Pointer x as a 0..1 fraction of the track width. */
+  const fractionAtClientX = (clientX: number): number | null => {
     const el = trackRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0) return null;
-    return Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100));
+    return clampNumber((clientX - rect.left) / rect.width, 0, 1);
   };
 
   /** Prefer the bar under the cursor (lane + vertical stack), not the globally shortest. */
@@ -1368,10 +2314,9 @@ function OverviewTimeline({
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0) return null;
-    const pct = Math.min(
-      100,
-      Math.max(0, ((clientX - rect.left) / rect.width) * 100),
-    );
+    const pct = clampNumber(((clientX - rect.left) / rect.width) * 100, 0, 100);
+    // Bars keep a 2px minimum on screen; widen the hit box to match.
+    const minPct = (2 / rect.width) * 100;
     const y = clientY - rect.top;
     const gap = 4;
     let yCursor = 0;
@@ -1388,11 +2333,12 @@ function OverviewTimeline({
     const laneId = LANES[laneIndex].id;
     const laneH = laneHeights[laneIndex] ?? 14;
     const localY = y - yCursor;
-    const laneItems = stacked.filter((it) => it.span.lane === laneId);
+    const laneItems = laidOut.filter((it) => it.span.lane === laneId);
     const layerCount =
       laneItems.reduce((m, x) => Math.max(m, x.stackRow), 0) + 1;
     const xHits = laneItems.filter(
-      (it) => pct >= it.leftPct && pct <= it.leftPct + it.widthPct,
+      (it) =>
+        pct >= it.leftPct && pct <= it.leftPct + Math.max(it.widthPct, minPct),
     );
     if (xHits.length === 0) return null;
     const scored = xHits.map((it) => {
@@ -1416,21 +2362,27 @@ function OverviewTimeline({
     return scored[0]?.it ?? null;
   };
 
-  const brushFromVisualPct = (a: number, b: number): TimeBrush | null => {
-    const left = Math.min(a, b);
-    const right = Math.max(a, b);
-    const hits = stacked.filter(
-      ({ leftPct, widthPct }) => leftPct < right && leftPct + widthPct > left,
+  /** Commit a domain range as a wall-clock brush over the spans it touches. */
+  const commitRange = (range: DomainRange) => {
+    if (!domain) return;
+    const hits = domain.items.filter(
+      (it) => it.x0 <= range.end && it.x1 >= range.start,
     );
-    if (hits.length === 0) return null;
-    return {
+    if (hits.length === 0) {
+      clearBrush();
+      return;
+    }
+    const next: TimeBrush = {
       startMs: Math.min(...hits.map((h) => h.span.startMs)),
       endMs: Math.max(...hits.map((h) => h.span.endMs)),
     };
+    setCommitted({ range, brush: next });
+    onBrushChange(next);
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!viewDomain || !fullDomain) return;
+    if (!viewDomain || !domain) return;
+    setOverlapPop(null);
 
     if (e.button === 2) {
       panRef.current = {
@@ -1446,52 +2398,79 @@ function OverviewTimeline({
     }
     if (e.button !== 0) return;
 
-    const pct = pctAtClientX(e.clientX);
-    if (pct == null) return;
+    const f = fractionAtClientX(e.clientX);
+    if (f == null) return;
     dragRef.current = {
       pointerId: e.pointerId,
+      anchorX: viewDomain.start + f * (viewDomain.end - viewDomain.start),
       originX: e.clientX,
       originY: e.clientY,
-      originPct: pct,
       moved: false,
     };
-    setDraftPct(null);
+    setDraft(null);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!viewDomain || !fullDomain) return;
+    if (!viewDomain || !domain) return;
     const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const viewLen = viewDomain.end - viewDomain.start;
 
     const pan = panRef.current;
     if (pan && pan.pointerId === e.pointerId) {
-      if (Math.abs(e.clientX - pan.anchorClientX) >= 4) pan.moved = true;
-      if (!pan.pannable || rect.width <= 0) return;
-      const viewMs = viewDomain.end - viewDomain.start;
+      if (Math.abs(e.clientX - pan.anchorClientX) >= OVERVIEW_DRAG_PX) {
+        pan.moved = true;
+      }
+      if (!pan.pannable) return;
       const delta = (e.clientX - pan.anchorClientX) / rect.width;
-      const nextStart = Math.min(
-        Math.max(pan.anchorStart - delta * viewMs, fullDomain.start),
-        fullDomain.end - viewMs,
+      const start = clampNumber(
+        pan.anchorStart - delta * viewLen,
+        domain.start,
+        domain.end - viewLen,
       );
-      setViewport({ startMs: nextStart, endMs: nextStart + viewMs });
+      setViewport({ start, end: start + viewLen });
       return;
     }
 
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
-    const pct = pctAtClientX(e.clientX);
-    if (pct == null) return;
-    if (!drag.moved && Math.abs(e.clientX - drag.originX) < 4) return;
+    if (!drag.moved && Math.abs(e.clientX - drag.originX) < OVERVIEW_DRAG_PX) {
+      return;
+    }
     drag.moved = true;
-    setOverlapPop(null);
-    setDraftPct({ a: drag.originPct, b: pct });
+    // Auto-pan when brushing into the edges of a zoomed track.
+    let viewStart = viewDomain.start;
+    if (viewport) {
+      const localX = e.clientX - rect.left;
+      const edge = Math.min(
+        OVERVIEW_MAX_EDGE_PX,
+        Math.max(1, rect.width * OVERVIEW_EDGE_ZONE_FRACTION),
+      );
+      const direction = localX < edge ? -1 : localX > rect.width - edge ? 1 : 0;
+      if (direction !== 0) {
+        const depth =
+          direction < 0 ? edge - localX : localX - (rect.width - edge);
+        const strength = Math.max(0.2, clampNumber(depth / edge, 0, 1));
+        viewStart = clampNumber(
+          viewStart + direction * viewLen * OVERVIEW_EDGE_STEP_FRACTION * strength,
+          domain.start,
+          domain.end - viewLen,
+        );
+        if (viewStart !== viewDomain.start) {
+          setViewport({ start: viewStart, end: viewStart + viewLen });
+        }
+      }
+    }
+    const f = clampNumber((e.clientX - rect.left) / rect.width, 0, 1);
+    setDraft(orderedRange(drag.anchorX, viewStart + f * viewLen));
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const pan = panRef.current;
     if (pan && pan.pointerId === e.pointerId) {
       const moved =
-        pan.moved || Math.abs(e.clientX - pan.anchorClientX) >= 4;
+        pan.moved || Math.abs(e.clientX - pan.anchorClientX) >= OVERVIEW_DRAG_PX;
       panRef.current = null;
       setPanning(false);
       try {
@@ -1499,15 +2478,12 @@ function OverviewTimeline({
       } catch {
         /* already released */
       }
-      if (!moved) {
-        setDraftPct(null);
-        onBrushChange(null);
-      }
+      if (!moved) clearBrush();
       return;
     }
 
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId || !viewDomain) return;
+    if (!drag || drag.pointerId !== e.pointerId) return;
     dragRef.current = null;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -1516,66 +2492,69 @@ function OverviewTimeline({
     }
 
     if (drag.moved) {
-      const pct = pctAtClientX(e.clientX) ?? drag.originPct;
-      const left = Math.min(drag.originPct, pct);
-      const right = Math.max(drag.originPct, pct);
-      if (right - left >= 0.8) {
-        const next = brushFromVisualPct(left, right);
-        if (next) onBrushChange(next);
-      }
-      setDraftPct(null);
+      const range = draft;
+      setDraft(null);
+      if (range) commitRange(range);
       return;
     }
 
-    setDraftPct(null);
+    setDraft(null);
     // Click without drag: lane + vertical stack aware (so long underlays stay selectable).
     const hit = hitTestBar(drag.originX, drag.originY);
     if (hit) openOverlapPopup(hit, drag.originX, drag.originY);
-    else setOverlapPop(null);
+    else onSelect(null);
   };
 
   const onContextMenu = (e: ReactMouseEvent) => {
     e.preventDefault();
   };
 
-  if (!viewDomain || !fullDomain) {
+  if (!viewDomain || !domain) {
     return <div className="overview empty-inline">No timed events</div>;
   }
 
   const byLane = (lane: OverviewLane) =>
-    stacked.filter(({ span }) => span.lane === lane);
+    laidOut.filter(({ span }) => span.lane === lane);
 
-  let brushLeftPct: number | null = null;
-  let brushRightPct: number | null = null;
-  if (draftPct) {
-    brushLeftPct = Math.min(draftPct.a, draftPct.b);
-    brushRightPct = Math.max(draftPct.a, draftPct.b);
-  } else if (brush) {
-    const hits = stacked.filter(({ span }) =>
-      overlapsBrush(span.startMs, span.endMs, brush),
-    );
-    if (hits.length > 0) {
-      brushLeftPct = Math.min(...hits.map((h) => h.leftPct));
-      brushRightPct = Math.max(...hits.map((h) => h.leftPct + h.widthPct));
+  // Visible brush in domain coordinates: live draft, the range the user
+  // dragged, or (after a mode switch) the envelope of spans in the ms brush.
+  let shownRange: DomainRange | null = draft;
+  if (!shownRange && brush) {
+    if (committed && committed.brush === brush) {
+      shownRange = committed.range;
+    } else {
+      const hits = domain.items.filter((it) =>
+        overlapsBrush(it.span.startMs, it.span.endMs, brush),
+      );
+      if (hits.length > 0) {
+        shownRange = {
+          start: Math.min(...hits.map((h) => h.x0)),
+          end: Math.max(...hits.map((h) => h.x1)),
+        };
+      }
     }
   }
+  const viewLen = viewDomain.end - viewDomain.start;
+  const brushLeftPct = shownRange
+    ? clampNumber(((shownRange.start - viewDomain.start) / viewLen) * 100, 0, 100)
+    : null;
+  const brushRightPct = shownRange
+    ? clampNumber(((shownRange.end - viewDomain.start) / viewLen) * 100, 0, 100)
+    : null;
   const brushStyle: CSSProperties | undefined =
-    brushLeftPct != null && brushRightPct != null
-      ? {
-          left: `${Math.max(0, brushLeftPct)}%`,
-          width: `${Math.max(0, Math.min(100, brushRightPct) - Math.max(0, brushLeftPct))}%`,
-        }
+    brushLeftPct != null && brushRightPct != null && brushRightPct > brushLeftPct
+      ? { left: `${brushLeftPct}%`, width: `${brushRightPct - brushLeftPct}%` }
       : undefined;
 
   const zoomed = viewport != null;
-  const timedPaint = paintMode === "duration" || paintMode === "actual";
+  const timedPaint = layoutMode !== "equal";
 
   return (
     <div className="overview">
       <div className="overview-toolbar">
         <span className="overview-hint">
           Scroll to zoom · drag to select · click overlap to zoom · Esc to clear
-          {zoomed ? " · right-drag to pan" : ""}
+          {zoomed ? " · right-drag or shift+scroll to pan" : ""}
         </span>
         <div className="overview-mode-group" role="group" aria-label="Overview layout">
           {(
@@ -1624,25 +2603,22 @@ function OverviewTimeline({
         </div>
         <div
           ref={setTrackNode}
-          className={`overview-track${draftPct ? " brushing" : ""}${panning ? " panning" : ""}${timedPaint ? " duration-mode" : ""}`}
+          className={`overview-track${draft ? " brushing" : ""}${panning ? " panning" : ""}${timedPaint ? " duration-mode" : ""}`}
           style={{ gridTemplateRows: laneHeights.map((h) => `${h}px`).join(" ") }}
-          onPointerDown={(e) => {
-            setOverlapPop(null);
-            onPointerDown(e);
-          }}
+          onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={() => {
             dragRef.current = null;
             panRef.current = null;
-            setDraftPct(null);
+            setDraft(null);
             setPanning(false);
           }}
           onContextMenu={onContextMenu}
           onDoubleClick={(e) => {
             e.preventDefault();
             setViewport(null);
-            onBrushChange(null);
+            clearBrush();
             setOverlapPop(null);
           }}
         >
@@ -1664,12 +2640,10 @@ function OverviewTimeline({
                 className="overview-lane"
                 style={{ height: laneH }}
               >
-                {laneItems.map(({ span, leftPct, widthPct, stackRow }) => {
-                  const spanRightPct = leftPct + Math.max(widthPct, 0);
+                {laneItems.map(({ span, x0, x1, leftPct, widthPct, stackRow }) => {
                   const dimmedByBrush =
-                    brushLeftPct != null &&
-                    brushRightPct != null &&
-                    !(leftPct < brushRightPct && spanRightPct > brushLeftPct);
+                    shownRange != null &&
+                    !(x0 <= shownRange.end && x1 >= shownRange.start);
                   const dimmedBySelect =
                     selectedId != null && span.eventId !== selectedId;
                   const dimmed = dimmedBySelect || dimmedByBrush;
@@ -1697,22 +2671,12 @@ function OverviewTimeline({
                         width: `${Math.max(widthPct, 0)}%`,
                         top,
                         height,
-                        minWidth: widthPct > 0 ? "1px" : 0,
+                        minWidth: "2px",
                         ["--stack-depth" as string]: depth,
                         zIndex:
                           selectedId === span.eventId
                             ? 30
                             : 5 + stackRow,
-                      }}
-                      onPointerDown={(ev) => {
-                        // Select / open overlap zoom; don't start a track brush.
-                        if (ev.button !== 0) return;
-                        ev.stopPropagation();
-                        openOverlapPopup(
-                          { span, leftPct, widthPct, stackRow },
-                          ev.clientX,
-                          ev.clientY,
-                        );
                       }}
                     />
                   );
@@ -1780,7 +2744,11 @@ function OverviewTimeline({
                         top: 6 + i * 20,
                       }}
                       onClick={() => {
-                        onSelect(it.span.eventId);
+                        onSelect(
+                          selectedId === it.span.eventId
+                            ? null
+                            : it.span.eventId,
+                        );
                       }}
                     >
                       <span className="overview-overlap-pop-label">
@@ -1799,7 +2767,13 @@ function OverviewTimeline({
                     className={
                       selectedId === it.span.eventId ? "selected" : undefined
                     }
-                    onClick={() => onSelect(it.span.eventId)}
+                    onClick={() =>
+                      onSelect(
+                        selectedId === it.span.eventId
+                          ? null
+                          : it.span.eventId,
+                      )
+                    }
                   >
                     <span className={`dot role-${it.span.role}`} aria-hidden />
                     <span className="name">{it.span.label}</span>
@@ -1817,6 +2791,24 @@ function OverviewTimeline({
       </div>
     </div>
   );
+}
+
+/** Wall clock that ticks once a second only while ``active`` (live spans). */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+/** Duration cell; only running spans re-render every second. */
+function LiveDuration({ row }: { row: DisplayEvent }) {
+  const now = useNow(isRunningSpan(row));
+  return <>{formatDuration(displayDurationMs(row, now))}</>;
 }
 
 function Ledger({
@@ -1888,7 +2880,7 @@ function Ledger({
                 </td>
                 <td className="time-cell">{formatTs(row.timestamp)}</td>
                 <td className="dur-cell">
-                  {row.durationMs != null ? formatDuration(row.durationMs) : "—"}
+                  <LiveDuration row={row} />
                 </td>
                 <td className="content-cell">
                   <div className="content-inner">
@@ -1906,10 +2898,6 @@ function Ledger({
       </table>
     </div>
   );
-}
-
-function stringify(value: unknown): string {
-  return formatPretty(value);
 }
 
 function unescapeNewlines(text: string): string {
@@ -1998,7 +2986,11 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
 
 /** Pretty-print objects, JSON strings, and simple Python dict/list literals. */
 function formatPretty(value: unknown): string {
-  const normalized = normalizeDisplayValue(value);
+  return formatNormalized(normalizeDisplayValue(value));
+}
+
+/** Format an already-normalized value (normalizing twice re-clips the text). */
+function formatNormalized(normalized: unknown): string {
   if (normalized === null || normalized === undefined) return "—";
   if (typeof normalized === "number" || typeof normalized === "boolean") {
     return String(normalized);
@@ -2214,7 +3206,7 @@ function PrettyValue({ value }: { value: unknown }) {
     );
   }
 
-  const text = formatPretty(normalized);
+  const text = formatNormalized(normalized);
   const trimmed = text.trim();
   const looksJson =
     (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
@@ -2346,6 +3338,9 @@ function LlmTurnPreview({
     [row, rows, sessionModel],
   );
   const hasOutput = Boolean(turn.outputText.trim()) || turn.tools.length > 0;
+  const running = isRunningSpan(row);
+  const nowMs = useNow(running);
+  const elapsed = running ? displayDurationMs(row, nowMs) : null;
 
   return (
     <div className="llm-turn">
@@ -2376,9 +3371,16 @@ function LlmTurnPreview({
           {turn.finishReason && (
             <span className="llm-section-meta">finish: {turn.finishReason}</span>
           )}
+          {running && elapsed != null && (
+            <span className="llm-section-meta">{formatDuration(elapsed)}</span>
+          )}
         </header>
         {!hasOutput && (
-          <div className="llm-empty">No text or tool calls recorded for this call.</div>
+          <div className="llm-empty">
+            {running
+              ? `Running… ${formatDuration(elapsed)}`
+              : "No text or tool calls recorded for this call."}
+          </div>
         )}
         {turn.outputText.trim() ? (
           <pre className="llm-block">{turn.outputText}</pre>
@@ -2432,15 +3434,17 @@ function Inspector({
   const isTool = row ? isToolDisplay(row) : false;
   const isAssistant = role === "assistant";
   const tabs = isTool
-    ? (["overview", "parameters", "results", "raw", "timing"] as const)
+    ? (["call", "overview", "raw"] as const)
     : isAssistant
-      ? (["overview", "preview", "raw", "timing"] as const)
-      : (["overview", "payload", "raw", "timing"] as const);
-  const [tab, setTab] = useState<string>(isAssistant ? "preview" : "overview");
+      ? (["overview", "messages", "raw"] as const)
+      : (["overview", "payload", "raw"] as const);
+  const defaultTab = isAssistant ? "messages" : isTool ? "call" : "overview";
+  const [tab, setTab] = useState<string>(defaultTab);
+  const nowMs = useNow(row ? isRunningSpan(row) : false);
 
   useEffect(() => {
-    setTab(isAssistant ? "preview" : "overview");
-  }, [row?.id, isAssistant]);
+    setTab(defaultTab);
+  }, [row?.id, defaultTab]);
 
   if (!row || !role) {
     return null;
@@ -2448,12 +3452,19 @@ function Inspector({
 
   const start = row.start;
   const end = row.end;
-  const duration = displayDurationMs(row);
+  const running = isRunningSpan(row);
+  const duration = displayDurationMs(row, nowMs);
   const tokens = isAssistant ? llmTokenUsage(row) : null;
   const modelName = isAssistant
     ? extractModelName(start.raw.model, end?.raw.model, start.raw, end?.raw, sessionModel)
     : null;
-  const status = row.error ? "Error" : end || !isTool && !isAssistant ? "Completed" : end ? "Completed" : "Running";
+  const status = row.error
+    ? "Error"
+    : end || (!isTool && !isAssistant)
+      ? "Completed"
+      : row.stale
+        ? "Incomplete"
+        : "Running";
   const toolName = isTool
     ? start.tool?.name || end?.tool?.name || null
     : null;
@@ -2501,7 +3512,7 @@ function Inspector({
             ) : (
               <>
                 {row.phase ? `${row.phase} · ` : ""}
-                {row.event || row.kind}
+                {row.kind === "llm" ? nameBadgeLabel(row) : row.event || row.kind}
                 {duration != null ? ` · ${formatDuration(duration)}` : ""}
               </>
             )}
@@ -2536,6 +3547,12 @@ function Inspector({
             <dd>{row.kind}</dd>
             <dt>Event</dt>
             <dd>{row.event || "—"}</dd>
+            {row.attempt != null && (
+              <>
+                <dt>Attempt</dt>
+                <dd>#{row.attempt}</dd>
+              </>
+            )}
             <dt>Phase</dt>
             <dd>{row.phase || "—"}</dd>
             <dt>Start</dt>
@@ -2543,7 +3560,32 @@ function Inspector({
             <dt>End</dt>
             <dd className="mono">{row.endTimestamp || "—"}</dd>
             <dt>Duration</dt>
-            <dd>{formatDuration(duration)}</dd>
+            <dd>
+              {formatDuration(duration)}
+              {running ? " (elapsed)" : ""}
+            </dd>
+            <dt>Timing source</dt>
+            <dd>
+              {row.event === "llm" || row.kind === "llm"
+                ? row.start.event === "turn.started"
+                  ? "turn.started → turn.completed"
+                  : running
+                    ? "llm_start → (running)"
+                    : row.stale
+                      ? "llm_start → (no end logged)"
+                      : "llm_start → llm_end"
+                : isTool && running
+                  ? "tool_start → (running)"
+                  : isTool && row.stale
+                    ? "tool_start → (no end logged)"
+                  : isTool && end
+                    ? "tool_start → tool_end"
+                    : "Session timestamps"}
+            </dd>
+            <dt>Start epoch ms</dt>
+            <dd className="mono">{parseTs(row.timestamp) ?? "—"}</dd>
+            <dt>End epoch ms</dt>
+            <dd className="mono">{parseTs(row.endTimestamp) ?? "—"}</dd>
             {isAssistant && (
               <>
                 <dt>Model</dt>
@@ -2552,8 +3594,8 @@ function Inspector({
                 <dd className="mono">{formatTokenCount(tokens?.input ?? null)}</dd>
                 <dt>Output tokens</dt>
                 <dd className="mono">{formatTokenCount(tokens?.output ?? null)}</dd>
-                <dt>Total tokens</dt>
-                <dd className="mono">{formatTokenCount(tokens?.total ?? null)}</dd>
+                <dt>Reasoning tokens</dt>
+                <dd className="mono">{formatTokenCount(tokens?.reasoning ?? null)}</dd>
               </>
             )}
             {isTool && (
@@ -2569,18 +3611,20 @@ function Inspector({
           </dl>
         )}
 
-        {tab === "parameters" && <PrettyValue value={toolParameters} />}
-
-        {tab === "results" && (
-          <div className="inspector-pane">
-            <div className="inspector-pane-label">
-              Tool <code>{toolName || "—"}</code>
-            </div>
-            <PrettyValue value={toolResults ?? row.summary} />
+        {tab === "call" && (
+          <div className="inspector-call">
+            <section className="inspector-pane">
+              <div className="inspector-pane-label">Parameters</div>
+              <PrettyValue value={toolParameters} />
+            </section>
+            <section className="inspector-pane">
+              <div className="inspector-pane-label">Results</div>
+              <PrettyValue value={toolResults ?? row.summary} />
+            </section>
           </div>
         )}
 
-        {tab === "preview" && isAssistant && (
+        {tab === "messages" && isAssistant && (
           <LlmTurnPreview
             row={row}
             rows={rows}
@@ -2589,7 +3633,7 @@ function Inspector({
           />
         )}
 
-        {tab === "preview" && !isAssistant && (
+        {tab === "messages" && !isAssistant && (
           <PrettyValue
             value={
               end?.raw.text ??
@@ -2619,31 +3663,6 @@ function Inspector({
                 : start.raw
             }
           />
-        )}
-
-        {tab === "timing" && (
-          <dl className="kv">
-            <dt>Start time</dt>
-            <dd className="mono">{row.timestamp || "—"}</dd>
-            <dt>End time</dt>
-            <dd className="mono">{row.endTimestamp || "—"}</dd>
-            <dt>Duration</dt>
-            <dd>{formatDuration(duration)}</dd>
-            <dt>Timing source</dt>
-            <dd>
-              {row.event === "llm" || row.kind === "llm"
-                ? row.start.event === "turn.started"
-                  ? "turn.started → turn.completed"
-                  : "llm_start → llm_end"
-                : isTool && end
-                  ? "tool_start → tool_end"
-                  : "Session timestamps"}
-            </dd>
-            <dt>Start epoch ms</dt>
-            <dd className="mono">{parseTs(row.timestamp) ?? "—"}</dd>
-            <dt>End epoch ms</dt>
-            <dd className="mono">{parseTs(row.endTimestamp) ?? "—"}</dd>
-          </dl>
         )}
       </div>
     </div>
@@ -2681,10 +3700,6 @@ function parseRootCauses(payload: unknown): RootCausePair[] {
     out.push({ resourceId, faultType });
   }
   return out;
-}
-
-function pairKey(p: RootCausePair): string {
-  return `${p.resourceId}\0${p.faultType}`;
 }
 
 function readAnomaly(payload: unknown): boolean | null {
@@ -2811,10 +3826,6 @@ function ScoresPanel({ scores }: { scores: ScoresResponse | null }) {
       row.gt && row.pred ? row.gt.resourceId === row.pred.resourceId : null;
     const typeOk =
       row.gt && row.pred ? row.gt.faultType === row.pred.faultType : null;
-    const pairOk =
-      row.gt && row.pred
-        ? pairKey(row.gt) === pairKey(row.pred)
-        : false;
     fieldRows.push(
       {
         key: `res-${idx}`,
@@ -2829,15 +3840,6 @@ function ScoresPanel({ scores }: { scores: ScoresResponse | null }) {
         expected: row.gt?.faultType ?? "—",
         actual: row.pred?.faultType ?? "—",
         ok: row.gt && row.pred ? typeOk : false,
-      },
-      {
-        key: `pair-${idx}`,
-        field: `rca_pair${suffix}`,
-        expected: row.gt ? `${row.gt.resourceId} + ${row.gt.faultType}` : "—",
-        actual: row.pred
-          ? `${row.pred.resourceId} + ${row.pred.faultType}`
-          : "—",
-        ok: pairOk,
       },
     );
   });
@@ -2972,6 +3974,146 @@ function ScoresPanel({ scores }: { scores: ScoresResponse | null }) {
   );
 }
 
+function SessionOverviewPanel({ detail }: { detail: SessionDetail | null }) {
+  if (!detail) return <div className="empty">Loading overview…</div>;
+
+  const injectEntries = Object.entries(detail.inject_params || {});
+  const scenarioParams = asRecord(detail.run?.scenario_params);
+  const scenarioParamRows = scenarioParams
+    ? Object.entries(scenarioParams).filter(
+        ([, v]) => v != null && v !== "" && typeof v !== "object",
+      )
+    : [];
+
+  const rows: [string, ReactNode][] = [
+    ["Failure", sessionTitle(detail)],
+    ["Domain", detail.failure_domain || "—"],
+    [
+      "Location",
+      injectEntries.length ? (
+        <span className="session-overview-location">
+          {injectEntries.map(([k, v]) => (
+            <span key={k} className="session-overview-kv">
+              <span className="session-overview-kv-k">{k}</span>
+              <span className="session-overview-kv-v mono">{v}</span>
+            </span>
+          ))}
+        </span>
+      ) : (
+        "—"
+      ),
+    ],
+    [
+      "Scenario",
+      detail.scenario_name || "—",
+    ],
+    ["Size", detail.scenario_topo_size || "—"],
+    ["Backend", detail.backend || "—"],
+    ["Lab", detail.lab_name || "—"],
+    [
+      "Agent",
+      [detail.agent_type, detail.model, detail.llm_provider]
+        .filter(Boolean)
+        .join(" · ") || "—",
+    ],
+    [
+      "Timing",
+      [
+        detail.start_time ? formatTs(detail.start_time) : null,
+        sessionDuration(detail) !== "—" ? sessionDuration(detail) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "—",
+    ],
+    [
+      "Scores",
+      [
+        detail.detection_score != null
+          ? `det ${formatScore(detail.detection_score)}`
+          : null,
+        detail.rca_f1 != null ? `rca ${formatScore(detail.rca_f1)}` : null,
+        detail.localization_f1 != null
+          ? `loc ${formatScore(detail.localization_f1)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "—",
+    ],
+    [
+      "Usage",
+      [
+        detail.in_tokens != null || detail.out_tokens != null
+          ? `${detail.in_tokens ?? "—"}/${detail.out_tokens ?? "—"} tok`
+          : null,
+        detail.steps != null ? `${detail.steps} steps` : null,
+        detail.tool_calls != null ? `${detail.tool_calls} tools` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "—",
+    ],
+  ];
+
+  if (detail.is_benchmark) {
+    if (detail.case_key) rows.push(["Case", detail.case_key]);
+    if (detail.benchmark_run_id) {
+      rows.push([
+        "Run ID",
+        <span className="mono">{detail.benchmark_run_id}</span>,
+      ]);
+    }
+  }
+
+  rows.push(
+    ["Session ID", <span className="mono">{detail.session_id}</span>],
+    [
+      "Path",
+      <span className="mono session-overview-path">{detail.session_dir}</span>,
+    ],
+  );
+  if (detail.outcome) rows.push(["Outcome", detail.outcome]);
+
+  return (
+    <div className="session-overview">
+      <section className="session-overview-block">
+        <header className="session-overview-block-head">Session</header>
+        <table className="session-overview-table">
+          <tbody>
+            {rows.map(([label, value]) => (
+              <tr key={label}>
+                <th>{label}</th>
+                <td>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {scenarioParamRows.length > 0 && (
+        <details className="session-overview-fold" open>
+          <summary>Scenario params</summary>
+          <table className="session-overview-table">
+            <tbody>
+              {scenarioParamRows.map(([k, v]) => (
+                <tr key={k}>
+                  <th>{k}</th>
+                  <td className="mono">{String(v)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+
+      {detail.task_description ? (
+        <details className="session-overview-fold" open>
+          <summary>Task</summary>
+          <div className="session-overview-task">{detail.task_description}</div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function RawPanel({
   sessionId,
   root,
@@ -3036,10 +4178,19 @@ function SessionView({
   const [brush, setBrush] = useState<TimeBrush | null>(null);
   const [scores, setScores] = useState<ScoresResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  // A failed session load blocks every tab; tab fetch errors stay per tab.
+  const shownError = detailError ?? error;
 
+  useEffect(() => {
+    setTab("timeline");
+  }, [sessionId]);
+
+  // Until the session detail loads, assume live so open spans keep ticking.
+  const sessionLive = detail == null || detail.status === "running";
   const rows = useMemo(() => {
     const collapsed = collapsePairedEvents(events);
-    return [...collapsed].sort((a, b) => {
+    const sorted = [...collapsed].sort((a, b) => {
       const ta = parseTs(a.timestamp);
       const tb = parseTs(b.timestamp);
       if (ta == null && tb == null) return a.id.localeCompare(b.id);
@@ -3051,7 +4202,20 @@ function SessionView({
       if (ea !== eb) return ea - eb;
       return a.id.localeCompare(b.id);
     });
-  }, [events]);
+    const withSuperseded = closeSupersededOpenSpans(sorted);
+    const withStale = sessionLive
+      ? withSuperseded
+      : withSuperseded.map((r) =>
+          isRunningSpan(r)
+            ? {
+                ...r,
+                stale: true,
+                summary: r.summary === "in progress" ? "no end logged" : r.summary,
+              }
+            : r,
+        );
+    return annotateLlmRetryAttempts(withStale);
+  }, [events, sessionLive]);
   const visibleRows = useMemo(
     () => (brush ? rows.filter((r) => rowInBrush(r, brush)) : rows),
     [rows, brush],
@@ -3068,13 +4232,9 @@ function SessionView({
   useEffect(() => {
     if (!selectedId) return;
     if (visibleRows.some((r) => r.id === selectedId)) return;
-    // Keep overview/ledger selection reachable: drop brush instead of the pick.
-    if (brush && rows.some((r) => r.id === selectedId)) {
-      setBrush(null);
-      return;
-    }
+    // A new brush wins over an older pick outside it (picking clears the brush).
     setSelectedId(null);
-  }, [visibleRows, selectedId, brush, rows]);
+  }, [visibleRows, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3084,10 +4244,11 @@ function SessionView({
         .then((d) => {
           if (cancelled) return;
           setDetail(d);
+          setDetailError(null);
           finished = d.status !== "running";
         })
         .catch((err: Error) => {
-          if (!cancelled && !background) setError(err.message);
+          if (!cancelled && !background) setDetailError(err.message);
         });
     void load(false);
     const poll = window.setInterval(() => {
@@ -3103,8 +4264,13 @@ function SessionView({
     };
   }, [sessionId, root]);
 
+  // Each tab reports its own fetch error; switching tabs starts clean.
   useEffect(() => {
-    if (tab === "scores" || tab === "raw") return;
+    setError(null);
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab === "overview" || tab === "scores" || tab === "raw") return;
     let cancelled = false;
     const source =
       tab === "agent" ? "agent" : tab === "nika" ? "nika" : "merged";
@@ -3128,14 +4294,18 @@ function SessionView({
   }, [sessionId, tab, root]);
 
   useEffect(() => {
-    if (tab === "scores" || tab === "raw") return;
+    if (tab === "overview" || tab === "scores" || tab === "raw") return;
     const source =
       tab === "agent" ? "agent" : tab === "nika" ? "nika" : "merged";
     let cancelled = false;
     const tick = () =>
       fetchTimeline(sessionId, source, root)
         .then((data) => {
-          if (!cancelled) setEvents(data.events);
+          if (cancelled) return;
+          // Logs are append-only: same length means nothing new to lay out.
+          setEvents((prev) =>
+            prev.length === data.events.length ? prev : data.events,
+          );
         })
         .catch(() => undefined);
     if (detail?.status === "finished" || detail?.status === "aborted" || detail?.status === "error") {
@@ -3194,13 +4364,17 @@ function SessionView({
               <span className="detail-title-sep">{detail.agent_type}</span>
             )}
           </h1>
-          {detail && sessionLocation(detail) && (
-            <div className="detail-sub">{sessionLocation(detail)}</div>
-          )}
         </div>
         {detail && <span className={`chip ${detail.status}`}>{detail.status}</span>}
+        {detail?.backend && (
+          <span className="chip" title="Lab runtime backend">
+            {detail.backend}
+          </span>
+        )}
         {detail?.is_benchmark && detail.benchmark_label && (
-          <span className="chip">benchmark {detail.benchmark_label}</span>
+          <span className="chip" title={`benchmark ${detail.benchmark_label}`}>
+            {detail.benchmark_label}
+          </span>
         )}
         {detail?.is_benchmark && detail.trial_index != null && (
           <span className="chip">
@@ -3226,6 +4400,7 @@ function SessionView({
             ["agent", "Agent"],
             ["nika", "NIKA"],
             ["scores", "Scores"],
+            ["overview", "Overview"],
             ["raw", "Raw"],
           ] as const
         ).map(([id, label]) => (
@@ -3238,8 +4413,9 @@ function SessionView({
           </button>
         ))}
       </div>
-      {error && <div className="empty">{error}</div>}
-      {!error && (tab === "timeline" || tab === "agent" || tab === "nika") && (
+      {shownError && <div className="empty">{shownError}</div>}
+      {!shownError && tab === "overview" && <SessionOverviewPanel detail={detail} />}
+      {!shownError && (tab === "timeline" || tab === "agent" || tab === "nika") && (
         <div className="trace-layout">
           {tab === "timeline" && (
             <OverviewTimeline
@@ -3247,7 +4423,7 @@ function SessionView({
               selectedId={selectedId}
               onSelect={(id) => {
                 setSelectedId(id);
-                setBrush(null);
+                if (id != null) setBrush(null);
               }}
               brush={brush}
               onBrushChange={setBrush}
@@ -3277,8 +4453,8 @@ function SessionView({
           />
         </div>
       )}
-      {!error && tab === "scores" && <ScoresPanel scores={scores} />}
-      {!error && tab === "raw" && (
+      {!shownError && tab === "scores" && <ScoresPanel scores={scores} />}
+      {!shownError && tab === "raw" && (
         <RawPanel sessionId={sessionId} root={root} />
       )}
     </div>
@@ -3396,7 +4572,9 @@ export default function App() {
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setBrowserOpen(false);
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setBrowserOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -3406,21 +4584,29 @@ export default function App() {
     };
   }, [browserOpen]);
 
+  const browseSeqRef = useRef(0);
   const loadBrowse = (path: string) => {
+    // Fast folder clicks: only the latest listing may land.
+    const seq = ++browseSeqRef.current;
+    const current = () => seq === browseSeqRef.current;
     setBrowseLoading(true);
     setBrowseError(null);
     fetchBrowse(path || undefined)
       .then((data) => {
+        if (!current()) return;
         setBrowsePath(data.path);
         setBrowseParent(data.parent ?? null);
         setBrowseEntries(data.entries);
         if (!baseRoot) setBaseRoot(data.base_root);
       })
       .catch((err: Error) => {
+        if (!current()) return;
         setBrowseError(err.message);
         setBrowseEntries([]);
       })
-      .finally(() => setBrowseLoading(false));
+      .finally(() => {
+        if (current()) setBrowseLoading(false);
+      });
   };
 
   const openBrowser = () => {
@@ -3486,6 +4672,7 @@ export default function App() {
                   e.preventDefault();
                   submitRoot();
                 } else if (e.key === "Escape") {
+                  e.preventDefault();
                   setDraftPath(activePath);
                   setRootError(null);
                   setBrowserOpen(false);

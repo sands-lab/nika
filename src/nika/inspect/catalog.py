@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal
@@ -18,6 +19,7 @@ from nika.inspect.models import (
 )
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
+    is_job_run_dir,
     iter_session_dirs,
     normalize_session_status,
 )
@@ -34,6 +36,18 @@ ARTIFACT_FILES = {
 
 RAW_ALLOWLIST = frozenset(ARTIFACT_FILES.values())
 
+# Answer key and scores stay hidden until the session stops running, so an
+# agent that can reach the viewer cannot read them mid-run.
+RUNNING_HIDDEN_ARTIFACTS = frozenset(
+    {"ground_truth.json", "eval_metrics.json", "llm_judge.json"}
+)
+
+# Summaries are rebuilt only when a session artifact changes; the viewer
+# polls the session list every few seconds.
+_SUMMARY_CACHE: dict[tuple[str, str], tuple[tuple, "SessionSummary"]] = {}
+_PARENT_JOB_CACHE: dict[str, tuple[tuple, dict[str, Any] | None]] = {}
+_CACHE_MAX_ENTRIES = 50_000
+
 _JOB_FILENAMES = (RUN_FILENAME, "benchmark_job.json", "RELEASE.lock.json")
 
 
@@ -42,9 +56,13 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
+
+
+class AmbiguousSessionError(ValueError):
+    """A bare session id matches more than one session directory."""
 
 
 def _artifact_flags(session_dir: Path) -> ArtifactFlags:
@@ -75,18 +93,46 @@ def _as_bool(value: Any) -> bool | None:
     return None
 
 
+def _stat_signature(paths: list[Path]) -> tuple:
+    """Cheap change token: ``(mtime_ns, size)`` per path, ``None`` if missing."""
+    signature: list[tuple[int, int] | None] = []
+    for path in paths:
+        try:
+            stat = path.stat()
+        except OSError:
+            signature.append(None)
+            continue
+        signature.append((stat.st_mtime_ns, stat.st_size))
+    return tuple(signature)
+
+
+def _cache_put(cache: dict, key: Any, value: Any) -> None:
+    if len(cache) >= _CACHE_MAX_ENTRIES:
+        cache.clear()
+    cache[key] = value
+
+
 def _load_parent_job(session_dir: Path) -> tuple[Path | None, dict[str, Any] | None]:
-    """If this session lives under ``…/<run>/trials/<id>``, load run job metadata."""
+    """If this session lives under ``…/<run>/trials/<id>``, load run job metadata.
+
+    Memoized per run root: every trial of a run shares the same job file.
+    """
     resolved = session_dir.resolve()
     parent = resolved.parent
     if parent.name != "trials":
         return None, None
     run_root = parent.parent
+    signature = _stat_signature([run_root / name for name in _JOB_FILENAMES])
+    cached = _PARENT_JOB_CACHE.get(str(run_root))
+    if cached is not None and cached[0] == signature:
+        return run_root, cached[1]
+    job: dict[str, Any] | None = None
     for name in _JOB_FILENAMES:
         job = _read_json(run_root / name)
         if job is not None:
-            return run_root, job
-    return run_root, None
+            break
+    _cache_put(_PARENT_JOB_CACHE, str(run_root), (signature, job))
+    return run_root, job
 
 
 def _inject_params(run: dict[str, Any]) -> dict[str, str]:
@@ -260,12 +306,32 @@ def _session_key(session_dir: Path, results_root: Path | None = None) -> str:
 def summarize_session_dir(
     session_dir: Path, *, results_root: Path | None = None
 ) -> SessionSummary | None:
+    key = (str(session_dir.absolute()), str(results_root or ""))
+    watched = [session_dir / name for name in ARTIFACT_FILES.values()]
+    trials_dir = session_dir.resolve().parent
+    if trials_dir.name == "trials":
+        watched.extend(trials_dir.parent / name for name in _JOB_FILENAMES)
+    signature = _stat_signature(watched)
+    cached = _SUMMARY_CACHE.get(key)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    summary = _build_session_summary(session_dir, results_root=results_root)
+    if summary is not None:
+        _cache_put(_SUMMARY_CACHE, key, (signature, summary))
+    return summary
+
+
+def _build_session_summary(
+    session_dir: Path, *, results_root: Path | None = None
+) -> SessionSummary | None:
     run = _read_json(session_dir / RUN_FILENAME)
     if run is None:
         return None
     session_id = str(run.get("session_id") or session_dir.name)
     status = normalize_session_status(run)
-    metrics = _read_json(session_dir / "eval_metrics.json")
+    metrics = (
+        None if status == "running" else _read_json(session_dir / "eval_metrics.json")
+    )
     problem_names = run.get("problem_names") or []
     if not isinstance(problem_names, list):
         problem_names = []
@@ -277,6 +343,7 @@ def summarize_session_dir(
         session_dir=str(session_dir.resolve()),
         status=status,
         lab_name=run.get("lab_name"),
+        backend=run.get("backend"),
         scenario_name=run.get("scenario_name"),
         scenario_topo_size=run.get("scenario_topo_size"),
         agent_type=run.get("agent_type"),
@@ -317,18 +384,17 @@ def detail_session_dir(
 def find_session_dir(
     session_id: str, *, results_root: Path | None = None
 ) -> Path | None:
-    root = Path(results_root or resolve_results_root()).resolve()
-    # Prefer explicit relative path keys (may contain slashes). Reject
-    # absolute paths and anything that resolves outside the results root.
+    # Session keys are built with ``absolute()`` so symlinked folders under
+    # the results root stay in the key.  Match them lexically the same way:
+    # resolving here would move a key under a symlinked child outside the
+    # root and force a full scan.  Absolute ids and ``..`` are rejected, so a
+    # lexical path cannot leave the root.
+    root = Path(results_root or resolve_results_root()).absolute()
     raw = str(session_id or "").strip()
-    if not raw or Path(raw).is_absolute():
+    if not raw or Path(raw).is_absolute() or ".." in Path(raw).parts:
         return None
-    keyed = (root / raw).resolve()
-    try:
-        keyed.relative_to(root)
-    except ValueError:
-        return None
-    if (keyed / RUN_FILENAME).is_file():
+    keyed = root / raw
+    if (keyed / RUN_FILENAME).is_file() and not is_job_run_dir(keyed):
         return keyed
     matches: list[Path] = []
     for session_dir in iter_session_dirs(root):
@@ -340,12 +406,48 @@ def find_session_dir(
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
-        # Ambiguous bare session_id — prefer an exact directory-name hit.
-        for session_dir in matches:
-            if session_dir.name == session_id:
-                return session_dir
-        return matches[0]
+        # Ambiguous bare session_id — prefer a unique exact directory-name hit.
+        named = [d for d in matches if d.name == session_id]
+        if len(named) == 1:
+            return named[0]
+        keys = ", ".join(sorted(_session_key(d, root) for d in matches))
+        raise AmbiguousSessionError(
+            f"Session id {session_id!r} matches several sessions ({keys}); "
+            "use the session key"
+        )
     return None
+
+
+def delete_session_result(session_dir: Path, *, results_root: Path) -> Path:
+    """Delete one session result directory under ``results_root``.
+
+    Refuses paths outside the results root and sessions still ``running``.
+    Does not touch live labs under ``runtime/``.
+    """
+    root = Path(results_root).resolve()
+    target = Path(session_dir).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(
+            f"Refusing to delete path outside results root: {target}"
+        ) from exc
+    if target == root:
+        raise ValueError("Refusing to delete the results root itself")
+    if not target.is_dir():
+        raise FileNotFoundError(f"Session directory not found: {target}")
+    if not (target / RUN_FILENAME).is_file():
+        raise ValueError(f"Not a session directory (missing {RUN_FILENAME}): {target}")
+    if is_job_run_dir(target):
+        raise ValueError(f"Refusing to delete a benchmark job directory: {target}")
+    run = _read_json(target / RUN_FILENAME) or {}
+    status = normalize_session_status(run)
+    if status == "running":
+        raise ValueError(
+            "Refusing to delete a running session result; stop the session first"
+        )
+    shutil.rmtree(target)
+    return target
 
 
 def list_selectable_roots(results_root: Path) -> list[dict[str, str]]:
@@ -361,7 +463,11 @@ def list_selectable_roots(results_root: Path) -> list[dict[str, str]]:
     if not base.is_dir():
         return items
     for child in sorted(base.iterdir(), key=lambda p: p.name.lower()):
-        if not child.is_dir() or child.name.startswith(".") or child.name == "0_summary":
+        if (
+            not child.is_dir()
+            or child.name.startswith(".")
+            or child.name == "0_summary"
+        ):
             continue
         if "/" in child.name or "\\" in child.name or child.name in {".", ".."}:
             continue
@@ -380,7 +486,7 @@ def list_selectable_roots(results_root: Path) -> list[dict[str, str]]:
 
 
 def resolve_results_selection(
-    results_root: Path, root_id: str | None
+    results_root: Path, root_id: str | None, *, allow_outside: bool = True
 ) -> Path:
     """Resolve a UI-selected folder to a concrete results directory.
 
@@ -389,7 +495,8 @@ def resolve_results_selection(
     - an immediate child name under the base (symlink children allowed)
     - a relative path under the base (``..`` rejected)
     - an absolute path to an existing directory (local inspect may leave the
-      base root so operators can point at another results tree without restart)
+      base root so operators can point at another results tree without restart);
+      ``allow_outside=False`` limits absolute paths to the base tree
     """
     base = Path(results_root).resolve()
     raw = str(root_id or "").strip()
@@ -399,6 +506,11 @@ def resolve_results_selection(
     candidate = Path(raw).expanduser()
     if candidate.is_absolute():
         resolved = candidate.resolve()
+        if not allow_outside:
+            try:
+                resolved.relative_to(base)
+            except ValueError as exc:
+                raise ValueError(f"Results folder escapes root: {raw}") from exc
         if not resolved.is_dir():
             raise ValueError(f"Results folder not found: {raw}")
         return resolved
@@ -417,11 +529,11 @@ def resolve_results_selection(
 
 
 def list_browse_entries(
-    results_root: Path, *, path: str | None = None
+    results_root: Path, *, path: str | None = None, allow_outside: bool = True
 ) -> dict[str, Any]:
     """List immediate child folders for the inspect path browser."""
     base = Path(results_root).resolve()
-    active = resolve_results_selection(base, path)
+    active = resolve_results_selection(base, path, allow_outside=allow_outside)
     entries: list[dict[str, Any]] = []
     try:
         children = sorted(active.iterdir(), key=lambda p: p.name.lower())
@@ -432,12 +544,18 @@ def list_browse_entries(
             if not child.is_dir():
                 continue
             name = child.name
-            if name.startswith(".") or name in {"0_summary", "node_modules", "__pycache__"}:
+            if name.startswith(".") or name in {
+                "0_summary",
+                "node_modules",
+                "__pycache__",
+            }:
                 continue
             if name in {".", ".."}:
                 continue
             # Shallow only — avoid walking large trial trees just for a badge.
-            has_sessions = (child / RUN_FILENAME).is_file() or (child / "trials").is_dir()
+            has_sessions = (child / RUN_FILENAME).is_file() or (
+                child / "trials"
+            ).is_dir()
             if not has_sessions:
                 for grand in child.iterdir():
                     if grand.is_dir() and (grand / RUN_FILENAME).is_file():
@@ -455,7 +573,7 @@ def list_browse_entries(
     parent: str | None = None
     try:
         parent_path = active.parent
-        if parent_path != active:
+        if parent_path != active and (allow_outside or active != base):
             parent = str(parent_path.absolute())
     except OSError:
         parent = None
@@ -496,7 +614,9 @@ def build_session_facets(sessions: list[SessionSummary]) -> SessionFacets:
     problems = uniq([p for s in sessions for p in s.problem_names])
     failure_domains = uniq([s.failure_domain or "" for s in sessions])
     topo_sizes = uniq([s.scenario_topo_size or "" for s in sessions])
-    trial_indices = sorted({s.trial_index for s in sessions if s.trial_index is not None})
+    trial_indices = sorted(
+        {s.trial_index for s in sessions if s.trial_index is not None}
+    )
     return SessionFacets(
         statuses=statuses,
         scenarios=scenarios,
@@ -609,9 +729,19 @@ def list_sessions(
     )
 
 
+def is_session_running(session_dir: Path) -> bool:
+    run = _read_json(session_dir / RUN_FILENAME) or {}
+    return normalize_session_status(run) == "running"
+
+
 def load_scores(session_dir: Path) -> ScoresResponse:
     run = _read_json(session_dir / RUN_FILENAME) or {}
     session_id = str(run.get("session_id") or session_dir.name)
+    if normalize_session_status(run) == "running":
+        return ScoresResponse(
+            session_id=session_id,
+            submission=_read_json(session_dir / "submission.json"),
+        )
     return ScoresResponse(
         session_id=session_id,
         eval_metrics=_read_json(session_dir / "eval_metrics.json"),
@@ -627,9 +757,11 @@ def read_raw_artifact(session_dir: Path, filename: str) -> Any:
     path = session_dir / filename
     if not path.is_file():
         raise FileNotFoundError(filename)
+    # Live writers may leave a partial UTF-8 sequence or JSON document.
+    text = path.read_text(encoding="utf-8", errors="replace")
     if filename.endswith(".jsonl"):
         lines: list[Any] = []
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in text.splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -638,5 +770,7 @@ def read_raw_artifact(session_dir: Path, filename: str) -> Any:
             except json.JSONDecodeError:
                 lines.append({"_raw": line})
         return lines
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return data
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {"_raw": text}

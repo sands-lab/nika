@@ -203,6 +203,37 @@ class TestAdapters:
         )
         assert end.kind == "tool_result"
 
+    def test_llm_retry_and_end_error_are_llm_kind(self) -> None:
+        retry = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:00",
+                "phase": "diagnosis",
+                "event": "llm_retry",
+                "error": "Request timed out.",
+                "failed_attempt": 1,
+                "next_attempt": 2,
+                "max_retries": 2,
+                "run_id": "r1",
+            },
+            index=0,
+        )
+        assert retry.kind == "llm"
+        assert retry.event == "llm_retry"
+        assert "timed out" in retry.summary.lower()
+
+        err = adapt_agent_event(
+            {
+                "timestamp": "2026-01-01T12:00:01",
+                "phase": "diagnosis",
+                "event": "llm_end_error",
+                "error": "APITimeoutError",
+                "run_id": "r1",
+            },
+            index=1,
+        )
+        assert err.kind == "llm"
+        assert err.event == "llm_end_error"
+
     def test_codex_tool_start_parses_json_io(self) -> None:
         start = adapt_agent_event(
             {
@@ -271,9 +302,7 @@ class TestAdapters:
             {
                 "timestamp": "2026-01-01T12:00:02",
                 "event": "item.completed",
-                "codex_event": {
-                    "item": {"type": "agent_message", "text": "hello"}
-                },
+                "codex_event": {"item": {"type": "agent_message", "text": "hello"}},
             },
         ]
         (session / "messages.jsonl").write_text(
@@ -294,17 +323,21 @@ class TestAdapters:
     def test_codex_error_summarizes_without_embedded_transcript(self) -> None:
         """Provider errors that echo the full chat must not blow up the timeline."""
         messages = [
-            {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "x" * 200}]}
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "x" * 200}],
+            }
             for _ in range(50)
         ]
         inner = (
             "197 validation errors:\n"
             "  {'type': 'string_type', 'loc': ('body', 'input', 'str'), "
-            "'msg': 'Input should be a valid string', 'input': "
-            + repr(messages)
-            + "}"
+            "'msg': 'Input should be a valid string', 'input': " + repr(messages) + "}"
         )
-        blob = json.dumps({"error": {"message": inner, "type": "invalid_request_error"}})
+        blob = json.dumps(
+            {"error": {"message": inner, "type": "invalid_request_error"}}
+        )
         assert len(blob) > 5_000
 
         event = adapt_agent_event(
@@ -320,7 +353,7 @@ class TestAdapters:
         assert "197 validation errors" in event.summary
         assert "Input should be a valid string" in event.summary
         assert "input_text" not in event.summary
-        raw_msg = ((event.raw.get("codex_event") or {}).get("message"))
+        raw_msg = (event.raw.get("codex_event") or {}).get("message")
         assert isinstance(raw_msg, str)
         assert len(raw_msg) < len(blob)
         assert "chars total]" in raw_msg
@@ -685,7 +718,9 @@ class TestCatalog:
         # Legacy progress wording maps to aborted.
         assert summarize_session_dir(interrupted).status == "aborted"
 
-        assert {s.session_id for s in list_sessions(results_root=tmp_path, status="aborted")} == {
+        assert {
+            s.session_id for s in list_sessions(results_root=tmp_path, status="aborted")
+        } == {
             "aborted",
             "interrupted",
         }
@@ -776,6 +811,173 @@ class TestCatalog:
         assert summary.scenario_name == "dc_clos"
 
 
+class TestLiveProgress:
+    def test_list_skips_corrupt_and_filters_status(self, tmp_path: Path) -> None:
+        from nika.inspect.live_progress import list_benchmark_progress
+        from nika.workflows.benchmark.run_progress import write_progress
+
+        runs_dir = tmp_path / "benchmark_runs"
+        job = tmp_path / "results" / "job-a"
+        job.mkdir(parents=True)
+        write_progress(
+            "run-live",
+            result_dir=job,
+            status="running",
+            total_trials=10,
+            completed_trials=2,
+            pending_trials=8,
+            benchmark_id="nika-bench",
+            version="0.2.0",
+            agent_type="byo.langgraph",
+            model="test-model",
+            runs_dir=runs_dir,
+        )
+        write_progress(
+            "run-done",
+            result_dir=tmp_path / "results" / "job-b",
+            status="finished",
+            total_trials=3,
+            completed_trials=3,
+            pending_trials=0,
+            runs_dir=runs_dir,
+        )
+        (runs_dir / "broken.json").write_text("{not-json", encoding="utf-8")
+        (runs_dir / "empty.json").write_text("{}\n", encoding="utf-8")
+
+        running = list_benchmark_progress(runs_dir=runs_dir, status="running")
+        assert len(running) == 1
+        assert running[0].run_id == "run-live"
+        assert running[0].completed_trials == 2
+        assert running[0].benchmark_id == "nika-bench"
+
+        all_runs = list_benchmark_progress(runs_dir=runs_dir, status=None)
+        assert {r.run_id for r in all_runs} == {"run-live", "run-done"}
+
+    def test_path_overlap_matches_job_and_descendants(self, tmp_path: Path) -> None:
+        from nika.inspect.live_progress import list_benchmark_progress
+        from nika.workflows.benchmark.run_progress import write_progress
+
+        runs_dir = tmp_path / "benchmark_runs"
+        job = (tmp_path / "results" / "job-a").resolve()
+        job.mkdir(parents=True)
+        write_progress(
+            "run-live",
+            result_dir=job,
+            status="running",
+            total_trials=4,
+            completed_trials=1,
+            pending_trials=3,
+            runs_dir=runs_dir,
+        )
+
+        assert len(list_benchmark_progress(runs_dir=runs_dir, under=job)) == 1
+        assert (
+            len(list_benchmark_progress(runs_dir=runs_dir, under=job / "trials")) == 1
+        )
+        parent = tmp_path / "results"
+        assert len(list_benchmark_progress(runs_dir=runs_dir, under=parent)) == 1
+        other = tmp_path / "results" / "other"
+        other.mkdir()
+        assert list_benchmark_progress(runs_dir=runs_dir, under=other) == []
+
+    def test_api_benchmark_progress(self, tmp_path: Path, monkeypatch) -> None:
+        from nika.workflows.benchmark.run_progress import write_progress
+
+        runs_dir = tmp_path / "benchmark_runs"
+        job = tmp_path / "job"
+        job.mkdir()
+        write_progress(
+            "api-run",
+            result_dir=job,
+            status="running",
+            total_trials=5,
+            completed_trials=1,
+            pending_trials=4,
+            runs_dir=runs_dir,
+        )
+        monkeypatch.setattr("nika.inspect.live_progress.BENCHMARK_RUNS_DIR", runs_dir)
+
+        app = create_inspect_app(results_root=job)
+        client = TestClient(app)
+        resp = client.get("/api/benchmark-progress")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["runs"][0]["run_id"] == "api-run"
+        assert body["runs"][0]["completed_trials"] == 1
+
+        # Unrelated under path → empty
+        other = tmp_path / "other"
+        other.mkdir()
+        empty = client.get(
+            "/api/benchmark-progress", params={"under": str(other.resolve())}
+        )
+        assert empty.status_code == 200
+        assert empty.json()["total"] == 0
+
+
+class TestDeleteSessionResult:
+    def test_deletes_finished_session(self, tmp_path: Path) -> None:
+        from nika.inspect.catalog import delete_session_result
+
+        root = tmp_path / "results"
+        trial = root / "trials" / "case__t01"
+        trial.mkdir(parents=True)
+        _write_json(
+            trial / "run.json",
+            {"session_id": "case__t01", "status": "finished"},
+        )
+        (trial / "messages.jsonl").write_text("{}\n", encoding="utf-8")
+        deleted = delete_session_result(trial, results_root=root)
+        assert deleted == trial.resolve()
+        assert not trial.exists()
+
+    def test_refuses_running_session(self, tmp_path: Path) -> None:
+        from nika.inspect.catalog import delete_session_result
+
+        root = tmp_path / "results"
+        trial = root / "sess"
+        trial.mkdir(parents=True)
+        _write_json(trial / "run.json", {"session_id": "sess", "status": "running"})
+        with pytest.raises(ValueError, match="running"):
+            delete_session_result(trial, results_root=root)
+        assert trial.is_dir()
+
+    def test_refuses_path_outside_results_root(self, tmp_path: Path) -> None:
+        from nika.inspect.catalog import delete_session_result
+
+        root = tmp_path / "results"
+        root.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        _write_json(outside / "run.json", {"session_id": "x", "status": "finished"})
+        with pytest.raises(ValueError, match="outside"):
+            delete_session_result(outside, results_root=root)
+
+    def test_api_delete(self, tmp_path: Path) -> None:
+        root = tmp_path / "results"
+        trial = root / "done"
+        trial.mkdir(parents=True)
+        _write_json(
+            trial / "run.json",
+            {
+                "session_id": "done",
+                "status": "finished",
+                "scenario_name": "dc_clos",
+                "start_time": "2026-01-01T12:00:00",
+                "end_time": "2026-01-01T12:05:00",
+            },
+        )
+        app = create_inspect_app(results_root=root)
+        client = TestClient(app)
+        resp = client.delete("/api/sessions/done")
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] is True
+        assert not trial.exists()
+        missing = client.get("/api/sessions/done")
+        assert missing.status_code == 404
+
+
 class TestViewApi:
     def test_api_smoke(self, fixture_root: Path) -> None:
         app = create_inspect_app(results_root=fixture_root)
@@ -847,6 +1049,37 @@ class TestBindHost:
 
         with pytest.raises(ValueError, match="not a specific interface IP"):
             validate_bind_host("192.168.1.10")
+
+
+class TestBackgroundInspect:
+    def test_start_inspect_background_serves_and_is_idempotent(
+        self, tmp_path: Path
+    ) -> None:
+        import nika.inspect.serve as serve
+        import urllib.request
+
+        # Isolate module globals so other tests / prior runs do not collide.
+        with serve._background_lock:
+            if serve._background_server is not None:
+                serve._background_server.should_exit = True
+            serve._background_url = None
+            serve._background_server = None
+
+        url = serve.start_inspect_background(result_dir=tmp_path, port=0)
+        assert url.startswith("http://127.0.0.1:")
+        assert url.endswith("/")
+        assert serve.start_inspect_background(result_dir=tmp_path, port=0) == url
+
+        with urllib.request.urlopen(url + "api/sessions", timeout=2) as resp:
+            assert resp.status == 200
+            payload = json.loads(resp.read().decode())
+        assert "sessions" in payload
+
+        assert serve._background_server is not None
+        serve._background_server.should_exit = True
+        with serve._background_lock:
+            serve._background_url = None
+            serve._background_server = None
 
 
 class TestCatalogSafety:
@@ -930,3 +1163,124 @@ class TestTimelineMergeAware:
         ]
         merged = merge_timelines(agent, nika)
         assert [e.id for e in merged] == ["nika-0", "agent-0"]
+
+
+def _finished_session(path: Path, session_id: str) -> Path:
+    path.mkdir(parents=True)
+    _write_json(path / "run.json", {"session_id": session_id, "status": "finished"})
+    return path
+
+
+class TestAccessPolicy:
+    def test_loopback_bind_rejects_foreign_host_header(self, tmp_path: Path) -> None:
+        app = create_inspect_app(results_root=tmp_path, bind_host="127.0.0.1")
+        client = TestClient(app, base_url="http://127.0.0.1:7580")
+        assert client.get("/api/health").status_code == 200
+        rebound = client.get("/api/health", headers={"host": "evil.example:7580"})
+        assert rebound.status_code == 403
+
+    def test_cross_origin_delete_refused(self, tmp_path: Path) -> None:
+        trial = _finished_session(tmp_path / "done", "done")
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+        resp = client.delete(
+            "/api/sessions/done", headers={"origin": "http://evil.example"}
+        )
+        assert resp.status_code == 403
+        assert trial.is_dir()
+
+    def test_all_interfaces_bind_is_read_only_and_rooted(self, tmp_path: Path) -> None:
+        root = tmp_path / "results"
+        trial = _finished_session(root / "done", "done")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        client = TestClient(create_inspect_app(results_root=root, bind_host="0.0.0.0"))
+        assert client.delete("/api/sessions/done").status_code == 403
+        assert trial.is_dir()
+        assert (
+            client.get("/api/browse", params={"path": str(outside)}).status_code == 400
+        )
+        assert (
+            client.get("/api/sessions", params={"root": str(outside)}).status_code
+            == 400
+        )
+
+    def test_job_dir_is_not_a_session(self, tmp_path: Path) -> None:
+        job = tmp_path / "job"
+        _finished_session(job / "trials" / "t1", "t1")
+        _write_json(job / "run.json", {"run_id": "job", "status": "finished"})
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+        assert client.get("/api/sessions/job").status_code == 404
+        assert client.delete("/api/sessions/job").status_code == 404
+        assert (job / "trials" / "t1").is_dir()
+
+    def test_ambiguous_bare_id_conflicts(self, tmp_path: Path) -> None:
+        _finished_session(tmp_path / "a" / "x", "same")
+        _finished_session(tmp_path / "b" / "y", "same")
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+        assert client.delete("/api/sessions/same").status_code == 409
+        assert (tmp_path / "a" / "x").is_dir() and (tmp_path / "b" / "y").is_dir()
+
+
+class TestTolerantParsing:
+    def test_odd_fields_and_partial_writes_do_not_fail(self, tmp_path: Path) -> None:
+        trial = _finished_session(tmp_path / "live", "live")
+        rows = [
+            {"event": "llm_start", "timestamp": 1756720800, "phase": {"n": 1}},
+            {"event": "tool_error", "tool": {"name": "t"}, "error": {}},
+        ]
+        body = (
+            "\n".join(json.dumps(r) for r in rows).encode() + b'\n{"event": "x\xe2\x82'
+        )
+        (trial / "messages.jsonl").write_bytes(body)
+        (trial / "eval_metrics.json").write_text('{"a":', encoding="utf-8")
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+        timeline = client.get("/api/sessions/live/timeline")
+        assert timeline.status_code == 200
+        first = timeline.json()["events"][0]
+        assert first["timestamp"].startswith("2025-09-01T10:00:00")
+        assert first["phase"] is None
+        assert client.get("/api/sessions/live/raw/messages.jsonl").status_code == 200
+        assert client.get("/api/sessions/live/raw/eval_metrics.json").status_code == 200
+
+
+class TestRunningSessionSecrets:
+    def test_ground_truth_and_scores_hidden_until_session_stops(
+        self, tmp_path: Path
+    ) -> None:
+        trial = tmp_path / "live"
+        trial.mkdir()
+        _write_json(trial / "run.json", {"session_id": "live", "status": "running"})
+        _write_json(trial / "ground_truth.json", {"root_causes": ["secret"]})
+        _write_json(trial / "eval_metrics.json", {"rca_f1": 1.0})
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+
+        assert client.get("/api/sessions/live/raw/ground_truth.json").status_code == 403
+        assert client.get("/api/sessions/live/raw/eval_metrics.json").status_code == 403
+        scores = client.get("/api/sessions/live/scores").json()
+        assert scores["ground_truth"] is None and scores["eval_metrics"] is None
+        assert client.get("/api/sessions/live").json()["rca_f1"] is None
+
+        _write_json(trial / "run.json", {"session_id": "live", "status": "finished"})
+        raw = client.get("/api/sessions/live/raw/ground_truth.json")
+        assert raw.json()["data"] == {"root_causes": ["secret"]}
+        assert client.get("/api/sessions/live").json()["rca_f1"] == 1.0
+
+
+class TestSymlinkedSessionKey:
+    def test_key_under_symlinked_child_resolves_without_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from nika.inspect import catalog
+
+        base = tmp_path / "results"
+        base.mkdir()
+        outside = tmp_path / "elsewhere"
+        _finished_session(outside / "run1" / "sess", "sess")
+        (base / "linked").symlink_to(outside)
+
+        def _no_scan(_root):
+            raise AssertionError("session key lookup must not scan the tree")
+
+        monkeypatch.setattr(catalog, "iter_session_dirs", _no_scan)
+        found = catalog.find_session_dir("linked/run1/sess", results_root=base)
+        assert found == base.absolute() / "linked" / "run1" / "sess"

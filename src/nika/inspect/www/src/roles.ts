@@ -133,6 +133,74 @@ function isLlmEndError(ev: CanonicalTraceEvent | null | undefined): boolean {
   return ev.event === "llm_end_error" || ev.event === "turn.failed";
 }
 
+function llmRunId(ev: CanonicalTraceEvent): string | null {
+  const id = ev.raw?.run_id;
+  return typeof id === "string" && id ? id : null;
+}
+
+function isLlmRetry(ev: CanonicalTraceEvent): boolean {
+  return ev.event === "llm_retry";
+}
+
+/**
+ * Pair each llm_start with its end, shared by the ledger and the overview.
+ * Logged LangChain `run_id`s pair concurrent calls exactly; without them the
+ * end must come before the next start (a start that failed without an end,
+ * then a retry, must not steal the retry's end).
+ */
+function pairLlmEnds(
+  events: CanonicalTraceEvent[],
+): Map<string, { end: CanonicalTraceEvent; index: number }> {
+  const pairs = new Map<string, { end: CanonicalTraceEvent; index: number }>();
+  const usedEnds = new Set<string>();
+  for (let i = 0; i < events.length; i++) {
+    const start = events[i];
+    if (!isLlmStart(start)) continue;
+    const runId = llmRunId(start);
+    for (let j = i + 1; j < events.length; j++) {
+      const e = events[j];
+      if (usedEnds.has(e.id)) continue;
+      if (isLlmRetry(e)) continue;
+      if (runId) {
+        if (isLlmEnd(e) && llmRunId(e) === runId) {
+          pairs.set(start.id, { end: e, index: j });
+          usedEnds.add(e.id);
+          break;
+        }
+        continue;
+      }
+      if (!isLlmEnd(e)) {
+        if (isLlmStart(e)) break;
+        continue;
+      }
+      if (llmRunId(e)) continue;
+      if (start.phase && e.phase && e.phase !== start.phase) continue;
+      pairs.set(start.id, { end: e, index: j });
+      usedEnds.add(e.id);
+      break;
+    }
+  }
+  return pairs;
+}
+
+/** HTTP ``llm_retry`` markers between a start and its end (same run_id). */
+function collectLlmRetries(
+  events: CanonicalTraceEvent[],
+  start: CanonicalTraceEvent,
+  from: number,
+  until: number,
+): CanonicalTraceEvent[] {
+  const runId = llmRunId(start);
+  const out: CanonicalTraceEvent[] = [];
+  for (let j = from; j < until; j++) {
+    const e = events[j]!;
+    if (!isLlmRetry(e)) continue;
+    if (runId && llmRunId(e) && llmRunId(e) !== runId) continue;
+    out.push(e);
+  }
+  return out;
+}
+
 /** Codex turn interiors: agent_message items + stream reconnect errors. */
 function isCodexTurnInterior(ev: CanonicalTraceEvent): boolean {
   if (ev.source !== "agent") return false;
@@ -199,7 +267,8 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
   const spans: OverviewSpan[] = [];
   const pendingToolsById = new Map<string, { ev: CanonicalTraceEvent; ms: number }>();
   const pendingToolsByName = new Map<string, { ev: CanonicalTraceEvent; ms: number }[]>();
-  const pendingLlms: { ev: CanonicalTraceEvent; ms: number }[] = [];
+  const llmPairs = pairLlmEnds(events);
+  const pairedLlmEnds = new Set([...llmPairs.values()].map((p) => p.end.id));
 
   const pushPendingTool = (ev: CanonicalTraceEvent, ms: number) => {
     const callId = ev.tool?.tool_call_id;
@@ -254,28 +323,87 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
     }
 
     if (isLlmStart(ev)) {
-      pendingLlms.push({ ev, ms });
+      const matched = llmPairs.get(ev.id);
+      const end = matched?.end;
+      const endMs = end ? parseTs(end.timestamp) : null;
+      const until = matched?.index ?? events.length;
+      const startIndex = events.findIndex((e) => e.id === ev.id);
+      const retries =
+        startIndex >= 0
+          ? collectLlmRetries(events, ev, startIndex + 1, until)
+          : [];
+      if (retries.length === 0) {
+        spans.push({
+          id: endMs != null ? `span-${ev.id}` : `span-${ev.id}-open`,
+          eventId: ev.id,
+          lane: "model",
+          role: "assistant",
+          label: "llm",
+          startMs: ms,
+          endMs: Math.max(endMs ?? ms, ms + DEFAULT_MARK_MS),
+          error: isLlmEndError(end),
+        });
+        continue;
+      }
+      const points: { ms: number; errorClose: boolean }[] = [
+        { ms, errorClose: false },
+      ];
+      for (const r of retries) {
+        const rms = parseTs(r.timestamp);
+        if (rms == null) continue;
+        points.push({ ms: rms, errorClose: true });
+      }
+      if (endMs != null) {
+        points.push({ ms: endMs, errorClose: isLlmEndError(end) });
+      }
+      for (let k = 0; k < points.length - 1; k++) {
+        const a = points[k]!;
+        const b = points[k + 1]!;
+        spans.push({
+          id: `span-${ev.id}-a${k + 1}`,
+          eventId: ev.id,
+          lane: "model",
+          role: "assistant",
+          label: `llm attempt #${k + 1}`,
+          startMs: a.ms,
+          endMs: Math.max(b.ms, a.ms + DEFAULT_MARK_MS),
+          error: b.errorClose,
+        });
+      }
+      if (endMs == null) {
+        const a = points[points.length - 1]!;
+        spans.push({
+          id: `span-${ev.id}-a${points.length}-open`,
+          eventId: ev.id,
+          lane: "model",
+          role: "assistant",
+          label: `llm attempt #${points.length}`,
+          startMs: a.ms,
+          endMs: a.ms + DEFAULT_MARK_MS,
+          error: false,
+        });
+      }
       continue;
     }
 
     if (isLlmEnd(ev)) {
-      const start = pendingLlms.shift();
-      const startMs = start?.ms ?? ms;
+      if (pairedLlmEnds.has(ev.id)) continue;
+      // Orphan end (its start is missing).
       spans.push({
-        id: `span-${start?.ev.id ?? ev.id}`,
-        eventId: start?.ev.id ?? ev.id,
+        id: `span-${ev.id}`,
+        eventId: ev.id,
         lane: "model",
         role: "assistant",
         label: "llm",
-        startMs,
-        endMs: Math.max(ms, startMs + DEFAULT_MARK_MS),
+        startMs: ms,
+        endMs: ms + DEFAULT_MARK_MS,
         error: isLlmEndError(ev),
       });
       continue;
     }
 
-    // Codex reconnect / empty agent_message chatter is folded into the turn.
-    if (isCodexTurnInterior(ev) || isAgentNoiseEvent(ev)) {
+    // Folded into the parent llm_start span (HTTP retries / Codex chatter).
+    if (isLlmRetry(ev) || isCodexTurnInterior(ev) || isAgentNoiseEvent(ev)) {
       continue;
     }
 
@@ -327,18 +455,6 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
     }
   }
 
-  for (const { ev, ms } of pendingLlms) {
-    spans.push({
-      id: `span-${ev.id}-open`,
-      eventId: ev.id,
-      lane: "model",
-      role: "assistant",
-      label: "llm",
-      startMs: ms,
-      endMs: ms + DEFAULT_MARK_MS,
-    });
-  }
-
   return spans;
 }
 
@@ -380,68 +496,51 @@ export function compressIdleSpans(spans: OverviewSpan[]): OverviewSpan[] {
   });
 }
 
-/** Project spans into the active overview mode's time domain. */
-export function projectOverviewSpans(
-  spans: OverviewSpan[],
-  mode: OverviewLayoutMode,
-): OverviewSpan[] {
-  if (mode === "duration") return compressIdleSpans(spans);
-  return spans;
-}
+/** One overview span placed in the active mode's domain coordinates. */
+export type DomainOverviewSpan = {
+  /** Original span; start/end stay wall-clock ms for brush/ledger. */
+  span: OverviewSpan;
+  /** Start/end in the mode's domain (sequence units or ms). */
+  x0: number;
+  x1: number;
+};
+
+/** Full-domain projection that viewport, brush, and zoom all share. */
+export type OverviewDomain = {
+  start: number;
+  end: number;
+  items: DomainOverviewSpan[];
+};
 
 /**
- * Lay out overview bars. For `duration`, idle is compressed for geometry only;
- * returned `span` objects keep original wall-clock start/end for brush/ledger.
+ * Project spans into one stable domain per mode (Harness `deriveTrajectoryTimeline`):
+ * - equal: span i occupies sequence units [i, i+1] in chronological order
+ * - duration: ms with idle gaps compressed
+ * - actual: wall-clock ms
+ * Zoom/pan/brush operate on this domain, so zooming never changes the layout.
  */
-export function layoutOverviewSpans(
+export function projectOverviewDomain(
   spans: OverviewSpan[],
-  domainStart: number,
-  domainEnd: number,
   mode: OverviewLayoutMode = "equal",
-): { span: OverviewSpan; leftPct: number; widthPct: number }[] {
-  const domainMs = Math.max(1, domainEnd - domainStart);
+): OverviewDomain | null {
+  if (spans.length === 0) return null;
   const sorted = [...spans].sort(
     (a, b) => a.startMs - b.startMs || a.endMs - b.endMs || a.id.localeCompare(b.id),
   );
-  if (sorted.length === 0) return [];
-
-  if (mode === "actual") {
-    return sorted.map((span) => {
-      const startMs = span.startMs;
-      const endMs = Math.max(span.endMs, startMs + 1);
-      const leftPct = ((startMs - domainStart) / domainMs) * 100;
-      const widthPct = Math.max(0.12, ((endMs - startMs) / domainMs) * 100);
-      return { span, leftPct, widthPct };
-    });
+  let items: DomainOverviewSpan[];
+  if (mode === "equal") {
+    items = sorted.map((span, i) => ({ span, x0: i, x1: i + 1 }));
+  } else {
+    const placed = mode === "duration" ? compressIdleSpans(sorted) : sorted;
+    items = sorted.map((span, i) => ({
+      span,
+      x0: placed[i].startMs,
+      x1: Math.max(placed[i].endMs, placed[i].startMs),
+    }));
   }
-
-  if (mode === "duration") {
-    const compressed = compressIdleSpans(sorted);
-    const byId = new Map(compressed.map((s) => [s.id, s]));
-    return sorted.map((span) => {
-      const c = byId.get(span.id)!;
-      const startMs = c.startMs;
-      const endMs = Math.max(c.endMs, startMs + 1);
-      const leftPct = ((startMs - domainStart) / domainMs) * 100;
-      const widthPct = Math.max(0.12, ((endMs - startMs) / domainMs) * 100);
-      return { span, leftPct, widthPct };
-    });
-  }
-
-  // Equal width in true chronological order across every lane.
-  const n = sorted.length;
-  const gapPct = Math.min(0.55, 6 / Math.max(n, 1));
-  const gapMs = (gapPct / 100) * domainMs;
-  const totalGap = gapMs * Math.max(0, n - 1);
-  const chipMs = Math.max(domainMs * 0.0015, domainMs - totalGap) / n;
-
-  return sorted.map((span, i) => {
-    const startMs = domainStart + i * (chipMs + gapMs);
-    const endMs = startMs + chipMs;
-    const leftPct = ((startMs - domainStart) / domainMs) * 100;
-    const widthPct = Math.max(0.1, ((endMs - startMs) / domainMs) * 100);
-    return { span, leftPct, widthPct };
-  });
+  const start = Math.min(...items.map((it) => it.x0));
+  const end = Math.max(...items.map((it) => it.x1));
+  return { start, end: Math.max(end, start + 1), items };
 }
 
 /** Vertical markers at assistant (LLM) span starts, in layout %. */
@@ -471,17 +570,16 @@ const MAX_LANE_STACK = 12;
  * Assign overlap layers per lane. Concurrent bars share x-range but get
  * different stackRow for a slight height nudge (still stacked together).
  */
-export function assignLaneStackRows(
-  items: { span: OverviewSpan; leftPct: number; widthPct: number }[],
-  maxStack: number = MAX_LANE_STACK,
-): LaidOutOverviewSpan[] {
-  const byLane = new Map<string, typeof items>();
+export function assignLaneStackRows<
+  T extends { span: OverviewSpan; leftPct: number; widthPct: number },
+>(items: T[], maxStack: number = MAX_LANE_STACK): (T & { stackRow: number })[] {
+  const byLane = new Map<string, T[]>();
   for (const it of items) {
     const list = byLane.get(it.span.lane) || [];
     list.push(it);
     byLane.set(it.span.lane, list);
   }
-  const out: LaidOutOverviewSpan[] = [];
+  const out: (T & { stackRow: number })[] = [];
   for (const laneItems of byLane.values()) {
     const sorted = [...laneItems].sort(
       (a, b) =>
@@ -558,6 +656,10 @@ export interface DisplayEvent {
   end: CanonicalTraceEvent | null;
   /** Codex turn interiors folded into this span (agent_message, reconnect errors). */
   interiors?: CanonicalTraceEvent[];
+  /** Start logged but the session ended without its end event. */
+  stale?: boolean;
+  /** 1-based attempt index within a failed→retry LLM chain (only when >1 attempts). */
+  attempt?: number;
   error: boolean;
 }
 
@@ -610,15 +712,26 @@ function formatToolPreview(value: unknown, limit = 160): string {
 }
 
 /** Ledger Content for a tool row: result text, else parameters/input. */
+/** Older LangChain logs store the ToolMessage repr (`content=[...] name=...`). */
+function unwrapToolMessageRepr(text: string): string {
+  return text.trimStart().startsWith("content=")
+    ? parseLlmMessageContent(text).text || text
+    : text;
+}
+
 function toolLedgerSummary(
   start: CanonicalTraceEvent,
   end: CanonicalTraceEvent | null,
 ): string {
   if (end) {
     const err = end.tool?.error ?? (typeof end.raw.error === "string" ? end.raw.error : null);
-    if (typeof err === "string" && err.trim()) return err.trim().slice(0, 160);
+    if (typeof err === "string" && err.trim()) {
+      return unwrapToolMessageRepr(err).trim().slice(0, 160);
+    }
     const out = end.tool?.output;
-    if (typeof out === "string" && out.trim()) return out.trim().slice(0, 160);
+    if (typeof out === "string" && out.trim()) {
+      return unwrapToolMessageRepr(out).trim().slice(0, 160);
+    }
     if (out != null && !(typeof out === "string")) {
       const formatted = formatToolPreview(out);
       if (formatted) return formatted;
@@ -642,21 +755,7 @@ export function collapsePairedEvents(
 ): DisplayEvent[] {
   const out: DisplayEvent[] = [];
   const used = new Set<string>();
-
-  const findLlmEnd = (from: number, phase: string | null | undefined) => {
-    for (let j = from; j < events.length; j++) {
-      const e = events[j];
-      if (used.has(e.id)) continue;
-      if (!isLlmEnd(e)) {
-        // Stop at next llm_start so we don't skip across calls.
-        if (isLlmStart(e)) return null;
-        continue;
-      }
-      if (phase && e.phase && e.phase !== phase) continue;
-      return { end: e, index: j };
-    }
-    return null;
-  };
+  const llmPairs = pairLlmEnds(events);
 
   const findToolEnd = (from: number, start: CanonicalTraceEvent) => {
     const callId = start.tool?.tool_call_id;
@@ -689,10 +788,13 @@ export function collapsePairedEvents(
     }
 
     if (isLlmStart(ev)) {
-      const matched = findLlmEnd(i + 1, ev.phase);
+      const matched = llmPairs.get(ev.id) ?? null;
       const end = matched?.end ?? null;
       if (end) used.add(end.id);
       used.add(ev.id);
+      const until = matched?.index ?? events.length;
+      const retries = collectLlmRetries(events, ev, i + 1, until);
+      for (const r of retries) used.add(r.id);
       // Fold Codex turn interiors (agent_message + reconnect errors) into the span.
       const interiors: CanonicalTraceEvent[] = [];
       const interiorSummaries: string[] = [];
@@ -720,33 +822,136 @@ export function collapsePairedEvents(
         .find((s) => s && !s.toLowerCase().startsWith("reconnecting"))
         ?? interiorSummaries[interiorSummaries.length - 1]
         ?? "";
-      let summary = inputPreview.trim()
-        ? inputPreview.slice(0, 160)
+      // Prefer response text (end / streaming interiors). Unpaired starts are
+      // still running — do not surface the prompt as if it were the answer.
+      const endPreview = end
+        ? (end.summary || llmPreview(end)).trim()
+        : "";
+      let summary = endPreview
+        ? endPreview.slice(0, 160)
         : interiorPreview
           ? interiorPreview.slice(0, 160)
           : end
-            ? (end.summary || llmPreview(end)).slice(0, 160)
+            ? (inputPreview.trim() || "—").slice(0, 160)
             : "in progress";
       if (typeof finish === "string" && finish === "tool_calls") {
         summary = summary ? `${summary}` : "→ tool calls";
       }
-      out.push({
-        id: ev.id,
-        role: "assistant",
-        title: "llm",
-        summary,
-        timestamp: ev.timestamp ?? null,
-        endTimestamp: end?.timestamp ?? null,
-        durationMs:
-          startMs != null && endMs != null ? Math.max(0, endMs - startMs) : null,
-        phase: ev.phase ?? null,
-        event: "llm",
-        kind: "llm",
-        start: ev,
-        end,
-        interiors: interiors.length ? interiors : undefined,
-        error: isLlmEndError(end),
-      });
+
+      if (retries.length === 0) {
+        out.push({
+          id: ev.id,
+          role: "assistant",
+          title: "llm",
+          summary,
+          timestamp: ev.timestamp ?? null,
+          endTimestamp: end?.timestamp ?? null,
+          durationMs:
+            startMs != null && endMs != null
+              ? Math.max(0, endMs - startMs)
+              : null,
+          phase: ev.phase ?? null,
+          event: "llm",
+          kind: "llm",
+          start: ev,
+          end,
+          interiors: interiors.length ? interiors : undefined,
+          error: isLlmEndError(end),
+        });
+        continue;
+      }
+
+      // Split one LangChain run at HTTP ``llm_retry`` markers so each attempt
+      // shows its own duration instead of one multi-timeout wall-clock bar.
+      type Bound = {
+        ts: string | null;
+        ms: number | null;
+        endEv: CanonicalTraceEvent | null;
+        failed: boolean;
+        summary: string;
+      };
+      const points: Bound[] = [
+        {
+          ts: ev.timestamp ?? null,
+          ms: startMs,
+          endEv: null,
+          failed: false,
+          summary: "",
+        },
+      ];
+      for (const r of retries) {
+        points.push({
+          ts: r.timestamp ?? null,
+          ms: parseTs(r.timestamp),
+          endEv: r,
+          failed: true,
+          summary: (r.summary || "retry").slice(0, 160),
+        });
+      }
+      if (end) {
+        points.push({
+          ts: end.timestamp ?? null,
+          ms: endMs,
+          endEv: end,
+          failed: isLlmEndError(end),
+          summary,
+        });
+      }
+      const attemptCount = end ? points.length - 1 : points.length;
+      for (let k = 0; k < points.length - 1; k++) {
+        const a = points[k]!;
+        const b = points[k + 1]!;
+        const attemptSummary =
+          k === points.length - 2 && end
+            ? summary
+            : b.summary || `attempt ${k + 1} failed`;
+        out.push({
+          id: `${ev.id}__a${k + 1}`,
+          role: "assistant",
+          title: "llm",
+          summary: attemptSummary,
+          timestamp: a.ts,
+          endTimestamp: b.ts,
+          durationMs:
+            a.ms != null && b.ms != null ? Math.max(0, b.ms - a.ms) : null,
+          phase: ev.phase ?? null,
+          event: "llm",
+          kind: "llm",
+          start: ev,
+          end: b.endEv,
+          interiors:
+            k === points.length - 2 && interiors.length
+              ? interiors
+              : undefined,
+          error: b.failed,
+          attempt: attemptCount > 1 ? k + 1 : undefined,
+        });
+      }
+      if (!end) {
+        const a = points[points.length - 1]!;
+        out.push({
+          id: `${ev.id}__a${points.length}`,
+          role: "assistant",
+          title: "llm",
+          summary: "in progress",
+          timestamp: a.ts,
+          endTimestamp: null,
+          durationMs: null,
+          phase: ev.phase ?? null,
+          event: "llm",
+          kind: "llm",
+          start: ev,
+          end: null,
+          error: false,
+          attempt: attemptCount > 1 ? points.length : undefined,
+        });
+      }
+      continue;
+    }
+
+    if (isLlmRetry(ev)) {
+      // Consumed when splitting the parent llm_start; orphans are noise.
+      used.add(ev.id);
       continue;
     }
 
@@ -762,7 +967,7 @@ export function collapsePairedEvents(
         endTimestamp: ev.timestamp ?? null,
         durationMs: null,
         phase: ev.phase ?? null,
-        event: ev.event,
+        event: ev.event ?? null,
         kind: "llm",
         start: ev,
         end: null,
@@ -851,16 +1056,26 @@ export function collapsePairedEvents(
         : ev.kind === "system" && ev.title
           ? ev.title
           : (ev.event ?? null);
+    const message =
+      ev.kind === "llm"
+        ? parseLlmMessageContent(llmMessageSource(ev.raw))
+        : null;
     out.push({
       id: ev.id,
       role,
-      title: ev.kind === "llm" ? "llm" : ev.title,
+      title: message
+        ? message.thinking.trim()
+          ? message.text.trim()
+            ? "llm thinking / output"
+            : "llm thinking"
+          : "llm output"
+        : ev.title,
       summary:
         ev.summary ||
         (ev.kind === "llm" ? llmPreview(ev) : ev.summary) ||
         "",
       timestamp: startIso,
-      endTimestamp: endIso,
+      endTimestamp: message ? startIso : endIso,
       durationMs: measured,
       phase: ev.phase ?? null,
       event: displayEvent,
@@ -877,22 +1092,164 @@ export function collapsePairedEvents(
   return out;
 }
 
+function isLlmRequestRow(row: DisplayEvent): boolean {
+  return row.role === "assistant" && isLlmStart(row.start);
+}
+
+/**
+ * Mark attempt ordinals on consecutive LLM rows linked by failure/stale
+ * (failed or unfinished call, then another llm_start). Only chains longer
+ * than one get ``attempt`` set so ordinary single calls stay unlabeled.
+ * Rows already split from ``llm_retry`` markers keep their attempt.
+ */
+export function annotateLlmRetryAttempts(rows: DisplayEvent[]): DisplayEvent[] {
+  if (rows.length === 0) return rows;
+  const attemptById = new Map<string, number>();
+  let i = 0;
+  while (i < rows.length) {
+    if (!isLlmRequestRow(rows[i]!)) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < rows.length) {
+      const cur = rows[j]!;
+      const next = rows[j + 1]!;
+      if (!isLlmRequestRow(next)) break;
+      if (cur.error || cur.stale) {
+        j++;
+        continue;
+      }
+      break;
+    }
+    if (j > i) {
+      for (let k = i; k <= j; k++) {
+        // Prefer attempt already assigned by llm_retry splitting.
+        if (rows[k]!.attempt == null) {
+          attemptById.set(rows[k]!.id, k - i + 1);
+        }
+      }
+    }
+    i = j + 1;
+  }
+  if (attemptById.size === 0) return rows;
+  return rows.map((row) => {
+    const attempt = attemptById.get(row.id);
+    return attempt != null ? { ...row, attempt } : row;
+  });
+}
+
+/**
+ * While a session is still live, an unpaired llm_start followed by a later
+ * llm_start is a failed/abandoned attempt (e.g. reconnect). Close it at the
+ * next start so the duration stops ticking and retry chaining can label it.
+ */
+export function closeSupersededOpenSpans(rows: DisplayEvent[]): DisplayEvent[] {
+  if (rows.length === 0) return rows;
+  let changed = false;
+  const out = rows.slice();
+  for (let i = 0; i < out.length; i++) {
+    const row = out[i]!;
+    if (!isLlmRequestRow(row)) continue;
+    if (row.end != null || row.durationMs != null || row.stale) continue;
+    let next: DisplayEvent | null = null;
+    for (let j = i + 1; j < out.length; j++) {
+      if (isLlmRequestRow(out[j]!)) {
+        next = out[j]!;
+        break;
+      }
+    }
+    if (!next?.timestamp || !row.timestamp) continue;
+    const startMs = parseTs(row.timestamp);
+    const endMs = parseTs(next.timestamp);
+    if (startMs == null || endMs == null || endMs < startMs) continue;
+    out[i] = {
+      ...row,
+      stale: true,
+      error: true,
+      endTimestamp: next.timestamp,
+      durationMs: endMs - startMs,
+      summary:
+        row.summary === "in progress" ? "superseded by retry" : row.summary,
+    };
+    changed = true;
+  }
+  return changed ? out : rows;
+}
+
 export function formatDuration(ms: number | null): string {
   if (ms == null || ms < 0) return "—";
   if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(2)} s`;
   const mins = Math.floor(ms / 60_000);
-  const secs = ((ms % 60_000) / 1000).toFixed(1);
+  const secs = Math.round((ms % 60_000) / 1000);
   return `${mins}m ${secs}s`;
 }
 
-export function displayDurationMs(row: DisplayEvent): number | null {
-  return row.durationMs;
+/** True when an llm/tool span has started but not yet ended. */
+export function isRunningSpan(row: DisplayEvent): boolean {
+  return (
+    !row.stale &&
+    row.end == null &&
+    row.endTimestamp == null &&
+    row.durationMs == null &&
+    (isLlmRequestRow(row) ||
+      row.event === "tool" ||
+      row.kind === "tool_call")
+  );
+}
+
+/** Finished span duration, or live elapsed wall time while still running. */
+export function displayDurationMs(
+  row: DisplayEvent,
+  nowMs: number = Date.now(),
+): number | null {
+  if (row.durationMs != null) return row.durationMs;
+  if (!isRunningSpan(row)) return null;
+  const start = parseTs(row.timestamp);
+  if (start == null) return null;
+  return Math.max(0, nowMs - start);
+}
+
+export interface DurationStats {
+  n: number;
+  minMs: number | null;
+  avgMs: number | null;
+  maxMs: number | null;
+  sumMs: number | null;
+}
+
+/**
+ * Count / min / avg / max / sum of completed assistant LLM spans.
+ * In-flight requests are excluded — a just-started call would otherwise
+ * collapse min toward 0 and keep the chips ticking every second.
+ */
+export function llmDurationStats(rows: DisplayEvent[]): DurationStats {
+  const values: number[] = [];
+  for (const row of rows) {
+    if (row.role !== "assistant") continue;
+    if (row.event !== "llm" && row.kind !== "llm") continue;
+    if (row.title === "llm end") continue;
+    if (row.durationMs == null) continue;
+    values.push(row.durationMs);
+  }
+  if (!values.length) {
+    return { n: 0, minMs: null, avgMs: null, maxMs: null, sumMs: null };
+  }
+  const sumMs = values.reduce((a, b) => a + b, 0);
+  return {
+    n: values.length,
+    minMs: Math.min(...values),
+    avgMs: sumMs / values.length,
+    maxMs: Math.max(...values),
+    sumMs,
+  };
 }
 
 export interface LlmTokenUsage {
   input: number | null;
   output: number | null;
+  reasoning: number | null;
   total: number | null;
 }
 
@@ -934,12 +1291,26 @@ function readUsageRecord(raw: Record<string, unknown> | null | undefined): LlmTo
       asFiniteNumber(u.completion_tokens) ??
       asFiniteNumber(u.out_tokens) ??
       asFiniteNumber(u.output);
+    const details =
+      u.output_token_details ??
+      u.output_tokens_details ??
+      u.completion_tokens_details;
+    const detailRec =
+      details && typeof details === "object" && !Array.isArray(details)
+        ? (details as Record<string, unknown>)
+        : null;
+    const reasoning =
+      asFiniteNumber(u.reasoning_tokens) ??
+      asFiniteNumber(u.reasoning_output_tokens) ??
+      asFiniteNumber(detailRec?.reasoning) ??
+      asFiniteNumber(detailRec?.reasoning_tokens) ??
+      asFiniteNumber(detailRec?.thinking_tokens);
     const total =
       asFiniteNumber(u.total_tokens) ??
       asFiniteNumber(u.total) ??
       (input != null || output != null ? (input ?? 0) + (output ?? 0) : null);
     if (input != null || output != null || total != null) {
-      return { input, output, total };
+      return { input, output, reasoning, total };
     }
   }
   return null;
@@ -1192,10 +1563,15 @@ export function buildLlmTurnDetail(
   const interiorThinking: string[] = [];
   for (const mid of interiors) {
     const fromRaw = parseLlmMessageContent(llmMessageSource(mid.raw));
-    const codexItem = (mid.raw.codex_event as { item?: { text?: unknown } } | undefined)
-      ?.item;
+    const codexItem = (
+      mid.raw.codex_event as { item?: { text?: unknown; type?: unknown } } | undefined
+    )?.item;
     const codexText =
       codexItem && typeof codexItem.text === "string" ? codexItem.text : "";
+    if (codexItem?.type === "reasoning" && codexText.trim()) {
+      interiorThinking.push(codexText.trim());
+      continue;
+    }
     const text = fromRaw.text.trim() || mid.summary?.trim() || codexText.trim();
     if (text && !text.toLowerCase().startsWith("reconnecting")) {
       interiorTexts.push(text);
@@ -1235,17 +1611,18 @@ export function buildLlmTurnDetail(
     }
   }
 
-  // Prefer end-event text (LangChain), then Codex interiors, then unpaired start.
+  // Prefer end-event text (LangChain), then Codex interiors. Never treat the
+  // unpaired start prompt as output — that call is still running.
   const outputText = endParsed.text.trim()
     ? endParsed.text
     : interiorTexts.length
       ? interiorTexts.join("\n\n")
-      : end
-        ? ""
-        : parsed.text;
+      : !isLlmStart(start)
+        ? parsed.text
+        : "";
 
   return {
-    input: end ? parsed.text : "",
+    input: isLlmStart(start) ? parsed.text : "",
     thinking,
     outputText,
     finishReason,
