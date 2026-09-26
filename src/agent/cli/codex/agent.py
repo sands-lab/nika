@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from agent.cli.codex.phases.diagnosis import CodexCliDiagnosisPhase
 from agent.cli.codex.phases.submission import CodexCliSubmissionPhase
-from agent.sandbox.session_dir import resolve_agent_session_dir
+from agent.sandbox.session_dir import resolve_agent_session_dir, resolve_agent_trace_dir
 from agent.utils.two_phase import TwoPhaseAgent
 from nika.utils.session import Session
 
@@ -65,7 +65,7 @@ class CodexCliAgent(TwoPhaseAgent):
         # The sandbox workspace holds the CLI workspace; the trace stays in the
         # host session dir, which the sandbox cannot write.
         self.session_dir: str = resolve_agent_session_dir(session.session_dir)
-        self.trace_dir: str = session.session_dir
+        self.trace_dir: str = resolve_agent_trace_dir(session_id, session.session_dir)
 
         scenario_name: str = getattr(session, "scenario_name", "")
 
