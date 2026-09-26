@@ -110,7 +110,7 @@ def test_list_arguments_and_implicit_targets_are_checked() -> None:
     assert omitted.reason == "explicit_targets_required"
     implicit = decide_diagnosis_access(
         policy=_RESTRICTED,
-        tool_name="sdn_controller_logs",
+        tool_name="sdn_onos_rest",
         arguments={},
         node_roles=_ROLES,
     )
@@ -121,12 +121,12 @@ def test_ip_targets_pass_default_policy_and_fail_restricted() -> None:
     from nika.run_config.schema import DiagnosisAccessPolicy
 
     default = DiagnosisAccessPolicy().model_dump()
-    args = {"host_a": "pc1", "host_b": "10.0.0.2"}
+    args = {"source": "pc1", "destination": "10.0.0.2"}
     assert decide_diagnosis_access(
-        policy=default, tool_name="ping_pair", arguments=args, node_roles=_ROLES
+        policy=default, tool_name="active_tcp_probe", arguments=args, node_roles=_ROLES
     ).allowed
     denied = decide_diagnosis_access(
-        policy=_RESTRICTED, tool_name="ping_pair", arguments=args, node_roles=_ROLES
+        policy=_RESTRICTED, tool_name="active_tcp_probe", arguments=args, node_roles=_ROLES
     )
     assert (denied.allowed, denied.reason) == (False, "unknown_target")
 
