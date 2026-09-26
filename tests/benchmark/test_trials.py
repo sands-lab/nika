@@ -1020,6 +1020,7 @@ class TestReleaseRunMetadata:
 @pytest.mark.skipif(
     not docker_available(), reason="Docker required for release run E2E"
 )
+@pytest.mark.e2e
 class TestReleaseRunE2E:
     """Real Kathara + mock agent through ``run_benchmark_from_release`` (1 case × 2 trials)."""
 
@@ -1116,6 +1117,7 @@ class TestReleaseRunE2E:
 @pytest.mark.skipif(
     not docker_available(), reason="Docker required for agent_failed resume E2E"
 )
+@pytest.mark.e2e
 class TestAgentFailedResumeDockerE2E:
     """Real lab + forced agent failure must count; resume must not re-run."""
 
@@ -1195,6 +1197,7 @@ class TestAgentFailedResumeDockerE2E:
 @pytest.mark.skipif(
     not docker_available(), reason="Docker required for healthy mock-agent E2E"
 )
+@pytest.mark.e2e
 class TestHealthyMockAgentE2E:
     """Healthy case + fault case: mock agent must not crash on ``healthy`` ontology."""
 

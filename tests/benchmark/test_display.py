@@ -278,7 +278,9 @@ def test_dashboard_survives_drag_resize() -> None:
 
     pid, fd = pty.fork()
     if pid == 0:  # pragma: no cover - child process
-        os.execv(sys.executable, [sys.executable, "-c", _RESIZE_CHILD])
+        # Live progress is disabled under pytest; the child is a real terminal run.
+        env = {k: v for k, v in os.environ.items() if k != "PYTEST_CURRENT_TEST"}
+        os.execve(sys.executable, [sys.executable, "-c", _RESIZE_CHILD], env)
 
     def set_size(cols: int, rows: int) -> None:
         fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))

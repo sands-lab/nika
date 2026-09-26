@@ -528,8 +528,13 @@ class BenchmarkProgress:
         self._traj_feed: deque[str] = deque(maxlen=_TRAJ_KEEP)
         self._progress: Progress | None = None
         self._task_id: TaskID | None = None
+        # Pytest captures/closes stdio; Live redirect then breaks Kathara/logging.
+        under_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
         self._use_live = (
-            output_mode == "human" and _console.is_terminal and self.total > 0
+            output_mode == "human"
+            and _console.is_terminal
+            and self.total > 0
+            and not under_pytest
         )
         # RLock: stray prints captured during Live re-enter via ``log``.
         self._lock = threading.RLock()
