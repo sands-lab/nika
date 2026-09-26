@@ -400,7 +400,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         n_flows: int = 3,
     ) -> list:
 
-        from traffic.od_flows import ODFLowGenerator
+        from nika.traffic.od_flows import ODFLowGenerator
         from nika.net_env.isp.traffic import resolve_traffic_series, series_to_od_dicts
 
         env = get_net_env_instance(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from nika.net_env.kathara.interdomain_routing.routeros_simple_bgp.lab import (
+from nika.net_env.routeros_simple_bgp.lab import (
     LINK_IFACE,
     MGMT_ADDR,
     MGMT_PASSWORD,

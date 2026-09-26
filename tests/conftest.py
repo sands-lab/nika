@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.support.integration_pipeline import load_test_env
-from tests.support.test_scenarios import register_test_scenarios
+from tests.support.scenarios import register_test_scenarios
 
 load_test_env()
 register_test_scenarios()

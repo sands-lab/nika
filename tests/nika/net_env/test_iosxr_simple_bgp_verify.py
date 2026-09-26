@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.verify import (
+from nika.net_env.iosxr_simple_bgp.verify import (
     verify_iosxr_simple_bgp_lab,
     verify_iosxr_simple_bgp_lab_startup,
 )

@@ -185,7 +185,7 @@ class RouterOsSimpleBGP(NetworkEnvBase):
         super().deploy()
 
     def startup_verify_lab(self) -> dict:
-        from nika.net_env.kathara.interdomain_routing.routeros_simple_bgp.verify import (
+        from nika.net_env.routeros_simple_bgp.verify import (
             verify_routeros_simple_bgp_lab_startup,
         )
 
@@ -194,7 +194,7 @@ class RouterOsSimpleBGP(NetworkEnvBase):
         )
 
     def verify_lab(self) -> dict:
-        from nika.net_env.kathara.interdomain_routing.routeros_simple_bgp.verify import (
+        from nika.net_env.routeros_simple_bgp.verify import (
             verify_routeros_simple_bgp_lab,
         )
 

@@ -16,7 +16,7 @@ from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
 
 
 def _iosxr_image_available() -> bool:
-    from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.lab import IMAGE
+    from nika.net_env.iosxr_simple_bgp.lab import IMAGE
     from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
 
     return image_exists(IMAGE)

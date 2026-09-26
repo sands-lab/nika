@@ -51,7 +51,7 @@ nika = "nika.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nika*", "agent*", "traffic*"]
+include = ["nika*", "agent*"]
 
 [tool.setuptools.package-data]
 "nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]

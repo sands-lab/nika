@@ -8,7 +8,7 @@ from nika.problems.rca.inventory import interfaces_for_node
 from nika.problems.support.probe_paths import get_probe_path
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
-from traffic.burst import BurstTrafficGenerator
+from nika.traffic.burst import BurstTrafficGenerator
 from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption_bpf import (
     SwitchNamespaceBitflip,
 )

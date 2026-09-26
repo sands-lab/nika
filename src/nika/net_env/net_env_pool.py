@@ -204,14 +204,14 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     ),
     "iosxr_simple_bgp": NetEnvSpec(
         lab_name="iosxr_simple_bgp",
-        module="nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.lab",
+        module="nika.net_env.iosxr_simple_bgp.lab",
         class_name="IosXrSimpleBGP",
         tags=("arp", "link", "bgp", "icmp", "iosxr", "pc"),
         supported_backends=("kathara",),
     ),
     "routeros_simple_bgp": NetEnvSpec(
         lab_name="routeros_simple_bgp",
-        module="nika.net_env.kathara.interdomain_routing.routeros_simple_bgp.lab",
+        module="nika.net_env.routeros_simple_bgp.lab",
         class_name="RouterOsSimpleBGP",
         tags=("arp", "link", "bgp", "icmp", "routeros", "pc"),
         supported_backends=("kathara",),

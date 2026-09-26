@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Any, Literal
 
-from traffic.od_flows import ODFLowGenerator
+from nika.traffic.od_flows import ODFLowGenerator
 from nika.net_env.isp.traffic.models import TrafficMatrixSeries
 from nika.net_env.isp.traffic.od import series_to_od_dicts
 from nika.runtime.base import LabRuntime

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nika.net_env.kathara.interdomain_routing.routeros_simple_bgp.verify import (
+from nika.net_env.routeros_simple_bgp.verify import (
     CLI_COMMAND,
     verify_routeros_simple_bgp_lab,
     verify_routeros_simple_bgp_lab_startup,

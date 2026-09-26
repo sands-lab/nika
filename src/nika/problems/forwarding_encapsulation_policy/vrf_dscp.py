@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from traffic import corp_qos_compete as qos_traffic
+from nika.traffic import corp_qos_compete as qos_traffic
 from nika.net_env.enterprise_branch.topology import (
     DSCP_CS0,
     DSCP_EF,
