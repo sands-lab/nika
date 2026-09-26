@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import shlex
 import time
 
 from nika.runtime.base import LabRuntime
@@ -50,7 +49,8 @@ s.close()
 """
     runtime.exec(
         destination,
-        f"python3 -c {shlex.quote(server)} >/tmp/nika-probe-server.log 2>&1 &",
+        f"echo {base64.b64encode(server.encode()).decode()} | base64 -d | "
+        "python3 >/tmp/nika-probe-server.log 2>&1 &",
     )
     time.sleep(0.15)
     client = f"""import base64, socket, time
@@ -67,7 +67,11 @@ for _ in range({packets}):
 print({{'acked': n, 'elapsed_ms': round((time.monotonic() - t) * 1000, 3)}})
 s.close()
 """
-    output = runtime.exec(source, f"python3 -c {shlex.quote(client)}", timeout=30)
+    output = runtime.exec(
+        source,
+        f"echo {base64.b64encode(client.encode()).decode()} | base64 -d | python3",
+        timeout=30,
+    )
     return {
         "source": source,
         "destination": destination,

@@ -197,7 +197,7 @@ def select_diagnosis_servers(
         servers.append("kathara_iosxr_mcp_server")
     elif backend != "containerlab" and tokens & ROUTEROS_KEYWORDS:
         servers.append("kathara_routeros_mcp_server")
-    elif backend != "containerlab" and tokens & ROUTING_KEYWORDS:
+    elif backend != "containerlab" and "rpki" in tokens:
         servers.append("kathara_frr_mcp_server")
     if tokens & SWITCH_KEYWORDS:
         servers.append("kathara_bmv2_mcp_server")

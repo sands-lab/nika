@@ -213,7 +213,7 @@ def _build_mcp_toml(
         ]
     )
     # Custom / local models often ignore Responses ``namespace`` tools and emit
-    # bare nested names (``frr_show_ip_route``). Without this feature Codex
+    # bare nested names (``exec_shell``). Without this feature Codex
     # returns ``unsupported call: <short name>`` and never hits MCP.
     # Keep this off for OpenAI-hosted models that already emit namespace calls.
     if (provider or "").strip().lower() == "custom":

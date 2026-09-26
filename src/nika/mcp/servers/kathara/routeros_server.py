@@ -13,27 +13,6 @@ def _api() -> KatharaRouterOSAPI:
 
 @safe_tool
 @mcp.tool()
-def routeros_get_bgp_conf(router_name: str) -> str:
-    """Get BGP connection configuration from a RouterOS router."""
-    return _api().routeros_get_bgp_conf(router_name)
-
-
-@safe_tool
-@mcp.tool()
-def routeros_show_interfaces(router_name: str) -> str:
-    """Get the interface list from a RouterOS router."""
-    return _api().routeros_show_interfaces(router_name)
-
-
-@safe_tool
-@mcp.tool()
-def routeros_show_route(router_name: str) -> str:
-    """Get the IP routing table from a RouterOS router."""
-    return _api().routeros_show_route(router_name)
-
-
-@safe_tool
-@mcp.tool()
 def routeros_exec(router_name: str, command: str) -> str:
     """Execute a RouterOS CLI command on a RouterOS router."""
     return _api().routeros_exec(router_name, command)

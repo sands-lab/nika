@@ -15,7 +15,7 @@ Three complementary layers:
 
 ## SADE Workflow
 
-**Phase 1 — Blind start.** Establish symptoms with targeted probes: `ping_pair`, `traceroute`, and/or `run_pingmesh_snapshot`. No submission action is available during diagnosis.
+**Phase 1 — Blind start.** Establish symptoms with `exec_shell` for targeted ping or traceroute commands, and/or `run_pingmesh_snapshot`. No submission action is available during diagnosis.
 
 **Phase 2 — Branch.** If a real symptom is present → Phase 3. Otherwise → Phase 4 (do not probe services or individual devices yet).
 
@@ -39,7 +39,7 @@ Three complementary layers:
 - Argument types: `is_anomaly` bool, `root_causes` list[{resource_id, fault_type}]. Unquoted. If submit is rejected, fix arguments and call submit again until success.
 
 ## What qualifies as a real symptom
-**Yes:** packet loss or failure in `ping_pair` / pingmesh anomalies; ping or curl timeout, connection refused, TCP RST, ICMP unreachable; DNS NXDOMAIN, SERVFAIL, or a wrong answer for a name the topology declares resolvable; HTTP non-2xx/3xx where traffic should succeed; any device or path explicitly flagged by a helper.
+**Yes:** packet loss or failure in targeted ping / pingmesh anomalies; ping or curl timeout, connection refused, TCP RST, ICMP unreachable; DNS NXDOMAIN, SERVFAIL, or a wrong answer for a name the topology declares resolvable; HTTP non-2xx/3xx where traffic should succeed; any device or path explicitly flagged by a helper.
 
 **Needs confirmation before promoting (do NOT enter a fault-family skill yet):** a hostname-based probe that fails while the underlying L3 path may still be healthy (DNS misconfig, missing record, wrong resolver, faulty/crashed name server, transient lookup error). Re-test the same src→dst with a direct-IP probe — `exec_shell(src, "ping -c2 <dst-ip>")` — before treating it as a path symptom. Outcomes:
 - Direct-IP ping succeeds with 0% loss → treat the failure as a service-layer symptom (resolver/DNS/host-ip identity); do NOT enter routing/link/L1-L2 skills on this signal alone.
