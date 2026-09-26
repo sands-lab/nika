@@ -26,6 +26,12 @@ _NOISY_LOGGERS = (
     "httpcore",
     "httpcore.connection",
     "httpcore.http11",
+    "urllib3",
+    "urllib3.connectionpool",
+    # Callback failures (e.g. ContextVar reset across async contexts) otherwise
+    # flood the benchmark TTY / spawn-worker stdout over the Live dashboard.
+    "langchain_core.callbacks",
+    "langchain_core.callbacks.manager",
     "mcp",
     "mcp.server",
     "mcp.server.lowlevel",
@@ -146,12 +152,18 @@ def warning_capture_installed() -> bool:
     return _installed
 
 
-def print_deferred_warnings() -> None:
-    """Print buffered warnings in a dedicated post-run panel (if any)."""
+def print_deferred_warnings(*, plain: bool = False) -> None:
+    """Print buffered warnings (Rich panel, or plain lines when ``plain``)."""
     with _lock:
         items = sorted(_counts.items(), key=lambda kv: (-kv[1], kv[0]))
         _counts.clear()
     if not items:
+        return
+    if plain:
+        print("Warnings:")
+        for key, count in items:
+            suffix = f"  (x{count})" if count > 1 else ""
+            print(f"  - {key}{suffix}")
         return
     body = Table.grid(expand=True)
     body.add_column()
