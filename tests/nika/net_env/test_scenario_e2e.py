@@ -21,6 +21,7 @@ def _iosxr_image_available() -> bool:
 
     return image_exists(IMAGE)
 
+
 _KATHARA_CASES = tuple(
     ScenarioE2ECase(scenario, env_run_args=("-s", "s"))
     for scenario in (
@@ -44,7 +45,11 @@ _K8S_CASES = (
     ScenarioE2ECase("llmd_lab", env_run_args=(), topo_size=None),
 )
 
-_CLAB_CASES = (ScenarioE2ECase("min3clos", env_run_args=(), backend="containerlab", topo_size=None),)
+_CLAB_CASES = (
+    ScenarioE2ECase(
+        "min3clos", env_run_args=(), backend="containerlab", topo_size=None
+    ),
+)
 
 _ISP_CASES = (
     ScenarioE2ECase(

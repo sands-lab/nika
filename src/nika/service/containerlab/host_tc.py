@@ -14,6 +14,10 @@ import subprocess
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.network_change_log import log_network_change
 
+# Every host command here is a short iproute2/tc/nsenter call; a stuck sudo
+# prompt or wedged netlink call must not hang fault injection forever.
+_HOST_CMD_TIMEOUT_SEC = 60.0
+
 
 class HostTcController:
     """Apply a qdisc to the host peer of a lab-node interface."""
@@ -25,8 +29,17 @@ class HostTcController:
     def _run(*args: str) -> str:
         try:
             result = subprocess.run(
-                ("sudo", "-n", *args), check=False, capture_output=True, text=True
+                ("sudo", "-n", *args),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=_HOST_CMD_TIMEOUT_SEC,
             )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeCapabilityError(
+                f"host command timed out after {_HOST_CMD_TIMEOUT_SEC:.0f}s "
+                f"({' '.join(args)})"
+            ) from exc
         except FileNotFoundError as exc:
             raise RuntimeCapabilityError(
                 f"host command is unavailable: {args[0]!r}. "
@@ -39,13 +52,15 @@ class HostTcController:
         return result.stdout
 
     def peer_name(self, node: str, intf: str) -> str:
-        """Resolve ``intf``'s host-side veth by its peer ifindex."""
-        container = self.runtime.get_container(node)
-        container.reload()
-        pid = int(container.attrs.get("State", {}).get("Pid") or 0)
-        if pid <= 0:
-            raise RuntimeCapabilityError(f"container for {node!r} is not running")
-        iflink = self._run(
+        """Resolve ``intf``'s host-side veth by its peer ifindex.
+
+        Interface indexes are per network namespace, so a bare ifindex match
+        can hit an unrelated host interface. The host row must also be a veth
+        whose own peer (``@if<N>``) is ``intf``'s ifindex and whose peer lives
+        in another namespace (``link-netnsid``).
+        """
+        pid = self._container_pid(node)
+        indexes = self._run(
             "nsenter",
             "-t",
             str(pid),
@@ -53,15 +68,16 @@ class HostTcController:
             "-n",
             "cat",
             f"/sys/class/net/{intf}/iflink",
-        ).strip()
-        if not iflink.isdecimal():
+            f"/sys/class/net/{intf}/ifindex",
+        ).split()
+        if len(indexes) != 2 or not all(value.isdecimal() for value in indexes):
             raise RuntimeCapabilityError(
                 f"could not resolve host peer for {node}:{intf}"
             )
-        for row in self._run("ip", "-o", "link", "show").splitlines():
-            match = re.match(rf"^{re.escape(iflink)}: ([^:@]+)", row)
-            if match:
-                return match.group(1)
+        iflink, ifindex = indexes
+        peer = host_veth_for(self._run("ip", "-o", "link", "show"), iflink, ifindex)
+        if peer is not None:
+            return peer
         raise RuntimeCapabilityError(
             f"host veth ifindex {iflink} for {node}:{intf} is absent"
         )
@@ -287,12 +303,16 @@ class HostTcController:
 
     def clear(self, peer: str) -> None:
         # A missing qdisc is the normal result after a lab has been destroyed.
-        subprocess.run(
-            ["sudo", "-n", "tc", "qdisc", "del", "dev", peer, "root"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            subprocess.run(
+                ["sudo", "-n", "tc", "qdisc", "del", "dev", peer, "root"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=_HOST_CMD_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"WARNING: clearing host qdisc on {peer} timed out")
 
     def start_link_flap(self, peer: str, down_time: int, up_time: int) -> None:
         """Flap a host-side veth without putting fault state in the lab node."""
@@ -398,23 +418,27 @@ done
     def cleanup_lab(cls, lab_name: str) -> None:
         """Stop only host-side flap helpers belonging to a lab being torn down."""
         prefix = cls._flap_pid_prefix(lab_name)
-        subprocess.run(
-            [
-                "sudo",
-                "-n",
-                "sh",
-                "-c",
-                f"for pid_file in {prefix}*.pid; do "
-                '[ -r "$pid_file" ] || continue; '
-                '/bin/kill -KILL -- -"$(cat "$pid_file")" 2>/dev/null || '
-                '/bin/kill -KILL "$(cat "$pid_file")" 2>/dev/null || true; '
-                'rm -f "$pid_file"; '
-                "done",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            subprocess.run(
+                [
+                    "sudo",
+                    "-n",
+                    "sh",
+                    "-c",
+                    f"for pid_file in {prefix}*.pid; do "
+                    '[ -r "$pid_file" ] || continue; '
+                    '/bin/kill -KILL -- -"$(cat "$pid_file")" 2>/dev/null || '
+                    '/bin/kill -KILL "$(cat "$pid_file")" 2>/dev/null || true; '
+                    'rm -f "$pid_file"; '
+                    "done",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=_HOST_CMD_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"WARNING: stopping host link-flap workers for {lab_name} timed out")
 
     def _flap_pid_path(self, peer: str) -> str:
         key = hashlib.blake2s(peer.encode(), digest_size=8).hexdigest()
@@ -442,3 +466,17 @@ done
     def _flap_pid_prefix(lab_name: str) -> str:
         lab_key = hashlib.blake2s(lab_name.encode(), digest_size=8).hexdigest()
         return f"/tmp/nika-link-flap-{lab_key}-"
+
+
+def host_veth_for(ip_link_output: str, iflink: str, ifindex: str) -> str | None:
+    """Return the host veth at ``iflink`` whose peer is ifindex ``ifindex``.
+
+    ``ip_link_output`` is ``ip -o link show`` from the host namespace, with
+    rows like ``41: veth1a2b@if40: <...> ... link-netnsid 3``.
+    """
+    pattern = re.compile(rf"^{re.escape(iflink)}: ([^:@\s]+)@if(\d+):")
+    for row in ip_link_output.splitlines():
+        match = pattern.match(row)
+        if match and match.group(2) == ifindex and "link-netnsid" in row:
+            return match.group(1)
+    return None

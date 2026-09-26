@@ -133,6 +133,33 @@ def activate_onos_apps(runtime: LabRuntime) -> None:
         _onos_request(runtime, "DELETE", f"/onos/v1/applications/{app}/active")
 
 
+_OF_CONTROLLER_COMPONENT = (
+    "org.onosproject.openflow.controller.impl.OpenFlowControllerImpl"
+)
+
+
+def get_openflow_listen_ports(runtime: LabRuntime) -> list[int] | None:
+    """Return ONOS ``openflowPorts`` from live component config (None if unknown)."""
+    config = _onos_json(runtime, f"/onos/v1/configuration/{_OF_CONTROLLER_COMPONENT}")
+    props = config.get(_OF_CONTROLLER_COMPONENT, config) if config else {}
+    value = props.get("openflowPorts") if isinstance(props, dict) else None
+    if isinstance(value, dict):
+        value = value.get("value")
+    if value is None:
+        return None
+    return [int(p) for p in str(value).replace(" ", "").split(",") if p.isdigit()]
+
+
+def set_openflow_listen_ports(runtime: LabRuntime, ports: list[int]) -> str:
+    """Set ONOS ``openflowPorts``; ONOS restarts its OpenFlow listeners."""
+    return _onos_request(
+        runtime,
+        "POST",
+        f"/onos/v1/configuration/{_OF_CONTROLLER_COMPONENT}",
+        {"openflowPorts": ",".join(str(int(p)) for p in ports)},
+    )
+
+
 def onos_topology_snapshot(runtime: LabRuntime) -> dict[str, Any]:
     return {
         "devices": _onos_json(runtime, "/onos/v1/devices"),

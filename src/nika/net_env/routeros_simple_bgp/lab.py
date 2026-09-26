@@ -172,15 +172,13 @@ class RouterOsSimpleBGP(NetworkEnvBase):
     def deploy(self):
         if not image_exists(IMAGE):
             raise RuntimeError(
-                f"MikroTik RouterOS image {IMAGE!r} not found locally. It "
-                "must be built by hand from a downloaded CHR image, e.g.:\n"
-                "  git clone https://github.com/hellt/vrnetlab && "
-                "cd vrnetlab/mikrotik/routeros\n"
-                "  # copy the downloaded CHR .vmdk/.vdi into this directory\n"
-                "  make docker-image\n"
-                f"  docker tag <built-tag> {IMAGE}\n"
-                "See docs/operations/network-scenarios.md#routeros-simple-bgp-scenario "
-                "for the full procedure."
+                f"MikroTik RouterOS image {IMAGE!r} not found locally. Build "
+                "it with:\n"
+                "  ./scripts/install.sh --with-vendor-images\n"
+                "That downloads CHR, clones hellt/vrnetlab into "
+                ".nika_cache/vendor/vrnetlab, and tags the image. See "
+                "docs/operations/network-scenarios.md#routeros-simple-bgp-scenario "
+                "for the manual fallback under the same cache path."
             )
         super().deploy()
 

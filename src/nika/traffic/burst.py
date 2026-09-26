@@ -70,6 +70,20 @@ class BurstTrafficGenerator:
     def __init__(self, runtime: LabRuntime):
         self.runtime = runtime
 
+    def _enable_tcp_ecn_until(self, host: str, seconds: float) -> None:
+        """Enable TCP ECN on *host*, then restore its prior value after *seconds*."""
+        prior = self.runtime.exec(
+            host, "sysctl -n net.ipv4.tcp_ecn", timeout=10
+        ).strip()
+        self.runtime.exec(host, "sysctl -w net.ipv4.tcp_ecn=1", timeout=10)
+        if prior.isdigit() and prior != "1":
+            self.runtime.exec(
+                host,
+                f"(sleep {seconds:.0f}; sysctl -w net.ipv4.tcp_ecn={prior}) "
+                ">/dev/null 2>&1 &",
+                timeout=10,
+            )
+
     def run(
         self,
         *,
@@ -86,9 +100,9 @@ class BurstTrafficGenerator:
         flows = build_burst_flows(
             sources, destination, protocol, seed, flows_per_source=flows_per_source
         )
-        destination_ip = self.runtime.exec(
-            destination, "hostname -I | awk '{print $1}'", timeout=10
-        ).strip()
+        # Data-plane address: ``hostname -I`` lists the management IP first on
+        # containerlab nodes.
+        destination_ip = self.runtime.get_data_plane_host_ip(destination)
         if not destination_ip:
             raise RuntimeError(
                 f"Could not resolve an IPv4 address for {destination!r}."
@@ -96,9 +110,7 @@ class BurstTrafficGenerator:
         start_time = max(time.time() + 1.0, synchronized_start)
         resolved_flows = []
         for flow in flows:
-            source_ip = self.runtime.exec(
-                flow.source, "hostname -I | awk '{print $1}'", timeout=10
-            ).strip()
+            source_ip = self.runtime.get_data_plane_host_ip(flow.source)
             if not source_ip:
                 raise RuntimeError(
                     f"Could not resolve an IPv4 address for {flow.source!r}."
@@ -123,15 +135,12 @@ class BurstTrafficGenerator:
                 f"iperf3 -s -1 -p {flow.destination_port} >/tmp/burst-server-{flow.flow_id}.log 2>&1 &",
                 timeout=10,
             )
+        if protocol == "tcp":
+            restore_after = max(0.0, start_time - time.time()) + duration + 5
+            for host in dict.fromkeys([destination, *(f.source for f in flows)]):
+                self._enable_tcp_ecn_until(host, restore_after)
         for flow in flows:
             udp = "-u" if protocol == "udp" else ""
-            if protocol == "tcp":
-                self.runtime.exec(
-                    flow.source, "sysctl -w net.ipv4.tcp_ecn=1", timeout=10
-                )
-                self.runtime.exec(
-                    destination, "sysctl -w net.ipv4.tcp_ecn=1", timeout=10
-                )
             delay = max(0.0, start_time - time.time())
             command = (
                 f"sleep {delay:.6f}; iperf3 -c {destination_ip} -p {flow.destination_port} "

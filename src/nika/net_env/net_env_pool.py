@@ -383,14 +383,6 @@ def resolve_scenario_id(scenario_name: str) -> str:
     raise ValueError(f"Network environment '{scenario_name}' not found in the pool.")
 
 
-def is_dc_clos_scenario(scenario_name: str) -> bool:
-    return resolve_scenario_id(scenario_name) == DC_CLOS_SCENARIO
-
-
-def is_campus_lan_scenario(scenario_name: str) -> bool:
-    return resolve_scenario_id(scenario_name) == CAMPUS_LAN_SCENARIO
-
-
 def is_enterprise_branch_scenario(scenario_name: str) -> bool:
     return resolve_scenario_id(scenario_name) == ENTERPRISE_BRANCH_SCENARIO
 
@@ -518,15 +510,6 @@ def resolve_scenario_backend(
     )
 
 
-def scenario_backend(scenario_name: str) -> str:
-    """Return the sole backend for a single-backend scenario.
-
-    Multi-backend scenarios must use :func:`resolve_scenario_backend` with an
-    explicit ``backend`` (or ``default_when_ambiguous``).
-    """
-    return resolve_scenario_backend(scenario_name)
-
-
 def get_net_env_instance(
     scenario_name: str, *, backend: str | None = None, **kwargs
 ) -> NetworkEnvBase:
@@ -599,16 +582,3 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
     if isinstance(topo_size, str) and topo_size in {"s", "m", "l"}:
         return topo_size
     return None
-
-
-def scenario_source_path(scenario_name: str) -> Path:
-    """Return the scenario module file path without importing lab backends."""
-    import importlib.util
-
-    spec = _require_scenario(scenario_name)
-    module_spec = importlib.util.find_spec(spec.module)
-    if module_spec is None or module_spec.origin is None:
-        raise ValueError(
-            f"Cannot resolve source path for network environment '{scenario_name}'."
-        )
-    return Path(module_spec.origin).resolve()

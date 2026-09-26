@@ -32,7 +32,7 @@ def capture_link_state(
     runtime: LabRuntime, node: str, intf: str, number: int
 ) -> LinkAttachmentState:
     """Snapshot interface identity, master, addresses, and routes from the kernel."""
-    info = _link_info(runtime, node, intf)
+    info = link_info(runtime, node, intf)
     master = info.get("master")
     return LinkAttachmentState(
         node=node,
@@ -95,9 +95,7 @@ def restore_link_state(runtime: LabRuntime, state: LinkAttachmentState) -> None:
         for row in ordered_routes:
             runtime.exec(state.node, _route_replace_cmd(row, state.intf))
         return
-    raise RuntimeCapabilityError(
-        f"VDE proxy did not attach {state.node}:{state.intf}"
-    )
+    raise RuntimeCapabilityError(f"VDE proxy did not attach {state.node}:{state.intf}")
 
 
 def wait_for_bmv2_dataplane(
@@ -116,9 +114,7 @@ def wait_for_bmv2_dataplane(
         if pending:
             time.sleep(2)
     if pending:
-        raise RuntimeCapabilityError(
-            f"simple_switch_grpc not ready on {pending}"
-        )
+        raise RuntimeCapabilityError(f"simple_switch_grpc not ready on {pending}")
 
 
 def wait_for_bmv2_grpc_listen(
@@ -171,7 +167,15 @@ def restart_bmv2_dataplane(runtime: LabRuntime, node: str) -> None:
         line = line.split(">>", 1)[0].strip()
 
     runtime.exec(node, "pkill -f '[s]imple_switch_grpc' || true", timeout=10)
-    time.sleep(1)
+    # Wait for the old process to exit (it holds the gRPC port and the
+    # veths); poll instead of a fixed 1 s sleep.
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if not runtime.exec(
+            node, "pgrep -f '[s]imple_switch_grpc' || true", timeout=10
+        ).strip():
+            break
+        time.sleep(0.1)
     runtime.exec(node, f"nohup {line} >> sw.log 2>&1 &", timeout=10)
     wait_for_bmv2_dataplane(runtime, [node])
     wait_for_bmv2_grpc_listen(runtime, [node])
@@ -229,7 +233,8 @@ def _addresses(runtime: LabRuntime, node: str, intf: str) -> tuple[str, ...]:
     )
 
 
-def _link_info(runtime: LabRuntime, node: str, intf: str) -> dict:
+def link_info(runtime: LabRuntime, node: str, intf: str) -> dict:
+    """Return ``ip -j link`` for ``node:intf``, retrying while the NIC settles."""
     for _ in range(10):
         output = runtime.exec(node, f"ip -j link show dev {intf}")
         try:

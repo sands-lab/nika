@@ -64,9 +64,7 @@ def ignore_known_library_warnings() -> None:
             IncompleteFieldDefinitionWarning,
         )
 
-        warnings.filterwarnings(
-            "ignore", category=IncompleteFieldDefinitionWarning
-        )
+        warnings.filterwarnings("ignore", category=IncompleteFieldDefinitionWarning)
     except ImportError:
         warnings.filterwarnings(
             "ignore",
@@ -89,9 +87,7 @@ def _format_warning(
     return f"{category.__name__}: {text}  ({short_file}:{lineno})"
 
 
-def _is_benign_library_warning(
-    message: Warning | str, category: type[Warning]
-) -> bool:
+def _is_benign_library_warning(message: Warning | str, category: type[Warning]) -> bool:
     """Known third-party noise we never want in the post-run Warnings panel."""
     try:
         from pydantic_settings.exceptions import (

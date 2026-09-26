@@ -14,7 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from nika.config import RESULTS_DIR, SESSIONS_DB
-from nika.utils.session_artifacts import RUN_FILENAME, iter_session_dirs
+from nika.utils.session_artifacts import (
+    RUN_FILENAME,
+    is_job_run_dir,
+    iter_session_dirs,
+)
 
 GROUND_TRUTH_FILENAME = "ground_truth.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"
@@ -334,12 +338,24 @@ class SessionIndex:
         """Rebuild index rows from ``results/*/run.json`` artifacts."""
         count = 0
         for session_dir in iter_session_dirs(results_dir or RESULTS_DIR):
+            if is_job_run_dir(session_dir):
+                continue
             run_path = session_dir / RUN_FILENAME
             if not run_path.exists():
                 continue
             try:
                 run_meta = json.loads(run_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(run_meta, dict):
+                continue
+            # Job metadata reuses run.json but has no lab scenario; never index
+            # it as a running session (basename would become session_id).
+            if not run_meta.get("scenario_name") and (
+                run_meta.get("job_id")
+                or run_meta.get("run_id")
+                or run_meta.get("benchmark_ref")
+            ):
                 continue
 
             sid = run_meta.get("session_id") or session_dir.name
@@ -382,9 +398,7 @@ class SessionIndex:
                 if isinstance(problem_names, list):
                     from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
 
-                    faults = [
-                        p for p in problem_names if str(p) != HEALTHY_PROBLEM
-                    ]
+                    faults = [p for p in problem_names if str(p) != HEALTHY_PROBLEM]
                     if faults:
                         fields["failure_count"] = len(faults)
 

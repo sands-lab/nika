@@ -8,7 +8,11 @@ import pytest
 
 from nika.utils.session_store import SessionStore
 from nika.workflows.benchmark.resume import cleanup_benchmark_session
-from nika.workflows.session.close import close_session
+from nika.workflows.session.close import (
+    _resolve_runtime_workdir,
+    close_session,
+    remove_session_runtime_workdir,
+)
 
 
 def _write_run_json(session_dir: Path, *, session_id: str, lab_name: str) -> None:
@@ -238,6 +242,60 @@ def test_update_session_keeps_document_on_lookup_path(tmp_path: Path) -> None:
     assert store.get_session("alpha")["lab_name"] == "lab-a-updated"
     assert store.get_session("alpha")["session_id"] == "alpha"
     assert store.get_session("beta")["lab_name"] == "lab-b"
+
+
+@pytest.mark.unit
+def test_resolve_runtime_workdir_uses_backend_root(tmp_path: Path, monkeypatch) -> None:
+    runtime_dir = tmp_path / "runtime"
+    monkeypatch.setattr("nika.workflows.session.close.RUNTIME_DIR", runtime_dir)
+
+    kathara_meta = {
+        "lab_name": "k8s_lab__abc",
+        "backend": "kathara",
+        "scenario_params": {"lab_name": "k8s_lab__abc", "backend": "kathara"},
+    }
+    clab_meta = {
+        "lab_name": "dc_clos__abc",
+        "backend": "containerlab",
+        "scenario_params": {"lab_name": "dc_clos__abc", "backend": "containerlab"},
+    }
+
+    assert (
+        _resolve_runtime_workdir(kathara_meta)
+        == runtime_dir / "kathara" / "k8s_lab__abc"
+    )
+    assert (
+        _resolve_runtime_workdir(clab_meta)
+        == runtime_dir / "containerlab" / "dc_clos__abc"
+    )
+
+
+@pytest.mark.unit
+def test_remove_session_runtime_workdir_cleans_kathara_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    workdir = runtime_dir / "kathara" / "k8s_lab__leftover"
+    workdir.mkdir(parents=True)
+    (workdir / "kubeconfig.yaml").write_text("apiVersion: v1\n", encoding="utf-8")
+    monkeypatch.setattr("nika.workflows.session.close.RUNTIME_DIR", runtime_dir)
+    monkeypatch.setattr(
+        "nika.workflows.session.close.SESSIONS_DIR", runtime_dir / "sessions"
+    )
+    monkeypatch.setattr(
+        "nika.workflows.session.close.RESULTS_DIR", tmp_path / "results"
+    )
+
+    meta = {
+        "session_id": "k8s_lab__bgp_asn_misconfig__t01",
+        "lab_name": "k8s_lab__leftover",
+        "backend": "kathara",
+        "session_dir": str(tmp_path / "results" / "trial"),
+        "scenario_params": {"lab_name": "k8s_lab__leftover", "backend": "kathara"},
+    }
+
+    assert remove_session_runtime_workdir(meta) is True
+    assert not workdir.exists()
 
 
 @pytest.mark.unit

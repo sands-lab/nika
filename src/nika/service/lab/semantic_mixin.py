@@ -9,6 +9,7 @@ import shlex
 from typing import Literal
 
 from nika.service.lab.protocols import SupportsExec
+from nika.utils.parallel import bounded_parallel_map
 
 
 class SemanticOpsMixin:
@@ -161,9 +162,15 @@ class SemanticOpsMixin:
         self: SupportsExec, nodes: list[str], intf: str = "eth0"
     ) -> None:
         quoted_intf = shlex.quote(intf)
-        for node in nodes:
+
+        def renew(node: str) -> None:
             self.exec_cmd(node, f"dhclient -r {quoted_intf}")
             self.exec_cmd(node, f"dhclient -v {quoted_intf}")
+
+        if not nodes:
+            return
+        # Clients are independent; renewing serially scales with client count.
+        bounded_parallel_map(renew, nodes)
 
     @staticmethod
     def _subnet_escaped(subnet: str) -> str:
@@ -192,35 +199,30 @@ class SemanticOpsMixin:
         self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
 
     def dhcp_delete_subnet(self: SupportsExec, dhcp_server: str, subnet: str) -> None:
-        self.exec_cmd(dhcp_server, "cp /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf.bak")
-        escaped_sub = re.escape(subnet)
-        script = (
-            "import re\n"
-            "from pathlib import Path\n"
-            f"sub = {subnet!r}\n"
-            "path = Path('/etc/dhcp/dhcpd.conf')\n"
-            "text = path.read_text()\n"
-            f"pattern = re.compile(r'^\\s*subnet\\s+{escaped_sub}\\s+netmask\\s', re.M)\n"
-            "if not pattern.search(text):\n"
-            "    raise SystemExit(f'subnet block not found for {sub!r}')\n"
-            "out = []\n"
-            "skip = False\n"
-            "depth = 0\n"
-            "for line in text.splitlines(True):\n"
-            "    if (not skip) and pattern.match(line):\n"
-            "        skip = True\n"
-            "        depth = line.count('{') - line.count('}')\n"
-            "        continue\n"
-            "    if skip:\n"
-            "        depth += line.count('{') - line.count('}')\n"
-            "        if depth <= 0:\n"
-            "            skip = False\n"
-            "        continue\n"
-            "    out.append(line)\n"
-            "path.write_text(''.join(out))\n"
-        )
-        self.write_file(dhcp_server, "/tmp/nika_dhcp_delete_subnet.py", script)
-        self.exec_cmd(dhcp_server, "python3 /tmp/nika_dhcp_delete_subnet.py")
+        # Edit host-side and write the result back: no helper script or
+        # backup file is left on the node for agents to find.
+        path = "/etc/dhcp/dhcpd.conf"
+        text = self.exec_cmd(dhcp_server, f"cat {path}")
+        pattern = re.compile(rf"^\s*subnet\s+{re.escape(subnet)}\s+netmask\s", re.M)
+        if not pattern.search(text or ""):
+            raise RuntimeError(
+                f"subnet block not found for {subnet!r} on {dhcp_server}"
+            )
+        out: list[str] = []
+        skip = False
+        depth = 0
+        for line in text.splitlines(True):
+            if not skip and pattern.match(line):
+                skip = True
+                depth = line.count("{") - line.count("}")
+                continue
+            if skip:
+                depth += line.count("{") - line.count("}")
+                if depth <= 0:
+                    skip = False
+                continue
+            out.append(line)
+        self.write_file(dhcp_server, path, "".join(out))
         self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
         self.exec_cmd(
             dhcp_server,

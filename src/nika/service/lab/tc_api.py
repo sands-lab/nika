@@ -5,6 +5,16 @@ from __future__ import annotations
 from nika.service.lab.protocols import SupportsExec
 from nika.utils.network_change_log import log_network_change
 
+_TC_OK_MARKER = "__nika_tc_ok__"
+
+
+def _exec_tc(api: SupportsExec, host_name: str, command: str) -> tuple[str, bool]:
+    """Run a tc change; return (output without marker, whether it succeeded)."""
+    output = api.exec_cmd(host_name, f"{command} && echo {_TC_OK_MARKER}")
+    lines = output.splitlines()
+    ok = _TC_OK_MARKER in (line.strip() for line in lines)
+    return "\n".join(line for line in lines if line.strip() != _TC_OK_MARKER), ok
+
 
 class TCMixin:
     """Linux ``tc`` operations via ``exec_cmd``."""
@@ -24,7 +34,7 @@ class TCMixin:
         handle: str | None = None,
         parent: str | None = None,
     ) -> str:
-        command = f"tc qdisc add dev {intf_name}"
+        command = f"tc qdisc replace dev {intf_name}"
         if parent is not None:
             command += f" parent {parent}"
         else:
@@ -47,7 +57,9 @@ class TCMixin:
             command += f" corrupt {corrupt}%"
         if limit is not None:
             command += f" limit {limit}"
-        result = self.exec_cmd(host_name, command)
+        result, ok = _exec_tc(self, host_name, command)
+        if not ok:
+            return result
         params = {
             key: value
             for key, value in {
@@ -83,7 +95,7 @@ class TCMixin:
         handle: str | None = None,
         parent: str | None = None,
     ) -> str:
-        command = f"tc qdisc add dev {intf_name}"
+        command = f"tc qdisc replace dev {intf_name}"
         if parent is not None:
             command += f" parent {parent}"
         else:
@@ -92,7 +104,9 @@ class TCMixin:
             handle = handle if handle.endswith(":") else handle + ":"
             command += f" handle {handle}"
         command += f" tbf rate {rate} burst {burst} limit {limit}"
-        result = self.exec_cmd(host_name, command)
+        result, ok = _exec_tc(self, host_name, command)
+        if not ok:
+            return result
         log_network_change(
             f"tc tbf on {host_name}:{intf_name} "
             f"rate={rate} burst={burst} limit={limit}",

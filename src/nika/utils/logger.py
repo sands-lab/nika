@@ -24,23 +24,34 @@ import logging
 import os
 import threading
 import time
+from contextvars import ContextVar
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
-_session_dir: str | None = None
-_session_events_path: str | None = None
+# Per-context binding: concurrent trials finalized from parent threads (or
+# remote API request threads) each write to their own ``nika.jsonl``.
+_bound_events_path: ContextVar[str | None] = ContextVar(
+    "nika_session_events_path", default=None
+)
+# Most recent binding in this process; used by threads that never bound a
+# session themselves (e.g. helper threads started inside a trial worker).
+_default_events_path: str | None = None
 _logger_lock = threading.Lock()
 
 
-class _JsonlHandler(logging.Handler):
-    """Appends a structured JSON line to nika.jsonl."""
+def current_events_path() -> str | None:
+    """``nika.jsonl`` path events from the current context are written to."""
+    return _bound_events_path.get() or _default_events_path
 
-    def __init__(self, events_path: str) -> None:
-        super().__init__()
-        self._path = events_path
+
+class _JsonlHandler(logging.Handler):
+    """Appends a structured JSON line to the bound session's nika.jsonl."""
 
     def emit(self, record: logging.LogRecord) -> None:
+        path = current_events_path()
+        if not path:
+            return
         entry: dict = {
             "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
@@ -54,7 +65,7 @@ class _JsonlHandler(logging.Handler):
         if extra:
             entry["data"] = extra
         try:
-            with open(self._path, "a", encoding="utf-8") as f:
+            with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
         except Exception:
             self.handleError(record)
@@ -67,14 +78,13 @@ def _build_logger() -> logging.Logger:
     return logger
 
 
-def _attach_jsonl_handler(events_path: str) -> None:
+def _attach_jsonl_handler() -> None:
     logger = logging.getLogger("SystemLogger")
-    os.makedirs(os.path.dirname(events_path), exist_ok=True)
     for h in list(logger.handlers):
         if isinstance(h, _JsonlHandler):
             logger.removeHandler(h)
             h.close()
-    logger.addHandler(_JsonlHandler(events_path))
+    logger.addHandler(_JsonlHandler())
 
 
 system_logger = _build_logger()
@@ -89,13 +99,17 @@ def refresh_logger() -> logging.Logger:
             logger.removeHandler(h)
             h.close()
         system_logger = _build_logger()
-        if _session_dir and _session_events_path:
-            _attach_jsonl_handler(_session_events_path)
+        if current_events_path():
+            _attach_jsonl_handler()
         return system_logger
 
 
 def bind_session_dir(session_dir: str | Path) -> None:
-    """Attach per-session nika.jsonl handler; call once session_dir is known.
+    """Route this context's events to ``{session_dir}/nika.jsonl``.
+
+    The binding is a ``ContextVar``: another thread binding a different
+    session does not redirect this one. It also becomes the process default
+    for threads that have not bound a session.
 
     Accepts only ``str`` / ``Path``. Mocks that implement ``os.PathLike`` via
     auto ``__fspath__`` are rejected (they resolve to junk CWD paths).
@@ -105,12 +119,15 @@ def bind_session_dir(session_dir: str | Path) -> None:
             f"session_dir must be str or Path, got {type(session_dir).__name__}"
         )
     session_dir = str(session_dir)
-    global _session_dir, _session_events_path
+    global _default_events_path
     with _logger_lock:
         os.makedirs(session_dir, exist_ok=True)
-        _session_dir = session_dir
-        _session_events_path = os.path.join(session_dir, "nika.jsonl")
-        _attach_jsonl_handler(_session_events_path)
+        events_path = os.path.join(session_dir, "nika.jsonl")
+        _bound_events_path.set(events_path)
+        _default_events_path = events_path
+        logger = logging.getLogger("SystemLogger")
+        if not any(isinstance(h, _JsonlHandler) for h in logger.handlers):
+            _attach_jsonl_handler()
 
 
 def elapsed_ms(started: float) -> float:

@@ -282,6 +282,37 @@ class ExecSemanticOpsMixin:
     def nft_ruleset_contains(self, node: str, pattern: str) -> bool:
         return self._delegate("nft", "nft_ruleset_contains", node, pattern)
 
+    def nft_rule_present(
+        self,
+        node: str,
+        rule: str,
+        *,
+        table: str = "filter",
+        chain: str = "input",
+        family: str = "inet",
+    ) -> bool:
+        return self._delegate(
+            "nft",
+            "nft_rule_present",
+            node,
+            rule,
+            table=table,
+            chain=chain,
+            family=family,
+        )
+
+    def nft_drop_rule_present(
+        self,
+        node: str,
+        rule: str,
+        *,
+        table: str = "filter",
+        family: str = "inet",
+    ) -> bool:
+        return self._delegate(
+            "nft", "nft_drop_rule_present", node, rule, table=table, family=family
+        )
+
     def ping_ok(self, node: str, target: str, *, count: int = 1) -> bool:
         return self._delegate("exec", "ping_ok", node, target, count=count)
 

@@ -40,6 +40,9 @@ class _StubRuntime(LabRuntime):
             return "OK\n"
         if "apt-get install" in cmd and "nftables" in cmd:
             return ""
+        # Checked nft commands append an exit-status marker.
+        if "__rc=" in cmd:
+            return "\n__rc=0\n"
         return ""
 
     def get_container(self, node: str):
@@ -136,6 +139,28 @@ class LabOpsTest:
 
         assert any(("tcp dport 179 drop" in cmd for cmd in cmds))
 
+    def test_add_nft_drop_rule_raises_on_nft_failure(self):
+        class _FailingNft(_StubRuntime):
+            def exec(self, node, cmd, *, timeout=10.0):
+                if "__rc=" in cmd and "add rule" in cmd:
+                    self.calls.append((node, cmd))
+                    return "Error: syntax error\n__rc=1\n"
+                return super().exec(node, cmd, timeout=timeout)
+
+        with pytest.raises(RuntimeError, match="rc=1"):
+            _FailingNft().add_nft_drop_rule("router1", "tcp dport 179 drop")
+
+    def test_nft_chain_has_rule_matches_exact_rule(self):
+        from nika.service.lab.nft_api import nft_chain_has_rule
+
+        listing = (
+            "table inet filter {\n\tchain input {\n"
+            "\t\ttype filter hook input priority filter; policy accept;\n"
+            "\t\tip saddr 10.0.0.1 tcp dport 6653 drop # handle 4\n\t}\n}\n"
+        )
+        assert not nft_chain_has_rule(listing, "tcp dport 6653 drop")
+        assert nft_chain_has_rule(listing, "ip saddr 10.0.0.1 tcp dport 6653 drop")
+
     def test_node_status_paused(self):
         runtime = _StubRuntime({("__status__", "pc1"): "paused"})
 
@@ -230,6 +255,7 @@ class LabOpsTest:
 
         assert len(sleeps) == frr_api._BGP_ASN_ATTEMPTS - 1
         assert all(s == frr_api._BGP_ASN_RETRY_DELAY_SEC for s in sleeps)
+
     def test_process_running(self):
         runtime = _StubRuntime(
             {("pc1", "pgrep -a named 2>/dev/null || echo NONE"): "123 named\n"}

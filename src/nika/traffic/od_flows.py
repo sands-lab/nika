@@ -23,9 +23,15 @@ class ODFLowGenerator:
     def __init__(self, runtime: LabRuntime):
         self.runtime = runtime
 
-    async def _arun_server(self, dst_host: str, dst_port: int, server_args: str):
+    async def _arun_server(
+        self, dst_host: str, dst_port: int, server_args: str, interval: int
+    ):
         cmd = f"iperf3 -s -1 -p {dst_port} {server_args} -J"
-        result = await asyncio.to_thread(self.runtime.exec, dst_host, cmd)
+        # One-shot server returns after its client's run; it starts first, so
+        # allow a little more than the client budget below.
+        result = await asyncio.to_thread(
+            self.runtime.exec, dst_host, cmd, timeout=interval + 20
+        )
         return to_json(result)
 
     def _run_server(self, dst_host: str, dst_port: int, server_args: str):
@@ -50,7 +56,11 @@ class ODFLowGenerator:
         cmd = f"iperf3 -c {dst_ip} -p {dst_port} -b {volume}{unit} -t {interval} {client_args} -l 1472 -J"
         if background:
             cmd += " &"
-        result = await asyncio.to_thread(self.runtime.exec, src_host, cmd)
+        # A foreground run lasts ``interval`` seconds; the default exec
+        # timeout (10 s) would cut long OD intervals short.
+        result = await asyncio.to_thread(
+            self.runtime.exec, src_host, cmd, timeout=interval + 15
+        )
         return to_json(result)
 
     def _run_client(
@@ -178,6 +188,7 @@ class ODFLowGenerator:
                             dst_host=dst_host,
                             dst_port=dst_port,
                             server_args=server_args,
+                            interval=interval,
                         )
                     )
 
@@ -187,6 +198,7 @@ class ODFLowGenerator:
                             dst_host=dst_host,
                             dst_port=start_port_id,
                             server_args=server_args,
+                            interval=interval,
                         )
                     )
                     started_server_ports[dst_host] = start_port_id

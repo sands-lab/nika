@@ -104,20 +104,17 @@ def resolve_agent_model(
     match agent_type.lower():
         case "cli.claude" | "sdk.claude_sdk" | "community.sade":
             raise ValueError(
-                "Missing model: set agent.model in config/nika.yaml "
-                "or pass -m/--model."
+                "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
             )
         case "mock":
             return "mock"
         case "cli.codex" | "sdk.codex_sdk":
             raise ValueError(
-                "Missing model: set agent.model in config/nika.yaml "
-                "or pass -m/--model."
+                "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
             )
         case "byo.langgraph" | "byo.mcp_agent" | "byo.autogen":
             raise ValueError(
-                "Missing model: set agent.model in config/nika.yaml "
-                "or pass -m/--model."
+                "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
             )
         case _:
             raise ValueError(

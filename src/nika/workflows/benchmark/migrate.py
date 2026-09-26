@@ -7,7 +7,10 @@ from typing import Any
 
 import yaml
 
-from nika.problems.rca.materialize import ground_truth_for_case, ground_truth_for_multi_case
+from nika.problems.rca.materialize import (
+    ground_truth_for_case,
+    ground_truth_for_multi_case,
+)
 from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
@@ -83,7 +86,6 @@ def materialize_case(
         }
     else:
         inject_map = {problems[0]: {str(k): str(v) for k, v in inject_raw.items()}}
-    inject = inject_map[problems[0]] if len(problems) == 1 else inject_map
     cache = env_cache if env_cache is not None else {}
     cache_key = (
         scenario,

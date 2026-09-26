@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import textwrap
-import time
 from pathlib import Path
 from typing import Literal
 
@@ -12,6 +11,7 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.base import LabRuntime
 from nika.net_env.p4_dc_fabric.lab import _switch_startup
 from nika.net_env.p4_dc_gateway.topology_model import (
     BASE_IMAGE,

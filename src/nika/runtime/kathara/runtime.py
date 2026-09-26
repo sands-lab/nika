@@ -10,26 +10,20 @@ from Kathara.manager.Kathara import Kathara
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.shared.containers import pause_container, unpause_container
-from nika.runtime.shared.execution import exec_with_timeout
+from nika.runtime.shared.settings import lab_settings as _lab_settings
+from nika.runtime.shared.execution import exec_with_timeout, merge_exec_output
 from nika.service.shell import ShellResolver
-from nika.service.kathara.docker_utils import get_machine_container, list_lab_containers
+from nika.service.kathara.docker_utils import (
+    get_machine_container,
+    link_neighbors,
+    list_lab_containers,
+)
 from nika.runtime.spec import MachineInventory
 
 if TYPE_CHECKING:
     from docker.models.containers import Container
 
     from nika.net_env.base import NetworkEnvBase
-    from nika.run_config.schema import LabSettings
-
-
-def _lab_settings() -> LabSettings:
-    from nika.run_config.loader import get_run_config
-    from nika.run_config.schema import LabSettings as _LabSettings
-
-    try:
-        return get_run_config().nika.lab
-    except Exception:  # noqa: BLE001
-        return _LabSettings()
 
 
 class KatharaRuntime(LabRuntime):
@@ -46,29 +40,14 @@ class KatharaRuntime(LabRuntime):
 
     def _exec_raw(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         def _run() -> str:
-            output_generator = self._instance.exec(
+            # stream=False returns (stdout, stderr, exit_code).
+            stdout, stderr, _ = self._instance.exec(
                 machine_name=node,
                 lab_name=self.lab_name,
                 command=cmd,
                 stream=False,
             )
-            chunks: list[str] = []
-            for item in output_generator:
-                if (
-                    not item
-                    or item == b""
-                    or isinstance(item, int)
-                    or item is None
-                    or item == "None"
-                ):
-                    continue
-                if isinstance(item, bytes):
-                    chunks.append(item.decode("utf-8", errors="ignore"))
-                elif isinstance(item, str):
-                    chunks.append(item)
-                else:
-                    chunks.append(str(item))
-            return "".join(chunks).strip()
+            return merge_exec_output(stdout, stderr)
 
         return exec_with_timeout(_run, timeout=timeout, node=node, cmd=cmd)
 
@@ -85,15 +64,29 @@ class KatharaRuntime(LabRuntime):
     def lab_name(self) -> str:
         return self._net_env.name or self._net_env.lab.name
 
-    def _running_machine_count(self) -> int:
-        """Number of this lab's machines with a running container."""
+    def _machine_containers(self) -> list[Container]:
+        return list(self._instance.get_machines_api_objects(lab_name=self.lab_name))
+
+    def _machine_count(self, *, running_only: bool) -> int:
+        """Number of this lab's machine containers (optionally only running)."""
         try:
-            lab = self._instance.get_lab_from_api(lab_name=self.lab_name)
-            if lab is None or lab.machines is None:
-                return 0
-            return len(lab.machines)
+            containers = self._machine_containers()
         except Exception:
             return 0
+        if not running_only:
+            return len(containers)
+        return sum(1 for container in containers if container.status == "running")
+
+    def _link_count(self) -> int:
+        """Number of this lab's collision-domain networks still on the host."""
+        try:
+            return len(self._instance.get_links_api_objects(lab_name=self.lab_name))
+        except Exception:
+            return 0
+
+    def has_leftover_resources(self) -> bool:
+        # Links without machines remain after an interrupted deploy or teardown.
+        return self._link_count() > 0
 
     def _wait_deploy_ready(self, timeout: float) -> None:
         """Poll until every expected machine has a running container.
@@ -109,7 +102,7 @@ class KatharaRuntime(LabRuntime):
         deadline = time.monotonic() + timeout
         running = 0
         while time.monotonic() < deadline:
-            running = self._running_machine_count()
+            running = self._machine_count(running_only=True)
             if running >= expected:
                 return
             time.sleep(2.0)
@@ -119,11 +112,19 @@ class KatharaRuntime(LabRuntime):
             "in config/nika.yaml on slow hosts)"
         )
 
-    def deploy(self) -> None:
-        """Deploy the lab, verify readiness, retry transient host failures."""
-        if self.exists():
+    def deploy(self) -> bool:
+        """Deploy the lab, verify readiness, retry transient host failures.
+
+        Returns True when this call deployed the lab, False when it already
+        existed. Settling after deploy is the caller's job (see
+        ``NetworkEnvBase.deploy``), so it can be skipped when a readiness
+        verifier polls anyway.
+        """
+        # Strict probe: a Docker/Kathara API error must surface here instead
+        # of being mistaken for "lab exists" and silently skipping deploy.
+        if self._lab_present():
             print(f"Lab {self.lab_name} exists")
-            return
+            return False
         self._net_env._ensure_docker_images()
 
         lab = _lab_settings()
@@ -133,9 +134,7 @@ class KatharaRuntime(LabRuntime):
             try:
                 Kathara.get_instance().deploy_lab(lab=self._net_env.lab)
                 self._wait_deploy_ready(lab.deploy_ready_timeout_sec)
-                # Give container services time to start after Docker reports readiness.
-                time.sleep(lab.deploy_settle_sec)
-                return
+                return True
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc
                 print(
@@ -168,10 +167,12 @@ class KatharaRuntime(LabRuntime):
         deadline = time.monotonic() + _lab_settings().undeploy_verify_timeout_sec
         retried = False
         while time.monotonic() < deadline:
-            leftover = self._running_machine_count()
-            if leftover == 0:
+            machines = self._machine_count(running_only=False)
+            # undeploy_lab removes links only after every machine call succeeds;
+            # a failed machine removal leaves collision domains behind.
+            if machines == 0 and self._link_count() == 0:
                 return
-            if not retried:
+            if not retried or machines == 0:
                 # one forced second attempt before we give up
                 retried = True
                 try:
@@ -179,38 +180,47 @@ class KatharaRuntime(LabRuntime):
                 except Exception as exc:
                     print(f"Error re-undeploying lab {self.lab_name}: {exc}")
             time.sleep(2.0)
+        # `kathara wipe` would delete every lab on the host, including other
+        # running sessions; point only at this lab's owning session.
         print(
-            f"WARNING: lab {self.lab_name} still has {self._running_machine_count()} "
-            "container(s) after undeploy — it is LEAKED and keeps consuming "
-            "resources. Clean up with `nika session close`/`kathara wipe`."
+            f"WARNING: lab {self.lab_name} still has "
+            f"{self._machine_count(running_only=False)} container(s) and "
+            f"{self._link_count()} collision domain(s) after undeploy. It is "
+            "leaked and keeps consuming resources. Clean it up with "
+            "`nika session close <session_id>` for the session that owns it."
         )
 
-    def exists(self) -> bool:
+    def _lab_present(self) -> bool:
+        """Return whether the lab has machines; raise on API errors."""
         try:
             tmp_lab = self._instance.get_lab_from_api(lab_name=self.lab_name)
-        except Exception:
-            # A dynamically inserted controller-only VDE proxy can temporarily
-            # make Kathara's API inventory incomplete.  Treat it as live so
-            # lifecycle teardown reaches ``destroy()``, which removes only the
-            # labelled proxy resources before undeploying the lab.
+        except KeyError:
+            # A dynamically inserted controller-only VDE proxy replaces a lab
+            # network, and Kathara's live parser then raises KeyError. The
+            # lab is deployed in that case.
             return True
         if tmp_lab is None:
             return False
-        tmp_machines = tmp_lab.machines
-        if tmp_machines is None or len(tmp_machines) == 0:
-            return False
-        return True
+        return bool(tmp_lab.machines)
+
+    def exists(self) -> bool:
+        try:
+            return self._lab_present()
+        except Exception:
+            # Keep teardown reachable when the inventory is unreadable:
+            # ``destroy()`` removes only resources labelled for this lab.
+            return True
 
     def inspect(self) -> list[dict[str, Any]]:
         return list_lab_containers(lab_name=self.lab_name)
 
     def list_nodes(self) -> list[str]:
-        if self._net_env.lab and self._net_env.lab.machines:
-            return sorted(self._net_env.lab.machines.keys())
-        tmp_lab = self._instance.get_lab_from_api(lab_name=self.lab_name)
-        if tmp_lab is None:
-            return []
-        return sorted(tmp_lab.machines.keys())
+        """Return machines that have a container now (live, not the lab file)."""
+        names = {
+            (container.labels or {}).get("name")
+            for container in self._machine_containers()
+        }
+        return sorted(name for name in names if name)
 
     def exec(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         return self._shell.exec_via_shell(
@@ -232,17 +242,7 @@ class KatharaRuntime(LabRuntime):
 
     def get_connected_devices(self, node: str) -> list[str]:
         links = next(self._instance.get_links_stats(lab_name=self.lab_name))
-        results: list[str] = []
-        for link in links.values():
-            if not link.name:
-                continue
-            left = link.containers[0].labels["name"]
-            right = link.containers[1].labels["name"]
-            if node == left:
-                results.append(right)
-            elif node == right:
-                results.append(left)
-        return results
+        return link_neighbors(links.values(), node)
 
     def list_dhcp_client_nodes(self) -> list[str]:
         """Return nodes explicitly declared as DHCP clients."""

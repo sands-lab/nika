@@ -65,8 +65,8 @@ def start_capture(
 
     runtime.exec(
         device,
-        f"rm -f {quoted_remote} {quoted_pid}; "
-        f"kill $(cat {quoted_pid} 2>/dev/null) 2>/dev/null || true",
+        f"kill $(cat {quoted_pid} 2>/dev/null) 2>/dev/null; "
+        f"rm -f {quoted_remote} {quoted_pid}; true",
         timeout=10,
     )
 
@@ -136,16 +136,26 @@ def _parse_int(value: str) -> int | None:
 
 
 def stop_capture(
-    runtime: LabRuntime, *, device: str, pid_path: str, remote_path: str
+    runtime: LabRuntime,
+    *,
+    device: str,
+    pid_path: str,
+    remote_path: str,
+    capture_backend: CaptureBackendKind | None = None,
 ) -> StopStats:
     quoted_pid = _shell_quote(pid_path)
     quoted_remote = _shell_quote(remote_path)
+    # The capture writer flushes its last packets and the dropped-packet
+    # summary on SIGTERM; wait (up to 2 s) for it to exit before reading the
+    # file instead of a fixed sleep.
     runtime.exec(
         device,
-        f"if [ -f {quoted_pid} ]; then kill $(cat {quoted_pid}) 2>/dev/null || true; fi",
+        f"if [ -f {quoted_pid} ]; then pid=$(cat {quoted_pid}); "
+        'kill "$pid" 2>/dev/null; i=0; '
+        'while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 20 ]; do '
+        "sleep 0.1; i=$((i + 1)); done; fi; true",
         timeout=10,
     )
-    runtime.exec(device, "sleep 0.5", timeout=5)
 
     size_raw = runtime.exec(
         device,
@@ -163,9 +173,11 @@ def stop_capture(
     packet_count = _parse_int(count_output) or 0
 
     dropped_packets = 0
+    # Only this capture's log; other captures on the node have their own.
+    quoted_log = _shell_quote(re.sub(r"\.pid$", ".log", pid_path))
     log_output = runtime.exec(
         device,
-        "grep -E 'dropped|captured' /tmp/nika-capture-*.log 2>/dev/null | tail -n 1 || true",
+        f"grep -E 'dropped|captured' {quoted_log} 2>/dev/null | tail -n 1 || true",
         timeout=5,
     )
     dropped_match = re.search(r"(\d+)\s+packets?\s+dropped", log_output, re.IGNORECASE)
@@ -173,11 +185,12 @@ def stop_capture(
         dropped_packets = int(dropped_match.group(1))
 
     dumpcap_version = None
-    version_output = runtime.exec(
-        device, "dumpcap -v 2>&1 | head -n 1 || true", timeout=5
-    )
-    if version_output.strip():
-        dumpcap_version = version_output.strip().splitlines()[0]
+    if capture_backend != "tcpdump":
+        version_output = runtime.exec(
+            device, "dumpcap -v 2>&1 | head -n 1 || true", timeout=5
+        )
+        if version_output.strip():
+            dumpcap_version = version_output.strip().splitlines()[0]
 
     return StopStats(
         packet_count=packet_count,

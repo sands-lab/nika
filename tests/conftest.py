@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.support.integration_pipeline import load_test_env
+from tests.support.prerequisites import docker_available
 from tests.support.scenarios import register_test_scenarios
 
 load_test_env()
@@ -36,6 +37,41 @@ def sandbox_e2e_serial(request: pytest.FixtureRequest):
             yield
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _docker_unreachable_error(exc: BaseException) -> bool:
+    """True when ``exc`` means the Docker daemon could not be contacted."""
+    try:
+        from docker.errors import DockerException
+        from Kathara.exceptions import DockerDaemonConnectionError
+    except ImportError:
+        return False
+    return isinstance(exc, (DockerDaemonConnectionError, DockerException))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item):
+    return (yield from _skip_when_docker_unreachable())
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    return (yield from _skip_when_docker_unreachable())
+
+
+def _skip_when_docker_unreachable():
+    """Skip, not fail, tests that hit an unreachable Docker daemon.
+
+    Several labs connect to Docker when constructed. Without a daemon those
+    tests cannot run, so report them as skipped. With Docker up, errors pass
+    through unchanged.
+    """
+    try:
+        return (yield)
+    except Exception as exc:
+        if _docker_unreachable_error(exc) and not docker_available():
+            pytest.skip(f"Docker daemon unavailable: {type(exc).__name__}")
+        raise
 
 
 def pytest_collection_modifyitems(config, items):

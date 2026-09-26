@@ -79,8 +79,11 @@ class LabRuntime(ExecSemanticOpsMixin, ABC):
         """Logical lab name used by sessions and workflows."""
 
     @abstractmethod
-    def deploy(self) -> None:
-        """Deploy the lab if it is not already running."""
+    def deploy(self) -> bool:
+        """Deploy the lab if it is not already running.
+
+        Return True when this call deployed it, False when it already existed.
+        """
 
     @abstractmethod
     def destroy(self) -> None:
@@ -89,6 +92,10 @@ class LabRuntime(ExecSemanticOpsMixin, ABC):
     @abstractmethod
     def exists(self) -> bool:
         """Return True when the lab has at least one running node."""
+
+    def has_leftover_resources(self) -> bool:
+        """Return True when lab resources remain even though no node is running."""
+        return False
 
     @abstractmethod
     def inspect(self) -> list[dict[str, Any]]:

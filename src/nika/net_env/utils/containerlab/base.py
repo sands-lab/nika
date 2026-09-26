@@ -55,14 +55,36 @@ class ContainerlabNetworkEnv(NetworkEnvBase):
     def get_topology(self) -> list[tuple[str, str]]:
         return [link.endpoints for link in self.get_lab_spec().links]
 
+    def _has_role_inventory(self) -> bool:
+        return bool(
+            self.hosts
+            or self.routers
+            or self.switches
+            or self.bmv2_switches
+            or self.ovs_switches
+            or self.servers
+        )
+
     def get_info(self) -> str:
+        """
+        Agent brief: description + inventory + topology edges.
+
+        Prefer declared role lists when the scenario populated them (ISP and
+        similar). Fall back to lab-spec node/link names for template labs.
+        """
+        topo = self.get_topology()
+        topo_line = f"Topology: {', '.join(f'({a}, {b})' for a, b in topo)}"
+        if self._has_role_inventory():
+            return (
+                f"Network Description: {self.desc}\n"
+                f"{self._format_role_inventory_lines()}"
+                f"{topo_line}"
+            )
         spec = self.get_lab_spec()
         node_names = [node.name for node in spec.nodes]
-        link_labels = [f"{a} <-> {b}" for a, b in self.get_topology()]
+        link_labels = [f"{a} <-> {b}" for a, b in topo]
         summary = f"Network Description: {self.desc}\n"
         summary += f"Nodes: {', '.join(node_names)}\n"
         summary += f"Links: {', '.join(link_labels)}\n"
-        summary += (
-            f"Topology: {', '.join(f'({a}, {b})' for a, b in self.get_topology())}"
-        )
+        summary += topo_line
         return summary

@@ -12,9 +12,9 @@ import pytest
 
 from nika.runtime.factory import runtime_for_session
 from nika.mcp.gateway.access import TOOL_NODE_ARGUMENTS
-from nika.mcp.gateway.app import _MCP_MODULE_ATTRS
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
+    MCP_SERVER_SPECS,
     select_diagnosis_servers,
 )
 from nika.service.packet_capture import inspect
@@ -208,7 +208,7 @@ class TestPacketCaptureRegistry:
         assert "kathara_frr_mcp_server" not in servers
 
     def test_gateway_mount_registered(self) -> None:
-        assert DIAGNOSIS_PACKET_CAPTURE_SERVER in _MCP_MODULE_ATTRS
+        assert DIAGNOSIS_PACKET_CAPTURE_SERVER in MCP_SERVER_SPECS
 
     def test_start_targets_device(self) -> None:
         assert TOOL_NODE_ARGUMENTS["packet_capture_start"] == ("device",)
@@ -251,9 +251,11 @@ class FakeRuntime:
             # test -f <path> && echo yes || echo no
             parts = command.split()
             path = parts[2] if len(parts) > 2 else ""
-            return "yes" if (node, path) in self.files or path.endswith(
-                ".pcapng"
-            ) else "no"
+            return (
+                "yes"
+                if (node, path) in self.files or path.endswith(".pcapng")
+                else "no"
+            )
         if "wc -c <" in command:
             return "11"
         if "tcpdump -r" in command and "wc -l" in command:

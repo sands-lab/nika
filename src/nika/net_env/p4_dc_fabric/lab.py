@@ -10,6 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
+from nika.runtime.base import LabRuntime
 from nika.net_env.p4_dc_fabric.topology_model import (
     BASE_IMAGE,
     FABRIC_CONTROLLER_IMAGE,

@@ -10,6 +10,8 @@ from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_finished_session,
     iter_session_dirs,
+    order_run_json,
+    write_json_atomic,
 )
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_index import extract_gt_fields, extract_index_fields
@@ -118,10 +120,18 @@ class Session:
         self,
         session_id: str | None = None,
         result_dir: str | Path | None = None,
+        *,
+        session_dir: str | Path | None = None,
     ):
-        """Load a finished session from ``{result_dir}/{session_id}/run.json`` for offline eval."""
+        """Load a finished session from ``{result_dir}/{session_id}/run.json`` for offline eval.
+
+        Pass ``session_dir`` when the caller already knows it (benchmark trials)
+        to skip the results-tree lookup.
+        """
         if session_id is not None:
-            return self._load_closed_session_from_id(session_id, result_dir=result_dir)
+            return self._load_closed_session_from_id(
+                session_id, result_dir=result_dir, session_dir=session_dir
+            )
 
         results_root = resolve_results_root(result_dir)
         candidates: list[tuple[float, dict]] = []
@@ -157,6 +167,7 @@ class Session:
         session_id: str,
         *,
         result_dir: str | Path | None = None,
+        session_dir: str | Path | None = None,
     ):
         if self._session_is_still_running(session_id):
             raise ValueError(
@@ -164,7 +175,11 @@ class Session:
             )
 
         results_root = resolve_results_root(result_dir)
-        session_dir = self._find_closed_session_dir(session_id, result_dir=result_dir)
+        session_dir = (
+            Path(session_dir)
+            if session_dir is not None
+            else self._find_closed_session_dir(session_id, result_dir=result_dir)
+        )
         run_path = session_dir / RUN_FILENAME
         if not run_path.exists():
             raise FileNotFoundError(
@@ -189,14 +204,18 @@ class Session:
         direct = results_root / session_id
         if (direct / RUN_FILENAME).exists():
             return direct
-        for session_dir in iter_session_dirs(results_root):
-            if session_dir.name == session_id:
-                return session_dir
+        # The index knows ``session_dir`` for trial ids with a ``__r<hash>``
+        # store suffix; check it before walking the whole results tree.
         row = self.store.index.get_row(session_id)
         if row and row.get("session_dir"):
             indexed = Path(row["session_dir"])
-            if result_dir is None or indexed.is_relative_to(results_root):
+            if (indexed / RUN_FILENAME).exists() and (
+                result_dir is None or indexed.is_relative_to(results_root)
+            ):
                 return indexed
+        for session_dir in iter_session_dirs(results_root):
+            if session_dir.name == session_id:
+                return session_dir
         return direct
 
     def _apply_session_meta(self, session_meta: dict) -> None:
@@ -238,15 +257,14 @@ class Session:
 
     def _write_run_json(self, payload: dict) -> None:
         """Write/update run.json in the session results directory."""
-        os.makedirs(self.session_dir, exist_ok=True)
-        run_path = os.path.join(self.session_dir, "run.json")
-        serializable = {
-            k: v
-            for k, v in payload.items()
-            if k not in ("store", "failure_injections", "root_cause_name")
-        }
-        with open(run_path, "w", encoding="utf-8") as f:
-            json.dump(serializable, f, indent=2, default=str)
+        serializable = order_run_json(
+            {
+                k: v
+                for k, v in payload.items()
+                if k not in ("store", "failure_injections", "root_cause_name")
+            }
+        )
+        write_json_atomic(Path(self.session_dir) / RUN_FILENAME, serializable)
 
     def update_session(self, key: str, value: Any):
         setattr(self, key, value)
@@ -266,9 +284,7 @@ class Session:
             self.store.index.upsert(fields)
 
     def write_gt(self, gt: dict[str, Any]):
-        os.makedirs(self.session_dir, exist_ok=True)
-        with open(self.session_dir + "/ground_truth.json", "w") as f:
-            f.write(json.dumps(gt, indent=4))
+        write_json_atomic(Path(self.session_dir) / "ground_truth.json", gt, indent=4)
         if hasattr(self, "session_id"):
             self.store.index.upsert(
                 {"session_id": self.session_id, **extract_gt_fields(gt)},
@@ -279,6 +295,11 @@ class Session:
             raise ValueError("Session ID is not set.")
         payload = {k: v for k, v in self.__dict__.items() if k != "store"}
         payload["status"] = "finished"
+        # Timeout / crash finalization often skips end_session(); still stamp a
+        # wall-clock end so inspect can show Duration for finished trials.
+        if not payload.get("end_time"):
+            payload["end_time"] = datetime.now().isoformat()
+            self.end_time = payload["end_time"]
         if getattr(self, "session_dir", None):
             self._write_run_json(payload)
         self.store.delete_session(self.session_id)

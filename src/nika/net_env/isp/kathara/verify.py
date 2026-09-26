@@ -18,14 +18,16 @@ from nika.net_env.isp.bgp.plan import BgpPlan
 from nika.net_env.isp.igp.plan import IspPlan, active_igp_links, igp_components
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
 from nika.net_env.verify import (
-    bounded_parallel_map,
     build_lab_verify_result,
     exec_or_empty,
+    frr_active_or_heal,
+    frr_bgp_established_peers,
+    frr_ospf_full_router_ids,
     host_has_ipv4,
     nodes_deployed,
     ping_ok,
-    service_active,
 )
+from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
 
 
@@ -36,6 +38,7 @@ def verify_isp_lab_startup(
     scenario_name: str,
     bgp_plan: BgpPlan | None = None,
     traffic: IspTrafficAttachment | None = None,
+    frr_healed: set[str] | None = None,
 ) -> dict[str, Any]:
     """Bounded readiness: deployment, FRR, IGP adjacency, and BGP sessions."""
     expected = [node.device_name for node in plan.nodes]
@@ -48,7 +51,7 @@ def verify_isp_lab_startup(
             expected.append(str(machine))
     check_functions = {
         "nodes_deployed": lambda: nodes_deployed(runtime, expected),
-        "frr_active": lambda: _frr_active(runtime, plan),
+        "frr_active": lambda: _frr_active(runtime, plan, frr_healed),
         "igp_adjacencies": lambda: _igp_adjacencies_ok(runtime, plan),
         # Adjacency alone is a false ready signal on FRR 10.x: LSPs can lack
         # reachability TLVs until config fully applies and SPF runs.
@@ -86,6 +89,7 @@ def verify_isp_lab(
     bgp_plan: BgpPlan | None = None,
     traffic: IspTrafficAttachment | None = None,
     contract: ValidationContract | None = None,
+    frr_healed: set[str] | None = None,
 ) -> dict[str, Any]:
     expected = [node.device_name for node in plan.nodes]
     if traffic is not None:
@@ -97,7 +101,7 @@ def verify_isp_lab(
             expected.append(str(machine))
     check_functions = {
         "nodes_deployed": lambda: nodes_deployed(runtime, expected),
-        "frr_active": lambda: _frr_active(runtime, plan),
+        "frr_active": lambda: _frr_active(runtime, plan, frr_healed),
         "igp_adjacencies": lambda: _igp_adjacencies_ok(runtime, plan),
         "loopbacks_reachable": lambda: _loopbacks_reachable(runtime, plan),
         "inventory_addresses": lambda: _inventory_addresses_ok(runtime, plan),
@@ -264,7 +268,7 @@ def _verify_adjacency(
             command_cache,
             timeout=20,
         )
-        established = sorted(_bgp_established_peers(output))
+        established = sorted(frr_bgp_established_peers(output))
         passed = adjacency.remote_address in established
         evidence = {
             "local_node": adjacency.local_node,
@@ -283,7 +287,7 @@ def _verify_adjacency(
             command_cache,
             timeout=20,
         )
-        full_router_ids = _ospf_full_router_ids(output)
+        full_router_ids = frr_ospf_full_router_ids(output)
         remote_router_id = adjacency.remote_router_id or adjacency.remote_address
         passed = remote_router_id in full_router_ids
         evidence = {
@@ -372,18 +376,6 @@ def _probe_address(entity: NetworkEntity) -> str:
     return entity.address.split("/", 1)[0]
 
 
-def _ospf_full_router_ids(output: str) -> set[str]:
-    peers: set[str] = set()
-    for line in output.splitlines():
-        fields = line.split()
-        if len(fields) >= 3 and any(field.startswith("Full") for field in fields):
-            try:
-                peers.add(str(IPv4Address(fields[0])))
-            except ValueError:
-                continue
-    return peers
-
-
 def _cached_exec(
     runtime: LabRuntime,
     host: str,
@@ -408,10 +400,12 @@ def _igp_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     return False
 
 
-def _frr_active(runtime: LabRuntime, plan: IspPlan) -> bool:
+def _frr_active(
+    runtime: LabRuntime, plan: IspPlan, healed: set[str] | None = None
+) -> bool:
     return all(
         bounded_parallel_map(
-            lambda node: service_active(runtime, node.device_name, "frr"),
+            lambda node: frr_active_or_heal(runtime, node.device_name, healed),
             plan.nodes,
         )
     )
@@ -571,30 +565,10 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
         output = exec_or_empty(
             runtime, device, "vtysh -c 'show bgp summary'", timeout=20
         )
-        established = _bgp_established_peers(output)
+        established = frr_bgp_established_peers(output)
         return peers.issubset(established)
 
     return all(bounded_parallel_map(device_ok, needed.items()))
-
-
-def _bgp_established_peers(summary: str) -> set[str]:
-    """Parse ``show bgp summary`` neighbor lines for Established peers.
-
-    FRR columns: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down
-    State/PfxRcd PfxSnt [Desc]. Established peers show a numeric PfxRcd.
-    """
-    peers: set[str] = set()
-    for line in summary.splitlines():
-        fields = line.split()
-        if len(fields) < 10:
-            continue
-        neighbor = fields[0]
-        if neighbor.count(".") != 3:
-            continue
-        state = fields[9]
-        if state.isdigit() or state == "Established":
-            peers.add(neighbor)
-    return peers
 
 
 def _bgp_prefixes_originated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:

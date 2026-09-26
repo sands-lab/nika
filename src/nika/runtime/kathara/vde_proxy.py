@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import shlex
 import time
 from dataclasses import dataclass
@@ -19,13 +20,38 @@ import docker
 from docker.types import IPAMConfig
 
 from nika.runtime.base import RuntimeCapabilityError
+from nika.net_env.verify import frr_bgp_established_peers, frr_ospf_full_router_ids
 from nika.runtime.kathara.interface_snapshot import (
     LinkAttachmentState,
     capture_link_state,
+    link_info,
     restart_bmv2_dataplane,
     restore_link_state,
 )
+from nika.runtime.shared.containers import docker_client
 from nika.runtime.spec import NodeIdentity
+
+_logger = logging.getLogger(__name__)
+
+# Routing adjacencies that were up before a port move should recover within
+# this window. The wait only paces fault injection and recovery; a timeout
+# logs a warning and does not fail the operation.
+_ROUTING_WAIT_SEC = 60.0
+_ROUTING_POLL_SEC = 2.0
+_ROUTING_BASELINE_LABEL = "nika.routing_baseline"
+_ROUTING_COMMANDS = {
+    "bgp": (
+        "vtysh -c 'show bgp summary' 2>/dev/null || true",
+        frr_bgp_established_peers,
+    ),
+    "ospf": (
+        "vtysh -c 'show ip ospf neighbor' 2>/dev/null || true",
+        frr_ospf_full_router_ids,
+    ),
+}
+
+# node -> protocol -> peers that were up before the proxy moved the port.
+RoutingBaseline = tuple[tuple[str, str, tuple[str, ...]], ...]
 
 
 @dataclass(frozen=True)
@@ -39,6 +65,7 @@ class VdeFaultProxyState:
     lan_a_id: str
     lan_b_id: str
     proxy_id: str
+    routing_baseline: RoutingBaseline = ()
 
 
 class KatharaVdeFaultProxy:
@@ -47,15 +74,16 @@ class KatharaVdeFaultProxy:
     def __init__(self, runtime) -> None:
         self.runtime = runtime
         self._lab = runtime._net_env.lab
-        self._client = docker.from_env()
+        self._client = docker_client()
         self._bmv2_restarted: set[str] = set()
 
     def insert(self, node: str, intf: str) -> VdeFaultProxyState:
-        endpoint, peer, original = self._endpoints(node, intf)
-        key = self._key(endpoint)
         existing = self.discover(node, intf)
         if existing is not None:
             return existing
+        endpoint, peer, original = self._endpoints(node, intf)
+        key = self._key(node, intf)
+        baseline = self._routing_baseline(endpoint, peer)
 
         labels = {
             "nika.fault_proxy": key,
@@ -63,17 +91,36 @@ class KatharaVdeFaultProxy:
             "nika.original_network": original.id,
             "nika.endpoint_node": endpoint.node,
             "nika.peer_node": peer.node,
+            _ROUTING_BASELINE_LABEL: json.dumps(baseline),
         }
-        lan_a = self._create_lan(f"nika-fp-{key}-a", labels, original)
-        lan_b = self._create_lan(f"nika-fp-{key}-b", labels, original)
-        proxy = self._client.containers.run(
-            "nika/base",
-            command=["/bin/sh", "-c", "exec sleep infinity"],
-            cap_add=["NET_ADMIN"],
-            detach=True,
-            labels=labels,
-            name=f"nika-fp-{key}",
-        )
+        created: list = []
+        try:
+            lan_a = self._create_lan(f"nika-fp-{key}-a", labels, original)
+            created.append(lan_a)
+            lan_b = self._create_lan(f"nika-fp-{key}-b", labels, original)
+            created.append(lan_b)
+            proxy = self._client.containers.run(
+                "nika/base",
+                command=["/bin/sh", "-c", "exec sleep infinity"],
+                cap_add=["NET_ADMIN"],
+                detach=True,
+                labels=labels,
+                name=f"nika-fp-{key}",
+            )
+        except Exception:
+            # Nothing is attached to the lab yet; drop only what this call
+            # made. ``containers.run`` can create the proxy and then fail to
+            # start it, so look it up by its unique name as well.
+            try:
+                self._client.containers.get(f"nika-fp-{key}").remove(force=True)
+            except docker.errors.APIError:
+                pass
+            for resource in reversed(created):
+                try:
+                    resource.remove()
+                except docker.errors.APIError:
+                    pass
+            raise
         state = VdeFaultProxyState(
             key=key,
             endpoint=endpoint,
@@ -82,6 +129,7 @@ class KatharaVdeFaultProxy:
             lan_a_id=lan_a.id,
             lan_b_id=lan_b.id,
             proxy_id=proxy.id,
+            routing_baseline=baseline,
         )
         self._bmv2_restarted = set()
         try:
@@ -112,7 +160,7 @@ class KatharaVdeFaultProxy:
             )
             self._restore_and_post(peer)
             self._finalize_port_reconnect()
-            self._await_routing_stability(state.endpoint, state.peer)
+            self._await_routing_stability(state)
             self.verify_identity(state)
             return state
         except Exception:
@@ -123,8 +171,15 @@ class KatharaVdeFaultProxy:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(
             [
-                "tc", "qdisc", "replace", "dev", "eth1", "root", "netem",
-                "corrupt", f"{percentage}%",
+                "tc",
+                "qdisc",
+                "replace",
+                "dev",
+                "eth1",
+                "root",
+                "netem",
+                "corrupt",
+                f"{percentage}%",
             ]
         )
         if result.exit_code:
@@ -140,8 +195,15 @@ class KatharaVdeFaultProxy:
         for dev in ("eth0", "eth1"):
             result = proxy.exec_run(
                 [
-                    "tc", "qdisc", "replace", "dev", dev, "root", "netem",
-                    "corrupt", f"{percentage}%",
+                    "tc",
+                    "qdisc",
+                    "replace",
+                    "dev",
+                    dev,
+                    "root",
+                    "netem",
+                    "corrupt",
+                    f"{percentage}%",
                 ]
             )
             if result.exit_code:
@@ -179,11 +241,7 @@ class KatharaVdeFaultProxy:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
         output = result.output.lower()
-        return (
-            result.exit_code == 0
-            and b"netem" in output
-            and b"corrupt" in output
-        )
+        return result.exit_code == 0 and b"netem" in output and b"corrupt" in output
 
     def set_tbf(
         self,
@@ -307,7 +365,7 @@ done
     def verify_identity(self, state: VdeFaultProxyState) -> None:
         """Ensure reattachment retained the externally observable L2 identity."""
         for endpoint in (state.endpoint, state.peer):
-            info = self._link_info(endpoint.node, endpoint.intf)
+            info = link_info(self.runtime, endpoint.node, endpoint.intf)
             if (
                 info.get("ifname") != endpoint.intf
                 or info.get("address", "").lower() != endpoint.mac.lower()
@@ -337,7 +395,7 @@ done
                 )
                 self._restore_and_post(endpoint)
             self._finalize_port_reconnect()
-            self._await_routing_stability(state.endpoint, state.peer)
+            self._await_routing_stability(state)
             self.verify_identity(state)
         except Exception:
             if not suppress_errors:
@@ -357,8 +415,7 @@ done
                     pass
 
     def discover(self, node: str, intf: str) -> VdeFaultProxyState | None:
-        endpoint, peer, original = self._endpoints(node, intf)
-        key = self._key(endpoint)
+        key = self._key(node, intf)
         containers = self._client.containers.list(
             all=True, filters={"label": f"nika.fault_proxy={key}"}
         )
@@ -370,17 +427,27 @@ done
         if len(networks) != 2:
             return None
         lan_a, lan_b = sorted(networks, key=lambda item: item.name)
-        original_id = containers[0].labels.get("nika.original_network")
+        labels = containers[0].labels or {}
+        original_id = labels.get("nika.original_network")
         if not original_id:
             return None
+        # Snapshot link state only once a proxy is known to exist.
+        endpoint, peer = self._link_states(node, intf)
         return VdeFaultProxyState(
-            key, endpoint, peer, original_id, lan_a.id, lan_b.id, containers[0].id
+            key,
+            endpoint,
+            peer,
+            original_id,
+            lan_a.id,
+            lan_b.id,
+            containers[0].id,
+            routing_baseline=_baseline_from_label(labels.get(_ROUTING_BASELINE_LABEL)),
         )
 
     @classmethod
     def cleanup_lab(cls, lab_name: str) -> None:
         """Remove only proxy resources labelled for a lab being destroyed."""
-        client = docker.from_env()
+        client = docker_client()
         label = f"nika.lab_name={lab_name}"
         for container in client.containers.list(all=True, filters={"label": label}):
             container.remove(force=True)
@@ -421,35 +488,65 @@ done
                 timeout=30,
             )
 
-    def _await_routing_stability(
-        self, *endpoints: LinkAttachmentState
-    ) -> None:
-        """Give FRR-controlled routers time to re-evaluate moved interfaces."""
-        frr_nodes = [
-            state.node
-            for state in endpoints
-            if self._node_identity(state.node) is not None
-            and (
-                "frr" in self._node_identity(state.node).capabilities
-                or "bgp" in self._node_identity(state.node).capabilities
-            )
-        ]
-        if not frr_nodes:
-            return
-        for _ in range(30):
-            ready = True
-            for node in frr_nodes:
-                output = self.runtime.exec(
-                    node,
-                    "vtysh -c 'show bgp summary' 2>/dev/null || true",
-                    timeout=15,
+    def _routing_nodes(self, *endpoints: LinkAttachmentState) -> list[str]:
+        nodes: list[str] = []
+        for state in endpoints:
+            identity = self._node_identity(state.node)
+            if identity is None:
+                continue
+            if {"frr", "bgp"} & set(identity.capabilities) and state.node not in nodes:
+                nodes.append(state.node)
+        return nodes
+
+    def _routing_peers(self, node: str, protocol: str) -> set[str]:
+        command, parse = _ROUTING_COMMANDS[protocol]
+        return parse(self.runtime.exec(node, command, timeout=15))
+
+    def _routing_baseline(
+        self, endpoint: LinkAttachmentState, peer: LinkAttachmentState
+    ) -> RoutingBaseline:
+        """Record the BGP sessions and OSPF Full adjacencies up before the move."""
+        rows: list[tuple[str, str, tuple[str, ...]]] = []
+        for node in self._routing_nodes(endpoint, peer):
+            for protocol in _ROUTING_COMMANDS:
+                peers = self._routing_peers(node, protocol)
+                if peers:
+                    rows.append((node, protocol, tuple(sorted(peers))))
+        return tuple(rows)
+
+    def _await_routing_stability(self, state: VdeFaultProxyState) -> None:
+        """Wait until routing adjacencies that were up before the move recover.
+
+        Nodes with no established BGP session or OSPF Full neighbor before the
+        port move have nothing to wait for and are skipped.
+        """
+        pending = {
+            (node, protocol): set(peers)
+            for node, protocol, peers in state.routing_baseline
+            if peers
+        }
+        deadline = time.monotonic() + _ROUTING_WAIT_SEC
+        while pending:
+            for (node, protocol), expected in list(pending.items()):
+                if expected <= self._routing_peers(node, protocol):
+                    del pending[(node, protocol)]
+            if not pending or time.monotonic() >= deadline:
+                break
+            time.sleep(_ROUTING_POLL_SEC)
+        if pending:
+            missing = {
+                f"{node}/{protocol}": sorted(
+                    expected - self._routing_peers(node, protocol)
                 )
-                if "Established" not in output:
-                    ready = False
-                    break
-            if ready:
-                return
-            time.sleep(2)
+                for (node, protocol), expected in sorted(pending.items())
+            }
+            _logger.warning(
+                "VDE proxy port move on lab %s: routing adjacencies did not "
+                "recover within %.0fs: %s",
+                self.runtime.lab_name,
+                _ROUTING_WAIT_SEC,
+                missing,
+            )
 
     def _finalize_port_reconnect(self) -> None:
         if not self._bmv2_restarted:
@@ -462,6 +559,13 @@ done
         return self.runtime._net_env.machine_identities.get(node)
 
     def _endpoints(self, node: str, intf: str):
+        endpoint, peer = self._link_states(node, intf)
+        original = self._network_for_interface(node, endpoint.number)
+        return endpoint, peer, original
+
+    def _link_states(
+        self, node: str, intf: str
+    ) -> tuple[LinkAttachmentState, LinkAttachmentState]:
         try:
             number = int(intf.removeprefix("eth"))
             interface = self._lab.machines[node].interfaces[number]
@@ -483,13 +587,11 @@ done
             raise RuntimeCapabilityError(
                 f"dynamic VDE proxy requires a point-to-point link at {node}:{intf}"
             ) from exc
-        original = self._network_for_interface(node, number)
         return (
             capture_link_state(self.runtime, node, intf, number),
             capture_link_state(
                 self.runtime, peer_name, f"eth{peer_interface.num}", peer_interface.num
             ),
-            original,
         )
 
     def _create_lan(self, name: str, labels: dict[str, str], original):
@@ -559,18 +661,9 @@ done
                         "could not normalize VDE proxy interface names"
                     )
 
-    def _link_info(self, node: str, intf: str) -> dict:
-        for _ in range(10):
-            output = self.runtime.exec(node, f"ip -j link show dev {intf}")
-            try:
-                return json.loads(output)[0]
-            except (IndexError, json.JSONDecodeError):
-                time.sleep(0.5)
-        raise RuntimeCapabilityError(f"could not inspect {node}:{intf}")
-
-    def _key(self, endpoint: LinkAttachmentState) -> str:
+    def _key(self, node: str, intf: str) -> str:
         return hashlib.blake2s(
-            f"{self.runtime.lab_name}:{endpoint.node}:{endpoint.intf}".encode(),
+            f"{self.runtime.lab_name}:{node}:{intf}".encode(),
             digest_size=8,
         ).hexdigest()
 
@@ -594,3 +687,17 @@ done
             raise RuntimeCapabilityError(
                 "controller-side link flap worker did not start"
             )
+
+
+def _baseline_from_label(raw: str | None) -> RoutingBaseline:
+    """Decode the routing baseline stored on a discovered proxy container."""
+    if not raw:
+        return ()
+    try:
+        rows = json.loads(raw)
+        return tuple(
+            (str(node), str(protocol), tuple(str(peer) for peer in peers))
+            for node, protocol, peers in rows
+        )
+    except (TypeError, ValueError):
+        return ()

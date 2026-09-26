@@ -142,7 +142,7 @@ def test_abilene_ebgp_rpki_profile() -> None:
     assert "rpki cache tcp" in frag
     assert "match rpki invalid" in frag
     leak_frag = render_bgp_frr_fragment(leaker_node, plan)
-    assert "prefix-list LEAK" in leak_frag
+    assert "prefix-list EXPORT-DENY" in leak_frag
     assert "route-map BGP-OUT deny 5" in leak_frag
 
 

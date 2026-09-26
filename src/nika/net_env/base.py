@@ -102,40 +102,53 @@ class NetworkEnvBase:
             topo_list.append((machines[0], machines[1]))
         return topo_list
 
+    def _router_platform_label(self) -> str:
+        router_caps: set[str] = set()
+        for name in self.routers or []:
+            identity = self.machine_identities.get(name)
+            if identity is not None:
+                router_caps.update(identity.capabilities)
+        if "routeros" in router_caps:
+            return "MikroTik RouterOS"
+        if "iosxr" in router_caps:
+            return "IOS-XR"
+        if "nokia_srlinux" in router_caps or "srlinux" in router_caps:
+            return "Nokia SR Linux"
+        return "FRRRouting"
+
+    def _format_role_inventory_lines(self) -> str:
+        """Role / service inventory lines for the agent-facing network brief."""
+        lines: list[str] = []
+        if self.bmv2_switches:
+            lines.append(f"BMV2 switches: {', '.join(self.bmv2_switches)}")
+        if self.ovs_switches:
+            lines.append(f"OVS switches: {', '.join(self.ovs_switches)}")
+        if self.switches:
+            lines.append(f"Switches: {', '.join(self.switches)}")
+        if self.hosts:
+            lines.append(f"PCs: {', '.join(self.hosts)}")
+        if self.servers:
+            for server_type, server_list in self.servers.items():
+                lines.append(
+                    f"{server_type.capitalize()} Servers: {', '.join(server_list)}"
+                )
+        if self.routers:
+            label = self._router_platform_label()
+            lines.append(f"Routers ({label}): {', '.join(self.routers)}")
+        if self.links:
+            lines.append(f"Links: {', '.join(self.links)}")
+        return "".join(f"{line}\n" for line in lines)
+
     def get_info(self):
         """
         Generate a summary of the network configuration.
+
+        Agent brief contract: short description, role inventory, and topology
+        edges. Device configs and fault ground truth stay outside this prompt.
         """
         self.load_machines()
         summary = f"Network Description: {self.desc}\n"
-        if self.bmv2_switches:
-            summary += f"BMV2 switches: {', '.join(self.bmv2_switches)}\n"
-        if self.ovs_switches:
-            summary += f"OVS switches: {', '.join(self.ovs_switches)}\n"
-        if self.switches:
-            summary += f"Switches: {', '.join(self.switches)}\n"
-        if self.hosts:
-            summary += f"PCs: {', '.join(self.hosts)}\n"
-        if self.servers:
-            for server_type, server_list in self.servers.items():
-                summary += (
-                    f"{server_type.capitalize()} Servers: {', '.join(server_list)}\n"
-                )
-        if self.routers:
-            router_caps: set[str] = set()
-            for name in self.routers:
-                identity = self.machine_identities.get(name)
-                if identity is not None:
-                    router_caps.update(identity.capabilities)
-            if "routeros" in router_caps:
-                router_label = "MikroTik RouterOS"
-            elif "iosxr" in router_caps:
-                router_label = "IOS-XR"
-            else:
-                router_label = "FRRRouting"
-            summary += f"Routers ({router_label}): {', '.join(self.routers)}\n"
-        if self.links:
-            summary += f"Links: {', '.join(self.links)}\n"
+        summary += self._format_role_inventory_lines()
         summary += (
             f"Topology: {', '.join(f'({a}, {b})' for a, b in self.get_topology())}"
         )
@@ -163,26 +176,37 @@ class NetworkEnvBase:
 
     def _ensure_docker_images(self) -> None:
         """Ensure local NIKA Docker images required by this lab are available."""
-        from agent.sandbox.sbx.images import ensure_configured_sbx_template_images
         from nika.net_env.utils.kathara.docker_files.docker_images import (
             ensure_nika_docker_images,
         )
 
         ensure_nika_docker_images(self._collect_lab_images())
-        # When run config selects a sandbox agent, preload its sbx template
-        # alongside lab images (not at sbx create / per-case agent start).
-        ensure_configured_sbx_template_images()
 
     def deploy(self):
-        """Deploy the lab"""
+        """Deploy the lab.
+
+        The runtime checks for an existing lab and, on Kathara, required
+        images once per deploy. Scenarios without a readiness verifier get a
+        fixed settle delay so services can start; scenarios with one rely on
+        ``verify_lab_with_retry`` polling instead.
+        """
         self._ensure_runtime_files()
-        runtime = self._build_runtime()
-        if runtime.exists():
-            print(f"Lab {self.name} exists")
-            return
-        if self.backend == "kathara":
-            self._ensure_docker_images()
-        runtime.deploy()
+        deployed = self._build_runtime().deploy()
+        if deployed is not False and not self.has_lab_verifier():
+            import time
+
+            from nika.runtime.shared.settings import lab_settings
+
+            time.sleep(lab_settings().deploy_settle_sec)
+
+    def has_lab_verifier(self) -> bool:
+        """Return whether ``verify_lab_with_retry`` polls a scenario check."""
+        from nika.net_env.verify import _runtime_validation_depth
+
+        overrides_verify = type(self).verify_lab is not NetworkEnvBase.verify_lab
+        if _runtime_validation_depth() == "full":
+            return overrides_verify
+        return overrides_verify or hasattr(self, "startup_verify_lab")
 
     def verify_lab(self) -> dict | None:
         """Return post-deploy verification result, or ``None`` when not implemented."""

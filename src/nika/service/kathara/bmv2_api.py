@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from typing import Any
 
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
@@ -30,20 +31,28 @@ def _sanitize_p4rt_payload(payload: Any) -> Any:
     return payload
 
 
+def _strip_private_lines(text: str) -> str:
+    """Fallback sanitizer for output that is not valid JSON."""
+    return "\n".join(line for line in text.splitlines() if "internal_fault" not in line)
+
+
 class BMv2APIMixin:
     """Run p4rt_manager on fabric_mgr with private-state sanitization."""
 
     def p4rt_exec(self: _SupportsBase, args: str, timeout: float = 90) -> str:
         """Run ``p4rt_manager.py`` with *args* on fabric_mgr; sanitize JSON output."""
-        command = f"{_P4RT_BASE} {args}".strip()
+        # Quote each agent-supplied word so shell operators stay literal
+        # arguments to p4rt_manager.py instead of running extra commands.
+        quoted = " ".join(shlex.quote(part) for part in shlex.split(args))
+        command = f"{_P4RT_BASE} {quoted}".strip()
         raw = self.exec_cmd("fabric_mgr", command, timeout=timeout)
         start = raw.find("{")
         if start < 0:
-            return raw
+            return _strip_private_lines(raw)
         try:
             payload = json.loads(raw[start:])
         except json.JSONDecodeError:
-            return raw
+            return _strip_private_lines(raw)
         return json.dumps(_sanitize_p4rt_payload(payload), indent=2, default=str)
 
 
