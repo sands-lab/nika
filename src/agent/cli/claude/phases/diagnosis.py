@@ -24,8 +24,8 @@ class ClaudeDiagnosisPhase:
         Claude/DeepSeek model name (e.g. ``"deepseek-v4-flash"``).
     llm_provider:
         Active LLM provider forwarded to the Claude worker.
-    timeout:
-        Hard timeout in seconds for the subprocess.
+    max_steps:
+        LLM-turn budget for the phase (``claude --max-turns``).
     scenario_name:
         Scenario identifier used to select relevant Kathara MCP servers.
     """
@@ -35,21 +35,23 @@ class ClaudeDiagnosisPhase:
         session_id: str,
         session_dir: str,
         model: str | None = None,
-        timeout: int = 600,
+        max_steps: int = 20,
         scenario_name: str = "",
         *,
         llm_provider: str,
         stream_output: bool = True,
+        trace_dir: str | None = None,
     ) -> None:
         self._worker = ClaudeWorker(
             session_id=session_id,
             session_dir=session_dir,
             phase=DIAGNOSIS,
             model=model,
-            timeout=timeout,
+            max_steps=max_steps,
             scenario_name=scenario_name,
             llm_provider=llm_provider,
             stream_output=stream_output,
+            trace_dir=trace_dir,
         )
         self._diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
 

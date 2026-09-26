@@ -1,4 +1,4 @@
-"""Unit tests for sandbox → host diagnosis freeze via MCP gateway HTTP."""
+"""Submission context stays out of reach until the host advances the phase."""
 
 from __future__ import annotations
 
@@ -9,102 +9,114 @@ from urllib.error import HTTPError
 from urllib.request import Request
 
 import pytest
+from starlette.testclient import TestClient
 
-from agent.sandbox.config import (
-    ENV_GATEWAY_AGENT_URL,
-    ENV_SANDBOX_EXECUTION,
-    ENV_SESSION_DIR,
-)
+from agent.sandbox.config import ENV_GATEWAY_URL, ENV_SANDBOX_EXECUTION
+from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
 from agent.utils import mcp_client
-from agent.utils.loggers import MESSAGES_FILENAME
+from nika.mcp.gateway.app import create_gateway_app
+from nika.mcp.gateway.phase import phase_advance_token
 from nika.mcp.gateway.session_registry import (
-    advance_phase,
     clear_sessions,
     get_session,
     register_session,
 )
-from nika.workflows.agent.submission import (
-    freeze_diagnosis,
-    load_frozen_diagnosis_report,
-)
 
 
-def test_sandbox_begin_submission_freezes_on_host_via_http(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    host_session = tmp_path / "host_session"
-    workspace = tmp_path / "sandbox_run"
-    host_session.mkdir()
-    workspace.mkdir()
+@pytest.fixture
+def registered_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from nika.utils.session_store import SessionStore
 
-    register_session(
-        "sess-http-freeze",
-        scenario_name="simple_bgp",
-        session_dir=str(host_session),
+    store = SessionStore(tmp_path / "sessions", tmp_path / "sessions.db")
+    store.create_session(
+        {
+            "session_id": "sess-token",
+            "scenario_name": "simple_bgp",
+            "fault_ontology": ["link_down"],
+        }
     )
-    monkeypatch.setenv(ENV_SANDBOX_EXECUTION, "1")
-    monkeypatch.setenv(ENV_SESSION_DIR, str(workspace))
-    monkeypatch.setenv(ENV_GATEWAY_AGENT_URL, "http://gateway.test")
-
-    def fake_urlopen(request: Request, timeout: float = 10):
-        assert request.full_url.endswith("/gateway/sessions/sess-http-freeze/phase")
-        assert request.get_header("Nika-session-id") == "sess-http-freeze"
-        body = json.loads(request.data.decode("utf-8"))
-        assert body["phase"] == "submission"
-        assert body["diagnosis_report"] == "pc1 eth0 down"
-
-        # Simulate the host gateway freeze handler.
-        freeze_diagnosis("sess-http-freeze", body["diagnosis_report"])
-        advance_phase("sess-http-freeze", "submission")
-
-        class _Resp:
-            status = 200
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                return False
-
-            def read(self):
-                return b'{"ok": true}'
-
-        return _Resp()
-
-    monkeypatch.setattr(mcp_client.urllib.request, "urlopen", fake_urlopen)
-
-    try:
-        mcp_client.begin_submission_mcp_phase("sess-http-freeze", "pc1 eth0 down")
-        assert load_frozen_diagnosis_report("sess-http-freeze") == "pc1 eth0 down"
-        assert get_session("sess-http-freeze").phase == "submission"
-
-        workspace_event = json.loads(
-            (workspace / MESSAGES_FILENAME).read_text(encoding="utf-8").strip()
-        )
-        assert workspace_event["event"] == "diagnosis_frozen"
-        assert workspace_event["report"] == "pc1 eth0 down"
-
-        host_event = json.loads(
-            (host_session / MESSAGES_FILENAME).read_text(encoding="utf-8").strip()
-        )
-        assert host_event["event"] == "diagnosis_frozen"
-        assert host_event["report"] == "pc1 eth0 down"
-    finally:
-        clear_sessions()
+    monkeypatch.setattr("nika.workflows.agent.submission.SessionStore", lambda: store)
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    clear_sessions()
+    register_session(
+        "sess-token",
+        agent_session_id="opaque-token",
+        scenario_name="simple_bgp",
+        session_dir=str(session_dir),
+    )
+    yield session_dir
+    clear_sessions()
 
 
-def test_sandbox_http_advance_omits_empty_report(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_session_header_alone_cannot_advance_phase(registered_session: Path) -> None:
+    """An in-sandbox agent knows its session id but not the host-only token."""
+    client = TestClient(create_gateway_app())
+    url = "/gateway/sessions/opaque-token/phase"
+    body = {"phase": "submission", "diagnosis_report": "pc1 eth0 down"}
+
+    for headers in (
+        {"NIKA-Session-Id": "opaque-token"},
+        {"NIKA-Session-Id": "opaque-token", "NIKA-Phase-Token": "guess"},
+    ):
+        response = client.post(url, headers=headers, json=body)
+        assert response.status_code == 403
+        assert "submission_context" not in response.json()
+    assert get_session("opaque-token").phase == "diagnosis"
+    assert not (registered_session / "messages.jsonl").exists()
+
+    token = phase_advance_token("sess-token")
+    response = client.post(
+        url,
+        headers={"NIKA-Session-Id": "opaque-token", "NIKA-Phase-Token": token},
+        json=body,
+    )
+    assert response.status_code == 200
+    context = response.json()["submission_context"]
+    assert context["diagnosis_report"] == "pc1 eth0 down"
+    ids = {item["id"] for item in context["fault_ontology"]}
+    assert "link_down" in ids
+    # Submission catalog is the fixed full fault set (not session-scoped).
+    from nika.workflows.agent.submission import fault_candidates
+
+    assert ids == set(fault_candidates())
+    assert get_session("opaque-token").phase == "submission"
+
+
+def test_phase_token_is_reissued_after_reregistration(registered_session: Path) -> None:
+    token = phase_advance_token("opaque-token")
+    assert phase_advance_token("sess-token") == token
+    register_session(
+        "sess-token",
+        agent_session_id="opaque-token",
+        scenario_name="simple_bgp",
+        session_dir=str(registered_session),
+    )
+    assert phase_advance_token("sess-token") != token
+
+
+def test_begin_submission_refuses_inside_the_sandbox(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    workspace = tmp_path / "sandbox_run"
-    workspace.mkdir()
     monkeypatch.setenv(ENV_SANDBOX_EXECUTION, "1")
-    monkeypatch.setenv(ENV_SESSION_DIR, str(workspace))
-    monkeypatch.setenv(ENV_GATEWAY_AGENT_URL, "http://gateway.test")
+    monkeypatch.delenv(ENV_SBX_SANDBOX_NAME, raising=False)
+    with pytest.raises(RuntimeError, match="runs on the host"):
+        mcp_client.begin_submission_mcp_phase("sess-vm", "report")
 
+
+def _remote(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(ENV_SANDBOX_EXECUTION, raising=False)
+    monkeypatch.setattr("nika.remote.config.is_remote_enabled", lambda: True)
+    monkeypatch.setenv(ENV_GATEWAY_URL, "http://gateway.test")
+
+
+def test_remote_advance_sends_phase_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    _remote(monkeypatch)
+    monkeypatch.setenv(mcp_client.ENV_GATEWAY_PHASE_TOKEN, "host-secret")
     captured: dict = {}
 
     def fake_urlopen(request: Request, timeout: float = 10):
+        captured["headers"] = {k.lower(): v for k, v in request.header_items()}
         captured["body"] = json.loads(request.data.decode("utf-8"))
 
         class _Resp:
@@ -116,37 +128,47 @@ def test_sandbox_http_advance_omits_empty_report(
             def __exit__(self, *args):
                 return False
 
+            def read(self):
+                return json.dumps(
+                    {
+                        "submission_context": {
+                            "diagnosis_report": "r",
+                            "fault_ontology": [],
+                            "resources": [],
+                        }
+                    }
+                ).encode()
+
         return _Resp()
 
     monkeypatch.setattr(mcp_client.urllib.request, "urlopen", fake_urlopen)
-    (workspace / MESSAGES_FILENAME).write_text(
-        json.dumps({"event": "diagnosis_frozen", "report": "prior"}) + "\n",
-        encoding="utf-8",
-    )
-
-    mcp_client.begin_submission_mcp_phase("sess-2", "")
-    assert captured["body"] == {"phase": "submission"}
-    assert "diagnosis_report" not in captured["body"]
+    mcp_client.begin_submission_mcp_phase("sess-remote", "r")
+    assert captured["headers"]["nika-phase-token"] == "host-secret"
+    assert captured["body"] == {"phase": "submission", "diagnosis_report": "r"}
 
 
-def test_http_advance_surfaces_gateway_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_remote_advance_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    _remote(monkeypatch)
+    monkeypatch.delenv(mcp_client.ENV_GATEWAY_PHASE_TOKEN, raising=False)
+    with pytest.raises(RuntimeError, match=mcp_client.ENV_GATEWAY_PHASE_TOKEN):
+        mcp_client.begin_submission_mcp_phase("sess-remote", "r")
+
+
+def test_remote_advance_surfaces_gateway_errors(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    workspace = tmp_path / "sandbox_run"
-    workspace.mkdir()
-    monkeypatch.setenv(ENV_SANDBOX_EXECUTION, "1")
-    monkeypatch.setenv(ENV_SESSION_DIR, str(workspace))
-    monkeypatch.setenv(ENV_GATEWAY_AGENT_URL, "http://gateway.test")
+    _remote(monkeypatch)
+    monkeypatch.setenv(mcp_client.ENV_GATEWAY_PHASE_TOKEN, "host-secret")
 
     def fake_urlopen(request: Request, timeout: float = 10):
         raise HTTPError(
             request.full_url,
-            400,
-            "Bad Request",
+            403,
+            "Forbidden",
             hdrs=None,  # type: ignore[arg-type]
-            fp=io.BytesIO(b'{"error":"diagnosis_report is required"}'),
+            fp=io.BytesIO(b'{"error":"NIKA-Phase-Token is missing or invalid"}'),
         )
 
     monkeypatch.setattr(mcp_client.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(RuntimeError, match="diagnosis_report is required"):
-        mcp_client.begin_submission_mcp_phase("sess-3", "report text")
+    with pytest.raises(RuntimeError, match="NIKA-Phase-Token"):
+        mcp_client.begin_submission_mcp_phase("sess-remote", "report text")

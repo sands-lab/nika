@@ -12,6 +12,9 @@ from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
 
+# Prefix of the per-phase vLLM shim token (``agent.cli.claude.vllm_shim``).
+SHIM_TOKEN_PREFIX = "nika-shim-"
+
 
 _INNER_ENV_ALLOWLIST = frozenset(
     {
@@ -22,6 +25,9 @@ _INNER_ENV_ALLOWLIST = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "DISABLE_AUTOUPDATER",
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     }
 )
 _PATH_ENV_KEYS = frozenset({"CODEX_HOME", "CLAUDE_CONFIG_DIR"})
@@ -67,11 +73,14 @@ def _inner_path(
 
 
 def _looks_like_placeholder(value: str) -> bool:
+    # A vLLM shim token only authorizes the host-side shim for one phase.
     return (
         value == PROXY_MANAGED_SENTINEL
         or value == CUSTOM_UNAUTHENTICATED_API_KEY
         or value.startswith("sbx-cs-")
+        or value.startswith(SHIM_TOKEN_PREFIX)
     )
+
 
 def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str:
     """Never forward real credentials into the microVM for proxy-managed services."""

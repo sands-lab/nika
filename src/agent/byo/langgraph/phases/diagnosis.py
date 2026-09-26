@@ -26,8 +26,7 @@ class DiagnosisPhase:
         max_steps: int = 20,
     ):
         mcp_server_config = load_session_mcp_config(
-            session_id,
-            scenario_name,
+            session_id, scenario_name, phase=DIAGNOSIS
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None

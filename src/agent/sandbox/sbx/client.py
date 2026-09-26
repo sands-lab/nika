@@ -167,11 +167,6 @@ def list_sbx_secret_services() -> set[str]:
     return services
 
 
-def list_sbx_custom_secret_envs() -> set[str]:
-    """Return env var names already configured via ``sbx secret set-custom``."""
-    return set(list_sbx_custom_secrets())
-
-
 def list_sbx_custom_secrets() -> dict[str, str]:
     """Return ``{env_var: placeholder}`` for ``sbx secret set-custom`` entries."""
     return {

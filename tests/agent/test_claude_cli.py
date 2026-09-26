@@ -9,7 +9,6 @@ from agent.cli.claude.claude_display import (
 )
 from agent.cli.claude.claude_worker import ClaudeWorker, _build_mcp_json
 from agent.cli.claude.config import (
-    default_claude_model,
     has_env_claude_credentials,
     prepare_claude_subprocess_env,
     use_bare_claude_mode,
@@ -21,12 +20,6 @@ load_test_env()
 
 class ClaudeConfigTest:
     """Claude env model and auth helpers."""
-
-    def test_default_model_missing_raises(self) -> None:
-        """Sandbox Claude Code compat: env model chain is empty."""
-        with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError):
-                default_claude_model()
 
     def test_prepare_env_maps_auth_token_to_api_key(self) -> None:
         env = prepare_claude_subprocess_env(
@@ -148,11 +141,8 @@ class ClaudeWorkerConfigTest:
         }
         with (
             unittest.mock.patch(
-                "agent.cli.claude.claude_worker.load_session_mcp_config",
+                "agent.utils.mcp_client._load_session_mcp_config",
                 return_value=servers,
-            ),
-            unittest.mock.patch(
-                "agent.cli.claude.claude_worker.begin_submission_mcp_phase"
             ),
         ):
             worker._write_mcp_config()

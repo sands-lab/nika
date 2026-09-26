@@ -19,18 +19,15 @@ Select with ``nika agent run -a cli.claude``.
 
 from __future__ import annotations
 
-import sys
-from typing import Any
-
 from agent.cli.claude.config import resolve_claude_model
 from agent.cli.claude.phases.diagnosis import ClaudeDiagnosisPhase
 from agent.cli.claude.phases.submission import ClaudeSubmissionPhase
 from agent.sandbox.session_dir import resolve_agent_session_dir
-from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.two_phase import TwoPhaseAgent
 from nika.utils.session import Session
 
 
-class ClaudeAgent:
+class ClaudeAgent(TwoPhaseAgent):
     """Two-phase troubleshooting agent backed by Claude Code CLI workers.
 
     Parameters
@@ -43,6 +40,8 @@ class ClaudeAgent:
         :func:`~agent.cli.claude.config.resolve_claude_model`).
     llm_provider:
         Active LLM provider (``anthropic``, ``deepseek``, ``custom``).
+    max_steps:
+        LLM-turn budget per phase (``claude --max-turns``), as for other agents.
     """
 
     def __init__(
@@ -51,17 +50,21 @@ class ClaudeAgent:
         model: str | None = None,
         *,
         llm_provider: str,
+        max_steps: int = 20,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
         self.llm_provider = llm_provider
         self.model = resolve_claude_model(model)
-        self._stream_output = stream_output
+        self.stream_output = stream_output
 
         session = Session()
         session.load_running_session(session_id=session_id)
         self.session = session
+        # The sandbox workspace holds the CLI workspace; the trace stays in the
+        # host session dir, which the sandbox cannot write.
         self.session_dir: str = resolve_agent_session_dir(session.session_dir)
+        self.trace_dir: str = session.session_dir
 
         scenario_name: str = getattr(session, "scenario_name", "")
 
@@ -70,40 +73,23 @@ class ClaudeAgent:
             session_dir=self.session_dir,
             model=self.model,
             llm_provider=llm_provider,
+            max_steps=max_steps,
             scenario_name=scenario_name,
             stream_output=stream_output,
+            trace_dir=self.trace_dir,
         )
         self._submission_phase = ClaudeSubmissionPhase(
             session_id=session_id,
             session_dir=self.session_dir,
             model=self.model,
             llm_provider=llm_provider,
+            max_steps=max_steps,
             stream_output=stream_output,
+            trace_dir=self.trace_dir,
         )
 
-    async def run(self, task_description: str) -> dict[str, Any]:
-        """Execute the two-phase pipeline and return diagnosis + submission results."""
-        self._print_phase(DIAGNOSIS, "starting network fault analysis")
-        diagnosis_report = await self._diagnosis_phase.run(task_description)
-        if diagnosis_report.startswith("ERROR:"):
-            self._print_phase(DIAGNOSIS, f"failed ({diagnosis_report[:120]})")
-            raise RuntimeError(diagnosis_report)
-        self._print_phase(DIAGNOSIS, "completed")
+    async def diagnose(self, task_description: str) -> str:
+        return await self._diagnosis_phase.run(task_description)
 
-        self._print_phase(SUBMISSION, "recording structured result")
-        submission_result = await self._submission_phase.run(diagnosis_report)
-        self._print_phase(SUBMISSION, "completed")
-
-        return {
-            "diagnosis_report": diagnosis_report,
-            "submission_result": submission_result,
-        }
-
-    def _print_phase(self, phase: str, message: str) -> None:
-        if not self._stream_output:
-            return
-        banner = f" [{phase.upper()}] {message} "
-        width = max(60, len(banner) + 4)
-        print(f"\n{'=' * width}", file=sys.stderr, flush=True)
-        print(banner.center(width), file=sys.stderr, flush=True)
-        print(f"{'=' * width}\n", file=sys.stderr, flush=True)
+    async def submit(self, diagnosis_report: str, context: dict) -> str:
+        return await self._submission_phase.run(diagnosis_report, context)

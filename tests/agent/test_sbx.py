@@ -242,7 +242,6 @@ def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
                 "session_id": "s1",
                 "scenario_name": "simple_bgp",
                 "backend": "kathara",
-                "submission_context": {"fault_ontology": [], "resources": []},
                 "mcp_servers": {
                     "task_mcp_server": {
                         "transport": "http",
@@ -334,11 +333,52 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     collect_artifacts(workspace)
     cleanup_workspace(workspace)
 
-    assert (session_dir / "messages.jsonl").read_text() == "line\n"
-    assert (session_dir / "submission.json").read_text() == "{}"
+    # The host trace is host-written; the workspace copy is not collected.
+    assert not (session_dir / "messages.jsonl").exists()
+    # Agent-writable workspace submissions must not reach scoring.
+    assert not (session_dir / "submission.json").exists()
     assert (session_dir / "sandbox_manifest.json").is_file()
     assert not (session_dir / ".sandbox_run").exists()
     assert not (session_dir / "codex_sdk_workspace").exists()
+
+
+def test_trace_mirror_keeps_host_freeze_authoritative(tmp_path) -> None:
+    """In-VM SDK traces reach the host live, minus planted freezes and other phases."""
+    from agent.sandbox.sbx.workspace import TraceMirror
+
+    source = tmp_path / "workspace" / "messages.jsonl"
+    source.parent.mkdir()
+    dest = tmp_path / "session" / "messages.jsonl"
+    dest.parent.mkdir()
+    mirror = TraceMirror(source, dest)
+
+    def event(phase: str, name: str, **fields) -> str:
+        return json.dumps({"phase": phase, "event": name, **fields}) + "\n"
+
+    source.write_text(
+        event("diagnosis", "llm_end", text="bgp down")
+        + event("diagnosis", "diagnosis_frozen", report="planted")
+        + '{"phase": "diagnosis", "event": "tool_start"',  # incomplete line
+        encoding="utf-8",
+    )
+    mirror.sync()
+    rows = [json.loads(line) for line in dest.read_text().splitlines()]
+    assert [r["event"] for r in rows] == ["llm_end"]
+
+    with source.open("a", encoding="utf-8") as handle:
+        handle.write("}\n")
+    mirror.set_phase("submission")
+    # Diagnosis events written after the host froze the report are dropped.
+    with source.open("a", encoding="utf-8") as handle:
+        handle.write(event("diagnosis", "llm_end", text="late"))
+        handle.write(event("submission", "tool_start", tool={"name": "submit"}))
+    mirror.stop()
+    rows = [json.loads(line) for line in dest.read_text().splitlines()]
+    assert [(r["phase"], r["event"]) for r in rows] == [
+        ("diagnosis", "llm_end"),
+        ("diagnosis", "tool_start"),
+        ("submission", "tool_start"),
+    ]
 
 
 def test_collect_artifacts_preserves_host_mcp_submission(tmp_path) -> None:
@@ -388,7 +428,7 @@ def test_collect_artifacts_preserves_host_mcp_submission(tmp_path) -> None:
     collect_artifacts(workspace)
     cleanup_workspace(workspace)
 
-    assert (session_dir / "messages.jsonl").read_text() == "agent-log\n"
+    assert not (session_dir / "messages.jsonl").exists()
     kept = json.loads((session_dir / "submission.json").read_text(encoding="utf-8"))
     assert kept == host_submission
 
@@ -463,20 +503,16 @@ def test_write_manifest_uses_opaque_session_id(tmp_path) -> None:
         backend="kathara",
     )
     manager = SbxSandboxManager(resolve_sandbox_config())
-    with patch(
-        "nika.workflows.agent.submission.load_submission_catalog",
-        return_value={"fault_ontology": [], "resources": []},
-    ):
-        manifest = manager.write_manifest(
-            session=session,
-            agent_type="sdk.codex_sdk",
-            model="gpt-test",
-            max_steps=5,
-            reasoning_effort=None,
-            llm_provider="openai",
-            mcp_gateway_agent_url="http://host.docker.internal:9999",
-            stream_output=False,
-        )
+    manifest = manager.write_manifest(
+        session=session,
+        agent_type="sdk.codex_sdk",
+        model="gpt-test",
+        max_steps=5,
+        reasoning_effort=None,
+        llm_provider="openai",
+        mcp_gateway_agent_url="http://host.docker.internal:9999",
+        stream_output=False,
+    )
     assert manifest["session_id"] == "20260101-120000-a-ccddee"
     assert "dhcp_missing_subnet" not in manifest["session_id"]
     headers = next(iter(manifest["mcp_servers"].values()))["headers"]
@@ -517,12 +553,6 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
             side_effect=OSError("policy cleanup failed"),
         ),
         patch("agent.sandbox.sbx.manager.log_event"),
-        # open_session always bakes submission_context; stub catalog so this
-        # test stays focused on policy-cleanup artifact collection.
-        patch(
-            "nika.workflows.agent.submission.load_submission_catalog",
-            return_value={"fault_ontology": [], "resources": []},
-        ),
     ):
         with pytest.raises(OSError, match="policy cleanup failed"):
             with manager.open_session(
@@ -544,8 +574,10 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
                 )
 
     assert (session_dir / "sandbox_manifest.json").is_file()
-    assert (session_dir / "messages.jsonl").read_text(encoding="utf-8") == "message\n"
-    assert (session_dir / "submission.json").is_file()
+    # CLI workers write the host trace directly; a workspace copy is never collected.
+    assert not (session_dir / "messages.jsonl").exists()
+    # Only host MCP submit() writes submission.json; workspace copies are ignored.
+    assert not (session_dir / "submission.json").exists()
     assert not (session_dir / ".sandbox_run").exists()
     collected = json.loads(
         (session_dir / "sandbox_manifest.json").read_text(encoding="utf-8")
@@ -597,10 +629,6 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
         patch("agent.sandbox.sbx.manager.allow_mcp_gateway"),
         patch("agent.sandbox.sbx.manager.deny_mcp_gateway"),
         patch("agent.sandbox.sbx.manager.log_event"),
-        patch(
-            "nika.workflows.agent.submission.load_submission_catalog",
-            return_value={"fault_ontology": [], "resources": []},
-        ),
         manager.open_session(
             session=session,
             agent_type="cli.codex",
@@ -623,7 +651,7 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
 
     kept = json.loads((session_dir / "submission.json").read_text(encoding="utf-8"))
     assert kept == host_submission
-    assert (session_dir / "messages.jsonl").read_text(encoding="utf-8") == "message\n"
+    assert not (session_dir / "messages.jsonl").exists()
 
 
 def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
@@ -674,8 +702,19 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
         assert "session_dir" not in manifest
         assert str(session_dir) not in json.dumps(manifest)
         assert "ground_truth" not in json.dumps(manifest)
-        assert "submission_context" in manifest
-        assert set(manifest["submission_context"]) <= {"fault_ontology", "resources"}
+        assert "submission_context" not in manifest
+        workspace = prepare_workspace(
+            session_dir=session_dir, manifest=manifest, runtime_env={}
+        )
+        try:
+            content = workspace.manifest_path.read_text(encoding="utf-8")
+            assert "submission_context" not in content
+            assert "fault_ontology" not in content
+            assert "resources" not in json.loads(content)
+        finally:
+            from agent.sandbox.sbx.workspace import cleanup_workspace
+
+            cleanup_workspace(workspace)
     finally:
         store.delete_session(session_id)
 

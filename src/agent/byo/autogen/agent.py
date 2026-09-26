@@ -1,6 +1,7 @@
 """AutoGen AgentChat agent.
 
-Two-phase troubleshooting pipeline via :class:`~autogen_agentchat.teams.GraphFlow`.
+Two-phase troubleshooting pipeline on :class:`~agent.utils.two_phase.TwoPhaseAgent`;
+each phase is an AutoGen ``AssistantAgent`` with the phase's MCP tools.
 
 Select with ``nika agent run -a byo.autogen``.
 """
@@ -8,16 +9,21 @@ Select with ``nika agent run -a byo.autogen``.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from agent.byo.autogen.workflow import run_troubleshooting_flow
+from agent.byo.autogen.config import session_server_configs
+from agent.byo.autogen.runner import run_autogen_phase
+from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.loggers import MessageLogger
+from agent.utils.submission_context import submission_user_prompt
+from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT, SUBMIT_PROMPT_TEMPLATE
+from agent.utils.two_phase import TwoPhaseAgent
 from nika.utils.session import Session
 
 logging.basicConfig(level=logging.INFO)
 
 
-class AutogenAgent:
-    """Two-phase troubleshooting agent using AutoGen ``GraphFlow``."""
+class AutogenAgent(TwoPhaseAgent):
+    """Two-phase troubleshooting agent using AutoGen ``AssistantAgent``."""
 
     def __init__(
         self,
@@ -34,24 +40,38 @@ class AutogenAgent:
         self.max_steps = max_steps
         self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
-        self._stream_output = stream_output
+        self.stream_output = stream_output
 
         session = Session()
         session.load_running_session(session_id=session_id)
         self.session = session
         self.session_dir: str = session.session_dir
-
+        self.trace_dir = self.session_dir
         self._scenario_name: str = getattr(session, "scenario_name", "")
 
-    async def run(self, task_description: str) -> dict[str, Any]:
-        return await run_troubleshooting_flow(
-            task_description=task_description,
-            session_id=self.session_id,
-            session_dir=self.session_dir,
+    async def _run_phase(self, phase: str, system_message: str, task: str) -> str:
+        return await run_autogen_phase(
+            name=phase,
+            system_message=system_message,
+            task=task,
+            server_configs=session_server_configs(
+                self.session_id, self._scenario_name, phase
+            ),
             model=self.model,
-            max_steps=self.max_steps,
-            scenario_name=self._scenario_name,
-            llm_provider=self.llm_provider,
+            provider=self.llm_provider,
             reasoning_effort=self.reasoning_effort,
-            stream_output=self._stream_output,
+            max_steps=self.max_steps,
+            logger=MessageLogger(phase=phase, session_dir=self.session_dir),
+        )
+
+    async def diagnose(self, task_description: str) -> str:
+        return await self._run_phase(
+            DIAGNOSIS, OVERALL_DIAGNOSIS_PROMPT, f"Task: {task_description}"
+        )
+
+    async def submit(self, diagnosis_report: str, context: dict) -> str:
+        return await self._run_phase(
+            SUBMISSION,
+            SUBMIT_PROMPT_TEMPLATE,
+            submission_user_prompt(diagnosis_report, context),
         )

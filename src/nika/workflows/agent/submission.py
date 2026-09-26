@@ -11,21 +11,25 @@ from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import MESSAGES_FILENAME
 from nika.problems.ownership import ownership_entries
 from nika.problems.registry import list_avail_problem_names
-from nika.problems.rca.inventory import catalog_resources, load_offline_net_env
+from nika.problems.rca.inventory import (
+    catalog_resources,
+    load_session_offline_net_env,
+)
 from nika.mcp.gateway.session_registry import get_session
 from nika.utils.session_store import SessionStore
 from nika.workflows.benchmark.healthy import is_healthy_case
 
 
-def _case_ontology(row: dict[str, Any]) -> list[str]:
-    metadata = row.get("metadata") or {}
-    values = row.get("fault_ontology") or metadata.get("fault_ontology")
-    if isinstance(values, list) and all(isinstance(value, str) for value in values):
-        names = values
-    else:
-        names = list_avail_problem_names()
+def fault_candidates() -> list[str]:
+    """Fixed fault-type candidates: every registered fault except ``healthy``.
+
+    The same list is offered in every launch mode (release, ``--config``,
+    single case) so the candidate set never depends on which cases were run.
+    """
     # ``healthy`` is a benchmark sentinel, not a registered fault type.
-    return sorted({name for name in names if not is_healthy_case(name)})
+    return sorted(
+        {name for name in list_avail_problem_names() if not is_healthy_case(name)}
+    )
 
 
 def _trajectory_path(session_id: str) -> Path:
@@ -80,20 +84,36 @@ def load_frozen_diagnosis_report(session_id: str) -> str | None:
 def load_submission_catalog(session_id: str) -> dict[str, Any]:
     """Fault ontology + resources for the submission prompt (no freeze required)."""
     row = SessionStore().get_session(session_id)
-    params = row.get("scenario_params") or {}
-    env = load_offline_net_env(
-        str(row.get("scenario_name") or ""),
-        str(row.get("scenario_topo_size") or params.get("topo_size") or ""),
-        topo=params.get("topo"),
-        igp=params.get("igp"),
-        bgp_mode=params.get("bgp_mode"),
+    env = load_session_offline_net_env(row)
+    k8s_services, k8s_network_policies = _live_k8s_objects(row)
+    resources = catalog_resources(
+        env,
+        k8s_services=k8s_services,
+        k8s_network_policies=k8s_network_policies,
     )
     return {
-        "fault_ontology": ownership_entries(_case_ontology(row)),
-        "resources": [
-            {"id": item.id, "kind": str(item.kind)} for item in catalog_resources(env)
-        ],
+        "fault_ontology": ownership_entries(fault_candidates()),
+        "resources": [{"id": item.id, "kind": str(item.kind)} for item in resources],
     }
+
+
+def _live_k8s_objects(row: dict[str, Any]) -> tuple[list[dict], list[dict]]:
+    """All Services and NetworkPolicies of a k8s session's cluster.
+
+    k8s ground truth names cluster objects, so they must be submittable; list
+    every object (not just GT ones) to keep the catalog answer-neutral.
+    """
+    from nika.mcp.k8s.client import K8sClient, resolve_kubeconfig_path
+
+    try:
+        kubeconfig = resolve_kubeconfig_path(row)
+    except FileNotFoundError:
+        return [], []  # Not a k8s session.
+    k8s = K8sClient(kubeconfig=kubeconfig)
+    return (
+        k8s.list_services(all_namespaces=True),
+        k8s.get_network_policies(all_namespaces=True),
+    )
 
 
 def load_submission_context(session_id: str) -> dict[str, Any]:

@@ -57,7 +57,7 @@ def _activate_run_config(
     sandbox_keep_container: bool,
     sandbox_cpus: str | None,
     sandbox_memory: str | None,
-    sandbox_offline_sdk_wheels: bool,
+    sandbox_offline_sdk_wheels: bool | None,
     sandbox_upstream_proxy: str | None,
 ) -> None:
     warn_legacy_operational_env()
@@ -75,7 +75,7 @@ def _activate_run_config(
         sandbox_keep=sandbox_keep_container or None,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,
-        sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels or None,
+        sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels,
         sandbox_upstream_proxy=sandbox_upstream_proxy,
     )
     set_run_config(cfg)
@@ -190,12 +190,13 @@ def agent_run(
         "--sandbox-memory",
         help="Memory limit for the sandbox (e.g. 8g).",
     ),
-    sandbox_offline_sdk_wheels: bool = typer.Option(
-        False,
-        "--sandbox-offline-sdk-wheels",
+    sandbox_offline_sdk_wheels: bool | None = typer.Option(
+        None,
+        "--sandbox-offline-sdk-wheels/--no-sandbox-offline-sdk-wheels",
         help=(
             "Stage host-cached SDK wheels into the sandbox (faster SDK/SADE "
-            "deploys; avoids re-downloading deps on every sbx start)."
+            "deploys; avoids re-downloading deps on every sbx start). "
+            "Defaults to nika.sandbox.offline_sdk_wheels."
         ),
     ),
     sandbox_upstream_proxy: str | None = typer.Option(
@@ -284,7 +285,7 @@ def _run_one_shot(
     sandbox_keep_container: bool,
     sandbox_cpus: str | None,
     sandbox_memory: str | None,
-    sandbox_offline_sdk_wheels: bool,
+    sandbox_offline_sdk_wheels: bool | None,
 ) -> None:
     from nika.workflows.benchmark.run import run_single_case, validate_inject_params
     from nika.workflows.benchmark.task_label import (

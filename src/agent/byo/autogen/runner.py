@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.base import TaskResult
-from autogen_agentchat.messages import ToolCallExecutionEvent, ToolCallRequestEvent
+from autogen_agentchat.messages import (
+    TextMessage,
+    ToolCallExecutionEvent,
+    ToolCallRequestEvent,
+)
 from autogen_core.models import ChatCompletionClient, ModelFamily
 from autogen_ext.models.anthropic import AnthropicChatCompletionClient
 from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_ext.tools.mcp import create_mcp_server_session, mcp_server_tools
+
+from agent.byo.autogen.config import to_mcp_params
 
 from agent.utils.loggers import (
     MessageLogger,
@@ -19,6 +28,7 @@ from agent.utils.loggers import (
 from agent.utils.usage import normalize_usage
 from nika.mcp.registry import MCP_SERVER_PREFIXES
 from agent.utils.provider_env import (
+    require_provider,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_BASE_URL,
@@ -28,7 +38,9 @@ from agent.utils.provider_env import (
     resolve_custom_api_key,
     resolve_custom_base_url,
 )
+from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.reasoning_effort import map_anthropic_effort
+from agent.utils.two_phase import max_steps_report
 
 
 _KATHARA_PREFIXES = MCP_SERVER_PREFIXES
@@ -66,15 +78,6 @@ def _short_tool_name(name: str) -> str:
         if name.startswith(prefix):
             return name.removeprefix(prefix)
     return name
-
-
-def _resolve_provider(provider: str) -> str:
-    if not provider or not str(provider).strip():
-        raise ValueError(
-            "Missing LLM provider: set agent.provider in config/nika.yaml "
-            "or pass -p/--provider."
-        )
-    return str(provider).strip().lower()
 
 
 def _inject_anthropic_output_config(
@@ -115,7 +118,7 @@ def create_model_client(
     reasoning_effort: str | None = None,
 ) -> ChatCompletionClient:
     """Build an AutoGen chat client for the active provider."""
-    prov = _resolve_provider(provider)
+    prov = require_provider(provider)
 
     if prov == "anthropic":
         api_key = os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
@@ -203,34 +206,35 @@ def _log_event_usage(logger: MessageLogger, event: object) -> None:
     if usage is None:
         return
     content = getattr(event, "content", None)
-    logger.log(
-        "llm_end",
-        {
-            "text": content if isinstance(content, str) else "",
-            "usage_metadata": normalize_usage(usage),
-        },
-    )
+    payload = {
+        "text": content if isinstance(content, str) else "",
+        "usage_metadata": normalize_usage(usage),
+    }
+    # ThoughtEvent / messages may carry reasoning on the event or nested message.
+    payload.update(reasoning_fields_for_log(event))
+    if not payload.get("reasoning_content"):
+        nested = getattr(event, "chat_message", None) or getattr(event, "message", None)
+        payload.update(reasoning_fields_for_log(nested))
+    logger.log("llm_end", payload)
 
 
-async def run_logged_agent(
+async def _run_logged_agent(
     *,
     agent: AssistantAgent,
     task: str,
     logger: MessageLogger,
-    max_steps: int,
-) -> tuple[str, bool]:
-    """Run an AssistantAgent and log tool events to ``messages.jsonl``."""
+) -> tuple[str, int]:
+    """Run *agent*, log events to ``messages.jsonl``; return ``(text, tool_rounds)``."""
     tool_rounds = 0
     final_text = ""
     pending_tool_calls = PendingToolCallTracker()
 
     async for event in agent.run_stream(task=task):
         if isinstance(event, TaskResult):
-            if event.messages:
-                last = event.messages[-1]
-                content = getattr(last, "content", None)
-                if isinstance(content, str) and content:
-                    final_text = content
+            last = event.messages[-1] if event.messages else None
+            # A ToolCallSummaryMessage is tool output, not an assistant report.
+            if isinstance(last, TextMessage) and last.content:
+                final_text = last.content
             continue
 
         _log_event_usage(logger, event)
@@ -272,4 +276,66 @@ async def run_logged_agent(
                         },
                     )
 
-    return final_text, tool_rounds >= max_steps
+    return final_text, tool_rounds
+
+
+@asynccontextmanager
+async def open_mcp_tools(server_configs: dict) -> AsyncIterator[list]:
+    """Open one MCP session per server and yield their AutoGen tools."""
+    sessions: list = []
+    tools: list = []
+    try:
+        for cfg in server_configs.values():
+            params = to_mcp_params(cfg)
+            session_cm = create_mcp_server_session(params)
+            session = await session_cm.__aenter__()
+            await session.initialize()
+            sessions.append(session_cm)
+            tools.extend(await mcp_server_tools(params, session=session))
+        yield tools
+    finally:
+        for session_cm in reversed(sessions):
+            await session_cm.__aexit__(None, None, None)
+
+
+async def run_autogen_phase(
+    *,
+    name: str,
+    system_message: str,
+    task: str,
+    server_configs: dict,
+    model: str,
+    provider: str,
+    reasoning_effort: str | None,
+    max_steps: int,
+    logger: MessageLogger,
+) -> str:
+    """Run one phase with at most *max_steps* model calls.
+
+    AutoGen makes one model call per tool iteration plus one reflection call
+    when the last iteration still requested tools, so ``max_tool_iterations``
+    is ``max_steps - 1`` and the reflection is the final turn. When that limit
+    is hit, the reflection text is the phase report.
+    """
+    model_client = create_model_client(
+        model, provider=provider, reasoning_effort=reasoning_effort
+    )
+    max_tool_iterations = max(1, max_steps - 1)
+    async with open_mcp_tools(server_configs) as tools:
+        agent = AssistantAgent(
+            name=name,
+            model_client=model_client,
+            tools=tools,
+            system_message=system_message,
+            reflect_on_tool_use=max_steps > 1,
+            max_tool_iterations=max_tool_iterations,
+        )
+        try:
+            text, tool_rounds = await _run_logged_agent(
+                agent=agent, task=task, logger=logger
+            )
+        finally:
+            await model_client.close()
+    if tool_rounds >= max_tool_iterations:
+        return max_steps_report(logger, max_steps=max_steps, latest_text=text)
+    return text

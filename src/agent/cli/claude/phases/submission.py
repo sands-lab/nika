@@ -6,10 +6,8 @@ a structured result based on the diagnosis report.
 """
 
 from agent.cli.claude.claude_worker import ClaudeWorker
-from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.protocols import SUBMISSION
-from agent.utils.mcp_client import begin_submission_mcp_phase
-from agent.utils.submission_context import submission_prompt_context
+from agent.utils.submission_context import submission_single_prompt
 
 
 class ClaudeSubmissionPhase:
@@ -25,8 +23,8 @@ class ClaudeSubmissionPhase:
         Claude/DeepSeek model name (e.g. ``"deepseek-v4-flash"``).
     llm_provider:
         Active LLM provider forwarded to the Claude worker.
-    timeout:
-        Hard timeout in seconds for the subprocess.
+    max_steps:
+        LLM-turn budget for the phase (``claude --max-turns``).
     """
 
     def __init__(
@@ -34,36 +32,25 @@ class ClaudeSubmissionPhase:
         session_id: str,
         session_dir: str,
         model: str | None = None,
-        timeout: int = 300,
+        max_steps: int = 20,
         *,
         llm_provider: str,
         stream_output: bool = True,
+        trace_dir: str | None = None,
     ) -> None:
         self._worker = ClaudeWorker(
             session_id=session_id,
             session_dir=session_dir,
             phase=SUBMISSION,
             model=model,
-            timeout=timeout,
+            max_steps=max_steps,
             llm_provider=llm_provider,
             stream_output=stream_output,
+            trace_dir=trace_dir,
         )
 
-    async def run(self, diagnosis_report: str) -> str:
-        """Submit the diagnosis result via the task MCP server.
-
-        Parameters
-        ----------
-        diagnosis_report:
-            Free-text output from the diagnosis phase.  Forwarded verbatim
-            to Claude so it can extract the structured answer and call
-            ``submit()``.
-        """
-        begin_submission_mcp_phase(self._worker.session_id, diagnosis_report)
-        prompt = (
-            f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
-            f"Based on the diagnosis report: {diagnosis_report}\n"
-            f"{submission_prompt_context(self._worker.session_id)}\n"
-            "Please provide the submission. Do not submit if no report is available."
+    async def run(self, diagnosis_report: str, context: dict) -> str:
+        """Submit the frozen diagnosis report via the task MCP server."""
+        return await self._worker.run(
+            submission_single_prompt(diagnosis_report, context)
         )
-        return await self._worker.run(prompt)

@@ -40,15 +40,18 @@ def _isolate_skills_config(monkeypatch: pytest.MonkeyPatch):
 
 
 def _set_skills_enabled(enabled: bool) -> None:
-    set_run_config(RunConfig.model_validate({"nika": {"enable_skills": enabled}}))
+    set_run_config(RunConfig.model_validate({"agent": {"enable_skills": enabled}}))
 
 
 class SkillsConfigTest:
     def test_resolve_skills_root_default(self) -> None:
         root = resolve_skills_root()
-        assert (root / "test_skills" / TEST_SKILL_NAME / "SKILL.md").is_file()
+        assert not (root / "test_skills").exists()
         assert not (root / "skills" / TEST_SKILL_NAME).exists()
-        assert resolve_test_skill_dir() is not None
+        test_dir = resolve_test_skill_dir()
+        assert test_dir is not None
+        assert (test_dir / "SKILL.md").is_file()
+        assert "tests" in test_dir.parts
 
     def test_resolve_skills_root_sandbox_session_copy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

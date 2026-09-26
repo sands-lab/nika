@@ -14,6 +14,8 @@ from agent.utils.loggers import (
     PendingToolCallTracker,
     tool_event_payload,
 )
+from agent.utils.provider_env import require_provider
+from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.usage import normalize_usage
 from nika.mcp.registry import MCP_SERVER_PREFIXES
 
@@ -28,15 +30,6 @@ def _short_tool_name(name: str) -> str:
     return name
 
 
-def _resolve_provider(provider: str) -> str:
-    if not provider or not str(provider).strip():
-        raise ValueError(
-            "Missing LLM provider: set agent.provider in config/nika.yaml "
-            "or pass -p/--provider."
-        )
-    return str(provider).strip().lower()
-
-
 def create_nika_augmented_llm(
     *,
     agent,
@@ -45,7 +38,7 @@ def create_nika_augmented_llm(
     provider: str,
 ):
     """Return the OpenAI or Anthropic AugmentedLLM for the active provider."""
-    if _resolve_provider(provider) == "anthropic":
+    if require_provider(provider) == "anthropic":
         return NikaAnthropicAugmentedLLM(
             agent=agent,
             nika_logger=nika_logger,
@@ -70,6 +63,7 @@ class _NikaToolLoggingMixin:
         super().__init__(*args, **kwargs)
         self._nika_logger = nika_logger
         self._max_iterations_reached = False
+        self._last_text = ""
         self._pending_tool_calls: PendingToolCallTracker | None = (
             PendingToolCallTracker() if nika_logger is not None else None
         )
@@ -77,6 +71,11 @@ class _NikaToolLoggingMixin:
     @property
     def max_iterations_reached(self) -> bool:
         return self._max_iterations_reached
+
+    @property
+    def last_text(self) -> str:
+        """Latest non-empty assistant text of the last ``generate_str`` call."""
+        return self._last_text
 
     async def pre_tool_call(
         self, tool_call_id: str | None, request: CallToolRequest
@@ -148,6 +147,7 @@ class NikaOpenAIAugmentedLLM(_NikaToolLoggingMixin, OpenAIAugmentedLLM):
                 continue
             if isinstance(content, str):
                 final_text.append(content)
+        self._last_text = next((t for t in reversed(final_text) if t.strip()), "")
         return "\n".join(final_text)
 
     def _annotate_span_for_completion_response(self, span, response, turn):
@@ -155,13 +155,12 @@ class NikaOpenAIAugmentedLLM(_NikaToolLoggingMixin, OpenAIAugmentedLLM):
         if self._nika_logger is not None:
             choices = getattr(response, "choices", None) or []
             message = getattr(choices[0], "message", None) if choices else None
-            self._nika_logger.log(
-                "llm_end",
-                {
-                    "text": getattr(message, "content", None) or "",
-                    "usage_metadata": normalize_usage(getattr(response, "usage", None)),
-                },
-            )
+            payload = {
+                "text": getattr(message, "content", None) or "",
+                "usage_metadata": normalize_usage(getattr(response, "usage", None)),
+            }
+            payload.update(reasoning_fields_for_log(message))
+            self._nika_logger.log("llm_end", payload)
         return super()._annotate_span_for_completion_response(span, response, turn)
 
 
@@ -186,6 +185,7 @@ class NikaAnthropicAugmentedLLM(_NikaToolLoggingMixin, AnthropicAugmentedLLM):
                     block, "text", None
                 ):
                     final_text.append(block.text)
+        self._last_text = next((t for t in reversed(final_text) if t.strip()), "")
         return "\n".join(final_text)
 
     def _annotate_span_for_completion_response(self, span, response, turn):
@@ -197,11 +197,10 @@ class NikaAnthropicAugmentedLLM(_NikaToolLoggingMixin, AnthropicAugmentedLLM):
                     block, "text", None
                 ):
                     texts.append(block.text)
-            self._nika_logger.log(
-                "llm_end",
-                {
-                    "text": "\n".join(texts),
-                    "usage_metadata": normalize_usage(getattr(response, "usage", None)),
-                },
-            )
+            payload = {
+                "text": "\n".join(texts),
+                "usage_metadata": normalize_usage(getattr(response, "usage", None)),
+            }
+            payload.update(reasoning_fields_for_log(response))
+            self._nika_logger.log("llm_end", payload)
         return super()._annotate_span_for_completion_response(span, response, turn)

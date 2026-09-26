@@ -9,10 +9,9 @@ from mcp_agent.agents.agent import Agent
 from agent.byo.mcp_agent.config import _mcp_reasoning_effort, build_mcp_request_params
 from agent.byo.mcp_agent.llm import create_nika_augmented_llm
 from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import begin_submission_mcp_phase
 from agent.protocols import SUBMISSION
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
-from agent.utils.submission_context import submission_prompt_context
+from agent.utils.submission_context import submission_user_prompt
 
 
 class McpSubmissionPhase:
@@ -20,7 +19,6 @@ class McpSubmissionPhase:
 
     def __init__(
         self,
-        session_id: str,
         session_dir: str,
         model: str,
         max_steps: int,
@@ -29,7 +27,6 @@ class McpSubmissionPhase:
         llm_provider: str,
         reasoning_effort: str | None = None,
     ) -> None:
-        self._session_id = session_id
         self._session_dir = session_dir
         self._model = model
         self._max_steps = max_steps
@@ -37,8 +34,7 @@ class McpSubmissionPhase:
         self._llm_provider = llm_provider
         self._reasoning_effort = _mcp_reasoning_effort(reasoning_effort)
 
-    async def run(self, diagnosis_report: str) -> str:
-        begin_submission_mcp_phase(self._session_id, diagnosis_report)
+    async def run(self, diagnosis_report: str, context: dict) -> str:
         logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
         request_params = build_mcp_request_params(
             model=self._model,
@@ -46,12 +42,7 @@ class McpSubmissionPhase:
             reasoning_effort=self._reasoning_effort,
             provider=self._llm_provider,
         )
-        prompt = (
-            f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
-            f"Based on the diagnosis report: {diagnosis_report}\n"
-            f"{submission_prompt_context(self._session_id)}\n"
-            "Please provide the submission. Do not submit if no report is available."
-        )
+        prompt = submission_user_prompt(diagnosis_report, context)
 
         agent = Agent(
             name=SUBMISSION,

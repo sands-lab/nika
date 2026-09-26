@@ -39,11 +39,13 @@ def test_mcp_agent_custom_provider_uses_nika_custom(monkeypatch) -> None:
             }
         )
     )
-    apply_custom_provider_env()
-    try:
-        settings = _openai_settings_for_provider("openai/gpt-4o-mini", "custom")
-    finally:
-        reset_run_config()
+    # apply_custom_provider_env writes os.environ directly; restore it afterwards.
+    with patch.dict("os.environ"):
+        apply_custom_provider_env()
+        try:
+            settings = _openai_settings_for_provider("openai/gpt-4o-mini", "custom")
+        finally:
+            reset_run_config()
 
     assert settings.base_url == "https://openrouter.ai/api/v1"
     assert settings.api_key == "sk-or-test"
@@ -67,21 +69,24 @@ def test_autogen_create_model_client_uses_custom(monkeypatch) -> None:
             }
         )
     )
-    apply_custom_provider_env()
-    try:
-        fake = MagicMock(name="client")
-        with patch(
-            "agent.byo.autogen.runner.OpenAIChatCompletionClient", return_value=fake
-        ) as ctor:
-            client = create_model_client("openai/gpt-4o-mini", provider="custom")
+    # apply_custom_provider_env writes os.environ directly; restore it afterwards.
+    with patch.dict("os.environ"):
+        apply_custom_provider_env()
+        try:
+            fake = MagicMock(name="client")
+            with patch(
+                "agent.byo.autogen.runner.OpenAIChatCompletionClient",
+                return_value=fake,
+            ) as ctor:
+                client = create_model_client("openai/gpt-4o-mini", provider="custom")
+        finally:
+            reset_run_config()
 
-        assert client is fake
-        kwargs = ctor.call_args.kwargs
-        assert kwargs["model"] == "openai/gpt-4o-mini"
-        assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
-        assert kwargs["api_key"] == "sk-or-test"
-    finally:
-        reset_run_config()
+    assert client is fake
+    kwargs = ctor.call_args.kwargs
+    assert kwargs["model"] == "openai/gpt-4o-mini"
+    assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
+    assert kwargs["api_key"] == "sk-or-test"
 
 
 def test_autogen_deepseek_provider(monkeypatch) -> None:

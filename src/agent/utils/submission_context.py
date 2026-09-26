@@ -3,38 +3,33 @@
 from __future__ import annotations
 
 import json
-import os
 
-from agent.sandbox.config import ENV_SANDBOX_EXECUTION, ENV_SESSION_DIR
-from agent.sandbox.manifest import load_sandbox_manifest
+from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 
 
-def submission_prompt_context(session_id: str) -> str:
-    """Return frozen fault catalog text for the submission prompt.
-
-    Inside an SDK microVM (no ``nika`` package), use the catalog baked into
-    ``sandbox_manifest.json`` by the host. On the host, load via SessionStore.
-    """
-    if os.environ.get(ENV_SANDBOX_EXECUTION, "").strip() == "1":
-        workspace = os.environ.get(ENV_SESSION_DIR, "").strip() or "."
-        baked = load_sandbox_manifest(workspace).get("submission_context")
-        if isinstance(baked, dict) and baked:
-            return "Frozen submission context (do not query the network):\n" + json.dumps(
-                {
-                    "fault_ontology": baked.get("fault_ontology", []),
-                    "resources": baked.get("resources", []),
-                },
-                sort_keys=True,
-            )
-        # Host-side sandbox CLI still has ``nika``; fall through.
-
-    from nika.workflows.agent.submission import load_submission_context
-
-    context = load_submission_context(session_id)
+def submission_prompt_context(context: dict) -> str:
+    """Format context returned after the gateway enters submission."""
     return "Frozen submission context (do not query the network):\n" + json.dumps(
         {
             "fault_ontology": context["fault_ontology"],
             "resources": context["resources"],
         },
         sort_keys=True,
+    )
+
+
+def submission_user_prompt(diagnosis_report: str, context: dict) -> str:
+    """User turn of the submission phase (``SUBMIT_PROMPT_TEMPLATE`` is the system prompt)."""
+    return (
+        f"Based on the diagnosis report: {diagnosis_report}\n"
+        f"{submission_prompt_context(context)}\n"
+        "Please provide the submission. Do not submit if no report is available."
+    )
+
+
+def submission_single_prompt(diagnosis_report: str, context: dict) -> str:
+    """Submission prompt for agents without a separate system prompt (CLI)."""
+    return (
+        f"{SUBMIT_PROMPT_TEMPLATE}\n\n"
+        f"{submission_user_prompt(diagnosis_report, context)}"
     )

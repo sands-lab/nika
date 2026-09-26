@@ -1,20 +1,16 @@
 """Run a troubleshooting agent against the current session task."""
 
-import asyncio
 import logging
-import os
 import time
 
-from agent.registry import create_agent
+from agent.registry import create_agent, run_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
 from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
 from agent.utils.provider_env import provider_env_context
-from nika.mcp.gateway.lifecycle import (
-    ENV_GATEWAY_AGENT_URL,
-    mcp_gateway_for_session,
-)
+from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.utils.agent_config import (
     resolve_agent_model,
+    resolve_agent_timeout,
     resolve_agent_type,
     resolve_llm_provider,
     resolve_max_steps,
@@ -24,11 +20,6 @@ from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log
 from nika.utils.session import Session
 
 logging.basicConfig(level=logging.INFO)
-
-
-def _gateway_policy_mode(agent_type: str) -> str:
-    del agent_type
-    return "two_phase"
 
 
 def start_agent(
@@ -60,6 +51,7 @@ def start_agent(
 
     agent_type = resolve_agent_type(agent_type)
     max_steps = resolve_max_steps(max_steps)
+    timeout_sec = resolve_agent_timeout()
     reasoning_effort = resolve_reasoning_effort(reasoning_effort)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model, llm_provider=llm_provider)
@@ -105,6 +97,8 @@ def start_agent(
         agent_type=agent_type,
         model=model,
         sandbox=use_sandbox,
+        max_steps=max_steps,
+        timeout_sec=timeout_sec,
     )
     agent_started = time.perf_counter()
     if agent_type == "cli.codex" and stream_output:
@@ -126,7 +120,6 @@ def start_agent(
 
             with remote_mcp_gateway(
                 session.session_id,
-                policy_mode=_gateway_policy_mode(agent_type),  # type: ignore[arg-type]
             ) as (gateway_base_url, gateway_port):
                 if use_sandbox:
                     if not sbx_available():
@@ -139,6 +132,7 @@ def start_agent(
                         agent_type=agent_type,
                         model=model,
                         max_steps=max_steps,
+                        timeout_sec=timeout_sec,
                         reasoning_effort=reasoning_effort,
                         llm_provider=llm_provider,
                         mcp_gateway_agent_url=gateway_base_url,
@@ -159,8 +153,10 @@ def start_agent(
                             reasoning_effort=reasoning_effort,
                             stream_output=stream_output,
                         )
-                        asyncio.run(
-                            agent.run(task_description=session.task_description)
+                        run_agent(
+                            agent,
+                            session.task_description,
+                            timeout_sec=timeout_sec,
                         )
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
             pull_session_artifacts(session.session_id, session.session_dir)
@@ -168,7 +164,6 @@ def start_agent(
             with mcp_gateway_for_session(
                 session.session_id,
                 scenario_name=session.scenario_name,
-                policy_mode=_gateway_policy_mode(agent_type),  # type: ignore[arg-type]
                 sandbox=use_sandbox,
                 sandbox_agent_host=sandbox_gateway_agent_host(),
                 backend=getattr(session, "backend", None),
@@ -179,16 +174,17 @@ def start_agent(
                             "Docker Sandboxes CLI (sbx) is not available. "
                             "Install docker-sbx and run `sbx login`."
                         )
-                    gateway_agent_url = os.environ.get(ENV_GATEWAY_AGENT_URL, "")
+                    gateway_agent_url = gateway_manager.agent_url
                     if not gateway_agent_url:
                         raise RuntimeError(
-                            f"{ENV_GATEWAY_AGENT_URL} was not set for sandbox execution"
+                            "MCP gateway agent URL was not set for sandbox execution"
                         )
                     SbxSandboxManager(sandbox_config).run(
                         session=session,
                         agent_type=agent_type,
                         model=model,
                         max_steps=max_steps,
+                        timeout_sec=timeout_sec,
                         reasoning_effort=reasoning_effort,
                         llm_provider=llm_provider,
                         mcp_gateway_agent_url=gateway_agent_url,
@@ -209,8 +205,10 @@ def start_agent(
                             reasoning_effort=reasoning_effort,
                             stream_output=stream_output,
                         )
-                        asyncio.run(
-                            agent.run(task_description=session.task_description)
+                        run_agent(
+                            agent,
+                            session.task_description,
+                            timeout_sec=timeout_sec,
                         )
     except Exception as exc:
         log_error_event(

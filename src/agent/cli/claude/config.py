@@ -20,10 +20,11 @@ import json
 import os
 import shutil
 import subprocess
+import urllib.request
 import warnings
-from typing import Any
 
 from agent.utils.provider_env import (
+    require_provider,
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_AUTH_TOKEN,
     ENV_ANTHROPIC_BASE_URL,
@@ -31,29 +32,9 @@ from agent.utils.provider_env import (
     build_agent_subprocess_env,
     has_provider_credentials,
     map_provider_credentials,
+    resolve_custom_api_key,
+    resolve_custom_base_url,
 )
-
-# Anthropic CLI and sandbox compatibility. Host model resolution does not read these.
-_CLAUDE_MODEL_ENV_KEYS = (
-    "ANTHROPIC_MODEL",
-    "CLAUDE_CODE_SUBAGENT_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-)
-
-
-def default_claude_model() -> str:
-    """Return the model advertised by the Anthropic CLI environment.
-
-    Host model resolution uses ``agent.model`` or ``-m`` through
-    :func:`resolve_claude_model`.
-    """
-    for key in _CLAUDE_MODEL_ENV_KEYS:
-        if value := os.environ.get(key, "").strip():
-            return value
-    raise ValueError(
-        "Missing Claude model: set agent.model in config/nika.yaml "
-        "or pass -m/--model."
-    )
 
 
 def resolve_claude_model(model: str | None) -> str:
@@ -61,17 +42,7 @@ def resolve_claude_model(model: str | None) -> str:
     if model and model.strip():
         return model.strip()
     raise ValueError(
-        "Missing Claude model: set agent.model in config/nika.yaml "
-        "or pass -m/--model."
-    )
-
-
-def _resolve_provider(provider: str | None) -> str:
-    if provider and str(provider).strip():
-        return str(provider).strip().lower()
-    raise ValueError(
-        "Missing LLM provider: set agent.provider in config/nika.yaml "
-        "or pass -p/--provider."
+        "Missing Claude model: set agent.model in config/nika.yaml or pass -m/--model."
     )
 
 
@@ -162,7 +133,7 @@ def prepare_claude_subprocess_env(
     from agent.sandbox.sbx.exec import sandbox_name_from_env
     from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
 
-    prov = _resolve_provider(provider)
+    prov = require_provider(provider)
     host = dict(base if base is not None else os.environ)
 
     def _is_placeholder(value: str) -> bool:
@@ -172,6 +143,7 @@ def prepare_claude_subprocess_env(
             or text == CUSTOM_UNAUTHENTICATED_API_KEY
             or text.startswith("sbx-cs-")
         )
+
     # Support a legacy manual token and base URL long enough to emit a migration warning.
     if (
         prov == "anthropic"
@@ -229,54 +201,55 @@ def prepare_claude_subprocess_env(
             and not env.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
         ):
             env[ENV_ANTHROPIC_AUTH_TOKEN] = api_key
+    if in_sbx_session:
+        # Keep the sandbox's installed Claude Code version for the whole run.
+        env["DISABLE_AUTOUPDATER"] = "1"
     return env
 
 
-def describe_claude_auth(*, provider: str) -> dict[str, Any]:
-    """Summarize detected auth mode (for logging and documentation)."""
-    prov = _resolve_provider(provider)
+_served_max_model_lens: dict[tuple[str, str], int] = {}
+
+
+def _served_max_model_len(base_url: str, model: str) -> int | None:
+    """Read ``max_model_len`` for *model* from an OpenAI-compatible ``/models``.
+
+    Only successful lookups are cached so a transient probe failure is retried.
+    """
+    key = (base_url, model)
+    if key in _served_max_model_lens:
+        return _served_max_model_lens[key]
+    url = base_url.rstrip("/")
+    if not url.endswith("/v1"):
+        url += "/v1"
+    request = urllib.request.Request(f"{url}/models")
+    if api_key := resolve_custom_api_key():
+        request.add_header("Authorization", f"Bearer {api_key}")
     try:
-        model_default: str | None = default_claude_model()
-    except ValueError:
-        model_default = None
-    if has_env_claude_credentials(provider=prov):
-        mode = "env_api_key"
-        if prov == "deepseek":
-            mode = "deepseek"
-        elif prov == "custom":
-            mode = "custom"
-        elif (
-            os.environ.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
-            and not os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
-        ):
-            mode = "env_token"
-        return {
-            "mode": mode,
-            "provider": prov,
-            "bare": use_bare_claude_mode(provider=prov),
-            "base_url": os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip() or None,
-            "model_default": model_default,
-        }
-    if claude_subscription_mode():
-        return {
-            "mode": "claude_subscription",
-            "provider": prov,
-            "bare": False,
-            "base_url": None,
-            "model_default": model_default,
-        }
-    if claude_cli_logged_in():
-        return {
-            "mode": "claude_login",
-            "provider": prov,
-            "bare": False,
-            "base_url": None,
-            "model_default": model_default,
-        }
+        with urllib.request.urlopen(request, timeout=10) as resp:
+            data = json.load(resp).get("data") or []
+    except (OSError, ValueError, AttributeError):
+        return None
+    for entry in data:
+        if isinstance(entry, dict) and model in (entry.get("id"), entry.get("root")):
+            value = entry.get("max_model_len")
+            if isinstance(value, int) and value > 0:
+                _served_max_model_lens[key] = value
+                return value
+    return None
+
+
+def custom_model_claude_env(model: str) -> dict[str, str]:
+    """Context limits for a self-hosted model that Claude Code does not know.
+
+    Claude Code assumes a 200k window and 32k output tokens for unknown models,
+    so it neither auto-compacts nor trims ``max_tokens`` before a smaller
+    server limit (vLLM ``max_model_len``) rejects the request.
+    """
+    base_url = resolve_custom_base_url()
+    window = _served_max_model_len(base_url, model) if base_url else None
+    if not window:
+        return {}
     return {
-        "mode": "none",
-        "provider": prov,
-        "bare": False,
-        "base_url": None,
-        "model_default": None,
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS": str(window),
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS": str(min(32000, window // 8)),
     }

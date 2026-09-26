@@ -29,8 +29,7 @@ class SubmissionPhase:
         session = Session()
         session.load_running_session(session_id=session_id)
         mcp_server_config = load_session_mcp_config(
-            session_id,
-            scenario_name or session.scenario_name,
+            session_id, scenario_name or session.scenario_name, phase=SUBMISSION
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None

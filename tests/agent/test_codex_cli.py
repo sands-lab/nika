@@ -7,6 +7,7 @@ import pytest
 
 from agent.cli.codex.codex_display import format_codex_event
 from agent.cli.codex.codex_worker import (
+    CodexMaxStepsReached,
     CodexSubprocessStallError,
     CodexWorker,
     RECONNECT_STALL_TIMEOUT_S,
@@ -164,10 +165,7 @@ class CodexWorkerConfigTest:
             "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
         )
         monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.begin_submission_mcp_phase", lambda _sid: None
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.load_session_mcp_config",
+            "agent.utils.mcp_client._load_session_mcp_config",
             lambda *_args, **_kwargs: {
                 "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
                 "task_mcp_server": {"transport": "http", "url": "http://task"},
@@ -219,9 +217,7 @@ class CodexToolLoggingTest:
                     "tool": "show_bgp_summary",
                     "arguments": {"device": "router1"},
                     "status": "completed",
-                    "result": {
-                        "content": [{"type": "text", "text": "neighbor down"}]
-                    },
+                    "result": {"content": [{"type": "text", "text": "neighbor down"}]},
                 },
             }
         )
@@ -238,6 +234,7 @@ class CodexToolLoggingTest:
             for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
+        rows = [r for r in rows if r["event"] not in {"llm_start", "llm_end"}]
         assert [r["event"] for r in rows] == [
             "tool_start",
             "tool_end",
@@ -250,9 +247,9 @@ class CodexToolLoggingTest:
         assert "neighbor down" in str(rows[1].get("output"))
         assert rows[2]["codex_event"]["item"]["type"] == "agent_message"
         # UTC-aware timestamps from MessageLogger
-        assert rows[0]["timestamp"].endswith("+00:00") or rows[0][
-            "timestamp"
-        ].endswith("Z")
+        assert rows[0]["timestamp"].endswith("+00:00") or rows[0]["timestamp"].endswith(
+            "Z"
+        )
 
     def test_command_execution_emits_bash_tool_events(self, tmp_path) -> None:
         worker = CodexWorker(
@@ -293,10 +290,82 @@ class CodexToolLoggingTest:
             .splitlines()
             if line.strip()
         ]
-        assert [r["event"] for r in rows] == ["tool_start", "tool_end"]
+        assert [r["event"] for r in rows] == ["llm_start", "tool_start", "tool_end"]
+        rows = rows[1:]
         assert rows[0]["tool"]["name"] == "bash"
         assert "echo hi" in str(rows[0]["input"])
         assert rows[1]["output"] == "hi\n"
+
+
+class CodexStepBudgetTest:
+    """cli.codex counts model responses like the other agents' max_steps."""
+
+    @staticmethod
+    def _tool(event_type: str, item_id: str) -> dict:
+        return {
+            "type": event_type,
+            "item": {
+                "type": "mcp_tool_call",
+                "id": item_id,
+                "tool": "ping_pair",
+                "arguments": {},
+                "status": "completed",
+                "result": {"content": []},
+            },
+        }
+
+    def test_one_llm_end_per_response_with_turn_usage(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-steps",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            max_steps=5,
+            stream_output=False,
+        )
+        # Response 1: two parallel calls; response 2: one call; response 3: text.
+        for event in (
+            {"type": "turn.started"},
+            self._tool("item.started", "a"),
+            self._tool("item.started", "b"),
+            self._tool("item.completed", "a"),
+            self._tool("item.completed", "b"),
+            self._tool("item.started", "c"),
+            self._tool("item.completed", "c"),
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "done"},
+            },
+            {
+                "type": "turn.completed",
+                "usage": {"input_tokens": 90, "output_tokens": 9},
+            },
+        ):
+            worker._log_codex_event(event)
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / "messages.jsonl").read_text().splitlines()
+        ]
+        ends = [r for r in rows if r["event"] == "llm_end"]
+        assert len(ends) == 3
+        assert [r["event"] for r in rows].count("llm_start") == 3
+        assert ends[-1]["text"] == "done"
+        assert ends[-1]["usage_metadata"]["input_tokens"] == 90
+        assert all(r["event"] != "turn.completed" for r in rows)
+
+    def test_response_past_max_steps_stops_codex(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-limit",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            max_steps=1,
+            stream_output=False,
+        )
+        worker._log_codex_event(self._tool("item.started", "a"))
+        worker._log_codex_event(self._tool("item.completed", "a"))
+        with pytest.raises(CodexMaxStepsReached):
+            worker._log_codex_event(self._tool("item.started", "b"))
 
 
 class CodexDisplayTest:

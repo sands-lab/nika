@@ -35,20 +35,35 @@ def test_load_missing_uses_defaults(tmp_path: Path) -> None:
     cfg = load_run_config(tmp_path / "missing.yaml")
     assert cfg.agent.type == "byo.langgraph"
     assert cfg.agent.max_steps == 20
+    assert cfg.agent.enable_skills is True
     assert cfg.benchmark.case_timeout_sec == 2400
+
+
+def test_legacy_nika_enable_skills_migrates_to_agent() -> None:
+    cfg = RunConfig.model_validate({"nika": {"enable_skills": False}})
+    assert cfg.agent.enable_skills is False
+
+
+def test_agent_enable_skills_wins_over_legacy_nika_key() -> None:
+    cfg = RunConfig.model_validate(
+        {
+            "agent": {"enable_skills": True},
+            "nika": {"enable_skills": False},
+        }
+    )
+    assert cfg.agent.enable_skills is True
 
 
 def test_resolve_run_config_path_relative_and_absolute(tmp_path: Path) -> None:
     abs_path = (tmp_path / "nika.yaml").resolve()
     assert resolve_run_config_path(abs_path) == abs_path
-    assert resolve_run_config_path("config/nika.yaml") == (
-        REPO_ROOT / "config" / "nika.yaml"
-    ).resolve()
+    assert (
+        resolve_run_config_path("config/nika.yaml")
+        == (REPO_ROOT / "config" / "nika.yaml").resolve()
+    )
 
 
-def test_resolve_run_config_path_blank_and_home(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_resolve_run_config_path_blank_and_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv(ENV_RUN_CONFIG, raising=False)
     default = (REPO_ROOT / DEFAULT_RUN_CONFIG_REL).resolve()
     assert resolve_run_config_path("") == default
@@ -104,9 +119,7 @@ def test_lab_containerlab_max_workers_default_and_bounds() -> None:
 
 def test_runtime_validation_rejects_invalid_depth() -> None:
     with pytest.raises(ValidationError):
-        RunConfig.model_validate(
-            {"nika": {"runtime_validation": {"depth": "medium"}}}
-        )
+        RunConfig.model_validate({"nika": {"runtime_validation": {"depth": "medium"}}})
 
 
 def test_runtime_validation_accepts_full_and_failure_effect() -> None:
