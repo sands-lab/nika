@@ -1,144 +1,98 @@
-"""Bound MCP tool text returned to agents (truncate + full opt-in)."""
+"""Bound MCP tool text returned to agents (mini-swe-agent head/tail style)."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
-FULL_ARG = "full"
-
-_FULL_SCHEMA_PROP: dict[str, Any] = {
-    "type": "boolean",
-    "default": False,
-    "description": (
-        "If true, request a larger tool-output budget. "
-        "Oversized outputs are still hard-capped."
-    ),
-}
-
 _DESC_NOTE = (
-    " Oversized outputs are truncated unless full=true "
-    "(larger budget, still hard-capped)."
+    " Oversized outputs keep the first and last halves of "
+    "nika.mcp.tool_output_max_chars (default 10000) and elide the middle."
 )
 
-DEFAULT_MAX_CHARS = 16384
-DEFAULT_FULL_MAX_CHARS = 100000
+_TOO_LONG_WARNING = (
+    "The output of your last command was too long.\n"
+    "Please try a different command that produces less output.\n"
+    "If you're looking at a file you can try use head, tail or sed "
+    "to view a smaller number of lines selectively.\n"
+    "If you're using grep or find and it produced too much output, "
+    "you can use a more selective search pattern.\n"
+    "If you really need to see something from the full command's output, "
+    "you can redirect output to a file and then search in that file."
+)
+
+DEFAULT_MAX_CHARS = 10000
 
 
-def tool_output_limits() -> tuple[int, int]:
-    """Return ``(max_chars, full_max_chars)`` from run config."""
+def tool_output_max_chars() -> int:
+    """Return the observation char budget from run config."""
     try:
         from nika.run_config.loader import get_run_config
 
-        mcp = get_run_config().nika.mcp
-        return int(mcp.tool_output_max_chars), int(mcp.tool_output_full_max_chars)
+        return int(get_run_config().nika.mcp.tool_output_max_chars)
     except Exception:  # noqa: BLE001 - gateway / early import
-        return DEFAULT_MAX_CHARS, DEFAULT_FULL_MAX_CHARS
+        return DEFAULT_MAX_CHARS
 
 
-def _resolve_limits(
-    max_chars: int | None, full_max_chars: int | None
-) -> tuple[int, int]:
-    if max_chars is None or full_max_chars is None:
-        cfg_max, cfg_full = tool_output_limits()
-        if max_chars is None:
-            max_chars = cfg_max
-        if full_max_chars is None:
-            full_max_chars = cfg_full
-    return max_chars, full_max_chars
+def _resolve_max_chars(max_chars: int | None) -> int:
+    return tool_output_max_chars() if max_chars is None else max_chars
 
 
-def _truncation_banner(
-    *, limit: int, total: int, full: bool, full_max_chars: int
-) -> str:
-    if full:
-        return (
-            f"[TRUNCATED] Showing first {limit} of {total} chars "
-            f"(full=true still capped at {full_max_chars}).\n\n"
-        )
-    return (
-        f"[TRUNCATED] Showing first {limit} of {total} chars. "
-        f"Re-call with full=true for more "
-        f"(capped at {full_max_chars}).\n\n"
-    )
+def truncate_tool_text(text: str, *, max_chars: int | None = None) -> str:
+    """Return *text*, or a head/tail preview with elision when over budget.
 
-
-def truncate_tool_text(
-    text: str,
-    *,
-    full: bool = False,
-    max_chars: int | None = None,
-    full_max_chars: int | None = None,
-) -> str:
-    """Return *text*, or a leading-TRUNCATED preview when over budget."""
-    max_chars, full_max_chars = _resolve_limits(max_chars, full_max_chars)
-    limit = full_max_chars if full else max_chars
+    Matches mini-swe-agent's default observation template: when longer than
+    ``max_chars``, keep the first and last ``max_chars // 2`` characters
+    (second half gets the remainder if odd), mark how many were elided, and
+    warn the agent to use head/tail/grep or redirect to a file.
+    """
+    limit = _resolve_max_chars(max_chars)
     if limit <= 0 or len(text) <= limit:
         return text
-    banner = _truncation_banner(
-        limit=limit, total=len(text), full=full, full_max_chars=full_max_chars
+    head_n = limit // 2
+    tail_n = limit - head_n
+    elided = len(text) - limit
+    return (
+        f"<warning>\n{_TOO_LONG_WARNING}\n</warning>\n"
+        f"<output_head>\n{text[:head_n]}\n</output_head>\n"
+        f"<elided_chars>\n{elided} characters elided\n</elided_chars>\n"
+        f"<output_tail>\n{text[-tail_n:]}\n</output_tail>"
     )
-    return banner + text[:limit]
 
 
-def pop_full_arg(arguments: dict[str, Any]) -> bool:
-    """Remove and return the gateway ``full`` flag from tool arguments."""
-    if FULL_ARG not in arguments:
-        return False
-    value = arguments.pop(FULL_ARG)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return bool(value)
-
-
-def inject_full_into_tools_list_result(result: dict[str, Any]) -> dict[str, Any]:
-    """Add optional ``full`` to each tool schema in a ``tools/list`` result."""
+def annotate_tools_list_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Annotate ``tools/list`` for truncation semantics."""
     tools = result.get("tools")
     if not isinstance(tools, list):
         return result
     for tool in tools:
         if not isinstance(tool, dict):
             continue
-        desc = tool.get("description")
         # structuredContent is dropped when output is truncated; without an
         # outputSchema, MCP clients do not require it.
         tool.pop("outputSchema", None)
+        desc = tool.get("description")
         if isinstance(desc, str) and _DESC_NOTE.strip() not in desc:
             tool["description"] = desc.rstrip() + _DESC_NOTE
-        schema = tool.get("inputSchema")
-        if not isinstance(schema, dict):
-            schema = {"type": "object", "properties": {}}
-            tool["inputSchema"] = schema
-        props = schema.get("properties")
-        if not isinstance(props, dict):
-            props = {}
-            schema["properties"] = props
-        props.setdefault(FULL_ARG, dict(_FULL_SCHEMA_PROP))
     return result
 
 
 def bound_call_tool_result(
     result: dict[str, Any],
     *,
-    full: bool,
     max_chars: int | None = None,
-    full_max_chars: int | None = None,
 ) -> dict[str, Any]:
-    """Apply one text budget across all text blocks of a ``tools/call`` result.
+    """Apply one head/tail budget across all text blocks of a ``tools/call`` result.
 
-    A tool that returns a list gets one content block per item, so the budget
-    is cumulative: blocks are kept in order until it runs out, the block that
-    crosses it is cut, and later text blocks are dropped.  When anything is
-    cut, ``structuredContent`` (an untruncated copy of the same data) is
-    removed too.  Results within budget are returned unchanged.
+    Text blocks are joined with newlines into one observation string. When that
+    string exceeds the budget, it is replaced by a single truncated text block
+    and ``structuredContent`` is removed. Non-text content blocks are kept.
+    Results within budget are returned unchanged.
     """
     content = result.get("content")
     if not isinstance(content, list):
         return result
-    max_chars, full_max_chars = _resolve_limits(max_chars, full_max_chars)
-    limit = full_max_chars if full else max_chars
+    limit = _resolve_max_chars(max_chars)
     texts = [
         item["text"]
         for item in content
@@ -146,15 +100,14 @@ def bound_call_tool_result(
         and item.get("type") == "text"
         and isinstance(item.get("text"), str)
     ]
-    total = sum(len(text) for text in texts)
-    if limit <= 0 or total <= limit:
+    if not texts:
+        return result
+    combined = "\n".join(texts)
+    if limit <= 0 or len(combined) <= limit:
         return result
 
-    banner = _truncation_banner(
-        limit=limit, total=total, full=full, full_max_chars=full_max_chars
-    )
-    remaining = limit
-    bounded: list[Any] = []
+    truncated = truncate_tool_text(combined, max_chars=limit)
+    bounded: list[Any] = [{"type": "text", "text": truncated}]
     for item in content:
         is_text = (
             isinstance(item, dict)
@@ -163,14 +116,6 @@ def bound_call_tool_result(
         )
         if not is_text:
             bounded.append(item)
-            continue
-        if remaining <= 0:
-            continue
-        text = item["text"][:remaining]
-        remaining -= len(text)
-        if banner:
-            text, banner = banner + text, ""
-        bounded.append({**item, "text": text})
     result["content"] = bounded
     result.pop("structuredContent", None)
     return result
@@ -179,24 +124,18 @@ def bound_call_tool_result(
 def rewrite_jsonrpc_payload(
     payload: dict[str, Any],
     *,
-    full: bool | None = None,
     max_chars: int | None = None,
-    full_max_chars: int | None = None,
+    bound_call: bool = False,
 ) -> dict[str, Any]:
     """Rewrite a JSON-RPC response for ``tools/list`` or ``tools/call``."""
     if "result" not in payload or not isinstance(payload.get("result"), dict):
         return payload
     result = payload["result"]
     if "tools" in result:
-        payload["result"] = inject_full_into_tools_list_result(result)
+        payload["result"] = annotate_tools_list_result(result)
         return payload
-    if "content" in result and full is not None:
-        payload["result"] = bound_call_tool_result(
-            result,
-            full=full,
-            max_chars=max_chars,
-            full_max_chars=full_max_chars,
-        )
+    if "content" in result and bound_call:
+        payload["result"] = bound_call_tool_result(result, max_chars=max_chars)
     return payload
 
 
@@ -204,29 +143,23 @@ def rewrite_http_body(
     body: bytes,
     *,
     content_type: str,
-    full: bool | None = None,
     max_chars: int | None = None,
-    full_max_chars: int | None = None,
+    bound_call: bool = False,
 ) -> bytes:
     """Rewrite a JSON or SSE MCP HTTP response body."""
     ct = content_type.lower()
     if "text/event-stream" in ct:
-        return _rewrite_sse_body(
-            body, full=full, max_chars=max_chars, full_max_chars=full_max_chars
-        )
+        return _rewrite_sse_body(body, max_chars=max_chars, bound_call=bound_call)
     if "application/json" in ct or not ct:
-        return _rewrite_json_body(
-            body, full=full, max_chars=max_chars, full_max_chars=full_max_chars
-        )
+        return _rewrite_json_body(body, max_chars=max_chars, bound_call=bound_call)
     return body
 
 
 def _rewrite_json_body(
     body: bytes,
     *,
-    full: bool | None,
     max_chars: int | None,
-    full_max_chars: int | None,
+    bound_call: bool,
 ) -> bytes:
     try:
         payload = json.loads(body.decode("utf-8") or "{}")
@@ -235,7 +168,7 @@ def _rewrite_json_body(
     if not isinstance(payload, dict):
         return body
     rewritten = rewrite_jsonrpc_payload(
-        payload, full=full, max_chars=max_chars, full_max_chars=full_max_chars
+        payload, max_chars=max_chars, bound_call=bound_call
     )
     return json.dumps(rewritten, ensure_ascii=False).encode("utf-8")
 
@@ -243,9 +176,8 @@ def _rewrite_json_body(
 def _rewrite_sse_body(
     body: bytes,
     *,
-    full: bool | None,
     max_chars: int | None,
-    full_max_chars: int | None,
+    bound_call: bool,
 ) -> bytes:
     try:
         text = body.decode("utf-8")
@@ -256,7 +188,6 @@ def _rewrite_sse_body(
     for line in text.splitlines(keepends=True):
         if line.startswith("data:"):
             raw = line[5:].lstrip()
-            # Preserve trailing newline from splitlines(keepends=True) separately.
             ending = ""
             if raw.endswith("\r\n"):
                 ending = "\r\n"
@@ -271,10 +202,7 @@ def _rewrite_sse_body(
                 continue
             if isinstance(payload, dict):
                 payload = rewrite_jsonrpc_payload(
-                    payload,
-                    full=full,
-                    max_chars=max_chars,
-                    full_max_chars=full_max_chars,
+                    payload, max_chars=max_chars, bound_call=bound_call
                 )
                 out_lines.append(
                     "data: "
@@ -286,33 +214,6 @@ def _rewrite_sse_body(
         else:
             out_lines.append(line)
     return "".join(out_lines).encode("utf-8")
-
-
-def strip_full_from_tools_call_body(body: bytes) -> tuple[bytes, bool | None]:
-    """Strip ``full`` from a ``tools/call`` request body.
-
-    Returns ``(new_body, full_flag)``. ``full_flag`` is ``None`` when the body
-    is not a ``tools/call`` request.
-    """
-    try:
-        payload = json.loads(body.decode("utf-8") or "{}")
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return body, None
-    if not isinstance(payload, dict) or payload.get("method") != "tools/call":
-        return body, None
-    params = payload.get("params")
-    if not isinstance(params, dict):
-        return body, False
-    arguments = params.get("arguments")
-    if not isinstance(arguments, dict):
-        return body, False
-    arguments = dict(arguments)
-    full = pop_full_arg(arguments)
-    params = dict(params)
-    params["arguments"] = arguments
-    payload = dict(payload)
-    payload["params"] = params
-    return json.dumps(payload, ensure_ascii=False).encode("utf-8"), full
 
 
 def jsonrpc_method(body: bytes) -> str | None:

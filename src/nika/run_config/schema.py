@@ -111,10 +111,9 @@ class McpSettings(BaseModel):
     read_timeout_sec: float = 120.0
     gateway_host: str = "127.0.0.1"
     gateway_port: int = 0
-    # Default observation budget for MCP tool text returned to the agent.
-    tool_output_max_chars: int = 16384
-    # Hard cap when the agent passes full=true (0 = no second cap).
-    tool_output_full_max_chars: int = 100000
+    # Observation budget for MCP tool text (mini-swe-agent head/tail style).
+    # Over budget: keep first/last halves and elide the middle. 0 disables.
+    tool_output_max_chars: int = 10000
 
     @field_validator("gateway_port")
     @classmethod
@@ -123,11 +122,11 @@ class McpSettings(BaseModel):
             raise ValueError("nika.mcp.gateway_port must be >= 0")
         return value
 
-    @field_validator("tool_output_max_chars", "tool_output_full_max_chars")
+    @field_validator("tool_output_max_chars")
     @classmethod
     def _tool_output_chars_non_negative(cls, value: int) -> int:
         if value < 0:
-            raise ValueError("nika.mcp tool output char limits must be >= 0")
+            raise ValueError("nika.mcp.tool_output_max_chars must be >= 0")
         return value
 
 

@@ -20,8 +20,7 @@ from nika.mcp.gateway.session_registry import (
 from nika.mcp.tool_output import (
     jsonrpc_method,
     rewrite_http_body,
-    strip_full_from_tools_call_body,
-    tool_output_limits,
+    tool_output_max_chars,
 )
 
 SESSION_HEADER = "NIKA-Session-Id"
@@ -103,11 +102,7 @@ class PhaseGateMiddleware:
 
         body = await _read_body(receive)
         method = jsonrpc_method(body)
-        want_full: bool | None = None
         if method == "tools/call":
-            body, want_full = strip_full_from_tools_call_body(body)
-            if want_full is None:
-                want_full = False
             tool_name, arguments, request_id = _tool_call(body)
             if tool_name is not None:
                 if entry is None:
@@ -131,15 +126,10 @@ class PhaseGateMiddleware:
                 if not allowed:
                     await _tool_denied(send, request_id, reason)
                     return
-        elif method == "tools/list":
-            want_full = None  # list rewrite ignores full
 
         rewrite = method in {"tools/call", "tools/list"}
         outbound = (
-            _RewritingSend(
-                send,
-                full=bool(want_full) if method == "tools/call" else None,
-            )
+            _RewritingSend(send, bound_call=(method == "tools/call"))
             if rewrite
             else send
         )
@@ -171,9 +161,9 @@ class _TransportBindingSend:
 class _RewritingSend:
     """Buffer one HTTP response and rewrite MCP tool list/call payloads."""
 
-    def __init__(self, send, *, full: bool | None):
+    def __init__(self, send, *, bound_call: bool):
         self._send = send
-        self._full = full
+        self._bound_call = bound_call
         self._status = 200
         self._headers: list[tuple[bytes, bytes]] = []
         self._chunks: list[bytes] = []
@@ -192,13 +182,11 @@ class _RewritingSend:
 
         body = b"".join(self._chunks)
         content_type = _header_value(self._headers, b"content-type") or _MCP_JSON
-        max_chars, full_max_chars = tool_output_limits()
         new_body = rewrite_http_body(
             body,
             content_type=content_type,
-            full=self._full,
-            max_chars=max_chars,
-            full_max_chars=full_max_chars,
+            max_chars=tool_output_max_chars(),
+            bound_call=self._bound_call,
         )
         headers = [
             (name, value)
