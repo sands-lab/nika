@@ -8,6 +8,7 @@ from nika.config import RESULTS_DIR, resolve_results_root
 from nika.utils.agent_session_id import make_agent_session_id, resolve_agent_session_id
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
+    SessionStatus,
     is_finished_session,
     iter_session_dirs,
     order_run_json,
@@ -290,11 +291,19 @@ class Session:
                 {"session_id": self.session_id, **extract_gt_fields(gt)},
             )
 
-    def clear_session(self):
+    def clear_session(self, *, status: SessionStatus = "finished"):
+        """Persist terminal ``run.json`` status and drop the runtime session doc.
+
+        ``status`` must be a terminal chip value (``finished`` / ``aborted`` /
+        ``error``). Callers that close on Ctrl+C or deploy failure must pass
+        ``aborted`` / ``error`` so inspect does not show a clean finish.
+        """
         if not hasattr(self, "session_id"):
             raise ValueError("Session ID is not set.")
+        if status not in {"finished", "aborted", "error"}:
+            status = "finished"
         payload = {k: v for k, v in self.__dict__.items() if k != "store"}
-        payload["status"] = "finished"
+        payload["status"] = status
         # Timeout / crash finalization often skips end_session(); still stamp a
         # wall-clock end so inspect can show Duration for finished trials.
         if not payload.get("end_time"):
@@ -302,7 +311,7 @@ class Session:
             self.end_time = payload["end_time"]
         if getattr(self, "session_dir", None):
             self._write_run_json(payload)
-        self.store.delete_session(self.session_id)
+        self.store.delete_session(self.session_id, status=status)
 
     def start_session(self):
         self.start_time = datetime.now().isoformat()

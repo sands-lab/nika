@@ -41,12 +41,13 @@ def test_cleanup_benchmark_interrupt_closes_only_result_dir_sessions(
 
     close_calls: list[dict] = []
 
-    def _close(*, session_id, undeploy, session_dir):
+    def _close(*, session_id, undeploy, session_dir, status="finished"):
         close_calls.append(
             {
                 "session_id": session_id,
                 "undeploy": undeploy,
                 "session_dir": Path(session_dir),
+                "status": status,
             }
         )
 
@@ -68,6 +69,7 @@ def test_cleanup_benchmark_interrupt_closes_only_result_dir_sessions(
     closed_ids = {c["session_id"] for c in close_calls}
     assert closed_ids == {"case__t01", "orphan__t01"}
     assert all(c["undeploy"] is True for c in close_calls)
+    assert all(c["status"] == "aborted" for c in close_calls)
 
 
 def test_cleanup_skips_job_root_mistaken_for_session(tmp_path: Path) -> None:
@@ -93,12 +95,13 @@ def test_cleanup_skips_job_root_mistaken_for_session(tmp_path: Path) -> None:
     ]
     close_calls: list[dict] = []
 
-    def _close(*, session_id, undeploy, session_dir):
+    def _close(*, session_id, undeploy, session_dir, status="finished"):
         close_calls.append(
             {
                 "session_id": session_id,
                 "undeploy": undeploy,
                 "session_dir": Path(session_dir),
+                "status": status,
             }
         )
 
@@ -119,10 +122,55 @@ def test_cleanup_skips_job_root_mistaken_for_session(tmp_path: Path) -> None:
     assert by_id["claude"]["undeploy"] is False
     assert by_id["claude"]["session_dir"] == result_root.resolve()
     assert by_id["case__t01"]["undeploy"] is True
+    assert by_id["case__t01"]["status"] == "aborted"
     # Job root must not be stamped aborted (would pollute job run.json).
     mark_aborted.assert_called_once_with(
         (result_root / "trials" / "case__t01").resolve()
     )
+
+
+def test_cleanup_aborts_finished_incomplete_trial_left_by_worker(
+    tmp_path: Path,
+) -> None:
+    """Worker clear_session(finished) before parent interrupt must still abort."""
+    result_root = tmp_path / "results" / "run_a"
+    trial = result_root / "trials" / "llmd__host_missing__t01"
+    trial.mkdir(parents=True)
+    (trial / "run.json").write_text(
+        json.dumps(
+            {
+                "session_id": "llmd__host_missing__t01__rec",
+                "status": "finished",
+                "end_time": "2026-09-26T14:16:58",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (trial / "nika.jsonl").write_text(
+        json.dumps(
+            {
+                "level": "ERROR",
+                "event": "env_preload_failed",
+                "message": "preload boom",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("nika.workflows.benchmark.run.SessionStore") as store_cls,
+        patch("nika.workflows.benchmark.run.close_session") as close_mock,
+        patch("nika.workflows.benchmark.run._terminate_active_trial_workers"),
+    ):
+        store_cls.return_value.list_running_sessions.return_value = []
+        closed = cleanup_benchmark_interrupt(result_root)
+
+    assert closed == 1
+    close_mock.assert_not_called()
+    run_meta = json.loads((trial / "run.json").read_text(encoding="utf-8"))
+    assert run_meta["status"] == "aborted"
+    assert run_meta["outcome"] == "aborted"
 
 
 def test_cleanup_skips_foreign_session_with_same_trial_id(tmp_path: Path) -> None:
@@ -202,6 +250,7 @@ def test_run_single_case_interrupt_closes_and_reraises(tmp_path: Path) -> None:
         session_id=session_id,
         undeploy=True,
         session_dir=session_dir,
+        status="aborted",
     )
     finalize_mock.assert_not_called()
 

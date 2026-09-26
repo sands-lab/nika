@@ -533,7 +533,13 @@ def start_net_env(
                 remove_orphaned_containerlab_management_network,
             )
 
-            close_session(session_id=resolved_session_id, undeploy=True)
+            # KeyboardInterrupt/SystemExit are BaseException but not Exception.
+            close_status = "aborted" if not isinstance(exc, Exception) else "error"
+            close_session(
+                session_id=resolved_session_id,
+                undeploy=True,
+                status=close_status,
+            )
             remove_orphaned_containerlab_management_network(
                 getattr(net_env, "name", None)
             )

@@ -18,17 +18,12 @@ from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_job_run_dir,
     iter_session_dirs,
+    normalize_session_status,
 )
 
 GROUND_TRUTH_FILENAME = "ground_truth.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"
 LLM_JUDGE_FILENAME = "llm_judge.json"
-
-
-def _is_finished_session(run_meta: dict) -> bool:
-    if run_meta.get("status") == "finished":
-        return True
-    return run_meta.get("end_time") is not None
 
 
 _JSON_LIST_FIELDS = frozenset({"problem_names"})
@@ -284,16 +279,22 @@ class SessionIndex:
             )
 
     def mark_finished(
-        self, session_id: str, *, doc: Mapping[str, Any] | None = None
+        self,
+        session_id: str,
+        *,
+        doc: Mapping[str, Any] | None = None,
+        status: str = "finished",
     ) -> None:
+        if status not in {"finished", "aborted", "error"}:
+            status = "finished"
         fields: dict[str, Any] = {
             "session_id": session_id,
-            "status": "finished",
+            "status": status,
             "updated_at": _now_iso(),
         }
         if doc is not None:
             fields.update(extract_index_fields(doc))
-            fields["status"] = "finished"
+            fields["status"] = status
         self.upsert(fields)
 
     def purge(self, session_id: str) -> None:
@@ -362,10 +363,7 @@ class SessionIndex:
             fields = extract_index_fields(run_meta)
             fields["session_id"] = sid
             fields["session_dir"] = str(session_dir)
-            if _is_finished_session(run_meta):
-                fields["status"] = "finished"
-            else:
-                fields["status"] = run_meta.get("status", "running")
+            fields["status"] = normalize_session_status(run_meta)
 
             gt_path = session_dir / GROUND_TRUTH_FILENAME
             if gt_path.exists():

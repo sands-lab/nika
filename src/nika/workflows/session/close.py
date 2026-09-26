@@ -19,7 +19,7 @@ from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.runtime.meta import meta_get, meta_path
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
-from nika.utils.session_artifacts import RUN_FILENAME
+from nika.utils.session_artifacts import RUN_FILENAME, SessionStatus
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_store import SessionStore
 
@@ -286,6 +286,7 @@ def _stop_session_record(
     *,
     undeploy: bool = True,
     session_id: str | None = None,
+    status: SessionStatus = "finished",
 ) -> None:
     session = Session()
     session._apply_session_meta(session_meta)
@@ -332,6 +333,7 @@ def _stop_session_record(
             session_id=session.session_id,
             backend=backend,
             store=session.store,
+            status=status,
         )
         return
 
@@ -448,6 +450,7 @@ def _stop_session_record(
         session_id=session.session_id,
         backend=backend,
         store=session.store,
+        status=status,
     )
 
 
@@ -457,6 +460,7 @@ def _clear_session_record(
     session_id: str,
     backend: str,
     store: SessionStore | None = None,
+    status: SessionStatus = "finished",
 ) -> None:
     """Finish bookkeeping for a session without resolving its scenario."""
     session = Session()
@@ -491,7 +495,7 @@ def _clear_session_record(
             backend=backend,
         )
 
-    session.clear_session()
+    session.clear_session(status=status)
     log_event(
         "session_cleared",
         f"Cleared session {session_id}",
@@ -506,12 +510,17 @@ def close_session(
     undeploy: bool = True,
     stop_all: bool = False,
     session_dir: str | Path | None = None,
+    status: SessionStatus = "finished",
 ) -> None:
     """Close one or all running sessions and clear runtime state.
 
     When ``session_id`` is given, undeploy even if the runtime JSON is already
     gone, using ``run.json`` / the session index so leftover labs are not left
     behind after a crashed worker.
+
+    ``status`` is written to ``run.json`` when clearing (default ``finished``).
+    Pass ``aborted`` / ``error`` for interrupt or failed-start cleanup so
+    inspect does not treat the trial as a clean finish.
     """
     from nika.remote.config import is_remote_enabled
 
@@ -519,7 +528,10 @@ def close_session(
         from nika.remote.workflows import remote_close_session
 
         remote_close_session(
-            session_id=session_id, undeploy=undeploy, stop_all=stop_all
+            session_id=session_id,
+            undeploy=undeploy,
+            stop_all=stop_all,
+            status=status,
         )
         return
 
@@ -534,7 +546,12 @@ def close_session(
                 except FileNotFoundError:
                     continue
                 try:
-                    _stop_session_record(full_meta, undeploy=undeploy, session_id=sid)
+                    _stop_session_record(
+                        full_meta,
+                        undeploy=undeploy,
+                        session_id=sid,
+                        status=status,
+                    )
                 except Exception as exc:
                     if full_meta.get("session_dir"):
                         bind_session_dir(full_meta["session_dir"])
@@ -551,6 +568,7 @@ def close_session(
                         session_id=sid,
                         backend=resolve_backend(full_meta),
                         store=store,
+                        status=status,
                     )
         finally:
             if undeploy:
@@ -570,7 +588,9 @@ def close_session(
         meta = load_session_meta_for_close(
             session_id, session_dir=session_dir, store=store
         )
-        _stop_session_record(meta, undeploy=undeploy, session_id=session_id)
+        _stop_session_record(
+            meta, undeploy=undeploy, session_id=session_id, status=status
+        )
         return
 
     if not store.list_running_sessions():
@@ -583,4 +603,5 @@ def close_session(
         store.get_session(resolved_id),
         undeploy=undeploy,
         session_id=resolved_id,
+        status=status,
     )

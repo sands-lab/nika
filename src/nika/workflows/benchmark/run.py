@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,7 +18,9 @@ from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
+    RUN_FILENAME,
     last_session_error,
+    normalize_session_status,
     update_run_json,
     write_json_atomic,
 )
@@ -48,6 +51,7 @@ from nika.workflows.benchmark.healthy import (
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
 from nika.workflows.benchmark.outcomes import (
+    COUNTED_OUTCOMES,
     RETRYABLE_OUTCOMES,
     classify_trial_failure,
     is_signal_exit_code,
@@ -241,6 +245,11 @@ def cleanup_benchmark_interrupt(
     closes every still-running session whose artifacts live under this run.
     Marks each closed trial ``run.json`` as ``status=aborted`` so inspect can
     distinguish Ctrl+C from a normal finish.
+
+    Also rewrites incomplete trial dirs under ``result_dir/trials`` that a
+    worker already cleared as ``finished`` (race with ``clear_session``) so
+    inspect does not show a clean finish for a mid-run stop.
+
     Returns how many sessions close was attempted for.
     """
     _terminate_active_trial_workers(signal_first=signal_workers)
@@ -252,7 +261,7 @@ def cleanup_benchmark_interrupt(
         running = SessionStore().list_running_sessions()
     except Exception as list_error:  # noqa: BLE001 - still try nothing
         print(f"WARNING: could not list running sessions after interrupt: {list_error}")
-        return 0
+        running = []
 
     for row in running:
         session_id = str(row.get("session_id") or "")
@@ -293,6 +302,7 @@ def cleanup_benchmark_interrupt(
                 session_id=session_id,
                 undeploy=True,
                 session_dir=matched,
+                status="aborted",
             )
             _mark_session_aborted(matched)
             closed += 1
@@ -302,7 +312,46 @@ def cleanup_benchmark_interrupt(
                 f"WARNING: could not clean up interrupted session "
                 f"{session_id}: {cleanup_error}"
             )
+    closed += _abort_incomplete_trials(result_root)
     return closed
+
+
+def _abort_incomplete_trials(result_root: Path) -> int:
+    """Stamp aborted on incomplete trials left as finished by worker clear.
+
+    Skips counted ``success`` / ``agent_failed`` slots. Returns how many
+    trial dirs were rewritten.
+    """
+    trials_root = result_root / "trials"
+    if not trials_root.is_dir():
+        return 0
+    rewritten = 0
+    try:
+        children = list(trials_root.iterdir())
+    except OSError:
+        return 0
+    for trial_dir_path in children:
+        if not trial_dir_path.is_dir():
+            continue
+        run_path = trial_dir_path / RUN_FILENAME
+        if not run_path.is_file():
+            continue
+        try:
+            run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(run_meta, dict):
+            continue
+        if is_valid_trial(trial_dir_path):
+            continue
+        outcome = str(run_meta.get("outcome") or "")
+        if outcome in COUNTED_OUTCOMES:
+            continue
+        if normalize_session_status(run_meta) == "aborted":
+            continue
+        _mark_session_aborted(trial_dir_path)
+        rewritten += 1
+    return rewritten
 
 
 def _mark_session_aborted(session_dir: Path) -> None:
@@ -452,9 +501,16 @@ def _set_trial_outcome(
     update_run_json(session_dir, _stamp)
 
 
-def _close_quietly(session_id: str, session_dir: Path) -> None:
+def _close_quietly(
+    session_id: str, session_dir: Path, *, status: str = "finished"
+) -> None:
     try:
-        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
+        close_session(
+            session_id=session_id,
+            undeploy=True,
+            session_dir=session_dir,
+            status=status,  # type: ignore[arg-type]
+        )
     except FileNotFoundError:
         pass  # Already closed (worker cleanup) or never registered.
     except Exception as cleanup_error:  # noqa: BLE001 - best effort
@@ -499,9 +555,9 @@ def _finalize_failed_trial(
     ``endpoint_failed`` / ``infra_failed`` are retryable: ``status=error``, not
     counted, cleaned on resume.
     """
-    _close_quietly(session_id, session_dir)
-    _ensure_messages_file(session_dir)
     status = "finished" if outcome == "agent_failed" else "error"
+    _close_quietly(session_id, session_dir, status=status)
+    _ensure_messages_file(session_dir)
     # Stamp outcome immediately after close so a later kill during metrics
     # still leaves a recoverable trial for resume (counted or retryable).
     _set_trial_outcome(session_dir, outcome=outcome, status=status)
@@ -846,7 +902,10 @@ def run_single_case(
         if _is_user_interrupt(exc):
             try:
                 close_session(
-                    session_id=session_id, undeploy=True, session_dir=session_dir
+                    session_id=session_id,
+                    undeploy=True,
+                    session_dir=session_dir,
+                    status="aborted",
                 )
                 _mark_session_aborted(session_dir)
                 print(f"cleaned up interrupted session {session_id} (lab undeployed)")
@@ -878,7 +937,7 @@ def run_single_case(
                 raise
             return session_id, session_dir
 
-        _close_quietly(session_id, session_dir)
+        _close_quietly(session_id, session_dir, status="error")
         vprint(verbose, f"cleaned up failed session {session_id} (lab undeployed)")
 
         def _mark_error(run_meta: dict[str, Any]) -> None:

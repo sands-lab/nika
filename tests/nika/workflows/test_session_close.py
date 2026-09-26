@@ -166,6 +166,47 @@ def test_cleanup_undeploys_before_deleting_run_json(
 
 
 @pytest.mark.unit
+def test_clear_session_can_stamp_error_status(tmp_path: Path, monkeypatch) -> None:
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    db_path = tmp_path / "sessions.db"
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DB", db_path)
+
+    from nika.utils.session import Session
+
+    store = SessionStore(sessions_dir, db_path)
+    monkeypatch.setattr(
+        "nika.utils.session.SessionStore",
+        lambda *args, **kwargs: SessionStore(sessions_dir, db_path),
+    )
+    session_id = "llmd_lab__host_missing__t01"
+    session_dir = tmp_path / "results" / "trials" / session_id
+    session_dir.mkdir(parents=True)
+    store.create_session(
+        {
+            "session_id": session_id,
+            "scenario_name": "llmd_lab",
+            "lab_name": "llmd_lab__x",
+            "session_dir": str(session_dir),
+            "status": "running",
+            "backend": "kathara",
+        }
+    )
+    session = Session()
+    session.store = store
+    session.session_id = session_id
+    session.session_dir = str(session_dir)
+    session.scenario_name = "llmd_lab"
+    session.clear_session(status="error")
+
+    run_meta = json.loads((session_dir / "run.json").read_text(encoding="utf-8"))
+    assert run_meta["status"] == "error"
+    assert run_meta.get("end_time")
+    assert store.list_running_sessions() == []
+
+
+@pytest.mark.unit
 def test_close_does_not_delete_a_sibling_session_json(
     tmp_path: Path, monkeypatch
 ) -> None:

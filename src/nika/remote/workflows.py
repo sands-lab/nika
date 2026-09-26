@@ -263,6 +263,7 @@ def remote_close_session(
     *,
     undeploy: bool = True,
     stop_all: bool = False,
+    status: str = "finished",
 ) -> None:
     """Close remote lab session(s) and clear the local mirror."""
     client = _client()
@@ -272,7 +273,7 @@ def remote_close_session(
         for row in list(store.list_running_sessions()):
             sid = row["session_id"]
             try:
-                store.delete_session(sid)
+                store.delete_session(sid, status=status)
             except Exception:  # noqa: BLE001
                 pass
         return
@@ -286,12 +287,12 @@ def remote_close_session(
     except Exception:  # noqa: BLE001 - still attempt remote close
         pass
     client.close_session(sid, undeploy=undeploy, stop_all=False)
-    # Mark local run finished similarly to Session.clear_session path.
+    # Mark local run with the same terminal status as Session.clear_session.
     try:
-        session.clear_session()
+        session.clear_session(status=status)  # type: ignore[arg-type]
     except Exception:  # noqa: BLE001 - remote already closed
         try:
-            store.delete_session(sid)
+            store.delete_session(sid, status=status)
         except Exception:  # noqa: BLE001
             pass
 
