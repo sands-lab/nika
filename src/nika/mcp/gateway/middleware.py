@@ -1,4 +1,4 @@
-"""ASGI middleware for session binding and phase gating."""
+"""ASGI middleware for session binding, phase gating, and tool-output bounds."""
 
 from __future__ import annotations
 
@@ -12,7 +12,17 @@ from nika.mcp.fastmcp_settings import ensure_fastmcp_settings_ready
 from nika.mcp.gateway.access import decide_diagnosis_access
 from nika.mcp.gateway.context import bind_session, reset_session
 from nika.mcp.gateway.policy import is_server_allowed
-from nika.mcp.gateway.session_registry import get_session
+from nika.mcp.gateway.session_registry import (
+    bind_transport_session,
+    get_session,
+    transport_session_matches,
+)
+from nika.mcp.tool_output import (
+    jsonrpc_method,
+    rewrite_http_body,
+    strip_full_from_tools_call_body,
+    tool_output_limits,
+)
 
 SESSION_HEADER = "NIKA-Session-Id"
 _MCP_JSON = "application/json"
@@ -52,6 +62,27 @@ class PhaseGateMiddleware:
             )
             return
 
+        transport_id = headers.get(b"mcp-session-id", b"").decode().strip()
+        if transport_id and not transport_session_matches(transport_id, session_id):
+            await _send_json(
+                send,
+                status=403,
+                payload={
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32003,
+                        "message": (
+                            f"{SESSION_HEADER} does not match the session that "
+                            "initialized this MCP connection."
+                        ),
+                    },
+                    "id": None,
+                },
+            )
+            return
+        if not transport_id:
+            send = _TransportBindingSend(send, session_id)
+
         entry = get_session(session_id)
         target_app = (
             self.app
@@ -71,35 +102,126 @@ class PhaseGateMiddleware:
             return
 
         body = await _read_body(receive)
-        tool_name, arguments, request_id = _tool_call(body)
-        if tool_name is not None:
-            if entry is None:
-                await _tool_denied(send, request_id, "unknown_session")
-                return
-            if entry.phase != DIAGNOSIS:
-                allowed = (
-                    self.server_name == "task_mcp_server" and tool_name == "submit"
-                )
-                reason = "" if allowed else "submission_network_access_denied"
-            elif not is_server_allowed(session_id, self.server_name):
-                allowed, reason = False, "diagnosis_server_not_allowed"
-            else:
-                decision = decide_diagnosis_access(
-                    policy=entry.access_policy,
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    node_roles=entry.node_roles,
-                )
-                allowed, reason = decision.allowed, decision.reason
-            if not allowed:
-                await _tool_denied(send, request_id, reason)
-                return
+        method = jsonrpc_method(body)
+        want_full: bool | None = None
+        if method == "tools/call":
+            body, want_full = strip_full_from_tools_call_body(body)
+            if want_full is None:
+                want_full = False
+            tool_name, arguments, request_id = _tool_call(body)
+            if tool_name is not None:
+                if entry is None:
+                    await _tool_denied(send, request_id, "unknown_session")
+                    return
+                if entry.phase != DIAGNOSIS:
+                    allowed = (
+                        self.server_name == "task_mcp_server" and tool_name == "submit"
+                    )
+                    reason = "" if allowed else "submission_network_access_denied"
+                elif not is_server_allowed(session_id, self.server_name):
+                    allowed, reason = False, "diagnosis_server_not_allowed"
+                else:
+                    decision = decide_diagnosis_access(
+                        policy=entry.access_policy,
+                        tool_name=tool_name,
+                        arguments=arguments,
+                        node_roles=entry.node_roles,
+                    )
+                    allowed, reason = decision.allowed, decision.reason
+                if not allowed:
+                    await _tool_denied(send, request_id, reason)
+                    return
+        elif method == "tools/list":
+            want_full = None  # list rewrite ignores full
+
+        rewrite = method in {"tools/call", "tools/list"}
+        outbound = (
+            _RewritingSend(
+                send,
+                full=bool(want_full) if method == "tools/call" else None,
+            )
+            if rewrite
+            else send
+        )
 
         token = bind_session(session_id)
         try:
-            await target_app(scope, _replay_body(body), send)
+            await target_app(scope, _replay_body(body), outbound)
         finally:
             reset_session(token)
+
+
+class _TransportBindingSend:
+    """Record the MCP transport session id issued to *session_id*."""
+
+    def __init__(self, send, session_id: str):
+        self._send = send
+        self._session_id = session_id
+
+    async def __call__(self, message):
+        if message["type"] == "http.response.start":
+            transport_id = _header_value(
+                list(message.get("headers") or []), b"mcp-session-id"
+            ).strip()
+            if transport_id:
+                bind_transport_session(transport_id, self._session_id)
+        await self._send(message)
+
+
+class _RewritingSend:
+    """Buffer one HTTP response and rewrite MCP tool list/call payloads."""
+
+    def __init__(self, send, *, full: bool | None):
+        self._send = send
+        self._full = full
+        self._status = 200
+        self._headers: list[tuple[bytes, bytes]] = []
+        self._chunks: list[bytes] = []
+
+    async def __call__(self, message):
+        if message["type"] == "http.response.start":
+            self._status = int(message.get("status") or 200)
+            self._headers = list(message.get("headers") or [])
+            return
+        if message["type"] != "http.response.body":
+            await self._send(message)
+            return
+        self._chunks.append(message.get("body") or b"")
+        if message.get("more_body"):
+            return
+
+        body = b"".join(self._chunks)
+        content_type = _header_value(self._headers, b"content-type") or _MCP_JSON
+        max_chars, full_max_chars = tool_output_limits()
+        new_body = rewrite_http_body(
+            body,
+            content_type=content_type,
+            full=self._full,
+            max_chars=max_chars,
+            full_max_chars=full_max_chars,
+        )
+        headers = [
+            (name, value)
+            for name, value in self._headers
+            if name.lower() not in {b"content-length", b"transfer-encoding"}
+        ]
+        headers.append((b"content-length", str(len(new_body)).encode()))
+        await self._send(
+            {
+                "type": "http.response.start",
+                "status": self._status,
+                "headers": headers,
+            }
+        )
+        await self._send({"type": "http.response.body", "body": new_body})
+
+
+def _header_value(headers: list[tuple[bytes, bytes]], name: bytes) -> str:
+    needle = name.lower()
+    for key, value in headers:
+        if key.lower() == needle:
+            return value.decode("latin-1")
+    return ""
 
 
 async def _send_json(send, *, status: int, payload: dict) -> None:

@@ -6,8 +6,6 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
-from nika.config import MCP_SERVER_DIR
-
 Backend = Literal["kathara", "containerlab"]
 Role = Literal[
     "host", "routing", "switch", "telemetry", "task", "kubernetes", "observability"
@@ -27,17 +25,15 @@ KUBERNETES_KEYWORDS = frozenset({"kubernetes", "k3s", "k8s"})
 
 @dataclass(frozen=True)
 class MCPServerSpec:
-    """One MCP server exposed to troubleshooting agents (in-process or remote)."""
+    """One in-process MCP server exposed to troubleshooting agents.
+
+    ``module`` is the Python module whose ``mcp`` attribute is the FastMCP app.
+    """
 
     name: str
     backend: Backend | None
     role: Role
     module: str
-    remote: bool = False
-
-    @property
-    def script_path(self) -> str:
-        return str(MCP_SERVER_DIR / self.module)
 
 
 MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
@@ -46,76 +42,76 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         name="kathara_base_mcp_server",
         backend=None,
         role="host",
-        module="common/host_server.py",
+        module="nika.mcp.servers.common.host_server",
     ),
     "pingmesh_mcp_server": MCPServerSpec(
         name="pingmesh_mcp_server",
         backend=None,
         role="host",
-        module="common/pingmesh_server.py",
+        module="nika.mcp.servers.common.pingmesh_server",
     ),
     "packet_capture_mcp_server": MCPServerSpec(
         name="packet_capture_mcp_server",
         backend=None,
         role="observability",
-        module="common/packet_capture_server.py",
+        module="nika.mcp.servers.common.packet_capture_server",
     ),
     "task_mcp_server": MCPServerSpec(
         name="task_mcp_server",
         backend=None,
         role="task",
-        module="common/task_server.py",
+        module="nika.mcp.servers.common.task_server",
     ),
     # Kathara — specialised device APIs
     "kathara_frr_mcp_server": MCPServerSpec(
         name="kathara_frr_mcp_server",
         backend="kathara",
         role="routing",
-        module="kathara/frr_server.py",
+        module="nika.mcp.servers.kathara.frr_server",
     ),
     "kathara_iosxr_mcp_server": MCPServerSpec(
         name="kathara_iosxr_mcp_server",
         backend="kathara",
         role="routing",
-        module="kathara/iosxr_server.py",
+        module="nika.mcp.servers.kathara.iosxr_server",
     ),
     "kathara_routeros_mcp_server": MCPServerSpec(
         name="kathara_routeros_mcp_server",
         backend="kathara",
         role="routing",
-        module="kathara/routeros_server.py",
+        module="nika.mcp.servers.kathara.routeros_server",
     ),
     "kathara_bmv2_mcp_server": MCPServerSpec(
         name="kathara_bmv2_mcp_server",
         backend="kathara",
         role="switch",
-        module="kathara/bmv2_server.py",
+        module="nika.mcp.servers.kathara.bmv2_server",
     ),
     "kathara_sdn_mcp_server": MCPServerSpec(
         name="kathara_sdn_mcp_server",
         backend="kathara",
         role="switch",
-        module="kathara/sdn_server.py",
+        module="nika.mcp.servers.kathara.sdn_server",
     ),
     "kathara_telemetry_mcp_server": MCPServerSpec(
         name="kathara_telemetry_mcp_server",
         backend="kathara",
         role="telemetry",
-        module="kathara/telemetry_server.py",
+        module="nika.mcp.servers.kathara.telemetry_server",
     ),
     # Host-side Kubernetes MCP (session kubeconfig → published API port)
     "k8s_mcp_server": MCPServerSpec(
         name="k8s_mcp_server",
         backend="kathara",
         role="kubernetes",
-        module="k8s_mcp_server",
+        module="nika.mcp.k8s.server",
     ),
     # Containerlab — specialised device APIs
     "containerlab_srl_mcp_server": MCPServerSpec(
         name="containerlab_srl_mcp_server",
         backend="containerlab",
         role="routing",
-        module="containerlab/srl_server.py",
+        module="nika.mcp.servers.containerlab.srl_server",
     ),
 }
 
@@ -209,10 +205,3 @@ def select_diagnosis_servers(
         servers.append(K8S_MCP_SERVER)
 
     return servers
-
-
-def get_spec(name: str) -> MCPServerSpec:
-    try:
-        return MCP_SERVER_SPECS[name]
-    except KeyError as exc:
-        raise KeyError(f"Unknown MCP server: {name!r}") from exc

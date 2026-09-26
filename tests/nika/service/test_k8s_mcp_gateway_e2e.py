@@ -16,6 +16,9 @@ from agent.utils.mcp_servers import MCPServerConfig, SESSION_HEADER
 from nika.mcp.k8s.client import reset_client
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.mcp.registry import K8S_MCP_SERVER
+from nika.problems.forwarding_encapsulation_policy.kubernetes_policy import (
+    DEFAULT_POLICY_NAME,
+)
 from nika.utils.session_store import SessionStore
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
@@ -332,7 +335,8 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
 
         KatharaBaseAPI(lab_name=lab_name).exec_cmd(
             "controller",
-            "kubectl delete networkpolicy nika-deny-ingress -n word-ns --ignore-not-found",
+            f"kubectl delete networkpolicy {DEFAULT_POLICY_NAME} -n word-ns "
+            "--ignore-not-found",
             timeout=60,
         )
 

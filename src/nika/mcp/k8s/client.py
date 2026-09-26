@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import threading
 import time
@@ -15,6 +16,9 @@ from kubernetes.client.rest import ApiException
 from kubernetes.stream import stream
 
 from nika.mcp.session_context import get_session_meta, require_session_id
+
+# DNS names, IPv4, and IPv6 literals: no shell metacharacters or URL syntax.
+_HOST_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?|[0-9A-Fa-f:.]+")
 
 DEFAULT_KUBECONFIG = "/etc/rancher/k3s/k3s.yaml"
 
@@ -421,12 +425,22 @@ class K8sClient:
                     stdout_chunks.append(resp.read_stdout())
                 if resp.peek_stderr():
                     stderr_chunks.append(resp.read_stderr())
-            return {
-                "ok": True,
+            try:
+                exit_code = resp.returncode
+            except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+                # The status channel was empty or carried no exit code
+                # (for example, the command could not be started).
+                exit_code = None
+            result: dict[str, Any] = {
+                "ok": exit_code == 0,
+                "exit_code": exit_code,
                 "stdout": "".join(stdout_chunks),
                 "stderr": "".join(stderr_chunks),
                 "command": cmd,
             }
+            if exit_code is None:
+                result["error"] = "exit_status_unavailable"
+            return result
         except ApiException as exc:
             return {
                 "ok": False,
@@ -478,11 +492,11 @@ class K8sClient:
         elif proto == "tcp":
             if port is None:
                 raise ValueError("port is required for tcp connectivity checks")
-            host = shlex.quote(target)
-            cmd = (
-                f"nc -z -w {timeout_seconds} {host} {int(port)} "
-                f"|| (echo >/dev/tcp/{target}/{int(port)})"
-            )
+            if not _HOST_RE.fullmatch(target):
+                raise ValueError(
+                    "target must be a hostname or IP address for tcp checks"
+                )
+            cmd = f"nc -z -w {int(timeout_seconds)} {shlex.quote(target)} {int(port)}"
         else:
             raise ValueError(f"unsupported protocol: {protocol!r}")
         result = self.exec_in_pod(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import ExitStack
 from typing import Any
 
@@ -18,6 +17,7 @@ from nika.remote.protocol import (
     PolicyMode,
     SessionContainersResponse,
 )
+from nika.mcp.gateway.phase import phase_advance_token
 from nika.mcp.gateway.lifecycle import (
     McpGatewayManager,
     SANDBOX_GATEWAY_BIND_HOST,
@@ -69,8 +69,10 @@ class RemoteHandlerState:
             )
         )
         self.gateways[session_id] = GatewayLease(stack=stack, manager=manager)
-        # Prefer the agent-facing URL env set by lifecycle when sandbox=True.
-        base = os.environ.get("NIKA_MCP_GATEWAY_AGENT_URL") or manager.base_url
+        # Agent-facing URL for this session's gateway. Read from the manager,
+        # never from process-global env: concurrent attaches run in parallel
+        # threads.
+        base = manager.agent_url or manager.base_url
         logger.info(
             "mcp attach done session_id=%s port=%s url=%s policy_mode=%s",
             session_id,
@@ -82,6 +84,7 @@ class RemoteHandlerState:
             session_id=session_id,
             gateway_port=manager.port,
             gateway_base_url=base,
+            phase_token=phase_advance_token(session_id),
         )
 
     def detach_gateway(self, session_id: str) -> None:
