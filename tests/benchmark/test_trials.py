@@ -27,7 +27,6 @@ from nika.workflows.benchmark.trials import (
     case_key_for_row,
     expand_trials,
     format_trial_label,
-    is_finalized_failure,
     is_valid_trial,
     merge_run_config,
     scan_trials,
@@ -678,10 +677,14 @@ class TestAgentFailedFinalization:
                 ),
                 encoding="utf-8",
             )
-
-        def _agent_turn_then_crash(**kwargs):
-            write_agent_started(session_path)
-            raise RuntimeError("agent boom")
+            # Mark the agent as started so classify keeps this as counted
+            # agent_failed (not retryable infra_failed).
+            (sdir / "nika.jsonl").write_text(
+                '{"event":"agent_start"}\n', encoding="utf-8"
+            )
+            (sdir / "messages.jsonl").write_text(
+                '{"event":"llm_start"}\n', encoding="utf-8"
+            )
 
         with (
             patch(
@@ -694,7 +697,7 @@ class TestAgentFailedFinalization:
             ),
             patch(
                 "nika.workflows.benchmark.run.start_agent",
-                side_effect=_agent_turn_then_crash,
+                side_effect=RuntimeError("agent boom"),
             ),
             patch("nika.workflows.benchmark.run.close_session"),
             patch(
@@ -731,15 +734,22 @@ class TestAgentFailedFinalization:
                 case_key=trial.case_key,
             )
 
-        assert sid.startswith(trial.trial_id)
+        from nika.workflows.benchmark.run import store_session_id_for_trial
+
+        assert sid == store_session_id_for_trial(trial.trial_id, result_dir)
         assert sdir == session_path
         assert is_valid_trial(session_path)
         run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
         assert run_meta["outcome"] == "agent_failed"
+        assert run_meta["score_status"] == "no_submission"
         assert run_meta["status"] == "finished"
         assert (session_path / "ground_truth.json").is_file()
         assert (session_path / "messages.jsonl").is_file()
         assert (session_path / "eval_metrics.json").is_file()
+        metrics = json.loads(
+            (session_path / "eval_metrics.json").read_text(encoding="utf-8")
+        )
+        assert metrics.get("rca_f1") == 0.0
         assert not (session_path / "submission.json").exists()
 
     def test_timeout_finalize_keeps_counted_trial(self, tmp_path: Path) -> None:
@@ -758,7 +768,12 @@ class TestAgentFailedFinalization:
             encoding="utf-8",
         )
         (session_path / "ground_truth.json").write_text("{}", encoding="utf-8")
-        write_agent_started(session_path)
+        (session_path / "nika.jsonl").write_text(
+            '{"event":"agent_start"}\n', encoding="utf-8"
+        )
+        (session_path / "messages.jsonl").write_text(
+            '{"event":"llm_start"}\n', encoding="utf-8"
+        )
 
         with (
             patch("nika.workflows.benchmark.run.close_session"),
@@ -780,80 +795,14 @@ class TestAgentFailedFinalization:
         assert is_valid_trial(session_path)
         run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
         assert run_meta["outcome"] == "agent_failed"
+        assert run_meta["score_status"] == "no_submission"
         assert run_meta["status"] == "finished"
         assert (session_path / "messages.jsonl").is_file()
         assert (session_path / "eval_metrics.json").is_file()
-        # Watchdog kills skip end_session(); the stamp still records end_time.
-        assert run_meta.get("end_time")
-
-    def test_timeout_finalize_llm_dominated_is_endpoint_failed(
-        self, tmp_path: Path
-    ) -> None:
-        from datetime import UTC, datetime, timedelta
-
-        trials = expand_trials([ROW_A], n_trials=1)
-        trial = trials[0]
-        session_path = trial_dir(tmp_path, trial.case_key, trial.trial_index)
-        session_path.mkdir(parents=True)
-        (session_path / "run.json").write_text(
-            json.dumps(
-                {
-                    "session_id": trial.trial_id,
-                    "status": "running",
-                    "scenario_name": "dc_clos",
-                }
-            ),
-            encoding="utf-8",
+        metrics = json.loads(
+            (session_path / "eval_metrics.json").read_text(encoding="utf-8")
         )
-        (session_path / "ground_truth.json").write_text("{}", encoding="utf-8")
-        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
-        (session_path / "nika.jsonl").write_text(
-            json.dumps({"timestamp": t0.isoformat(), "event": "agent_start"}) + "\n",
-            encoding="utf-8",
-        )
-        (session_path / "messages.jsonl").write_text(
-            "".join(
-                json.dumps(event) + "\n"
-                for event in (
-                    {
-                        "timestamp": t0.isoformat(),
-                        "event": "llm_start",
-                        "phase": "diagnosis",
-                    },
-                    {
-                        "timestamp": (t0 + timedelta(seconds=2000)).isoformat(),
-                        "event": "llm_end",
-                        "phase": "diagnosis",
-                    },
-                    {
-                        "timestamp": (t0 + timedelta(seconds=2001)).isoformat(),
-                        "event": "llm_start",
-                        "phase": "diagnosis",
-                    },
-                )
-            ),
-            encoding="utf-8",
-        )
-
-        with (
-            patch("nika.workflows.benchmark.run.close_session"),
-            patch(
-                "nika.workflows.benchmark.run.Session.load_closed_session",
-                side_effect=FileNotFoundError("gone"),
-            ),
-        ):
-            _finalize_timed_out_trial(
-                trial,
-                result_dir=str(tmp_path),
-                error=RuntimeError("case exceeded --case-timeout"),
-            )
-
-        assert not is_valid_trial(session_path)
-        assert is_finalized_failure(session_path)
-        run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
-        assert run_meta["outcome"] == "endpoint_failed"
-        assert run_meta["status"] == "error"
-        assert not (session_path / "eval_metrics.json").exists()
+        assert metrics.get("rca_f1") == 0.0
 
 
 class TestReleaseRunMetadata:

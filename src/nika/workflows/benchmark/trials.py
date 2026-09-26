@@ -374,8 +374,18 @@ def trial_has_required_artifacts(
     return True
 
 
+def is_infra_error_trial(session_dir: str | Path) -> bool:
+    """True when a finished trial is marked ``score_status=infra_error``."""
+    run_meta = _read_json(Path(session_dir) / "run.json")
+    return bool(run_meta and run_meta.get("score_status") == "infra_error")
+
+
 def is_valid_trial(session_dir: str | Path) -> bool:
-    """Return True when a trial directory is a counted completed trial."""
+    """Return True when a trial directory is a counted completed trial.
+
+    Residual ``infra_error`` trials remain counted (so pack can see them and
+    reject), but ``scan_trials`` / resume treat them as retryable.
+    """
     path = Path(session_dir)
     run_meta = _read_json(path / "run.json")
     if run_meta is None:
@@ -423,7 +433,7 @@ def _restore_success_eval_metrics(path: Path) -> bool:
         trace_metrics = AgentTraceParser(trace_path=str(trajectory_path)).parse_trace()
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         trace_metrics = {}
-    payload = build_eval_metrics_payload(
+    payload, _status = build_eval_metrics_payload(
         gt=gt,
         submission=submission,
         trace_metrics=trace_metrics,
@@ -491,8 +501,17 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
         # The agent never got a turn: retry instead of scoring a zero.
         return False
 
+    from nika.evaluator.score_status import infer_score_status_from_artifacts
+
+    score_status = infer_score_status_from_artifacts(
+        has_submission=submitted,
+        run_meta=run_meta,
+        has_ground_truth=(path / "ground_truth.json").is_file(),
+    )
+
     def _stamp(meta: dict[str, Any]) -> None:
         meta["outcome"] = inferred
+        meta["score_status"] = score_status
         meta["status"] = "finished"
 
     try:
@@ -501,7 +520,10 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
     except OSError:
         return False
 
-    vprint(verbose, f"Healed trial outcome={inferred} under {path}")
+    vprint(
+        verbose,
+        f"Healed trial outcome={inferred} score_status={score_status} under {path}",
+    )
     return is_valid_trial(path)
 
 
@@ -572,12 +594,39 @@ def scan_trials(
         path = trial_dir(results_root, trial.case_key, trial.trial_index)
         label = f"{trial.label} {trial.trial_id}"
 
+        # Auto-retry residual infra_error slots (clear and re-run).
+        if (
+            mutate
+            and path.is_dir()
+            and is_valid_trial(path)
+            and is_infra_error_trial(path)
+        ):
+            run_meta = _read_json(path / "run.json") or {}
+            vprint(verbose, f"{label} retrying infra_error trial")
+            cleanup_benchmark_session(
+                str(run_meta.get("session_id") or path.name),
+                path,
+            )
+            cleaned += 1
+            pending.append(index)
+            continue
+
         if path.is_dir() and is_valid_trial(path):
             completed += 1
             vprint(verbose, f"{label} skip (already complete: {path})")
             continue
 
         if mutate and path.is_dir() and heal_trial_outcome(path, verbose=verbose):
+            if is_infra_error_trial(path):
+                run_meta = _read_json(path / "run.json") or {}
+                vprint(verbose, f"{label} retrying healed infra_error trial")
+                cleanup_benchmark_session(
+                    str(run_meta.get("session_id") or path.name),
+                    path,
+                )
+                cleaned += 1
+                pending.append(index)
+                continue
             completed += 1
             vprint(verbose, f"{label} skip (already complete: {path})")
             continue
@@ -590,7 +639,17 @@ def scan_trials(
             run_meta = _read_json(path / "run.json") or {}
             # Never delete a counted agent_failed / success trial.
             # endpoint_failed / infra_failed are incomplete and cleaned for retry.
+            # infra_error slots are retried above.
             if is_valid_trial(path) or heal_trial_outcome(path, verbose=verbose):
+                if is_infra_error_trial(path):
+                    vprint(verbose, f"{label} retrying infra_error trial")
+                    cleanup_benchmark_session(
+                        str(run_meta.get("session_id") or path.name),
+                        path,
+                    )
+                    cleaned += 1
+                    pending.append(index)
+                    continue
                 completed += 1
                 vprint(verbose, f"{label} skip (already complete: {path})")
                 continue

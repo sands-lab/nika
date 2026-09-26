@@ -131,9 +131,12 @@ Short system description, authors, and links to code / report / site (if any).
 ## What submit validates
 
 - Identity matches the in-tree frozen release
-- Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (failures count as 0 in means)
+- Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
+- No `grading_error` or residual `infra_error` trials (`infra_error` is auto-retried during the run; leftovers reject the pack)
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
+
+See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) for per-trial metrics, `score_status`, and aggregation.
 
 ## Check the pull requests
 

@@ -13,7 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from nika.utils.session_artifacts import RUN_FILENAME
-from nika.workflows.benchmark.outcomes import COUNTED_OUTCOMES
+from nika.evaluator.score_status import (
+    SCORE_STATUSES,
+    ScoreStatus,
+    infer_score_status_from_artifacts,
+)
 from nika.workflows.leaderboard.aggregate import extract_trial_metrics
 from nika.workflows.leaderboard.schema import TrialResult
 
@@ -21,8 +25,7 @@ GROUND_TRUTH_FILENAME = "ground_truth.json"
 SUBMISSION_FILENAME = "submission.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"
 
-# Only counted outcomes are scored; retryable ones never reach a leaderboard.
-VALID_OUTCOMES = COUNTED_OUTCOMES
+VALID_OUTCOMES = frozenset({"success", "agent_failed"})
 
 
 class TrialResultError(ValueError):
@@ -75,6 +78,43 @@ def predicted_fault_types(session_dir: Path) -> list[str] | None:
     return fault_types_from_root_causes(submission.get("root_causes"))
 
 
+def resolve_trial_score_status(
+    session_dir: Path, *, run_meta: dict[str, Any]
+) -> ScoreStatus:
+    """Read persisted ``score_status`` or infer via the submission-first rule."""
+    raw = run_meta.get("score_status")
+    if isinstance(raw, str) and raw in SCORE_STATUSES:
+        return raw  # type: ignore[return-value]
+
+    has_submission = (session_dir / SUBMISSION_FILENAME).is_file()
+    metrics = _read_json_object_or_none(session_dir / EVAL_METRICS_FILENAME) or {}
+    # Legacy -1 sentinels with a submission → grading_error when all scores negative.
+    grading_failed = False
+    if has_submission and metrics:
+        score_vals = [
+            metrics.get(k)
+            for k in (
+                "rca_f1",
+                "detection_score",
+                "localization_f1",
+            )
+            if k in metrics
+        ]
+        if score_vals and all(
+            isinstance(v, (int, float)) and float(v) < 0 for v in score_vals
+        ):
+            grading_failed = True
+        elif score_vals and all(v is None for v in score_vals):
+            grading_failed = True
+
+    return infer_score_status_from_artifacts(
+        has_submission=has_submission,
+        run_meta=run_meta,
+        grading_failed=grading_failed,
+        has_ground_truth=(session_dir / GROUND_TRUTH_FILENAME).is_file(),
+    )
+
+
 def trial_result_from_dir(
     *,
     trial_id: str,
@@ -100,6 +140,7 @@ def trial_result_from_dir(
         if metrics_path.is_file()
         else {}
     )
+    score_status = resolve_trial_score_status(session_dir, run_meta=run_meta)
 
     return TrialResult(
         trial_id=trial_id,
@@ -108,6 +149,7 @@ def trial_result_from_dir(
         scenario=scenario,
         problem=problem,
         outcome=outcome,  # type: ignore[arg-type]
+        score_status=score_status,
         metrics=metrics,
         gt_fault_types=gt_fault_types(session_dir, problem=problem),
         predicted_fault_types=predicted_fault_types(session_dir),
