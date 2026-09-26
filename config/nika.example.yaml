@@ -89,6 +89,9 @@ nika:
     failure_verify_max_attempts: 3
     # Wait this many seconds between fault checks.
     failure_verify_retry_delay_sec: 5
+    # Limit concurrent Containerlab create/wire workers (clab deploy --max-workers).
+    # Lower this (for example to 1) if Containerlab ISP labs OOM during deploy.
+    containerlab_max_workers: 2
   mcp:
     # Stop waiting for an MCP response after this many seconds. Set 0 to disable.
     read_timeout_sec: 120

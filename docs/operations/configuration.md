@@ -124,6 +124,7 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | `nika.lab.ready_retry_delay_sec` | `5` | Default delay between startup-verification attempts. A scenario-level `VERIFY_RETRY_DELAY_SEC` overrides it. Must be non-negative. |
 | `nika.lab.failure_verify_max_attempts` | `3` | Calls to `verify_fault()` before injection fails. Must be at least `1`. |
 | `nika.lab.failure_verify_retry_delay_sec` | `5` | Delay between fault-verification attempts. Must be non-negative. |
+| `nika.lab.containerlab_max_workers` | `2` | Passed to `clab deploy --max-workers`. Limits concurrent node create and virtual-wire workers. Must be at least `1`. Lower this on memory-tight hosts when Containerlab labs OOM during deploy. |
 
 ### MCP settings
 

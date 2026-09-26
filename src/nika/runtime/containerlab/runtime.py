@@ -19,6 +19,7 @@ from nika.runtime.shared.containers import (
     unpause_container,
 )
 from nika.runtime.shared.execution import exec_with_timeout, merge_exec_output
+from nika.runtime.shared.settings import lab_settings as _lab_settings
 
 # Upper bounds for ``clab`` subprocesses. Large SR Linux / XRd labs take
 # minutes to deploy; a hung clab must still fail instead of blocking forever.
@@ -164,12 +165,17 @@ class ContainerlabRuntime(LabRuntime):
             print(f"Lab {self._lab_name} exists")
             return False
         last_error = ""
+        max_workers = str(_lab_settings().containerlab_max_workers)
         for attempt in range(1, 3):
+            # Cap concurrent create/wire workers so many SRL nodes do not
+            # spike host RAM during deploy (steady-state use is usually lower).
             result = self._run_clab(
                 "deploy",
                 "-t",
                 str(self._topology_file),
                 "--reconfigure",
+                "--max-workers",
+                max_workers,
             )
             if result.returncode == 0:
                 self._refresh_node_map()

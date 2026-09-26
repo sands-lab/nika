@@ -74,10 +74,13 @@ class LabSettings(BaseModel):
     ready_retry_delay_sec: float = 5.0
     failure_verify_max_attempts: int = 3
     failure_verify_retry_delay_sec: float = 5.0
+    # Passed to ``clab deploy --max-workers`` to limit concurrent create/wire.
+    containerlab_max_workers: int = 2
 
     @field_validator(
         "deploy_attempts",
         "failure_verify_max_attempts",
+        "containerlab_max_workers",
     )
     @classmethod
     def _positive_int(cls, value: int) -> int:

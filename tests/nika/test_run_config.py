@@ -90,6 +90,18 @@ def test_runtime_validation_defaults_are_light() -> None:
     assert cfg.nika.static_validation.enabled is False
 
 
+def test_lab_containerlab_max_workers_default_and_bounds() -> None:
+    assert RunConfig().nika.lab.containerlab_max_workers == 2
+    cfg = RunConfig.model_validate(
+        {"nika": {"lab": {"containerlab_max_workers": 1}}}
+    )
+    assert cfg.nika.lab.containerlab_max_workers == 1
+    with pytest.raises(ValidationError, match="must be >= 1"):
+        RunConfig.model_validate(
+            {"nika": {"lab": {"containerlab_max_workers": 0}}}
+        )
+
+
 def test_runtime_validation_rejects_invalid_depth() -> None:
     with pytest.raises(ValidationError):
         RunConfig.model_validate(

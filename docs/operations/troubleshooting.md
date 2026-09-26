@@ -101,6 +101,56 @@ Both values should be `64000`. After `nika env run`, lab verification completes:
 - A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full 0.2.0-style matrices) hit the limit sooner.
 - After an OOM or hard reset, run the `sysctl` check again before the next XR or k3s lab.
 
+## Containerlab deploy OOM on memory-tight hosts
+
+Containerlab starts many Nokia SR Linux nodes and PC endpoints in one lab. Parallel create and wiring can push host RAM over the edge even when the running lab would fit. NIKA passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`) to limit that peak.
+
+### Match these symptoms
+
+- The Docker host becomes unresponsive or reboots while `nika env run … --backend containerlab` (or a Containerlab benchmark case) is still deploying.
+- `dmesg` or `journalctl -k` shows an OOM killer entry for `dockerd`, `containerd`, or a `clab-*` container during deploy.
+- Deploy fails or the host recovers after swap thrashing, then a wipe and retry sometimes succeeds on a quieter host.
+
+Typical scenarios: `min3clos`, `isp_*` with `--backend containerlab` (especially topologies near the Containerlab size cap; see [Network scenarios](network-scenarios.md#concurrency-and---batch-size)).
+
+### Cause
+
+`clab deploy` creates nodes and virtual wires concurrently. On hosts around 16 GiB RAM, several SR Linux starts at once can exceed available memory before steady-state RSS settles. Leaving `batch-size` above `1` without `serialize_heavy` for Containerlab cases compounds the problem across labs.
+
+### Fix
+
+1. Wipe leftovers:
+
+```shell
+uv run nika session wipe -y
+```
+
+2. Lower deploy concurrency in `config/nika.yaml` (copy from `config/nika.example.yaml` if needed):
+
+```yaml
+nika:
+  lab:
+    containerlab_max_workers: 1
+```
+
+3. Keep default `serialize_heavy` (or `--batch-size 1`) for runs that include Containerlab scenarios (see [configuration](configuration.md#benchmark-settings)).
+
+4. Retry the same scenario:
+
+```shell
+uv run nika env run isp_dfn-bwin --backend containerlab
+```
+
+### Confirm success
+
+Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a clab` shows `--max-workers 1` (or whatever you set). Host available memory stays above a small cushion instead of collapsing to near zero.
+
+### Notes
+
+- Lower workers slow deploy; they do not reduce steady-state memory once every node is up.
+- If the lab is still too large after `containerlab_max_workers: 1`, use a smaller topology or a host with more RAM. Catalog Containerlab ISP cases already prefer topologies with at most 11 routers.
+- Setting details: [`nika.lab.containerlab_max_workers`](configuration.md#lab-lifecycle-settings).
+
 ## Containerlab link faults fail with a sudo password prompt
 
 Failure injection on a Containerlab lab stops with an error like this:
