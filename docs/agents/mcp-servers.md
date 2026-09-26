@@ -1,107 +1,66 @@
 # MCP servers
 
-Agent implementers use this reference to see which MCP servers a diagnosis session mounts, which tools each server exposes, and how to capture packets or submit a root cause.
+Use this reference to find the tools available during an agent diagnosis session. The MCP gateway exposes session-scoped HTTP endpoints. Load their URLs with `agent.utils.mcp_client.load_session_mcp_config`; see [Custom agent integration](custom-agents.md) for a client example.
 
-You reach tools through the session MCP gateway over HTTP. Load server URLs with `agent.utils.mcp_client.load_session_mcp_config`. Wire the client in [Custom agent integration](custom-agents.md). Set gateway host, port, and timeouts in [Run configuration](../operations/configuration.md).
+The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers from the scenario name, tags, and backend. Every diagnosis session receives `kathara_base_mcp_server`, `pingmesh_mcp_server`, and `packet_capture_mcp_server`. The base server works with Kathara and Containerlab despite its name. The gateway exposes `task_mcp_server` only after the agent advances to submission.
 
-Source of truth: [`registry.py`](../../src/nika/mcp/registry.py). Server modules live under [`mcp/servers/`](../../src/nika/mcp/servers/) and [`mcp/k8s/`](../../src/nika/mcp/k8s/). The HTTP gateway lives under [`mcp/gateway/`](../../src/nika/mcp/gateway/).
+## Run commands on lab nodes
 
-## Which servers a session mounts
+Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Kathara limits each command result to 4,000 characters, so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named lab node and remain subject to the session's node access policy.
 
-`select_diagnosis_servers(scenario_name, backend=...)` returns these three on every diagnosis session:
-
-- `kathara_base_mcp_server`
-- `pingmesh_mcp_server`
-- `packet_capture_mcp_server`
-
-The same function appends optional servers from scenario name and net-env `TAGS` tokens, then keeps only servers that match the lab backend (`kathara` or `containerlab`). Session client config also includes `task_mcp_server`. During diagnosis the gateway phase gate opens the diagnosis servers. After `begin_submission_mcp_phase`, it opens only `task_mcp_server`.
-
-| Token set (name + TAGS) | Keywords | Server |
+| Task | Node | Command |
 | --- | --- | --- |
-| Routing | `bgp`, `ebgp`, `ospf`, `rip`, `frr`, `routing`, `rpki` | `kathara_frr_mcp_server` (Kathara) or `containerlab_srl_mcp_server` (Containerlab) |
-| IOS-XR routing | `iosxr`, `xrd` | `kathara_iosxr_mcp_server` (Kathara; selected before FRR when both keyword sets match) |
-| Switch / P4 | `p4`, `bmv2`, `bloom`, `mpls`, `int`, `counter` | `kathara_bmv2_mcp_server` |
-| SDN | `sdn` | `kathara_sdn_mcp_server` |
-| Telemetry | `telemetry` | `kathara_telemetry_mcp_server` |
-| Kubernetes | `kubernetes`, `k3s`, `k8s` | `k8s_mcp_server` when `nika.k8s.access` is `auto`, `mcp`, or empty |
+| Check a route | `router1` | `ip route` or `vtysh -c 'show ip route'` |
+| Probe a destination | `pc1` | `ping -c 2 195.11.14.1` |
+| Inspect interfaces | `router1` | `ip -s addr` |
+| Read a file | `router1` | `cat /etc/frr/frr.conf` |
+| Inspect Kubernetes nodes | `controller` | `kubectl get nodes --no-headers` |
+| Inspect Kubernetes Pods | `controller` | `kubectl get pods -A --no-headers` |
 
-Lab topology and deploy steps live in [Network scenarios](../operations/network-scenarios.md).
+`exec_shell` is the main tool for targeted checks. The base server also exposes `curl_web_test` for repeated HTTP timing measurements, `iperf_test` for a two-node throughput test, and `active_tcp_probe` for deterministic TCP traffic over a selected five-tuple.
 
-## Always-on diagnosis servers
+## Use dedicated diagnosis tools
 
-| Name | What it does | Tools |
+| Server | When selected | Tools and purpose |
 | --- | --- | --- |
-| `kathara_base_mcp_server` | Probes hosts, reads network state, and runs commands on lab nodes. Available on both backends despite its name. | `ping_pair`, `traceroute`, `systemctl_ops`, `get_host_net_config`, `get_tc_statistics`, `netstat`, `ip_addr_statistics`, `ethtool`, `curl_web_test`, `iperf_test`, `active_tcp_probe`, `cat_file`, `exec_shell`, `exec_shell_dual` |
-| `pingmesh_mcp_server` | Runs an on-demand endpoint reachability, loss, and RTT snapshot. | `run_pingmesh_snapshot` |
-| `packet_capture_mcp_server` | Captures packets on a lab node and inspects the resulting capture. | `packet_capture_start`, `packet_capture_stop`, `packet_capture_inspect` |
-
-Install `tshark` on lab nodes used for capture (included in `nika/base` and `nika/frr` images). Nodes prefer `dumpcap`, then fall back to `tcpdump`. Capture, metadata, and inspect all stay inside the target node container; nothing is written under the session or result directory.
-
-Use `ping_pair` or `traceroute` to check a specific path. `run_pingmesh_snapshot` probes endpoint pairs on demand and returns reachability, packet loss, RTT, and flagged pairs. By default it discovers endpoint hosts, excludes routers and switches, and limits the snapshot to 64 pairs. The tool does not run a continuous collector.
-
-## Kathara optional servers
-
-| Name | When mounted | What it does | Tools |
-| --- | --- | --- | --- |
-| `kathara_frr_mcp_server` | Kathara + routing tokens | Reads FRR routes and configuration, checks BGP/OSPF and RPKI state, and runs FRR commands. | `frr_get_bgp_conf`, `frr_show_running_config`, `frr_show_ip_route`, `frr_get_ospf_conf`, `frr_exec`, `frr_get_rpki_status` |
-| `kathara_iosxr_mcp_server` | Kathara + IOS-XR tokens | Reads IOS-XR BGP configuration and routes, and runs XR CLI commands. | `iosxr_get_bgp_conf`, `iosxr_show_running_config`, `iosxr_show_route`, `iosxr_exec` |
-| `kathara_bmv2_mcp_server` | Switch / P4 tokens | Runs P4Runtime manager commands against BMv2 switches. | `p4rt_exec` |
-| `kathara_sdn_mcp_server` | SDN token | Queries ONOS, runs OVS commands, and reads controller logs. | `sdn_onos_rest`, `sdn_ovs_exec`, `sdn_controller_logs` |
-| `kathara_telemetry_mcp_server` | Telemetry token | Queries observed INT-MX packet traces and hop data. | `int_query_telemetry` |
-| `k8s_mcp_server` | Kubernetes tokens and `nika.k8s.access` ≠ `kubectl_only` | Reads Kubernetes objects and logs, and probes cluster DNS and connectivity. | `k8s_list_nodes`, `k8s_get_node`, `k8s_list_pods`, `k8s_get_pod`, `k8s_get_logs`, `k8s_list_events`, `k8s_list_services`, `k8s_get_endpoints`, `k8s_get_network_policies`, `k8s_dns_query`, `k8s_check_connectivity` |
+| `pingmesh_mcp_server` | Every diagnosis | `run_pingmesh_snapshot` probes endpoint pairs and reports reachability, loss, and RTT. |
+| `packet_capture_mcp_server` | Every diagnosis | `packet_capture_start`, `packet_capture_stop`, and `packet_capture_inspect` collect bounded packet evidence on a node. |
+| `kathara_frr_mcp_server` | Kathara scenarios tagged `rpki` | `frr_get_rpki_status` gathers RTR cache state and optional prefix validation evidence. |
+| `kathara_iosxr_mcp_server` | Kathara IOS-XR scenarios | `iosxr_exec` runs commands through the XR CLI path. |
+| `kathara_routeros_mcp_server` | Kathara RouterOS scenarios | `routeros_exec` reaches RouterOS through its internal management hop. |
+| `containerlab_srl_mcp_server` | Containerlab routing scenarios | `srl_exec_cli` runs commands through SR Linux CLI. |
+| `kathara_bmv2_mcp_server` | Kathara P4 scenarios | `p4rt_exec` queries P4Runtime through `fabric_mgr` and removes private fault fields from JSON output. |
+| `kathara_sdn_mcp_server` | Kathara SDN scenarios | `sdn_onos_rest` queries ONOS REST through `fabric_mgr`. |
+| `kathara_telemetry_mcp_server` | Kathara telemetry scenarios | `int_query_telemetry` filters observed INT-MX packet and hop records. |
+| `k8s_mcp_server` | Kubernetes scenarios when `nika.k8s.access` permits MCP | `k8s_list_events` queries session-scoped Kubernetes events. |
 
 ### SDN (`kathara_sdn_mcp_server`)
 
-On `sdn` scenarios such as `sdn_l3_clos`, the session includes this server. Call `sdn_onos_rest` with paths such as `/onos/v1/devices`, `/onos/v1/flows`, or `/onos/v1/applications`. Call `sdn_ovs_exec` with `ovs-ofctl` / `ovs-vsctl` commands on a leaf or spine. Use `sdn_controller_logs` for a karaf log tail. Use host `ping_pair` for endpoint probes.
+Call `sdn_onos_rest` with paths such as `/onos/v1/devices` or `/onos/v1/flows`. Use `exec_shell` on a switch for `ovs-ofctl` or `ovs-vsctl`, and on `onos` to inspect controller logs.
 
 ### P4 / BMv2 (`kathara_bmv2_mcp_server`)
 
-On Switch / P4 scenarios such as `p4_dc_fabric` and `p4_dc_gateway`, the session includes this server. Call `p4rt_exec` with `p4rt_manager.py` arguments (for example `read` or `read --switch leaf_1`). Private post-counter failure tables and registers stay out of agent JSON responses.
+Call `p4rt_exec` with `read` or `read --switch leaf_1`. Its response removes private post-counter fault fields. Use `exec_shell` for ordinary switch commands.
 
 ### Telemetry (`kathara_telemetry_mcp_server`)
 
-On `p4_dc_gateway`, the session includes this server because the scenario has the `telemetry` tag. Call `int_query_telemetry` with a start time and optional flow or packet filters to inspect observed INT-MX hop traces. This tool is specific to the Kathará telemetry scenario; Pingmesh remains available on both backends.
+Call `int_query_telemetry` with a start time and optional flow or packet filters. It reads observed INT-MX traces from the collector. The `p4_dc_gateway` scenario selects this server.
 
 ### Kubernetes (`k8s_mcp_server`)
 
-On Kubernetes-token scenarios, the session includes this server when `nika.k8s.access` is `auto`, `mcp`, or empty. After verification you receive a session kubeconfig and call the listed `k8s_*` tools against that API. Typical labs: `k8s_lab`, `llmd_lab`.
+Call `k8s_list_events(namespace=..., limit=...)` for event evidence. Use `exec_shell` on `controller` for other Kubernetes operations, such as `kubectl get nodes --no-headers`, `kubectl describe pod ...`, or `kubectl logs ... --tail=20`. Keep output below the command result limit and set a longer timeout for slow API calls. The server is selected when `nika.k8s.access` is `auto` or `mcp`; `kubectl_only` omits it.
 
-## Containerlab optional servers
+## Capture packets
 
-| Name | When mounted | What it does | Tools |
-| --- | --- | --- | --- |
-| `containerlab_srl_mcp_server` | Containerlab + routing tokens | Reads SR Linux routes, BGP state, and configuration, and runs SR Linux CLI commands. | `srl_exec_cli`, `srl_get_bgp_as`, `srl_show_running_config`, `srl_show_bgp_summary`, `srl_show_ip_route` |
+The lab node needs `tshark` for inspection. NIKA images include it. Capture, metadata, and inspection stay inside the target container.
 
-## Submission server
+1. Call `packet_capture_start(device, interface, capture_filter=..., max_duration_sec=..., max_packets=...)`. It returns a `capture_id`.
+2. Run traffic with `exec_shell`, `active_tcp_probe`, or the scenario's traffic workflow.
+3. Call `packet_capture_stop(capture_id)`.
+4. Call `packet_capture_inspect(capture_id, view="summary", limit=...)` or use the `packets`, `protocol`, or `expert` view. Pass a Wireshark display filter when needed.
 
-| Name | When available | What it does | Tools |
-| --- | --- | --- | --- |
-| `task_mcp_server` | Every session; usable after phase advance | Accepts the agent's anomaly decision and root-cause submission. | `submit` |
+Set bounded duration and packet limits. The capture and metadata remain on the node; the stop result includes the container path.
 
-1. Call `begin_submission_mcp_phase(session_id, diagnosis_report)`.
-2. Read `resource_id` and `fault_type` values from the frozen submission context in the prompt (or `load_submission_context`).
-3. Call `submit` once with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
+## Submit a diagnosis
 
-`submit` accepts only IDs present in those catalogs. Scoring details: [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
-
-## Packet capture workflow
-
-Every diagnosis session includes `packet_capture_mcp_server`. Use it when you need bounded packet evidence:
-
-1. `packet_capture_start(device, interface, capture_filter=..., max_duration_sec=..., max_packets=...)`: start async capture. Pass a BPF (libpcap) filter plus duration or packet caps.
-2. Run probes (`ping_pair`, `active_tcp_probe`, or scenario traffic) while capture runs.
-3. `packet_capture_stop(capture_id)`: stop capture. The pcap and metadata stay on the lab node; the stop payload returns the container path.
-4. `packet_capture_inspect(capture_id, view=..., display_filter=..., limit=..., offset=...)`: page through `summary`, `packets`, `protocol`, or `expert` with a Wireshark display filter. Inspection runs `tshark` inside the capture node.
-
-Set capture limits on each call; values above the hard ceilings fail. Use BPF at start and Wireshark display filters at inspect. Default inspect pages return protocol fields without application payload.
-
-## Related docs
-
-| Topic | Doc |
-| --- | --- |
-| Agent helpers and registration | [Custom agent integration](custom-agents.md) |
-| `nika.mcp.*`, `nika.k8s.access` | [Run configuration](../operations/configuration.md) |
-| Sandbox MCP endpoints | [Docker Sandbox execution](../operations/agent-sandbox.md) |
-| Remote lab MCP gateway | [Remote lab execution](../operations/remote.md) |
-| Scenario topology and deploy | [Network scenarios](../operations/network-scenarios.md) |
-| Submit schema and scoring | [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md) |
+`task_mcp_server` exposes `submit` after `begin_submission_mcp_phase(session_id, diagnosis_report)`. Read `resource_id` and `fault_type` values from the frozen submission context, then call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`. The server accepts only catalog IDs. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).

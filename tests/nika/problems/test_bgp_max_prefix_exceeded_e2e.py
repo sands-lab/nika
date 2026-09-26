@@ -35,12 +35,7 @@ PROBLEM = "bgp_max_prefix_exceeded"
 ENV_ARGS = ["--igp", "ospf", "--bgp-mode", "ebgp"]
 AGENT_MAX_STEPS = 40
 _BGP_TOOLS = (
-    "frr_exec",
-    "frr_get_bgp_conf",
-    "frr_show_ip_route",
-    "frr_get_rpki_status",
-    "traceroute",
-    "ping_pair",
+    "exec_shell",
     "run_pingmesh_snapshot",
 )
 
@@ -80,8 +75,11 @@ def _assert_bgp_tool_use(messages: list[dict]) -> None:
         f"saw {sorted(set(diag_tools))}"
     )
     assert any(
-        "frr_exec" in n or "frr_get_bgp" in n or "frr_show" in n for n in diag_tools
-    ), f"diagnosis must call FRR CLI/show tools; saw {sorted(set(diag_tools))}"
+        e.get("phase") == "diagnosis"
+        and "exec_shell" in json.dumps(e)
+        and "vtysh" in json.dumps(e)
+        for e in messages
+    ), f"diagnosis must inspect FRR through exec_shell; saw {sorted(set(diag_tools))}"
 
 
 def _assert_fault_type_submitted(session_dir: Path, params: dict[str, str]) -> None:
@@ -265,16 +263,15 @@ class KatharaBGPMaxPrefixPipelineIntegrationTest(pipeline_case.PipelineCaseBase)
     IMAGE_SUBSTRING = None
     DIAGNOSIS_MCP_SERVERS = [
         "kathara_base_mcp_server",
-        "kathara_frr_mcp_server",
         "pingmesh_mcp_server",
     ]
 
     async def _extra_diagnosis_mcp_checks(self, tools: dict) -> dict[str, str]:
-        assert "frr_exec" in tools
-        out = await tools["frr_exec"].ainvoke(
+        assert "exec_shell" in tools
+        out = await tools["exec_shell"].ainvoke(
             {
-                "router_name": self.INJECT_PARAMS["receiver_name"],
-                "command": f"show bgp neighbors {self.INJECT_PARAMS['neighbor_ip']}",
+                "host_name": self.INJECT_PARAMS["receiver_name"],
+                "command": f"vtysh -c 'show bgp neighbors {self.INJECT_PARAMS['neighbor_ip']}'",
             }
         )
-        return {"frr_exec": str(out)}
+        return {"exec_shell": str(out)}

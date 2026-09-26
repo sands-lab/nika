@@ -34,11 +34,7 @@ ENV_ARGS: list[str] = []
 AGENT_MAX_STEPS = 40
 _BGP_RPKI_TOOLS = (
     "frr_get_rpki_status",
-    "frr_exec",
-    "frr_get_bgp_conf",
-    "frr_show_ip_route",
-    "traceroute",
-    "ping_pair",
+    "exec_shell",
 )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -27,16 +28,15 @@ def _assert_ok(name: str, text: str) -> None:
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
-class TestHostFrrPingmeshCaptureMcpLive(IntegrationTestCase):
-    """simple_bgp: host + FRR + pingmesh + packet_capture via MCP gateway."""
+class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
+    """simple_bgp: generic execution, pingmesh, and capture via MCP gateway."""
 
-    def test_core_diagnosis_tools_return_usable_output(self) -> None:
+    def test_core_diagnosis_tools_return_live_evidence(self) -> None:
         session_id = self._start_env("simple_bgp")
         try:
             self._assert_session_ready(session_id, "simple_bgp")
             servers = [
                 "kathara_base_mcp_server",
-                "kathara_frr_mcp_server",
                 "pingmesh_mcp_server",
                 "packet_capture_mcp_server",
             ]
@@ -48,118 +48,147 @@ class TestHostFrrPingmeshCaptureMcpLive(IntegrationTestCase):
                 async def _run() -> dict[str, str]:
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
-                    required = {
-                        "ping_pair",
-                        "traceroute",
-                        "get_host_net_config",
+                    assert set(tools) == {
                         "exec_shell",
-                        "netstat",
-                        "frr_exec",
-                        "frr_show_ip_route",
-                        "frr_show_running_config",
-                        "frr_get_bgp_conf",
+                        "curl_web_test",
+                        "iperf_test",
+                        "active_tcp_probe",
                         "run_pingmesh_snapshot",
                         "packet_capture_start",
                         "packet_capture_stop",
                         "packet_capture_inspect",
                     }
-                    missing = required - set(tools)
-                    assert not missing, sorted(missing)
-                    assert "get_reachability" not in tools
-                    assert "frr_get_routing_state" not in tools
 
                     out: dict[str, str] = {}
-                    out["ping_pair"] = _text(
-                        await tools["ping_pair"].ainvoke(
-                            {"host_a": "pc1", "host_b": "pc2", "count": 2}
-                        )
-                    )
-                    out["traceroute"] = _text(
-                        await tools["traceroute"].ainvoke(
-                            {"host_name": "pc1", "dst_ip": "195.11.14.1"}
-                        )
-                    )
-                    out["get_host_net_config"] = _text(
-                        await tools["get_host_net_config"].ainvoke(
-                            {"host_name": "router1"}
-                        )
-                    )
-                    out["exec_shell"] = _text(
+                    out["hostname"] = _text(
                         await tools["exec_shell"].ainvoke(
                             {"host_name": "router1", "command": "hostname"}
                         )
                     )
-                    out["netstat"] = _text(
-                        await tools["netstat"].ainvoke({"host_name": "router1"})
-                    )
-                    out["frr_exec"] = _text(
-                        await tools["frr_exec"].ainvoke(
+                    out["route"] = _text(
+                        await tools["exec_shell"].ainvoke(
                             {
-                                "router_name": "router1",
-                                "command": "show ip bgp summary",
+                                "host_name": "router1",
+                                "command": "vtysh -c 'show ip route'",
                             }
                         )
                     )
-                    out["frr_show_ip_route"] = _text(
-                        await tools["frr_show_ip_route"].ainvoke(
-                            {"router_name": "router1"}
+                    out["config"] = _text(
+                        await tools["exec_shell"].ainvoke(
+                            {
+                                "host_name": "router1",
+                                "command": "vtysh -c 'show running-config'",
+                            }
                         )
                     )
-                    out["frr_show_running_config"] = _text(
-                        await tools["frr_show_running_config"].ainvoke(
-                            {"router_name": "router1"}
-                        )
-                    )
-                    out["frr_get_bgp_conf"] = _text(
-                        await tools["frr_get_bgp_conf"].ainvoke(
-                            {"router_name": "router1"}
-                        )
-                    )
-                    out["run_pingmesh_snapshot"] = _text(
+                    out["mesh"] = _text(
                         await tools["run_pingmesh_snapshot"].ainvoke({})
                     )
-
                     start = _text(
                         await tools["packet_capture_start"].ainvoke(
                             {
                                 "device": "pc1",
                                 "interface": "eth0",
                                 "capture_filter": "icmp",
-                                "max_duration_sec": 5,
+                                "max_duration_sec": 10,
                                 "max_packets": 20,
                             }
                         )
                     )
-                    start_payload = json.loads(start)
-                    capture_id = start_payload.get("capture_id")
-                    assert capture_id, start
-                    await tools["ping_pair"].ainvoke(
-                        {"host_a": "pc1", "host_b": "pc2", "count": 2}
-                    )
-                    out["packet_capture_stop"] = _text(
-                        await tools["packet_capture_stop"].ainvoke(
-                            {"capture_id": capture_id}
+                    capture_id = json.loads(start)["capture_id"]
+                    try:
+                        await asyncio.sleep(0.3)
+                        out["ping"] = _text(
+                            await tools["exec_shell"].ainvoke(
+                                {"host_name": "pc1", "command": "ping -c 2 195.11.14.1"}
+                            )
+                        )
+                    finally:
+                        out["capture_stop"] = _text(
+                            await tools["packet_capture_stop"].ainvoke(
+                                {"capture_id": capture_id}
+                            )
+                        )
+                    out["capture_inspect"] = _text(
+                        await tools["packet_capture_inspect"].ainvoke(
+                            {"capture_id": capture_id, "view": "summary", "limit": 5}
                         )
                     )
-                    out["packet_capture_inspect"] = _text(
-                        await tools["packet_capture_inspect"].ainvoke(
+                    server_pid = _text(
+                        await tools["exec_shell"].ainvoke(
                             {
-                                "capture_id": capture_id,
-                                "view": "summary",
-                                "limit": 5,
+                                "host_name": "pc1",
+                                "command": "python3 -m http.server 18080 --bind 127.0.0.1 >/tmp/nika-mcp-http.log 2>&1 </dev/null & echo $!",
+                            }
+                        )
+                    ).strip()
+                    assert server_pid.isdigit(), server_pid
+                    try:
+                        await asyncio.sleep(0.2)
+                        out["curl"] = _text(
+                            await tools["curl_web_test"].ainvoke(
+                                {
+                                    "host_name": "pc1",
+                                    "url": "http://127.0.0.1:18080/",
+                                    "times": 2,
+                                }
+                            )
+                        )
+                        out["http_status"] = _text(
+                            await tools["exec_shell"].ainvoke(
+                                {
+                                    "host_name": "pc1",
+                                    "command": "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/",
+                                }
+                            )
+                        )
+                    finally:
+                        await tools["exec_shell"].ainvoke(
+                            {
+                                "host_name": "pc1",
+                                "command": f"kill {server_pid} 2>/dev/null || true",
+                            }
+                        )
+                    out["iperf"] = _text(
+                        await tools["iperf_test"].ainvoke(
+                            {
+                                "client_host_name": "pc1",
+                                "server_host_name": "pc2",
+                                "duration": 1,
                             }
                         )
                     )
-                    out["packet_capture_start"] = start
+                    out["active_probe"] = _text(
+                        await tools["active_tcp_probe"].ainvoke(
+                            {
+                                "source": "pc1",
+                                "destination": "pc2",
+                                "source_port": 42600,
+                                "destination_port": 42601,
+                                "payload_seed": 1,
+                                "payload_size": 64,
+                                "packets": 2,
+                            }
+                        )
+                    )
                     return out
 
                 results = asyncio.run(_run())
 
-            for name, text in results.items():
-                _assert_ok(name, text)
-            assert "router1" in results["exec_shell"]
-            mesh = json.loads(results["run_pingmesh_snapshot"])
+            for name, output in results.items():
+                _assert_ok(name, output)
+            assert "router1" in results["hostname"]
+            assert "0% packet loss" in results["ping"]
+            assert "Routing entry" in results["route"] or "Codes:" in results["route"]
+            assert "router bgp" in results["config"]
+            mesh = json.loads(results["mesh"])
             assert "results" in mesh or "endpoints" in mesh
+            assert json.loads(results["capture_stop"])["capture_id"]
+            assert json.loads(results["capture_inspect"])["total_available"] >= 1
+            assert results["curl"].count("namelookup:") == 2
+            assert results["http_status"] == "200"
+            assert "receiver" in results["iperf"].lower()
+            assert re.search(r"acked['\"]?\s*:\s*2", results["active_probe"])
         finally:
             self._close_session(session_id)
 
@@ -197,5 +226,69 @@ class TestP4McpLive(IntegrationTestCase):
             payload = json.loads(raw)
             assert "internal_fault" not in raw
             assert "switches" in payload or payload.get("ok") is True
+        finally:
+            self._close_session(session_id)
+
+
+@pytest.mark.skipif(not docker_available(), reason="Docker not available")
+@pytest.mark.skipif(
+    not docker_image_available("kathara/p4"),
+    reason="kathara/p4 image not available",
+)
+class TestTelemetryMcpLive(IntegrationTestCase):
+    """p4_dc_gateway: query packet traces produced by live fabric traffic."""
+
+    def test_int_query_telemetry_returns_observed_hops(self) -> None:
+        from nika.net_env.p4_dc_gateway.topology_model import build_gateway_fabric_model
+
+        model = build_gateway_fabric_model("s")
+        session_id = self._start_env("p4_dc_gateway", ["-s", "s"])
+        try:
+            self._assert_session_ready(session_id, "p4_dc_gateway")
+            with mcp_gateway_for_session(session_id, scenario_name="p4_dc_gateway"):
+                config = MCPServerConfig(session_id=session_id).load_http_config(
+                    ["kathara_telemetry_mcp_server", "kathara_base_mcp_server"]
+                )
+
+                async def _run() -> list[dict]:
+                    client = MultiServerMCPClient(connections=config)
+                    tools = {t.name: t for t in await client.get_tools()}
+                    assert "int_query_telemetry" in tools and "exec_shell" in tools
+                    probe = await tools["exec_shell"].ainvoke(
+                        {
+                            "host_name": model.clients[0].name,
+                            "command": f"nc -z -w 1 {model.services[0].ip} 80 || true",
+                        }
+                    )
+                    assert "tool_execution_error" not in _text(probe).lower()
+                    for _ in range(5):
+                        result = await tools["int_query_telemetry"].ainvoke(
+                            {"start_time": "0", "limit": 100}
+                        )
+                        if isinstance(result, str):
+                            rows = json.loads(result)
+                            if rows:
+                                return rows
+                        if (
+                            isinstance(result, list)
+                            and result
+                            and isinstance(result[0], dict)
+                            and "packet_timestamp" in result[0]
+                        ):
+                            return result
+                        rows = [
+                            json.loads(text) for text in tool_text_list(result) if text
+                        ]
+                        if rows:
+                            return rows
+                        await asyncio.sleep(1)
+                    return []
+
+                traces = asyncio.run(_run())
+
+            assert traces
+            assert any(
+                row.get("trace_complete") and row.get("hop_sequence") for row in traces
+            )
         finally:
             self._close_session(session_id)
