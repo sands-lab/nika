@@ -57,6 +57,10 @@ def resolve_max_steps(
     return _cfg(config).agent.max_steps
 
 
+def resolve_agent_timeout(*, config: RunConfig | None = None) -> int:
+    return _cfg(config).agent.timeout_sec
+
+
 def resolve_reasoning_effort(
     value: str | None = None, *, config: RunConfig | None = None
 ) -> str | None:

@@ -213,7 +213,7 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
     if v := g("NIKA_RESULT_DIR"):
         nika["result_dir"] = v
     if (b := g_bool("NIKA_ENABLE_SKILLS")) is not None:
-        nika["enable_skills"] = b
+        agent["enable_skills"] = b
 
     if v := g("NIKA_JUDGE_PROVIDER"):
         judge["provider"] = v

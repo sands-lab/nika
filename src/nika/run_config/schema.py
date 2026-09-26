@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from agent.utils.provider_env import AGENT_PROVIDERS, validate_provider_for_agent
+from agent.utils.provider_env import validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):
@@ -23,7 +23,7 @@ class SandboxSettings(BaseModel):
     keep: bool = False
     cpus: str | None = None
     memory: str | None = None
-    offline_sdk_wheels: bool = False
+    offline_sdk_wheels: bool = True
     upstream_proxy: str | None = None
 
 
@@ -108,12 +108,23 @@ class McpSettings(BaseModel):
     read_timeout_sec: float = 120.0
     gateway_host: str = "127.0.0.1"
     gateway_port: int = 0
+    # Default observation budget for MCP tool text returned to the agent.
+    tool_output_max_chars: int = 16384
+    # Hard cap when the agent passes full=true (0 = no second cap).
+    tool_output_full_max_chars: int = 100000
 
     @field_validator("gateway_port")
     @classmethod
     def _gateway_port_non_negative(cls, value: int) -> int:
         if value < 0:
             raise ValueError("nika.mcp.gateway_port must be >= 0")
+        return value
+
+    @field_validator("tool_output_max_chars", "tool_output_full_max_chars")
+    @classmethod
+    def _tool_output_chars_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("nika.mcp tool output char limits must be >= 0")
         return value
 
 
@@ -138,7 +149,6 @@ class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     result_dir: str = "results"
-    enable_skills: bool = True
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
@@ -181,7 +191,7 @@ class AgentLlmSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    timeout_sec: float = 300.0
+    timeout_sec: float = 480.0
     max_retries: int = 2
 
     @field_validator("timeout_sec")
@@ -234,6 +244,14 @@ class AgentSettings(BaseModel):
     # Canonical model id for the active agent type (see agent.models.* for legacy YAML).
     model: str | None = None
     max_steps: int = 20
+    # Wall-clock budget for one agent run (diagnosis + submission), all agent types.
+    # 0 disables it. Keep it below benchmark.case_timeout_sec so the agent stops
+    # and cleans up before the case worker is killed.
+    timeout_sec: int = 1800
+    # Load shared troubleshooting skills for Claude and Codex agents.
+    enable_skills: bool = True
+    # Consecutive submit() validation failures before a final rejection (0 = unlimited).
+    submit_reject_limit: int = 5
     reasoning_effort: str | None = None
     models: AgentModels = Field(default_factory=AgentModels)
     custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
@@ -247,6 +265,20 @@ class AgentSettings(BaseModel):
             raise ValueError("agent.max_steps must be >= 1")
         return value
 
+    @field_validator("timeout_sec")
+    @classmethod
+    def _timeout_sec_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("agent.timeout_sec must be >= 0")
+        return value
+
+    @field_validator("submit_reject_limit")
+    @classmethod
+    def _submit_reject_limit_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("agent.submit_reject_limit must be >= 0")
+        return value
+
 
 class BenchmarkSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -254,6 +286,7 @@ class BenchmarkSettings(BaseModel):
     release: str | None = None
     split: str | None = None
     batch_size: int = 1
+    serialize_heavy: bool = True
     case_timeout_sec: int = 2400
     continue_on_error: bool = False
     retry_passes: int = 0
@@ -281,9 +314,27 @@ class RunConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: int = 1
-    nika: NikaSettings = Field(default_factory=NikaSettings)
+    # agent first: most user-edited knobs; dump order follows field order.
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    nika: NikaSettings = Field(default_factory=NikaSettings)
     benchmark: BenchmarkSettings = Field(default_factory=BenchmarkSettings)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_nika_enable_skills(cls, data: Any) -> Any:
+        """Accept legacy ``nika.enable_skills`` as ``agent.enable_skills``."""
+        if not isinstance(data, dict):
+            return data
+        nika = data.get("nika")
+        if not isinstance(nika, dict) or "enable_skills" not in nika:
+            return data
+        skills = nika.pop("enable_skills")
+        agent = data.get("agent")
+        if not isinstance(agent, dict):
+            agent = {}
+            data["agent"] = agent
+        agent.setdefault("enable_skills", skills)
+        return data
 
     @model_validator(mode="after")
     def _validate_agent_provider(self) -> RunConfig:
@@ -345,10 +396,3 @@ class RunConfig(BaseModel):
 
 def default_run_config() -> RunConfig:
     return RunConfig()
-
-
-def allowed_providers_hint(agent_type: str) -> str:
-    allowed = AGENT_PROVIDERS.get(agent_type.lower())
-    if not allowed:
-        return "openai, anthropic, deepseek, custom"
-    return ", ".join(sorted(allowed))

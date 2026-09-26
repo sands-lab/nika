@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import atexit
 import copy
 import logging
 import os
+import shutil
 import tempfile
 from contextvars import ContextVar
 from pathlib import Path
@@ -123,6 +125,7 @@ def merge_cli(
     sandbox_offline_sdk_wheels: bool | None = None,
     sandbox_upstream_proxy: str | None = None,
     batch_size: int | None = None,
+    serialize_heavy: bool | None = None,
     case_timeout_sec: int | None = None,
     continue_on_error: bool | None = None,
     retry_passes: int | None = None,
@@ -151,14 +154,14 @@ def merge_cli(
         agent_overlay["access"] = {"role": access_role}
     if base_url is not None:
         agent_overlay["custom"] = {"base_url": base_url}
+    if enable_skills is not None:
+        agent_overlay["enable_skills"] = enable_skills
     if agent_overlay:
         overlay["agent"] = agent_overlay
 
     nika_overlay: dict[str, Any] = {}
     if result_dir is not None:
         nika_overlay["result_dir"] = result_dir
-    if enable_skills is not None:
-        nika_overlay["enable_skills"] = enable_skills
     judge_overlay: dict[str, Any] = {}
     if judge_provider is not None:
         judge_overlay["provider"] = judge_provider
@@ -185,6 +188,8 @@ def merge_cli(
     bench_overlay: dict[str, Any] = {}
     if batch_size is not None:
         bench_overlay["batch_size"] = batch_size
+    if serialize_heavy is not None:
+        bench_overlay["serialize_heavy"] = serialize_heavy
     if case_timeout_sec is not None:
         bench_overlay["case_timeout_sec"] = case_timeout_sec
     if continue_on_error is not None:
@@ -235,6 +240,9 @@ def dump_run_config(config: RunConfig, path: Path) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+_effective_config_dir: Path | None = None
+
+
 def persist_effective_run_config(config: RunConfig) -> Path:
     """Write the effective run config and export ``NIKA_RUN_CONFIG``.
 
@@ -242,7 +250,11 @@ def persist_effective_run_config(config: RunConfig) -> Path:
     ``NIKA_RUN_CONFIG`` (they do not inherit the parent ContextVar). Persist the
     post-``merge_cli`` config so CLI overlays such as ``--base-url`` survive.
     """
-    directory = Path(tempfile.mkdtemp(prefix="nika-run-config-"))
-    path = directory / "nika.yaml"
+    global _effective_config_dir
+    if _effective_config_dir is None or not _effective_config_dir.is_dir():
+        # One directory per process, removed at exit (after spawn workers end).
+        _effective_config_dir = Path(tempfile.mkdtemp(prefix="nika-run-config-"))
+        atexit.register(shutil.rmtree, _effective_config_dir, True)
+    path = _effective_config_dir / "nika.yaml"
     dump_run_config(config, path)
     return export_run_config_env(path)
