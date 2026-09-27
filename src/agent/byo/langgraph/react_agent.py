@@ -65,6 +65,7 @@ class BasicReActAgent(TwoPhaseAgent):
         model: str = "gpt-5-mini",
         max_steps: int = 20,
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
         stream_output: bool = False,
     ):
         self.session_id = session_id
@@ -72,6 +73,7 @@ class BasicReActAgent(TwoPhaseAgent):
         self.llm_provider = llm_provider
         self.model = model
         self.reasoning_effort = reasoning_effort
+        self.max_tokens = max_tokens
         self.stream_output = stream_output
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
@@ -86,6 +88,7 @@ class BasicReActAgent(TwoPhaseAgent):
             model=model,
             scenario_name=self.session.scenario_name,
             reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
             max_steps=max_steps,
         )
         asyncio.run(diagnosis_phase.load_tools())
@@ -162,6 +165,7 @@ class BasicReActAgent(TwoPhaseAgent):
             model=self.model,
             scenario_name=self.session.scenario_name,
             reasoning_effort=self.reasoning_effort,
+            max_tokens=self.max_tokens,
             max_steps=self.max_steps,
         )
         await submission_phase.load_tools()

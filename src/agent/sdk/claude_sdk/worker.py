@@ -27,6 +27,7 @@ class ClaudeSdkWorker:
         *,
         llm_provider: str,
         system_prompt: str,
+        max_tokens: int | None = None,
     ) -> None:
         if phase not in PHASES:
             raise ValueError(f"phase must be one of {PHASES}, got {phase!r}")
@@ -39,6 +40,7 @@ class ClaudeSdkWorker:
         self.max_steps = max_steps
         self.scenario_name = scenario_name
         self.system_prompt = system_prompt
+        self.max_tokens = max_tokens
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
 
     async def run(self, prompt: str) -> str:
@@ -57,6 +59,8 @@ class ClaudeSdkWorker:
         sdk_env = prepare_claude_sdk_env(
             session_id=self.session_id, provider=self.llm_provider
         )
+        if self.max_tokens is not None:
+            sdk_env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(self.max_tokens)
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(mcp_servers.keys())},

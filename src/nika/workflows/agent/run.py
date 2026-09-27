@@ -14,6 +14,7 @@ from nika.utils.agent_config import (
     resolve_agent_type,
     resolve_llm_provider,
     resolve_max_steps,
+    resolve_max_tokens,
     resolve_reasoning_effort,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
@@ -53,6 +54,7 @@ def start_agent(
     max_steps = resolve_max_steps(max_steps)
     timeout_sec = resolve_agent_timeout()
     reasoning_effort = resolve_reasoning_effort(reasoning_effort)
+    max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model, llm_provider=llm_provider)
     sandbox_config = resolve_sandbox_config(
@@ -78,6 +80,8 @@ def start_agent(
     session.update_session("model", model)
     if reasoning_effort is not None:
         session.update_session("reasoning_effort", reasoning_effort)
+    if max_tokens is not None:
+        session.update_session("max_tokens", max_tokens)
     session.start_session()
 
     bind_session_dir(session.session_dir)
@@ -134,6 +138,7 @@ def start_agent(
                         max_steps=max_steps,
                         timeout_sec=timeout_sec,
                         reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
                         llm_provider=llm_provider,
                         mcp_gateway_agent_url=gateway_base_url,
                         gateway_port=gateway_port,
@@ -151,6 +156,7 @@ def start_agent(
                             model=model,
                             max_steps=max_steps,
                             reasoning_effort=reasoning_effort,
+                            max_tokens=max_tokens,
                             stream_output=stream_output,
                         )
                         run_agent(
@@ -186,6 +192,7 @@ def start_agent(
                         max_steps=max_steps,
                         timeout_sec=timeout_sec,
                         reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
                         llm_provider=llm_provider,
                         mcp_gateway_agent_url=gateway_agent_url,
                         gateway_port=gateway_manager.port,
@@ -203,6 +210,7 @@ def start_agent(
                             model=model,
                             max_steps=max_steps,
                             reasoning_effort=reasoning_effort,
+                            max_tokens=max_tokens,
                             stream_output=stream_output,
                         )
                         run_agent(

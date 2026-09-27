@@ -134,6 +134,7 @@ def build_mcp_request_params(
     model: str,
     max_steps: int,
     reasoning_effort: str | None = None,
+    max_tokens: int | None = None,
     provider: str,
 ):
     """Build mcp-agent ``RequestParams`` with provider-appropriate effort wiring.
@@ -151,6 +152,8 @@ def build_mcp_request_params(
         "temperature": 0,
         "use_history": False,
     }
+    if max_tokens is not None:
+        kwargs["maxTokens"] = max_tokens
     prov = require_provider(provider)
     if effort is not None and prov == "anthropic":
         # Anthropic rejects "none"; omit output_config in that case.

@@ -27,6 +27,8 @@ agent:
   # Optional for OpenAI, Anthropic, and supported custom models.
   # DeepSeek ignores this setting.
   # reasoning_effort: medium
+  # Output-token cap per model response. Not applied by Codex agents or SADE.
+  max_tokens: 8192
 
 # OpenAI-compatible endpoint example (OpenRouter). Uncomment and replace the
 # agent block above. Set NIKA_CUSTOM_API_KEY in .env when auth is required.

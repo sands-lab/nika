@@ -104,6 +104,8 @@ class ClaudeWorker:
     trace_dir:
         Host directory for ``messages.jsonl`` (default: *session_dir*). CLI
         agents pass the host session dir so the sandbox cannot edit the trace.
+    max_tokens:
+        Output-token cap per model response (``CLAUDE_CODE_MAX_OUTPUT_TOKENS``).
     """
 
     def __init__(
@@ -118,6 +120,7 @@ class ClaudeWorker:
         llm_provider: str,
         stream_output: bool = True,
         trace_dir: str | None = None,
+        max_tokens: int | None = None,
     ) -> None:
         if phase not in PHASES:
             raise ValueError(f"phase must be one of {PHASES}, got {phase!r}")
@@ -128,6 +131,7 @@ class ClaudeWorker:
         self.model = resolve_claude_model(model)
         self.max_steps = max_steps
         self.scenario_name = scenario_name
+        self.max_tokens = max_tokens
 
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "claude_workspace"
@@ -207,6 +211,8 @@ class ClaudeWorker:
         env = prepare_claude_subprocess_env(provider=self.llm_provider)
         if self.llm_provider == "custom":
             env.update(custom_model_claude_env(self.model))
+        if self.max_tokens is not None:
+            env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(self.max_tokens)
         # API-key / token mode needs --bare so Claude uses env credentials
         # (including set-custom placeholders) instead of prompting for /login.
         # Subscription / OAuth mode must not use --bare.

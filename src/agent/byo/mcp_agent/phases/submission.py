@@ -26,6 +26,7 @@ class McpSubmissionPhase:
         *,
         llm_provider: str,
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
     ) -> None:
         self._session_dir = session_dir
         self._model = model
@@ -33,6 +34,7 @@ class McpSubmissionPhase:
         self._server_names = server_names
         self._llm_provider = llm_provider
         self._reasoning_effort = _mcp_reasoning_effort(reasoning_effort)
+        self._max_tokens = max_tokens
 
     async def run(self, diagnosis_report: str, context: dict) -> str:
         logger = MessageLogger(phase=SUBMISSION, session_dir=self._session_dir)
@@ -40,6 +42,7 @@ class McpSubmissionPhase:
             model=self._model,
             max_steps=self._max_steps,
             reasoning_effort=self._reasoning_effort,
+            max_tokens=self._max_tokens,
             provider=self._llm_provider,
         )
         prompt = submission_user_prompt(diagnosis_report, context)

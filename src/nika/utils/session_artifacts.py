@@ -43,6 +43,7 @@ _RUN_JSON_KEY_ORDER: tuple[str, ...] = (
     "llm_provider",
     "model",
     "reasoning_effort",
+    "max_tokens",
     "task_description",
     "start_time",
     "end_time",

@@ -116,6 +116,7 @@ def create_model_client(
     *,
     provider: str,
     reasoning_effort: str | None = None,
+    max_tokens: int | None = None,
 ) -> ChatCompletionClient:
     """Build an AutoGen chat client for the active provider."""
     prov = require_provider(provider)
@@ -135,6 +136,8 @@ def create_model_client(
             "api_key": api_key,
             "model_info": _ANTHROPIC_COMPAT_MODEL_INFO,
         }
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
         base = (
             os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
             or resolve_custom_base_url()
@@ -153,12 +156,15 @@ def create_model_client(
                 "DEEPSEEK_API_KEY required for DeepSeek models: set it in .env "
                 "and set agent.provider to deepseek in config/nika.yaml."
             )
-        return OpenAIChatCompletionClient(
-            model=model,
-            base_url=os.environ.get(ENV_OPENAI_BASE_URL) or DEEPSEEK_OPENAI_BASE_URL,
-            api_key=api_key,
-            model_info=_DEEPSEEK_MODEL_INFO,
-        )
+        kwargs = {
+            "model": model,
+            "base_url": os.environ.get(ENV_OPENAI_BASE_URL) or DEEPSEEK_OPENAI_BASE_URL,
+            "api_key": api_key,
+            "model_info": _DEEPSEEK_MODEL_INFO,
+        }
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        return OpenAIChatCompletionClient(**kwargs)
 
     if prov == "custom":
         base_url = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL, "")
@@ -185,6 +191,8 @@ def create_model_client(
         }
         if reasoning_effort is not None:
             kwargs["reasoning_effort"] = reasoning_effort
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
         return OpenAIChatCompletionClient(**kwargs)
 
     # openai: rely on OPENAI_API_KEY / OPENAI_BASE_URL from env
@@ -198,6 +206,9 @@ def create_model_client(
         kwargs["api_key"] = key
     if reasoning_effort is not None:
         kwargs["reasoning_effort"] = reasoning_effort
+    if max_tokens is not None:
+        # OpenAI reasoning models reject the legacy ``max_tokens``.
+        kwargs["max_completion_tokens"] = max_tokens
     return OpenAIChatCompletionClient(**kwargs)
 
 
@@ -307,6 +318,7 @@ async def run_autogen_phase(
     model: str,
     provider: str,
     reasoning_effort: str | None,
+    max_tokens: int | None,
     max_steps: int,
     logger: MessageLogger,
 ) -> str:
@@ -318,7 +330,10 @@ async def run_autogen_phase(
     is hit, the reflection text is the phase report.
     """
     model_client = create_model_client(
-        model, provider=provider, reasoning_effort=reasoning_effort
+        model,
+        provider=provider,
+        reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens,
     )
     max_tool_iterations = max(1, max_steps - 1)
     async with open_mcp_tools(server_configs) as tools:

@@ -112,7 +112,13 @@ def _sync_local_meta_from_remote(
         merged["remote_session_dir"] = remote_dir
     merged["status"] = local.get("status", "running")
     # Preserve local-only fields if remote omitted them.
-    for key in ("agent_type", "model", "llm_provider", "reasoning_effort"):
+    for key in (
+        "agent_type",
+        "model",
+        "llm_provider",
+        "reasoning_effort",
+        "max_tokens",
+    ):
         if key in local and key not in merged:
             merged[key] = local[key]
     # SessionStore.update_session skips failure_injections; write the full doc.

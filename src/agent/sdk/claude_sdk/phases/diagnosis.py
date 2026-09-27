@@ -16,6 +16,7 @@ class ClaudeSdkDiagnosisPhase:
         scenario_name: str = "",
         *,
         llm_provider: str,
+        max_tokens: int | None = None,
     ) -> None:
         self._worker = ClaudeSdkWorker(
             session_id=session_id,
@@ -24,6 +25,7 @@ class ClaudeSdkDiagnosisPhase:
             model=model,
             llm_provider=llm_provider,
             max_steps=max_steps,
+            max_tokens=max_tokens,
             scenario_name=scenario_name,
             system_prompt=diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT),
         )

@@ -23,6 +23,7 @@ class DiagnosisPhase:
         model: str = "gpt-5-mini",
         scenario_name: str = "",
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
         max_steps: int = 20,
     ):
         mcp_server_config = load_session_mcp_config(
@@ -35,6 +36,7 @@ class DiagnosisPhase:
             llm_provider=llm_provider,
             model=model,
             reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
         )
 
     async def load_tools(self):

@@ -91,6 +91,7 @@ def main(phase: str) -> None:
         raw = os.environ.get("NIKA_MAX_STEPS", "20").strip()
         max_steps = int(raw) if raw.isdigit() else 20
     reasoning_effort = manifest.get("reasoning_effort")
+    max_tokens = manifest.get("max_tokens")
     llm_provider = manifest.get("llm_provider")
     stream_output = bool(manifest.get("stream_output", True))
     task_description = manifest["task_description"]
@@ -102,6 +103,7 @@ def main(phase: str) -> None:
         model=model,
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens,
         stream_output=stream_output,
     )
     if phase == DIAGNOSIS:

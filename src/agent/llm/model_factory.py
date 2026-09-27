@@ -268,6 +268,7 @@ def load_model(
     model: str = "gpt-5-mini",
     *,
     reasoning_effort: str | None = None,
+    max_tokens: int | None = None,
     timeout_sec: float | None = None,
     max_retries: int | None = None,
 ) -> BaseChatModel:
@@ -282,6 +283,9 @@ def load_model(
         }
         if reasoning_effort is not None:
             kwargs["reasoning_effort"] = reasoning_effort
+        if max_tokens is not None:
+            # Sent as ``max_completion_tokens``, as OpenAI reasoning models require.
+            kwargs["max_tokens"] = max_tokens
         base = os.getenv(ENV_OPENAI_BASE_URL) or resolve_custom_base_url() or None
         if base:
             kwargs["base_url"] = base
@@ -296,6 +300,7 @@ def load_model(
             base_url=DEEPSEEK_OPENAI_BASE_URL,
             timeout=timeout,
             max_retries=retries,
+            max_tokens=max_tokens,
         )
 
     if llm_provider == "custom":
@@ -326,8 +331,12 @@ def load_model(
         }
         # Do not forward reasoning_effort: many OpenAI-compat servers (vLLM/Qwen)
         # reject NIKA levels like ``xhigh``. Thinking is enabled via extra_body.
-        extra_body = _custom_extra_body(reasoning_effort)
-        if extra_body is not None:
+        extra_body = _custom_extra_body(reasoning_effort) or {}
+        if max_tokens is not None:
+            # ChatOpenAI renames max_tokens to max_completion_tokens, which not
+            # every OpenAI-compat server accepts.
+            extra_body["max_tokens"] = max_tokens
+        if extra_body:
             kwargs["extra_body"] = extra_body
         return _openai_model(retries=retries, **kwargs)
 
@@ -346,6 +355,8 @@ def load_model(
         }
         if reasoning_effort is not None:
             kwargs["reasoning_effort"] = reasoning_effort
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
         return ChatAnthropic(**kwargs)
 
     raise ValueError(f"Unsupported llm provider: {llm_provider}")

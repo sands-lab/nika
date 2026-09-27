@@ -14,6 +14,7 @@ from nika.utils.agent_config import (
     resolve_judge_provider,
     resolve_llm_provider,
     resolve_max_steps,
+    resolve_max_tokens,
     resolve_reasoning_effort,
 )
 
@@ -74,6 +75,18 @@ class AgentConfigTest:
         )
         assert resolve_reasoning_effort(None) == "medium"
         assert resolve_reasoning_effort("high") == "high"
+
+    def test_max_tokens_is_none_for_agents_that_cannot_apply_it(self) -> None:
+        set_run_config(RunConfig.model_validate({"agent": {"max_tokens": 4096}}))
+        for agent_type in (
+            "byo.langgraph",
+            "byo.autogen",
+            "cli.claude",
+            "sdk.claude_sdk",
+        ):
+            assert resolve_max_tokens(agent_type) == 4096
+        for agent_type in ("mock", "community.sade", "cli.codex", "sdk.codex_sdk"):
+            assert resolve_max_tokens(agent_type) is None
 
     def test_agent_model_from_config(self) -> None:
         cases = [

@@ -23,6 +23,7 @@ class ClaudeSdkAgent(TwoPhaseAgent):
         max_steps: int = 20,
         *,
         llm_provider: str,
+        max_tokens: int | None = None,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
@@ -40,6 +41,7 @@ class ClaudeSdkAgent(TwoPhaseAgent):
             model=self.model,
             llm_provider=llm_provider,
             max_steps=max_steps,
+            max_tokens=max_tokens,
             scenario_name=scenario_name,
         )
         self._submission_phase = ClaudeSdkSubmissionPhase(
@@ -48,6 +50,7 @@ class ClaudeSdkAgent(TwoPhaseAgent):
             model=self.model,
             llm_provider=llm_provider,
             max_steps=max_steps,
+            max_tokens=max_tokens,
         )
 
     async def diagnose(self, task_description: str) -> str:

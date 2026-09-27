@@ -117,6 +117,13 @@ def test_lab_containerlab_max_workers_default_and_bounds() -> None:
         )
 
 
+def test_agent_max_tokens_default_and_bounds() -> None:
+    assert RunConfig().agent.max_tokens == 8192
+    assert RunConfig.model_validate({"agent": {"max_tokens": 1}}).agent.max_tokens == 1
+    with pytest.raises(ValidationError, match="agent.max_tokens must be >= 1"):
+        RunConfig.model_validate({"agent": {"max_tokens": 0}})
+
+
 def test_runtime_validation_rejects_invalid_depth() -> None:
     with pytest.raises(ValidationError):
         RunConfig.model_validate({"nika": {"runtime_validation": {"depth": "medium"}}})

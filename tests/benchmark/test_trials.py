@@ -348,6 +348,27 @@ class TestTrialHelpers:
         with pytest.raises(ValueError, match="n_trials"):
             merge_run_config(existing=existing, proposed=proposed)
 
+    def test_merge_run_config_checks_max_tokens_when_recorded(self) -> None:
+        existing = {
+            "benchmark_id": "nika-bench",
+            "version": "mini",
+            "split": "dev",
+            "agent_type": "byo.langgraph",
+            "model": "m",
+            "llm_provider": "openai",
+            "max_steps": 20,
+            "n_trials": 1,
+            "case_timeout_sec": 2400,
+            "official": True,
+            "run_id": "keep",
+            "job_id": "keep",
+        }
+        proposed = {**existing, "max_tokens": 8192}
+        # Runs recorded before max_tokens existed still resume.
+        merged = merge_run_config(existing=existing, proposed=proposed)
+        with pytest.raises(ValueError, match="max_tokens"):
+            merge_run_config(existing={**merged, "max_tokens": 4096}, proposed=proposed)
+
 
 class TestTrialOrchestration:
     def test_cardinality_and_isolation(self, tmp_path: Path) -> None:
@@ -711,6 +732,7 @@ class TestReleaseRunMetadata:
             assert first is not None
             run_id = first["run_id"]
             assert first["n_trials"] == release.n_trials
+            assert first["max_tokens"] is None
             assert (result_dir / RUN_CONFIG_FILENAME).is_file()
             assert (result_dir / JOB_FILENAME).is_file()
             assert run_trials.call_args.kwargs["continue_on_error"] is True

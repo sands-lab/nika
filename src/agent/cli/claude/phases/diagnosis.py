@@ -41,6 +41,7 @@ class ClaudeDiagnosisPhase:
         llm_provider: str,
         stream_output: bool = True,
         trace_dir: str | None = None,
+        max_tokens: int | None = None,
     ) -> None:
         self._worker = ClaudeWorker(
             session_id=session_id,
@@ -52,6 +53,7 @@ class ClaudeDiagnosisPhase:
             llm_provider=llm_provider,
             stream_output=stream_output,
             trace_dir=trace_dir,
+            max_tokens=max_tokens,
         )
         self._diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
 

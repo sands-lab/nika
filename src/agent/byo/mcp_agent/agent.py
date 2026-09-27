@@ -37,6 +37,7 @@ class McpAgent(TwoPhaseAgent):
         *,
         llm_provider: str,
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
@@ -44,6 +45,7 @@ class McpAgent(TwoPhaseAgent):
         self.max_steps = max_steps
         self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
+        self.max_tokens = max_tokens
         self.stream_output = stream_output
 
         session = Session()
@@ -82,6 +84,7 @@ class McpAgent(TwoPhaseAgent):
             server_names=self._server_names[DIAGNOSIS],
             llm_provider=self.llm_provider,
             reasoning_effort=self.reasoning_effort,
+            max_tokens=self.max_tokens,
         ).run(task_description)
 
     async def submit(self, diagnosis_report: str, context: dict) -> str:
@@ -92,4 +95,5 @@ class McpAgent(TwoPhaseAgent):
             server_names=self._server_names[SUBMISSION],
             llm_provider=self.llm_provider,
             reasoning_effort=self.reasoning_effort,
+            max_tokens=self.max_tokens,
         ).run(diagnosis_report, context)

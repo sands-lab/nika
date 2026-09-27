@@ -509,12 +509,14 @@ def test_write_manifest_uses_opaque_session_id(tmp_path) -> None:
         model="gpt-test",
         max_steps=5,
         reasoning_effort=None,
+        max_tokens=8192,
         llm_provider="openai",
         mcp_gateway_agent_url="http://host.docker.internal:9999",
         stream_output=False,
     )
     assert manifest["session_id"] == "20260101-120000-a-ccddee"
     assert "dhcp_missing_subnet" not in manifest["session_id"]
+    assert manifest["max_tokens"] == 8192
     headers = next(iter(manifest["mcp_servers"].values()))["headers"]
     assert headers["NIKA-Session-Id"] == "20260101-120000-a-ccddee"
 
@@ -561,6 +563,7 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
                 model="gpt-5-mini",
                 max_steps=10,
                 reasoning_effort=None,
+                max_tokens=8192,
                 llm_provider="openai",
                 mcp_gateway_agent_url="http://host.docker.internal:12345",
                 gateway_port=12345,
@@ -635,6 +638,7 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
             model="gpt-5-mini",
             max_steps=10,
             reasoning_effort=None,
+            max_tokens=8192,
             llm_provider="openai",
             mcp_gateway_agent_url="http://host.docker.internal:12345",
             gateway_port=12345,
@@ -695,6 +699,7 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
                 model="deepseek-v4-flash",
                 max_steps=10,
                 reasoning_effort=None,
+                max_tokens=8192,
                 llm_provider="deepseek",
                 mcp_gateway_agent_url="http://host.docker.internal:12345",
                 stream_output=False,

@@ -33,6 +33,7 @@ class AutogenAgent(TwoPhaseAgent):
         *,
         llm_provider: str,
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
@@ -40,6 +41,7 @@ class AutogenAgent(TwoPhaseAgent):
         self.max_steps = max_steps
         self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
+        self.max_tokens = max_tokens
         self.stream_output = stream_output
 
         session = Session()
@@ -60,6 +62,7 @@ class AutogenAgent(TwoPhaseAgent):
             model=self.model,
             provider=self.llm_provider,
             reasoning_effort=self.reasoning_effort,
+            max_tokens=self.max_tokens,
             max_steps=self.max_steps,
             logger=MessageLogger(phase=phase, session_dir=self.session_dir),
         )

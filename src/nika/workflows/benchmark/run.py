@@ -15,6 +15,7 @@ from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
+from nika.utils.agent_config import resolve_max_tokens
 from nika.utils.session import Session
 from nika.utils.session_artifacts import RUN_FILENAME, last_session_error
 from nika.utils.session_store import SessionStore
@@ -1463,6 +1464,7 @@ def run_benchmark_from_release(
         model=model,
         llm_provider=llm_provider,
         max_steps=max_steps,
+        max_tokens=resolve_max_tokens(agent_type),
         n_trials=n_trials,
         case_timeout_sec=effective_timeout,
         official=official,

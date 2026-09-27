@@ -42,6 +42,8 @@ class ClaudeAgent(TwoPhaseAgent):
         Active LLM provider (``anthropic``, ``deepseek``, ``custom``).
     max_steps:
         LLM-turn budget per phase (``claude --max-turns``), as for other agents.
+    max_tokens:
+        Output-token cap per model response (``CLAUDE_CODE_MAX_OUTPUT_TOKENS``).
     """
 
     def __init__(
@@ -51,6 +53,7 @@ class ClaudeAgent(TwoPhaseAgent):
         *,
         llm_provider: str,
         max_steps: int = 20,
+        max_tokens: int | None = None,
         stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
@@ -77,6 +80,7 @@ class ClaudeAgent(TwoPhaseAgent):
             scenario_name=scenario_name,
             stream_output=stream_output,
             trace_dir=self.trace_dir,
+            max_tokens=max_tokens,
         )
         self._submission_phase = ClaudeSubmissionPhase(
             session_id=session_id,
@@ -86,6 +90,7 @@ class ClaudeAgent(TwoPhaseAgent):
             max_steps=max_steps,
             stream_output=stream_output,
             trace_dir=self.trace_dir,
+            max_tokens=max_tokens,
         )
 
     async def diagnose(self, task_description: str) -> str:
