@@ -123,8 +123,8 @@ def assert_link_detach_pre(ctx: FailureE2EContext) -> None:
 
 def assert_link_detach(ctx: FailureE2EContext) -> None:
     assert ctx.verify is not None
-    assert ctx.verify["details"]["artifact"]["verified"] is True, ctx.verify
-    assert ctx.verify["details"]["symptom"]["verified"] is True, ctx.verify
+    assert ctx.verify["verified"] is True, ctx.verify
+    assert ctx.verify["details"]["interface_exists"] is False, ctx.verify
     assert ctx.symptom is not None
     assert ctx.symptom.get("after", {}).get("ping_ok") is False, ctx.symptom
     assert ctx.symptom["comparison"]["interface_gone"] is True, ctx.symptom
@@ -369,7 +369,7 @@ def assert_incast_pre(ctx: FailureE2EContext) -> None:
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size)
     assert path is not None and path.dst_ip
     # Healthy baseline: the receiver answers pings before the bursts start.
-    before = run_probe_snapshot(ctx.runtime, "path_ping", path, params=ctx.parsed)
+    before = run_probe_snapshot(ctx.runtime, "path_ping_loss", path, params=ctx.parsed)
     assert before.ping_ok is True, before.as_dict()
     assert before.rtt_avg_ms is not None and before.rtt_avg_ms > 0
     ctx.before = before
