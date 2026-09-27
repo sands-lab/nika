@@ -257,7 +257,10 @@ class AgentCallbackLogger(BaseCallbackHandler):
             "llm_start",
             {
                 "messages": messages[0][-1],
-                "model": serialized,
+                # Non-serializable models (e.g. ChatDeepSeek) carry a ``repr``
+                # with client fields such as ``openai_api_key=SecretStr(...)``,
+                # which fails the leaderboard trajectory secret scan.
+                "model": {k: v for k, v in serialized.items() if k != "repr"},
                 **run_fields,
             },
         )
