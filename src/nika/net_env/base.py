@@ -186,27 +186,18 @@ class NetworkEnvBase:
         """Deploy the lab.
 
         The runtime checks for an existing lab and, on Kathara, required
-        images once per deploy. Scenarios without a readiness verifier get a
-        fixed settle delay so services can start; scenarios with one rely on
-        ``verify_lab_with_retry`` polling instead.
+        images once per deploy. A fresh lab gets a fixed settle delay so
+        services launched by startup scripts can start: light startup
+        verifiers only confirm the control plane, not those services.
         """
         self._ensure_runtime_files()
         deployed = self._build_runtime().deploy()
-        if deployed is not False and not self.has_lab_verifier():
+        if deployed is not False:
             import time
 
             from nika.runtime.shared.settings import lab_settings
 
             time.sleep(lab_settings().deploy_settle_sec)
-
-    def has_lab_verifier(self) -> bool:
-        """Return whether ``verify_lab_with_retry`` polls a scenario check."""
-        from nika.net_env.verify import _runtime_validation_depth
-
-        overrides_verify = type(self).verify_lab is not NetworkEnvBase.verify_lab
-        if _runtime_validation_depth() == "full":
-            return overrides_verify
-        return overrides_verify or hasattr(self, "startup_verify_lab")
 
     def verify_lab(self) -> dict | None:
         """Return post-deploy verification result, or ``None`` when not implemented."""
