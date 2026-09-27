@@ -2,36 +2,57 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage
+import pytest
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 from agent.utils.loggers import AgentCallbackLogger, log_llm_retry
 
 
-def test_log_llm_retry_writes_marker(tmp_path: Path) -> None:
+class _RetryOnceModel(BaseChatModel):
+    """Chat model that reports one HTTP retry from inside the model call."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "retry-once"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        log_llm_retry(TimeoutError("timed out"), failed_attempt=1, max_retries=2)
+        return ChatResult(generations=[ChatGeneration(message=AIMessage("ok"))])
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+
+@pytest.mark.parametrize("path", ["sync", "async"])
+def test_retry_inside_model_call_is_logged(tmp_path: Path, path: str) -> None:
     cb = AgentCallbackLogger(phase="diagnosis", session_dir=str(tmp_path))
-    cb.on_chat_model_start(
-        {"id": ["ChatOpenAI"]},
-        [[HumanMessage(content="hi")]],
-        run_id="run-1",
-    )
-    log_llm_retry(
-        TimeoutError("timed out"),
-        failed_attempt=1,
-        max_retries=2,
-    )
-    lines = (tmp_path / "messages.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 2
-    start = json.loads(lines[0])
-    retry = json.loads(lines[1])
-    assert start["event"] == "llm_start"
-    assert retry["event"] == "llm_retry"
-    assert retry["run_id"] == "run-1"
+    model = _RetryOnceModel()
+    config = {"callbacks": [cb]}
+    if path == "sync":
+        model.invoke([HumanMessage(content="hi")], config=config)
+    else:
+        asyncio.run(model.ainvoke([HumanMessage(content="hi")], config=config))
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "messages.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [event["event"] for event in events] == [
+        "llm_start",
+        "llm_retry",
+        "llm_end",
+    ]
+    retry = events[1]
+    assert retry["run_id"] == events[0]["run_id"]
     assert retry["failed_attempt"] == 1
     assert retry["next_attempt"] == 2
-    cb.on_llm_error(RuntimeError("give up"), run_id="run-1")
 
 
 def test_pop_active_llm_across_contexts(tmp_path: Path) -> None:

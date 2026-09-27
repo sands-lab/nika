@@ -223,6 +223,11 @@ class MessageLogger:
 class AgentCallbackLogger(BaseCallbackHandler):
     """LangChain callback handler that delegates to ``MessageLogger``."""
 
+    # Async model calls otherwise run sync handlers in a copied context, so
+    # the ``_active_llm_log`` set in on_chat_model_start never reaches
+    # ``log_llm_retry`` inside ``_agenerate``.
+    run_inline = True
+
     def __init__(self, phase: str, session_dir: str) -> None:
         super().__init__()
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
