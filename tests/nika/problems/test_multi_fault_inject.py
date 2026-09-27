@@ -79,7 +79,8 @@ class TestMultiFaultInjectWorkflow(IntegrationTestCase):
             gt = json.loads(
                 (Path(row["session_dir"]) / "ground_truth.json").read_text()
             )
-            assert len(gt["root_causes"]) == len(problems)
+            # A failure may label several resources (mtu_mismatch lowers both link ends).
+            assert {rc["fault_type"] for rc in gt["root_causes"]} == set(problems)
         finally:
             if session_id is not None:
                 self._close_session(session_id)
