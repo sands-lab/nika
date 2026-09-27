@@ -246,20 +246,48 @@ class SouthboundPortMismatch(ProblemBase):
         none_connected = all(s["is_connected"] != "true" for s in targeting)
         return state, all_target_original, none_connected
 
-    def inject_fault(self, params: SouthboundPortMismatchParams):
-        if params.mismatched_port == params.original_port:
-            raise ValueError("mismatched_port must differ from original_port")
-        self._original_listen_ports = get_openflow_listen_ports(self.runtime)
-        set_openflow_listen_ports(self.runtime, [params.mismatched_port])
-        # ONOS restarts its listeners; wait until switches drop their sessions.
+    def _wait_disconnected(self, params: SouthboundPortMismatchParams) -> bool:
         deadline = time.monotonic() + _DISCONNECT_WAIT_SEC
         while time.monotonic() < deadline:
             _, _, none_connected = self._switch_targets_original(params)
             if none_connected and not _tcp_listening(
                 self.runtime, params.host_name, params.original_port
             ):
-                break
+                return True
             time.sleep(2.0)
+        return False
+
+    def _reset_stale_switch_sessions(self, params: SouthboundPortMismatchParams):
+        """Drop sessions a switch opened while ONOS was restarting listeners.
+
+        ONOS briefly re-binds ``original_port`` while applying the new
+        ``openflowPorts``; switches that reconnect in that window keep an
+        accepted channel after the listener is gone. Re-apply each switch's
+        unchanged controller target in two transactions so the next connect
+        attempt hits the refused port, as a steady-state mismatch would.
+        """
+        state = _switch_controller_state(self.runtime, self.net_env)
+        suffix = f":{params.original_port}"
+        for switch, info in state.items():
+            if info["is_connected"] != "true" or not info["target"].endswith(suffix):
+                continue
+            target = info["target"]
+            self.runtime.exec(
+                switch,
+                f"for br in $(ovs-vsctl list-br); do "
+                f"ovs-vsctl del-controller $br && ovs-vsctl set-controller $br {target}; "
+                f"done",
+            )
+
+    def inject_fault(self, params: SouthboundPortMismatchParams):
+        if params.mismatched_port == params.original_port:
+            raise ValueError("mismatched_port must differ from original_port")
+        self._original_listen_ports = get_openflow_listen_ports(self.runtime)
+        set_openflow_listen_ports(self.runtime, [params.mismatched_port])
+        # ONOS restarts its listeners; wait until switches drop their sessions.
+        if not self._wait_disconnected(params):
+            self._reset_stale_switch_sessions(params)
+            self._wait_disconnected(params)
         logger.info(
             "Set ONOS openflowPorts on %s from %s to %s",
             params.host_name,
