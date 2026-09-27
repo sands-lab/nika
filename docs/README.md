@@ -56,7 +56,7 @@ uv run nika agent list
 
 | Contract | Implementation |
 | --- | --- |
-| Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml) |
+| Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml), [`config/*.example.yaml`](../config/) |
 | CLI and workflows | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/), [`workflows/`](../src/nika/workflows/) |
 | Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
 | Scenario validation | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |

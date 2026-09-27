@@ -97,9 +97,125 @@ Both values should be `64000`. After `nika env run`, lab verification completes:
 ### Notes
 
 - You do not need to rebuild Docker images or reload the XRd tarball.
-- Keep `--batch-size 1` for runs that include `k8s_lab` or `llmd_lab`.
+- Keep default `serialize_heavy` (or `--batch-size 1`) for runs that include `k8s_lab` or `llmd_lab`.
 - A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full 0.2.0-style matrices) hit the limit sooner.
 - After an OOM or hard reset, run the `sysctl` check again before the next XR or k3s lab.
+
+## Containerlab link faults fail with a sudo password prompt
+
+Failure injection on a Containerlab lab stops with an error like this:
+
+```text
+host command failed (tc qdisc replace dev veth1a2b root netem loss 30%): sudo: a password is required
+```
+
+### Cause
+
+NIKA applies Containerlab link faults to the host side of the lab link. It runs `tc`, `ip`, `nsenter`, and `sh` through `sudo -n`, which fails instead of prompting when your user has no passwordless `sudo` rule for them. NIKA cannot change your sudoers policy.
+
+### Fix
+
+Add the sudoers rule from [Allow Containerlab link faults](installation.md#allow-containerlab-link-faults), then re-run the same command.
+
+### Confirm success
+
+`sudo -n "$(command -v tc)" qdisc show dev lo` prints the loopback qdisc without a prompt, and the fault injects.
+
+## VPN routes overlap the Docker bridge subnet
+
+Some VPN clients install routes for private ranges that Docker also uses by default, such as `172.17.0.0/16` (the `docker0` bridge) and `172.18.0.0/16` (the first pool for new Docker networks). The VPN interface can own a different subnet, for example `172.19.1.0/24`, and still route those ranges into the tunnel. Reply packets for containers then leave through the VPN instead of `docker0`.
+
+### Match these symptoms
+
+**Containers have no internet access** while the host does:
+
+```shell
+docker run --rm alpine ping -c 2 1.1.1.1
+```
+
+The ping reports 100% packet loss, while `ping -c 2 1.1.1.1` on the host succeeds.
+
+**`k8s_lab` / `llmd_lab`:** the lab deploys, but the host cannot reach the Kubernetes API port that the lab publishes. The k8s MCP tools and the submission step fail with connection resets, so agent runs on these scenarios do not finish.
+
+### Cause
+
+The route table has two routes for the Docker bridge subnet, and the kernel picks the VPN route. Check it:
+
+```shell
+ip route show 172.17.0.0/16
+ip route get 172.17.0.2
+```
+
+This section applies when the output shows a route through the VPN interface, for example:
+
+```text
+172.17.0.0/16 via 172.19.1.1 dev tun0
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1
+172.17.0.2 via 172.19.1.1 dev tun0 src 172.19.1.13
+```
+
+The VPN client owns these routes, so NIKA cannot fix them from inside a lab.
+
+### Fix
+
+Move Docker to address ranges that the VPN does not route. The VPN configuration stays unchanged.
+
+1. List the ranges the host already routes, and pick two private ranges that do not appear in the output. The example below uses `10.210.0.0/24` for `docker0` and `10.211.0.0/16` for new Docker networks.
+
+```shell
+ip route
+```
+
+2. List running NIKA sessions. Close only the sessions you own before restarting Docker. The restart in step 4 stops other Docker containers on this host too, so arrange a maintenance window if they are in use.
+
+```shell
+uv run nika session ps
+uv run nika session close --session_id <YOUR_SESSION_ID>
+```
+
+3. Back up `/etc/docker/daemon.json` if it exists. Open it and add these keys to its top-level JSON object, keeping its other settings:
+
+```shell
+if sudo test -f /etc/docker/daemon.json; then
+  sudo cp -a /etc/docker/daemon.json /etc/docker/daemon.json.bak
+fi
+sudoedit /etc/docker/daemon.json
+```
+
+Use these values with the unused ranges chosen in step 1:
+
+```json
+{
+  "bip": "10.210.0.1/24",
+  "default-address-pools": [
+    {"base": "10.211.0.0/16", "size": 24}
+  ]
+}
+```
+
+4. Restart Docker:
+
+```shell
+sudo systemctl restart docker
+```
+
+### Confirm success
+
+```shell
+ip route get 10.210.0.2
+docker run --rm alpine ping -c 2 1.1.1.1
+docker network create nika-subnet-check
+docker network inspect nika-subnet-check --format '{{json .IPAM.Config}}'
+docker network rm nika-subnet-check
+```
+
+`ip route get` reports `dev docker0`, the container ping succeeds, and the new network gets a subnet from `10.211.0.0/16`. Re-run the failed `nika env run`, or resume the benchmark with `nika benchmark run … --resume`.
+
+### Notes
+
+- Existing Docker networks keep their old subnets. Networks that NIKA creates for new labs use the new pool.
+- Pick ranges that lab topologies do not use for their own addresses. For example, `campus_lan` uses `10.200.0.0/24`.
+- On Docker Desktop, set the same keys under **Settings > Docker Engine**.
 
 ## Still stuck?
 

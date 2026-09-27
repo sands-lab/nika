@@ -288,6 +288,6 @@ Failure-effect validation compares the healthy contract with the lab after a rea
 5. Test schema validation, stable contract generation, runtime evidence, compiler questions, snapshot contents, and verifier coverage. Run live Batfish tests only when the Batfish extra and Docker are available.
 
 ```shell
-uv run pytest -q tests/nika/net_env/test_validation_contract.py tests/nika/net_env/isp/test_isp_contract.py tests/nika/net_env/isp/test_isp_verify_unit.py
+uv run pytest -q tests/nika/net_env/test_validation_contract.py tests/nika/net_env/isp/test_isp_contract.py
 uv run pytest -q tests/nika/validation -k 'not live'
 ```

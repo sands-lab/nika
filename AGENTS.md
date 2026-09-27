@@ -13,7 +13,7 @@ NIKA is a platform for generating and running executable benchmarks for network 
 
 ## Git and pull requests
 
-1. Branch off `dev`: `feat/<issue>-<slug>` or `fix/<issue>-<slug>`.
+1. Branch off `dev`: `feat/<slug>` or `fix/<slug>`. When tracking a GitHub issue, prefer `feat/<issue>-<slug>` / `fix/<issue>-<slug>` (e.g. `fix/54-onos-rest-group-install`). Do not invent placeholders such as `noissue`.
 2. Develop on that branch.
 3. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
 
@@ -58,7 +58,7 @@ For changes involving scenarios, failures, traffic, telemetry, runtime, or backe
 * Validate observable behavior such as connectivity, routes, protocol sessions, counters, traffic, telemetry, failure symptoms, and recovery.
 * Prefer real protocol and runtime behavior over mocks or synthetic substitutes.
 
-Run independent E2E tests in parallel when safe to reduce test time, but run resource-intensive Kubernetes, LLMd, and containerlab scenarios sequentially to avoid resource contention and instability.
+Run independent E2E tests in parallel when safe to reduce test time. The benchmark runner defaults to `serialize_heavy` so Containerlab, k8s/llmd/XRd, and topo_size `l` run exclusively (no peer sessions); still avoid stacking multiple heavy labs manually in ad-hoc scripts.
 
 Use unit tests mainly for stable isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms.
 

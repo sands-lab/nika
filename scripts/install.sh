@@ -16,8 +16,6 @@ CHR_BASE_URL="${CHR_BASE_URL:-https://download.mikrotik.com/routeros/${ROUTEROS_
 
 TRACK=""
 WITH_VENDOR_IMAGES=0
-SKIP_ROUTEROS=0
-SKIP_XRD=0
 XRD_TARBALL="${NIKA_XRD_TARBALL:-}"
 
 usage() {
@@ -36,16 +34,15 @@ Options:
 
   --with-vendor-images
       After the base install, prepare images for vendor BGP labs:
-        - RouterOS: download MikroTik CHR and build ${ROUTEROS_IMAGE}
+        - RouterOS: download MikroTik CHR into .nika_cache/vendor/,
+          clone hellt/vrnetlab there, and build ${ROUTEROS_IMAGE}
         - XRd: docker load a local Cisco tarball as ${XRD_IMAGE}
       Do nothing vendor-related unless you pass this flag.
 
   --xrd-tarball PATH
       Path to a Cisco XRd Control Plane container .tgz (no public URL).
-      Or set NIKA_XRD_TARBALL, or put vendor/xrd-*.tgz under the repo.
+      Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under the repo.
 
-  --skip-routeros   With --with-vendor-images, skip RouterOS/CHR build
-  --skip-xrd        With --with-vendor-images, skip XRd load
   -h, --help        Show this help
 
 Examples:
@@ -69,8 +66,6 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --with-vendor-images) WITH_VENDOR_IMAGES=1; shift ;;
-    --skip-routeros) SKIP_ROUTEROS=1; shift ;;
-    --skip-xrd) SKIP_XRD=1; shift ;;
     --xrd-tarball)
       [[ $# -ge 2 ]] || { echo "error: --xrd-tarball requires a path" >&2; exit 2; }
       XRD_TARBALL="$2"
@@ -99,7 +94,7 @@ esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-VENDOR_CACHE="${NIKA_VENDOR_CACHE:-${HOME}/.cache/nika/vendor}"
+VENDOR_CACHE="${NIKA_VENDOR_CACHE:-${ROOT}/.nika_cache/vendor}"
 
 log() { printf '+ %s\n' "$*"; }
 warn() { printf '! %s\n' "$*" >&2; }
@@ -398,7 +393,7 @@ find_xrd_tarball() {
   fi
   local match
   shopt -s nullglob
-  for match in "${ROOT}"/vendor/xrd-*.tgz "${ROOT}"/vendor/xrd-*.tar "${VENDOR_CACHE}"/xrd-*.tgz; do
+  for match in "${VENDOR_CACHE}"/xrd-*.tgz "${VENDOR_CACHE}"/xrd-*.tar; do
     if [[ -f "${match}" ]]; then
       printf '%s\n' "${match}"
       return
@@ -436,13 +431,12 @@ ensure_xrd_image() {
 
   local tarball
   if ! tarball="$(find_xrd_tarball)"; then
-    warn "XRd tarball not found; skipping ${XRD_IMAGE}"
-    warn "Cisco does not publish a public download URL. Get an XRd Control Plane"
-    warn "container .tgz from CCO / Cisco Modeling Labs, then re-run:"
-    warn "  ./scripts/install.sh --with-vendor-images --skip-routeros \\"
-    warn "    --xrd-tarball /path/to/xrd-control-plane-container-x86_64-*.tgz"
-    warn "Or place the file at vendor/xrd-*.tgz under the repo root."
-    return
+    if ! prompt_for_xrd_tarball; then
+      warn "Skipping ${XRD_IMAGE}; iosxr_simple_bgp will fail until you load an XRd tarball"
+      return
+    fi
+    tarball="$(find_xrd_tarball)" \
+      || die "XRd tarball still not found after download prompt"
   fi
 
   need_cmd docker
@@ -464,19 +458,50 @@ ensure_xrd_image() {
   ensure_xrd_inotify
 }
 
+# Returns 0 once a tarball is present, 1 if the user skips or stdin is not a TTY.
+prompt_for_xrd_tarball() {
+  warn "XRd tarball not found (needed for ${XRD_IMAGE})."
+  warn "Cisco does not publish a public download URL. Download an XRd Control"
+  warn "Plane container .tgz from CCO / Cisco Modeling Labs"
+  warn "(filename like xrd-control-plane-container-x86_64-<version>.tgz), then:"
+  warn "  - place it at ${VENDOR_CACHE}/xrd-*.tgz, or"
+  warn "  - pass --xrd-tarball /path/to/file.tgz, or"
+  warn "  - set NIKA_XRD_TARBALL=/path/to/file.tgz"
+
+  if [[ ! -r /dev/tty ]]; then
+    warn "Non-interactive install: continuing without XRd"
+    return 1
+  fi
+
+  local reply
+  while true; do
+    printf '%s' \
+      "Place the downloaded tarball, then press Enter to continue (or 's' + Enter to skip XRd): " \
+      >/dev/tty
+    if ! read -r reply </dev/tty; then
+      return 1
+    fi
+    case "${reply}" in
+      s|S|skip|SKIP)
+        return 1
+        ;;
+      *)
+        if find_xrd_tarball >/dev/null; then
+          log "Found XRd tarball"
+          return 0
+        fi
+        warn "Still not found under ${VENDOR_CACHE}/xrd-*.tgz (or --xrd-tarball / NIKA_XRD_TARBALL)"
+        ;;
+    esac
+  done
+}
+
 install_vendor_images() {
   log "Preparing vendor router images"
-  mkdir -p "${VENDOR_CACHE}" "${ROOT}/vendor"
-  if [[ "${SKIP_ROUTEROS}" -eq 0 ]]; then
-    ensure_routeros_image
-  else
-    log "Skipping RouterOS (--skip-routeros)"
-  fi
-  if [[ "${SKIP_XRD}" -eq 0 ]]; then
-    ensure_xrd_image
-  else
-    log "Skipping XRd (--skip-xrd)"
-  fi
+  mkdir -p "${VENDOR_CACHE}"
+  # XRd first: missing Cisco download is noticed before the long RouterOS build.
+  ensure_xrd_image
+  ensure_routeros_image
 }
 
 print_next_steps() {

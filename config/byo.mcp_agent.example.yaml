@@ -1,0 +1,19 @@
+# NIKA run-config template for byo.mcp_agent (mcp-agent Workflow, host).
+# Setup: cp config/byo.mcp_agent.example.yaml config/byo.mcp_agent.yaml
+# Use:   uv run nika agent run --run-config config/byo.mcp_agent.yaml --problem dc_clos_s_link_down
+# Credentials stay in the repo-root .env file. Other keys use built-in defaults;
+# see config/nika.example.yaml for the full platform / benchmark reference.
+
+version: 1
+
+agent:
+  type: byo.mcp_agent
+  provider: deepseek
+  model: deepseek-v4-flash
+  max_steps: 20
+  # Optional for OpenAI, Anthropic, and supported custom models.
+  # DeepSeek ignores this setting.
+  # reasoning_effort: medium
+
+nika:
+  result_dir: results/mcp_agent

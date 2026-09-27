@@ -25,6 +25,8 @@ uv run nika inspect --result-dir results
 
 Default URL: `http://127.0.0.1:7580/`. Override the results root with `--result-dir` or `nika.result_dir` in [`config/nika.yaml`](configuration.md).
 
+`nika benchmark run` on a TTY starts this viewer automatically for the run's `--result_dir` and shows a clickable URL on the dashboard. You can still run `nika inspect` yourself for finished results.
+
 To reach the UI from another machine (or Windows from WSL), bind all interfaces and open the host IP:
 
 ```shell
@@ -34,7 +36,15 @@ uv run nika inspect --result-dir results --host 0.0.0.0
 
 `--host` accepts `127.0.0.1`, `localhost`, `::1`, `0.0.0.0`, or `::`. Specific interface IPs are rejected.
 
+With `--host 0.0.0.0` or `--host ::`, the UI is read-only: **Delete** returns `403`, and the folder picker cannot leave `--result-dir`. With a loopback `--host`, the server answers only requests addressed to `127.0.0.1`, `localhost`, or `::1`. To delete sessions from another machine, keep the loopback bind and forward the port:
+
+```shell
+ssh -L 7580:127.0.0.1:7580 <host>
+```
+
 Success: stderr prints `url: http://127.0.0.1:<port>/` and the browser shows the session list for that results root.
+
+While a session has status `running`, the viewer hides its answer key and scores. Requests for `ground_truth.json`, `eval_metrics.json`, or `llm_judge.json` return `403`, and the scores view shows only the submission. The files appear once the session stops.
 
 ## Change the UI
 

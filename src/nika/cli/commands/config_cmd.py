@@ -36,10 +36,11 @@ CONFIG_SET_KEYS = frozenset(
         "agent.provider",
         "agent.model",
         "agent.max_steps",
+        "agent.timeout_sec",
         "agent.reasoning_effort",
         "agent.custom.base_url",
+        "agent.enable_skills",
         "nika.result_dir",
-        "nika.enable_skills",
         "nika.judge.provider",
         "nika.judge.model",
     }
@@ -128,7 +129,9 @@ def config_set(
         key, raw_value = raw.split("=", 1)
         key = key.strip()
         if not key:
-            raise typer.BadParameter(f"Invalid assignment {raw!r}. Key cannot be empty.")
+            raise typer.BadParameter(
+                f"Invalid assignment {raw!r}. Key cannot be empty."
+            )
         if key not in CONFIG_SET_KEYS:
             raise typer.BadParameter(
                 f"Unsupported key {key!r}. Allowed: {', '.join(sorted(CONFIG_SET_KEYS))}"

@@ -2,76 +2,34 @@
 # Setup: cp config/nika.example.yaml config/nika.yaml, then edit the copy.
 # CLI flags override this file. This file overrides built-in defaults.
 # Keep API keys and other credentials in the repo-root .env file.
+#
+# Per-agent templates (copy one and pass --run-config):
+#   config/byo.langgraph.example.yaml
+#   config/byo.mcp_agent.example.yaml
+#   config/byo.autogen.example.yaml
+#   config/cli.codex.example.yaml
+#   config/cli.claude.example.yaml
+#   config/sdk.codex_sdk.example.yaml
+#   config/sdk.claude_sdk.example.yaml
+# List registered names with: uv run nika agent list
 
-# Choose an agent. Uncomment one complete block and leave the others commented.
-# `type` selects a registered harness from `uv run nika agent list`.
+# Default profile: LangGraph ReAct on the host.
+agent:
+  type: byo.langgraph
+  provider: deepseek
+  model: deepseek-v4-flash
+  max_steps: 20
+  # Wall-clock budget in seconds for one agent run (diagnosis + submission),
+  # for every agent type. 0 disables it. Keep it below benchmark.case_timeout_sec.
+  timeout_sec: 1800
+  # Load shared troubleshooting skills for Claude and Codex agents.
+  enable_skills: true
+  # Optional for OpenAI, Anthropic, and supported custom models.
+  # DeepSeek ignores this setting.
+  # reasoning_effort: medium
 
-# LangGraph ReAct. Runs on the host.
-# agent:
-#   type: byo.langgraph
-#   provider: deepseek
-#   model: deepseek-v4-flash
-#   max_steps: 20
-#   # Optional for OpenAI, Anthropic, and supported custom models.
-#   # DeepSeek ignores this setting.
-#   # reasoning_effort: medium
-
-# mcp-agent Workflow. Runs on the host.
-# agent:
-#   type: byo.mcp_agent
-#   provider: deepseek
-#   model: deepseek-v4-flash
-#   max_steps: 20
-#   # Optional for OpenAI, Anthropic, and supported custom models.
-#   # DeepSeek ignores this setting.
-#   # reasoning_effort: medium
-
-# AutoGen GraphFlow. Runs on the host.
-# agent:
-#   type: byo.autogen
-#   provider: deepseek
-#   model: deepseek-v4-flash
-#   max_steps: 20
-#   # Optional for OpenAI, Anthropic, and supported custom models.
-#   # DeepSeek ignores this setting.
-#   # reasoning_effort: medium
-
-# Codex CLI. Runs in an isolated Docker Sandbox.
-# agent:
-#   type: cli.codex
-#   provider: openai
-#   model: gpt-5-mini
-#   reasoning_effort: medium
-
-# Claude Code CLI. Runs in an isolated Docker Sandbox.
-# agent:
-#   type: cli.claude
-#   provider: deepseek
-#   model: deepseek-v4-flash
-
-# Codex SDK. Runs in an isolated Docker Sandbox.
-# agent:
-#   type: sdk.codex_sdk
-#   provider: openai
-#   model: gpt-5-mini
-#   reasoning_effort: medium
-
-# Claude Agent SDK. Runs in an isolated Docker Sandbox.
-# agent:
-#   type: sdk.claude_sdk
-#   provider: deepseek
-#   model: deepseek-v4-flash
-#   max_steps: 20
-
-# SADE community agent. Runs in an isolated Docker Sandbox.
-# agent:
-#   type: community.sade
-#   provider: deepseek
-#   model: deepseek-v4-flash
-#   max_steps: 20
-
-# OpenAI-compatible endpoint. This example uses OpenRouter.
-# Set NIKA_CUSTOM_API_KEY in .env when the endpoint requires authentication.
+# OpenAI-compatible endpoint example (OpenRouter). Uncomment and replace the
+# agent block above. Set NIKA_CUSTOM_API_KEY in .env when auth is required.
 # agent:
 #   type: byo.langgraph
 #   provider: custom
@@ -86,8 +44,6 @@
 nika:
   # Write run artifacts under this directory.
   result_dir: results
-  # Load NIKA's shared troubleshooting skills for Claude and Codex agents.
-  enable_skills: true
   remote:
     # Run lab operations on a remote NIKA server.
     enabled: false
@@ -103,7 +59,7 @@ nika:
     # Limit sandbox memory, such as 8g. Null uses the runtime default.
     memory: null
     # Install SDK agents from cached wheels instead of downloading packages.
-    offline_sdk_wheels: false
+    offline_sdk_wheels: true
     # Route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null
   observability:
@@ -140,6 +96,10 @@ nika:
     gateway_host: "127.0.0.1"
     # Bind the MCP gateway to this port. Set 0 to choose a free port.
     gateway_port: 0
+    # Default max chars of each tool text observation returned to the agent.
+    tool_output_max_chars: 16384
+    # Hard cap when the agent re-calls with full=true (0 = unlimited).
+    tool_output_full_max_chars: 100000
   static_validation:
     # Run supported topology checks with Batfish before deployment.
     enabled: false
@@ -157,6 +117,10 @@ benchmark:
   split: null
   # Run this many trials at the same time.
   batch_size: 1
+  # Run Containerlab, k8s/llmd/XRd, and topo_size l exclusively (no peer
+  # sessions) when batch_size > 1. Set false only if you intentionally
+  # parallelize those labs.
+  serialize_heavy: true
   # Stop each trial after this many seconds. Set 0 to disable.
   case_timeout_sec: 2400
   # Continue an ad-hoc batch after a failed trial. Release runs continue unless

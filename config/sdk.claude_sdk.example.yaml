@@ -1,0 +1,16 @@
+# NIKA run-config template for sdk.claude_sdk (Claude Agent SDK, Docker Sandbox).
+# Setup: cp config/sdk.claude_sdk.example.yaml config/sdk.claude_sdk.yaml
+# Use:   uv run nika agent run --run-config config/sdk.claude_sdk.yaml --problem dc_clos_s_link_down
+# Credentials stay in the repo-root .env file. Other keys use built-in defaults;
+# see config/nika.example.yaml for the full platform / benchmark reference.
+
+version: 1
+
+agent:
+  type: sdk.claude_sdk
+  provider: deepseek
+  model: deepseek-v4-flash
+  max_steps: 20
+
+nika:
+  result_dir: results/claude_sdk

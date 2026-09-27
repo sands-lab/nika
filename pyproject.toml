@@ -11,38 +11,47 @@ authors = [{ name = "Zhihao Wang", email = "zhihaowang9802@gmail.com" },
 license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.12"
+# Agent and LLM frameworks are pinned exactly: their behaviour affects benchmark
+# results. Infrastructure libraries accept compatible releases.
 dependencies = [
-    "pydantic>=2.11,<2.14",
-    "openai",
-    "instructor",
-    "python-dotenv",
-    "langchain-deepseek",
-    "langgraph",
+    # Agent and LLM frameworks
+    "openai==2.37.0",
+    "langchain==1.0.0",
+    "langchain-core==1.5.5",
+    "langchain-openai==1.2.1",
+    "langchain-anthropic==1.5.6",
+    "langchain-deepseek==1.0.1",
+    "langchain-mcp-adapters==0.2.2",
+    "langgraph==1.0.10",
     "mcp[cli]==1.28.0",
-    "langchain-mcp-adapters",
-    "langchain",
-    "typer>=0.25.1",
-    "func_timeout",
-    "pyyaml",
-    "mcp-agent[openai]>=0.2.6",
-    "autogen-agentchat>=0.7.5",
-    "autogen-ext[mcp,openai]>=0.7.5",
-    "ruff>=0.15.20",
-    "langchain-anthropic>=1.5.6",
-    "huggingface_hub>=0.30.0",
-    "starlette>=0.40.0",
-    "uvicorn>=0.30.0",
+    "mcp-agent[openai]==0.2.6",
+    "autogen-agentchat==0.7.5",
+    "autogen-core==0.7.5",
+    "autogen-ext[mcp,openai]==0.7.5",
+    # Infrastructure
+    "pydantic>=2.13.4,<2.14",
+    "python-dotenv>=1.2.2,<2",
+    "typer>=0.25.1,<0.26",
+    "click>=8.5.0,<9",
+    "rich>=14.3.4,<15",
+    "httpx>=0.28.1,<0.29",
+    "func_timeout>=4.3.5,<5",
+    "pyyaml>=6.0.3,<7",
+    "huggingface_hub>=1.29.0,<2",
+    "starlette>=1.0.0,<2",
+    "uvicorn>=0.47.0,<0.48",
 ]
 
 [project.optional-dependencies]
 # SADE community agent (src/agent/community/sade) drives Claude Code via the SDK.
-sade = ["claude-agent-sdk"]
+# SDK pins match src/agent/sandbox/sbx/requirements-sdk.txt.
+sade = ["claude-agent-sdk==0.2.119"]
 # SDK agents (src/agent/sdk/claude_sdk, src/agent/sdk/codex_sdk).
-sdk = ["claude-agent-sdk", "openai-codex>=0.1.0b3"]
+sdk = ["claude-agent-sdk==0.2.119", "openai-codex==0.1.0b3"]
 # Optional Langfuse tracing for byo.langgraph.
 observability = ["langfuse"]
 batfish = [
-    "docker>=7.1.0",
+    "docker>=7.1.0,<8",
     "pybatfish==2025.7.7.2423",
 ]
 
@@ -54,16 +63,36 @@ where = ["src"]
 include = ["nika*", "agent*"]
 
 [tool.setuptools.package-data]
-"nika.net_env.isp.sndlib" = ["README.md", "*/network.xml"]
-"nika.problems.forwarding_encapsulation_policy" = ["*.bpf.c"]
+# Runtime data loaded from the installed package (lab files, images, prompts).
 "nika.inspect" = ["www/dist/**/*"]
+"nika.net_env.isp.sndlib" = ["*/network.xml"]
+"nika.net_env.k8s_lab" = ["lab.conf", "*.startup", "*/etc/**/*", "*/k8s/*.yaml", "shared/*.yaml"]
+"nika.net_env.llmd_lab" = ["lab.conf", "*.startup", "*/etc/**/*", "*/k8s/*.yaml"]
+"nika.net_env.campus_lan" = ["nginx.conf"]
+"nika.net_env.min3clos" = ["*.tmpl", "configs/*"]
+"nika.net_env.p4_dc_fabric" = ["*.p4"]
+"nika.net_env.p4_dc_gateway" = ["*.p4"]
+"nika.net_env.utils.kathara" = [
+    "*/daemons*",
+    "*/vtysh.conf",
+    "docker_files/Dockerfile.*",
+    "docker_files/*.sh",
+    "isp/rpki/Dockerfile.*",
+    "isp/rpki/*.json",
+    "web/web_server.service",
+    "wireguard/keys.txt",
+]
+"nika.problems.forwarding_encapsulation_policy" = ["*.bpf.c", "*.p4"]
+"agent.skills" = [".claude/**/*"]
+"agent.community.sade" = [".claude/**/*"]
+"agent.sandbox.sbx" = ["requirements-sdk.txt"]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "matplotlib"]
+dev = ["pytest>=9.1.1,<10", "pytest-asyncio>=1.4.0,<2", "ruff==0.15.21"]
 # Both lab backends, installed by default (see `tool.uv.default-groups`). Kathara also
 # covers the Kubernetes scenarios. Containerlab needs the external `clab` binary, plus
 # `gnmic` for SR Linux. Agent-only hosts skip this group with `uv sync --no-group labs`.
-labs = ["kathara", "kubernetes>=31.0.0", "docker"]
+labs = ["kathara>=3.8.3,<4", "kubernetes>=35.0.0,<36", "docker>=7.1.0,<8"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
@@ -86,5 +115,10 @@ filterwarnings = [
 ]
 
 [tool.uv]
+# openai-codex (sdk extra) is a prerelease and pulls prerelease openai-codex-cli-bin.
 prerelease = "allow"
 default-groups = ["dev", "labs"]
+
+[tool.ruff]
+# Ruff defaults otherwise; this matches requires-python.
+target-version = "py312"

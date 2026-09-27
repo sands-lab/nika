@@ -23,10 +23,12 @@ await agent.run(task_description=session.task_description)
 
 Expected behavior:
 
-- run diagnosis using the session MCP tools
-- advance to the submission phase, then call `submit` with `resource_id` and `fault_type` pairs from the frozen submission context
+- run diagnosis using the diagnosis MCP tools, within `max_steps` LLM turns
+- hand the report to the shared freeze step, then call `submit` with `resource_id` and `fault_type` pairs from the frozen submission context
 - write useful trace events to `results/{session_id}/messages.jsonl`
 - leave `submission.json` in the session directory through the task MCP `submit` tool
+
+Subclass `agent.utils.two_phase.TwoPhaseAgent` to get this pipeline. You implement `diagnose()` and `submit()`. The base class writes the phase bookends (`agent_start`, then `agent_done` or `agent_error`), fails the run on an `ERROR:` diagnosis report, freezes the report, and advances the MCP gateway before it calls `submit()`. See [Step limit](agent-implementations.md#step-limit) for the `max_steps` contract.
 
 ## Use the recommended structure
 
@@ -47,14 +49,14 @@ from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
 from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.loggers import MessageLogger
+from agent.utils.mcp_client import load_session_mcp_config
+from agent.utils.two_phase import TwoPhaseAgent
 from nika.utils.session import Session
-from nika.workflows.agent.submission import load_submission_context
 
 
-class MyAgent:
+class MyAgent(TwoPhaseAgent):
     def __init__(
         self,
         session_id: str,
@@ -68,19 +70,19 @@ class MyAgent:
         self.stream_output = stream_output
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
+        self.trace_dir = self.session.session_dir
 
-    async def run(self, task_description: str) -> dict[str, Any]:
-        diagnosis = await self._diagnose(task_description)
-        await self._submit(diagnosis)
-        return {"diagnosis_report": diagnosis}
-
-    async def _diagnose(self, task_description: str) -> str:
-        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self.session.session_dir)
-        logger.log("llm_start", {"messages": {"role": "user", "content": task_description}})
-
-        config = load_session_mcp_config(self.session_id, self.session.scenario_name)
+    async def _tools(self, phase: str) -> dict[str, Any]:
+        config = load_session_mcp_config(
+            self.session_id, self.session.scenario_name, phase=phase
+        )
         client = MultiServerMCPClient(connections=config)
-        tools = {tool.name: tool for tool in await client.get_tools()}
+        return {tool.name: tool for tool in await client.get_tools()}
+
+    async def diagnose(self, task_description: str) -> str:
+        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
+        logger.log("llm_start", {"messages": {"role": "user", "content": task_description}})
+        tools = await self._tools(DIAGNOSIS)
 
         # Replace this block with your framework or model loop.
         result = await tools["exec_shell"].ainvoke(
@@ -91,18 +93,12 @@ class MyAgent:
         logger.log("llm_end", {"text": diagnosis, "model": self.model})
         return diagnosis
 
-    async def _submit(self, diagnosis: str) -> None:
-        logger = MessageLogger(phase=SUBMISSION, session_dir=self.session.session_dir)
-        begin_submission_mcp_phase(self.session_id, diagnosis)
-
-        config = load_session_mcp_config(self.session_id, self.session.scenario_name)
-        client = MultiServerMCPClient(connections=config)
-        tools = {tool.name: tool for tool in await client.get_tools()}
-
-        context = load_submission_context(self.session_id)
+    async def submit(self, diagnosis_report: str, context: dict[str, Any]) -> str:
+        logger = MessageLogger(phase=SUBMISSION, session_dir=self.trace_dir)
+        tools = await self._tools(SUBMISSION)
         # Select resource_id and fault_type from context["resources"] and
-        # context["fault_ontology"] entries are {id, description, owner_kind}
-        # from ownership_entries; usually via your model or framework.
+        # context["fault_ontology"] (entries are {id, description, owner_kind}),
+        # usually with your model or framework.
         submission = {
             "is_anomaly": True,
             "root_causes": [
@@ -115,6 +111,7 @@ class MyAgent:
         logger.log("tool_start", {"tool": {"name": "submit"}, "input": submission})
         output = await tools["submit"].ainvoke(submission)
         logger.log("tool_end", {"output": str(output)})
+        return str(output)
 ```
 
 Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/cli/`, or `src/agent/sdk/` packages as framework-specific references.
@@ -139,23 +136,22 @@ If the agent needs custom environment variables, resolve them in `config.py` and
 
 ## Configure MCP access
 
-NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helpers:
+NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helper, which returns only the servers of one phase:
 
 ```python
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
+from agent.utils.mcp_client import load_session_mcp_config
 
-# Diagnosis (and submission after phase advance): all session servers
-config = load_session_mcp_config(session_id, scenario_name)
-
-# Before submission tools: freeze diagnosis and advance gateway phase
-begin_submission_mcp_phase(session_id, diagnosis_report)
+diagnosis_config = load_session_mcp_config(session_id, scenario_name, phase="diagnosis")
+submission_config = load_session_mcp_config(session_id, scenario_name, phase="submission")
 ```
 
 Common submission flow:
 
-1. Call `begin_submission_mcp_phase(session_id, diagnosis_report)`.
-2. Read the frozen resource inventory and fault ontology from the submission context in the prompt (or `load_submission_context`).
+1. Return the report from `diagnose()`. `TwoPhaseAgent` calls `begin_submission_mcp_phase(session_id, diagnosis_report)` on the host, which freezes the report and advances the gateway.
+2. Read the resource inventory and fault ontology from the `context` argument of `submit()`.
 3. Call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
+
+The gateway's phase-advance endpoint needs a host-only secret. An agent that runs in a sandbox cannot advance the phase itself, so it cannot read the submission context before diagnosis ends.
 
 The task server rejects IDs outside those catalogs. See [MCP servers](mcp-servers.md) for the server catalog and packet capture workflow, and [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md) for the submit contract.
 
@@ -183,7 +179,7 @@ uv run nika env run dc_clos -s s
 uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
 uv run nika agent run -a mock -m mock-v1
 uv run nika session close -y
-uv run nika eval metrics
+uv run nika eval metrics --session_id <session_id>
 ```
 
 Then run your agent:
@@ -204,7 +200,7 @@ uv run nika benchmark run dc_clos -s s --problem link_down \
 
 ## Validate the integration
 
-- Agent class has `session_id` and `async run(task_description)`.
+- Agent class has `session_id` and `async run(task_description)` (inherited from `TwoPhaseAgent`).
 - Registry maps a stable CLI id to the class.
 - Diagnosis uses MCP tools instead of direct Docker/Kathara duplication.
 - Submission selects IDs from the frozen submission context, then uses the task MCP `submit` tool.

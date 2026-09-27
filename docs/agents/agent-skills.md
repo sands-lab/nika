@@ -4,7 +4,7 @@ This guide is for agent implementers who attach reusable troubleshooting instruc
 
 Implementation: [`utils/skills.py`](../../src/agent/utils/skills.py) prepares skill workspaces; [`agent/skills/`](../../src/agent/skills/) stores the shared library.
 
-Skills are optional. Enable or disable them with `nika.enable_skills` in `config/nika.yaml` (default: `true`).
+Skills are optional. Enable or disable them with `agent.enable_skills` in `config/nika.yaml` (default: `true`).
 
 ## Supported agents
 
@@ -25,8 +25,6 @@ The shared library lives at [`src/agent/skills/`](../../src/agent/skills/):
 ```
 src/agent/skills/
 ├── skills/                 # canonical skill sources (loaded by default)
-├── test_skills/            # integration-only skills (not loaded by default)
-│   └── nika-test-skill/
 ├── .claude/
 │   ├── CLAUDE.md           # skill index for Claude Code
 │   └── skills/ → ../skills/
@@ -36,16 +34,16 @@ src/agent/skills/
 
 Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace.
 
-`nika-test-skill` lives under `test_skills/` and is **not** loaded into agents by default. Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
+`nika-test-skill` lives under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/nika-test-skill/SKILL.md) and is **not** part of the production skill package (sandbox copies never include it). Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
 
 ## Configuration
 
 ```yaml
-nika:
+agent:
   enable_skills: true
 ```
 
-Set `nika.enable_skills` in `config/nika.yaml`. Agents read that setting at runtime and do not accept a separate skills environment-variable override.
+Set `agent.enable_skills` in `config/nika.yaml`. Host-side agents read that setting at runtime. Sandboxed agents cannot read the host config, so NIKA passes the resolved value into the sandbox as `NIKA_ENABLE_SKILLS` and skips copying the skills tree when skills are off. Change `agent.enable_skills` instead of setting `NIKA_ENABLE_SKILLS` yourself.
 
 ## Writing a custom skill
 
@@ -131,4 +129,4 @@ Use SADE as a reference for large skill libraries; use `src/agent/skills/` for s
 ## Code reference
 
 - Shared helpers: [`src/agent/utils/skills.py`](../../src/agent/utils/skills.py)
-- Test skill (opt-in): [`src/agent/skills/test_skills/nika-test-skill/SKILL.md`](../../src/agent/skills/test_skills/nika-test-skill/SKILL.md)
+- Test skill (opt-in fixture): [`tests/agent/fixtures/skills/nika-test-skill/SKILL.md`](../../tests/agent/fixtures/skills/nika-test-skill/SKILL.md)
