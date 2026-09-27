@@ -511,11 +511,8 @@ class KatharaScenarioVerifyIntegrationTest(IntegrationTestCase):
                     assert node in nodes
 
                 kwargs = self._scenario_kwargs(session_id)
-                net_env = get_net_env_instance(
-                    scenario,
-                    backend=resolve_backend(row),
-                    **kwargs,
-                )
+                kwargs["backend"] = resolve_backend(row)
+                net_env = get_net_env_instance(scenario, **kwargs)
                 ok, result = evaluate_scenario(net_env)
                 assert ok is True, result
             finally:
