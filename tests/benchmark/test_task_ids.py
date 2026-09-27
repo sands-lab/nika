@@ -169,7 +169,7 @@ class TestReleaseTaskIdGate:
         assert job["case_count"] == release.case_count
         plan = " ".join(capsys.readouterr().out.split())
         assert "1/1 run(s) remaining" in plan
-        assert "1 case(s) × 3 trial(s)/case" in plan
+        assert "1 case(s), 1 of 3 trial(s) selected" in plan
 
 
 class TestPublishedReleaseCatalog:

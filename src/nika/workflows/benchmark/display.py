@@ -172,10 +172,16 @@ def format_run_plan(plan: RunPlan, *, max_labels: int = _DEFAULT_PLAN_LABELS) ->
         else max(1, plan.total_trials // max(1, plan.n_trials))
     )
     n_trials = max(1, int(plan.n_trials))
+    full_grid = case_count * n_trials
+    scope = (
+        f"{case_count} case(s), {plan.total_trials} of {full_grid} trial(s) selected"
+        if plan.total_trials < full_grid
+        else f"{case_count} case(s) × {n_trials} trial(s)/case"
+    )
     lines.append(
         f"Plan: {plan.pending_count}/{plan.total_trials} run(s) remaining "
         f"({plan.skipped_count} already complete), "
-        f"{case_count} case(s) × {n_trials} trial(s)/case, "
+        f"{scope}, "
         f"batch_size={plan.batch_size}"
         + (
             ", serialize_heavy=true"
