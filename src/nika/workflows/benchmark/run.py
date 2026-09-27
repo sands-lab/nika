@@ -1388,6 +1388,7 @@ def run_benchmark_trials(
     trials = expand_trials(rows, n_trials)
     if task_ids:
         trials = select_trials(trials, task_ids)
+    case_count = len({trial.case_key for trial in trials})
 
     results_root = resolve_results_root(result_dir)
     is_release = job is not None
@@ -1551,7 +1552,7 @@ def run_benchmark_trials(
             header=plan_header,
             batch_size=batch_size,
             serialize_heavy=serialize_heavy,
-            case_count=len(rows),
+            case_count=case_count,
             n_trials=n_trials,
         ),
         output_mode=output_mode,
@@ -1614,7 +1615,7 @@ def run_benchmark_trials(
             initial_completed=len(trials) - len(initial_pending),
             agent_type=agent_type,
             model=model,
-            case_count=len(rows),
+            case_count=case_count,
             n_trials=n_trials,
             inspect_url=inspect_url,
             output_mode=output_mode,
