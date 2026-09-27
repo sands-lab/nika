@@ -194,6 +194,13 @@ def catalog_resources(
             seen_link.add(link.id)
             links.append(link)
 
+    overlay = getattr(net_env, "overlay_interfaces", None)
+    for device, intf in overlay() if callable(overlay) else []:
+        nodes.add(device)
+        if (device, intf) not in seen_iface:
+            seen_iface.add((device, intf))
+            interfaces.append((device, intf))
+
     items: list[FaultResource] = [node_resource(name) for name in sorted(nodes)]
     items.extend(interface_resource(node, intf) for node, intf in interfaces)
     items.extend(links)

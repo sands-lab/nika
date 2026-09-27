@@ -366,3 +366,27 @@ def test_submission_owner_kind_matches_default_release_ground_truth(split) -> No
             if owner_kind_for_fault(fault_type) != gt_owner:
                 mismatches.add((fault_type, gt_owner))
     assert not mismatches
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("split", ["dev", "test"])
+def test_release_ground_truth_is_in_submission_catalog(split) -> None:
+    """submit rejects ids outside the catalog, so every GT resource must be listed."""
+    from nika.problems.rca.inventory import load_offline_net_env
+    from nika.workflows.benchmark.release import resolve_cases
+
+    deploy_keys = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
+    catalogs: dict[tuple, set[str]] = {}
+    missing = set()
+    for case in resolve_cases(split=split):
+        deploy = {k: case[k] for k in deploy_keys if case.get(k) is not None}
+        key = (case["scenario"], case.get("topo_size") or "", *sorted(deploy.items()))
+        if key not in catalogs:
+            env = load_offline_net_env(key[0], key[1], **deploy)
+            catalogs[key] = {item.id for item in catalog_resources(env)}
+        for cause in case.get("root_causes") or []:
+            resource_id = RootCause.model_validate(cause).resource_id
+            # k8s objects come from the live cluster, not the offline topology.
+            if not resource_id.startswith("k8s/") and resource_id not in catalogs[key]:
+                missing.add((case["scenario"], case["problem"], resource_id))
+    assert not missing

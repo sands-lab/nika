@@ -275,6 +275,13 @@ class EnterpriseBranch(NetworkEnvBase):
             "forward tunnel endpoint reachability."
         )
 
+    def overlay_interfaces(self) -> list[tuple[str, str]]:
+        pairs: list[tuple[str, str]] = []
+        for bt in self.built_tunnels:
+            pairs.append((edge_name_for(bt.spoke), bt.spoke_iface))
+            pairs.append((edge_name_for(bt.hub), bt.hub_iface))
+        return pairs
+
     def _next_wan(self) -> IPv4Network:
         return self._wan_pool.pop(0)
 
