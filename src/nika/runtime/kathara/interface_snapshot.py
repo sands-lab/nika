@@ -68,8 +68,11 @@ def restore_link_state(runtime: LabRuntime, state: LinkAttachmentState) -> None:
             continue
         current = matching["ifname"]
         if current != state.intf:
+            # Renaming an up interface trips a zebra assertion; watchfrr then
+            # restarts every FRR daemon and resets all BGP sessions.
             runtime.exec(
                 state.node,
+                f"ip link set dev {current} down && "
                 f"ip link set dev {current} name {state.intf}",
             )
         runtime.exec(state.node, f"ip link set dev {state.intf} mtu {state.mtu}")
