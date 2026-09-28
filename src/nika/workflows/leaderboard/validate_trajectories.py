@@ -31,10 +31,6 @@ from nika.workflows.leaderboard.secrets import scan_trajectory_package_dir
 from nika.workflows.leaderboard.validate import ValidationReport
 
 
-class TrajectoryValidateError(ValueError):
-    """Trajectory package failed local validation."""
-
-
 def _resolve_dir(path: str | Path) -> Path:
     root = Path(path)
     if not root.is_absolute():
@@ -179,9 +175,7 @@ def validate_trajectory_package(
 
     if scores_dir is not None:
         scores_root = _resolve_dir(scores_dir)
-        scores_identity_path = (
-            scores_root / RESULTS_DIRNAME / IDENTITY_FILENAME
-        )
+        scores_identity_path = scores_root / RESULTS_DIRNAME / IDENTITY_FILENAME
         if not scores_identity_path.is_file():
             errors.append(
                 f"scores package missing {RESULTS_DIRNAME}/{IDENTITY_FILENAME}"
@@ -202,7 +196,10 @@ def validate_trajectory_package(
                     errors.append(
                         "trajectories run.run_id does not match scores package"
                     )
-                if identity.scores_package and identity.scores_package != scores_root.name:
+                if (
+                    identity.scores_package
+                    and identity.scores_package != scores_root.name
+                ):
                     errors.append(
                         f"scores_package {identity.scores_package!r} != "
                         f"scores dirname {scores_root.name!r}"

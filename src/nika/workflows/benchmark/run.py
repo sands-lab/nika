@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,13 +15,22 @@ from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
-from nika.utils.agent_config import resolve_max_tokens
 from nika.utils.session import Session
-from nika.utils.session_artifacts import RUN_FILENAME, last_session_error
+from nika.utils.session_artifacts import (
+    last_session_error,
+    update_run_json,
+    write_json_atomic,
+)
 from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
+from nika.workflows.benchmark.admit import (
+    class_limits,
+    pick_admissible,
+    resource_class,
+)
 from nika.workflows.benchmark.display import (
     BenchmarkProgress,
+    OutputMode,
     RunPlan,
     apply_worker_warning_env,
     confirm_run,
@@ -38,11 +47,19 @@ from nika.workflows.benchmark.healthy import (
 )
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
+from nika.workflows.benchmark.outcomes import (
+    RETRYABLE_OUTCOMES,
+    classify_trial_failure,
+    is_signal_exit_code,
+    trace_ends_in_llm_call,
+)
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
+    RUN_CONFIG_FILENAME,
     BenchmarkRelease,
     SplitName,
     build_job_metadata,
+    build_run_identity,
     load_release,
     load_run_config,
     normalize_split,
@@ -61,39 +78,45 @@ from nika.workflows.benchmark.run_progress import (
 )
 from nika.workflows.benchmark.trials import (
     Trial,
-    count_completed_trials,
+    _restore_success_eval_metrics,
     expand_trials,
+    has_valid_submission,
     heal_trial_outcome,
+    is_finalized_failure,
     is_valid_trial,
     merge_run_config,
     scan_trials,
     select_trials,
+    store_session_id_for_trial,
     trial_dir,
+    trial_outcome,
 )
 from nika.workflows.env.start import start_net_env
-from nika.workflows.eval.session import eval_results, run_eval_metrics
+from nika.workflows.eval.session import (
+    build_eval_metrics_payload,
+    eval_results,
+    run_eval_metrics,
+)
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
 
-def store_session_id_for_trial(
-    trial_id: str | None, result_dir: str | Path | None
+def _maybe_start_inspect(
+    results_root: Path, *, output_mode: OutputMode = "human"
 ) -> str | None:
-    """Return a SessionStore key that stays unique across parallel result roots.
+    """Best-effort background inspect for interactive human (TTY) runs."""
+    import sys
 
-    Benchmark trial *slots* live under ``{result_dir}/trials/{trial_id}/``. The
-    global SessionStore file is ``runtime/sessions/{session_id}.json``. Using the
-    bare ``trial_id`` as ``session_id`` makes two concurrent ``nika benchmark
-    run`` processes on the same task (different ``--result_dir``) clobber one
-    lab/session. Suffix a short hash of the resolved result root so parallel
-    agents stay isolated while resume within one result root stays stable.
-    """
-    if not trial_id:
+    if output_mode != "human" or not sys.stdout.isatty():
         return None
-    if not result_dir:
-        return trial_id
-    digest = hashlib.sha1(str(Path(result_dir).resolve()).encode()).hexdigest()[:8]
-    return f"{trial_id}__r{digest}"
+    try:
+        from nika.inspect.serve import start_inspect_background
+
+        return start_inspect_background(result_dir=results_root)
+    except Exception as exc:  # noqa: BLE001 - advisory; never fail the run
+        print(f"WARNING: could not start nika inspect: {exc}")
+        return None
+
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
 
@@ -102,9 +125,11 @@ _BENCHMARK_DONE_PREFIX = "benchmark_done "
 # KeyboardInterrupt — the parent must terminate these explicitly.
 _active_trial_procs: set[Any] = set()
 _active_trial_procs_lock = threading.Lock()
-# Set while parent interrupt cleanup is killing workers so pool threads do not
-# stamp killed trials as counted ``agent_failed`` outcomes.
+# Set while the parent is stopping workers (Ctrl+C or --abort-on-error) so pool
+# threads do not stamp killed trials as counted outcomes (slot stays retryable).
 _interrupt_cleanup_active = False
+# How long the parent waits for workers to close their own labs.
+_WORKER_INTERRUPT_GRACE_SEC = 60
 
 
 def _is_user_interrupt(exc: BaseException) -> bool:
@@ -121,22 +146,54 @@ def _unregister_trial_proc(proc: Any) -> None:
         _active_trial_procs.discard(proc)
 
 
-def _terminate_active_trial_workers() -> None:
-    """Best-effort SIGTERM/SIGKILL for in-flight trial worker processes."""
+def _is_alive(proc: Any) -> bool:
+    return bool(getattr(proc, "is_alive", lambda: False)())
+
+
+def _stop_worker(proc: Any, *, grace_sec: float = _WORKER_INTERRUPT_GRACE_SEC) -> None:
+    """SIGTERM one worker, let its cleanup (lab undeploy) run, then SIGKILL."""
+    if not _is_alive(proc):
+        return
+    proc.terminate()
+    proc.join(grace_sec)
+    if _is_alive(proc):
+        proc.kill()
+        proc.join(5)
+
+
+def _terminate_active_trial_workers(*, signal_first: bool = False) -> None:
+    """Let in-flight trial workers undeploy, then SIGTERM/SIGKILL stragglers.
+
+    After Ctrl+C the terminal already delivered SIGINT to every worker, so the
+    parent only waits. ``signal_first`` (``--abort-on-error``) sends SIGTERM
+    first; the worker's SIGTERM handler runs the same cleanup.
+    """
+    global _interrupt_cleanup_active
+    _interrupt_cleanup_active = True
     with _active_trial_procs_lock:
         procs = list(_active_trial_procs)
-    for proc in procs:
+    alive = [p for p in procs if _is_alive(p)]
+    if alive:
+        if signal_first:
+            for proc in alive:
+                try:
+                    proc.terminate()
+                except Exception:  # noqa: BLE001 - best effort
+                    pass
+        # SIGKILL mid-undeploy leaks half-removed labs; give cleanup time.
+        print(
+            f"Waiting up to {_WORKER_INTERRUPT_GRACE_SEC}s for {len(alive)} trial "
+            "worker(s) to undeploy their labs (Ctrl+C again to skip)…"
+        )
+        deadline = time.monotonic() + _WORKER_INTERRUPT_GRACE_SEC
         try:
-            if getattr(proc, "is_alive", lambda: False)():
-                proc.terminate()
-        except Exception:  # noqa: BLE001 - best effort
+            for proc in alive:
+                proc.join(max(0.0, deadline - time.monotonic()))
+        except KeyboardInterrupt:
             pass
     for proc in procs:
         try:
-            proc.join(10)
-            if getattr(proc, "is_alive", lambda: False)():
-                proc.kill()
-                proc.join(5)
+            _stop_worker(proc, grace_sec=10)
         except Exception:  # noqa: BLE001 - best effort
             pass
         finally:
@@ -158,7 +215,9 @@ def _session_belongs_to_result_dir(
     if session_dir:
         try:
             resolved = Path(session_dir).resolve()
-            if resolved.is_relative_to(result_root):
+            # Job result roots share run.json with trials/; equality is not a
+            # trial session (Path.is_relative_to is true for the path itself).
+            if resolved != result_root and resolved.is_relative_to(result_root):
                 return resolved
         except (OSError, RuntimeError, ValueError):
             pass
@@ -167,23 +226,24 @@ def _session_belongs_to_result_dir(
     if trial_path.is_dir():
         return trial_path.resolve()
     legacy = result_root / session_id
-    if legacy.is_dir():
+    if legacy.is_dir() and legacy.resolve() != result_root:
         return legacy.resolve()
     return None
 
 
-def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
+def cleanup_benchmark_interrupt(
+    result_dir: str | Path | None, *, signal_workers: bool = False
+) -> int:
     """Undeploy labs for running sessions under ``result_dir`` after Ctrl+C.
 
-    Kills isolated trial workers first so they cannot race with undeploy, then
+    Stops isolated trial workers first so they cannot race with undeploy
+    (``signal_workers`` sends them SIGTERM, for ``--abort-on-error``), then
     closes every still-running session whose artifacts live under this run.
     Marks each closed trial ``run.json`` as ``status=aborted`` so inspect can
     distinguish Ctrl+C from a normal finish.
     Returns how many sessions close was attempted for.
     """
-    global _interrupt_cleanup_active
-    _interrupt_cleanup_active = True
-    _terminate_active_trial_workers()
+    _terminate_active_trial_workers(signal_first=signal_workers)
     if result_dir is None:
         return 0
     result_root = Path(result_dir).resolve()
@@ -204,6 +264,29 @@ def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
             result_root=result_root,
         )
         if matched is None:
+            # Job result roots were historically indexed as sessions named after
+            # the folder (e.g. results/claude → session_id=claude). Clear the
+            # orphan index row; do not touch job run.json or undeploy.
+            raw_dir = row.get("session_dir")
+            if not raw_dir:
+                continue
+            try:
+                if Path(raw_dir).resolve() != result_root:
+                    continue
+            except (OSError, RuntimeError, ValueError):
+                continue
+            try:
+                close_session(
+                    session_id=session_id,
+                    undeploy=False,
+                    session_dir=result_root,
+                )
+                closed += 1
+            except Exception as cleanup_error:  # noqa: BLE001 - best effort
+                print(
+                    f"WARNING: could not clear orphan session index entry "
+                    f"{session_id}: {cleanup_error}"
+                )
             continue
         try:
             close_session(
@@ -224,19 +307,13 @@ def cleanup_benchmark_interrupt(result_dir: str | Path | None) -> int:
 
 def _mark_session_aborted(session_dir: Path) -> None:
     """Stamp ``run.json`` as aborted after Ctrl+C cleanup (overrides finished)."""
-    run_path = session_dir / RUN_FILENAME
-    if not run_path.is_file():
-        return
-    try:
-        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return
-    if not isinstance(run_meta, dict):
-        return
-    run_meta["status"] = "aborted"
-    if not run_meta.get("outcome"):
-        run_meta["outcome"] = "aborted"
-    run_path.write_text(json.dumps(run_meta, indent=2, default=str), encoding="utf-8")
+
+    def _abort(run_meta: dict[str, Any]) -> None:
+        run_meta["status"] = "aborted"
+        if not run_meta.get("outcome"):
+            run_meta["outcome"] = "aborted"
+
+    update_run_json(session_dir, _abort)
 
 
 def default_benchmark_yaml_path() -> str:
@@ -253,8 +330,6 @@ def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     session = Session().load_running_session(session_id=session_id)
     for key, value in release_fields_for_session(release_meta).items():
         session.update_session(key, value)
-    if release_meta.get("fault_ontology"):
-        session.update_session("fault_ontology", release_meta["fault_ontology"])
 
 
 def _stamp_trial_meta(
@@ -340,10 +415,10 @@ def _ensure_messages_file(session_dir: Path) -> None:
 
 def _require_submission(session_dir: Path) -> None:
     """Treat an agent return without a submission as an agent failure."""
-    submission_path = session_dir / "submission.json"
-    if not submission_path.is_file():
+    if not has_valid_submission(session_dir):
         raise RuntimeError(
-            f"Agent completed without writing required submission: {submission_path}"
+            "Agent completed without writing required submission: "
+            f"{session_dir / 'submission.json'}"
         )
 
 
@@ -351,89 +426,138 @@ def _ensure_placeholder_eval_metrics(session_dir: Path) -> None:
     metrics_path = session_dir / "eval_metrics.json"
     if metrics_path.exists():
         return
-    metrics_path.write_text(
-        json.dumps(
-            {
-                "detection_score": -1.0,
-                "localization_accuracy": -1.0,
-                "localization_precision": -1.0,
-                "localization_recall": -1.0,
-                "localization_f1": -1.0,
-                "rca_accuracy": -1.0,
-                "rca_precision": -1.0,
-                "rca_recall": -1.0,
-                "rca_f1": -1.0,
-                "in_tokens": None,
-                "out_tokens": None,
-                "steps": None,
-                "tool_calls": None,
-                "tool_errors": None,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
+    write_json_atomic(
+        metrics_path,
+        build_eval_metrics_payload(gt={}, submission=None, trace_metrics={}),
     )
 
 
-def _set_trial_outcome(session_dir: Path, *, outcome: str) -> None:
-    run_path = session_dir / RUN_FILENAME
-    if not run_path.is_file():
-        return
+def _set_trial_outcome(
+    session_dir: Path,
+    *,
+    outcome: str,
+    status: str = "finished",
+    agent_error: str | None = None,
+) -> None:
+    def _stamp(run_meta: dict[str, Any]) -> None:
+        run_meta["outcome"] = outcome
+        run_meta["status"] = status
+        if agent_error is not None:
+            run_meta["agent_error"] = agent_error
+        # Watchdog kills never reach session.end_session(); stamp end_time here
+        # so inspect Duration is not "—" for counted agent_failed / error slots.
+        if not run_meta.get("end_time"):
+            run_meta["end_time"] = datetime.now().isoformat()
+
+    update_run_json(session_dir, _stamp)
+
+
+def _close_quietly(session_id: str, session_dir: Path) -> None:
     try:
-        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return
-    if not isinstance(run_meta, dict):
-        return
-    run_meta["outcome"] = outcome
-    run_meta["status"] = "finished"
-    run_path.write_text(json.dumps(run_meta, indent=2, default=str), encoding="utf-8")
+        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
+    except FileNotFoundError:
+        pass  # Already closed (worker cleanup) or never registered.
+    except Exception as cleanup_error:  # noqa: BLE001 - best effort
+        print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
 
 
-def _finalize_agent_failed_trial(
+def _stamp_closed_outcome(
+    *,
+    session_id: str,
+    session_dir: Path,
+    result_dir: str | None,
+    outcome: str,
+    status: str,
+    agent_error: str | None,
+) -> None:
+    """Record the outcome through the closed session (updates the index too)."""
+    try:
+        session = Session().load_closed_session(
+            session_id=session_id, result_dir=result_dir, session_dir=session_dir
+        )
+        session.update_run_meta("outcome", outcome)
+        if agent_error is not None:
+            session.update_run_meta("agent_error", agent_error)
+        session.update_run_meta("status", status)
+    except Exception:  # noqa: BLE001 - fall back to direct file write
+        _set_trial_outcome(
+            session_dir, outcome=outcome, status=status, agent_error=agent_error
+        )
+
+
+def _finalize_failed_trial(
     *,
     session_id: str,
     session_dir: Path,
     result_dir: str | None,
     error: BaseException,
+    outcome: str,
 ) -> None:
-    """Mark a post-inject failure as a counted ``agent_failed`` trial."""
-    try:
-        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
-    except Exception as cleanup_error:  # noqa: BLE001 - best effort
-        print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
+    """Close the lab and stamp a post-inject failure outcome.
 
+    ``agent_failed`` is a counted finished slot (scores 0.0, kept by resume).
+    ``endpoint_failed`` / ``infra_failed`` are retryable: ``status=error``, not
+    counted, cleaned on resume.
+    """
+    _close_quietly(session_id, session_dir)
     _ensure_messages_file(session_dir)
+    status = "finished" if outcome == "agent_failed" else "error"
     # Stamp outcome immediately after close so a later kill during metrics
-    # still leaves a recoverable counted trial for resume.
-    _set_trial_outcome(session_dir, outcome="agent_failed")
-    try:
-        run_eval_metrics(session_id=session_id, result_dir=result_dir)
-    except Exception as eval_error:  # noqa: BLE001 - still record failure
-        print(
-            f"WARNING: could not write eval metrics for agent_failed "
-            f"trial {session_id}: {eval_error}"
-        )
-        _ensure_placeholder_eval_metrics(session_dir)
+    # still leaves a recoverable trial for resume (counted or retryable).
+    _set_trial_outcome(session_dir, outcome=outcome, status=status)
 
-    try:
-        session = Session().load_closed_session(
-            session_id=session_id, result_dir=result_dir
-        )
-        session.update_run_meta("outcome", "agent_failed")
-        session.update_run_meta("agent_error", str(error))
-        session.update_run_meta("status", "finished")
-    except Exception:  # noqa: BLE001 - fall back to direct file write
-        _set_trial_outcome(session_dir, outcome="agent_failed")
-        run_path = session_dir / RUN_FILENAME
+    if outcome == "agent_failed":
         try:
-            run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-            run_meta["agent_error"] = str(error)
-            run_path.write_text(
-                json.dumps(run_meta, indent=2, default=str), encoding="utf-8"
+            run_eval_metrics(
+                session_id=session_id, result_dir=result_dir, session_dir=session_dir
             )
-        except Exception:  # noqa: BLE001 - best effort
-            pass
+        except Exception as eval_error:  # noqa: BLE001 - still record failure
+            print(
+                f"WARNING: could not write eval metrics for agent_failed "
+                f"trial {session_id}: {eval_error}"
+            )
+            _ensure_placeholder_eval_metrics(session_dir)
+
+    _stamp_closed_outcome(
+        session_id=session_id,
+        session_dir=session_dir,
+        result_dir=result_dir,
+        outcome=outcome,
+        status=status,
+        agent_error=str(error),
+    )
+
+
+def _finalize_post_inject_failure(
+    *,
+    session_id: str,
+    session_dir: Path,
+    result_dir: str | None,
+    error: BaseException,
+) -> str:
+    """Finalize a trial that failed after ground truth was written.
+
+    A valid ``submission.json`` means the agent finished its task, so the trial
+    is a ``success`` even when a later step (agent timeout, sandbox teardown,
+    worker kill) failed. Otherwise classify the failure. Returns the outcome.
+    """
+    if has_valid_submission(session_dir):
+        _close_and_eval_success(
+            session_id=session_id,
+            session_dir=session_dir,
+            result_dir=result_dir,
+            agent_error=str(error),
+        )
+        return "success"
+    outcome = classify_trial_failure(error, session_dir=session_dir)
+    _finalize_failed_trial(
+        session_id=session_id,
+        session_dir=session_dir,
+        result_dir=result_dir,
+        error=error,
+        outcome=outcome,
+    )
+    return outcome
 
 
 def _finalize_timed_out_trial(
@@ -442,21 +566,24 @@ def _finalize_timed_out_trial(
     result_dir: str | None,
     error: BaseException,
 ) -> None:
-    """After a watchdog kill, keep a counted trial when GT was already written."""
+    """After a watchdog kill, stamp a failure when GT was already written."""
     results_root = resolve_results_root(result_dir)
     session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
-    if not (session_dir / "ground_truth.json").is_file():
-        return
-    print(
-        f"[{trial.trial_id}] finalizing timed-out trial as agent_failed under {session_dir}"
+    session_id = (
+        store_session_id_for_trial(trial.trial_id, result_dir) or trial.trial_id
     )
-    _finalize_agent_failed_trial(
-        session_id=store_session_id_for_trial(trial.trial_id, result_dir)
-        or trial.trial_id,
+    if not (session_dir / "ground_truth.json").is_file():
+        # Killed during deploy/inject: nothing to score, but undeploy the lab
+        # so it cannot overlap the next (possibly exclusive) trial.
+        _close_quietly(session_id, session_dir)
+        return
+    outcome = _finalize_post_inject_failure(
+        session_id=session_id,
         session_dir=session_dir,
         result_dir=result_dir,
         error=error,
     )
+    print(f"[{trial.trial_id}] finalized killed trial as {outcome} under {session_dir}")
 
 
 def _close_and_eval_success(
@@ -464,30 +591,36 @@ def _close_and_eval_success(
     session_id: str,
     session_dir: Path,
     result_dir: str | None,
+    agent_error: str | None = None,
 ) -> None:
-    """Close, stamp ``outcome=success`` ASAP, then write eval metrics."""
-    try:
-        close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
-    except FileNotFoundError:
-        # Already closed by another path; still stamp + evaluate.
-        pass
+    """Close, stamp ``outcome=success`` ASAP, then write eval metrics.
+
+    ``agent_error`` records a failure that happened after the submission.
+    """
+    # A teardown hiccup must not turn a valid submission into agent_failed.
+    _close_quietly(session_id, session_dir)
     _ensure_messages_file(session_dir)
-    _set_trial_outcome(session_dir, outcome="success")
+    _set_trial_outcome(session_dir, outcome="success", agent_error=agent_error)
     try:
-        run_eval_metrics(session_id=session_id, result_dir=result_dir)
+        run_eval_metrics(
+            session_id=session_id, result_dir=result_dir, session_dir=session_dir
+        )
     except Exception as eval_error:  # noqa: BLE001 - outcome already stamped
         print(
             f"WARNING: could not write eval metrics for success "
             f"trial {session_id}: {eval_error}"
         )
-        _ensure_placeholder_eval_metrics(session_dir)
-    try:
-        closed = Session().load_closed_session(
-            session_id=session_id, result_dir=result_dir
-        )
-        closed.update_run_meta("outcome", "success")
-    except Exception:  # noqa: BLE001 - disk already stamped
-        _set_trial_outcome(session_dir, outcome="success")
+        # Rebuild from on-disk artifacts; never write -1 placeholders for a
+        # success, which would block --resume from repairing the metrics.
+        _restore_success_eval_metrics(session_dir)
+    _stamp_closed_outcome(
+        session_id=session_id,
+        session_dir=session_dir,
+        result_dir=result_dir,
+        outcome="success",
+        status="finished",
+        agent_error=agent_error,
+    )
 
 
 def run_single_case(
@@ -700,7 +833,9 @@ def run_single_case(
             _ensure_messages_file(session_dir)
             try:
                 closed = Session().load_closed_session(
-                    session_id=session_id, result_dir=result_dir
+                    session_id=session_id,
+                    result_dir=result_dir,
+                    session_dir=session_dir,
                 )
                 closed.update_run_meta("outcome", "success")
             except Exception:  # noqa: BLE001 - still mark outcome on disk
@@ -722,11 +857,12 @@ def run_single_case(
                 )
             raise
 
-        # Batch runs ( --config / --release): post-inject failures become
-        # counted agent_failed outcomes. Bare single-case CLI (no trial_id)
+        # Batch runs (--config / --release): post-inject failures become
+        # success (valid submission), counted agent_failed, or retryable
+        # endpoint_failed / infra_failed. Bare single-case CLI (no trial_id)
         # still raises so abort-on-error behavior is preserved.
         if trial_id and (gt_written or (session_dir / "ground_truth.json").is_file()):
-            _finalize_agent_failed_trial(
+            outcome = _finalize_post_inject_failure(
                 session_id=session_id,
                 session_dir=session_dir,
                 result_dir=result_dir,
@@ -735,25 +871,24 @@ def run_single_case(
             vprint(
                 verbose or not trial_id,
                 f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} scenario={scenario} "
-                f"problem={problem} session_dir={session_dir} outcome=agent_failed",
+                f"problem={problem} session_dir={session_dir} outcome={outcome}",
             )
+            if outcome in RETRYABLE_OUTCOMES:
+                # Surface as a continuing failure so retry-passes / resume see it.
+                raise
             return session_id, session_dir
 
-        try:
-            close_session(session_id=session_id, undeploy=True, session_dir=session_dir)
-            vprint(verbose, f"cleaned up failed session {session_id} (lab undeployed)")
-        except Exception as cleanup_error:  # noqa: BLE001 - best effort
-            print(f"WARNING: could not clean up session {session_id}: {cleanup_error}")
-        try:
-            run_path = session_dir / RUN_FILENAME
-            run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+        _close_quietly(session_id, session_dir)
+        vprint(verbose, f"cleaned up failed session {session_id} (lab undeployed)")
+
+        def _mark_error(run_meta: dict[str, Any]) -> None:
             run_meta["status"] = "error"
             if not run_meta.get("outcome"):
                 run_meta["outcome"] = "error"
-            run_path.write_text(
-                json.dumps(run_meta, indent=2, default=str), encoding="utf-8"
-            )
-        except Exception:  # noqa: BLE001 - best effort
+
+        try:
+            update_run_json(session_dir, _mark_error)
+        except OSError:
             pass
         raise
 
@@ -773,6 +908,7 @@ def run_benchmark_from_yaml(
     max_steps: int | None,
     *,
     batch_size: int = 1,
+    serialize_heavy: bool = True,
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
@@ -783,6 +919,7 @@ def run_benchmark_from_yaml(
     task_ids: list[str] | None = None,
     yes: bool = False,
     verbose: bool = False,
+    output_mode: OutputMode = "human",
     plan_header: str | None = None,
 ) -> None:
     """Run ad-hoc YAML cases via the shared trial runner (``n_trials=1``).
@@ -798,6 +935,7 @@ def run_benchmark_from_yaml(
         max_steps=max_steps,
         n_trials=1,
         batch_size=batch_size,
+        serialize_heavy=serialize_heavy,
         result_dir=result_dir,
         resume=resume,
         session_tag=session_tag,
@@ -808,6 +946,7 @@ def run_benchmark_from_yaml(
         task_ids=task_ids,
         yes=yes,
         verbose=verbose,
+        output_mode=output_mode,
         plan_header=plan_header,
     )
 
@@ -908,29 +1047,17 @@ def _run_trial_with_timeout(
         try:
             proc.join(join_timeout)
         except KeyboardInterrupt:
-            if proc.is_alive():
-                proc.terminate()
-                proc.join(15)
-                if proc.is_alive():
-                    proc.kill()
-                    proc.join(5)
+            # The worker got SIGINT too; give it the same grace to undeploy.
+            _terminate_active_trial_workers()
             raise
-        # Parent interrupt cleanup may have killed this worker; do not stamp
-        # agent_failed — leave the trial incomplete for --resume.
+        # Parent is stopping workers (Ctrl+C / --abort-on-error); do not stamp
+        # an outcome — leave the trial incomplete for --resume.
         if _interrupt_cleanup_active:
-            if proc.is_alive():
-                proc.terminate()
-                proc.join(15)
-                if proc.is_alive():
-                    proc.kill()
-                    proc.join(5)
+            _stop_worker(proc)
             raise KeyboardInterrupt()
         if case_timeout > 0 and proc.is_alive():
-            proc.terminate()
-            proc.join(15)
-            if proc.is_alive():
-                proc.kill()
-                proc.join(5)
+            # SIGTERM runs the worker's cleanup (sandbox, gateway, lab).
+            _stop_worker(proc)
             timeout_error = RuntimeError(
                 f"[{trial.trial_id}] case exceeded --case-timeout ({case_timeout}s) "
                 "and was killed. Its lab may be leaked — check `nika session ps`."
@@ -938,12 +1065,11 @@ def _run_trial_with_timeout(
             _finalize_timed_out_trial(trial, result_dir=result_dir, error=timeout_error)
             raise timeout_error
         if proc.is_alive():
-            proc.terminate()
-            proc.join(15)
+            _stop_worker(proc)
             raise RuntimeError(f"[{trial.trial_id}] trial worker did not exit")
         if proc.exitcode not in (0, None):
-            # Worker may have finalized agent_failed already; if not and GT exists,
-            # count the crash as agent_failed so resume does not delete progress.
+            # Worker may have finalized already; if not and GT exists, classify
+            # the crash (agent never started / endpoint → retryable).
             results_root = resolve_results_root(result_dir)
             session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
             # The worker logged the real cause before dying; surface it here so
@@ -953,8 +1079,20 @@ def _run_trial_with_timeout(
                 f"[{trial.trial_id}] trial worker exited with code {proc.exitcode}"
                 + (f": {logged}" if logged else "")
             )
-            if (session_dir / "ground_truth.json").is_file() and not (
-                is_valid_trial(session_dir) or heal_trial_outcome(session_dir)
+            # An external watchdog SIGTERM while a model request hangs is an
+            # endpoint failure: finalize it (retryable) even though the
+            # worker's SIGTERM handler marked the session aborted.
+            killed_mid_llm = is_signal_exit_code(
+                proc.exitcode
+            ) and trace_ends_in_llm_call(session_dir)
+            if trial_outcome(session_dir) == "aborted" and not killed_mid_llm:
+                # The worker handled SIGTERM/SIGINT and undeployed its lab;
+                # leave the slot incomplete for --resume.
+                raise crash_error
+            if not (session_dir / "ground_truth.json").is_file() or (
+                not is_valid_trial(session_dir)
+                and not heal_trial_outcome(session_dir)
+                and not is_finalized_failure(session_dir)
             ):
                 _finalize_timed_out_trial(
                     trial, result_dir=result_dir, error=crash_error
@@ -976,13 +1114,29 @@ def _run_trials_batch(
     result_dir: str | None,
     session_tag: str | None,
     release_meta: dict | None,
+    max_workers: int | None = None,
+    serialize_heavy: bool = True,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
+    on_trial_finished: Any | None = None,
 ) -> list[str]:
-    """Run a batch of trials; parallel batches use spawn processes for isolation."""
+    """Run trials with a concurrency cap (sliding window).
+
+    ``max_workers`` limits how many trials run at once. When one finishes, the
+    next pending trial starts immediately — slots are not held empty until a
+    fixed wave drains. With ``serialize_heavy`` (default), Containerlab and
+    k8s/llmd/XRd classes are also capped at one in-flight trial each so mixed
+    batches do not start two heavy labs on one host. Containerlab, the k8s
+    class, and topo_size ``l`` cases are exclusive: while any of those runs,
+    no other trial (including light) is admitted. Parallel work uses spawn
+    processes for isolation.
+    """
     failures: list[str] = []
+    if not trials_batch:
+        return failures
+    workers = max(1, min(max_workers or len(trials_batch), len(trials_batch)))
     # Parallel Kathara/MCP work is not safe on shared in-process clients.
-    isolate = len(trials_batch) > 1
+    isolate = workers > 1
     shared = dict(
         case_timeout=case_timeout,
         agent_type=agent_type,
@@ -996,9 +1150,11 @@ def _run_trials_batch(
         verbose=verbose,
     )
     results_root = resolve_results_root(result_dir)
-    if progress is not None:
-        progress.start_trials([t.label for t in trials_batch])
-        for trial in trials_batch:
+    limits = class_limits(batch_size=workers, serialize_heavy=serialize_heavy)
+
+    def _begin_progress(trial: Trial) -> None:
+        if progress is not None:
+            progress.start_trials([trial.label])
             progress.attach_session(
                 trial.label,
                 trial_dir(results_root, trial.case_key, trial.trial_index),
@@ -1007,15 +1163,11 @@ def _run_trials_batch(
             progress.set_phase(trial.label, "deploy")
             if case_timeout > 0 or isolate:
                 progress.set_phase(trial.label, "agent")
-    elif verbose:
-        if len(trials_batch) == 1 and case_timeout <= 0:
-            trial = trials_batch[0]
-            print(f"{trial.label} {trial.trial_id} running")
-        else:
-            print(
-                f"[batch] running {len(trials_batch)} trial(s)"
-                + (" in parallel" if len(trials_batch) > 1 else "")
-            )
+        elif verbose:
+            if workers == 1 and case_timeout <= 0:
+                print(f"{trial.label} {trial.trial_id} running")
+            else:
+                print(f"[batch] start {trial.label} {trial.trial_id}")
 
     def _on_finished(trial: Trial, *, failed: bool = False) -> None:
         if progress is None:
@@ -1024,15 +1176,7 @@ def _run_trials_batch(
         # Only advance the Live counter for counted slots. Incomplete failures
         # stay retryable and must not inflate completed / success stats.
         if is_valid_trial(session_dir) or heal_trial_outcome(session_dir):
-            run_meta: dict[str, Any] = {}
-            try:
-                raw = (session_dir / "run.json").read_text(encoding="utf-8")
-                parsed = json.loads(raw)
-                if isinstance(parsed, dict):
-                    run_meta = parsed
-            except (OSError, json.JSONDecodeError):
-                pass
-            counted_fail = failed or run_meta.get("outcome") == "agent_failed"
+            counted_fail = failed or trial_outcome(session_dir) == "agent_failed"
             progress.finish_trial(
                 trial.label,
                 metrics=read_trial_metrics(session_dir),
@@ -1049,48 +1193,80 @@ def _run_trials_batch(
             print(msg)
         failures.append(f"[{trial.trial_id}] {error}")
 
-    if len(trials_batch) == 1:
-        trial = trials_batch[0]
-        try:
-            _run_trial_with_timeout(trial, progress=progress, **shared)
-            _on_finished(trial)
-        except KeyboardInterrupt:
-            cleanup_benchmark_interrupt(result_dir)
-            raise
-        except Exception as e:  # noqa: BLE001
-            _on_finished(trial, failed=True)
-            if not continue_on_error:
-                raise
-            _report_failure(trial, e)
+    def _notify_finished(trial: Trial) -> None:
+        if on_trial_finished is not None:
+            on_trial_finished(trial)
+
+    def _run_one(trial: Trial) -> None:
+        _begin_progress(trial)
+        _run_trial_with_timeout(trial, progress=progress, **shared)
+
+    def _abort_in_flight() -> None:
+        # --abort-on-error: stop peers through the SIGTERM grace path so they
+        # undeploy their labs, then sweep sessions still running under this run.
+        cleanup_benchmark_interrupt(result_dir, signal_workers=True)
+
+    # Ctrl+C: re-raise; ``run_benchmark_trials`` runs cleanup exactly once.
+    if workers == 1:
+        for trial in trials_batch:
+            try:
+                _run_one(trial)
+                _on_finished(trial)
+                _notify_finished(trial)
+            except Exception as e:  # noqa: BLE001
+                _on_finished(trial, failed=True)
+                _notify_finished(trial)
+                if not continue_on_error:
+                    raise
+                _report_failure(trial, e)
         return failures
+
+    if verbose and progress is None:
+        heavy = "serialize_heavy" if serialize_heavy else "flat"
+        print(
+            f"[batch] running {len(trials_batch)} trial(s) "
+            f"(max {workers} concurrent, {heavy})"
+        )
 
     # Avoid ``with ThreadPoolExecutor``: on Ctrl+C its __exit__ joins worker
     # threads that are blocked in Process.join, hanging forever. Shut down
     # without waiting after terminating child processes.
-    pool = ThreadPoolExecutor(max_workers=len(trials_batch))
+    pool = ThreadPoolExecutor(max_workers=workers)
+    pending = list(trials_batch)
+    # future -> (trial, resource_class)
+    futures: dict[Any, tuple[Trial, str]] = {}
+    in_flight: dict[str, int] = {}
+
+    def _admit_available() -> None:
+        while len(futures) < workers and pending:
+            index = pick_admissible(pending, in_flight=in_flight, limits=limits)
+            if index is None:
+                break
+            trial = pending.pop(index)
+            cls = resource_class(trial)
+            in_flight[cls] = in_flight.get(cls, 0) + 1
+            future = pool.submit(_run_one, trial)
+            futures[future] = (trial, cls)
+
     try:
-        futures = {
-            pool.submit(
-                _run_trial_with_timeout, trial, progress=progress, **shared
-            ): trial
-            for trial in trials_batch
-        }
-        for future in as_completed(futures):
-            trial = futures[future]
-            try:
-                future.result()
-                _on_finished(trial)
-            except KeyboardInterrupt:
-                cleanup_benchmark_interrupt(result_dir)
-                raise
-            except Exception as e:  # noqa: BLE001
-                _on_finished(trial, failed=True)
-                if not continue_on_error:
-                    raise
-                _report_failure(trial, e)
-    except KeyboardInterrupt:
-        cleanup_benchmark_interrupt(result_dir)
-        raise
+        _admit_available()
+        while futures:
+            for future in as_completed(futures):
+                trial, cls = futures.pop(future)
+                in_flight[cls] = max(0, in_flight.get(cls, 0) - 1)
+                try:
+                    future.result()
+                    _on_finished(trial)
+                    _notify_finished(trial)
+                except Exception as e:  # noqa: BLE001
+                    _on_finished(trial, failed=True)
+                    _notify_finished(trial)
+                    if not continue_on_error:
+                        _abort_in_flight()
+                        raise
+                    _report_failure(trial, e)
+                _admit_available()
+                break
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     return failures
@@ -1105,6 +1281,7 @@ def run_benchmark_trials(
     *,
     n_trials: int = 1,
     batch_size: int = 1,
+    serialize_heavy: bool = True,
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
@@ -1115,9 +1292,19 @@ def run_benchmark_trials(
     task_ids: list[str] | None = None,
     yes: bool = False,
     verbose: bool = False,
+    output_mode: OutputMode = "human",
     plan_header: str | None = None,
+    job: dict[str, Any] | None = None,
+    check_images: bool = True,
 ) -> None:
-    """Run cases × ``n_trials`` under ``{result_dir}/trials/`` (shared batch kernel)."""
+    """Run cases × ``n_trials`` under ``{result_dir}/trials/`` (shared batch kernel).
+
+    ``job`` is a release run config already checked against any existing one
+    (``run_benchmark_from_release``). Without it (``--config``), an ad-hoc run
+    config is built and checked the same way, so ``--resume`` refuses to mix
+    agents/models/timeouts in one result dir. Either is written only after the
+    user confirms the plan.
+    """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
     if n_trials < 1:
@@ -1138,27 +1325,43 @@ def run_benchmark_trials(
         print(f"No benchmark rows found in {benchmark_file}")
         return
     release_meta = dict(release_meta or {})
-    release_meta["fault_ontology"] = sorted(
-        {
-            str(row["problem"])
-            for row in rows
-            if row.get("problem") and not is_healthy_case(row.get("problem"))
-        }
-    )
 
     trials = expand_trials(rows, n_trials)
     if task_ids:
         trials = select_trials(trials, task_ids)
 
-    from agent.sandbox.sbx.images import ensure_sbx_template_images
-
-    # Once per job, before any case/lab deploy, so parallel trials do not race
-    # on the first ``sbx create`` Docker Hub pull.
-    ensure_sbx_template_images([agent_type])
     results_root = resolve_results_root(result_dir)
+    is_release = job is not None
+    if job is None:
+        job = merge_run_config(
+            existing=load_run_config(results_root),
+            proposed={
+                "benchmark_id": None,
+                "version": None,
+                "split": None,
+                "benchmark_ref": str(benchmark_file),
+                **build_run_identity(
+                    agent_type=agent_type,
+                    model=model,
+                    llm_provider=llm_provider,
+                    max_steps=max_steps,
+                    n_trials=n_trials,
+                    case_timeout_sec=case_timeout,
+                    official=False,
+                ),
+            },
+        )
+        job["case_count"] = len(rows)
+        if task_ids:
+            job["task_ids"] = list(task_ids)
+            job["planned_trial_count"] = len(trials)
+        else:
+            job.pop("task_ids", None)
+            job.pop("planned_trial_count", None)
     run_id = None
     if release_meta:
         run_id = release_meta.get("run_id") or release_meta.get("job_id")
+    inspect_url: str | None = None
 
     def _emit_report() -> None:
         """Print the visual summary for the finished run.
@@ -1166,6 +1369,8 @@ def run_benchmark_trials(
         Best-effort: a completed run must not fail because reporting did.
         """
         try:
+            from rich.console import Console
+
             from nika.utils.session_artifacts import iter_session_dirs
             from nika.workflows.eval.render import render_summary_report
             from nika.workflows.eval.report import build_summary_report
@@ -1176,11 +1381,20 @@ def run_benchmark_trials(
                 n_trials_expected=len(trials),
             )
             if report.n_trials_present:
-                render_summary_report(report, metric=report.primary_metric)
+                summary_console = (
+                    Console(force_terminal=False, no_color=True)
+                    if output_mode == "agent"
+                    else None
+                )
+                render_summary_report(
+                    report,
+                    metric=report.primary_metric,
+                    console=summary_console,
+                )
         except Exception as report_error:  # noqa: BLE001 - reporting is advisory
             print(f"WARNING: could not render run summary: {report_error}")
-        print_inspect_hint(results_root)
-        print_deferred_warnings()
+        print_inspect_hint(results_root, url=inspect_url, output_mode=output_mode)
+        print_deferred_warnings(output_mode=output_mode)
 
     def _refresh_progress(pending: list[int], *, status: str = "running") -> None:
         if not run_id:
@@ -1202,39 +1416,55 @@ def run_benchmark_trials(
     def _run_pending(
         pending: list[int], *, progress: BenchmarkProgress | None
     ) -> list[str]:
-        failures: list[str] = []
-        for chunk_start in range(0, len(pending), batch_size):
-            chunk_indices = pending[chunk_start : chunk_start + batch_size]
-            batch = [trials[index] for index in chunk_indices]
-            failures += _run_trials_batch(
-                batch,
-                continue_on_error=continue_on_error,
-                case_timeout=case_timeout,
-                agent_type=agent_type,
-                llm_provider=llm_provider,
-                model=model,
-                max_steps=max_steps,
-                result_dir=str(results_root),
-                session_tag=session_tag,
-                release_meta=release_meta,
-                verbose=verbose,
-                progress=progress,
+        # Count once per pass, then update per finished trial: no full rescan,
+        # and in-flight trial slots are never read-modify-written here.
+        pending_set = set(pending)
+        completed_ids = {
+            trial.trial_id
+            for index, trial in enumerate(trials)
+            if index not in pending_set
+            and is_valid_trial(
+                trial_dir(results_root, trial.case_key, trial.trial_index)
             )
-            if run_id:
-                completed = count_completed_trials(
-                    trials=trials, result_dir=results_root
-                )
-                total = len(trials)
-                update_progress(
-                    str(run_id),
-                    result_dir=results_root,
-                    total_trials=total,
-                    completed_trials=completed,
-                    pending_trials=max(0, total - completed),
-                    status="running",
-                    release_meta=release_meta,
-                )
-        return failures
+        }
+
+        def _refresh_after_trial(trial: Trial) -> None:
+            if not run_id:
+                return
+            if is_valid_trial(
+                trial_dir(results_root, trial.case_key, trial.trial_index)
+            ):
+                completed_ids.add(trial.trial_id)
+            completed = len(completed_ids)
+            total = len(trials)
+            update_progress(
+                str(run_id),
+                result_dir=results_root,
+                total_trials=total,
+                completed_trials=completed,
+                pending_trials=max(0, total - completed),
+                status="running",
+                release_meta=release_meta,
+            )
+
+        batch = [trials[index] for index in pending]
+        return _run_trials_batch(
+            batch,
+            continue_on_error=continue_on_error,
+            case_timeout=case_timeout,
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            result_dir=str(results_root),
+            session_tag=session_tag,
+            release_meta=release_meta,
+            max_workers=batch_size,
+            serialize_heavy=serialize_heavy,
+            verbose=verbose,
+            progress=progress,
+            on_trial_finished=_refresh_after_trial,
+        )
 
     # Preflight plan only — do not clear/cleanup slots until the user confirms.
     # announce=False: the Plan below owns the resume summary (no skip/path spam).
@@ -1261,9 +1491,11 @@ def run_benchmark_trials(
             ],
             header=plan_header,
             batch_size=batch_size,
+            serialize_heavy=serialize_heavy,
             case_count=len(rows),
             n_trials=n_trials,
         ),
+        output_mode=output_mode,
         **({"max_labels": 10_000} if verbose else {}),
     )
     if not plan_pending:
@@ -1272,8 +1504,32 @@ def run_benchmark_trials(
         return
     if not confirm_run(yes=yes):
         print("Aborted.")
-        _refresh_progress(plan_pending, status="aborted")
         return
+
+    # Confirmed: persist the run config, then pull sandbox images once per job
+    # before any case/lab deploy so parallel trials do not race on the first
+    # ``sbx create`` Docker Hub pull.
+    if is_release:
+        write_job_metadata(results_root, job)
+    else:
+        write_json_atomic(results_root / RUN_CONFIG_FILENAME, job, sort_keys=True)
+    if run_id:
+        write_progress(
+            str(run_id),
+            result_dir=results_root,
+            status="running",
+            total_trials=len(trials),
+            completed_trials=len(trials) - len(plan_pending),
+            pending_trials=len(plan_pending),
+            benchmark_id=job.get("benchmark_id"),
+            version=job.get("version"),
+            agent_type=job.get("agent_type"),
+            model=job.get("model"),
+        )
+    if check_images:
+        from agent.sandbox.sbx.images import ensure_sbx_template_images
+
+        ensure_sbx_template_images([agent_type])
 
     # Confirmed: mutate slots (clear --no-resume / clean incomplete) then run.
     _, initial_pending = scan_trials(
@@ -1293,6 +1549,7 @@ def run_benchmark_trials(
     failures: list[str] = []
     previous_pending: int | None = None
     try:
+        inspect_url = _maybe_start_inspect(results_root, output_mode=output_mode)
         with BenchmarkProgress(
             len(trials),
             initial_completed=len(trials) - len(initial_pending),
@@ -1300,6 +1557,8 @@ def run_benchmark_trials(
             model=model,
             case_count=len(rows),
             n_trials=n_trials,
+            inspect_url=inspect_url,
+            output_mode=output_mode,
         ) as progress:
             for attempt in range(retry_passes + 1):
                 if attempt == 0:
@@ -1416,6 +1675,7 @@ def run_benchmark_from_release(
     *,
     split: SplitName | str = "test",
     batch_size: int = 1,
+    serialize_heavy: bool = True,
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
@@ -1427,6 +1687,7 @@ def run_benchmark_from_release(
     task_ids: list[str] | None = None,
     yes: bool = False,
     verbose: bool = False,
+    output_mode: OutputMode = "human",
 ) -> None:
     """Run a frozen ``nika-bench`` release split after preflight validation.
 
@@ -1444,10 +1705,6 @@ def run_benchmark_from_release(
     if task_ids:
         planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
     preflight_release(resolved, check_images=check_images)
-    if check_images:
-        from agent.sandbox.sbx.images import ensure_sbx_template_images
-
-        ensure_sbx_template_images([agent_type])
 
     # Timeout is operational (run config / CLI), not a release pin.
     if case_timeout is None:
@@ -1464,7 +1721,6 @@ def run_benchmark_from_release(
         model=model,
         llm_provider=llm_provider,
         max_steps=max_steps,
-        max_tokens=resolve_max_tokens(agent_type),
         n_trials=n_trials,
         case_timeout_sec=effective_timeout,
         official=official,
@@ -1478,22 +1734,13 @@ def run_benchmark_from_release(
         case_count = len({trial.case_key for trial in planned})
         scope = f"{case_count} cases, {total_trials} trials"
     else:
+        # A full run supersedes an earlier --task-id scope; a stale planned
+        # count would shrink offline score denominators.
+        job.pop("task_ids", None)
+        job.pop("planned_trial_count", None)
         total_trials = int(resolved.case_count) * int(n_trials)
         scope = f"{resolved.case_count} cases × {n_trials} trials"
-    job_path = write_job_metadata(results_root, job)
-    run_id = str(job.get("run_id") or job.get("job_id"))
-    write_progress(
-        run_id,
-        result_dir=results_root,
-        status="running",
-        total_trials=total_trials,
-        completed_trials=0,
-        pending_trials=total_trials,
-        benchmark_id=job.get("benchmark_id"),
-        version=job.get("version"),
-        agent_type=job.get("agent_type"),
-        model=job.get("model"),
-    )
+    job_path = results_root / RUN_CONFIG_FILENAME
     plan_header = (
         f"Release {resolved.ref} split={resolved.split} "
         f"({scope}, "
@@ -1508,6 +1755,7 @@ def run_benchmark_from_release(
         max_steps=max_steps,
         n_trials=n_trials,
         batch_size=batch_size,
+        serialize_heavy=serialize_heavy,
         result_dir=str(results_root),
         resume=resume,
         session_tag=session_tag,
@@ -1518,5 +1766,8 @@ def run_benchmark_from_release(
         task_ids=task_ids,
         yes=yes,
         verbose=verbose,
+        output_mode=output_mode,
         plan_header=plan_header,
+        job=job,
+        check_images=check_images,
     )

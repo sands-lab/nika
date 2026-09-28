@@ -15,8 +15,8 @@ from tests.agent.sandbox_support import (
     sandbox_openai_credential_available,
     sandbox_runtime_available,
 )
-from tests.benchmark.helpers import inject_params_from_benchmark_yaml
 from tests.support.integration_pipeline import (
+    DEFAULT_INJECT_PARAMS,
     claude_cli_available,
     codex_cli_available,
     load_test_env,
@@ -92,7 +92,7 @@ def _run_parallel_sandbox_benchmark(
                 "scenario": scenario,
                 "problem": problem,
                 "topo_size": "",
-                "inject": inject_params_from_benchmark_yaml(scenario, problem, ""),
+                "inject": DEFAULT_INJECT_PARAMS,
             }
         )
 
@@ -108,7 +108,9 @@ def _run_parallel_sandbox_benchmark(
             [
                 "uv",
                 "run",
-                "nika",
+                "python",
+                "-m",
+                "tests.support.nika_cli",
                 "benchmark",
                 "run",
                 "--config",
@@ -173,7 +175,9 @@ class SandboxBenchmarkClaudeTest:
             [
                 "uv",
                 "run",
-                "nika",
+                "python",
+                "-m",
+                "tests.support.nika_cli",
                 "benchmark",
                 "run",
                 "simple_bgp",
@@ -190,6 +194,7 @@ class SandboxBenchmarkClaudeTest:
                 "-n",
                 "10",
                 "-y",
+                "-v",
                 "--session-tag",
                 resolve_session_tag(context="test"),
             ],

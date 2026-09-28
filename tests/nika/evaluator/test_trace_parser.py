@@ -91,6 +91,37 @@ class TraceParserTest:
         assert metrics["in_tokens"] == 10
         assert metrics["out_tokens"] == 4
 
+    def test_claude_max_turns_result_still_counts(self, tmp_path: Path) -> None:
+        path = _write_trace(
+            tmp_path,
+            [
+                {
+                    "phase": "diagnosis",
+                    "event": "result",
+                    "claude_event": {
+                        "is_error": True,
+                        "subtype": "error_max_turns",
+                        "num_turns": 4,
+                        "usage": {"input_tokens": 30, "output_tokens": 6},
+                    },
+                },
+                {
+                    "phase": "diagnosis",
+                    "event": "result",
+                    "claude_event": {
+                        "is_error": True,
+                        "subtype": "success",
+                        "num_turns": 1,
+                        "usage": {"input_tokens": 0, "output_tokens": 0},
+                    },
+                },
+            ],
+        )
+        metrics = AgentTraceParser(trace_path=path).parse_trace()
+        assert metrics["steps"] == 4
+        assert metrics["in_tokens"] == 30
+        assert metrics["out_tokens"] == 6
+
     def test_llm_end_still_counts_each_completion(self, tmp_path: Path) -> None:
         path = _write_trace(
             tmp_path,
@@ -173,3 +204,32 @@ class TraceParserTest:
         metrics = AgentTraceParser(trace_path=path).parse_trace()
         assert metrics["in_tokens"] == 40
         assert metrics["out_tokens"] == 6
+
+    def test_reasoning_tokens_summed_as_subset(self, tmp_path: Path) -> None:
+        path = _write_trace(
+            tmp_path,
+            [
+                {
+                    "phase": "diagnosis",
+                    "event": "llm_end",
+                    "usage_metadata": {
+                        "input_tokens": 10,
+                        "output_tokens": 100,
+                        "reasoning_tokens": 70,
+                    },
+                },
+                {
+                    "phase": "diagnosis",
+                    "event": "llm_end",
+                    "usage_metadata": {
+                        "prompt_tokens": 5,
+                        "completion_tokens": 50,
+                        "completion_tokens_details": {"reasoning_tokens": 40},
+                    },
+                },
+            ],
+        )
+        metrics = AgentTraceParser(trace_path=path).parse_trace()
+        assert metrics["in_tokens"] == 15
+        assert metrics["out_tokens"] == 150
+        assert metrics["reasoning_tokens"] == 110

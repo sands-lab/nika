@@ -12,6 +12,16 @@ from typing import Any
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
+from nika.utils.session_artifacts import (
+    update_run_json,
+    write_json_atomic,
+)
+from nika.workflows.benchmark.outcomes import (
+    COUNTED_OUTCOMES,
+    KNOWN_OUTCOMES,
+    RETRYABLE_OUTCOMES,
+    agent_demonstrably_started,
+)
 from nika.workflows.benchmark.resume import (
     benchmark_row_identity,
     cleanup_benchmark_session,
@@ -19,7 +29,8 @@ from nika.workflows.benchmark.resume import (
 from nika.workflows.eval.session import build_eval_metrics_payload
 
 TRIALS_DIRNAME = "trials"
-VALID_TRIAL_OUTCOMES = frozenset({"success", "agent_failed"})
+# Counted finished slots kept by --resume and packed into leaderboard scores.
+VALID_TRIAL_OUTCOMES = COUNTED_OUTCOMES
 REQUIRED_TRIAL_ARTIFACTS = (
     "run.json",
     "ground_truth.json",
@@ -229,6 +240,26 @@ def resolve_catalog_row(rows: list[dict[str, Any]], selector: str) -> dict[str, 
     return row
 
 
+def store_session_id_for_trial(
+    trial_id: str | None, result_dir: str | Path | None
+) -> str | None:
+    """Return a SessionStore key that stays unique across parallel result roots.
+
+    Benchmark trial *slots* live under ``{result_dir}/trials/{trial_id}/``. The
+    global SessionStore file is ``runtime/sessions/{session_id}.json``. Using the
+    bare ``trial_id`` as ``session_id`` makes two concurrent ``nika benchmark
+    run`` processes on the same task (different ``--result_dir``) clobber one
+    lab/session. Suffix a short hash of the resolved result root so parallel
+    agents stay isolated while resume within one result root stays stable.
+    """
+    if not trial_id:
+        return None
+    if not result_dir:
+        return trial_id
+    digest = hashlib.sha1(str(Path(result_dir).resolve()).encode()).hexdigest()[:8]
+    return f"{trial_id}__r{digest}"
+
+
 def trials_root(result_dir: Path) -> Path:
     return result_dir / TRIALS_DIRNAME
 
@@ -256,12 +287,17 @@ def expand_trials(
     rows: list[dict[str, Any]],
     n_trials: int,
 ) -> list[Trial]:
+    """Expand cases × trials in trial-major order: all t01, then all t02, …
+
+    The benchmark runner schedules from this list, so round 1 finishes across
+    cases before round 2 starts (subject to ``batch_size`` / admission).
+    """
     if n_trials < 1:
         raise ValueError("n_trials must be >= 1")
     trials: list[Trial] = []
-    for case_index, row in enumerate(rows):
-        case_key = case_key_for_row(row)
-        for trial_index in range(1, n_trials + 1):
+    for trial_index in range(1, n_trials + 1):
+        for case_index, row in enumerate(rows):
+            case_key = case_key_for_row(row)
             trial_id = trial_dirname(case_key, trial_index)
             trials.append(
                 Trial(
@@ -276,7 +312,11 @@ def expand_trials(
 
 
 def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
-    """Filter expanded trials by ``task_id`` and/or ``{task_id}__tNN`` selectors."""
+    """Filter expanded trials by ``task_id`` and/or ``{task_id}__tNN`` selectors.
+
+    Preserves ``trials`` order (trial-major from ``expand_trials``). Multiple
+    case-level ``--task-id`` values must not collapse back to case-major.
+    """
     if not selectors:
         return list(trials)
     by_task: dict[str, list[Trial]] = {}
@@ -284,27 +324,21 @@ def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
     for trial in trials:
         by_task.setdefault(trial.case_key, []).append(trial)
         by_trial[trial.trial_id] = trial
-    selected: list[Trial] = []
-    seen: set[str] = set()
+    allowed: set[str] = set()
     for raw in selectors:
         task_id, trial_index = parse_task_selector(raw)
         if trial_index is not None:
             trial = by_trial.get(trial_dirname(task_id, trial_index))
             if trial is None:
                 raise ValueError(f"Unknown task id {raw!r}")
-            if trial.trial_id not in seen:
-                selected.append(trial)
-                seen.add(trial.trial_id)
+            allowed.add(trial.trial_id)
             continue
         matches = by_task.get(task_id)
         if not matches:
             raise ValueError(f"Unknown task id {raw!r}")
         for trial in matches:
-            if trial.trial_id not in seen:
-                selected.append(trial)
-                seen.add(trial.trial_id)
-    return selected
-
+            allowed.add(trial.trial_id)
+    return [trial for trial in trials if trial.trial_id in allowed]
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -317,6 +351,16 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def has_valid_submission(session_dir: str | Path) -> bool:
+    """True when ``submission.json`` (written by MCP ``submit()``) is a JSON object.
+
+    A valid submission means the agent finished its task, so the trial is a
+    ``success`` regardless of what happened afterwards (agent timeout during
+    teardown, sandbox cleanup error, worker kill before metrics).
+    """
+    return _read_json(Path(session_dir) / "submission.json") is not None
+
+
 def trial_has_required_artifacts(
     session_dir: Path,
     *,
@@ -325,7 +369,7 @@ def trial_has_required_artifacts(
     for name in REQUIRED_TRIAL_ARTIFACTS:
         if not (session_dir / name).is_file():
             return False
-    if outcome == "success" and not (session_dir / "submission.json").is_file():
+    if outcome == "success" and not has_valid_submission(session_dir):
         return False
     return True
 
@@ -342,6 +386,25 @@ def is_valid_trial(session_dir: str | Path) -> bool:
     if outcome not in VALID_TRIAL_OUTCOMES:
         return False
     return trial_has_required_artifacts(path, outcome=str(outcome))
+
+
+def trial_outcome(session_dir: str | Path) -> str | None:
+    """Return the stamped ``outcome`` when present, else ``None``."""
+    run_meta = _read_json(Path(session_dir) / "run.json")
+    if run_meta is None:
+        return None
+    outcome = run_meta.get("outcome")
+    return str(outcome) if outcome else None
+
+
+def is_finalized_failure(session_dir: str | Path) -> bool:
+    """True when the worker already stamped a known failure outcome.
+
+    Includes retryable ``endpoint_failed`` / ``infra_failed`` so parents do not
+    overwrite them with a counted ``agent_failed`` after a non-zero worker exit.
+    """
+    outcome = trial_outcome(session_dir)
+    return outcome in KNOWN_OUTCOMES - {"success"}
 
 
 def _restore_success_eval_metrics(path: Path) -> bool:
@@ -366,7 +429,7 @@ def _restore_success_eval_metrics(path: Path) -> bool:
         trace_metrics=trace_metrics,
     )
     try:
-        metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        write_json_atomic(metrics_path, payload)
     except OSError:
         return False
     return True
@@ -378,8 +441,12 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
     When ``status=finished``, rebuild missing metrics from a submission and
     infer an outcome that a kill/timeout prevented from being persisted:
 
-    - ``success`` if ``submission.json`` is present
-    - ``agent_failed`` otherwise
+    - ``success`` if a valid ``submission.json`` is present
+    - ``agent_failed`` if the agent demonstrably started
+    - otherwise leave the slot incomplete (infra failure, retried)
+
+    Retryable ``endpoint_failed`` / ``infra_failed`` slots stay incomplete so
+    ``--resume`` retries them.
 
     Returns True when the directory is a valid counted trial afterwards.
     """
@@ -390,10 +457,17 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
         return True
 
     run_meta = _read_json(path / "run.json")
-    if run_meta is None or run_meta.get("status") != "finished":
+    if run_meta is None:
         return False
 
     outcome = run_meta.get("outcome")
+    # Never promote endpoint/infra failures into counted agent_failed zeros.
+    if outcome in RETRYABLE_OUTCOMES:
+        return False
+
+    if run_meta.get("status") != "finished":
+        return False
+
     if outcome == "success" and _restore_success_eval_metrics(path):
         return is_valid_trial(path)
     if outcome in VALID_TRIAL_OUTCOMES:
@@ -401,21 +475,29 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
 
     # Submission proves the agent completed its work. Recover metrics when a
     # kill happened after submission but before evaluation/outcome persisted.
-    if (path / "submission.json").is_file() and not _restore_success_eval_metrics(path):
+    submitted = has_valid_submission(path)
+    if submitted and not _restore_success_eval_metrics(path):
         return False
 
     for name in REQUIRED_TRIAL_ARTIFACTS:
         if not (path / name).is_file():
             return False
 
-    inferred = "success" if (path / "submission.json").is_file() else "agent_failed"
-    run_meta["outcome"] = inferred
-    run_meta["status"] = "finished"
+    if submitted:
+        inferred = "success"
+    elif agent_demonstrably_started(path):
+        inferred = "agent_failed"
+    else:
+        # The agent never got a turn: retry instead of scoring a zero.
+        return False
+
+    def _stamp(meta: dict[str, Any]) -> None:
+        meta["outcome"] = inferred
+        meta["status"] = "finished"
+
     try:
-        (path / "run.json").write_text(
-            json.dumps(run_meta, indent=2, default=str),
-            encoding="utf-8",
-        )
+        if not update_run_json(path, _stamp):
+            return False
     except OSError:
         return False
 
@@ -423,19 +505,14 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
     return is_valid_trial(path)
 
 
-def count_completed_trials(
-    *,
-    trials: list[Trial],
-    result_dir: str | Path,
-) -> int:
-    """Return how many trials under ``result_dir`` are already valid."""
-    results_root = Path(result_dir)
-    completed = 0
-    for trial in trials:
-        path = trial_dir(results_root, trial.case_key, trial.trial_index)
-        if path.is_dir() and (is_valid_trial(path) or heal_trial_outcome(path)):
-            completed += 1
-    return completed
+def _slot_store_session_id(
+    run_meta: dict[str, Any], trial: Trial, results_root: Path
+) -> str:
+    """SessionStore key of a trial slot (``run.json`` may be missing/partial)."""
+    return str(
+        run_meta.get("session_id")
+        or store_session_id_for_trial(trial.trial_id, results_root)
+    )
 
 
 def scan_trials(
@@ -479,7 +556,7 @@ def scan_trials(
                     f"{trial.label} {trial.trial_id} clearing slot (--no-resume)",
                 )
                 cleanup_benchmark_session(
-                    str(run_meta.get("session_id") or path.name),
+                    _slot_store_session_id(run_meta, trial, results_root),
                     path,
                 )
                 cleared += 1
@@ -512,13 +589,14 @@ def scan_trials(
                 continue
             run_meta = _read_json(path / "run.json") or {}
             # Never delete a counted agent_failed / success trial.
+            # endpoint_failed / infra_failed are incomplete and cleaned for retry.
             if is_valid_trial(path) or heal_trial_outcome(path, verbose=verbose):
                 completed += 1
                 vprint(verbose, f"{label} skip (already complete: {path})")
                 continue
             vprint(verbose, f"{label} cleaning incomplete trial")
             cleanup_benchmark_session(
-                str(run_meta.get("session_id") or path.name),
+                _slot_store_session_id(run_meta, trial, results_root),
                 path,
             )
             cleaned += 1
@@ -551,7 +629,11 @@ _RUN_IDENTITY_FIELDS = (
     "n_trials",
     "case_timeout_sec",
     "official",
+    "reasoning_effort",
+    "agent_timeout_sec",
+    "access_role",
 )
+_GIT_FIELDS = ("nika_git_commit", "nika_git_dirty")
 
 
 def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:
@@ -563,7 +645,8 @@ def assert_run_config_compatible(
 ) -> None:
     """Refuse resume when run identity fields diverge.
 
-    Fields absent from ``existing`` predate their introduction and are skipped.
+    Fields absent from ``existing`` (runs recorded before the field was part of
+    the identity) are not compared; ``merge_run_config`` backfills them.
     """
     old = run_config_identity(existing)
     new = run_config_identity(proposed)
@@ -586,21 +669,46 @@ def merge_run_config(
     existing: dict[str, Any] | None,
     proposed: dict[str, Any],
 ) -> dict[str, Any]:
-    """Keep stable ``run_id`` / timestamps on resume; refresh updated_at."""
+    """Keep stable ``run_id`` / timestamps on resume; refresh updated_at.
+
+    ``nika_git_commit`` / ``nika_git_dirty`` track the latest launch, and
+    ``nika_git_history`` keeps every distinct commit the run was resumed from.
+    """
+    now = _utc_now_iso()
     if existing is None:
-        now = _utc_now_iso()
         out = dict(proposed)
         out.setdefault("run_id", out.get("job_id") or out.get("run_id"))
         out.setdefault("job_id", out["run_id"])
         out["created_at"] = now
         out["updated_at"] = now
+        if any(key in proposed for key in _GIT_FIELDS):
+            out["nika_git_history"] = [_git_entry(proposed, now)]
         return out
 
     assert_run_config_compatible(existing, proposed)
     out = dict(existing)
-    out["updated_at"] = _utc_now_iso()
-    # Allow refreshing git dirty/commit on resume without changing identity.
-    for key in ("nika_git_commit", "nika_git_dirty"):
-        if key in proposed:
+    out["updated_at"] = now
+    for key in _RUN_IDENTITY_FIELDS:
+        if key not in out and key in proposed:
             out[key] = proposed[key]
+    if any(key in proposed for key in _GIT_FIELDS):
+        history = list(out.get("nika_git_history") or [])
+        if not history and any(key in existing for key in _GIT_FIELDS):
+            history.append(_git_entry(existing, existing.get("created_at")))
+        entry = _git_entry(proposed, now)
+        last = history[-1] if history else None
+        if last is None or any(last.get(key) != entry[key] for key in _GIT_FIELDS):
+            history.append(entry)
+        out["nika_git_history"] = history
+        for key in _GIT_FIELDS:
+            if key in proposed:
+                out[key] = proposed[key]
     return out
+
+
+def _git_entry(job: dict[str, Any], recorded_at: Any) -> dict[str, Any]:
+    return {
+        "nika_git_commit": job.get("nika_git_commit"),
+        "nika_git_dirty": job.get("nika_git_dirty"),
+        "recorded_at": recorded_at,
+    }
