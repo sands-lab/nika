@@ -7,18 +7,27 @@ spec:
   selector:
     matchLabels:
       app: word
-  replicas: 2
+  replicas: 1
   template:
     metadata:
       labels:
         app: word
     spec:
+      initContainers:
+      - name: wait-for-worddb
+        image: postgres:16
+        command: [sh, -c, 'until pg_isready -h worddb -p 5432 -U root -d worddb -t 2; do sleep 2; done']
       containers:
       - name: word-container
         image: ik2227/word:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
+        startupProbe:
+          tcpSocket:
+            port: 5000
+          periodSeconds: 3
+          failureThreshold: 120
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -29,15 +38,24 @@ spec:
   selector:
     matchLabels:
       app: weather
-  replicas: 2
+  replicas: 1
   template:
     metadata:
       labels:
         app: weather
     spec:
+      initContainers:
+      - name: wait-for-weatherdb
+        image: postgres:16
+        command: [sh, -c, 'until pg_isready -h weatherdb -p 5432 -U root -d weatherdb -t 2; do sleep 2; done']
       containers:
       - name: weather-container
         image: ik2227/weather:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
+        startupProbe:
+          tcpSocket:
+            port: 5000
+          periodSeconds: 3
+          failureThreshold: 120

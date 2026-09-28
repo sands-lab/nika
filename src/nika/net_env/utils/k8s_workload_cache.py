@@ -35,7 +35,7 @@ LLMD_LAB_HOST_IMAGES = (
     "nika/base",
 )
 
-# Bundled with rancher/k3s:v1.34.1-k3s1; nodes have no registry egress in lab.
+# System images used by rancher/k3s:v1.34.1-k3s1.
 K3S_SYSTEM_IMAGES = (
     "rancher/mirrored-pause:3.6",
     "rancher/mirrored-coredns-coredns:1.12.3",

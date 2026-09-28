@@ -234,8 +234,8 @@ class LLMDInferenceCluster(NetworkEnvBase):
         all_machines["controller"].create_file_from_path(
             str(helm_bin), "/usr/local/bin/helm"
         )
-        # Pull charts on the host now: nodes have no registry egress, and the
-        # preload-time cache_scenario() runs after machine files are staged.
+        # Stage charts now; the preload-time cache_scenario() runs after
+        # machine files are staged, and BusyBox wget cannot fetch HTTPS.
         try:
             chart_paths = ensure_helm_charts()
         except Exception as exc:  # noqa: BLE001 - startup falls back to OCI pull

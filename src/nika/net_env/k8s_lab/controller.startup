@@ -104,4 +104,16 @@ until kubectl wait -n weather-ns --for=condition=ready pod -l app=weather --time
   echo "[nika-startup] weather app not ready yet; retrying"
   sleep 2
 done
+# The images initialize their databases at process startup. Start one replica
+# first so the initial schema/data writes do not race across two pods.
+kubectl scale -n word-ns deployment/word-dply --replicas=2
+kubectl scale -n weather-ns deployment/weather-dply --replicas=2
+until kubectl rollout status -n word-ns deployment/word-dply --timeout 60s; do
+  echo "[nika-startup] word replicas not ready yet; retrying"
+  sleep 2
+done
+until kubectl rollout status -n weather-ns deployment/weather-dply --timeout 60s; do
+  echo "[nika-startup] weather replicas not ready yet; retrying"
+  sleep 2
+done
 echo "[nika-startup] sample apps ready"

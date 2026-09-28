@@ -6,7 +6,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 
+from nika.config import REPO_ROOT
 from nika.net_env.utils import k8s_workload_cache as cache
 from tests.support.prerequisites import docker_available
 
@@ -31,6 +33,30 @@ def test_workload_images_for_supported_scenarios() -> None:
     for image in cache.K3S_SYSTEM_IMAGES:
         assert image in cache.K8S_LAB_WORKLOAD_IMAGES
         assert image in cache.LLMD_LAB_WORKLOAD_IMAGES
+
+
+@pytest.mark.unit
+def test_workload_cache_covers_scenario_manifests() -> None:
+    def image_refs(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key == "image" and isinstance(item, str):
+                    yield item
+                else:
+                    yield from image_refs(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from image_refs(item)
+
+    for scenario in ("k8s_lab", "llmd_lab"):
+        root = REPO_ROOT / "src" / "nika" / "net_env" / scenario
+        manifest_images = {
+            image
+            for path in root.rglob("*.yaml")
+            for document in yaml.safe_load_all(path.read_text())
+            for image in image_refs(document)
+        }
+        assert manifest_images <= set(cache.workload_images_for_scenario(scenario))
 
 
 @pytest.mark.unit
