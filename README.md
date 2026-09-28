@@ -76,7 +76,7 @@ Choose a lab that matches the network you want to troubleshoot. The diagram show
 | SDN fabric | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos) | Kathará | ONOS and OVS Clos fabric |
 | P4 fabric | [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | Kathará | BMv2 switches and P4Runtime |
 | Kubernetes networking | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | Kathará | k3s clusters in network labs |
-| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#iosxr-simple-bgp-scenario), [`routeros_simple_bgp`](docs/operations/network-scenarios.md#routeros-simple-bgp-scenario) | Kathará | Cisco XRd or MikroTik RouterOS eBGP router pair |
+| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#ios-xr-simple-bgp-scenario), [`routeros_simple_bgp`](docs/operations/network-scenarios.md#routeros-simple-bgp-scenario) | Kathará | Cisco XRd or MikroTik RouterOS eBGP router pair |
 
 
 ### Network incidents
@@ -166,11 +166,12 @@ agent:
     model: null
 ```
 
-For repeatable evaluations, keep a separate run-config YAML for each agent type, such as `config/langgraph.yaml`, `config/codex.yaml`, or `config/claude.yaml`, and select it with `--run-config`.
+For repeatable evaluations, copy a per-agent template from `config/*.example.yaml` (for example `cli.codex.example.yaml` → `cli.codex.yaml`) and select it with `--run-config`.
 
 ```shell
+cp config/cli.codex.example.yaml config/cli.codex.yaml
 uv run nika benchmark run --release 0.2.0 --split test \
-  --run-config config/codex.yaml --result_dir results/codex
+  --run-config config/cli.codex.yaml --result_dir results/codex
 ```
 
 ## 🚀 Quick start

@@ -43,21 +43,35 @@ Pass `--with-vendor-images` so the installer builds or loads those Docker images
 | IOS-XR (XRd) | `ios-xr/xrd-control-plane:26.2.1` | A local Cisco `.tgz` (CCO / Modeling Labs). There is no public download URL. |
 
 ```shell
-# MikroTik only
-./scripts/install.sh --with-vendor-images --skip-xrd
-
-# Cisco XRd only (path to your downloaded tarball)
-./scripts/install.sh --with-vendor-images --skip-routeros \
-  --xrd-tarball /path/to/xrd-control-plane-container-x86_64-<version>.tgz
-
-# Both
-./scripts/install.sh --with-vendor-images \
-  --xrd-tarball /path/to/xrd-control-plane-container-x86_64-<version>.tgz
+./scripts/install.sh --with-vendor-images
 ```
 
-You can also set `NIKA_XRD_TARBALL` or drop the file at `vendor/xrd-*.tgz` (gitignored). Downloads cache under `~/.cache/nika/vendor/`. If the target image tag already exists, the step is skipped.
+That prepares both images when possible: RouterOS always (CHR download + build), XRd when a local Cisco tarball is available. If the XRd image and tarball are both missing, an interactive install prompts you to download the Cisco `.tgz` (CCO / Modeling Labs) and place it under `.nika_cache/vendor/` before continuing; non-interactive installs warn and continue without XRd.
+
+Vendor artifacts land under `.nika_cache/vendor/` (gitignored): XRd tarballs as `xrd-*.tgz`, CHR zip downloads, and the `hellt/vrnetlab` clone at `vrnetlab/`. Provide XRd via `--xrd-tarball`, `NIKA_XRD_TARBALL`, or a file in that directory. Override the cache root with `NIKA_VENDOR_CACHE`. If the target Docker image tag already exists, the step is skipped.
 
 For XRd, the installer also tries to raise inotify limits. Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-scenario), [RouterOS](network-scenarios.md#routeros-simple-bgp-scenario).
+
+## Allow Containerlab link faults
+
+Link faults on Containerlab labs (packet loss, corruption, rate limits, link down, and link flaps) change the host side of each lab link. NIKA runs `tc`, `ip`, `nsenter`, and `sh` on the host through `sudo -n`, so your user needs passwordless `sudo` for those commands. Kathará labs do not need this.
+
+Check whether `sudo` asks for a password:
+
+```shell
+sudo -n "$(command -v tc)" qdisc show dev lo
+```
+
+If the command prints the loopback qdisc, you are done. If it prints `sudo: a password is required`, add a sudoers rule. `sh` runs the link-flap worker, so this rule gives your user root on the host; use a dedicated lab host or account if that matters to you.
+
+```shell
+echo "$USER ALL=(root) NOPASSWD: $(command -v tc), $(command -v ip), $(command -v nsenter), $(command -v sh)" \
+  | sudo tee /etc/sudoers.d/nika-host-tc
+sudo chmod 0440 /etc/sudoers.d/nika-host-tc
+sudo -n "$(command -v tc)" qdisc show dev lo
+```
+
+The last command now prints the loopback qdisc without a password prompt.
 
 ## Related
 

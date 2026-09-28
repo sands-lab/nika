@@ -115,9 +115,8 @@ Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an *
 | `test_agent_config.py` | shared config | agent model/env resolution, judge env | None |
 | `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | Docker + Codex + OpenAI |
 | `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | Docker + Claude CLI |
-| `test_langgraph.py` | `byo.langgraph` | None | Docker + `DEEPSEEK_API_KEY` |
-| `test_mcp_agent.py` | `byo.mcp_agent` | None | Docker + `OPENAI_API_KEY` |
-| `test_autogen.py` | `byo.autogen` | None | Docker + `DEEPSEEK_API_KEY` |
+| `test_langgraph_max_steps.py` | `byo.langgraph` | `max_steps` counts LLM turns | None |
+| `test_mcp_agent_bootstrap.py` | `byo.mcp_agent` | import hygiene regression | None |
 | `test_sade.py` | `community.sade` | SDK env + MCP adapter | Docker + `claude-agent-sdk` + Anthropic creds |
 | `test_claude_sdk.py` | `sdk.claude_sdk` | SDK env + MCP adapter | Docker + `claude-agent-sdk` + Anthropic creds |
 | `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | sbx + `openai-codex` + `OPENAI_API_KEY` |
@@ -153,7 +152,7 @@ uv run pytest tests/agent/test_sandbox_agents.py -v
 ```
 ## Benchmark tests (`tests/benchmark/`)
 
-Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`). Offline inject-param generation, ISP option/symptom targeting, healthy-case rules, and task-label contracts live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Batch mode requires explicit `--config` or `--release` (no bare default suite).
+Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`). Offline inject-param generation, ISP option/symptom targeting, healthy-case rules, and task-label contracts live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Bare `nika benchmark run` (no `SCENARIO`, `--config`, `--release`, or `benchmark.release`) runs the candidate pool at `benchmark/working/pool`.
 
 | Module | Purpose |
 |--------|---------|
@@ -246,13 +245,8 @@ uv run pytest tests/nika/service/pingmesh/test_integration.py::KatharaPingMeshIn
 |--------|---------|---------|
 | `test_failure_inject_contract.py` | Kathara + Containerlab | **Verify-only**: parametrized inject + ground-truth via `verify_fault` |
 | `test_symptom_contracts.py` | none | Symptom contract registry + gray probe unit coverage |
-| `test_sdn_l3_clos_failure_compat.py` | Kathara | TAGS-compatible failures + `evaluate_symptom` |
-| `test_p4_dc_fabric_failure_compat.py` | Kathara | P4 fabric inject/verify samples |
-| `test_p4_dc_gateway_p4runtime_failure_compat.py` | Kathara | Shared P4Runtime failure suite |
-| `test_link_capacity_bottleneck.py` | Kathara | VDE proxy TBF + iperf symptom on `dc_clos` |
-| `test_mtu_mismatch.py` | Kathara | Path MTU / Frag Needed probes on `dc_clos` |
+| `test_scenario_failure_compat.py` | Kathara | Parametrized scenario and failure compatibility sweeps (inject + verify) |
 | `test_pmtu_blackhole_combo.py` | Kathara | MTU + Frag Needed filter black-hole combo |
-| `test_load_balancer_overload.py` | Kathara | VIP overload: verify_fault + `evaluate_symptom` |
 | `test_failure_e2e.py` | Kathara + Containerlab | Parametrized inject, artifact verification, symptom evaluation, and recovery; core cases include sender resource contention |
 | `test_web_dos_attack.py` | Kathara | Web DoS: separate verify-only and symptom suites |
 

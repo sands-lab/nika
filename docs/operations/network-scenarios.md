@@ -19,14 +19,16 @@ Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer optio
 
 Every Containerlab scenario runs Nokia SR Linux, which NIKA configures over gNMI, so `gnmic` is required for all of them. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
-Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`, or manually); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
+Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
 
 ### Concurrency and `--batch-size`
 
-`--batch-size` defaults to `1` (see [`benchmark` settings](configuration.md#benchmark-settings)). Keep that default for any run that includes `k8s_lab`, `llmd_lab`, `min3clos`, or a Containerlab `isp_<topology>` scenario. A higher value starts several of these labs at once on one host:
+`--batch-size` defaults to `1` (see [`benchmark` settings](configuration.md#benchmark-settings)) and caps how many trials run at once (sliding window). With the default `benchmark.serialize_heavy: true`, Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case are **exclusive** (that session runs alone—no overlapping peers). Light ``s``/``m`` Kathara cases can still use the full `batch_size` when no exclusive lab is active. Pass `--no-serialize-heavy` only when you intentionally parallelize those labs.
+
+Why heavy labs need the class cap:
 
 - `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
-- Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once.
+- Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
 
 ## Scenario catalog
 
@@ -255,11 +257,11 @@ Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. Cisc
 One-shot from a local Cisco tarball (no public download URL):
 
 ```shell
-./scripts/install.sh --with-vendor-images --skip-routeros \
+./scripts/install.sh --with-vendor-images \
   --xrd-tarball /path/to/xrd-control-plane-container-x86_64-<version>.tgz
 ```
 
-Or place the file at `vendor/xrd-*.tgz` and run `./scripts/install.sh --with-vendor-images --skip-routeros`. Manual steps:
+Or place the file at `.nika_cache/vendor/xrd-*.tgz` and run `./scripts/install.sh --with-vendor-images`. Manual steps:
 
 1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
 
@@ -289,22 +291,25 @@ Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.p
 
 Two MikroTik RouterOS Cloud Hosted Router (CHR) routers peer over eBGP, each with one Linux PC. RouterOS via `vrnetlab` boots a full QEMU VM inside the container (unlike XRd's native container process), and MikroTik's licensing blocks redistributing or auto-building the image like `nika/*`, so you build and tag it before deploy.
 
-One-shot (downloads CHR from MikroTik and builds the vrnetlab image):
+Preferred path (downloads CHR from MikroTik, clones `hellt/vrnetlab` into `.nika_cache/vendor/vrnetlab`, and builds the image). Needs `/dev/kvm`:
 
 ```shell
-./scripts/install.sh --with-vendor-images --skip-xrd
+./scripts/install.sh --with-vendor-images
 ```
 
-Manual steps:
+Override the cache root with `NIKA_VENDOR_CACHE` if needed. If `vrnetlab/mikrotik_routeros:7.21.5` already exists locally, the installer skips the download and build.
+
+Manual fallback (same cache layout as the installer):
 
 1. Download a CHR image from [mikrotik.com/download](https://mikrotik.com/download) (the `.vmdk` variant for x86, or `.vdi` for arm64). Match the image architecture to the Docker host. Direct links for 7.21.5: `https://download.mikrotik.com/routeros/7.21.5/chr-7.21.5.vmdk.zip` (amd64) and `https://download.mikrotik.com/routeros/7.21.5/chr-7.21.5-arm64.vdi.zip` (arm64).
 
-2. Clone `hellt/vrnetlab` and build the RouterOS image from its `mikrotik/routeros` directory (its base image already ships `sshpass`, which NIKA execs alongside `ssh` to reach RouterOS's internal management API — see [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py)). Do not change the image's `ENTRYPOINT`/`--connection-mode`: the scenario passes `--connection-mode macvtap` as a Kathara machine argument at deploy time instead, because Kathara attaches interfaces before the container starts and vrnetlab's default `vrxcon`/`tc` datapaths expect a data interface to appear only after boot.
+2. Clone `hellt/vrnetlab` into the vendor cache and build from `mikrotik/routeros` (its base image already ships `sshpass`, which NIKA execs alongside `ssh` to reach RouterOS's internal management API — see [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py)). Do not change the image's `ENTRYPOINT`/`--connection-mode`: the scenario passes `--connection-mode macvtap` as a Kathara machine argument at deploy time instead, because Kathara attaches interfaces before the container starts and vrnetlab's default `vrxcon`/`tc` datapaths expect a data interface to appear only after boot.
 
 ```shell
-git clone https://github.com/hellt/vrnetlab
-cd vrnetlab/mikrotik/routeros
-# copy the downloaded CHR .vmdk/.vdi into this directory
+mkdir -p .nika_cache/vendor
+git clone --depth 1 https://github.com/hellt/vrnetlab .nika_cache/vendor/vrnetlab
+# copy the downloaded CHR .vmdk/.vdi into .nika_cache/vendor/vrnetlab/mikrotik/routeros
+cd .nika_cache/vendor/vrnetlab/mikrotik/routeros
 make docker-image
 ```
 
@@ -315,7 +320,7 @@ docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5
 docker images | grep routeros
 ```
 
-If the tag is missing, `nika env run routeros_simple_bgp` raises a `RuntimeError` with the same build/tag steps instead of deploying a broken lab.
+If the tag is missing, `nika env run routeros_simple_bgp` raises a `RuntimeError` that points at `./scripts/install.sh --with-vendor-images` instead of deploying a broken lab.
 
 4. RouterOS/vrnetlab boots a full QEMU VM per router, so the host needs KVM / nested virtualization available (`/dev/kvm` present; nested virtualization enabled at the hypervisor level if the host itself is a VM). Without KVM, boot is dramatically slower or may not complete.
 
@@ -425,15 +430,13 @@ Both fixed Kathara scenarios run one k3s server and five workers on the pinned i
 
 If verification aborts with `k3s node container(s) not running: ['controller']`, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
-First deployment pulls k3s and in-cluster workload images from the network. Host Docker images are reused automatically when already present. To warm workload image tars and llmd Helm charts before starting a lab:
+k3s nodes in these labs have no registry egress, so in-cluster images are pulled on the host and sideloaded during `nika env run` / benchmark deploy (see `[k8s-cache]` stderr lines). Cached artifacts live under `.nika_cache/` (gitignored). Watch progress with:
 
-```shell
-uv run nika env cache llmd_lab
-uv run nika env cache k8s_lab
-uv run nika env cache --all
-```
+- stderr: `[k8s-cache]` (host pull + node import) and `[env-verify]` (readiness checks)
+- session `nika.jsonl` (`env_preload_progress`, `env_verify_progress`)
+- controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[nika-startup]` stages)
 
-Cached artifacts live under `.nika_cache/` (gitignored). On redeploy, NIKA sideloads cached workload images into k3s nodes instead of pulling from the internet again. During iterative work, `nika env run <scenario> --no-redeploy` skips tearing down an existing lab instance when you only need a new session.
+During iterative work, `nika env run <scenario> --no-redeploy` skips tearing down an existing lab instance when you only need a new session.
 
 ### `k8s_lab`
 

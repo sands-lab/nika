@@ -1,0 +1,15 @@
+# NIKA run-config template for cli.claude (Claude Code CLI, Docker Sandbox).
+# Setup: cp config/cli.claude.example.yaml config/cli.claude.yaml
+# Use:   uv run nika agent run --run-config config/cli.claude.yaml --problem dc_clos_s_link_down
+# Credentials stay in the repo-root .env file. Other keys use built-in defaults;
+# see config/nika.example.yaml for the full platform / benchmark reference.
+
+version: 1
+
+agent:
+  type: cli.claude
+  provider: deepseek
+  model: deepseek-v4-flash
+
+nika:
+  result_dir: results/claude

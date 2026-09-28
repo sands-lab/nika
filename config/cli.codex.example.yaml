@@ -1,0 +1,16 @@
+# NIKA run-config template for cli.codex (Codex CLI, Docker Sandbox).
+# Setup: cp config/cli.codex.example.yaml config/cli.codex.yaml
+# Use:   uv run nika agent run --run-config config/cli.codex.yaml --problem dc_clos_s_link_down
+# Credentials stay in the repo-root .env file. Other keys use built-in defaults;
+# see config/nika.example.yaml for the full platform / benchmark reference.
+
+version: 1
+
+agent:
+  type: cli.codex
+  provider: openai
+  model: gpt-5-mini
+  reasoning_effort: medium
+
+nika:
+  result_dir: results/codex

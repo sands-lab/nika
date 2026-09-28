@@ -33,9 +33,9 @@ nika leaderboard template -o results/my-run/submission
 nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission
 ```
 
-`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed`. NIKA cleans and reruns incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
+`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` always makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
 
-Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when possible so resume can skip it.
+Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
 
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
 
@@ -223,6 +223,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -269,11 +270,13 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>link_detach</code></td>
 <td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -327,9 +330,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>link_flap</code></td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -385,6 +390,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>silent_egress_packet_loss</code></td>
@@ -414,6 +420,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 </tbody>
 </table>
@@ -440,6 +447,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -485,6 +493,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -515,6 +524,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>bgp_max_prefix_exceeded</code></td>
@@ -526,6 +536,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -572,6 +583,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -592,6 +604,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -631,6 +644,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>ospf_area_misconfiguration</code></td>
@@ -654,6 +668,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -689,6 +704,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 </tbody>
 </table>
@@ -715,6 +731,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -760,6 +777,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -789,6 +807,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -819,12 +838,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>device_forwarding_packet_corruption</code></td>
 <td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -877,9 +898,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>flow_rule_loop</code></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -934,6 +957,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 <td align="center">●</td>
 </tr>
 <tr>
@@ -963,6 +987,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -992,6 +1017,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -1022,6 +1048,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">●</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>icmp_frag_needed_filter_misconfiguration</code></td>
@@ -1050,6 +1077,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1080,6 +1108,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>k8s_networkpolicy_deny</code></td>
@@ -1105,6 +1134,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1138,6 +1168,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>ospf_acl_block</code></td>
@@ -1161,6 +1192,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1196,6 +1228,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>p4_ecmp_group_member_missing</code></td>
@@ -1224,6 +1257,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1254,6 +1288,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>p4_table_entry_missing</code></td>
@@ -1282,6 +1317,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1312,6 +1348,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>p4_tcam_entry_corruption</code></td>
@@ -1340,6 +1377,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1370,6 +1408,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>p4runtime_pipeline_mismatch</code></td>
@@ -1399,12 +1438,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>vrf_dscp_remarking</code></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1457,12 +1498,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>wireguard_peer_key_misconfiguration</code></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1512,6 +1555,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -1558,6 +1602,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>lb_connection_state_exhaustion</code></td>
@@ -1586,6 +1631,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1616,10 +1662,12 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>load_balancer_overload</code></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1674,12 +1722,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>snat_port_pool_exhaustion</code></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1729,6 +1779,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -1775,9 +1826,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>sdn_controller_crash</code></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1832,10 +1885,12 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 <td align="center">●</td>
 </tr>
 <tr>
 <td><code>southbound_port_mismatch</code></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1888,6 +1943,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -1909,6 +1965,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>dhcp_missing_subnet</code></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1963,11 +2020,13 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>dns_lookup_latency</code></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2021,11 +2080,13 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>dns_service_down</code></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2079,6 +2140,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>host_incorrect_gateway</code></td>
@@ -2103,6 +2165,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2137,6 +2200,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">●</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_incorrect_netmask</code></td>
@@ -2161,6 +2225,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2195,6 +2260,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">●</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>host_missing_ip</code></td>
@@ -2224,6 +2290,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>k8s_coredns_isolated</code></td>
@@ -2249,6 +2316,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2281,6 +2349,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center">○</td>
 </tr>
 </tbody>
@@ -2308,6 +2377,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -2353,6 +2423,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -2382,6 +2453,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center">●</td>
 </tr>
 </tbody>
@@ -2409,6 +2481,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -2450,10 +2523,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -2484,12 +2558,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>tcp_receive_window_limited</code></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2539,6 +2615,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <th rowspan="2">min3clos</th>
 <th rowspan="2">p4_dc_fabric</th>
 <th rowspan="2">p4_dc_gateway</th>
+<th rowspan="2">routeros_simple_bgp</th>
 <th rowspan="2">sdn_l3_clos</th>
 </tr>
 <tr>
@@ -2584,6 +2661,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center">○</td>
 <td align="center">●</td>
 </tr>
 <tr>
@@ -2613,11 +2691,13 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>dhcp_spoofed_dns</code></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2672,10 +2752,12 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>dhcp_spoofed_subnet</code></td>
 <td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2730,6 +2812,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>web_dos_attack</code></td>
@@ -2758,6 +2841,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center">●</td>
 </tr>
 </tbody>

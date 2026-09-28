@@ -95,6 +95,10 @@ prompt-only catalog: `fault_ontology` entries `{id, description, owner_kind}` an
 at a conceptual level and must not leak injection or differential diagnosis shortcuts;
 `submit()` still requires the exact ontology `id` as `fault_type`.
 
+`fault_ontology` always lists every registered fault type except the `healthy`
+sentinel. The list is the same for `--release`, `--config`, and single-case runs,
+so the candidate set never reveals which faults a case file contains.
+
 1. Read the frozen resource inventory and fault ontology from the submission context.
 2. Call `submit()` with the selected pairs.
 

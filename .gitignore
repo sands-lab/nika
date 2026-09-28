@@ -1,10 +1,9 @@
 cache_dir/
 /.nika_cache/
 src/nika/net_env/llmd_lab/controller/usr/
-src/nika/net_env/kathara/kubernetes/llmd_lab/controller/usr/
 **/log/**
 *.pyc
-**/__pycache_/**
+**/__pycache__/**
 *.p4i
 **/pcap/**
 tmp/
@@ -30,19 +29,8 @@ uv.lock
 .pytest_cache/
 .ruff_cache/
 **/MagicMock/**
-# Staged portable CPython + site-packages for in-node k8s MCP (see scripts/stage_k8s_mcp_bundle.py)
-src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/runtime/
-src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/pkgs/
-src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/lib/
-src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/start.sh
-src/nika/net_env/kathara/kubernetes/k8s_lab/controller/opt/nika-k8s-mcp/bundle.tar.gz
-/artifacts/nika-k8s-mcp-build/
 # Local run configs under config/; keep only *.example.yaml templates.
 config/**
 !config/**/
 !config/**/*.example.yaml
 !config/**/*.example.yml
-
-# Local vendor router artifacts (XRd tarballs, CHR disks); not redistributable.
-/vendor/*
-!/vendor/.gitkeep
