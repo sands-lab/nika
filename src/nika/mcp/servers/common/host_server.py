@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
-from nika.mcp.session_context import get_lab_api, get_session_meta
+from nika.mcp.session_context import get_lab_api, get_lab_runtime
 from nika.utils.errors import safe_tool
 
 mcp = FastMCP(
@@ -52,10 +52,8 @@ def active_tcp_probe(
     """
     from nika.traffic.active_probe import run_active_tcp_probe
 
-    from nika.runtime.factory import runtime_for_session
-
     return run_active_tcp_probe(
-        runtime_for_session(get_session_meta()),
+        get_lab_runtime(),
         source=source,
         destination=destination,
         source_port=source_port,

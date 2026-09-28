@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
+from functools import partial
 from importlib import import_module
+
+import anyio
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
@@ -21,84 +24,51 @@ from nika.mcp.gateway.middleware import (
     PhaseGateMiddleware,
     _empty_mcp,
 )
-from nika.mcp.gateway.remote_proxy import RemoteMcpProxy
+from nika.mcp.gateway.phase import phase_advance_token_matches
 from nika.mcp.gateway.session_registry import advance_phase, get_session
 from nika.mcp.registry import MCP_SERVER_SPECS
 
-_MCP_MODULE_ATTRS: dict[str, tuple[str, str]] = {
-    "kathara_base_mcp_server": (
-        "nika.mcp.servers.common.host_server",
-        "mcp",
-    ),
-    "pingmesh_mcp_server": (
-        "nika.mcp.servers.common.pingmesh_server",
-        "mcp",
-    ),
-    "packet_capture_mcp_server": (
-        "nika.mcp.servers.common.packet_capture_server",
-        "mcp",
-    ),
-    "task_mcp_server": ("nika.mcp.servers.common.task_server", "mcp"),
-    "kathara_frr_mcp_server": (
-        "nika.mcp.servers.kathara.frr_server",
-        "mcp",
-    ),
-    "kathara_iosxr_mcp_server": (
-        "nika.mcp.servers.kathara.iosxr_server",
-        "mcp",
-    ),
-    "kathara_routeros_mcp_server": (
-        "nika.mcp.servers.kathara.routeros_server",
-        "mcp",
-    ),
-    "kathara_bmv2_mcp_server": (
-        "nika.mcp.servers.kathara.bmv2_server",
-        "mcp",
-    ),
-    "kathara_sdn_mcp_server": (
-        "nika.mcp.servers.kathara.sdn_server",
-        "mcp",
-    ),
-    "kathara_telemetry_mcp_server": (
-        "nika.mcp.servers.kathara.telemetry_server",
-        "mcp",
-    ),
-    "containerlab_srl_mcp_server": (
-        "nika.mcp.servers.containerlab.srl_server",
-        "mcp",
-    ),
-    "k8s_mcp_server": ("nika.mcp.k8s.server", "mcp"),
-}
+# Host-only secret (see ``phase_advance_token``). The session id alone is known
+# to the agent, so it cannot authorize a jump to the submission context.
+PHASE_TOKEN_HEADER = "NIKA-Phase-Token"
+
+
+def _offload_sync_tools(mcp: FastMCP) -> None:
+    """Run every synchronous tool in a worker thread.
+
+    FastMCP calls non-async tools inline on the event loop, and one uvicorn
+    loop serves every mounted server, so one slow ``docker exec`` would stall
+    all sessions.  ``anyio.to_thread.run_sync`` copies the caller's context, so
+    the gateway's session binding stays visible to the tool.
+    """
+    for tool in mcp._tool_manager.list_tools():  # noqa: SLF001 - FastMCP API gap
+        if tool.is_async:
+            continue
+        sync_fn = tool.fn
+
+        async def run_in_thread(*, _sync_fn=sync_fn, **kwargs):
+            return await anyio.to_thread.run_sync(partial(_sync_fn, **kwargs))
+
+        tool.fn = run_in_thread
+        tool.is_async = True
 
 
 def _load_mcp(name: str) -> FastMCP:
-    module_path, attr = _MCP_MODULE_ATTRS[name]
-    module = import_module(module_path)
-    mcp: FastMCP = getattr(module, attr)
+    mcp: FastMCP = import_module(MCP_SERVER_SPECS[name].module).mcp
+    _offload_sync_tools(mcp)
     return mcp
 
 
 def _iter_mountable_mcp_names(*, backend: str | None = None):
-    """Yield MCP server names for *backend* (common + matching backend; remotes always)."""
+    """Yield MCP server names for *backend* (common + matching backend)."""
     for name, spec in MCP_SERVER_SPECS.items():
-        if spec.remote:
-            yield name
-            continue
-        if name not in _MCP_MODULE_ATTRS:
-            continue
-        if spec.backend is None:
-            yield name
-            continue
-        if backend is not None and spec.backend == backend:
+        if spec.backend is None or (backend is not None and spec.backend == backend):
             yield name
 
 
 def reset_gateway_mcp_state(*, backend: str | None = None) -> None:
     """Allow a fresh gateway process to attach new HTTP session managers."""
     for name in _iter_mountable_mcp_names(backend=backend):
-        spec = MCP_SERVER_SPECS[name]
-        if spec.remote:
-            continue
         try:
             _load_mcp(name)._session_manager = None  # type: ignore[attr-defined]
         except ImportError:
@@ -118,8 +88,15 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
             {"error": f"{SESSION_HEADER} must match path session_id"},
             status_code=403,
         )
-    if get_session(session_id) is None:
+    session = get_session(session_id)
+    if session is None:
         return JSONResponse({"error": "session not registered"}, status_code=404)
+    token = request.headers.get(PHASE_TOKEN_HEADER, "").strip()
+    if not phase_advance_token_matches(session_id, token):
+        return JSONResponse(
+            {"error": f"{PHASE_TOKEN_HEADER} is missing or invalid"},
+            status_code=403,
+        )
 
     try:
         body = await request.json()
@@ -159,8 +136,13 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
         advance_phase(session_id, phase)  # type: ignore[arg-type]
     except KeyError:
         return JSONResponse({"error": "session not registered"}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=409)
 
-    return JSONResponse({"ok": True, "phase": phase})
+    from nika.workflows.agent.submission import load_submission_context
+
+    context = load_submission_context(session.canonical_session_id)
+    return JSONResponse({"ok": True, "phase": phase, "submission_context": context})
 
 
 def _should_relax_host_checks() -> bool:
@@ -183,8 +165,10 @@ def _apply_transport_security(mcp: FastMCP, *, relax_host_checks: bool) -> None:
 def create_gateway_app(*, backend: str | None = None) -> Starlette:
     """Return a Starlette app exposing MCP servers for *backend* over HTTP.
 
-    When *backend* is ``None``, only common (backend-neutral) servers and remote
-    proxies are mounted — never default to Kathara.
+    When *backend* is ``None``, only common (backend-neutral) servers are
+    mounted; never default to Kathara.  FastMCP server objects are process
+    global, so callers that may build gateways concurrently must serialize
+    this call (see ``McpGatewayManager.start``).
     """
     reset_gateway_mcp_state(backend=backend)
     relax_host_checks = _should_relax_host_checks()
@@ -204,18 +188,6 @@ def create_gateway_app(*, backend: str | None = None) -> Starlette:
 
     for name in _iter_mountable_mcp_names(backend=backend):
         spec = MCP_SERVER_SPECS[name]
-        if spec.remote:
-            # After Mount(/mcp/{name}), remaining path is ``/mcp`` (client URL
-            # ends with ``/mcp/{name}/mcp``). Forward that path to the in-node
-            # server which also serves streamable HTTP under ``/mcp``.
-            inner = PhaseGateMiddleware(
-                RemoteMcpProxy(name),
-                server_name=name,
-                blocked_app=blocked_app,
-            )
-            routes.append(Mount(f"/mcp/{name}", app=inner))
-            continue
-
         try:
             mcp = _load_mcp(name)
         except ImportError as exc:

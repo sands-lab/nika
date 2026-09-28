@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -7,7 +8,6 @@ from pydantic import BaseModel, Field, ValidationError
 
 from nika.mcp.session_context import get_session_dir
 from nika.problems.rca import RootCause
-from nika.utils.errors import safe_tool
 
 mcp = FastMCP(
     "task_mcp_server",
@@ -16,9 +16,12 @@ mcp = FastMCP(
         "[{resource_id, fault_type}, ...] from the frozen diagnosis report, "
         "fault ontology, and resource inventory in the prompt. "
         "If submit is rejected for invalid arguments, fix the arguments and "
-        "call submit again until it succeeds once."
+        "call submit again. After a final rejection (consecutive reject "
+        "limit), stop calling submit."
     ),
 )
+
+_REJECT_COUNT_NAME = ".nika_submit_rejects"
 
 
 class SubmitRootCause(BaseModel):
@@ -108,7 +111,61 @@ def validate_root_cause_choices(
     return parsed, errors
 
 
-@safe_tool
+def _submit_reject_limit() -> int:
+    try:
+        from nika.run_config.loader import get_run_config
+
+        return int(get_run_config().agent.submit_reject_limit)
+    except Exception:
+        return 5
+
+
+def _reject_count_path(session_dir: str) -> Path:
+    return Path(session_dir) / _REJECT_COUNT_NAME
+
+
+def _load_reject_count(session_dir: str) -> int:
+    path = _reject_count_path(session_dir)
+    if not path.is_file():
+        return 0
+    try:
+        return max(0, int(path.read_text(encoding="utf-8").strip() or "0"))
+    except (OSError, ValueError):
+        return 0
+
+
+def _save_reject_count(session_dir: str, count: int) -> None:
+    path = _reject_count_path(session_dir)
+    try:
+        os.makedirs(session_dir, exist_ok=True)
+        path.write_text(str(count), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _clear_reject_count(session_dir: str) -> None:
+    path = _reject_count_path(session_dir)
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _reject(reason: str, *, session_dir: str) -> list[str]:
+    """Record a validation reject; return a final message after the limit."""
+    limit = _submit_reject_limit()
+    count = _load_reject_count(session_dir) + 1
+    _save_reject_count(session_dir, count)
+    if limit > 0 and count >= limit:
+        return [
+            "Submission rejected (final): "
+            + reason
+            + f" Exceeded consecutive reject limit ({limit}). "
+            "Do not call submit again."
+        ]
+    return ["Submission rejected: " + reason]
+
+
 @mcp.tool()
 def submit(
     is_anomaly: bool,
@@ -123,15 +180,28 @@ def submit(
             Use [] when is_anomaly is false. Each object must include both
             resource_id and fault_type; empty objects are invalid.
     """
+    session_dir = get_session_dir()
+    limit = _submit_reject_limit()
+    if limit > 0 and _load_reject_count(session_dir) >= limit:
+        # The limit is enforced, not advisory: a valid call after the final
+        # reject must not become the canonical submission.
+        return [
+            "Submission rejected (final): consecutive reject limit "
+            f"({limit}) already reached. Do not call submit again."
+        ]
     if type(is_anomaly) is not bool:
-        return ["Submission rejected: is_anomaly must be a boolean."]
+        return _reject("is_anomaly must be a boolean.", session_dir=session_dir)
     causes = _as_root_cause_dicts(root_causes)
     if not is_anomaly and causes:
-        return [
-            "Submission rejected: healthy/no-fault submissions require root_causes=[]."
-        ]
+        return _reject(
+            "healthy/no-fault submissions require root_causes=[].",
+            session_dir=session_dir,
+        )
     if is_anomaly and not causes:
-        return ["Submission rejected: anomalous submissions require root_causes."]
+        return _reject(
+            "anomalous submissions require root_causes.",
+            session_dir=session_dir,
+        )
     catalog_ids, fault_types, diagnosis_report = _submission_catalog()
     if causes:
         parsed, errors = validate_root_cause_choices(
@@ -140,10 +210,10 @@ def submit(
             fault_types=fault_types,
         )
         if errors:
-            return ["Submission rejected: " + " ".join(errors)]
+            return _reject(" ".join(errors), session_dir=session_dir)
         keys = [(item["resource_id"], item["fault_type"]) for item in parsed]
         if len(set(keys)) != len(keys):
-            return ["Submission rejected: duplicate root cause pairs."]
+            return _reject("duplicate root cause pairs.", session_dir=session_dir)
         causes = [
             {"resource_id": resource_id, "fault_type": fault_type}
             for resource_id, fault_type in sorted(keys)
@@ -155,10 +225,10 @@ def submit(
         "root_causes": causes,
     }
     try:
-        session_dir = get_session_dir()
         os.makedirs(session_dir, exist_ok=True)
         submission_path = os.path.join(session_dir, "submission.json")
         if os.path.exists(submission_path):
+            # Not a fixable validation error — do not burn the reject budget.
             return ["Submission rejected: a canonical submission already exists."]
         with open(submission_path, "x", encoding="utf-8") as log_file:
             log_file.write(json.dumps(submission_dict))
@@ -166,8 +236,10 @@ def submit(
         return ["Submission rejected: a canonical submission already exists."]
     except OSError:
         # Host trial paths embed case keys; never surface path text to agents.
+        # Infra write failures are not agent validation loops — do not burn budget.
         return ["Submission failed."]
 
+    _clear_reject_count(session_dir)
     return ["Submission success."]
 
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import threading
+from collections.abc import Callable
 from typing import Any
 
 from nika.config import RESULTS_DIR
@@ -63,30 +65,75 @@ def get_session_dir() -> str:
     return f"{RESULTS_DIR}/{meta['session_id']}"
 
 
+# Host APIs per canonical session id. Building one lists the lab's containers
+# and networks (Kathara) or runs ``clab inspect`` (Containerlab); doing that on
+# every tool call dominated simple exec latency. An entry is reused only while
+# the session's backend, lab name, status and creation time are unchanged, so
+# a redeployed or restarted session gets a fresh API.
+_API_CACHE: dict[tuple[str, str], tuple[tuple[Any, ...], Any]] = {}
+_API_CACHE_LOCK = threading.Lock()
+
+
+def _api_cache_key(meta: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        resolve_backend(meta),
+        _lab_name_from_meta(meta),
+        meta.get("status"),
+        meta.get("created_at"),
+    )
+
+
+def _cached_api(kind: str, meta: dict[str, Any], build: Callable[[], Any]) -> Any:
+    session_id = str(meta.get("session_id") or require_session_id())
+    slot = (session_id, kind)
+    key = _api_cache_key(meta)
+    with _API_CACHE_LOCK:
+        cached = _API_CACHE.get(slot)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+    api = build()
+    with _API_CACHE_LOCK:
+        _API_CACHE[slot] = (key, api)
+    return api
+
+
 def get_lab_api():
     """Return KatharaBaseAPI or ContainerlabBaseAPI for the current session backend."""
     from nika.service.lab.host_api import create_host_api
 
     meta = get_session_meta()
-    return create_host_api(
-        lab_name=_lab_name_from_meta(meta),
-        backend=resolve_backend(meta),
-        session_meta=meta,
+    return _cached_api(
+        "host",
+        meta,
+        lambda: create_host_api(
+            lab_name=_lab_name_from_meta(meta),
+            backend=resolve_backend(meta),
+            session_meta=meta,
+        ),
     )
+
+
+def get_lab_runtime():
+    """Return the cached ``LabRuntime`` for the current session.
+
+    Reuses the host API's runtime when it has one (containerlab); otherwise
+    caches a runtime built from session metadata.
+    """
+    runtime = getattr(get_lab_api(), "runtime", None)
+    if runtime is not None:
+        return runtime
+    from nika.runtime.factory import runtime_for_session
+
+    meta = get_session_meta()
+    return _cached_api("runtime", meta, lambda: runtime_for_session(meta))
 
 
 def get_srl_api():
     """Return ContainerlabSRLAPI for the current containerlab session."""
     from nika.service.containerlab import ContainerlabSRLAPI
-    from nika.service.lab.host_api import create_host_api
 
     meta = get_session_meta()
-    backend = resolve_backend(meta)
-    if backend != "containerlab":
+    if resolve_backend(meta) != "containerlab":
         raise ValueError("SRL MCP tools require a containerlab session.")
-    host_api = create_host_api(
-        lab_name=_lab_name_from_meta(meta),
-        backend=backend,
-        session_meta=meta,
-    )
-    return ContainerlabSRLAPI(host_api.runtime)
+    host_api = get_lab_api()
+    return _cached_api("srl", meta, lambda: ContainerlabSRLAPI(host_api.runtime))

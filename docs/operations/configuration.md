@@ -133,8 +133,7 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | `nika.mcp.read_timeout_sec` | `120` | MCP request timeout used by the shared LangGraph, AutoGen, and mcp-agent clients. Non-positive values disable it. |
 | `nika.mcp.gateway_host` | `127.0.0.1` | Host address for the session MCP gateway. |
 | `nika.mcp.gateway_port` | `0` | Gateway port. `0` selects a free port; negative values are invalid. |
-| `nika.mcp.tool_output_max_chars` | `16384` | Characters of MCP tool output returned to the agent. Longer output is truncated with a banner that tells the agent to re-call with `full=true`. `0` disables truncation. Negative values are invalid. |
-| `nika.mcp.tool_output_full_max_chars` | `100000` | Cap for tool output when the agent passes `full=true`. `0` removes the cap. Negative values are invalid. |
+| `nika.mcp.tool_output_max_chars` | `10000` | Characters of MCP tool text returned to the agent. Longer output keeps the first and last halves and marks how many characters were elided (mini-swe-agent style), with a warning to use `head`/`tail`/`grep` or redirect to a file. `0` disables truncation. Negative values are invalid. |
 
 ### Static validation
 

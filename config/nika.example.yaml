@@ -99,10 +99,9 @@ nika:
     gateway_host: "127.0.0.1"
     # Bind the MCP gateway to this port. Set 0 to choose a free port.
     gateway_port: 0
-    # Default max chars of each tool text observation returned to the agent.
-    tool_output_max_chars: 16384
-    # Hard cap when the agent re-calls with full=true (0 = unlimited).
-    tool_output_full_max_chars: 100000
+    # Cap MCP tool text returned to the agent. Over this size, keep the first
+    # and last halves and elide the middle (mini-swe-agent style). 0 disables.
+    tool_output_max_chars: 10000
   static_validation:
     # Run supported topology checks with Batfish before deployment.
     enabled: false

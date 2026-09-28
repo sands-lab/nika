@@ -8,11 +8,14 @@ from typing import Any, Literal
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
 
-PolicyMode = Literal["two_phase", "unified"]
 Phase = Literal["diagnosis", "submission"]
 
 _lock = Lock()
 _sessions: dict[str, "GatewaySession"] = {}
+# MCP transport session id (``mcp-session-id``) -> canonical NIKA session id.
+# FastMCP runs a transport session's tools in the context of its initialize
+# request, so later requests must keep the NIKA session they initialized with.
+_transport_owners: dict[str, str] = {}
 
 
 @dataclass
@@ -27,12 +30,13 @@ class GatewaySession:
     agent_session_id: str
     canonical_session_id: str
     scenario_name: str
-    policy_mode: PolicyMode
     phase: Phase = DIAGNOSIS
-    remote_upstreams: dict[str, str] = field(default_factory=dict)
     session_dir: str = ""
     access_policy: dict[str, Any] = field(default_factory=dict)
     node_roles: dict[str, str] = field(default_factory=dict)
+    # Diagnosis servers selected for the scenario; ``None`` allows every
+    # mounted diagnosis server.
+    diagnosis_servers: frozenset[str] | None = None
 
     @property
     def session_id(self) -> str:
@@ -45,11 +49,10 @@ def register_session(
     *,
     agent_session_id: str | None = None,
     scenario_name: str = "",
-    policy_mode: PolicyMode = "two_phase",
-    remote_upstreams: dict[str, str] | None = None,
     session_dir: str = "",
     access_policy: dict[str, Any] | None = None,
     node_roles: dict[str, str] | None = None,
+    diagnosis_servers: list[str] | None = None,
 ) -> None:
     """Register under canonical ``session_id`` and optional opaque agent id.
 
@@ -62,25 +65,18 @@ def register_session(
         agent_session_id=agent_id,
         canonical_session_id=canonical,
         scenario_name=scenario_name,
-        policy_mode=policy_mode,
         phase=DIAGNOSIS,
-        remote_upstreams=dict(remote_upstreams or {}),
         session_dir=session_dir,
         access_policy=dict(access_policy or {}),
         node_roles=dict(node_roles or {}),
+        diagnosis_servers=(
+            None if diagnosis_servers is None else frozenset(diagnosis_servers)
+        ),
     )
     with _lock:
         _sessions[agent_id] = entry
         if agent_id != canonical:
             _sessions[canonical] = entry
-
-
-def set_remote_upstream(session_id: str, server_name: str, base_url: str) -> None:
-    with _lock:
-        entry = _sessions.get(session_id)
-        if entry is None:
-            raise KeyError("MCP gateway session not registered")
-        entry.remote_upstreams[server_name] = base_url.rstrip("/")
 
 
 def unregister_session(session_id: str) -> None:
@@ -91,11 +87,33 @@ def unregister_session(session_id: str) -> None:
             return
         _sessions.pop(entry.agent_session_id, None)
         _sessions.pop(entry.canonical_session_id, None)
+        for transport_id, owner in list(_transport_owners.items()):
+            if owner == entry.canonical_session_id:
+                del _transport_owners[transport_id]
 
 
 def clear_sessions() -> None:
     with _lock:
         _sessions.clear()
+        _transport_owners.clear()
+
+
+def bind_transport_session(transport_id: str, session_id: str) -> None:
+    """Record which NIKA session initialized MCP transport *transport_id*."""
+    with _lock:
+        entry = _sessions.get(session_id)
+        if entry is not None:
+            _transport_owners.setdefault(transport_id, entry.canonical_session_id)
+
+
+def transport_session_matches(transport_id: str, session_id: str) -> bool:
+    """Return whether *session_id* may use MCP transport *transport_id*."""
+    with _lock:
+        owner = _transport_owners.get(transport_id)
+        if owner is None:
+            return True
+        entry = _sessions.get(session_id)
+        return entry is not None and entry.canonical_session_id == owner
 
 
 def get_session(session_id: str) -> GatewaySession | None:

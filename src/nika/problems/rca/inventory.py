@@ -255,3 +255,22 @@ def load_offline_net_env(
     if getattr(net_env, "lab", None) is not None:
         net_env.load_machines()
     return net_env
+
+
+def load_session_offline_net_env(row: dict):
+    """Offline scenario for a SessionStore row, matching its recorded variant.
+
+    Passes the session's backend / device profile / RPKI so resource ids match
+    the ground truth (e.g. Containerlab ``e1-1`` vs Kathara ``eth*`` names).
+    """
+    params = row.get("scenario_params") or {}
+    return load_offline_net_env(
+        str(row.get("scenario_name") or ""),
+        str(row.get("scenario_topo_size") or params.get("topo_size") or ""),
+        topo=params.get("topo"),
+        igp=params.get("igp"),
+        bgp_mode=params.get("bgp_mode"),
+        rpki=params.get("rpki"),
+        backend=params.get("backend"),
+        device_profile=params.get("device_profile"),
+    )

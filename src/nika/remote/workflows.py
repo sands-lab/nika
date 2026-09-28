@@ -16,10 +16,12 @@ from nika.remote.config import load_remote_config
 from nika.remote.protocol import EnvStartRequest, FailureInjectRequest, PolicyMode
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
+    ENV_GATEWAY_PHASE_TOKEN,
     ENV_GATEWAY_URL,
 )
 from nika.utils.logger import bind_session_dir, log_event
 from nika.utils.session import Session
+from nika.utils.session_artifacts import write_json_atomic
 from nika.utils.session_id import make_session_id
 from nika.utils.session_store import SessionStore
 
@@ -42,9 +44,7 @@ def _rewrite_local_session_dir(session_id: str, local_dir: str) -> None:
         if data.get("session_dir") != local_dir or not data.get("remote"):
             data["session_dir"] = local_dir
             data["remote"] = True
-            run_path.write_text(
-                json.dumps(data, indent=2, default=str), encoding="utf-8"
-            )
+            write_json_atomic(run_path, data)
 
 
 def _pull_and_fix_local(client: RemoteClient, session_id: str, local_dir: str) -> None:
@@ -118,10 +118,7 @@ def _sync_local_meta_from_remote(
     # SessionStore.update_session skips failure_injections; write the full doc.
     path = store._path(session_id)
     merged["updated_at"] = datetime.now(timezone.utc).isoformat()
-    path.write_text(
-        json.dumps(merged, ensure_ascii=False, indent=2, default=str),
-        encoding="utf-8",
-    )
+    write_json_atomic(path, merged, ensure_ascii=False)
     store.index.upsert_from_doc(merged)
     session = Session()
     session.load_running_session(session_id=session_id)
@@ -234,24 +231,25 @@ def remote_mcp_gateway(
         policy_mode=policy_mode,
         public_host=cfg.host,
     )
-    prior_url = os.environ.get(ENV_GATEWAY_URL)
-    prior_agent = os.environ.get(ENV_GATEWAY_AGENT_URL)
-    os.environ[ENV_GATEWAY_URL] = attach.gateway_base_url
-    os.environ[ENV_GATEWAY_AGENT_URL] = attach.gateway_base_url
+    exported = {
+        ENV_GATEWAY_URL: attach.gateway_base_url,
+        ENV_GATEWAY_AGENT_URL: attach.gateway_base_url,
+        # Host orchestration advances the phase; sandbox env filters NIKA_*TOKEN.
+        ENV_GATEWAY_PHASE_TOKEN: attach.phase_token,
+    }
+    prior = {key: os.environ.get(key) for key in exported}
+    os.environ.update(exported)
     try:
         yield attach.gateway_base_url, attach.gateway_port
     finally:
         try:
             client.mcp_detach(session_id)
         finally:
-            if prior_url is None:
-                os.environ.pop(ENV_GATEWAY_URL, None)
-            else:
-                os.environ[ENV_GATEWAY_URL] = prior_url
-            if prior_agent is None:
-                os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
-            else:
-                os.environ[ENV_GATEWAY_AGENT_URL] = prior_agent
+            for key, value in prior.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
 
 def remote_close_session(

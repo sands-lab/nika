@@ -97,8 +97,11 @@ def start_capture(
         if bpf:
             capture_cmd += f" {_shell_quote(bpf)}"
 
+    # exec: dash keeps `sh -c CMD` as a parent, so $! would be sh and stop_capture's
+    # SIGTERM would leave the writer running.
     launch = (
-        f"nohup sh -c {shlex.quote(capture_cmd)} >/tmp/nika-capture-{capture_id}.log "
+        f"nohup sh -c {shlex.quote('exec ' + capture_cmd)} "
+        f">/tmp/nika-capture-{capture_id}.log "
         f"2>&1 & echo $! > {quoted_pid}"
     )
     runtime.exec(device, launch, timeout=15)

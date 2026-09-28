@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-PolicyMode = Literal["two_phase", "unified"]
+PolicyMode = Literal["two_phase"]
 
 
 class HealthResponse(BaseModel):
@@ -58,6 +58,8 @@ class McpAttachResponse(BaseModel):
     session_id: str
     gateway_port: int
     gateway_base_url: str
+    # Host-only secret for POST /gateway/sessions/{id}/phase.
+    phase_token: str = ""
 
 
 class SessionCloseRequest(BaseModel):
@@ -69,10 +71,6 @@ class SessionContainersResponse(BaseModel):
     session_id: str
     lab_name: str
     containers: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class SessionIdBody(BaseModel):
-    session_id: str | None = None
 
 
 class ErrorBody(BaseModel):
