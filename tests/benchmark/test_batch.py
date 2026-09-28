@@ -12,8 +12,9 @@ import yaml
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session_id import resolve_session_tag
 from nika.utils.session_store import SESSIONS_DIR, SessionStore
-from tests.benchmark.helpers import inject_params_from_benchmark_yaml
+from nika.workflows.benchmark.run import store_session_id_for_trial
 from tests.support.integration_base import IntegrationTestCase
+from tests.support.integration_pipeline import DEFAULT_INJECT_PARAMS
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -84,14 +85,11 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         ) as handle:
             cases = []
             for case in SCENARIO_CASES:
-                inject = inject_params_from_benchmark_yaml(
-                    case.scenario, case.problem, case.size or ""
-                )
                 row = {
                     "scenario": case.scenario,
                     "problem": case.problem,
                     "topo_size": case.size,
-                    "inject": inject,
+                    "inject": DEFAULT_INJECT_PARAMS,
                 }
                 cases.append(row)
             yaml.dump({"cases": cases}, handle, sort_keys=False, allow_unicode=True)
@@ -101,7 +99,9 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 [
                     "uv",
                     "run",
-                    "nika",
+                    "python",
+                    "-m",
+                    "tests.support.nika_cli",
                     "benchmark",
                     "run",
                     "--config",
@@ -162,9 +162,12 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         ]
 
         assert len(ids) == len(set(ids)), f"Duplicate session IDs: {ids}"
-        for session_id in ids:
-            # Batch --config uses trial ids: {case_key}__t01
-            assert session_id.endswith("__t01"), session_id
+        for case in SCENARIO_CASES:
+            session_id, session_dir = self._result(case)
+            # Store key = trial slot name + result-root hash (parallel-run isolation).
+            assert session_id == store_session_id_for_trial(
+                session_dir.name, type(self)._result_root
+            ), session_id
 
     def test_session_dirs_are_isolated(self) -> None:
         dirs = [
@@ -206,7 +209,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         for case in SCENARIO_CASES:
             session_id, session_dir = self._result(case)
 
-            assert session_id in str(session_dir)
+            assert session_id.startswith(f"{session_dir.name}__r"), session_id
 
     def test_submission_fields_and_isolation(self) -> None:
         for case in SCENARIO_CASES:
@@ -215,7 +218,9 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
             for field in ("is_anomaly", "root_causes"):
                 assert field in sub, f"Missing field '{field}' in submission.json"
 
-            assert session_id in str(session_dir)
+            # Parallel sessions must not see each other's fault.
+            fault_types = {rc.get("fault_type") for rc in sub["root_causes"]}
+            assert fault_types == {case.problem}, (session_id, fault_types)
 
     def test_eval_metrics_fields_and_scores(self) -> None:
         required_fields = (

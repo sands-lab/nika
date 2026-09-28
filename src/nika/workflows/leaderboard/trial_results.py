@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.utils.session_artifacts import RUN_FILENAME
+from nika.workflows.benchmark.outcomes import COUNTED_OUTCOMES
 from nika.workflows.leaderboard.aggregate import extract_trial_metrics
 from nika.workflows.leaderboard.schema import TrialResult
 
@@ -20,7 +21,8 @@ GROUND_TRUTH_FILENAME = "ground_truth.json"
 SUBMISSION_FILENAME = "submission.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"
 
-VALID_OUTCOMES = frozenset({"success", "agent_failed"})
+# Only counted outcomes are scored; retryable ones never reach a leaderboard.
+VALID_OUTCOMES = COUNTED_OUTCOMES
 
 
 class TrialResultError(ValueError):

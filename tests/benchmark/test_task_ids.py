@@ -83,6 +83,17 @@ class TestSelectTrials:
             trial_dirname(TASK_B, index) for index in (1, 2, 3)
         ]
 
+    def test_filter_multiple_task_ids_preserves_trial_major(self) -> None:
+        trials = expand_trials([ROW_A, ROW_B], n_trials=2)
+        # CLI selector order must not reintroduce case-major scheduling.
+        selected = select_trials(trials, [TASK_B, TASK_A])
+        assert [(item.case_key, item.trial_index) for item in selected] == [
+            (TASK_A, 1),
+            (TASK_B, 1),
+            (TASK_A, 2),
+            (TASK_B, 2),
+        ]
+
     def test_filter_by_trial_dirname(self) -> None:
         trials = expand_trials([ROW_A, ROW_B], n_trials=3)
         selected = select_trials(trials, [f"{TASK_A}__t02"])
@@ -123,13 +134,21 @@ class TestReleaseTaskIdGate:
         runner.assert_not_called()
         assert not (result_dir / "run.json").exists()
 
-    def test_scoped_run_records_planned_trial_count(self, tmp_path: Path) -> None:
+    def test_scoped_run_records_planned_trial_count(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         release = load_release("0.2.0", split="test")
         task_id = task_id_for_row(release.cases[0])
         result_dir = tmp_path / "run"
         with (
             patch("nika.workflows.benchmark.run.preflight_release"),
-            patch("nika.workflows.benchmark.run.run_benchmark_trials") as runner,
+            patch(
+                "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
+            ) as runner,
+            patch(
+                "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+                tmp_path / "benchmark_runs",
+            ),
         ):
             run_benchmark_from_release(
                 "0.2.0",
@@ -148,6 +167,9 @@ class TestReleaseTaskIdGate:
         assert job["task_ids"] == [f"{task_id}__t02"]
         assert job["planned_trial_count"] == 1
         assert job["case_count"] == release.case_count
+        plan = " ".join(capsys.readouterr().out.split())
+        assert "1/1 run(s) remaining" in plan
+        assert "1 case(s), 1 of 3 trial(s) selected" in plan
 
 
 class TestPublishedReleaseCatalog:

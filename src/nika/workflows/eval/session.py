@@ -18,6 +18,7 @@ from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_finished_session,
     iter_session_dirs,
+    write_json_atomic,
 )
 from nika.utils.session_store import SessionStore
 from nika.workflows.session.close import close_session
@@ -114,6 +115,7 @@ def build_eval_metrics_payload(
         **scores,
         "in_tokens": trace_metrics.get("in_tokens"),
         "out_tokens": trace_metrics.get("out_tokens"),
+        "reasoning_tokens": trace_metrics.get("reasoning_tokens"),
         "steps": trace_metrics.get("steps"),
         "tool_calls": trace_metrics.get("tool_calls"),
         "tool_errors": trace_metrics.get("tool_errors"),
@@ -124,19 +126,30 @@ def run_eval_metrics(
     *,
     session_id: str | None = None,
     result_dir: str | Path | None = None,
+    session_dir: str | Path | None = None,
 ) -> None:
-    """Compute rule-based scores and trace stats; write ``eval_metrics.json`` under each session dir."""
+    """Compute rule-based scores and trace stats; write ``eval_metrics.json`` under each session dir.
+
+    ``session_dir`` (with ``session_id``) skips the results-tree lookup.
+    """
     for sid in _iter_eval_session_ids(session_id=session_id, result_dir=result_dir):
-        _run_eval_metrics_one(session_id=sid, result_dir=result_dir)
+        _run_eval_metrics_one(
+            session_id=sid,
+            result_dir=result_dir,
+            session_dir=session_dir if session_id is not None else None,
+        )
 
 
 def _run_eval_metrics_one(
     *,
     session_id: str,
     result_dir: str | Path | None = None,
+    session_dir: str | Path | None = None,
 ) -> None:
     session = Session()
-    session.load_closed_session(session_id=session_id, result_dir=result_dir)
+    session.load_closed_session(
+        session_id=session_id, result_dir=result_dir, session_dir=session_dir
+    )
     bind_session_dir(session.session_dir)
 
     gt_path = Path(session.session_dir) / "ground_truth.json"
@@ -157,7 +170,7 @@ def _run_eval_metrics_one(
         trace_metrics=trace_metrics,
     )
     out_path = Path(session.session_dir) / EVAL_METRICS_FILENAME
-    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    write_json_atomic(out_path, payload)
     session.update_run_meta("eval_metrics", payload)
     log_event(
         "eval_metrics_saved",

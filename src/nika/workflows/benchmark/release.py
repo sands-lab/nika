@@ -14,6 +14,7 @@ from typing import Any, Literal
 import yaml
 
 from nika.config import BENCHMARK_DIR, REPO_ROOT
+from nika.utils.session_artifacts import write_json_atomic
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
 )
@@ -565,6 +566,46 @@ def read_git_commit() -> tuple[str | None, bool]:
     return commit or None, dirty
 
 
+def build_run_identity(
+    *,
+    agent_type: str | None,
+    model: str | None,
+    case_timeout_sec: int,
+    official: bool,
+    job_id: str | None = None,
+    llm_provider: str | None = None,
+    max_steps: int | None = None,
+    n_trials: int = 1,
+) -> dict[str, Any]:
+    """Agent/run fields shared by release and ad-hoc ``--config`` run configs."""
+    from nika.run_config.loader import get_run_config
+    from nika.utils.agent_config import (
+        resolve_agent_timeout,
+        resolve_max_tokens,
+        resolve_reasoning_effort,
+    )
+
+    commit, dirty = read_git_commit()
+    run_id = job_id or os.urandom(8).hex()
+    return {
+        "run_id": run_id,
+        "job_id": run_id,
+        "nika_git_commit": commit,
+        "nika_git_dirty": dirty,
+        "case_timeout_sec": case_timeout_sec,
+        "agent_type": agent_type,
+        "llm_provider": llm_provider,
+        "model": model,
+        "max_steps": max_steps,
+        "max_tokens": resolve_max_tokens(agent_type) if agent_type else None,
+        "agent_timeout_sec": resolve_agent_timeout(),
+        "reasoning_effort": resolve_reasoning_effort(),
+        "access_role": get_run_config().agent.access.role,
+        "n_trials": int(n_trials),
+        "official": official,
+    }
+
+
 def build_job_metadata(
     release: BenchmarkRelease,
     *,
@@ -575,35 +616,30 @@ def build_job_metadata(
     job_id: str | None = None,
     llm_provider: str | None = None,
     max_steps: int | None = None,
-    max_tokens: int | None = None,
     n_trials: int = 1,
 ) -> dict[str, Any]:
-    commit, dirty = read_git_commit()
-    run_id = job_id or os.urandom(8).hex()
     return {
-        "run_id": run_id,
-        "job_id": run_id,
         "benchmark_id": release.id,
         "version": release.version,
         "benchmark_ref": release.ref,
         "split": release.split,
         "case_count": release.case_count,
-        "nika_git_commit": commit,
-        "nika_git_dirty": dirty,
         "scoring": release.scoring,
         "tools": {
             "allowed_mcp_servers": release.tools.get("allowed_mcp_servers"),
         },
         "resources": release.resources,
         "defaults": release.defaults,
-        "case_timeout_sec": case_timeout_sec,
-        "agent_type": agent_type,
-        "llm_provider": llm_provider,
-        "model": model,
-        "max_steps": max_steps,
-        "max_tokens": max_tokens,
-        "n_trials": int(n_trials),
-        "official": official,
+        **build_run_identity(
+            agent_type=agent_type,
+            model=model,
+            case_timeout_sec=case_timeout_sec,
+            official=official,
+            job_id=job_id,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            n_trials=n_trials,
+        ),
     }
 
 
@@ -625,11 +661,9 @@ def load_run_config(result_dir: Path) -> dict[str, Any] | None:
 def write_job_metadata(result_dir: Path, job: dict[str, Any]) -> Path:
     """Write ``run.json`` plus legacy ``benchmark_job.json`` and lock file."""
     result_dir.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(job, indent=2, sort_keys=True) + "\n"
     run_path = result_dir / RUN_CONFIG_FILENAME
-    run_path.write_text(payload, encoding="utf-8")
-    job_path = result_dir / JOB_FILENAME
-    job_path.write_text(payload, encoding="utf-8")
+    write_json_atomic(run_path, job, sort_keys=True)
+    write_json_atomic(result_dir / JOB_FILENAME, job, sort_keys=True)
     lock_path = result_dir / "RELEASE.lock.json"
     lock_path.write_text(
         json.dumps(
@@ -700,51 +734,6 @@ def write_release_manifest(
     (dest / "RELEASE.yaml").write_text(
         yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
-    )
-
-
-def rebuild_release_manifest(
-    dest: Path,
-    *,
-    scoring: dict[str, Any] | None = None,
-) -> None:
-    """Rewrite ``RELEASE.yaml`` from on-disk split YAML and current policy."""
-    dest = Path(dest)
-    manifest_path = dest / "RELEASE.yaml"
-    existing = _load_manifest(manifest_path) if manifest_path.is_file() else {}
-    version = str(existing.get("version") or dest.name)
-    defaults = dict(existing.get("defaults") or DEFAULTS_V1)
-    defaults.pop("case_timeout_sec", None)
-    tools = dict(existing.get("tools") or TOOLS_V1)
-    resources = dict(existing.get("resources") or {})
-    resources.pop("policy_id", None)
-    tools.pop("policy_id", None)
-
-    splits: dict[str, Any] = {}
-    all_cases: list[dict[str, Any]] = []
-    for name in VALID_SPLITS:
-        path = dest / f"{name}.yaml"
-        if not path.is_file():
-            continue
-        cases = load_benchmark_yaml(path)
-        all_cases.extend(cases)
-        splits[name] = {
-            "cases_file": f"{name}.yaml",
-            "case_count": len(cases),
-        }
-    if not splits:
-        raise ReleaseError(f"No split YAML files under {dest}")
-
-    scenarios = {row["scenario"] for row in all_cases}
-    write_release_manifest(
-        dest,
-        version=version,
-        splits=splits,
-        defaults=defaults,
-        scoring=dict(scoring or SCORING),
-        tools=tools,
-        resources=resources,
-        images={"required": collect_images_for_scenarios(scenarios)},
     )
 
 

@@ -173,6 +173,14 @@ class TestReleaseRunMetadata:
         )
         result_dir = tmp_path / "results"
         runs_dir = tmp_path / "benchmark_runs"
+        written: dict[str, dict] = {}
+
+        def _capture_written(*_args, **_kwargs) -> list[str]:
+            # Run config and progress exist (post-confirm) before trials start.
+            job_doc = json.loads((result_dir / JOB_FILENAME).read_text("utf-8"))
+            progress_doc = runs_dir / f"{job_doc['run_id']}.json"
+            written["progress"] = json.loads(progress_doc.read_text("utf-8"))
+            return []
 
         with (
             patch(
@@ -180,8 +188,8 @@ class TestReleaseRunMetadata:
                 return_value=None,
             ),
             patch(
-                "nika.workflows.benchmark.run.run_benchmark_trials",
-                return_value=None,
+                "nika.workflows.benchmark.run._run_trials_batch",
+                side_effect=_capture_written,
             ) as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
@@ -219,9 +227,7 @@ class TestReleaseRunMetadata:
         assert (result_dir / "RELEASE.lock.json").is_file()
         assert run_trials.called
 
-        progress_path = runs_dir / f"{job['run_id']}.json"
-        assert progress_path.is_file()
-        progress = json.loads(progress_path.read_text(encoding="utf-8"))
+        progress = written["progress"]
         assert progress["status"] == "running"
         assert progress["total_trials"] == 3
         assert progress["pending_trials"] == 3
@@ -239,7 +245,9 @@ class TestReleaseRunMetadata:
         result_dir = tmp_path / "results"
         with (
             patch("nika.workflows.benchmark.run.preflight_release"),
-            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
+            patch(
+                "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
+            ) as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
                 tmp_path / "benchmark_runs",

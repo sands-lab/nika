@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from nika.workflows.benchmark.display import (
     BenchmarkProgress,
@@ -48,6 +52,7 @@ def test_format_run_plan_lists_pending_and_skips() -> None:
     assert "2 case(s) × 1 trial(s)/case" in text
     assert "3 already complete" in text
     assert "batch_size=2" in text
+    assert "serialize_heavy=true" in text
     assert "Agent: mock  model=mock-v1" in text
     assert "Results: /tmp/results" in text
     assert "Done (3):" in text
@@ -164,9 +169,7 @@ def test_messages_tail_polls_jsonl(tmp_path: Path) -> None:
     )
     assert tail.poll() == ["tool  exec_shell"]
     with path.open("a", encoding="utf-8") as fh:
-        fh.write(
-            json.dumps({"event": "llm_end", "text": "done diagnosing"}) + "\n"
-        )
+        fh.write(json.dumps({"event": "llm_end", "text": "done diagnosing"}) + "\n")
     assert tail.poll() == ["assistant  done diagnosing"]
     assert list(tail.lines)[-1] == "assistant  done diagnosing"
 
@@ -209,27 +212,104 @@ def test_benchmark_progress_dual_panel_render() -> None:
         assert "dc_clos/link_down m t01" in out
 
 
-def test_prepare_live_for_resize_clears_and_resets_shape() -> None:
-    from unittest.mock import MagicMock
+def test_benchmark_progress_shows_inspect_url() -> None:
+    from rich.console import Console
+    from rich.style import Style
 
-    progress = BenchmarkProgress(1)
-    live = MagicMock()
-    live_render = MagicMock()
-    live_render._shape = (80, 16)
-    live._live_render = live_render
-    live.console = MagicMock()
-    progress._live = live
+    url = "http://127.0.0.1:7580/"
+    with patch("nika.workflows.benchmark.display._console") as console:
+        console.is_terminal = True
+        progress = BenchmarkProgress(
+            2,
+            agent_type="byo.langgraph",
+            model="qwen",
+            case_count=85,
+            n_trials=3,
+            inspect_url=url,
+        )
+        progress._use_live = True
+        progress._term_size = (120, 32)
+        progress._progress = __import__(
+            "rich.progress", fromlist=["Progress"]
+        ).Progress()
+        progress._task_id = progress._progress.add_task("trials", total=2)
+        panel = progress._job_panel()
+        buf = Console(record=True, width=120, height=12, force_terminal=True)
+        buf.print(panel)
+        plain = buf.export_text()
+        assert "agent=byo.langgraph" in plain
+        assert "85 case(s)×3 trial(s)" in plain
+        assert "inspect" in plain
+        assert url in plain
+        linked = [
+            seg
+            for seg in buf.render(panel)
+            if seg.style and isinstance(seg.style, Style) and seg.style.link == url
+        ]
+        assert any(seg.text == "inspect" for seg in linked)
 
-    progress._prepare_live_for_resize()
-    live.console.control.assert_called_once()
-    assert live_render._shape is None
 
-    progress._term_size = (80, 40)
-    with patch(
-        "nika.workflows.benchmark.display._read_terminal_size",
-        return_value=(120, 40),
-    ):
-        assert progress._sync_terminal_size() is True
+_RESIZE_CHILD = """
+import json, sys, tempfile, time
+from pathlib import Path
+from nika.workflows.benchmark.display import BenchmarkProgress
+root = Path(tempfile.mkdtemp())
+with BenchmarkProgress(2, agent_type="mock") as progress:
+    progress.start_trials(["dc_clos/link_down m t01"])
+    progress.attach_session("dc_clos/link_down m t01", root)
+    progress.set_phase("dc_clos/link_down m t01", "agent")
+    for i in range(30):
+        with (root / "messages.jsonl").open("a") as fh:
+            fh.write(json.dumps({"event": "tool_start", "tool": {"name": "exec"}}) + "\\n")
+        time.sleep(0.1)
+    progress.finish_trial("dc_clos/link_down m t01")
+print("CHILD_DONE")
+"""
+
+
+def test_dashboard_survives_drag_resize() -> None:
+    """A burst of window resizes must not hang the run (real pty)."""
+    pty = pytest.importorskip("pty")
+    import fcntl
+    import os
+    import select
+    import struct
+    import termios
+
+    pid, fd = pty.fork()
+    if pid == 0:  # pragma: no cover - child process
+        # Live progress is disabled under pytest; the child is a real terminal run.
+        env = {k: v for k, v in os.environ.items() if k != "PYTEST_CURRENT_TEST"}
+        os.execve(sys.executable, [sys.executable, "-c", _RESIZE_CHILD], env)
+
+    def set_size(cols: int, rows: int) -> None:
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+
+    set_size(100, 30)
+    output = b""
+    start = time.monotonic()
+    try:
+        while time.monotonic() - start < 20:
+            elapsed = time.monotonic() - start
+            if 0.5 < elapsed < 2.5:
+                step = int(elapsed * 100)
+                set_size(70 + step % 50, 20 + step % 15)
+            ready, _, _ = select.select([fd], [], [], 0.01)
+            if not ready:
+                continue
+            try:
+                chunk = os.read(fd, 65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output += chunk
+    finally:
+        if os.waitpid(pid, os.WNOHANG) == (0, 0):
+            os.kill(pid, 9)
+            os.waitpid(pid, 0)
+    assert b"CHILD_DONE" in output
+    assert b"1/2 runs complete" in output
 
 
 def test_confirm_run_skips_when_yes() -> None:
@@ -294,6 +374,25 @@ def test_benchmark_progress_non_tty_fallback(capsys) -> None:
     assert "Progress: 0/2" in out or "remaining" in out
 
 
+def test_benchmark_progress_agent_mode_forces_plain_on_tty(capsys) -> None:
+    """``--output-mode agent`` disables Live even when stdout is a TTY."""
+    with patch("nika.workflows.benchmark.display._console") as console:
+        console.is_terminal = True
+        with BenchmarkProgress(1, output_mode="agent") as progress:
+            assert progress._use_live is False
+            progress.start_trials(["dc_clos/link_down m t01"])
+            progress.set_phase("dc_clos/link_down m t01", "agent")
+            progress.finish_trial(
+                "dc_clos/link_down m t01",
+                metrics={"rca_f1": 1.0},
+            )
+    out = capsys.readouterr().out
+    assert "→ start  dc_clos/link_down m t01" in out
+    assert "phase  agent  dc_clos/link_down m t01" in out
+    assert "✓ done  1/1  dc_clos/link_down m t01" in out
+    assert "\x1b[?1049h" not in out  # no alt-screen
+
+
 def test_benchmark_progress_abandon_and_resync(capsys) -> None:
     with patch("nika.workflows.benchmark.display._console") as console:
         console.is_terminal = False
@@ -307,6 +406,18 @@ def test_benchmark_progress_abandon_and_resync(capsys) -> None:
             assert progress.completed == 3
     out = capsys.readouterr().out
     assert "✗ fail  3/3  b" in out
+
+
+def test_start_trials_merges_running_set() -> None:
+    """Sliding-window concurrency adds to the active set instead of replacing it."""
+    with patch("nika.workflows.benchmark.display._console") as console:
+        console.is_terminal = False
+        with BenchmarkProgress(3) as progress:
+            progress.start_trials(["a"])
+            progress.start_trials(["b"])
+            assert progress._running == ["a", "b"]
+            progress.finish_trial("a")
+            assert progress._running == ["b"]
 
 
 def test_read_trial_metrics(tmp_path: Path) -> None:
@@ -327,6 +438,8 @@ def test_quiet_third_party_logging_raises_noisy_levels() -> None:
     assert noisy.level == logging.ERROR
     assert logging.getLogger().level >= logging.WARNING
     assert logging.getLogger("nika.run_config.loader").level == logging.ERROR
+    assert logging.getLogger("langchain_core.callbacks.manager").level == logging.ERROR
+    assert logging.getLogger("urllib3.connectionpool").level == logging.ERROR
 
 
 def test_deferred_warnings_panel(capsys) -> None:
@@ -382,8 +495,6 @@ def test_deferred_warnings_panel(capsys) -> None:
 def test_ensure_fastmcp_settings_ready_avoids_lifespan_warning() -> None:
     import warnings
 
-    from pydantic_settings.exceptions import IncompleteFieldDefinitionWarning
-
     from nika.mcp.fastmcp_settings import ensure_fastmcp_settings_ready
 
     ensure_fastmcp_settings_ready()
@@ -392,9 +503,9 @@ def test_ensure_fastmcp_settings_ready_avoids_lifespan_warning() -> None:
         from mcp.server.fastmcp import FastMCP
 
         FastMCP("nika_settings_ready_test")
-    assert not any(
-        issubclass(w.category, IncompleteFieldDefinitionWarning) for w in caught
-    )
+    # Match by message: pydantic_settings only ships
+    # ``IncompleteFieldDefinitionWarning`` in some releases.
+    assert not any("incomplete definition" in str(w.message) for w in caught)
 
 
 def test_scan_trials_quiet_collapses_skips(tmp_path: Path, capsys) -> None:

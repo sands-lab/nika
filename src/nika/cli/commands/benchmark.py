@@ -1,7 +1,7 @@
 """Benchmark runner: env → fault → agent → close + metrics."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import typer
 import yaml
@@ -394,8 +394,19 @@ def benchmark_run(
         None,
         "--batch-size",
         help=(
-            "Batch mode: number of cases/trials to run simultaneously per batch "
-            "(default: benchmark.batch_size in run config)."
+            "Batch mode: max concurrent cases/trials (sliding window; a finished "
+            "slot is filled by the next pending trial). "
+            "Default: benchmark.batch_size in run config."
+        ),
+    ),
+    serialize_heavy: bool | None = typer.Option(
+        None,
+        "--serialize-heavy/--no-serialize-heavy",
+        help=(
+            "Batch mode: run Containerlab, k8s/llmd/XRd, and topo_size l "
+            "exclusively (no peer sessions of any class) "
+            "(default: benchmark.serialize_heavy, true). "
+            "Disable only when you intentionally parallelize those labs."
         ),
     ),
     result_dir: str | None = typer.Option(
@@ -459,6 +470,15 @@ def benchmark_run(
         "--verbose",
         help="Print per-trial operational lines (skip/clean/running/benchmark_done).",
     ),
+    output_mode: Literal["human", "agent"] = typer.Option(
+        "human",
+        "--output-mode",
+        help=(
+            "Console output style: 'human' opens the Live dashboard on a TTY; "
+            "'agent' prints plain key logs (start/phase/done) with no alt-screen UI."
+        ),
+        case_sensitive=False,
+    ),
 ) -> None:
     """Run a frozen release, an ad-hoc YAML batch, or a single case.
 
@@ -489,6 +509,7 @@ def benchmark_run(
         base_url=base_url,
         result_dir=result_dir,
         batch_size=batch_size,
+        serialize_heavy=serialize_heavy,
         case_timeout_sec=case_timeout,
         continue_on_error=continue_on_error,
         retry_passes=retry_passes,
@@ -511,6 +532,7 @@ def benchmark_run(
 
     bench = cfg.benchmark
     resolved_batch_size = bench.batch_size
+    resolved_serialize_heavy = bench.serialize_heavy
     resolved_resume = bench.resume
     resolved_continue = bench.continue_on_error
     resolved_retry = bench.retry_passes
@@ -605,6 +627,7 @@ def benchmark_run(
                 model=model,
                 max_steps=max_steps,
                 batch_size=resolved_batch_size,
+                serialize_heavy=resolved_serialize_heavy,
                 result_dir=resolved_result_dir,
                 resume=resolved_resume,
                 session_tag=resolved_session_tag,
@@ -616,6 +639,7 @@ def benchmark_run(
                 task_ids=task_ids,
                 yes=yes,
                 verbose=verbose,
+                output_mode=output_mode,
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -639,6 +663,7 @@ def benchmark_run(
             model=model,
             max_steps=max_steps,
             batch_size=resolved_batch_size,
+            serialize_heavy=resolved_serialize_heavy,
             result_dir=resolved_result_dir,
             resume=resolved_resume,
             session_tag=resolved_session_tag,
@@ -650,6 +675,7 @@ def benchmark_run(
             task_ids=task_ids,
             yes=yes,
             verbose=verbose,
+            output_mode=output_mode,
         )
     except (ReleaseError, ValueError) as exc:
         _exit_release_error(exc)

@@ -89,11 +89,6 @@ def write_submission_templates(path: str | Path) -> Path:
     return out.resolve()
 
 
-def write_meta_template(path: str | Path) -> Path:
-    """Compatibility alias: write submission templates under ``path`` (a directory)."""
-    return write_submission_templates(path)
-
-
 def _normalize_optional_str(value: Any) -> str | None:
     if value is None:
         return None

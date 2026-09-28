@@ -1,34 +1,33 @@
-"""Human-facing console output for ``nika benchmark run``.
+"""Console output for ``nika benchmark run``.
 
-Inspect-style Rich Live dashboard:
+Two modes (``--output-mode``):
 
-- fixed top **job** panel (progress / scores) — height does not grow
-- one **session** panel per running trial — fixed height, trajectory
-  scrolls inside the box (newest lines at the bottom)
-- ``Layout`` keeps the overall footprint stable to reduce full-screen flicker
-- tick loop refreshes spinner/time and tails ``messages.jsonl``
-- final frame is printed to the main screen after Live exits
+- **human** (default): Inspect-style Live dashboard on the alternate screen —
+  fixed job panel + per-session trajectory boxes, painter thread, resize
+  redraw, final frame on the main screen.
+- **agent**: plain line-oriented key logs (start / phase / done / fail /
+  scores). No alt-screen, no Rich chrome. Also used automatically when
+  stdout is not a TTY.
 """
 
 from __future__ import annotations
 
+import io
 import json
 import os
-import signal
 import sys
 import threading
 import time
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self, TextIO, cast
 
 import typer
-from rich.console import Console, RenderableType
-from rich.control import Control
+from rich.color import ColorSystem
+from rich.console import COLOR_SYSTEMS, Console, RenderableType
 from rich.layout import Layout
-from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -39,23 +38,39 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from rich.segment import Segment
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
 
-# force_interactive: Live only cursor-ups/erases prior frames when interactive.
-_console = Console(force_interactive=True)
+OutputMode = Literal["human", "agent"]
 
-_RECENT_KEEP = 2
+_console = Console()
+
+_RECENT_KEEP = 4
 _TRAJ_KEEP = 8
-_THROTTLE_S = 0.5
+# Spinner / elapsed-time refresh interval.
 _TICK_S = 0.5
+# Painter wake-up interval for terminal-size polling and event coalescing.
+_POLL_S = 0.1
+# Redraw only after the size stays unchanged this long (window drag-resize).
+_RESIZE_SETTLE_S = 0.2
+# Rewrite every row periodically to heal output that bypassed the dashboard
+# (e.g. spawn workers writing straight to the tty).
+_FULL_REDRAW_S = 5.0
+# DEC private mode 2026: the terminal presents the frame atomically.
+# Terminals without support ignore it.
+_SYNC_BEGIN = "\x1b[?2026h"
+_SYNC_END = "\x1b[?2026l"
 # Default preflight list length (Done + Pending). ``-v`` uses a large cap.
 _DEFAULT_PLAN_LABELS = 24
 _TRAJ_TRUNCATE = 72
+_LOG_TRUNCATE = 96
 # Fixed dashboard chrome (rows). Session boxes share the remainder.
-_JOB_LAYOUT_ROWS = 9
+# job = borders(2) + subtitle/progress/stats/tokens(4) + recent log lines.
+_JOB_LAYOUT_ROWS = 8 + _RECENT_KEEP
 _SESSION_MIN_ROWS = 7
 
 
@@ -90,10 +105,10 @@ def quiet_third_party_logging() -> None:
         ignore_known_library_warnings()
 
 
-def print_deferred_warnings() -> None:
+def print_deferred_warnings(*, output_mode: OutputMode = "human") -> None:
     from nika.cli.warning_capture import print_deferred_warnings as _print
 
-    _print()
+    _print(plain=output_mode == "agent")
 
 
 def apply_worker_warning_env() -> None:
@@ -116,6 +131,7 @@ class RunPlan:
     skipped_labels: Sequence[str] = ()
     header: str | None = None
     batch_size: int = 1
+    serialize_heavy: bool = True
     case_count: int | None = None
     n_trials: int = 1
 
@@ -156,15 +172,25 @@ def format_run_plan(plan: RunPlan, *, max_labels: int = _DEFAULT_PLAN_LABELS) ->
         else max(1, plan.total_trials // max(1, plan.n_trials))
     )
     n_trials = max(1, int(plan.n_trials))
+    full_grid = case_count * n_trials
+    scope = (
+        f"{case_count} case(s), {plan.total_trials} of {full_grid} trial(s) selected"
+        if plan.total_trials < full_grid
+        else f"{case_count} case(s) × {n_trials} trial(s)/case"
+    )
     lines.append(
         f"Plan: {plan.pending_count}/{plan.total_trials} run(s) remaining "
         f"({plan.skipped_count} already complete), "
-        f"{case_count} case(s) × {n_trials} trial(s)/case, "
+        f"{scope}, "
         f"batch_size={plan.batch_size}"
+        + (
+            ", serialize_heavy=true"
+            if plan.serialize_heavy
+            else ", serialize_heavy=false"
+        )
     )
     lines.append(
-        f"Agent: {plan.agent_type}"
-        + (f"  model={plan.model}" if plan.model else "")
+        f"Agent: {plan.agent_type}" + (f"  model={plan.model}" if plan.model else "")
     )
     lines.append(f"Results: {plan.result_dir}")
     _append_label_section(
@@ -187,9 +213,16 @@ def format_run_plan(plan: RunPlan, *, max_labels: int = _DEFAULT_PLAN_LABELS) ->
 
 
 def print_run_plan(
-    plan: RunPlan, *, max_labels: int = _DEFAULT_PLAN_LABELS
+    plan: RunPlan,
+    *,
+    max_labels: int = _DEFAULT_PLAN_LABELS,
+    output_mode: OutputMode = "human",
 ) -> None:
-    _console.print(format_run_plan(plan, max_labels=max_labels))
+    text = format_run_plan(plan, max_labels=max_labels)
+    if output_mode == "agent":
+        print(text)
+    else:
+        _console.print(text)
 
 
 def confirm_run(*, yes: bool) -> bool:
@@ -202,10 +235,24 @@ def confirm_run(*, yes: bool) -> bool:
     return bool(typer.confirm("Proceed with this benchmark run?", default=True))
 
 
-def print_inspect_hint(result_dir: str | Any) -> None:
-    _console.print(
-        f"Browse trajectories: nika inspect --result-dir {result_dir}"
-    )
+def print_inspect_hint(
+    result_dir: str | Any,
+    *,
+    url: str | None = None,
+    output_mode: OutputMode = "human",
+) -> None:
+    if output_mode == "agent":
+        if url:
+            print(f"Browse trajectories: {url}")
+        else:
+            print(f"Browse trajectories: nika inspect --result-dir {result_dir}")
+        return
+    if url:
+        hint = Text("Browse trajectories: ", style="dim")
+        hint.append(url, style=Style(link=url, color="cyan"))
+        _console.print(hint)
+        return
+    _console.print(f"Browse trajectories: nika inspect --result-dir {result_dir}")
 
 
 def vprint(verbose: bool, message: str) -> None:
@@ -374,9 +421,7 @@ class _RollingStats:
         if elapsed_s > 0 and self.steps:
             parts.append(f"{sum(self.steps) / elapsed_s:.2f} req/s")
         if self.tool_calls:
-            parts.append(
-                f"avg tools={sum(self.tool_calls) / len(self.tool_calls):.1f}"
-            )
+            parts.append(f"avg tools={sum(self.tool_calls) / len(self.tool_calls):.1f}")
         return "  ".join(parts) if parts else "—"
 
     def token_line(self) -> str:
@@ -423,8 +468,43 @@ def _fmt_elapsed(seconds: float) -> str:
     return f"{m}:{s:02d}"
 
 
+def _line_to_ansi(line: list[Segment], color_system: ColorSystem | None) -> str:
+    parts: list[str] = []
+    for segment in line:
+        if segment.control:
+            continue
+        if segment.style and color_system is not None:
+            parts.append(segment.style.render(segment.text, color_system=color_system))
+        else:
+            parts.append(segment.text)
+    return "".join(parts)
+
+
+class _LineSink(io.TextIOBase):
+    """Line-buffered stand-in for stdout/stderr while the dashboard is up."""
+
+    def __init__(self, emit: Callable[[str], None]) -> None:
+        self._emit = emit
+        self._buf = ""
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, text: str) -> int:
+        self._buf += text
+        *lines, self._buf = self._buf.split("\n")
+        for line in lines:
+            if line.strip():
+                self._emit(line.rstrip())
+        return len(text)
+
+
 class BenchmarkProgress:
-    """Inspect-style Rich Live: job panel + current-session panel."""
+    """Progress reporter for batch runs.
+
+    ``output_mode="human"`` on a TTY opens the Live dashboard; ``"agent"``
+    (or a non-TTY) prints plain start/phase/done lines.
+    """
 
     def __init__(
         self,
@@ -435,6 +515,8 @@ class BenchmarkProgress:
         model: str | None = None,
         case_count: int | None = None,
         n_trials: int = 1,
+        inspect_url: str | None = None,
+        output_mode: OutputMode = "human",
     ) -> None:
         self.total = max(0, int(total))
         self.completed = max(0, int(initial_completed))
@@ -442,6 +524,8 @@ class BenchmarkProgress:
         self._model = model
         self._case_count = case_count
         self._n_trials = max(1, int(n_trials))
+        self._inspect_url = inspect_url
+        self._output_mode: OutputMode = output_mode
         self._stats = _RollingStats()
         self._started = time.monotonic()
         self._sessions: dict[str, _SessionState] = {}
@@ -450,17 +534,30 @@ class BenchmarkProgress:
         self._traj_feed: deque[str] = deque(maxlen=_TRAJ_KEEP)
         self._progress: Progress | None = None
         self._task_id: TaskID | None = None
-        self._live: Live | None = None
-        self._use_live = _console.is_terminal and self.total > 0
-        self._lock = threading.Lock()
-        self._last_refresh = 0.0
-        self._dirty = False
-        self._ticker_stop = threading.Event()
-        self._ticker: threading.Thread | None = None
+        # Pytest captures/closes stdio; Live redirect then breaks Kathara/logging.
+        under_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+        self._use_live = (
+            output_mode == "human"
+            and _console.is_terminal
+            and self.total > 0
+            and not under_pytest
+        )
+        # RLock: stray prints captured during Live re-enter via ``log``.
+        self._lock = threading.RLock()
         self._term_size: tuple[int, int] | None = None
-        self._prev_sigwinch: Any = None
-        self._resize_pending = False
-        self._resize_wake = threading.Event()
+        # Painter state. Trial threads only set ``_wake``; all terminal I/O
+        # happens on the painter thread so a blocked tty never stalls a trial.
+        self._wake = threading.Event()
+        self._stop = threading.Event()
+        self._io_lock = threading.Lock()
+        self._painter: threading.Thread | None = None
+        self._frame: list[str] | None = None
+        self._frame_size: tuple[int, int] | None = None
+        self._last_full = 0.0
+        self._out: TextIO | None = None
+        self._saved_streams: tuple[TextIO, TextIO] | None = None
+        self._saved_handler_streams: list[tuple[Any, Any]] = []
+        self._captured: list[str] = []
 
     def __enter__(self) -> Self:
         quiet_third_party_logging()
@@ -481,134 +578,199 @@ class BenchmarkProgress:
                 total=self.total,
                 completed=self.completed,
             )
-            self._live = Live(
-                self._render(),
-                console=_console,
-                screen=True,
-                auto_refresh=False,
-                redirect_stdout=True,
-                redirect_stderr=True,
-                # Crop (not ellipsis) so a fixed Layout footprint stays stable.
-                vertical_overflow="crop",
-            )
-            self._live.start()
+            self._out = sys.stdout
+            _console.set_alt_screen(True)
+            _console.show_cursor(False)
+            self._redirect_streams()
             quiet_third_party_logging()
-            self._term_size = _read_terminal_size()
-            self._install_resize_handler()
-            self._refresh(force=True)
-            self._ticker_stop.clear()
-            self._ticker = threading.Thread(
-                target=self._tick_loop,
-                name="nika-benchmark-progress-tick",
+            self._stop.clear()
+            self._painter = threading.Thread(
+                target=self._paint_loop,
+                name="nika-benchmark-progress-paint",
                 daemon=True,
             )
-            self._ticker.start()
+            self._painter.start()
         elif self.total > 0:
             print(
                 f"Progress: {self.completed}/{self.total} complete "
                 f"({self.total - self.completed} remaining)"
             )
             print(self._stats.score_line())
+            if self._inspect_url:
+                print(f"Inspect: {self._inspect_url}")
         return self
 
     def __exit__(self, *exc: object) -> None:
-        self._restore_resize_handler()
-        self._ticker_stop.set()
-        self._resize_wake.set()
-        if self._ticker is not None:
-            self._ticker.join(timeout=0.5)
-            self._ticker = None
-        interrupted = bool(exc and exc[0] is not None and issubclass(
-            exc[0], KeyboardInterrupt  # type: ignore[arg-type]
-        ))
-        final: RenderableType | None = None
-        if self._live is not None:
+        if self._out is None:
+            self._progress = None
+            self._task_id = None
+            return
+        self._stop.set()
+        self._wake.set()
+        if self._painter is not None:
+            self._painter.join(timeout=1.0)
+            self._painter = None
+        interrupted = bool(
+            exc
+            and exc[0] is not None
+            and issubclass(
+                exc[0],
+                KeyboardInterrupt,  # type: ignore[arg-type]
+            )
+        )
+        self._restore_streams()
+        # A painter stuck on a blocked tty still holds the lock; do not wait
+        # on it forever during Ctrl+C.
+        acquired = self._io_lock.acquire(timeout=1.0)
+        try:
+            _console.show_cursor(True)
+            _console.set_alt_screen(False)
             if not interrupted:
-                try:
-                    with self._lock:
-                        if self._progress is not None and self._task_id is not None:
-                            self._poll_trajectories()
-                            self._progress.update(
-                                self._task_id, completed=self.completed
-                            )
-                            final = self._render()
-                            self._live.update(final, refresh=True)
-                except Exception:  # noqa: BLE001 - teardown must not block Ctrl+C
-                    final = None
+                with self._lock:
+                    self._poll_trajectories()
+                    if self._progress is not None and self._task_id is not None:
+                        self._progress.update(self._task_id, completed=self.completed)
+                    final = self._render()
+                _console.print(final)
+            for line in self._captured:
+                print(line)
+        except Exception:  # noqa: BLE001 - teardown must not block Ctrl+C
+            pass
+        finally:
+            if acquired:
+                self._io_lock.release()
+            self._out = None
+            self._progress = None
+            self._task_id = None
+
+    def _redirect_streams(self) -> None:
+        """Send stray prints/logs to the job panel instead of the alternate screen."""
+        self._saved_streams = (sys.stdout, sys.stderr)
+        sink = cast(TextIO, _LineSink(self._capture_line))
+        sys.stdout = sink
+        sys.stderr = sink
+        self._retarget_logging_streams(sink)
+
+    def _restore_streams(self) -> None:
+        self._restore_logging_streams()
+        if self._saved_streams is not None:
+            sys.stdout, sys.stderr = self._saved_streams
+            self._saved_streams = None
+
+    def _retarget_logging_streams(self, sink: TextIO) -> None:
+        """Point existing StreamHandlers at the capture sink.
+
+        ``logging.basicConfig`` / early imports keep a reference to the real
+        stderr; reassigning ``sys.stderr`` alone does not stop TTY floods.
+        """
+        import logging
+
+        self._saved_handler_streams = []
+        seen: set[int] = set()
+        loggers: list[logging.Logger] = [logging.getLogger()]
+        loggers.extend(
+            logging.getLogger(name) for name in list(logging.Logger.manager.loggerDict)
+        )
+        for logger in loggers:
+            for handler in list(logger.handlers):
+                if not isinstance(handler, logging.StreamHandler):
+                    continue
+                stream = getattr(handler, "stream", None)
+                if stream is None or id(handler) in seen:
+                    continue
+                seen.add(id(handler))
+                self._saved_handler_streams.append((handler, stream))
+                handler.stream = sink
+
+    def _restore_logging_streams(self) -> None:
+        for handler, stream in self._saved_handler_streams:
             try:
-                self._live.stop()
-            except Exception:  # noqa: BLE001
+                handler.stream = stream
+            except Exception:  # noqa: BLE001 - teardown best-effort
                 pass
-            self._live = None
-            if final is not None and not interrupted:
-                try:
-                    _console.print(final)
-                except Exception:  # noqa: BLE001
-                    pass
-        self._progress = None
-        self._task_id = None
+        self._saved_handler_streams = []
 
-    def _install_resize_handler(self) -> None:
-        sig = getattr(signal, "SIGWINCH", None)
-        if sig is None:
+    def _capture_line(self, line: str) -> None:
+        with self._lock:
+            self._captured.append(line)
+        self.log(line)
+
+    def _request_paint(self) -> None:
+        # Only sets an Event: safe from any thread, never touches the tty.
+        self._wake.set()
+
+    def _paint_loop(self) -> None:
+        """Paint on events and ticks; redraw on resize once the size settles.
+
+        Terminal size is polled rather than taken from SIGWINCH: a Python
+        signal handler runs on the main thread and can deadlock on locks it
+        interrupts, and a drag-resize delivers hundreds of signals.
+        """
+        seen = _read_terminal_size() or (80, 24)
+        seen_at = time.monotonic() - _RESIZE_SETTLE_S
+        pending = True
+        last_paint = 0.0
+        while not self._stop.is_set():
+            if self._wake.wait(timeout=_POLL_S):
+                self._wake.clear()
+                pending = True
+            if self._stop.is_set():
+                break
+            now = time.monotonic()
+            size = _read_terminal_size() or seen
+            if size != seen:
+                seen, seen_at = size, now
+            resized = size != self._frame_size
+            if resized and now - seen_at < _RESIZE_SETTLE_S:
+                continue  # still dragging
+            if not (pending or resized or now - last_paint >= _TICK_S):
+                continue
+            pending = False
+            last_paint = now
+            try:
+                self._paint(size)
+            except Exception:  # noqa: BLE001 - next paint does a full redraw
+                self._frame = None
+
+    def _paint(self, size: tuple[int, int]) -> None:
+        if self._progress is None or self._task_id is None or self._out is None:
             return
+        width, height = size
+        with self._lock:
+            self._term_size = size
+            self._poll_trajectories()
+            self._progress.update(self._task_id, completed=self.completed)
+            renderable = self._render()
+        options = _console.options.update_dimensions(width, height)
+        lines = Segment.set_shape(
+            _console.render_lines(renderable, options, pad=True), width, height
+        )
+        color_system = COLOR_SYSTEMS.get(_console.color_system or "")
+        frame = [_line_to_ansi(line, color_system) for line in lines]
 
-        def _on_winch(_signum: int, _frame: Any) -> None:
-            # Tick loop picks this up (avoid locking / I/O in the handler).
-            self._resize_pending = True
-            self._resize_wake.set()
-
-        try:
-            self._prev_sigwinch = signal.signal(sig, _on_winch)
-        except (ValueError, OSError):
-            # Not in main thread / unsupported — tick loop still polls size.
-            self._prev_sigwinch = None
-
-    def _restore_resize_handler(self) -> None:
-        sig = getattr(signal, "SIGWINCH", None)
-        if sig is None or self._prev_sigwinch is None:
-            self._prev_sigwinch = None
-            return
-        try:
-            signal.signal(sig, self._prev_sigwinch)
-        except (ValueError, OSError):
-            pass
-        self._prev_sigwinch = None
-
-    def _prepare_live_for_resize(self) -> None:
-        """Clear only when width changes (reflow); height-only skips clear."""
-        if self._live is None:
-            return
-        try:
-            self._live.console.control(Control.clear())
-        except Exception:  # noqa: BLE001 - best-effort terminal clear
-            pass
-        live_render = getattr(self._live, "_live_render", None)
-        if live_render is not None:
-            live_render._shape = None
-
-    def _sync_terminal_size(self) -> bool:
-        """Detect terminal resize; clear only on column (width) changes."""
-        size = _read_terminal_size()
-        if size is None:
-            return False
-        prev = self._term_size
-        resized = prev is not None and prev != size
+        now = time.monotonic()
+        resized = self._frame is None or self._frame_size != size
+        full = resized or now - self._last_full >= _FULL_REDRAW_S
+        chunks = [_SYNC_BEGIN]
         if resized:
-            width_changed = prev is not None and prev[0] != size[0]
-            self._term_size = size
-            self._resize_pending = False
-            if width_changed:
-                self._prepare_live_for_resize()
-            return True
-        if self._resize_pending:
-            self._resize_pending = False
-            if prev is None:
-                self._term_size = size
-            return True
-        if prev is None:
-            self._term_size = size
-        return False
+            # Reflow after a resize leaves wrapped junk; clear once, then draw.
+            chunks.append("\x1b[H\x1b[2J")
+        prev = self._frame or []
+        for row, text in enumerate(frame):
+            if full or row >= len(prev) or prev[row] != text:
+                chunks.append(f"\x1b[{row + 1};1H{text}")
+        chunks.append(_SYNC_END)
+        if len(chunks) == 2:
+            return
+        with self._io_lock:
+            if self._stop.is_set():
+                return
+            self._out.write("".join(chunks))
+            self._out.flush()
+        self._frame = frame
+        self._frame_size = size
+        if full:
+            self._last_full = now
 
     def _dashboard_rows(self) -> int:
         size = self._term_size or _read_terminal_size() or (80, 28)
@@ -625,22 +787,13 @@ class BenchmarkProgress:
         # borders(2) + phase(1) → remaining lines scroll trajectory
         return max(3, min(_TRAJ_KEEP, box_rows - 3))
 
-    def _tick_loop(self) -> None:
-        while not self._ticker_stop.is_set():
-            self._resize_wake.wait(timeout=_TICK_S)
-            self._resize_wake.clear()
-            if self._ticker_stop.is_set():
-                break
-            try:
-                self._refresh(force=True)
-            except Exception:  # noqa: BLE001 - tick must not kill the run
-                return
-
     def start_trials(self, labels: Sequence[str]) -> None:
+        """Mark trials as running. Merges into the active set (sliding window)."""
         with self._lock:
-            self._running = list(labels)
             now = time.monotonic()
             for label in labels:
+                if label not in self._running:
+                    self._running.append(label)
                 state = self._sessions.get(label)
                 if state is None:
                     state = _SessionState(label=label, phase="running", started=now)
@@ -650,7 +803,7 @@ class BenchmarkProgress:
                     state.started = now
                 if not self._use_live:
                     print(f"→ start  {label}")
-        self._refresh(force=True)
+        self._request_paint()
 
     def attach_session(self, label: str, session_dir: str | Path) -> None:
         path = Path(session_dir)
@@ -663,7 +816,7 @@ class BenchmarkProgress:
                     self._running.append(label)
             state.session_dir = path
             state.tail = _MessagesTail(path=path / MESSAGES_FILENAME)
-        self._refresh(force=True)
+        self._request_paint()
 
     def set_phase(self, label: str, phase: str) -> None:
         with self._lock:
@@ -677,7 +830,7 @@ class BenchmarkProgress:
                 state.phase = phase
             if not self._use_live:
                 print(f"  phase  {phase}  {label}")
-        self._refresh(force=True)
+        self._request_paint()
 
     def abandon_trial(self, label: str) -> None:
         """Drop a running trial from the UI without advancing the counter.
@@ -688,13 +841,13 @@ class BenchmarkProgress:
             if label in self._running:
                 self._running.remove(label)
             self._sessions.pop(label, None)
-        self._refresh(force=True)
+        self._request_paint()
 
     def set_completed(self, completed: int) -> None:
         """Resync the progress counter from on-disk counted trials (e.g. retries)."""
         with self._lock:
             self.completed = min(self.total, max(0, int(completed)))
-        self._refresh(force=True)
+        self._request_paint()
 
     def finish_trial(
         self,
@@ -730,14 +883,14 @@ class BenchmarkProgress:
                     )
                 )
                 print(f"  {self._stats.token_line()}")
-        self._refresh(force=True)
+        self._request_paint()
 
     def log(self, message: str) -> None:
         with self._lock:
             self._recent.append(message)
             if not self._use_live:
                 print(message)
-        self._refresh(force=True)
+        self._request_paint()
 
     def _poll_trajectories(self) -> None:
         for label in list(self._running):
@@ -746,30 +899,12 @@ class BenchmarkProgress:
                 for line in state.tail.poll():
                     self._traj_feed.append(line)
 
-    def _refresh(self, *, force: bool = False) -> None:
-        if self._live is None or not self._live.is_started:
-            return
-        if self._progress is None or self._task_id is None:
-            return
-        now = time.monotonic()
-        resized = self._sync_terminal_size()
-        if not force and not resized and (now - self._last_refresh) < _THROTTLE_S:
-            self._dirty = True
-            return
-        self._last_refresh = now
-        self._dirty = False
-        with self._lock:
-            self._poll_trajectories()
-            self._progress.update(self._task_id, completed=self.completed)
-            renderable = self._render()
-        self._live.update(renderable, refresh=True)
-
     def _job_panel(self) -> Panel:
         assert self._progress is not None
         elapsed = max(0.0, time.monotonic() - self._started)
         subtitle = Table.grid(expand=True)
         subtitle.add_column()
-        subtitle.add_column(justify="right")
+        subtitle.add_column(justify="right", no_wrap=True, overflow="ellipsis")
         left = "benchmark"
         if self._agent_type:
             left = f"agent={self._agent_type}"
@@ -780,21 +915,49 @@ class BenchmarkProgress:
             case_count = max(1, self.total // self._n_trials) if self.total else 0
         if case_count is not None:
             left += f"  {case_count} case(s)×{self._n_trials} trial(s)"
-        right = self._stats.throughput_line(
-            completed=self.completed, elapsed_s=elapsed
-        )
+        if self._inspect_url:
+            right = Text()
+            right.append(
+                "inspect",
+                style=Style(link=self._inspect_url, color="cyan", underline=True),
+            )
+            right.append(f"  {self._inspect_url}", style="dim")
+        else:
+            right = self._stats.throughput_line(
+                completed=self.completed, elapsed_s=elapsed
+            )
         subtitle.add_row(left, right)
+
+        stats = Table.grid(expand=True)
+        stats.add_column()
+        stats.add_column(justify="right", no_wrap=True, overflow="ellipsis")
+        stats.add_row(
+            Text(self._stats.score_line()),
+            Text(
+                self._stats.throughput_line(
+                    completed=self.completed, elapsed_s=elapsed
+                ),
+                style="dim",
+            )
+            if self._inspect_url
+            else Text(""),
+        )
 
         body = Table.grid(expand=True)
         body.add_column()
         body.add_row(subtitle)
         body.add_row(self._progress)
-        body.add_row(Text(self._stats.score_line()))
+        body.add_row(stats)
         body.add_row(Text(self._stats.token_line(), style="dim"))
-        if self._recent:
-            body.add_row(
-                Text(" · ".join(list(self._recent)[-_RECENT_KEEP:]), style="dim")
+        recent = list(self._recent)[-_RECENT_KEEP:]
+        pad = _RECENT_KEEP - len(recent)
+        for _ in range(max(0, pad)):
+            body.add_row(Text(" "))
+        for line in recent:
+            text = (
+                line if len(line) <= _LOG_TRUNCATE else line[: _LOG_TRUNCATE - 1] + "…"
             )
+            body.add_row(Text(text, style="dim"))
 
         title = f"{self.completed}/{self.total} runs complete"
         return Panel(
@@ -826,7 +989,9 @@ class BenchmarkProgress:
         body.add_column(no_wrap=True, overflow="ellipsis")
         body.add_row(Text(header, style="bold"))
         for line in scroll_lines:
-            body.add_row(Text(f"  {line}" if line else " ", style="dim" if not line else ""))
+            body.add_row(
+                Text(f"  {line}" if line else " ", style="dim" if not line else "")
+            )
 
         title = label if len(label) <= 64 else label[:63] + "…"
         return Panel(

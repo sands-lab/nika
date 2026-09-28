@@ -224,13 +224,6 @@ def git_push(repo_dir: Path, *, remote: str = "origin", branch: str) -> None:
     run_command([git, "push", "-u", remote, branch], cwd=repo_dir)
 
 
-def git_delete_remote_branch(
-    repo_dir: Path, *, remote: str = "origin", branch: str
-) -> None:
-    git = require_git()
-    run_command([git, "push", remote, "--delete", branch], cwd=repo_dir, check=False)
-
-
 def create_pull_request(
     *,
     repo: str,

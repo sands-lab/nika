@@ -65,7 +65,9 @@ def test_start_net_env_closes_session_on_keyboard_interrupt(tmp_path: Path) -> N
         verify_side_effect=KeyboardInterrupt(),
         lab_exists=False,
     )
-    close_mock.assert_called_once_with(session_id=session_id, undeploy=True)
+    close_mock.assert_called_once_with(
+        session_id=session_id, undeploy=True, status="aborted"
+    )
 
 
 def test_start_net_env_closes_session_on_verify_error(tmp_path: Path) -> None:
@@ -76,7 +78,9 @@ def test_start_net_env_closes_session_on_verify_error(tmp_path: Path) -> None:
         verify_side_effect=RuntimeError("verify failed"),
         lab_exists=True,
     )
-    close_mock.assert_called_once_with(session_id=session_id, undeploy=True)
+    close_mock.assert_called_once_with(
+        session_id=session_id, undeploy=True, status="error"
+    )
 
 
 def test_cleanup_falls_back_to_undeploy_when_close_fails(tmp_path: Path) -> None:
@@ -88,7 +92,9 @@ def test_cleanup_falls_back_to_undeploy_when_close_fails(tmp_path: Path) -> None
         lab_exists=True,
         close_side_effect=RuntimeError("close failed"),
     )
-    close_mock.assert_called_once_with(session_id=session_id, undeploy=True)
+    close_mock.assert_called_once_with(
+        session_id=session_id, undeploy=True, status="error"
+    )
     env.undeploy.assert_called()
 
 

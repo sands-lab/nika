@@ -27,6 +27,7 @@ from nika.workflows.benchmark.trials import (
     case_key_for_row,
     expand_trials,
     format_trial_label,
+    is_finalized_failure,
     is_valid_trial,
     merge_run_config,
     scan_trials,
@@ -38,6 +39,7 @@ from tests.benchmark.trial_helpers import (
     ROW_A,
     ROW_B,
     mini_cases_yaml,
+    write_agent_started,
     write_valid_trial,
 )
 from tests.support.prerequisites import docker_available
@@ -81,10 +83,13 @@ class TestTrialHelpers:
     def test_expand_trials(self) -> None:
         trials = expand_trials([ROW_A, ROW_B], n_trials=2)
         assert len(trials) == 4
-        assert [s.trial_index for s in trials] == [1, 2, 1, 2]
+        # Trial-major: all t01 across cases, then all t02.
+        assert [s.trial_index for s in trials] == [1, 1, 2, 2]
         assert trials[0].case_key == case_key_for_row(ROW_A)
+        assert trials[1].case_key == case_key_for_row(ROW_B)
         assert trials[0].trial_id == trial_dirname(trials[0].case_key, 1)
-        assert trials[1].trial_id == trial_dirname(trials[0].case_key, 2)
+        assert trials[1].trial_id == trial_dirname(trials[1].case_key, 1)
+        assert trials[2].trial_id == trial_dirname(trials[0].case_key, 2)
         assert trials[0].label == format_trial_label(ROW_A, trial_index=1)
         assert "t01" in trials[0].label
         assert "[" not in trials[0].label
@@ -171,6 +176,7 @@ class TestTrialHelpers:
         trials = expand_trials([ROW_A], n_trials=1)
         path = trial_dir(tmp_path, trials[0].case_key, 1)
         _write_valid_trial(path, outcome="agent_failed")
+        write_agent_started(path)
         run_meta = json.loads((path / "run.json").read_text(encoding="utf-8"))
         del run_meta["outcome"]
         (path / "run.json").write_text(json.dumps(run_meta), encoding="utf-8")
@@ -182,6 +188,22 @@ class TestTrialHelpers:
         healed = json.loads((path / "run.json").read_text(encoding="utf-8"))
         assert healed["outcome"] == "agent_failed"
         assert is_valid_trial(path)
+
+    def test_resume_retries_finished_trial_where_agent_never_started(
+        self, tmp_path: Path
+    ) -> None:
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        _write_valid_trial(path, outcome="agent_failed")
+        run_meta = json.loads((path / "run.json").read_text(encoding="utf-8"))
+        del run_meta["outcome"]
+        (path / "run.json").write_text(json.dumps(run_meta), encoding="utf-8")
+
+        with patch("nika.workflows.benchmark.trials.cleanup_benchmark_session"):
+            _root, pending = scan_trials(
+                trials=trials, result_dir=tmp_path, resume=True
+            )
+        assert pending == [0]
 
     @pytest.mark.parametrize("stored_outcome", [None, "success"])
     def test_resume_recovers_solved_trial_interrupted_before_metrics(
@@ -347,6 +369,62 @@ class TestTrialHelpers:
         proposed["n_trials"] = 3
         with pytest.raises(ValueError, match="n_trials"):
             merge_run_config(existing=existing, proposed=proposed)
+
+        proposed = dict(existing, reasoning_effort="high")
+        existing_with_effort = dict(existing, reasoning_effort="low")
+        with pytest.raises(ValueError, match="reasoning_effort"):
+            merge_run_config(existing=existing_with_effort, proposed=proposed)
+
+    def test_merge_run_config_backfills_identity_and_keeps_git_history(
+        self,
+    ) -> None:
+        legacy = {
+            "agent_type": "mock",
+            "model": "mock-v1",
+            "n_trials": 1,
+            "run_id": "keep",
+            "job_id": "keep",
+            "created_at": "t0",
+            "nika_git_commit": "aaa",
+            "nika_git_dirty": False,
+        }
+        proposed = dict(
+            legacy,
+            run_id="new",
+            reasoning_effort="high",
+            agent_timeout_sec=1800,
+            nika_git_commit="bbb",
+        )
+        merged = merge_run_config(existing=legacy, proposed=proposed)
+        # Runs recorded before a field joined the identity still resume, and
+        # the field is recorded so the next resume is checked.
+        assert merged["run_id"] == "keep"
+        assert merged["reasoning_effort"] == "high"
+        assert merged["nika_git_commit"] == "bbb"
+        assert [e["nika_git_commit"] for e in merged["nika_git_history"]] == [
+            "aaa",
+            "bbb",
+        ]
+        with pytest.raises(ValueError, match="agent_timeout_sec"):
+            merge_run_config(
+                existing=merged, proposed=dict(proposed, agent_timeout_sec=60)
+            )
+
+    def test_config_run_refuses_mismatched_resume(self, tmp_path: Path) -> None:
+        cases = _mini_cases_yaml(tmp_path / "cases.yaml", rows=[ROW_A])
+        result_dir = tmp_path / "run"
+        kwargs = dict(
+            benchmark_file=str(cases),
+            agent_type="mock",
+            llm_provider=None,
+            max_steps=None,
+            result_dir=str(result_dir),
+        )
+        with patch("nika.workflows.benchmark.run._run_trial"):
+            run_benchmark_trials(model="mock-v1", **kwargs)
+            assert load_run_config(result_dir)["model"] == "mock-v1"
+            with pytest.raises(ValueError, match="model"):
+                run_benchmark_trials(model="mock-v2", **kwargs)
 
     def test_merge_run_config_checks_max_tokens_when_recorded(self) -> None:
         existing = {
@@ -601,6 +679,10 @@ class TestAgentFailedFinalization:
                 encoding="utf-8",
             )
 
+        def _agent_turn_then_crash(**kwargs):
+            write_agent_started(session_path)
+            raise RuntimeError("agent boom")
+
         with (
             patch(
                 "nika.workflows.benchmark.run.start_net_env",
@@ -612,7 +694,7 @@ class TestAgentFailedFinalization:
             ),
             patch(
                 "nika.workflows.benchmark.run.start_agent",
-                side_effect=RuntimeError("agent boom"),
+                side_effect=_agent_turn_then_crash,
             ),
             patch("nika.workflows.benchmark.run.close_session"),
             patch(
@@ -649,9 +731,7 @@ class TestAgentFailedFinalization:
                 case_key=trial.case_key,
             )
 
-        from nika.workflows.benchmark.run import store_session_id_for_trial
-
-        assert sid == store_session_id_for_trial(trial.trial_id, result_dir)
+        assert sid.startswith(trial.trial_id)
         assert sdir == session_path
         assert is_valid_trial(session_path)
         run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
@@ -678,6 +758,7 @@ class TestAgentFailedFinalization:
             encoding="utf-8",
         )
         (session_path / "ground_truth.json").write_text("{}", encoding="utf-8")
+        write_agent_started(session_path)
 
         with (
             patch("nika.workflows.benchmark.run.close_session"),
@@ -702,6 +783,77 @@ class TestAgentFailedFinalization:
         assert run_meta["status"] == "finished"
         assert (session_path / "messages.jsonl").is_file()
         assert (session_path / "eval_metrics.json").is_file()
+        # Watchdog kills skip end_session(); the stamp still records end_time.
+        assert run_meta.get("end_time")
+
+    def test_timeout_finalize_llm_dominated_is_endpoint_failed(
+        self, tmp_path: Path
+    ) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        trials = expand_trials([ROW_A], n_trials=1)
+        trial = trials[0]
+        session_path = trial_dir(tmp_path, trial.case_key, trial.trial_index)
+        session_path.mkdir(parents=True)
+        (session_path / "run.json").write_text(
+            json.dumps(
+                {
+                    "session_id": trial.trial_id,
+                    "status": "running",
+                    "scenario_name": "dc_clos",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (session_path / "ground_truth.json").write_text("{}", encoding="utf-8")
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        (session_path / "nika.jsonl").write_text(
+            json.dumps({"timestamp": t0.isoformat(), "event": "agent_start"}) + "\n",
+            encoding="utf-8",
+        )
+        (session_path / "messages.jsonl").write_text(
+            "".join(
+                json.dumps(event) + "\n"
+                for event in (
+                    {
+                        "timestamp": t0.isoformat(),
+                        "event": "llm_start",
+                        "phase": "diagnosis",
+                    },
+                    {
+                        "timestamp": (t0 + timedelta(seconds=2000)).isoformat(),
+                        "event": "llm_end",
+                        "phase": "diagnosis",
+                    },
+                    {
+                        "timestamp": (t0 + timedelta(seconds=2001)).isoformat(),
+                        "event": "llm_start",
+                        "phase": "diagnosis",
+                    },
+                )
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("nika.workflows.benchmark.run.close_session"),
+            patch(
+                "nika.workflows.benchmark.run.Session.load_closed_session",
+                side_effect=FileNotFoundError("gone"),
+            ),
+        ):
+            _finalize_timed_out_trial(
+                trial,
+                result_dir=str(tmp_path),
+                error=RuntimeError("case exceeded --case-timeout"),
+            )
+
+        assert not is_valid_trial(session_path)
+        assert is_finalized_failure(session_path)
+        run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
+        assert run_meta["outcome"] == "endpoint_failed"
+        assert run_meta["status"] == "error"
+        assert not (session_path / "eval_metrics.json").exists()
 
 
 class TestReleaseRunMetadata:
@@ -716,7 +868,9 @@ class TestReleaseRunMetadata:
 
         with (
             patch("nika.workflows.benchmark.run.preflight_release"),
-            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
+            patch(
+                "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
+            ) as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
                 tmp_path / "benchmark_runs",
@@ -866,6 +1020,7 @@ class TestReleaseRunMetadata:
 @pytest.mark.skipif(
     not docker_available(), reason="Docker required for release run E2E"
 )
+@pytest.mark.e2e
 class TestReleaseRunE2E:
     """Real Kathara + mock agent through ``run_benchmark_from_release`` (1 case × 2 trials)."""
 
@@ -962,6 +1117,7 @@ class TestReleaseRunE2E:
 @pytest.mark.skipif(
     not docker_available(), reason="Docker required for agent_failed resume E2E"
 )
+@pytest.mark.e2e
 class TestAgentFailedResumeDockerE2E:
     """Real lab + forced agent failure must count; resume must not re-run."""
 
@@ -976,6 +1132,13 @@ class TestAgentFailedResumeDockerE2E:
         result_dir = tmp_path / "agent-failed-e2e-run"
         runs_dir = tmp_path / "benchmark_runs"
 
+        def _agent_turn_then_fail(**kwargs):
+            from nika.utils.session_store import SessionStore
+
+            row = SessionStore().get_session(kwargs["session_id"])
+            write_agent_started(Path(row["session_dir"]))
+            raise RuntimeError("forced agent failure for resume e2e")
+
         with (
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
@@ -983,7 +1146,7 @@ class TestAgentFailedResumeDockerE2E:
             ),
             patch(
                 "nika.workflows.benchmark.run.start_agent",
-                side_effect=RuntimeError("forced agent failure for resume e2e"),
+                side_effect=_agent_turn_then_fail,
             ),
         ):
             run_benchmark_from_release(
@@ -1034,10 +1197,13 @@ class TestAgentFailedResumeDockerE2E:
 @pytest.mark.skipif(
     not docker_available(), reason="Docker required for healthy mock-agent E2E"
 )
+@pytest.mark.e2e
 class TestHealthyMockAgentE2E:
     """Healthy case + fault case: mock agent must not crash on ``healthy`` ontology."""
 
-    def test_healthy_case_succeeds_with_fault_ontology_batch(self, tmp_path: Path) -> None:
+    def test_healthy_case_succeeds_with_fault_ontology_batch(
+        self, tmp_path: Path
+    ) -> None:
         # Batch healthy with a real fault so release_meta.fault_ontology would
         # previously include the ``healthy`` sentinel and crash ownership lookup.
         source = _mini_cases_yaml(

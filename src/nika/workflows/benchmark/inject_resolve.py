@@ -1774,7 +1774,7 @@ def resolve_inject_params(
                 attacker_device="br1_corp_pc",
                 observer_device="hq_corp_pc",
                 probe_url="http://10.0.20.2/small.bin",
-                attack_url="http://10.0.20.2/nika-dos-dir/",
+                attack_url="http://10.0.20.2/archive/",
             )
         elif scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
             model = net_env.model
@@ -1840,10 +1840,6 @@ def resolve_inject_params(
             )
             params.update(
                 host_name=target,
-                rate="128kbit",
-                burst="64kb",
-                limit="64kb",
-                delay_ms="400",
                 probe_dst_ip="10.0.20.2",
                 observer_device="br1_corp_pc",
             )
@@ -1854,10 +1850,6 @@ def resolve_inject_params(
                     "webserver0_pod0",
                     _first(real_web) or web0 or host0,
                 ),
-                rate="256kbit",
-                burst="128kb",
-                limit="128kb",
-                delay_ms="300",
                 probe_dst_ip="10.0.1.2",
                 observer_device="client_0",
             )
@@ -1869,10 +1861,6 @@ def resolve_inject_params(
             )
             params.update(
                 host_name=target,
-                rate="256kbit",
-                burst="128kb",
-                limit="128kb",
-                delay_ms="300",
                 probe_dst_ip="10.200.0.3",
                 observer_device="pc_1_1_1_1",
             )
@@ -1884,10 +1872,6 @@ def resolve_inject_params(
             )
             params.update(
                 host_name=victim.name,
-                rate="256kbit",
-                burst="128kb",
-                limit="128kb",
-                delay_ms="300",
                 probe_dst_ip=victim.ip,
                 observer_device=observer.name,
             )
@@ -1897,23 +1881,8 @@ def resolve_inject_params(
             observer = model.clients[0]
             params.update(
                 host_name=victim.name,
-                rate="128kbit",
-                burst="64kb",
-                limit="64kb",
-                delay_ms="400",
                 probe_dst_ip=victim.ip,
                 observer_device=observer.name,
-            )
-        else:
-            # llmd_lab and other http labs without a dedicated web inventory:
-            # endpoint inject + default probe path (src rewrite via host_name).
-            web_pool = pools.get("web") or real_web or []
-            params.update(
-                host_name=web0 if web0 in web_pool else (_first(web_pool) or host0),
-                rate="256kbit",
-                burst="128kb",
-                limit="128kb",
-                delay_ms="300",
             )
 
     elif problem == "tcp_receive_window_limited":

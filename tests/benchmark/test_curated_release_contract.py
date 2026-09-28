@@ -111,11 +111,15 @@ def test_curated_freeze_pack_validate(tmp_path: Path) -> None:
         expected = expand_trials(release.cases, release.n_trials)
         assert len(expected) == 3
         for trial in expected:
-            assert is_valid_trial(trial_dir(result_dir, trial.case_key, trial.trial_index))
+            assert is_valid_trial(
+                trial_dir(result_dir, trial.case_key, trial.trial_index)
+            )
 
         staging = write_submission_templates(result_dir / "submission")
         _fill_staging(staging, name="Curated Mock Agent")
-        package = pack_leaderboard_submission(result_dir, submission_dir=staging).scores_dir
+        package = pack_leaderboard_submission(
+            result_dir, submission_dir=staging
+        ).scores_dir
 
     assert package.name.endswith(f"_{slugify_name('Curated Mock Agent')}")
     assert (package / METADATA_FILENAME).is_file()
@@ -156,13 +160,24 @@ def test_curated_timeout_continues_remaining(tmp_path: Path) -> None:
                 f"[{trial.trial_id}] case exceeded --case-timeout (1s) and was killed."
             )
             # Seed a partial session so finalize can count the trial.
-            path = trial_dir(Path(kwargs["result_dir"]), trial.case_key, trial.trial_index)
+            path = trial_dir(
+                Path(kwargs["result_dir"]), trial.case_key, trial.trial_index
+            )
             path.mkdir(parents=True, exist_ok=True)
             (path / "run.json").write_text(
                 '{"session_id":"%s","status":"running"}' % trial.trial_id,
                 encoding="utf-8",
             )
             (path / "ground_truth.json").write_text("{}", encoding="utf-8")
+            # The agent got turns before the kill, so the timeout is counted.
+            (path / "nika.jsonl").write_text(
+                '{"event":"agent_start","timestamp":"2026-09-26T00:00:00+00:00"}\n',
+                encoding="utf-8",
+            )
+            (path / "messages.jsonl").write_text(
+                '{"event":"tool_start","timestamp":"2026-09-26T00:00:01+00:00"}\n',
+                encoding="utf-8",
+            )
             with (
                 patch("nika.workflows.benchmark.run.close_session"),
                 patch(
