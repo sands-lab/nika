@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
@@ -13,19 +16,25 @@ from starlette.staticfiles import StaticFiles
 
 from nika.inspect.catalog import (
     RAW_ALLOWLIST,
+    RUNNING_HIDDEN_ARTIFACTS,
+    AmbiguousSessionError,
     aggregate_benchmark_runs,
     build_session_facets,
+    delete_session_result,
     detail_session_dir,
     discover_sessions,
     filter_sessions,
     find_session_dir,
     list_browse_entries,
     list_selectable_roots,
+    is_session_running,
     load_scores,
     read_raw_artifact,
     resolve_results_selection,
 )
+from nika.inspect.live_progress import list_benchmark_progress
 from nika.inspect.models import (
+    BenchmarkProgressResponse,
     BrowseResponse,
     ResultsRootsResponse,
     SessionListResponse,
@@ -34,6 +43,20 @@ from nika.inspect.models import (
 from nika.inspect.timeline import build_session_timeline
 
 _WWW_DIST = Path(__file__).resolve().parent / "www" / "dist"
+
+_LOOPBACK_BIND_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+_LOOPBACK_HOSTNAMES = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _hostname(value: str | None) -> str | None:
+    """Hostname from a ``Host`` header or ``Origin`` URL (IPv6 brackets stripped)."""
+    if not value:
+        return None
+    netloc = value if "://" in value else f"//{value}"
+    try:
+        return urlsplit(netloc).hostname
+    except ValueError:
+        return None
 
 
 def _error(
@@ -45,20 +68,51 @@ def _error(
     )
 
 
-def create_inspect_app(*, results_root: Path) -> Starlette:
-    """Build the read-only view API + static SPA."""
+def create_inspect_app(
+    *, results_root: Path, bind_host: str | None = None
+) -> Starlette:
+    """Build the view API + static SPA.
+
+    ``bind_host`` is the address ``serve_inspect`` listens on:
+
+    - loopback: only loopback ``Host`` headers are served (blocks DNS rebinding);
+    - all interfaces (``0.0.0.0`` / ``::``): read-only, limited to the base root;
+    - ``None`` (embedding/tests): no host policy.
+
+    Cross-origin DELETE is always refused.
+    """
 
     base_root = Path(results_root).resolve()
+    loopback_only = bind_host in _LOOPBACK_BIND_HOSTS
+    remote = bind_host is not None and not loopback_only
+
+    async def _guard(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        host = _hostname(request.headers.get("host"))
+        if loopback_only and host not in _LOOPBACK_HOSTNAMES:
+            return _error("Host not allowed", status=403, error_type="Forbidden")
+        if request.method == "DELETE":
+            if remote:
+                return _error(
+                    "Delete is disabled when inspect listens on all interfaces",
+                    status=403,
+                    error_type="Forbidden",
+                )
+            origin = request.headers.get("origin")
+            if origin is not None and _hostname(origin) != host:
+                return _error(
+                    "Cross-origin delete refused", status=403, error_type="Forbidden"
+                )
+        return await call_next(request)
 
     def _active_root(request: Request) -> Path | JSONResponse:
         try:
             return resolve_results_selection(
-                base_root, request.query_params.get("root")
+                base_root, request.query_params.get("root"), allow_outside=not remote
             )
         except ValueError as exc:
             return _error(str(exc), status=400)
 
-    async def health(_request: Request) -> JSONResponse:
+    def health(_request: Request) -> JSONResponse:
         return JSONResponse(
             {
                 "status": "ok",
@@ -67,10 +121,12 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
             }
         )
 
-    async def roots(request: Request) -> JSONResponse:
+    def roots(request: Request) -> JSONResponse:
         selected = request.query_params.get("root") or "."
         try:
-            active = resolve_results_selection(base_root, selected)
+            active = resolve_results_selection(
+                base_root, selected, allow_outside=not remote
+            )
         except ValueError as exc:
             return _error(str(exc), status=400)
         body = ResultsRootsResponse(
@@ -81,15 +137,19 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         )
         return JSONResponse(body.model_dump())
 
-    async def browse(request: Request) -> JSONResponse:
+    def browse(request: Request) -> JSONResponse:
         selected = request.query_params.get("path") or request.query_params.get("root")
         try:
-            body = BrowseResponse(**list_browse_entries(base_root, path=selected))
+            body = BrowseResponse(
+                **list_browse_entries(
+                    base_root, path=selected, allow_outside=not remote
+                )
+            )
         except ValueError as exc:
             return _error(str(exc), status=400)
         return JSONResponse(body.model_dump())
 
-    async def sessions(request: Request) -> JSONResponse:
+    def sessions(request: Request) -> JSONResponse:
         active = _active_root(request)
         if isinstance(active, JSONResponse):
             return active
@@ -135,18 +195,52 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         )
         return JSONResponse(body.model_dump())
 
+    def benchmark_progress(request: Request) -> JSONResponse:
+        """Read-only live suite progress from ``runtime/benchmark_runs``."""
+        status_raw = request.query_params.get("status", "running")
+        status_filter: str | None
+        if status_raw in {"", "all"}:
+            status_filter = None
+        else:
+            status_filter = status_raw
+        under: Path | None = None
+        under_raw = request.query_params.get("under")
+        if under_raw:
+            candidate = Path(under_raw)
+            if not candidate.is_absolute():
+                candidate = (base_root / candidate).resolve()
+            else:
+                candidate = candidate.resolve()
+            if remote:
+                try:
+                    candidate.relative_to(base_root)
+                except ValueError:
+                    return _error(f"Results folder escapes root: {under_raw}")
+            under = candidate
+        else:
+            active = _active_root(request)
+            if isinstance(active, JSONResponse):
+                return active
+            under = active
+        runs = list_benchmark_progress(status=status_filter, under=under)
+        body = BenchmarkProgressResponse(runs=runs, total=len(runs))
+        return JSONResponse(body.model_dump())
+
     def _resolve(request: Request, session_id: str) -> Path | JSONResponse:
         active = _active_root(request)
         if isinstance(active, JSONResponse):
             return active
-        session_dir = find_session_dir(session_id, results_root=active)
+        try:
+            session_dir = find_session_dir(session_id, results_root=active)
+        except AmbiguousSessionError as exc:
+            return _error(str(exc), status=409, error_type="Ambiguous")
         if session_dir is None:
             return _error(
                 f"Session not found: {session_id}", status=404, error_type="NotFound"
             )
         return session_dir
 
-    async def session_detail(request: Request) -> JSONResponse:
+    def session_detail(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
         if isinstance(resolved, JSONResponse):
@@ -160,7 +254,29 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
             )
         return JSONResponse(detail.model_dump())
 
-    async def session_timeline(request: Request) -> JSONResponse:
+    def session_delete(request: Request) -> JSONResponse:
+        """Delete one session result directory under the active results root."""
+        session_id = request.path_params["session_id"]
+        resolved = _resolve(request, session_id)
+        if isinstance(resolved, JSONResponse):
+            return resolved
+        active = _active_root(request)
+        assert not isinstance(active, JSONResponse)
+        try:
+            deleted = delete_session_result(resolved, results_root=active)
+        except FileNotFoundError as exc:
+            return _error(str(exc), status=404, error_type="NotFound")
+        except ValueError as exc:
+            return _error(str(exc), status=409, error_type="Conflict")
+        return JSONResponse(
+            {
+                "deleted": True,
+                "session_id": session_id,
+                "session_dir": str(deleted),
+            }
+        )
+
+    def session_timeline(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
         if isinstance(resolved, JSONResponse):
@@ -173,7 +289,7 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         body = TimelineResponse(session_id=session_id, events=events, total=len(events))
         return JSONResponse(body.model_dump())
 
-    async def session_messages(request: Request) -> JSONResponse:
+    def session_messages(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
         if isinstance(resolved, JSONResponse):
@@ -185,7 +301,7 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
             ).model_dump()
         )
 
-    async def session_nika(request: Request) -> JSONResponse:
+    def session_nika(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
         if isinstance(resolved, JSONResponse):
@@ -197,14 +313,14 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
             ).model_dump()
         )
 
-    async def session_scores(request: Request) -> JSONResponse:
+    def session_scores(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
         if isinstance(resolved, JSONResponse):
             return resolved
         return JSONResponse(load_scores(resolved).model_dump())
 
-    async def session_raw(request: Request) -> Response:
+    def session_raw(request: Request) -> Response:
         session_id = request.path_params["session_id"]
         filename = request.path_params["filename"]
         if filename not in RAW_ALLOWLIST:
@@ -212,6 +328,13 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         resolved = _resolve(request, session_id)
         if isinstance(resolved, JSONResponse):
             return resolved
+        # Agents on the same host could read the answer key mid-run.
+        if filename in RUNNING_HIDDEN_ARTIFACTS and is_session_running(resolved):
+            return _error(
+                f"{filename} is hidden while the session is running",
+                status=403,
+                error_type="Forbidden",
+            )
         try:
             data = read_raw_artifact(resolved, filename)
         except FileNotFoundError:
@@ -235,12 +358,14 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         Route("/api/roots", roots),
         Route("/api/browse", browse),
         Route("/api/sessions", sessions),
+        Route("/api/benchmark-progress", benchmark_progress),
         Route("/api/sessions/{session_id:path}/timeline", session_timeline),
         Route("/api/sessions/{session_id:path}/messages", session_messages),
         Route("/api/sessions/{session_id:path}/nika", session_nika),
         Route("/api/sessions/{session_id:path}/scores", session_scores),
         Route("/api/sessions/{session_id:path}/raw/{filename}", session_raw),
-        Route("/api/sessions/{session_id:path}", session_detail),
+        Route("/api/sessions/{session_id:path}", session_detail, methods=["GET"]),
+        Route("/api/sessions/{session_id:path}", session_delete, methods=["DELETE"]),
     ]
 
     if _WWW_DIST.is_dir():
@@ -252,4 +377,6 @@ def create_inspect_app(*, results_root: Path) -> Starlette:
         routes.append(Route("/", spa_index))
         routes.append(Route("/{path:path}", spa_index))
 
-    return Starlette(routes=routes)
+    return Starlette(
+        routes=routes, middleware=[Middleware(BaseHTTPMiddleware, dispatch=_guard)]
+    )

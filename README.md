@@ -37,6 +37,7 @@ Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network
 - **Root-cause evaluation:** Score submitted resource and fault-type IDs against [benchmark ground truth](docs/benchmarks/root-cause-evaluation.md). Cases also include healthy controls and multiple faults.
 - **Your choice of agent:** Run a registered agent or [integrate your own](docs/agents/custom-agents.md); supported agents can run in a [sandbox](docs/operations/agent-sandbox.md).
 - **Comparable runs:** Use [frozen releases](docs/benchmarks/benchmark-configuration.md) with published cases and Dev/Test splits, then [submit results](docs/benchmarks/leaderboard-submission.md).
+- **Session inspection:** Browse running or finished trials in the browser with [`nika inspect`](docs/operations/session-inspect.md)—timelines of agent tools, logs, and scores without digging through result folders.
 - **Flexible lab placement:** Run isolated sessions in parallel or move labs to a [remote host](docs/operations/remote.md).
 - **Extensible benchmark:** [Add scenarios and failures](docs/development/creating-benchmark-tasks.md) through NIKA's existing interfaces.
 
@@ -205,7 +206,8 @@ Pick the path that matches what you're trying to do:
 1. [Quick start](#-quick-start) — end-to-end task run or frozen release.
 2. [Run configuration](docs/operations/configuration.md): YAML settings, credentials, defaults, and migration.
 3. [CLI reference](docs/operations/cli-reference.md): `nika` commands, sessions, and result paths.
-4. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md) (GitHub scores + Hugging Face trajectories)
+4. [Browse sessions with `nika inspect`](docs/operations/session-inspect.md): local UI over result directories for agent timelines and scores.
+5. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md) (GitHub scores + Hugging Face trajectories)
 
 **🔌 I want to connect my own agent**
 

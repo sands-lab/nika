@@ -63,6 +63,8 @@ class SessionSummary(BaseModel):
     session_dir: str
     status: Literal["running", "finished", "aborted", "error"]
     lab_name: str | None = None
+    # Lab runtime backend: ``kathara`` | ``containerlab`` (from run.json).
+    backend: str | None = None
     scenario_name: str | None = None
     scenario_topo_size: str | None = None
     agent_type: str | None = None
@@ -115,6 +117,27 @@ class BenchmarkRunSummary(BaseModel):
     session_count: int = 0
     finished_count: int = 0
     mean_rca_f1: float | None = None
+
+
+class BenchmarkProgressDoc(BaseModel):
+    """Live suite progress from ``runtime/benchmark_runs/{run_id}.json``."""
+
+    run_id: str
+    result_dir: str
+    status: str
+    total_trials: int = 0
+    completed_trials: int = 0
+    pending_trials: int = 0
+    updated_at: str | None = None
+    benchmark_id: str | None = None
+    version: str | None = None
+    agent_type: str | None = None
+    model: str | None = None
+
+
+class BenchmarkProgressResponse(BaseModel):
+    runs: list[BenchmarkProgressDoc] = Field(default_factory=list)
+    total: int = 0
 
 
 class SessionDetail(SessionSummary):
