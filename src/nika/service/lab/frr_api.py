@@ -43,60 +43,6 @@ class FRRAPIMixin:
     def frr_get_bgp_conf(self: SupportsExec, device_name: str) -> str:
         return self.exec_cmd(device_name, "vtysh -c 'show ip bgp'")
 
-    def frr_conf(self: SupportsExec, device_name: str, conf_commands: list[str]) -> str:
-        command = 'vtysh -c "conf t"'
-        for cmd in conf_commands:
-            command += f' -c "{cmd}"'
-        command += ' -c "end" -c "write"'
-        result = self.exec_cmd(device_name, command)
-        from nika.utils.network_change_log import log_network_change
-
-        preview = "; ".join(conf_commands[:4])
-        if len(conf_commands) > 4:
-            preview = f"{preview}; +{len(conf_commands) - 4} more"
-        log_network_change(
-            f"frr conf on {device_name}: {preview}",
-            mechanism="frr_conf",
-            host=device_name,
-            commands=conf_commands[:8],
-            command_count=len(conf_commands),
-        )
-        return result
-
-    def frr_add_route(
-        self: SupportsExec, device_name: str, route: str, next_hop: str
-    ) -> str:
-        command = (
-            f'vtysh -c "conf t" -c "ip route {route} {next_hop}" -c "end" -c "write"'
-        )
-        return self.exec_cmd(device_name, command)
-
-    def frr_del_route(
-        self: SupportsExec, device_name: str, route: str, next_hop: str
-    ) -> str:
-        command = (
-            f'vtysh -c "conf t" -c "no ip route {route} {next_hop}" -c "end" -c "write"'
-        )
-        return self.exec_cmd(device_name, command)
-
-    def frr_add_bgp_advertisement(
-        self: SupportsExec, device_name: str, network: str, as_path: str
-    ) -> str:
-        command = (
-            f'vtysh -c "conf t" -c "router bgp {as_path}" -c "network {network}" '
-            f'-c "end" -c "write"'
-        )
-        return self.exec_cmd(device_name, command)
-
-    def frr_del_bgp_advertisement(
-        self: SupportsExec, device_name: str, network: str, as_path: str
-    ) -> str:
-        command = (
-            f'vtysh -c "conf t" -c "router bgp {as_path}" -c "no network {network}" '
-            f'-c "end" -c "write"'
-        )
-        return self.exec_cmd(device_name, command)
-
     def frr_get_bgp_asn_number(self: SupportsExec, node: str) -> int:
         """Resolve local BGP ASN from live FRR state, then on-disk config.
 

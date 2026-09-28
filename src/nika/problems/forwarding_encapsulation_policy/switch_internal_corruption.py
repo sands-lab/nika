@@ -75,6 +75,12 @@ class DeviceForwardingPacketCorruption(ProblemBase):
             params.intf_name,
             getattr(self, "_bitflip_token", None),
         )
+        # Stop the 60 s cross-leaf burst so the restored path is not congested.
+        for host in getattr(self, "_workload_hosts", ()):
+            try:
+                self.runtime.exec(host, "pkill -f 'iperf3' >/dev/null 2>&1 || true")
+            except Exception:  # noqa: BLE001
+                pass
         return {
             "verified": not injector.attached(
                 params.forwarding_device, params.intf_name
@@ -91,6 +97,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         topo_size = getattr(self.net_env, "topo_size", None) or "s"
         path = get_probe_path(scenario, topo_size=topo_size)
         if path is not None and path.peer_host and path.peer_host != path.src_host:
+            self._workload_hosts = (path.src_host, path.peer_host)
             BurstTrafficGenerator(self.runtime).run(
                 sources=[path.src_host],
                 destination=path.peer_host,
@@ -110,6 +117,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         )
         if len(hosts) < 2:
             return
+        self._workload_hosts = (hosts[0], hosts[-1])
         BurstTrafficGenerator(self.runtime).run(
             sources=[hosts[0]],
             destination=hosts[-1],

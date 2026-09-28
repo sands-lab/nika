@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Protocol
 
 
@@ -12,12 +13,35 @@ SHELL_PROBE_CMD = (
 
 
 def escape_for_shell_c(command: str) -> str:
-    return command.replace("'", "'\\''").replace('"', '\\"')
+    # Only single quotes need escaping inside '...'; backslashes there are
+    # literal, so escaping double quotes would split quoted arguments.
+    return command.replace("'", "'\\''")
 
 
 def wrap_shell_command(shell: str, command: str) -> str:
     escaped = escape_for_shell_c(command)
     return f"{shell} -c '{escaped}'"
+
+
+def ping_exec_timeout(count: int) -> float:
+    """Exec budget for ``ping -c count``: ~1 s per probe plus iputils' ~10 s
+    linger when no reply arrives, so loss reads as loss, not a timeout."""
+    return float(max(int(count), 1)) + 12.0
+
+
+def iperf_server_commands(server_args: str = "") -> tuple[str, str]:
+    """Return ``(start, stop)`` shell commands for a one-off iperf3 daemon.
+
+    The daemon records its PID so ``stop`` kills only this server, never
+    iperf3 processes that scenario traffic generators run in the background.
+    """
+    pidfile = f"/tmp/nika-iperf3-{uuid.uuid4().hex[:12]}.pid"
+    start = f"iperf3 -s -D -I {pidfile} {server_args}".rstrip()
+    stop = (
+        f'[ -s {pidfile} ] && kill "$(cat {pidfile})" 2>/dev/null; '
+        f"rm -f {pidfile}; true"
+    )
+    return start, stop
 
 
 class ExecFn(Protocol):

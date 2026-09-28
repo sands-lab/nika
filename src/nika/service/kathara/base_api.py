@@ -1,7 +1,7 @@
 import asyncio
 import json
-import random
 import re
+import shlex
 import time
 from typing import Dict, Literal, Optional, Protocol, runtime_checkable
 
@@ -12,8 +12,18 @@ from Kathara.manager.docker.stats.DockerLinkStats import DockerLinkStats
 from Kathara.manager.Kathara import Kathara, Lab
 from Kathara.model.Machine import Machine
 
+from nika.runtime.shared.execution import merge_exec_output
 from nika.runtime.spec import MachineInventory, NodeRole
+from nika.service.kathara.docker_utils import link_members, link_neighbors
+from nika.service.lab.reachability import PingReachabilityMixin
+from nika.service.lab.semantic_mixin import SemanticOpsMixin
 from nika.service.lab.tc_api import TCMixin
+from nika.service.shell import ShellResolver, iperf_server_commands, ping_exec_timeout
+
+# systemctl start/stop/restart return once the job is queued or done; poll
+# the unit state for up to this long instead of sleeping a fixed 5 s.
+_SERVICE_SETTLE_SEC = 5.0
+_SERVICE_POLL_SEC = 0.5
 
 
 @runtime_checkable
@@ -47,7 +57,7 @@ def _static_lab_from_session(session_meta: dict | None, lab_name: str) -> "Lab |
     return net_env.lab
 
 
-class KatharaBaseAPI(TCMixin):
+class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
     """
     Base interfaces to interact with the Kathara.
     """
@@ -65,7 +75,7 @@ class KatharaBaseAPI(TCMixin):
             self.lab = _static_lab_from_session(session_meta, lab_name)
         if self.lab is None:
             raise ValueError(f"Lab {lab_name} not found.")
-        self._resolved_shell_cache: dict[str, str] = {}
+        self._shell = ShellResolver()
         if session_meta is None:
             from nika.utils.session_store import SessionStore
 
@@ -99,34 +109,11 @@ class KatharaBaseAPI(TCMixin):
         """Get the link stats of the lab."""
         return next(self.instance.get_links_stats(lab_name=self.lab.name))
 
-    @staticmethod
-    def _escape_for_shell_c(command: str) -> str:
-        return command.replace("'", "'\\''").replace('"', '\\"')
-
-    def _wrap_shell_command(self, shell: str, command: str) -> str:
-        escaped = self._escape_for_shell_c(command)
-        return f"{shell} -c '{escaped}'"
-
-    def _resolve_shell(self, host_name: str) -> str:
-        """Pick bash or sh for ``host_name`` (cached per API instance)."""
-        cached = self._resolved_shell_cache.get(host_name)
-        if cached is not None:
-            return cached
-
+    def _preferred_shell(self, host_name: str) -> str | None:
         machine = self.lab.machines.get(host_name)
         if machine is not None and "shell" in machine.meta:
-            shell = machine.get_shell()
-            self._resolved_shell_cache[host_name] = shell
-            return shell
-
-        probe_cmd = (
-            "/bin/sh -c 'if [ -x /bin/bash ]; then echo /bin/bash; "
-            "elif [ -x /bin/sh ]; then echo /bin/sh; else echo /bin/sh; fi'"
-        )
-        probed = self._run_cmd(host_name, probe_cmd).strip()
-        shell = probed if probed in ("/bin/bash", "/bin/sh") else "/bin/sh"
-        self._resolved_shell_cache[host_name] = shell
-        return shell
+            return machine.get_shell()
+        return None
 
     # Sentinel returned to AGENT-FACING callers on exec timeout (the agent can
     # reason about it). Internal orchestration code must never treat it as
@@ -138,10 +125,20 @@ class KatharaBaseAPI(TCMixin):
         Run a command on a machine and return its output as a string.
         """
         cmd_timeout = timeout
-        shell = self._resolve_shell(host_name)
-        cmd = self._wrap_shell_command(shell, command)
+
+        def _run() -> str:
+            # The first call per node probes its shell; keep that probe under
+            # the same timeout as the command.
+            return self._shell.exec_via_shell(
+                host_name,
+                command,
+                lambda node, cmd, timeout=cmd_timeout: self._run_cmd(node, cmd),
+                preferred_shell=self._preferred_shell(host_name),
+                timeout=cmd_timeout,
+            )
+
         try:
-            return func_timeout(cmd_timeout, self._run_cmd, args=(host_name, cmd))
+            return func_timeout(cmd_timeout, _run)
         except FunctionTimedOut:
             return f"{self.TIMEOUT_SENTINEL} Command '{command}' on '{host_name}' exceeded {cmd_timeout}s."
 
@@ -200,53 +197,8 @@ class KatharaBaseAPI(TCMixin):
         """
         Get the list of devices connected to a host.
         """
-        links: Dict[str:DockerLinkStats] = self._get_lab_link_stats()
-        results = []
-        for _, link in links.items():
-            if link.name:
-                if host_name == link.containers[0].labels["name"]:
-                    results.append(link.containers[1].labels["name"])
-                elif host_name == link.containers[1].labels["name"]:
-                    results.append(link.containers[0].labels["name"])
-        return results
-
-    def get_default_gateway(self, host_name: str) -> str | None:
-        """
-        Get the default gateway of a host using `ip -j route`.
-        """
-        cmd = "ip -j route"
-        result = self.exec_cmd(host_name, cmd)
-
-        if isinstance(result, list):
-            output = "\n".join(result)
-        else:
-            output = result
-
-        try:
-            routes = json.loads(output)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse `ip -j route` output: {e}") from e
-
-        for r in routes:
-            if r.get("dst") == "default":
-                gw = r.get("gateway")
-                if gw:
-                    return gw
-
-        return None
-
-    def get_host_mac_address(self, host_name: str, iface: str = "eth0") -> str | None:
-        """
-        Get the MAC address of a host's interface.
-
-        :param host_name: target host
-        :param iface:     interface name, default "eth0"
-        """
-        cmd = f"cat /sys/class/net/{iface}/address"
-        result = self.exec_cmd(host_name, cmd)
-        if result:
-            return result.strip()
-        return None
+        links: Dict[str, DockerLinkStats] = self._get_lab_link_stats()
+        return link_neighbors(links.values(), host_name)
 
     def get_host_ip(
         self, host_name: str, iface: str = "eth0", with_prefix: bool = False
@@ -307,154 +259,47 @@ class KatharaBaseAPI(TCMixin):
 
         return None
 
-    def get_host_interfaces(
-        self, host_name: str, include_loopback: bool = False
-    ) -> list[str]:
-        cmd = "ip -j addr"
-        result = self.exec_cmd(host_name, cmd)
-        output = "\n".join(result) if isinstance(result, list) else result
-
-        try:
-            ifaces = json.loads(output)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse `ip -j addr` output: {e}") from e
-
-        names = []
-        for link in ifaces:
-            name = link.get("ifname")
-            if not name:
-                continue
-            if not include_loopback and name == "lo":
-                continue
-            if "br" in name:  # skip bridge interfaces
-                continue
-            names.append(name)
-
-        return names
-
     def get_links(self) -> dict:
         """
         Get the links of the network.
         """
-        links: Dict[str:DockerLinkStats] = self._get_lab_link_stats()
-        result = {}
-        for _, link in links.items():
-            if link.name:
-                result[link.name] = (
-                    link.containers[0].labels["name"],
-                    link.containers[1].labels["name"],
-                )
-        return result
+        links: Dict[str, DockerLinkStats] = self._get_lab_link_stats()
+        return {link.name: link_members(link) for link in links.values() if link.name}
 
-    async def exec_cmd_async(self, host_name: str, command: str) -> str:
+    async def exec_cmd_async(
+        self, host_name: str, command: str, timeout: float = 10
+    ) -> str:
         """
         Run a command on a machine asynchronously and return its output as a string.
         """
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.exec_cmd, host_name, command)
+        return await loop.run_in_executor(
+            None, lambda: self.exec_cmd(host_name, command, timeout=timeout)
+        )
 
-    def _run_cmd(self, host_name: str, command: str, max_chars: int = 4000) -> str:
+    def _run_cmd(self, host_name: str, command: str) -> str:
         """
         Run a command on a machine and return its output as a string,
         decoding bytes and filtering out None/empty/zeros.
+
+        Agent-facing length limits are enforced by the MCP gateway
+        (``nika.mcp.tool_output_*``), not here.
         """
         try:
-            output_generator = self.instance.exec(
+            # stream=False returns (stdout, stderr, exit_code).
+            stdout, stderr, _ = self.instance.exec(
                 machine_name=host_name,
                 command=command,
                 lab_name=self.lab.name,
                 stream=False,
             )
-            for item in output_generator:
-                if (
-                    not item
-                    or item == b""
-                    or isinstance(item, int)
-                    or item is None
-                    or item == "None"
-                ):
-                    continue
-
-                if isinstance(item, bytes):
-                    out = item.decode("utf-8", errors="ignore").strip()
-                elif isinstance(item, str):
-                    out = item.strip()
-                else:
-                    out = str(item).strip()
-
-                if len(out) > max_chars:
-                    return (
-                        out[:max_chars]
-                        + f"...[truncated, {len(out) - max_chars} chars omitted]"
-                    )
-
-                return out
-
-            return ""
+            return merge_exec_output(stdout, stderr)
 
         except MachineNotFoundError:
             return f"Machine {host_name} not found in lab {self.lab.name}."
 
         except Exception as e:
             return f"Error executing command on {host_name}: {e}"
-
-    async def _check_ping_success_async(self, host: str, dst_ip: str) -> dict:
-        PING_STATS_RE = re.compile(
-            r"(?P<tx>\d+)\s+packets transmitted,\s+"
-            r"(?P<rx>\d+)\s+(?:packets\s+)?received,\s+"
-            r"(?P<loss>\d+(?:\.\d+)?)%\s+packet loss"
-            r"(?:,\s*time\s*(?P<time>\d+)ms)?",
-            re.MULTILINE,
-        )
-
-        RTT_RE = re.compile(
-            r"(?:rtt|round-trip)\s+min/avg/max/(?:mdev|stddev)\s*=\s*"
-            r"([\d\.]+)/([\d\.]+)/([\d\.]+)/([\d\.]+)\s*ms",
-            re.MULTILINE,
-        )
-
-        command = f"ping -c 2 -n -q {dst_ip}"
-        result = await self.exec_cmd_async(host, command)
-
-        stats_match = PING_STATS_RE.search(result)
-
-        tx = rx = None
-        loss = None
-        time_ms = None
-        rtt_min = rtt_avg = rtt_max = rtt_mdev = None
-
-        if stats_match:
-            tx = int(stats_match.group("tx"))
-            rx = int(stats_match.group("rx"))
-            loss = float(stats_match.group("loss"))
-            if stats_match.group("time") is not None:
-                time_ms = float(stats_match.group("time"))
-
-        rtt_match = RTT_RE.search(result)
-        if rtt_match:
-            rtt_min, rtt_avg, rtt_max, rtt_mdev = map(float, rtt_match.groups())
-
-        if tx is not None and rx is not None and loss is not None:
-            if rx > 0 and loss < 100:
-                status = "ok"
-            elif rx == 0 and loss == 100:
-                status = "down"
-            else:
-                status = "unstable"
-        else:
-            status = "unknown"
-
-        return {
-            "tx": tx,
-            "rx": rx,
-            "loss_percent": loss,
-            "time_ms": time_ms,
-            "rtt_min_ms": rtt_min,
-            "rtt_avg_ms": rtt_avg,
-            "rtt_max_ms": rtt_max,
-            "rtt_mdev_ms": rtt_mdev,
-            "status": status,
-        }
 
     async def get_reachability(self) -> str:
         return await self._get_reachability_async()
@@ -472,62 +317,8 @@ class KatharaBaseAPI(TCMixin):
     async def _get_reachability_async(self) -> str:
         self.load_machines()
         host_names = self.machine_inventory.reachability_targets()
-
         host_ips = {host_name: self.get_host_ip(host_name) for host_name in host_names}
-
-        coroutines = []
-        pairs = []  # [(src, dst)]
-
-        host_list = sorted(list(host_ips.items()))  # [(name, ip)]
-
-        # if there is too many hosts, randomly sample 2 hosts as destinations
-        if len(host_list) > 2:
-            dst_list = host_list.copy()
-            random.shuffle(dst_list)
-            dst_list = dst_list[:2]
-        else:
-            dst_list = host_list
-
-        for i in range(len(host_list)):
-            src_name, src_ip = host_list[i]
-            for j in range(len(dst_list)):
-                dst_name, dst_ip = dst_list[j]
-                if src_name == dst_name:
-                    continue
-                pairs.append((src_name, dst_name))
-                coroutines.append(self._check_ping_success_async(src_name, dst_ip))
-
-        responses = await asyncio.gather(*coroutines)
-
-        results = []
-
-        for (src, dst), stats in zip(pairs, responses):
-            if stats is None or not isinstance(stats, dict):
-                stats = {}
-
-            result_entry = {
-                "src": src,
-                "dst": dst,
-                "dst_ip": host_ips.get(dst),
-                "tx": stats.get("tx"),
-                "rx": stats.get("rx"),
-                "loss_percent": stats.get("loss_percent"),
-                "time_ms": stats.get("time_ms"),
-                "rtt_avg_ms": stats.get("rtt_avg_ms"),
-                "rtt_min_ms": stats.get("rtt_min_ms"),
-                "rtt_max_ms": stats.get("rtt_max_ms"),
-                "rtt_mdev_ms": stats.get("rtt_mdev_ms"),
-                "status": stats.get("status"),
-            }
-
-            results.append(result_entry)
-
-        payload = {
-            "hosts": host_ips,
-            "results": results,
-        }
-
-        return json.dumps(payload, separators=(",", ":"))
+        return await self._sampled_reachability(host_ips)
 
     def ping_pair(
         self, host_a: str, host_b: str, count: int = 4, args: str = ""
@@ -543,7 +334,9 @@ class KatharaBaseAPI(TCMixin):
             host_b = host_b_ip
 
         command = f"ping -c {count} {host_b} {args}"
-        return self.exec_cmd(host_a, command)
+        # Unanswered pings linger ~10s after the last probe; budget for it so a
+        # black-holed path reports 100% loss instead of a timeout.
+        return self.exec_cmd(host_a, command, timeout=ping_exec_timeout(count))
 
     def traceroute(self, host_name: str, dst_ip: str) -> str:
         """
@@ -563,15 +356,15 @@ class KatharaBaseAPI(TCMixin):
         """
         Run an iperf test between two hosts.
         """
-        # Start iperf server
-        self.exec_cmd(server_host_name, f"iperf3 -s -D {server_args}")
-        # Run iperf client
+        start, stop = iperf_server_commands(server_args)
+        self.exec_cmd(server_host_name, start)
         result = self.exec_cmd(
             client_host_name,
             f"iperf3 -c {self.get_host_ip(server_host_name)} -t {duration} {client_args}",
+            timeout=duration + 15,
         )
-        # Stop iperf server
-        self.exec_cmd(server_host_name, "pkill iperf3")
+        # Stop only this server; scenario background iperf3 keeps running.
+        self.exec_cmd(server_host_name, stop)
         return result
 
     def systemctl_ops(
@@ -585,8 +378,39 @@ class KatharaBaseAPI(TCMixin):
         """
         result = self.exec_cmd(host_name, f"systemctl {operation} {service_name}")
         if operation != "status":
-            time.sleep(5)
+            self._wait_service_state(host_name, service_name, operation)
         return result
+
+    def _wait_service_state(
+        self, host_name: str, service_name: str, operation: str
+    ) -> None:
+        """Poll the unit until the operation took effect, up to 5 s."""
+        want_active = operation != "stop"
+        probe = f"systemctl is-active {shlex.quote(service_name)}"
+        deadline = time.monotonic() + _SERVICE_SETTLE_SEC
+        while True:
+            state = self.exec_cmd(host_name, probe, timeout=5).strip()
+            if state.startswith(self.TIMEOUT_SENTINEL):
+                state = ""
+            elif "not found" in state.lower():
+                return  # no systemd in this image; nothing to wait for
+            if want_active and state == "active":
+                return
+            if (
+                not want_active
+                and state
+                and state
+                not in {
+                    "active",
+                    "activating",
+                    "deactivating",
+                    "reloading",
+                }
+            ):
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(_SERVICE_POLL_SEC)
 
     def netstat(self, host_name: str, args: str = "-tuln") -> str:
         """

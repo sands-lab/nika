@@ -15,6 +15,7 @@ from nika.net_env.verify import (
     nodes_deployed,
     ping_ok,
 )
+from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
 
 
@@ -114,20 +115,19 @@ def _isis_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
-    for node in plan.nodes:
-        need = degree[node.device_name]
-        if need == 0:
-            continue
+
+    def node_ok(node: str) -> bool:
         output = exec_or_empty(
             runtime,
-            node.device_name,
+            node,
             'sr_cli "show network-instance default protocols isis adjacency"',
             timeout=30,
         )
         up = sum(1 for line in output.splitlines() if "up" in line.lower())
-        if up < need:
-            return False
-    return True
+        return up >= degree[node]
+
+    nodes = [node.device_name for node in plan.nodes if degree[node.device_name]]
+    return all(bounded_parallel_map(node_ok, nodes))
 
 
 def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
@@ -135,13 +135,11 @@ def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     for link in active_igp_links(plan):
         degree[link.endpoint_a] += 1
         degree[link.endpoint_b] += 1
-    for node in plan.nodes:
-        need = degree[node.device_name]
-        if need == 0:
-            continue
+
+    def node_ok(node: str) -> bool:
         output = exec_or_empty(
             runtime,
-            node.device_name,
+            node,
             'sr_cli "show network-instance default protocols ospf neighbor"',
             timeout=30,
         )
@@ -150,9 +148,10 @@ def _ospf_adjacencies_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
             for line in output.splitlines()
             if "full" in line.lower() or "2way" in line.lower()
         )
-        if up < need:
-            return False
-    return True
+        return up >= degree[node]
+
+    nodes = [node.device_name for node in plan.nodes if degree[node.device_name]]
+    return all(bounded_parallel_map(node_ok, nodes))
 
 
 def _loopbacks_reachable(
@@ -183,16 +182,16 @@ def _loopbacks_reachable(
 
 def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
     # Confirm loopback present via sr_cli interface summary.
-    for node in plan.nodes:
+    def node_ok(node) -> bool:
         output = exec_or_empty(
             runtime,
             node.device_name,
             'sr_cli "show interface system0"',
             timeout=20,
         )
-        if node.loopback not in output:
-            return False
-    return True
+        return node.loopback in output
+
+    return all(bounded_parallel_map(node_ok, plan.nodes))
 
 
 def _stub_hosts_addressed_ok(
@@ -235,7 +234,9 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     needed: dict[str, set[str]] = defaultdict(set)
     for sess in bgp_plan.sessions:
         needed[sess.local_device].add(sess.remote_ip)
-    for device, peers in needed.items():
+
+    def device_ok(item: tuple[str, set[str]]) -> bool:
+        device, peers = item
         output = exec_or_empty(
             runtime,
             device,
@@ -245,9 +246,9 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
         established = sum(
             1 for line in output.splitlines() if "established" in line.lower()
         )
-        if established < len(peers):
-            return False
-    return True
+        return established >= len(peers)
+
+    return all(bounded_parallel_map(device_ok, needed.items()))
 
 
 def _bgp_prefixes_originated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:

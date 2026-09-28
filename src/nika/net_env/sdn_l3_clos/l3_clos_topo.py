@@ -160,14 +160,16 @@ class SDNL3Clos(NetworkEnvBase):
             **{
                 "image": ONOS_IMAGE,
                 "cpus": 2,
-                "mem": "2048m",
+                # Size-l programs ~240 SELECT groups; keep headroom above Xmx
+                # so Jetty/Karaf do not OOM the cgroup mid group-install (#54).
+                "mem": "3072m",
                 "bridged": True,
             },
         )
         onos.add_meta(
             "env", "ONOS_APPS=drivers,openflow-base,lldpprovider,hostprovider"
         )
-        onos.add_meta("env", "JAVA_OPTS=-Xmx1536m")
+        onos.add_meta("env", "JAVA_OPTS=-Xmx2048m")
         fabric_mgr = self.lab.new_machine(
             "fabric_mgr",
             **{"image": BASE_IMAGE, "cpus": 0.5, "mem": "256m"},

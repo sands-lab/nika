@@ -7,6 +7,7 @@ All nodes connect to a single bridged switch and use the internet for downloadin
 import os
 import platform
 import shutil
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -233,7 +234,17 @@ class LLMDInferenceCluster(NetworkEnvBase):
         all_machines["controller"].create_file_from_path(
             str(helm_bin), "/usr/local/bin/helm"
         )
-        for chart_path in cached_helm_charts():
+        # Pull charts on the host now: nodes have no registry egress, and the
+        # preload-time cache_scenario() runs after machine files are staged.
+        try:
+            chart_paths = ensure_helm_charts()
+        except Exception as exc:  # noqa: BLE001 - startup falls back to OCI pull
+            print(
+                f"WARNING: could not cache llmd_lab Helm charts: {exc}",
+                file=sys.stderr,
+            )
+            chart_paths = cached_helm_charts()
+        for chart_path in chart_paths:
             all_machines["controller"].create_file_from_path(
                 str(chart_path), f"/helm-charts/{chart_path.name}"
             )

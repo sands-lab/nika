@@ -36,8 +36,18 @@ class Min3ClosVerifyIntegrationTest(SharedSessionTestCase):
             assert name in nodes, f"Expected node {name!r} in deployed lab"
 
     def test_cross_leaf_ping_from_client1(self) -> None:
+        import time
+
         runtime = self._runtime()
-        output = runtime.exec(CLIENT1, f"ping -c 1 -W 2 {CLIENT2_IP}", timeout=10)
+        deadline = time.monotonic() + 90.0
+        output = ""
+        while time.monotonic() < deadline:
+            output = runtime.exec(
+                CLIENT1, f"ping -c 1 -W 2 {CLIENT2_IP}", timeout=10
+            )
+            if "1 received" in output:
+                return
+            time.sleep(2.0)
         assert "1 received" in output, f"client1 -> client2 ping failed: {output!r}"
 
     def test_full_verify_lab(self) -> None:

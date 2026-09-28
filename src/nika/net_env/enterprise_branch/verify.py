@@ -19,7 +19,6 @@ from nika.net_env.enterprise_branch.topology import (
     overlay_qos_for,
 )
 from nika.net_env.verify import (
-    bounded_parallel_map,
     build_lab_verify_result,
     exec_or_empty,
     host_has_ipv4,
@@ -27,6 +26,7 @@ from nika.net_env.verify import (
     nodes_deployed,
     ping_ok,
 )
+from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
 
 

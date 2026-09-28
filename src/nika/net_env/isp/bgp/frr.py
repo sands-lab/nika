@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 
+# Prefix-list of routes a router must not export to eBGP peers (RPKI profile).
+EXPORT_DENY_PREFIX_LIST = "EXPORT-DENY"
+
 
 def render_bgp_frr_fragment(node: BgpNodePlan, plan: BgpPlan) -> str:
     """Return BGP + route-map stanzas for one router (appended after IGP)."""
@@ -61,7 +64,9 @@ def _leak_prefix_list(prefixes: tuple[str, ...]) -> list[str]:
     lines: list[str] = []
     seq = 5
     for prefix in prefixes:
-        lines.append(f"ip prefix-list LEAK seq {seq} permit {prefix} le 24")
+        lines.append(
+            f"ip prefix-list {EXPORT_DENY_PREFIX_LIST} seq {seq} permit {prefix} le 24"
+        )
         seq += 5
     lines.append("!")
     return lines
@@ -80,7 +85,7 @@ def _route_maps(
         lines.extend(
             [
                 "route-map BGP-OUT deny 5",
-                " match ip address prefix-list LEAK",
+                f" match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}",
                 "!",
             ]
         )
@@ -267,7 +272,7 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             out_map = outbound_by_neighbor.get(sess.remote_ip, "BGP-OUT")
             lines.append(f"  neighbor {sess.remote_ip} route-map {out_map} out")
         else:
-            # Intra-AS iBGP: flood without LEAK export deny so borders can
+            # Intra-AS iBGP: flood without the export deny so borders can
             # re-advertise once eBGP BGP-OUT permits the leak prefixes.
             lines.append(f"  neighbor {sess.remote_ip} next-hop-self")
             if sess.route_reflector_client:

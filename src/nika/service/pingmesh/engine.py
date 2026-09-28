@@ -9,6 +9,7 @@ from typing import Any
 
 from nika.service.pingmesh.endpoints import discover_endpoints, resolve_endpoint_ip
 from nika.service.pingmesh.parser import parse_ping_output
+from nika.service.shell import ping_exec_timeout
 from nika.service.pingmesh.types import (
     AnomalyType,
     PingAnomaly,
@@ -182,7 +183,7 @@ async def _probe_pair(
     count: int,
 ) -> PingStats:
     command = f"ping -c {count} -n -q {target_ip}"
-    output = await api.exec_cmd_async(source, command)
+    output = await api.exec_cmd_async(source, command, timeout=ping_exec_timeout(count))
     return parse_ping_output(output)
 
 

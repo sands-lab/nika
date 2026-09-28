@@ -103,3 +103,20 @@ class SessionIndexTestCase:
         assert row["failure_domain"] == "link_interface"
         assert row["detection_score"] == 1.0
         assert row["failure_count"] == 1
+
+    def test_rebuild_skips_job_result_root(self) -> None:
+        job_dir = self.results_dir / "claude"
+        (job_dir / "trials").mkdir(parents=True)
+        (job_dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "job_id": "abc123",
+                    "agent_type": "cli.claude",
+                    "benchmark_ref": "nika-bench@0.2.0",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (job_dir / "benchmark_job.json").write_text("{}", encoding="utf-8")
+        assert self.index.rebuild_from_results(self.results_dir) == 0
+        assert self.index.get_row("claude") is None

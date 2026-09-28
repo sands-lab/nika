@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from docker.models.containers import Container
@@ -44,3 +45,30 @@ def list_lab_containers(*, lab_name: str) -> list[dict[str, Any]]:
             }
         )
     return sorted(rows, key=lambda row: row["name"])
+
+
+def link_members(link: Any) -> tuple[str, ...]:
+    """Machine names attached to one Kathara collision domain, in Docker order."""
+    return tuple(
+        name
+        for name in (
+            (container.labels or {}).get("name") for container in link.containers
+        )
+        if name
+    )
+
+
+def link_neighbors(links: Iterable[Any], node: str) -> list[str]:
+    """Machines sharing a collision domain with ``node``.
+
+    A collision domain may hold one endpoint (a dangling link) or several
+    (a shared LAN); every other member is a neighbor.
+    """
+    results: list[str] = []
+    for link in links:
+        if not link.name:
+            continue
+        members = link_members(link)
+        if node in members:
+            results.extend(name for name in members if name != node)
+    return results

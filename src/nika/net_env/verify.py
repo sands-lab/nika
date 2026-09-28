@@ -2,30 +2,17 @@
 
 from __future__ import annotations
 
-import re
+import json
+import sys
 import time
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
+from ipaddress import IPv4Address
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
-
-_T = TypeVar("_T")
-_R = TypeVar("_R")
-
-
-def bounded_parallel_map(
-    function: Callable[[_T], _R], items: Iterable[_T], *, max_workers: int = 8
-) -> list[_R]:
-    """Map independent read-only checks concurrently and preserve input order."""
-    values = list(items)
-    if len(values) < 2 or max_workers < 2:
-        return [function(item) for item in values]
-    with ThreadPoolExecutor(max_workers=min(max_workers, len(values))) as pool:
-        return list(pool.map(function, values))
 
 
 def _lab_ready_defaults() -> tuple[float, float]:
@@ -140,21 +127,6 @@ def ping_stats(
     return _parse_ping_stats(output, count=count)
 
 
-def ping_size_ok(
-    runtime: "LabRuntime",
-    host: str,
-    target: str,
-    *,
-    packet_size: int,
-    count: int = 3,
-    df: bool = False,
-) -> bool:
-    stats = ping_stats(
-        runtime, host, target, count=count, packet_size=packet_size, df=df
-    )
-    return stats.received >= 1
-
-
 def _frag_needed_in_output(output: str) -> bool:
     lower = output.lower()
     return any(
@@ -210,39 +182,6 @@ def ping_mtu_blackhole(
     small_ok, _, _ = ping_df_probe(runtime, host, target, packet_size=small_size)
     large_ok, saw_frag, _ = ping_df_probe(runtime, host, target, packet_size=large_size)
     return small_ok and not large_ok and not saw_frag
-
-
-def dns_resolve_ok(
-    runtime: "LabRuntime",
-    host: str,
-    name: str,
-    *,
-    expected_ip: str | None = None,
-    server: str | None = None,
-    timeout_sec: int = 5,
-) -> bool:
-    server_arg = f" @{server}" if server else ""
-    output = exec_or_empty(
-        runtime,
-        host,
-        f"dig +short +time={timeout_sec}{server_arg} {name}",
-        timeout=timeout_sec + 10,
-    )
-    lines = [line.strip() for line in output.splitlines() if line.strip()]
-    if not lines:
-        return False
-    if expected_ip is None:
-        return bool(re.match(r"^[\d.]+$", lines[0]))
-    return expected_ip in lines
-
-
-def http_status(runtime: "LabRuntime", host: str, url: str) -> str:
-    return exec_or_empty(
-        runtime,
-        host,
-        f"curl -s -o /dev/null -w '%{{http_code}}' --connect-timeout 5 {url}",
-        timeout=20,
-    ).strip()
 
 
 def http_time_ms(runtime: "LabRuntime", host: str, url: str) -> float | None:
@@ -405,6 +344,34 @@ def route_is_onlink(runtime: "LabRuntime", host: str, destination: str) -> bool 
     return " via " not in output.splitlines()[0]
 
 
+def _start_iperf3_server(runtime: "LabRuntime", host: str, port: int) -> str | None:
+    """Start a one-shot iperf3 server and wait until it listens; return its PID."""
+    output = runtime.exec(
+        host,
+        f"rm -f /tmp/iperf3_s_{port}.log; "
+        f"nohup iperf3 -s -p {port} -1 >/tmp/iperf3_s_{port}.log 2>&1 & echo $!",
+        timeout=10,
+    )
+    tokens = output.split()
+    pid = tokens[-1] if tokens and tokens[-1].isdigit() else None
+    probe = (
+        f"ss -Hltn 'sport = :{port}' 2>/dev/null || "
+        f"netstat -ltn 2>/dev/null | grep ':{port} ' || true"
+    )
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if f":{port}" in exec_or_empty(runtime, host, probe, timeout=5):
+            break
+        time.sleep(0.1)
+    return pid
+
+
+def _stop_iperf3_server(runtime: "LabRuntime", host: str, pid: str | None) -> None:
+    # Kill only the server started here; scenario background iperf3 stays up.
+    if pid:
+        runtime.exec(host, f"kill {pid} 2>/dev/null || true", timeout=5)
+
+
 def iperf_throughput_bps(
     runtime: "LabRuntime",
     src_host: str,
@@ -415,43 +382,10 @@ def iperf_throughput_bps(
     port: int = 5201,
 ) -> float | None:
     """Run a short iperf3 TCP transfer and return bits/sec (or None on failure)."""
-    for host in {src_host, dst_host}:
-        runtime.exec(host, "pkill -f 'iperf3' 2>/dev/null || true", timeout=5)
-    time.sleep(0.3)
-    runtime.exec(
-        dst_host,
-        f"rm -f /tmp/iperf3_s_{port}.log; "
-        f"nohup iperf3 -s -p {port} -1 >/tmp/iperf3_s_{port}.log 2>&1 & echo $!",
-        timeout=10,
+    bps, _ = iperf_tcp_metrics(
+        runtime, src_host, dst_host, dst_ip, duration_sec=duration_sec, port=port
     )
-    time.sleep(0.8)
-    # Capture JSON on stdout; file redirects are unreliable through some exec shells.
-    raw = exec_or_empty(
-        runtime,
-        src_host,
-        f"iperf3 -c {dst_ip} -p {port} -t {duration_sec} -J 2>/dev/null || true",
-        timeout=float(duration_sec + 15),
-    )
-    runtime.exec(dst_host, "pkill -f 'iperf3' 2>/dev/null || true", timeout=5)
-    raw = raw.strip()
-    if not raw.startswith("{"):
-        # Some wrappers prepend status lines; keep from first JSON object.
-        idx = raw.find("{")
-        if idx < 0:
-            return None
-        raw = raw[idx:]
-    try:
-        import json
-
-        data = json.loads(raw)
-        if data.get("error"):
-            return None
-        end = data.get("end") or {}
-        summary = end.get("sum_sent") or end.get("sum_received") or end.get("sum") or {}
-        bps = float(summary.get("bits_per_second") or 0.0)
-        return bps if bps > 0 else None
-    except Exception:  # noqa: BLE001
-        return None
+    return bps
 
 
 def iperf_tcp_metrics(
@@ -464,32 +398,26 @@ def iperf_tcp_metrics(
     port: int = 5201,
 ) -> tuple[float | None, int | None]:
     """Run iperf3 and return (bits_per_second, retransmits) or (None, None)."""
-    for host in {src_host, dst_host}:
-        runtime.exec(host, "pkill -f 'iperf3' 2>/dev/null || true", timeout=5)
-    time.sleep(0.3)
-    runtime.exec(
-        dst_host,
-        f"rm -f /tmp/iperf3_s_{port}.log; "
-        f"nohup iperf3 -s -p {port} -1 >/tmp/iperf3_s_{port}.log 2>&1 & echo $!",
-        timeout=10,
-    )
-    time.sleep(0.8)
-    raw = exec_or_empty(
-        runtime,
-        src_host,
-        f"iperf3 -c {dst_ip} -p {port} -t {duration_sec} -J 2>/dev/null || true",
-        timeout=float(duration_sec + 15),
-    )
-    runtime.exec(dst_host, "pkill -f 'iperf3' 2>/dev/null || true", timeout=5)
+    pid = _start_iperf3_server(runtime, dst_host, port)
+    try:
+        # Capture JSON on stdout; file redirects are unreliable through some
+        # exec shells.
+        raw = exec_or_empty(
+            runtime,
+            src_host,
+            f"iperf3 -c {dst_ip} -p {port} -t {duration_sec} -J 2>/dev/null || true",
+            timeout=float(duration_sec + 15),
+        )
+    finally:
+        _stop_iperf3_server(runtime, dst_host, pid)
     raw = raw.strip()
     if not raw.startswith("{"):
+        # Some wrappers prepend status lines; keep from first JSON object.
         idx = raw.find("{")
         if idx < 0:
             return None, None
         raw = raw[idx:]
     try:
-        import json
-
         data = json.loads(raw)
         if data.get("error"):
             return None, None
@@ -710,10 +638,86 @@ def process_running(runtime: "LabRuntime", host: str, process: str) -> bool:
     return bool(exec_or_empty(runtime, host, f"pgrep -x {process}").strip())
 
 
-def service_active(runtime: "LabRuntime", host: str, unit: str) -> bool:
+def service_active(
+    runtime: "LabRuntime", host: str, unit: str, *, timeout: float = 10.0
+) -> bool:
     return (
-        exec_or_empty(runtime, host, f"systemctl is-active {unit}").strip() == "active"
+        exec_or_empty(
+            runtime, host, f"systemctl is-active {unit}", timeout=timeout
+        ).strip()
+        == "active"
     )
+
+
+# Re-runs frrinit.sh start, which only spawns watchfrr; running daemons keep
+# their state and sessions (same command the FRR startup scripts use).
+_FRR_HEAL_COMMAND = "service frr start"
+
+
+def should_heal_frr(
+    *, unit_active: bool, zebra_running: bool, already_healed: bool
+) -> bool:
+    """Decide whether to re-spawn watchfrr on a node whose frr unit is down.
+
+    watchfrr exits for good when none of its daemons answer within its fixed
+    55 s startup window (slow boot under host load). The daemons finish
+    starting anyway, so routing works while ``systemctl is-active frr`` stays
+    ``failed``. Heal only that state, and only once per node.
+    """
+    return not unit_active and zebra_running and not already_healed
+
+
+def frr_active_or_heal(
+    runtime: "LabRuntime",
+    host: str,
+    healed: set[str] | None = None,
+    *,
+    timeout: float = 20.0,
+) -> bool:
+    """Return whether FRR is usable for startup, healing a dead watchfrr once.
+
+    ``healed`` records nodes already healed during this lab's startup
+    verification. Pass ``None`` to check without healing.
+
+    Under host load watchfrr can exit while zebra/BGP keep running and the
+    ``frr`` systemd unit stays ``failed``. After one heal attempt, treat a
+    live zebra process as success so startup verify matches routing reality.
+    """
+    if service_active(runtime, host, "frr", timeout=timeout):
+        return True
+    zebra_running = bool(
+        exec_or_empty(runtime, host, "pgrep -x zebra", timeout=timeout).strip()
+    )
+    if healed is None:
+        return False
+    if should_heal_frr(
+        unit_active=False,
+        zebra_running=zebra_running,
+        already_healed=host in healed,
+    ):
+        healed.add(host)
+        from nika.utils.logger import system_logger
+
+        message = (
+            f"frr unit not active on {host} while zebra is running "
+            f"(watchfrr exited); running '{_FRR_HEAL_COMMAND}' once"
+        )
+        print(f"[env-verify] {message}", file=sys.stderr, flush=True)
+        system_logger.warning(
+            message,
+            extra={
+                "event_type": "env_verify_frr_heal",
+                "data": {"host": host, "command": _FRR_HEAL_COMMAND},
+                "duration_ms": None,
+            },
+        )
+        exec_or_empty(runtime, host, _FRR_HEAL_COMMAND, timeout=60.0)
+        if service_active(runtime, host, "frr", timeout=timeout):
+            return True
+        zebra_running = bool(
+            exec_or_empty(runtime, host, "pgrep -x zebra", timeout=timeout).strip()
+        )
+    return zebra_running
 
 
 def http_ok(runtime: "LabRuntime", host: str, url: str) -> bool:
@@ -740,6 +744,40 @@ def frr_bgp_established(
             # Prefix count column when the state column is omitted in summaries.
             established += 1
     return established >= min_neighbors
+
+
+def frr_bgp_established_peers(summary: str) -> set[str]:
+    """Parse FRR ``show bgp summary`` neighbor lines for Established peers.
+
+    FRR columns: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down
+    State/PfxRcd PfxSnt [Desc]. Established peers show a numeric PfxRcd;
+    other sessions show their FSM state (Idle, Active, Connect, ...).
+    Numbered and unnumbered (interface or hostname) neighbors both count.
+    """
+    peers: set[str] = set()
+    for line in summary.splitlines():
+        fields = line.split()
+        if len(fields) < 10 or fields[1] not in {"4", "6"}:
+            continue
+        if not fields[2].isdigit():
+            continue
+        state = fields[9]
+        if state.isdigit() or state == "Established":
+            peers.add(fields[0])
+    return peers
+
+
+def frr_ospf_full_router_ids(output: str) -> set[str]:
+    """Parse FRR ``show ip ospf neighbor`` for router IDs in Full state."""
+    peers: set[str] = set()
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and any(field.startswith("Full") for field in fields):
+            try:
+                peers.add(str(IPv4Address(fields[0])))
+            except ValueError:
+                continue
+    return peers
 
 
 def frr_bgp_has_established_session(runtime: "LabRuntime", router: str) -> bool:
@@ -856,7 +894,37 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     last_result = result
     dead_since: float | None = None
     restarted = False
-    progress_logged = False
+    # Log immediately, then about every 30s (or each retry if slower).
+    progress_interval_sec = max(30.0, float(retry_delay_sec))
+    last_progress_log = 0.0
+
+    def _emit_verify_progress(*, force: bool = False) -> None:
+        nonlocal last_progress_log
+        now = time.time()
+        if not force and (now - last_progress_log) < progress_interval_sec:
+            return
+        last_progress_log = now
+        elapsed = now - started
+        summary = summarize_lab_verify(last_result)
+        message = (
+            f"Lab verification pending for {net_env.name} "
+            f"({elapsed:.0f}s / {max_wait_sec:.0f}s): {summary}"
+        )
+        print(f"[env-verify] {message}", file=sys.stderr, flush=True)
+        log_event(
+            "env_verify_progress",
+            message,
+            lab_name=net_env.name,
+            elapsed_sec=round(elapsed, 1),
+            max_wait_sec=max_wait_sec,
+            checks=last_result.get("checks"),
+            details=last_result.get("details") or {},
+            failed_checks=failed_checks_map(last_result.get("checks")),
+        )
+
+    if not result.get("verified", False):
+        _emit_verify_progress(force=True)
+
     while time.time() < deadline:
         nodes_ok, dead_nodes = _k8s_lab_nodes_running(net_env)
         if not nodes_ok:
@@ -875,27 +943,26 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
                     f"Lab verification aborted for {net_env.name!r}: "
                     f"k3s node container(s) not running: {dead_nodes or ['unknown']}"
                 )
+            print(
+                f"[env-verify] k3s node container(s) not running: "
+                f"{dead_nodes or ['unknown']}",
+                file=sys.stderr,
+                flush=True,
+            )
             time.sleep(retry_delay_sec)
             continue
         dead_since = None
         last_result = verify()
         if last_result.get("verified", False):
-            return last_result
-        if (
-            not progress_logged
-            and max_wait_sec > 0
-            and (time.time() - started) >= (max_wait_sec / 2)
-        ):
-            progress_logged = True
-            log_event(
-                "env_verify_progress",
-                f"Lab verification still pending for {net_env.name}: "
-                f"{summarize_lab_verify(last_result)}",
-                lab_name=net_env.name,
-                checks=last_result.get("checks"),
-                details=last_result.get("details") or {},
-                failed_checks=failed_checks_map(last_result.get("checks")),
+            elapsed = time.time() - started
+            print(
+                f"[env-verify] Lab verification passed for {net_env.name} "
+                f"after {elapsed:.0f}s",
+                file=sys.stderr,
+                flush=True,
             )
+            return last_result
+        _emit_verify_progress()
         time.sleep(retry_delay_sec)
 
     failed_checks = failed_checks_map(last_result.get("checks"))

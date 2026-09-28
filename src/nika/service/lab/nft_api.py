@@ -22,6 +22,34 @@ _NFT_INSTALL_CMD = (
     "fi"
 )
 _NFT_INSTALL_TIMEOUT_SEC = 120.0
+_RC_MARK = "__rc="
+_DROP_CHAINS = ("input", "forward", "output")
+
+
+def _normalize_rule(rule: str) -> str:
+    """Collapse whitespace and drop the ``# handle N`` suffix of listed rules."""
+    return " ".join(rule.split("#", 1)[0].split())
+
+
+def nft_drop_chains(family: str) -> tuple[str, ...]:
+    """Chains ``add_nft_drop_rule`` hooks for ``family`` (arp has no forward)."""
+    return ("input", "output") if family == "arp" else _DROP_CHAINS
+
+
+def nft_list_chain_command(table: str, chain: str, family: str = "inet") -> str:
+    """Shell command that prints one chain in nft's canonical rule form."""
+    return f"{_NFT_PATH}nft list chain {family} {table} {chain} 2>/dev/null"
+
+
+def nft_chain_has_rule(listing: str, rule: str) -> bool:
+    """Return whether an ``nft list chain`` listing holds exactly ``rule``.
+
+    ``rule`` must be written the way ``nft list`` prints it (e.g.
+    ``tcp dport 6653 drop``). A longer rule that merely contains it, or the
+    same text in another table or chain, does not match.
+    """
+    wanted = _normalize_rule(rule)
+    return any(_normalize_rule(line) == wanted for line in listing.splitlines())
 
 
 class NFTableMixin:
@@ -91,6 +119,24 @@ class NFTableMixin:
     def list_nft_ruleset(self: SupportsExec, node: str) -> str:
         return self.exec_cmd(node, f"{_NFT_PATH}nft list ruleset 2>/dev/null").strip()
 
+    def _nft_checked(self: SupportsExec, node: str, args: str) -> str:
+        """Run ``nft <args>`` and raise when it exits non-zero."""
+        raw = self.exec_cmd(
+            node, f"{_NFT_PATH}nft {args} 2>&1; printf '\\n{_RC_MARK}%s\\n' $?"
+        )
+        output, marker, tail = (raw or "").rpartition(_RC_MARK)
+        if not marker:
+            raise RuntimeError(f"nft {args!r} on {node} returned no exit status")
+        try:
+            returncode = int(tail.strip().splitlines()[0])
+        except (IndexError, ValueError):
+            returncode = 1
+        if returncode != 0:
+            raise RuntimeError(
+                f"nft {args!r} failed on {node} (rc={returncode}): {output.strip()!r}"
+            )
+        return output.strip()
+
     def _nft_add_chain(
         self: SupportsExec,
         node: str,
@@ -99,11 +145,11 @@ class NFTableMixin:
         family: str,
         hook: str,
     ) -> None:
-        command = (
-            f"{_NFT_PATH}nft add chain {family} {table} {chain} "
-            f"'{{ type filter hook {hook} priority 0 ; policy accept ; }}'"
+        self._nft_checked(
+            node,
+            f"add chain {family} {table} {chain} "
+            f"'{{ type filter hook {hook} priority 0 ; policy accept ; }}'",
         )
-        self.exec_cmd(node, command)
 
     def _ensure_nft_available(self: SupportsExec, node: str) -> None:
         check = self.exec_cmd(node, _NFT_PRESENT_CHECK)
@@ -127,13 +173,10 @@ class NFTableMixin:
         family: str = "inet",
     ) -> None:
         self._ensure_nft_available(node)
-        self.exec_cmd(node, f"{_NFT_PATH}nft add table {family} {table}")
-        for chain_name in ("input", "forward", "output"):
+        self._nft_checked(node, f"add table {family} {table}")
+        for chain_name in nft_drop_chains(family):
             self._nft_add_chain(node, table, chain_name, family, chain_name)
-            self.exec_cmd(
-                node,
-                f"{_NFT_PATH}nft add rule {family} {table} {chain_name} {rule}",
-            )
+            self._nft_checked(node, f"add rule {family} {table} {chain_name} {rule}")
         from nika.utils.network_change_log import log_network_change
 
         log_network_change(
@@ -167,3 +210,30 @@ class NFTableMixin:
 
     def nft_ruleset_contains(self: SupportsExec, node: str, pattern: str) -> bool:
         return pattern in self.list_nft_ruleset(node)
+
+    def nft_rule_present(
+        self: SupportsExec,
+        node: str,
+        rule: str,
+        *,
+        table: str = "filter",
+        chain: str = "input",
+        family: str = "inet",
+    ) -> bool:
+        """Return whether ``family table chain`` holds exactly ``rule``."""
+        listing = self.exec_cmd(node, nft_list_chain_command(table, chain, family))
+        return nft_chain_has_rule(listing, rule)
+
+    def nft_drop_rule_present(
+        self: SupportsExec,
+        node: str,
+        rule: str,
+        *,
+        table: str = "filter",
+        family: str = "inet",
+    ) -> bool:
+        """Return whether ``add_nft_drop_rule`` state is live in every hooked chain."""
+        return all(
+            self.nft_rule_present(node, rule, table=table, chain=c, family=family)
+            for c in nft_drop_chains(family)
+        )

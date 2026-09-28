@@ -37,6 +37,11 @@ _TRANSIENT_ONOS_ERROR_MARKERS = (
 )
 
 
+_OF_CONTROLLER_COMPONENT = (
+    "org.onosproject.openflow.controller.impl.OpenFlowControllerImpl"
+)
+
+
 def _exec(runtime: LabRuntime, host: str, cmd: str, timeout: float = 60.0) -> str:
     return runtime.exec(host, cmd, timeout=timeout)
 
@@ -116,6 +121,80 @@ def wait_for_onos(
     return False
 
 
+def _onos_jvm_alive(runtime: LabRuntime) -> bool:
+    """True when the ONOS/Karaf JVM is still running inside the onos node."""
+    # Bracket the first letter so pgrep does not match this shell argv
+    # (same pattern as sdn_controller_crash inject/verify).
+    out = _exec(
+        runtime,
+        "onos",
+        "pgrep -af '[o]rg.apache.karaf.main.Main|[a]pache-karaf' "
+        "2>/dev/null "
+        "| grep -v 'pgrep\\|bash\\|grep\\|onos-entrypoint\\|sleep infinity' "
+        "| grep -v '<defunct>' "
+        "| grep . || true",
+        timeout=15.0,
+    )
+    return bool(out.strip())
+
+
+def _start_onos_service(runtime: LabRuntime) -> None:
+    """Start ONOS if the JVM is gone (entrypoint does not auto-restart)."""
+    # Bracket patterns avoid pgrep matching this command string. Use setsid so
+    # the restarted Karaf survives the Kathara/docker exec session ending.
+    _exec(
+        runtime,
+        "onos",
+        "cd /root/onos && "
+        "(pgrep -f '[o]rg.apache.karaf.main.Main' >/dev/null 2>&1 || "
+        "setsid /root/onos/bin/onos-service server "
+        ">/tmp/onos-service.log 2>&1 < /dev/null &)",
+        timeout=15.0,
+    )
+
+
+def _recover_onos_rest(
+    runtime: LabRuntime,
+    *,
+    timeout_sec: float = 180.0,
+    stable_checks: int = 2,
+    wait_before_restart_sec: float | None = None,
+) -> bool:
+    """Wait for ONOS REST; restart the JVM only if it is clearly dead.
+
+    ``onos-entrypoint.sh`` keeps PID 1 alive after ONOS exits so
+    ``sdn_controller_crash`` can leave the controller down. Fabric deploy and
+    group/flow install must recover themselves when the JVM dies under load
+    (see #54 Connection refused / REST unavailable while retrying).
+
+    Do not restart while the JVM is still booting: a short REST wait followed
+    by a false-negative process check would start a second Karaf and destabilize
+    the lab.
+    """
+    initial_wait = (
+        timeout_sec if wait_before_restart_sec is None else wait_before_restart_sec
+    )
+    if wait_for_onos(runtime, timeout_sec=initial_wait, stable_checks=stable_checks):
+        return True
+    if _onos_jvm_alive(runtime):
+        # JVM is up (or still starting) but REST did not answer in time.
+        if (
+            wait_before_restart_sec is not None
+            and wait_before_restart_sec < timeout_sec
+        ):
+            return wait_for_onos(
+                runtime, timeout_sec=timeout_sec, stable_checks=stable_checks
+            )
+        return False
+    logger.warning("ONOS JVM is down; restarting onos-service for fabric apply")
+    _start_onos_service(runtime)
+    if not wait_for_onos(runtime, timeout_sec=timeout_sec, stable_checks=stable_checks):
+        return False
+    activate_onos_apps(runtime)
+    # App activate can briefly bounce Jetty.
+    return wait_for_onos(runtime, timeout_sec=120.0, stable_checks=stable_checks)
+
+
 def activate_onos_apps(runtime: LabRuntime) -> None:
     """Keep discovery + FlowRule/Group providers; disable reactive L2 fwd."""
     for app in (
@@ -131,6 +210,28 @@ def activate_onos_apps(runtime: LabRuntime) -> None:
         "org.onosproject.reactive",
     ):
         _onos_request(runtime, "DELETE", f"/onos/v1/applications/{app}/active")
+
+
+def get_openflow_listen_ports(runtime: LabRuntime) -> list[int] | None:
+    """Return ONOS ``openflowPorts`` from live component config (None if unknown)."""
+    config = _onos_json(runtime, f"/onos/v1/configuration/{_OF_CONTROLLER_COMPONENT}")
+    props = config.get(_OF_CONTROLLER_COMPONENT, config) if config else {}
+    value = props.get("openflowPorts") if isinstance(props, dict) else None
+    if isinstance(value, dict):
+        value = value.get("value")
+    if value is None:
+        return None
+    return [int(p) for p in str(value).replace(" ", "").split(",") if p.isdigit()]
+
+
+def set_openflow_listen_ports(runtime: LabRuntime, ports: list[int]) -> str:
+    """Set ONOS ``openflowPorts``; ONOS restarts its OpenFlow listeners."""
+    return _onos_request(
+        runtime,
+        "POST",
+        f"/onos/v1/configuration/{_OF_CONTROLLER_COMPONENT}",
+        {"openflowPorts": ",".join(str(int(p)) for p in ports)},
+    )
 
 
 def onos_topology_snapshot(runtime: LabRuntime) -> dict[str, Any]:
@@ -318,6 +419,13 @@ def _is_skippable_unsupported_flow(flow: dict[str, Any]) -> bool:
     )
 
 
+# Cap ops per Kathara-exec sub-batch so a large Clos (size l ≈ 240 groups)
+# does not hammer Jetty in one tight loop. Payload cap still avoids ARG_MAX.
+_ONOS_BATCH_MAX_OPS = 16
+_ONOS_BATCH_MAX_PAYLOAD_BYTES = 48_000
+_ONOS_BATCH_PAUSE_SEC = 0.25
+
+
 def _onos_batch(
     runtime: LabRuntime,
     ops: list[tuple[str, str, dict[str, Any] | None]],
@@ -328,14 +436,17 @@ def _onos_batch(
     # Kathara passes the command through a shell in the target container.  A
     # large Clos can exceed execve's argument limit when all REST payloads are
     # encoded into one command line.  Keep each batch comfortably below it.
-    max_payload_bytes = 48_000
     script = r"""
 import base64, json, urllib.request, sys
 auth = base64.b64encode(b"onos:rocks").decode()
 ops = json.loads(base64.b64decode(sys.argv[1]))
 base = sys.argv[2]
 out = []
+transport_down = None
 for method, path, body in ops:
+    if transport_down is not None:
+        out.append({"path": path, "error": transport_down[0], "status": transport_down[1]})
+        continue
     url = base + path
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, method=method)
@@ -347,7 +458,24 @@ for method, path, body in ops:
             out.append({"path": path, "status": resp.status})
     except Exception as exc:  # noqa: BLE001
         code = getattr(getattr(exc, "code", None), "real", None) or getattr(exc, "code", None)
-        out.append({"path": path, "error": str(exc), "status": code})
+        err = str(exc)
+        out.append({"path": path, "error": err, "status": code})
+        low = err.lower()
+        if any(
+            m in low
+            for m in (
+                "connection refused",
+                "errno 111",
+                "timed out",
+                "timeout",
+                "connection reset",
+                "remote end closed",
+                "network is unreachable",
+            )
+        ) or code in (502, 503, 504):
+            # Stop hammering a down/restarting controller; pad remaining ops
+            # so the caller can retry only the unfinished set.
+            transport_down = (err, code)
 print(json.dumps(out))
 """
     b64_script = base64.b64encode(script.encode()).decode()
@@ -364,11 +492,13 @@ print(json.dumps(out))
     batch: list[tuple[str, str, dict[str, Any] | None]] = []
     for operation in ops:
         candidate = [*batch, operation]
-        if (
+        over_payload = (
             batch
             and len(base64.b64encode(json.dumps(candidate).encode()))
-            > max_payload_bytes
-        ):
+            > _ONOS_BATCH_MAX_PAYLOAD_BYTES
+        )
+        over_count = len(candidate) > _ONOS_BATCH_MAX_OPS
+        if batch and (over_payload or over_count):
             batches.append(batch)
             batch = [operation]
         else:
@@ -377,7 +507,9 @@ print(json.dumps(out))
         batches.append(batch)
 
     responses: list[Any] = []
-    for batch in batches:
+    for index, batch in enumerate(batches):
+        if index > 0:
+            time.sleep(_ONOS_BATCH_PAUSE_SEC)
         result = run(batch)
         try:
             responses.extend(json.loads(result))
@@ -433,7 +565,12 @@ def _onos_batch_resilient(
                 operation,
                 len(pending),
             )
-            if not wait_for_onos(runtime, timeout_sec=90.0, stable_checks=2):
+            if not _recover_onos_rest(
+                runtime,
+                timeout_sec=120.0,
+                stable_checks=2,
+                wait_before_restart_sec=30.0,
+            ):
                 raise RuntimeError(f"ONOS REST unavailable while retrying {operation}")
             time.sleep(min(2 * attempt, 10))
         result = _onos_batch(runtime, pending)
@@ -717,11 +854,11 @@ def reconcile_fabric(
         return build_forwarding_rules(model)
 
     if wait_onos:
-        if not wait_for_onos(runtime):
+        if not _recover_onos_rest(runtime):
             raise RuntimeError("ONOS REST not ready within timeout before fabric apply")
         activate_onos_apps(runtime)
         # App activate/deactivate can briefly bounce Jetty; wait again.
-        if not wait_for_onos(runtime, timeout_sec=120.0, stable_checks=2):
+        if not _recover_onos_rest(runtime, timeout_sec=120.0, stable_checks=2):
             raise RuntimeError("ONOS REST not ready after activating apps")
         ensure_controllers_attached(runtime, model)
         if not wait_for_of_sessions(runtime, model, timeout_sec=180):

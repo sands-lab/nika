@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import threading
+from collections.abc import Iterator
 from typing import Optional
 
 _logger = logging.getLogger(__name__)
@@ -41,14 +44,24 @@ def patch_kathara_file_conversion() -> None:
     utils.convert_win_2_linux = convert_win_2_linux
 
 
-def docker_engine_reachable() -> bool:
-    try:
-        import docker
+_docker_reachable: bool | None = None
+_docker_reachable_lock = threading.Lock()
 
-        docker.from_env().ping()
-    except Exception:
-        return False
-    return True
+
+def docker_engine_reachable() -> bool:
+    """Ping the Docker engine once per process; later calls reuse the answer."""
+    global _docker_reachable
+    if _docker_reachable is None:
+        with _docker_reachable_lock:
+            if _docker_reachable is None:
+                try:
+                    from nika.runtime.shared.containers import docker_client
+
+                    docker_client().ping()
+                except Exception:
+                    return False  # retry on the next call
+                _docker_reachable = True
+    return _docker_reachable
 
 
 def allow_privileged_without_root(*, is_admin: bool | None = None) -> bool:
@@ -78,6 +91,27 @@ def patch_kathara_privileged_without_root() -> None:
 
     original_create = DockerMachine.create
     original_is_admin = utils.is_admin
+    # Kathara also consults ``utils.is_admin`` to scope container listings to
+    # the current user, so the override cannot be permanent. Parallel machine
+    # creation shares one override: the first privileged create installs it,
+    # the last one to finish restores the original.
+    lock = threading.Lock()
+    active = 0
+
+    @contextlib.contextmanager
+    def _admin_override() -> Iterator[None]:
+        nonlocal active
+        with lock:
+            active += 1
+            if active == 1:
+                utils.is_admin = lambda: True
+        try:
+            yield
+        finally:
+            with lock:
+                active -= 1
+                if active == 0:
+                    utils.is_admin = original_is_admin
 
     def create(self, machine):  # type: ignore[no-untyped-def]
         if machine.is_privileged() and allow_privileged_without_root(
@@ -88,15 +122,8 @@ def patch_kathara_privileged_without_root() -> None:
                 "(Docker engine reachable)",
                 machine.name,
             )
-
-            def _is_admin_allow() -> bool:
-                return True
-
-            utils.is_admin = _is_admin_allow
-            try:
+            with _admin_override():
                 return original_create(self, machine)
-            finally:
-                utils.is_admin = original_is_admin
         return original_create(self, machine)
 
     create._nika_priv_without_root = True  # type: ignore[attr-defined]

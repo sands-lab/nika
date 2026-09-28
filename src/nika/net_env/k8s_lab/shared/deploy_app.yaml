@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: word-container
-        image: ik2227/word
+        image: ik2227/word:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
 ---
@@ -36,6 +37,7 @@ spec:
     spec:
       containers:
       - name: weather-container
-        image: ik2227/weather
+        image: ik2227/weather:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000

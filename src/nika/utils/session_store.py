@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.config import SESSIONS_DB, SESSIONS_DIR
+from nika.utils.session_artifacts import write_json_atomic
 from nika.utils.session_index import SessionIndex
 
 
@@ -41,11 +42,7 @@ class SessionStore:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def _write(self, data: dict[str, Any]) -> None:
-        path = self._path(data["session_id"])
-        path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8",
-        )
+        write_json_atomic(self._path(data["session_id"]), data, ensure_ascii=False)
 
     # ------------------------------------------------------------------
     # Session CRUD

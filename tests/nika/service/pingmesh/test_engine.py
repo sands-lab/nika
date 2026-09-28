@@ -34,7 +34,7 @@ class RunPingmeshSnapshotTest:
     async def test_unreachable_pair(self) -> None:
         api = self._make_api()
 
-        async def _exec(host: str, _cmd: str) -> str:
+        async def _exec(host: str, _cmd: str, **_kwargs) -> str:
             if host == "pc1":
                 return DOWN_OUTPUT
             return OK_OUTPUT

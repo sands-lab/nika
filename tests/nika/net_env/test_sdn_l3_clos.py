@@ -120,7 +120,7 @@ def test_onos_batch_resilient_retries_connection_refused(
         return __import__("json").dumps([{"path": op[1], "status": 200} for op in ops])
 
     monkeypatch.setattr(fabric_apply, "_onos_batch", fake_batch)
-    monkeypatch.setattr(fabric_apply, "wait_for_onos", lambda *_a, **_k: True)
+    monkeypatch.setattr(fabric_apply, "_recover_onos_rest", lambda *_a, **_k: True)
     monkeypatch.setattr(fabric_apply.time, "sleep", lambda *_a, **_k: None)
 
     ops = [
@@ -132,6 +132,22 @@ def test_onos_batch_resilient_retries_connection_refused(
     )
     assert calls == [2, 2]
     assert all(item["status"] == 200 for item in __import__("json").loads(result))
+
+
+def test_recover_onos_rest_does_not_restart_live_jvm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Preserve sdn_controller_crash: do not start a second Karaf while JVM lives."""
+    started: list[bool] = []
+
+    monkeypatch.setattr(fabric_apply, "wait_for_onos", lambda *_a, **_k: False)
+    monkeypatch.setattr(fabric_apply, "_onos_jvm_alive", lambda _r: True)
+    monkeypatch.setattr(
+        fabric_apply, "_start_onos_service", lambda _r: started.append(True)
+    )
+
+    assert fabric_apply._recover_onos_rest(object(), timeout_sec=60.0) is False
+    assert started == []
 
 
 def test_onos_batch_resilient_treats_delete_404_as_success(

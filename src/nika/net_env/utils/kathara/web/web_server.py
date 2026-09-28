@@ -5,14 +5,17 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
-def random_paragraph(min_len=80, max_len=200):
-    length = random.randint(min_len, max_len)
+def random_paragraph(rng, min_len=80, max_len=200):
+    length = rng.randint(min_len, max_len)
     chars = string.ascii_letters + string.digits + "     "
-    text = "".join(random.choice(chars) for _ in range(length))
+    text = "".join(rng.choice(chars) for _ in range(length))
     return f"<p>{text}</p>\n"
 
 
 def generate_html_body(target_kb=256):
+    # Seeded by size so the same request always returns the same bytes;
+    # benchmark runs must not depend on per-request randomness.
+    rng = random.Random(target_kb)
     target_bytes = target_kb * 1024
     parts = []
     current_size = 0
@@ -26,7 +29,7 @@ def generate_html_body(target_kb=256):
     current_size += len(header.encode("utf-8"))
 
     while current_size < target_bytes:
-        p = random_paragraph()
+        p = random_paragraph(rng)
         parts.append(p)
         current_size += len(p.encode("utf-8"))
 

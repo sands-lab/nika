@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -12,8 +13,18 @@ import docker
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.containerlab.parse import parse_clab_topology
-from nika.runtime.shared.containers import pause_container, unpause_container
-from nika.runtime.shared.execution import exec_with_timeout
+from nika.runtime.shared.containers import (
+    docker_client,
+    pause_container,
+    unpause_container,
+)
+from nika.runtime.shared.execution import exec_with_timeout, merge_exec_output
+
+# Upper bounds for ``clab`` subprocesses. Large SR Linux / XRd labs take
+# minutes to deploy; a hung clab must still fail instead of blocking forever.
+_CLAB_TIMEOUT_SEC = {"deploy": 900.0, "destroy": 300.0, "inspect": 60.0}
+_CLAB_DEFAULT_TIMEOUT_SEC = 60.0
+_CLAB_TIMEOUT_RETURNCODE = 124
 
 
 class ContainerlabRuntime(LabRuntime):
@@ -31,13 +42,20 @@ class ContainerlabRuntime(LabRuntime):
         self._runtime_workdir = (
             Path(runtime_workdir) if runtime_workdir else self._topology_file.parent
         )
-        self._docker = docker.from_env()
+        # Logical node -> container. Filled from ``clab inspect`` and reused
+        # by exec/get_container; refreshed on a miss or a Docker NotFound.
         self._node_containers: dict[str, docker.models.containers.Container] = {}
+        self._node_map_lock = threading.Lock()
         self._topology_neighbors: dict[str, list[str]] | None = None
 
     @property
     def backend(self) -> str:
         return "containerlab"
+
+    @property
+    def _docker(self) -> docker.DockerClient:
+        # Lazy: topology-only use (e.g. neighbor lookup) needs no daemon.
+        return docker_client()
 
     @property
     def lab_name(self) -> str:
@@ -53,13 +71,29 @@ class ContainerlabRuntime(LabRuntime):
 
     def _run_clab(self, *args: str) -> subprocess.CompletedProcess[str]:
         cmd = ["clab", *args, "--log-level", "error"]
-        return subprocess.run(
-            cmd,
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=str(self._runtime_workdir),
+        timeout = _CLAB_TIMEOUT_SEC.get(
+            args[0] if args else "", _CLAB_DEFAULT_TIMEOUT_SEC
         )
+        try:
+            return subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=str(self._runtime_workdir),
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            # TimeoutExpired carries bytes even with text=True.
+            partial = exc.stdout or b""
+            if isinstance(partial, bytes):
+                partial = partial.decode("utf-8", errors="replace")
+            return subprocess.CompletedProcess(
+                cmd,
+                _CLAB_TIMEOUT_RETURNCODE,
+                stdout=partial,
+                stderr=f"clab {' '.join(args[:1])} timed out after {timeout:.0f}s",
+            )
 
     @staticmethod
     def _parse_clab_json(raw: str) -> Any:
@@ -77,7 +111,23 @@ class ContainerlabRuntime(LabRuntime):
             return container_name.rsplit(marker, 1)[-1]
         return container_name
 
-    def _refresh_node_map(self) -> None:
+    def _refresh_node_map(self) -> bool:
+        """Reload the node map from ``clab inspect``.
+
+        Returns False when inspect itself failed. The previous map is kept
+        then: a transient inspect failure (e.g. under parallel verification)
+        must not make every concurrent exec report a missing node.
+        """
+        with self._node_map_lock:
+            mapping = self._inspect_node_map()
+            if mapping is None:
+                return False
+            self._node_containers = mapping
+            return True
+
+    def _inspect_node_map(
+        self,
+    ) -> dict[str, docker.models.containers.Container] | None:
         result = self._run_clab(
             "inspect",
             "-t",
@@ -86,8 +136,7 @@ class ContainerlabRuntime(LabRuntime):
             "json",
         )
         if result.returncode != 0:
-            self._node_containers = {}
-            return
+            return None
         payload = self._parse_clab_json(result.stdout or "")
         nodes: list[dict[str, Any]] = []
         if isinstance(payload, dict):
@@ -103,13 +152,17 @@ class ContainerlabRuntime(LabRuntime):
             if not container_name or not container_id:
                 continue
             node_name = self._logical_node_name(container_name)
-            mapping[node_name] = self._docker.containers.get(container_id)
-        self._node_containers = mapping
+            try:
+                mapping[node_name] = self._docker.containers.get(container_id)
+            except docker.errors.NotFound:
+                continue
+        return mapping
 
-    def deploy(self) -> None:
+    def deploy(self) -> bool:
+        """Deploy via ``clab``; return False when the lab already exists."""
         if self.exists():
             print(f"Lab {self._lab_name} exists")
-            return
+            return False
         last_error = ""
         for attempt in range(1, 3):
             result = self._run_clab(
@@ -119,9 +172,8 @@ class ContainerlabRuntime(LabRuntime):
                 "--reconfigure",
             )
             if result.returncode == 0:
-                time.sleep(5)
                 self._refresh_node_map()
-                return
+                return True
             err = (result.stderr or result.stdout or "").strip()
             last_error = err
             low = err.lower()
@@ -181,17 +233,21 @@ class ContainerlabRuntime(LabRuntime):
             print(
                 f"Error destroying containerlab lab {self._lab_name}: {result.stderr or result.stdout}"
             )
-        self._node_containers = {}
+        with self._node_map_lock:
+            self._node_containers = {}
 
     def exists(self) -> bool:
-        self._refresh_node_map()
-        return bool(self._node_containers)
+        return self._refresh_node_map() and bool(self._node_containers)
 
     def inspect(self) -> list[dict[str, Any]]:
-        self._refresh_node_map()
+        if not self._refresh_node_map():
+            return []
         rows: list[dict[str, Any]] = []
         for node_name, container in sorted(self._node_containers.items()):
-            container.reload()
+            try:
+                container.reload()
+            except docker.errors.NotFound:
+                continue
             image = (
                 container.image.tags[0]
                 if container.image.tags
@@ -209,31 +265,57 @@ class ContainerlabRuntime(LabRuntime):
         return rows
 
     def list_nodes(self) -> list[str]:
-        self._refresh_node_map()
+        if not self._refresh_node_map():
+            return []
         return sorted(self._node_containers.keys())
 
-    def get_container(self, node: str) -> docker.models.containers.Container:
-        self._refresh_node_map()
+    def _cached_container(self, node: str) -> docker.models.containers.Container:
+        """Return the mapped container, running ``clab inspect`` only on a miss."""
         container = self._node_containers.get(node)
+        if container is None:
+            self._refresh_node_map()
+            container = self._node_containers.get(node)
         if container is None:
             raise ValueError(
                 f"No container found for node {node!r} in lab {self._lab_name!r}."
             )
         return container
 
+    def get_container(self, node: str) -> docker.models.containers.Container:
+        """Return ``node``'s container with fresh state (status, PID)."""
+        container = self._cached_container(node)
+        try:
+            container.reload()
+        except docker.errors.NotFound:
+            self._forget_container(node, container)
+            container = self._cached_container(node)
+            container.reload()
+        return container
+
+    def _forget_container(self, node: str, container: Any) -> None:
+        with self._node_map_lock:
+            if self._node_containers.get(node) is container:
+                self._node_containers = {
+                    name: item
+                    for name, item in self._node_containers.items()
+                    if name != node
+                }
+
     def exec(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
-        container = self.get_container(node)
+        container = self._cached_container(node)
 
         def _run() -> str:
-            exit_code, output = container.exec_run(["/bin/sh", "-c", cmd])
-            text = (
-                output.decode("utf-8", errors="replace")
-                if isinstance(output, bytes)
-                else str(output)
-            )
-            if exit_code != 0 and text.strip() == "":
-                return f"[exit {exit_code}]"
-            return text
+            try:
+                _, (stdout, stderr) = container.exec_run(
+                    ["/bin/sh", "-c", cmd], demux=True
+                )
+            except docker.errors.NotFound:
+                # The lab was redeployed under the same name; look it up again.
+                self._forget_container(node, container)
+                _, (stdout, stderr) = self._cached_container(node).exec_run(
+                    ["/bin/sh", "-c", cmd], demux=True
+                )
+            return merge_exec_output(stdout, stderr)
 
         return exec_with_timeout(_run, timeout=timeout, node=node, cmd=cmd)
 

@@ -52,7 +52,9 @@ def _integration_topos() -> list[str]:
 
 ALL_TOPOS = _integration_topos()
 ALL_IGPS = ("isis", "ospf")
-_CI_TOPO_SET = set(ALL_TOPOS) if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip() else None
+_CI_TOPO_SET = (
+    set(ALL_TOPOS) if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip() else None
+)
 
 
 def _integration_bgp_modes() -> tuple[str, ...]:
@@ -93,7 +95,10 @@ SAMPLED_ISP_INJECT = tuple(
         ("pdh", "isis", "ibgp_rr", "bgp_asn_misconfig"),
     )
     if (_CI_TOPO_SET is None or item[0] in _CI_TOPO_SET)
-    and (not os.environ.get("NIKA_CI_ISP_BGP_MODES") or item[2] in ("none", *ALL_BGP_MODES))
+    and (
+        not os.environ.get("NIKA_CI_ISP_BGP_MODES")
+        or item[2] in ("none", *ALL_BGP_MODES)
+    )
 )
 
 
@@ -263,8 +268,8 @@ class IspDockerTest(IntegrationTestCase):
             row = self._assert_session_ready(session_id, "isp_abilene")
             lab_name = row["lab_name"]
             env = get_net_env_instance(
-                    "isp_abilene",
-                    igp="ospf",
+                "isp_abilene",
+                igp="ospf",
                 bgp_mode="ebgp",
                 lab_name=lab_name,
             )

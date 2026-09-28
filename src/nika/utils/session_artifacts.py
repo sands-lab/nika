@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from nika.config import RESULTS_DIR
 
@@ -13,7 +16,136 @@ SESSION_EVENTS_FILENAME = "nika.jsonl"
 
 SessionStatus = Literal["running", "finished", "aborted", "error"]
 
-_TERMINAL_STATUSES = frozenset({"finished", "aborted", "error", "interrupted", "failed"})
+_TERMINAL_STATUSES = frozenset(
+    {"finished", "aborted", "error", "interrupted", "failed"}
+)
+
+# Preferred key order for human-readable ``run.json``. Agent / problem fields
+# come first; bulky inventory (``metadata.machine_identities``) and paths last.
+# Unknown keys keep their relative order between the known blocks.
+_RUN_JSON_KEY_ORDER: tuple[str, ...] = (
+    "session_id",
+    "agent_session_id",
+    "status",
+    "outcome",
+    "agent_error",
+    "trial_id",
+    "trial_index",
+    "case_key",
+    "candidate_option_id",
+    "scenario_name",
+    "scenario_topo_size",
+    "lab_name",
+    "backend",
+    "problem_names",
+    "failure_domain",
+    "agent_type",
+    "llm_provider",
+    "model",
+    "reasoning_effort",
+    "task_description",
+    "start_time",
+    "end_time",
+    "created_at",
+    "updated_at",
+    "eval_metrics",
+    "benchmark_id",
+    "benchmark_version",
+    "benchmark_split",
+    "benchmark_job_id",
+    "benchmark_run_id",
+    "benchmark_official",
+    "benchmark_n_trials",
+    "scoring_id",
+    "nika_git_commit",
+    "fault_ontology",
+    "session_dir",
+    "scenario_params",
+    "topology_file",
+    "runtime_workdir",
+)
+
+
+def order_run_json(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``payload`` with preferred ``run.json`` key order.
+
+    Keys listed in ``_RUN_JSON_KEY_ORDER`` are emitted first (when present).
+    Remaining keys keep insertion order, except ``metadata`` which is always
+    last so bulky machine inventory does not bury agent fields.
+    """
+    ordered: dict[str, Any] = {}
+    for key in _RUN_JSON_KEY_ORDER:
+        if key in payload:
+            ordered[key] = payload[key]
+    for key, value in payload.items():
+        if key in ordered or key == "metadata":
+            continue
+        ordered[key] = value
+    if "metadata" in payload:
+        ordered["metadata"] = payload["metadata"]
+    return ordered
+
+
+def write_json_atomic(
+    path: str | Path,
+    data: Any,
+    *,
+    indent: int | None = 2,
+    ensure_ascii: bool = True,
+    sort_keys: bool = False,
+) -> None:
+    """Write ``data`` as JSON via a same-directory temp file and ``os.replace``.
+
+    Readers (resume scans, inspect, a parent watching a worker) never see a
+    truncated or half-written document.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
+    )
+    try:
+        # mkstemp uses 0600; keep the usual world-readable mode because
+        # sandboxed agents may read mounted session files as another uid.
+        try:
+            mode = target.stat().st_mode & 0o777
+        except OSError:
+            mode = 0o644
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), mode)
+            json.dump(
+                data,
+                handle,
+                indent=indent,
+                ensure_ascii=ensure_ascii,
+                sort_keys=sort_keys,
+                default=str,
+            )
+            if indent is not None:
+                handle.write("\n")
+        os.replace(tmp_name, target)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def update_run_json(
+    session_dir: str | Path, mutate: Callable[[dict[str, Any]], None]
+) -> bool:
+    """Read-modify-write ``run.json`` atomically; False when it is absent/invalid."""
+    run_path = Path(session_dir) / RUN_FILENAME
+    try:
+        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(run_meta, dict):
+        return False
+    mutate(run_meta)
+    write_json_atomic(run_path, order_run_json(run_meta))
+    return True
 
 
 def is_finished_session(run_meta: dict) -> bool:
@@ -75,13 +207,30 @@ def last_session_error(session_dir: str | Path) -> str | None:
     return None
 
 
+def is_job_run_dir(path: str | Path) -> bool:
+    """True when ``path`` is a benchmark job/result root, not a trial session.
+
+    Job folders write ``run.json`` (release/job metadata) plus markers such as
+    ``benchmark_job.json``, ``RELEASE.lock.json``, and/or a ``trials/`` tree.
+    Those must not be indexed or closed as lab sessions — especially before any
+    nested trial ``run.json`` exists (empty or partial ``trials/``).
+    """
+    root = Path(path)
+    if (root / "trials").is_dir():
+        return True
+    if (root / "benchmark_job.json").is_file():
+        return True
+    if (root / "RELEASE.lock.json").is_file():
+        return True
+    return False
+
+
 def iter_session_dirs(results_dir: str | Path | None = None) -> list[Path]:
     """Discover session/trial dirs that contain ``run.json``.
 
     Walks the results tree recursively and keeps only **session leaves**:
-    directories with ``run.json`` that are not containers for nested trials
-    (a dir with both ``run.json`` and a ``trials/`` child that itself holds
-    sessions is treated as a job/run folder, not a session).
+    directories with ``run.json`` that are not job/run containers (see
+    :func:`is_job_run_dir`).
 
     Skips ``0_summary`` and hidden directories. Caps depth to avoid runaway walks.
     """
@@ -95,15 +244,8 @@ def iter_session_dirs(results_dir: str | Path | None = None) -> list[Path]:
     def is_session_leaf(path: Path) -> bool:
         if not (path / RUN_FILENAME).is_file():
             return False
-        trials = path / "trials"
-        if not trials.is_dir():
-            return True
-        try:
-            for child in trials.iterdir():
-                if child.is_dir() and (child / RUN_FILENAME).is_file():
-                    return False
-        except OSError:
-            return True
+        if is_job_run_dir(path):
+            return False
         return True
 
     def walk(dir_path: Path, depth: int) -> None:

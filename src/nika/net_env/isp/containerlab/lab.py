@@ -47,8 +47,9 @@ from nika.net_env.isp.traffic import (
     attach_traffic_stubs,
     remap_inventory_ifaces_to_srl,
 )
+from nika.net_env.isp.brief import format_isp_network_info
 from nika.runtime.containerlab.parse import parse_clab_topology
-from nika.runtime.spec import LabSpec
+from nika.runtime.spec import LabSpec, NodeRole
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
@@ -219,6 +220,22 @@ class Isp(ContainerlabNetworkEnv):
         self.ovs_switches = []
         self.sdn_controllers = []
         self.servers = {}
+        for node in self.plan.nodes:
+            capabilities = ["linux", "nokia_srlinux", self.plan.igp]
+            if self.bgp_plan is not None:
+                capabilities.append("bgp")
+            self.declare_machine(
+                node.device_name,
+                role=NodeRole.ROUTER,
+                capabilities=tuple(capabilities),
+            )
+        for host in self.traffic.hosts:
+            self.declare_machine(
+                host.host_name,
+                role=NodeRole.HOST,
+                capabilities=("linux",),
+                reachability_target=True,
+            )
 
     def _build_clab_document(self, *, lab_name: str) -> dict:
         if not getattr(self, "_mgmt_ipv4", None):
@@ -488,6 +505,38 @@ exit "$FAILED"
                 f"log={log_path}\n{tail}"
             )
 
+    def get_topology(self) -> list[tuple[str, str]]:
+        """Plan-derived endpoint pairs for the agent brief.
+
+        Avoids ``get_lab_spec`` / mgmt-IP assignment so large SNDlib graphs
+        (and every ``isp_*`` scenario) can expose the same inventory+topology
+        brief without deploying Containerlab.
+        """
+        edges: list[tuple[str, str]] = []
+        for link in self.plan.links:
+            edges.append(
+                (
+                    f"{link.endpoint_a}:{srl_e1_name(link.iface_a)}",
+                    f"{link.endpoint_b}:{srl_e1_name(link.iface_b)}",
+                )
+            )
+        for edge in self.traffic.edge_links:
+            router = next(
+                n for n in self.plan.nodes if n.device_name == edge.router_device
+            )
+            eth_name = next(
+                i.name
+                for i in router.interfaces
+                if i.passive and i.peer_device == edge.host_name
+            )
+            edges.append(
+                (
+                    f"{edge.router_device}:{srl_e1_name(eth_name)}",
+                    f"{edge.host_name}:eth1",
+                )
+            )
+        return edges
+
     def get_lab_spec(self) -> LabSpec:
         if self.topology_file is not None and self.topology_file.is_file():
             spec = parse_clab_topology(self.topology_file)
@@ -510,17 +559,11 @@ exit "$FAILED"
         return spec
 
     def get_info(self) -> str:
-        inv = self.inventory
-        return "\n".join(
-            [
-                f"Network Description: {self.desc}",
-                f"SNDlib topology: {inv['topology_name']}",
-                f"IGP: {inv['igp']}; metric_strategy: {inv['metric_strategy']}",
-                f"BGP mode: {self.bgp_mode}",
-                f"device_profile: {self.device_profile}",
-                f"Edge stubs: {len(inv.get('hosts') or [])}",
-                f"Inventory nodes: {inv['node_count']}; links: {inv['link_count']}",
-            ]
+        return format_isp_network_info(
+            super().get_info(),
+            inventory=self.inventory,
+            bgp_mode=self.bgp_mode,
+            device_profile=self.device_profile,
         )
 
     def startup_verify_lab(self) -> dict:

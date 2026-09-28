@@ -302,6 +302,11 @@ def start_net_env(
     )
     if resolved_backend == "kathara":
         net_env.load_machines()
+        # k8s_lab / llmd_lab create runtime/kathara/<lab>/ before deploy so the
+        # path is recorded in session metadata and cleaned up on close.
+        prepare_runtime = getattr(net_env, "_prepare_runtime_files", None)
+        if callable(prepare_runtime):
+            prepare_runtime()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
 
@@ -375,16 +380,23 @@ def start_net_env(
                         f"{verifier} static validation {report.status}; see {filename}"
                     )
 
-        if net_env.lab_exists() and redeploy:
-            net_env.undeploy()
-            net_env.deploy()
-        elif not net_env.lab_exists():
+        lab_exists = net_env.lab_exists()
+        if redeploy or not lab_exists:
+            # When run config selects a sandbox agent, preload its sbx
+            # template alongside lab images (not at per-case agent start).
+            from agent.sandbox.sbx.images import (
+                ensure_configured_sbx_template_images,
+            )
+
+            ensure_configured_sbx_template_images()
+            if lab_exists:
+                net_env.undeploy()
             net_env.deploy()
 
         if hasattr(net_env, "preload_workload_images"):
             try:
                 net_env.preload_workload_images()
-            except Exception as preload_exc:  # noqa: BLE001 - fallback to network pulls
+            except Exception as preload_exc:  # noqa: BLE001 - surface then decide
                 log_error_event(
                     "env_preload_failed",
                     f"Workload image preload failed for {scenario} ({net_env.name}): {preload_exc}",
@@ -394,6 +406,13 @@ def start_net_env(
                     error=str(preload_exc),
                     error_type=type(preload_exc).__name__,
                 )
+                # k8s/llmd nodes have no registry egress; continuing would hang
+                # controller.startup on ImagePullBackOff for up to VERIFY_MAX_WAIT.
+                from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS
+
+                if canonical in K8S_SCENARIOS:
+                    raise
+                # Other scenarios may still pull from the network.
 
         if hasattr(net_env, "sync_client_hosts"):
             try:

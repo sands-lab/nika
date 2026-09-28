@@ -20,6 +20,7 @@ from nika.net_env.isp.bgp import (
     render_bgp_frr_fragment,
     scope_igp_to_bgp_as,
 )
+from nika.net_env.isp.brief import format_isp_network_info
 from nika.net_env.isp.igp import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
@@ -90,6 +91,8 @@ class Isp(NetworkEnvBase):
         kwargs.pop("traffic_mode", None)
         kwargs.pop("traffic_scale", None)
         super().__init__(**kwargs)
+        # Routers whose dead watchfrr startup verification re-spawned (once each).
+        self._frr_healed: set[str] = set()
 
         if topo_size is not None:
             raise ValueError(
@@ -419,19 +422,12 @@ class Isp(NetworkEnvBase):
         }
 
     def get_info(self) -> str:
-        base = super().get_info()
-        inv = self.inventory
-        lines = [
-            base,
-            f"SNDlib topology: {inv['topology_name']}",
-            f"IGP: {inv['igp']}; metric_strategy: {inv['metric_strategy']}; "
-            f"constant_metric: {inv['constant_metric']}",
-            f"BGP mode: {self.bgp_mode}",
-            f"Edge stubs: {len(inv.get('hosts') or [])} "
-            f"(traffic matrix chosen at `nika traffic run sndlib`)",
-            f"Inventory nodes: {inv['node_count']}; links: {inv['link_count']}",
-        ]
-        return "\n".join(lines)
+        return format_isp_network_info(
+            super().get_info(),
+            inventory=self.inventory,
+            bgp_mode=self.bgp_mode,
+            device_profile=self.device_profile,
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.isp.kathara.verify import verify_isp_lab_startup
@@ -442,6 +438,7 @@ class Isp(NetworkEnvBase):
             bgp_plan=self.bgp_plan,
             traffic=self.traffic,
             scenario_name=self.LAB_NAME,
+            frr_healed=self._frr_healed,
         )
 
     def verify_lab(self) -> dict:
@@ -454,4 +451,5 @@ class Isp(NetworkEnvBase):
             traffic=self.traffic,
             contract=self.validation_contract,
             scenario_name=self.LAB_NAME,
+            frr_healed=self._frr_healed,
         )
