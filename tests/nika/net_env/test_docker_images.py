@@ -9,6 +9,8 @@ import pytest
 
 from nika.net_env.utils.kathara.docker_files import docker_images as di
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _reset_client() -> None:

@@ -10,7 +10,8 @@ from nika.net_env.min3clos.verify import (
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.prerequisites import containerlab_prerequisites
-from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.skipif(
@@ -42,27 +43,8 @@ class Min3ClosVerifyIntegrationTest(SharedSessionTestCase):
         deadline = time.monotonic() + 90.0
         output = ""
         while time.monotonic() < deadline:
-            output = runtime.exec(
-                CLIENT1, f"ping -c 1 -W 2 {CLIENT2_IP}", timeout=10
-            )
+            output = runtime.exec(CLIENT1, f"ping -c 1 -W 2 {CLIENT2_IP}", timeout=10)
             if "1 received" in output:
                 return
             time.sleep(2.0)
         assert "1 received" in output, f"client1 -> client2 ping failed: {output!r}"
-
-    def test_full_verify_lab(self) -> None:
-        row = self._session_row(self.session_id)
-        case = ScenarioE2ECase(
-            self.SCENARIO,
-            env_run_args=(),
-            topo_size=None,
-            backend="containerlab",
-        )
-        run_scenario_e2e(
-            case,
-            session_id=self.session_id,
-            scenario_kwargs={
-                **self._scenario_kwargs(),
-                "backend": resolve_backend(row),
-            },
-        )

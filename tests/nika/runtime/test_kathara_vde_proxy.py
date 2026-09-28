@@ -12,6 +12,8 @@ from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 from tests.support.prerequisites import docker_available
 from tests.support.simple_bgp.lab import SimpleBGP
 
+pytestmark = pytest.mark.integration
+
 
 def _peer_on_link(runtime: KatharaRuntime, host: str, intf: str) -> tuple[str, str]:
     """Return the peer node and interface for a point-to-point link."""

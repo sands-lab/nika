@@ -14,7 +14,11 @@ from nika.workflows.session.close import close_session
 from tests.support.prerequisites import docker_available
 
 
-pytestmark = pytest.mark.skipif(not docker_available(), reason="Docker not available")
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.live,
+    pytest.mark.skipif(not docker_available(), reason="Docker not available"),
+]
 
 
 def _verify(env: Isp, root: Path, configs: dict[str, str] | None = None):

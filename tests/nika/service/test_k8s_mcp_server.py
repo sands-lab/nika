@@ -22,6 +22,8 @@ from nika.mcp.registry import (
     select_diagnosis_servers,
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestK8sMcpSelection:
     def test_k8s_lab_includes_k8s_events_and_generic_exec(self) -> None:

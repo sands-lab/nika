@@ -14,6 +14,8 @@ from nika.inspect.models import CanonicalTraceEvent
 from nika.inspect.server import create_inspect_app
 from nika.inspect.timeline import merge_timelines
 
+pytestmark = pytest.mark.unit
+
 
 def _write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")

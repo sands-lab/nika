@@ -19,6 +19,8 @@ from agent.protocols import DIAGNOSIS
 from agent.protocols import SUBMISSION
 from tests.support.integration_pipeline import load_test_env
 
+pytestmark = pytest.mark.unit
+
 load_test_env()
 
 

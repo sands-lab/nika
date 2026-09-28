@@ -16,6 +16,8 @@ from nika.net_env.contract import (
     ValidationResult,
 )
 
+pytestmark = pytest.mark.contract
+
 
 def _contract() -> ValidationContract:
     source = NetworkEntity(kind="endpoint", name="client", address="10.0.0.2")

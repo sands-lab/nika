@@ -28,12 +28,14 @@ from nika.mcp.registry import select_diagnosis_servers
 from tests.support.prerequisites import docker_image_available
 
 
+@pytest.mark.unit
 def test_size_table_matches_plan() -> None:
     assert SIZE_TABLE["s"] == (2, 4, 2)
     assert SIZE_TABLE["m"] == (4, 8, 4)
     assert SIZE_TABLE["l"] == (8, 16, 4)
 
 
+@pytest.mark.unit
 def test_model_scales_without_hardcoding() -> None:
     for size in ("s", "m", "l"):
         model = build_clos_fabric_model(size)
@@ -52,6 +54,7 @@ def test_model_scales_without_hardcoding() -> None:
         assert model.switch_info[leaf].oob_ip.startswith("172.31.0.")
 
 
+@pytest.mark.unit
 def test_intent_ecmp_groups_scale() -> None:
     for size in ("s", "m", "l"):
         model = build_clos_fabric_model(size)
@@ -69,6 +72,7 @@ def test_intent_ecmp_groups_scale() -> None:
         assert len(spine["ipv4_lpm"]) == model.leaf_count
 
 
+@pytest.mark.unit
 def test_intent_local_uses_virtual_router_mac() -> None:
     intent = build_forwarding_intent(build_clos_fabric_model("s"))
     local = [m for m in intent["switches"]["leaf_1"]["members"] if m["role"] == "host"]
@@ -76,6 +80,7 @@ def test_intent_local_uses_virtual_router_mac() -> None:
     assert all(m["src_mac"] == VIRTUAL_ROUTER_MAC for m in local)
 
 
+@pytest.mark.unit
 def test_scenario_registered() -> None:
     specs = list_all_net_envs()
     assert "p4_dc_fabric" in specs
@@ -88,6 +93,7 @@ def test_scenario_registered() -> None:
     assert "10.0.1." in model.web_urls[0]
 
 
+@pytest.mark.unit
 def test_p4rt_exec_is_live_only() -> None:
     from unittest.mock import patch
 
@@ -115,6 +121,7 @@ def test_p4rt_exec_is_live_only() -> None:
     assert "kathara_sdn_mcp_server" not in servers
 
 
+@pytest.mark.unit
 def test_compile_pipeline_on_switch_requires_ok_marker(monkeypatch) -> None:
     from nika.net_env.p4_dc_fabric.fabric_manager import apply as apply_mod
 
@@ -135,6 +142,7 @@ def test_compile_pipeline_on_switch_requires_ok_marker(monkeypatch) -> None:
         )
 
 
+@pytest.mark.unit
 def test_compile_pipeline_cmd_skips_same_path_copy() -> None:
     cmd = compile_pipeline_cmd(
         "/tmp/blackhole.p4", "blackhole.p4info.txt", "blackhole.json"
@@ -144,12 +152,14 @@ def test_compile_pipeline_cmd_skips_same_path_copy() -> None:
     assert _COMPILE_OK in cmd
 
 
+@pytest.mark.unit
 def test_compile_pipeline_cmd_copies_relative_source() -> None:
     cmd = compile_pipeline_cmd("fabric.p4", "fabric.p4info.txt", "fabric.json")
     assert "cp fabric.p4 /tmp/fabric.p4" in cmd
     assert _COMPILE_OK in cmd
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not docker_image_available(SWITCH_IMAGE),
     reason=f"{SWITCH_IMAGE} image not available",

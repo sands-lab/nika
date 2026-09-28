@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 import json
 from pathlib import Path
 
 from nika.evaluator.trace_parser import AgentTraceParser
+
+pytestmark = pytest.mark.unit
 
 
 def _write_trace(tmp_path: Path, entries: list[dict]) -> str:

@@ -11,6 +11,8 @@ import pytest
 from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.utils.logger import bind_session_dir
 
+pytestmark = pytest.mark.unit
+
 
 class _FakeLab:
     name = "fake-lab"

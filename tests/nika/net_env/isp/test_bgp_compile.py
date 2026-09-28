@@ -26,6 +26,8 @@ from nika.net_env.isp.traffic import (
 from nika.topology import list_sndlib_topologies
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
+pytestmark = pytest.mark.unit
+
 
 def _isp_plan(name: str = "tiny"):
     return compile_isp_plan(

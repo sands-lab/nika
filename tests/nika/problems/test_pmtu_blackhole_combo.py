@@ -10,6 +10,8 @@ from nika.problems.registry import get_problem_class
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.mark.skipif(not docker_available(), reason="docker required")
 class TestPmtuBlackholeComboDcClos(IntegrationTestCase):
@@ -21,9 +23,7 @@ class TestPmtuBlackholeComboDcClos(IntegrationTestCase):
     def test_inject_behavior_restore_cleanup(self) -> None:
         from nika.net_env.verify import ping_df_probe, ping_mtu_blackhole
 
-        params = resolve_multi_inject_params(
-            self.PROBLEMS, self.SCENARIO, "s", seed=42
-        )
+        params = resolve_multi_inject_params(self.PROBLEMS, self.SCENARIO, "s", seed=42)
         session_id = None
         try:
             session_id = self._start_env(self.SCENARIO, ["-s", "s"])
@@ -37,9 +37,9 @@ class TestPmtuBlackholeComboDcClos(IntegrationTestCase):
             assert mtu_cls is not None and filter_cls is not None
             mtu_problem = self._problem(mtu_cls, session_id=session_id)
             mtu_parsed = mtu_problem.parse_params(params[self.PROBLEMS[0]])
-            filter_parsed = self._problem(filter_cls, session_id=session_id).parse_params(
-                params[self.PROBLEMS[1]]
-            )
+            filter_parsed = self._problem(
+                filter_cls, session_id=session_id
+            ).parse_params(params[self.PROBLEMS[1]])
             runtime = mtu_problem.runtime
 
             path = get_probe_path(self.SCENARIO, topo_size="s")
@@ -48,9 +48,7 @@ class TestPmtuBlackholeComboDcClos(IntegrationTestCase):
             dst = path.dst_ip
 
             small_ok, _, _ = ping_df_probe(runtime, src, dst, packet_size=64)
-            large_ok, saw_frag, _ = ping_df_probe(
-                runtime, src, dst, packet_size=1400
-            )
+            large_ok, saw_frag, _ = ping_df_probe(runtime, src, dst, packet_size=1400)
             assert small_ok is True
             assert large_ok is False
             assert saw_frag is False

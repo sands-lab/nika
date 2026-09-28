@@ -10,6 +10,8 @@ from nika.mcp.servers.kathara import bmv2_server, telemetry_server
 from nika.service.kathara.bmv2_api import KatharaBMv2API, _sanitize_p4rt_payload
 from nika.mcp.servers.common import host_server
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.asyncio
 async def test_p4_mcp_tool_schemas() -> None:

@@ -22,6 +22,8 @@ from nika.workflows.benchmark.release import (
 )
 from nika.workflows.benchmark.run import run_benchmark_from_release
 
+pytestmark = pytest.mark.contract
+
 
 def _mini_cases_yaml(path: Path) -> Path:
     payload = {

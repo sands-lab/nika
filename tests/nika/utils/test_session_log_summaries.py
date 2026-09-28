@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.utils.session_log_summaries import (
     failed_checks_map,
     summarize_fault_verify,
     summarize_injection,
     summarize_lab_verify,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_summarize_lab_verify_includes_checks_and_details() -> None:

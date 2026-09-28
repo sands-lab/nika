@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.service.lab.iosxr_api import (
     IOSXRAPIMixin,
     _rewrite_router_bgp_asn,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class _FakeExec(IOSXRAPIMixin):

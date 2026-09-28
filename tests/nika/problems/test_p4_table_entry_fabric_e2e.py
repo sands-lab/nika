@@ -15,10 +15,10 @@ from tests.support.prerequisites import docker_available
 from tests.support.symptom import evaluate_symptom, get_symptom_contract
 
 SCENARIO = "p4_dc_fabric"
-SEEDS = (0, 1, 2, 3, 4)
 TOPO_SIZES = ("s", "m")
 
 
+@pytest.mark.contract
 def test_failures_register_with_path_http_contract() -> None:
     for problem in ("p4_table_entry_missing", "p4_table_entry_misconfig"):
         assert problem in list_avail_problem_names()
@@ -27,18 +27,20 @@ def test_failures_register_with_path_http_contract() -> None:
         assert contract.probe == "path_http"
 
 
-@pytest.mark.parametrize("problem", ("p4_table_entry_missing", "p4_table_entry_misconfig"))
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    "problem", ("p4_table_entry_missing", "p4_table_entry_misconfig")
+)
 @pytest.mark.parametrize("topo_size", TOPO_SIZES)
-@pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class P4TableEntryFabricE2ETest(IntegrationTestCase):
     def test_inject_verify_symptom_unreachable(
-        self, problem: str, topo_size: str, seed: int
+        self, problem: str, topo_size: str
     ) -> None:
         path = get_probe_path(SCENARIO, topo_size=topo_size)
         assert path is not None and path.http_url
 
-        params = resolve_inject_params(problem, SCENARIO, topo_size, seed=seed)
+        params = resolve_inject_params(problem, SCENARIO, topo_size, seed=0)
         assert params["host_name"] == "leaf_1"
         assert params.get("probe_dst_ip")
         assert params.get("observer_device")

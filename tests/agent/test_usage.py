@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from types import SimpleNamespace
 
 from agent.utils.usage import normalize_usage
+
+pytestmark = pytest.mark.unit
 
 
 def _u(inp: int, out: int, reason: int = 0) -> dict[str, int]:

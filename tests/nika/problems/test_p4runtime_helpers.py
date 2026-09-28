@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.p4_dc_fabric.fabric_manager.intent import build_forwarding_intent
 from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
@@ -11,6 +13,8 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     probe_victim_ip,
     wrong_local_group_id,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_probe_victim_ip_matches_default_probe_path() -> None:

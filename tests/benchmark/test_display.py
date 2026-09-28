@@ -21,6 +21,8 @@ from nika.workflows.benchmark.display import (
 from nika.workflows.benchmark.trials import expand_trials, scan_trials, trial_dir
 from tests.benchmark.trial_helpers import write_valid_trial
 
+pytestmark = pytest.mark.unit
+
 
 def test_format_run_plan_lists_pending_and_skips() -> None:
     text = format_run_plan(

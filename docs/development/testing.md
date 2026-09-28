@@ -34,22 +34,22 @@ Packet capture inspect tests and live inspect operations require `tshark` on lab
 
 ## Pytest markers
 
-Markers are registered in `pyproject.toml` and auto-applied from path conventions in `tests/conftest.py`:
+Markers are registered in `pyproject.toml`. Each test declares exactly one execution tier: `unit`, `contract`, `integration`, or `e2e`. Collection fails when a test has no tier or multiple tiers. `sandbox`, `live`, `ci_smoke`, and `nightly` add run requirements or scheduling information.
 
 | Marker | Purpose |
 |--------|---------|
-| `unit` | Fast tests without Docker |
-| `contract` | Registry, benchmark YAML, schema, artifact contracts |
-| `integration` | Env deploy, failure inject, traffic, MCP smoke |
-| `sandbox` | Sandbox isolation and security |
-| `e2e` | Full mock-agent pipeline and benchmark flows |
-| `live` | Real LLM / GitHub / Batfish (credentials required) |
+| `unit` | Isolated logic without Docker or external services |
+| `contract` | Offline registry, benchmark YAML, schema, and artifact contracts |
+| `integration` | Real backend or service interaction without a complete workflow |
+| `e2e` | Complete user, benchmark, scenario, or failure workflow |
+| `sandbox` | Docker Sandbox isolation and security |
+| `live` | Real LLM, GitHub, or Batfish service |
 | `ci_smoke` | Curated dual-arch GitHub Actions smoke (`tests/ci/`) |
 | `nightly` | Heavy suites for scheduled runners |
 
 ```shell
 # Fast local smoke (no Docker)
-uv run pytest -m "unit or contract" -q
+uv run pytest -m "(unit or contract) and not live" -q
 
 # Curated CI smoke (Docker; same set as Actions)
 uv run pytest -m ci_smoke -q
@@ -57,7 +57,7 @@ uv run pytest -m ci_smoke -q
 # Emulator / lab integration (Docker / containerlab)
 uv run pytest -m integration -q
 
-# Full mock-agent flows
+# Complete workflows that do not need live credentials
 uv run pytest -m "e2e and not live" -q
 
 # Sandbox isolation (serial; sbx + Docker)
@@ -90,8 +90,8 @@ NIKA_CI_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_startup.py -q
 # One failure-inject case (PR curated)
 NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_inject_smoke.py -q
 
-# Optional ISP nightly subset (default is the full SNDlib catalog)
-NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,polska NIKA_CI_ISP_BGP_MODES=ibgp_rr \
+# Optional ISP nightly subset (default is every ISP variant used by a runnable release)
+NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP_BGP_MODES=ibgp_rr \
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
 
@@ -263,9 +263,9 @@ Startup uses fast `startup_verify_lab()`; full healthy baseline checks run in te
 
 | Module | Backend | Purpose |
 | --- | --- | --- |
-| `test_kathara_verify.py` | FakeRuntime + Kathara | Unit tests for startup/full verify; integration deploy + `evaluate_scenario` |
-| `test_scenario_e2e.py` | Kathara, Containerlab, k8s | Parametrized Docker E2E for all registered scenarios |
-| `test_clab_min3clos_verify.py` | Containerlab | min3clos deploy + full verify |
+| `test_kathara_verify.py` | FakeRuntime + Kathara | Unit tests for startup/full verify; test-only `simple_bgp` deploy and full verify |
+| `test_scenario_e2e.py` | Kathara, Containerlab, k8s | Parametrized Docker E2E for representative scenarios |
+| `test_clab_min3clos_verify.py` | Containerlab | min3clos backend, node inventory, and cross-leaf ping |
 | `isp/test_isp_integration.py` | Kathara + Containerlab | ISP matrix; includes full `verify_lab` |
 
 ```shell

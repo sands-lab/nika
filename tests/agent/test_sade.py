@@ -7,6 +7,8 @@ from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.community.sade.config import prepare_sade_sdk_env, sade_credentials_available
 from tests.support.integration_pipeline import load_test_env
 
+pytestmark = pytest.mark.unit
+
 load_test_env()
 
 

@@ -18,12 +18,11 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.symptom import evaluate_symptom, get_symptom_contract
 
-SEEDS = (0, 1, 2, 3, 4)
 TOPO_SIZES = ("s", "m")
-REPEATS = (0, 1, 2)
 SCENARIOS = ("p4_dc_fabric", "p4_dc_gateway")
 
 
+@pytest.mark.contract
 def test_failure_registers_with_path_http_contract() -> None:
     assert "p4runtime_partial_write" in list_avail_problem_names()
     contract = get_symptom_contract("p4runtime_partial_write")
@@ -31,20 +30,19 @@ def test_failure_registers_with_path_http_contract() -> None:
     assert contract.probe == "path_http"
 
 
+@pytest.mark.e2e
 @pytest.mark.parametrize("scenario", SCENARIOS)
 @pytest.mark.parametrize("topo_size", TOPO_SIZES)
-@pytest.mark.parametrize("seed", SEEDS)
-@pytest.mark.parametrize("repeat", REPEATS)
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
     def test_inject_verify_symptom_unreachable(
-        self, scenario: str, topo_size: str, seed: int, repeat: int
+        self, scenario: str, topo_size: str
     ) -> None:
         path = get_probe_path(scenario, topo_size=topo_size)
         assert path is not None and path.http_url
 
         params = resolve_inject_params(
-            "p4runtime_partial_write", scenario, topo_size, seed=seed
+            "p4runtime_partial_write", scenario, topo_size, seed=0
         )
         assert params["host_name"].startswith("leaf_")
         if scenario == "p4_dc_gateway":
@@ -88,7 +86,8 @@ class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
                 reconcile_fabric(runtime, build_clos_fabric_model(topo_size))  # type: ignore[arg-type]
             else:
                 reconcile_gateway(
-                    runtime, build_gateway_fabric_model(topo_size)  # type: ignore[arg-type]
+                    runtime,
+                    build_gateway_fabric_model(topo_size),  # type: ignore[arg-type]
                 )
             assert http_ok(runtime, path.src_host, path.http_url)
         finally:

@@ -12,6 +12,8 @@ from agent.sandbox.sbx.cleanup import cleanup_sbx_for_session
 from agent.sandbox.sbx.policy import sanitize_sandbox_name
 from agent.sandbox.sbx.workspace import opaque_agent_workspace_dir
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.unit
 def test_cleanup_sbx_for_session_targets_only_own_sandbox(

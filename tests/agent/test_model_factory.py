@@ -9,6 +9,8 @@ import pytest
 import agent.llm.model_factory as model_factory
 from agent.llm.model_factory import load_model
 
+pytestmark = pytest.mark.unit
+
 
 def test_provider_chat_classes_are_lazily_imported() -> None:
     assert not hasattr(model_factory, "ChatAnthropic")
@@ -45,7 +47,12 @@ def test_load_model_anthropic_omits_empty_base_url() -> None:
     with (
         patch.dict(
             "os.environ",
-            {"ANTHROPIC_API_KEY": "sk-ant", "ANTHROPIC_BASE_URL": ""},
+            {
+                "ANTHROPIC_API_KEY": "sk-ant",
+                "ANTHROPIC_BASE_URL": "",
+                "NIKA_CUSTOM_BASE_URL": "",
+                "CUSTOM_API_BASE": "",
+            },
             clear=False,
         ),
         patch("langchain_anthropic.ChatAnthropic", return_value=fake) as ctor,

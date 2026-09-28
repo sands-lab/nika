@@ -12,6 +12,8 @@ from nika.utils.session_store import SessionStore
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 MULTI_CASES = [
     (
         "dc_clos",
@@ -22,7 +24,7 @@ MULTI_CASES = [
     ("dc_clos", "s", ["link_down", "host_missing_ip"], None),
     (
         "isp_abilene",
-        "s",
+        "",
         ["bgp_acl_block", "bgp_asn_misconfig"],
         {"igp": "ospf", "bgp_mode": "ebgp"},
     ),

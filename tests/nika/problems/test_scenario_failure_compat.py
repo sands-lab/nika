@@ -15,7 +15,9 @@ from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
 from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab
 from nika.net_env.p4_dc_gateway.apply import reconcile_gateway
 from nika.net_env.p4_dc_gateway.topology_model import build_gateway_fabric_model
-from nika.net_env.sdn_l3_clos.topology_model import build_clos_fabric_model as build_sdn_model
+from nika.net_env.sdn_l3_clos.topology_model import (
+    build_clos_fabric_model as build_sdn_model,
+)
 from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
 from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.registry import (
@@ -29,6 +31,8 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_failure_compat import write_probe_report
 from tests.support.symptom import evaluate_symptom, get_symptom_contract
+
+pytestmark = pytest.mark.integration
 
 TOPO_SIZE = "s"
 

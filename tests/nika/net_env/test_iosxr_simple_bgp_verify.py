@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.iosxr_simple_bgp.verify import (
     verify_iosxr_simple_bgp_lab,
     verify_iosxr_simple_bgp_lab_startup,
 )
 from tests.support.net_env import assert_verify_success
+
+pytestmark = pytest.mark.unit
 
 NODES = {"router1", "router2", "pc1", "pc2"}
 HOST_ADDRS = {

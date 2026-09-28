@@ -11,6 +11,8 @@ from nika.workflows.benchmark.inject_resolve import (
     validate_benchmark_case,
 )
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.parametrize(
     ("scenario", "target", "attacker", "observer", "url"),

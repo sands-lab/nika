@@ -28,6 +28,8 @@ from nika.run_config.loader import (
 )
 from nika.run_config.schema import RunConfig
 
+pytestmark = pytest.mark.contract
+
 _RUNNER = CliRunner()
 
 

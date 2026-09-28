@@ -13,6 +13,8 @@ from nika.mcp.tool_output import (
     truncate_tool_text,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_truncate_under_limit_unchanged() -> None:
     assert truncate_tool_text("a" * 100, max_chars=200) == "a" * 100
@@ -92,7 +94,9 @@ def test_rewrite_sse_tools_call() -> None:
     out = rewrite_http_body(
         sse, content_type="text/event-stream", max_chars=20, bound_call=True
     )
-    data_line = next(line for line in out.decode().splitlines() if line.startswith("data:"))
+    data_line = next(
+        line for line in out.decode().splitlines() if line.startswith("data:")
+    )
     payload = json.loads(data_line[5:].lstrip())
     assert payload["result"]["content"][0]["text"].startswith("<warning>")
 

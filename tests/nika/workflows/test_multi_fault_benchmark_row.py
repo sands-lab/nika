@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 from nika.workflows.benchmark.task_label import format_task_label
+
+pytestmark = pytest.mark.contract
 
 
 def test_normalize_multi_fault_row() -> None:
@@ -32,9 +36,7 @@ def test_normalize_multi_fault_row() -> None:
         "mtu_mismatch",
         "icmp_frag_needed_filter_misconfiguration",
     ]
-    assert row["problem"] == (
-        "mtu_mismatch+icmp_frag_needed_filter_misconfiguration"
-    )
+    assert row["problem"] == ("mtu_mismatch+icmp_frag_needed_filter_misconfiguration")
     assert isinstance(row["inject"]["mtu_mismatch"], dict)
 
 

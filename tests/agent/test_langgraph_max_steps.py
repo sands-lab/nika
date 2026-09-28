@@ -1,5 +1,7 @@
 """LangGraph max_steps counts LLM turns, not raw recursion nodes."""
 
+import pytest
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
@@ -9,6 +11,8 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
 
 from agent.byo.langgraph.react_agent import _react_recursion_limit
+
+pytestmark = pytest.mark.unit
 
 
 class _AlwaysToolModel(BaseChatModel):

@@ -5,6 +5,8 @@ from nika.net_env.base import NetworkEnvBase
 from nika.net_env.isp.kathara.lab import Isp
 from nika.runtime.spec import MachineInventory, NodeIdentity, NodeRole
 
+pytestmark = pytest.mark.unit
+
 
 def test_machine_classification_uses_declared_identity_only() -> None:
     env = NetworkEnvBase()

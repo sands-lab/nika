@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.isp.inject_targets import (
     DEFAULT_HIJACK_PREFIX,
     first_link_endpoint,
@@ -12,6 +14,8 @@ from nika.net_env.isp.inject_targets import (
 )
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+
+pytestmark = pytest.mark.unit
 
 
 def test_link_and_router_targets_polska() -> None:

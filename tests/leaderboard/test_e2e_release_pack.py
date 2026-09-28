@@ -37,6 +37,8 @@ from nika.workflows.leaderboard.schema import (
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
+pytestmark = pytest.mark.e2e
+
 
 def _mini_cases_yaml(path: Path) -> Path:
     payload = {

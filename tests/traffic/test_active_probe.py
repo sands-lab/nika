@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from unittest.mock import Mock
 
 from nika.traffic.active_probe import run_active_tcp_probe
+
+pytestmark = pytest.mark.unit
 
 
 def test_active_probe_uses_requested_five_tuple_and_seeded_payload() -> None:

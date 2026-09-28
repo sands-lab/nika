@@ -20,6 +20,8 @@ from tests.support.integration_pipeline import (
 )
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 load_test_env()
 
 SCENARIO = "dc_clos"
@@ -97,8 +99,12 @@ class _MultiFaultPmtudAgentPipelineBase(OrderedPipelineTestCase):
         assert metrics.get("tool_calls", 0) >= 1
 
 
+@pytest.mark.live
+@pytest.mark.sandbox
 @pytest.mark.skipif(
-    not (docker_available() and deepseek_api_key_available() and claude_cli_available()),
+    not (
+        docker_available() and deepseek_api_key_available() and claude_cli_available()
+    ),
     reason="Docker, DEEPSEEK_API_KEY, and Claude CLI required for multi-fault agent e2e",
 )
 class TestMultiFaultPmtudAgentDeepseek(_MultiFaultPmtudAgentPipelineBase):

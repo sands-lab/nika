@@ -29,6 +29,11 @@ from nika.net_env.verify import build_lab_verify_result
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.topology import list_sndlib_topologies, load_sndlib_topology
 from nika.utils.session_id import resolve_session_tag
+from nika.workflows.benchmark.release import (
+    is_deprecated_release,
+    list_releases,
+    load_release,
+)
 from nika.workflows.env.start import start_net_env
 from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import CliIntegrationTestCase, IntegrationTestCase
@@ -36,41 +41,56 @@ from tests.support.net_env import assert_verify_success
 from tests.support.prerequisites import containerlab_prerequisites, docker_available
 from nika.net_env.isp.inject_targets import isp_inject_params
 
+pytestmark = [pytest.mark.integration, pytest.mark.nightly]
 
-def _integration_topos() -> list[str]:
-    """Full SNDlib set locally; optional CI subset via NIKA_CI_ISP_TOPOS."""
-    available = list_sndlib_topologies()
-    raw = os.environ.get("NIKA_CI_ISP_TOPOS", "").strip()
+
+def _env_subset(name: str, available: set[str]) -> set[str] | None:
+    """Optional CI subset from a comma-separated env var (None = no filter)."""
+    raw = os.environ.get(name, "").strip()
     if not raw:
-        return available
-    selected = [item.strip() for item in raw.split(",") if item.strip()]
-    unknown = [name for name in selected if name not in available]
+        return None
+    selected = {item.strip() for item in raw.split(",") if item.strip()}
+    unknown = sorted(selected - available)
     if unknown:
-        raise ValueError(f"Unknown NIKA_CI_ISP_TOPOS entries: {unknown}")
+        raise ValueError(f"Unknown {name} entries: {unknown}")
     return selected
 
 
-ALL_TOPOS = _integration_topos()
-ALL_IGPS = ("isis", "ospf")
-_CI_TOPO_SET = (
-    set(ALL_TOPOS) if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip() else None
+def _release_isp_variants() -> dict[str, set[tuple[str, str, str]]]:
+    """``backend -> {(topo, igp, bgp_mode)}`` used by runnable benchmark releases.
+
+    Only plain ``isp_<topo>`` scenarios; derived scenarios (RPKI, RTBH) have
+    their own tests.
+    """
+    topos = set(list_sndlib_topologies())
+    variants: dict[str, set[tuple[str, str, str]]] = {}
+    for version in list_releases():
+        if is_deprecated_release(version):
+            continue
+        for split in ("dev", "test"):
+            for case in load_release(version, split=split).cases:
+                topo = case["scenario"].removeprefix("isp_")
+                if topo not in topos:
+                    continue
+                variants.setdefault(case.get("backend") or "kathara", set()).add(
+                    (topo, case.get("igp") or "isis", case.get("bgp_mode") or "none")
+                )
+    return variants
+
+
+_RELEASE_VARIANTS = _release_isp_variants()
+_CI_TOPO_SET = _env_subset("NIKA_CI_ISP_TOPOS", set(list_sndlib_topologies()))
+_CI_BGP_MODES = _env_subset("NIKA_CI_ISP_BGP_MODES", {"ibgp_rr", "ebgp"})
+KATHARA_VARIANTS = sorted(
+    variant
+    for variant in _RELEASE_VARIANTS.get("kathara", set())
+    if (_CI_TOPO_SET is None or variant[0] in _CI_TOPO_SET)
+    and (_CI_BGP_MODES is None or variant[2] in ("none", *_CI_BGP_MODES))
 )
-
-
-def _integration_bgp_modes() -> tuple[str, ...]:
-    """Full BGP modes locally; optional CI subset via NIKA_CI_ISP_BGP_MODES."""
-    available = ("ibgp_rr", "ebgp")
-    raw = os.environ.get("NIKA_CI_ISP_BGP_MODES", "").strip()
-    if not raw:
-        return available
-    selected = tuple(item.strip() for item in raw.split(",") if item.strip())
-    unknown = [name for name in selected if name not in available]
-    if unknown:
-        raise ValueError(f"Unknown NIKA_CI_ISP_BGP_MODES entries: {unknown}")
-    return selected
-
-
-ALL_BGP_MODES = _integration_bgp_modes()
+IGP_VARIANTS = [(t, i) for t, i, b in KATHARA_VARIANTS if b == "none"]
+BGP_VARIANTS = [(t, i, b) for t, i, b in KATHARA_VARIANTS if b != "none"]
+_KATHARA_TOPOS = {t for t, _, _ in KATHARA_VARIANTS}
+_CLAB_TOPOS = {t for t, _, _ in _RELEASE_VARIANTS.get("containerlab", set())}
 
 
 def _ci_filter(topos: tuple[str, ...]) -> tuple[str, ...]:
@@ -79,26 +99,16 @@ def _ci_filter(topos: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(name for name in topos if name in _CI_TOPO_SET)
 
 
-REPR_TOPOS = _ci_filter(("pdh", "polska", "abilene"))
 # Nokia SRL on shared GHA runners is unreliable beyond tiny SNDlib graphs.
-CLAB_REPR_TOPOS = (
-    _ci_filter(("pdh",))
-    if os.environ.get("NIKA_CI_ISP_TOPOS", "").strip()
-    else REPR_TOPOS
-)
-CLI_TRAFFIC_TOPOS = _ci_filter(("pdh",))
+CLAB_REPR_TOPOS = tuple(t for t in _ci_filter(("pdh",)) if t in _CLAB_TOPOS)
+CLI_TRAFFIC_TOPOS = CLAB_REPR_TOPOS
 SAMPLED_ISP_INJECT = tuple(
     item
     for item in (
-        ("polska", "isis", "none", "link_down"),
-        ("polska", "ospf", "ibgp_rr", "bgp_asn_misconfig"),
-        ("pdh", "isis", "ibgp_rr", "bgp_asn_misconfig"),
+        ("abilene", "isis", "none", "link_down"),
+        ("janos-us", "isis", "ibgp_rr", "bgp_asn_misconfig"),
     )
-    if (_CI_TOPO_SET is None or item[0] in _CI_TOPO_SET)
-    and (
-        not os.environ.get("NIKA_CI_ISP_BGP_MODES")
-        or item[2] in ("none", *ALL_BGP_MODES)
-    )
+    if item[:3] in KATHARA_VARIANTS
 )
 
 
@@ -144,8 +154,9 @@ class IspDockerTest(IntegrationTestCase):
         assert all(item.evidence for item in report.results)
         return result
 
-    @pytest.mark.parametrize("igp", ALL_IGPS)
-    @pytest.mark.parametrize("topo_name", ALL_TOPOS)
+    @pytest.mark.parametrize(
+        ("topo_name", "igp"), IGP_VARIANTS, ids=[f"{t}-{i}" for t, i in IGP_VARIANTS]
+    )
     def test_topo_starts_verifies_and_destroys(self, topo_name: str, igp: str) -> None:
         ir = load_sndlib_topology(topo_name)
         plan = compile_isp_plan(
@@ -206,18 +217,23 @@ class IspDockerTest(IntegrationTestCase):
                 )
                 assert not env.lab_exists()
 
-    @pytest.mark.parametrize("bgp_mode", ALL_BGP_MODES)
-    @pytest.mark.parametrize("topo_name", ALL_TOPOS)
+    @pytest.mark.parametrize(
+        ("topo_name", "igp", "bgp_mode"),
+        BGP_VARIANTS,
+        ids=[f"{t}-{i}-{b}" for t, i, b in BGP_VARIANTS],
+    )
     def test_bgp_starts_verifies_and_destroys(
-        self, topo_name: str, bgp_mode: str
+        self, topo_name: str, igp: str, bgp_mode: str
     ) -> None:
-        isp_plan = compile_isp_plan(IspConfig(topology=topo_name))
-        bgp_plan = compile_bgp_plan(isp_plan, bgp_mode)
+        isp_plan = compile_isp_plan(
+            IspConfig(topology=topo_name, igp=igp)  # type: ignore[arg-type]
+        )
+        bgp_plan = compile_bgp_plan(isp_plan, bgp_mode)  # type: ignore[arg-type]
         assert bgp_plan is not None
         scenario = f"isp_{topo_name}"
         session_id = self._start_env(
             scenario,
-            ["--igp", "isis", "--bgp-mode", bgp_mode],
+            ["--igp", igp, "--bgp-mode", bgp_mode],
         )
         lab_name = None
         try:
@@ -227,7 +243,7 @@ class IspDockerTest(IntegrationTestCase):
             assert params.get("bgp_mode") == bgp_mode
             env = get_net_env_instance(
                 scenario,
-                igp="isis",
+                igp=igp,
                 bgp_mode=bgp_mode,
                 lab_name=lab_name,
             )
@@ -248,7 +264,7 @@ class IspDockerTest(IntegrationTestCase):
             if lab_name:
                 env = get_net_env_instance(
                     scenario,
-                    igp="isis",
+                    igp=igp,
                     bgp_mode=bgp_mode,
                     lab_name=lab_name,
                 )
@@ -348,7 +364,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
     just a non-empty return payload. Skipped under artifact CI depth.
     """
 
-    TRAFFIC_TOPOS = _ci_filter(("pdh", "polska", "abilene"))
+    TRAFFIC_TOPOS = tuple(t for t in _ci_filter(("abilene",)) if t in _KATHARA_TOPOS)
 
     @pytest.fixture(autouse=True)
     def _skip_artifact_depth(self) -> None:
@@ -532,7 +548,7 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
         finally:
             self._close_session(session_id)
 
-    @pytest.mark.parametrize("topo_name", _ci_filter(("polska", "abilene")))
+    @pytest.mark.parametrize("topo_name", TRAFFIC_TOPOS)
     def test_dynamic_fixture_replay(self, topo_name: str, tmp_path) -> None:
         cache_root = tmp_path / ".nika_cache"
         self._write_dynamic_fixture(topo_name, cache_root)

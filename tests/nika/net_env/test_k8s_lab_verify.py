@@ -12,6 +12,7 @@ from tests.support.net_env import instantiate_with_mocked_kathara, ready_node_co
 from tests.support.prerequisites import docker_available, privileged_lab_supported
 
 
+@pytest.mark.unit
 class K8sLabUnitTest:
     """Verify k8s_lab lab structure without Docker."""
 
@@ -106,6 +107,7 @@ class K8sLabUnitTest:
     not (docker_available() and privileged_lab_supported()),
     reason="Requires Docker and root (privileged k3s containers)",
 )
+@pytest.mark.integration
 class K8sLabIntegrationTest(SharedSessionTestCase):
     """End-to-end checks for k8s_lab after deploy and controller.startup."""
 

@@ -59,6 +59,7 @@ def _resources(problem: str, params: dict, env: _Env):
     )
 
 
+@pytest.mark.contract
 class ResourceMappingTest:
     def test_every_failure_declares_failure_domain(self) -> None:
         problems = list_avail_problem_instances()
@@ -270,6 +271,7 @@ class ResourceMappingTest:
             )
 
 
+@pytest.mark.contract
 class OfflineCaseTruthTest:
     def test_simple_bgp_link_down(self) -> None:
         gt = ground_truth_for_case(
@@ -280,6 +282,7 @@ class OfflineCaseTruthTest:
         assert gt.root_causes[0].resource.id == "link/pc1:eth0--router1:eth1"
 
 
+@pytest.mark.contract
 class RootCauseSchemaContractTest:
     """Ground-truth v3 schema contracts (canonical sort, healthy baseline)."""
 
@@ -320,6 +323,7 @@ class RootCauseSchemaContractTest:
         )
 
 
+@pytest.mark.contract
 class LinkInventoryHelpersTest:
     def test_canonical_link_name_sorts_tps(self) -> None:
         assert (
@@ -345,7 +349,8 @@ class LinkInventoryHelpersTest:
         assert "node/pc1" in ids
 
 
-@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.contract
 @pytest.mark.parametrize("split", ["dev", "test"])
 def test_submission_owner_kind_matches_default_release_ground_truth(split) -> None:
     """The submit prompt's owner_kind hint must name the GT resource kind."""

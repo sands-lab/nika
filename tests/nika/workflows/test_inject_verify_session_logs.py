@@ -20,7 +20,6 @@ from tests.support.failure_contract import (
 from tests.support.prerequisites import docker_available
 
 pytestmark = [
-    pytest.mark.integration,
     pytest.mark.e2e,
 ]
 

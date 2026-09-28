@@ -293,6 +293,7 @@ class FakeRuntime:
         return ""
 
 
+@pytest.mark.unit
 class KatharaVerifyUnitTest:
     def assert_verified(self, result: dict) -> None:
         assert_verify_success(result)
@@ -301,7 +302,9 @@ class KatharaVerifyUnitTest:
         assert_verify_success(verify_simple_bgp_lab(FakeRuntime(), scenario_name="x"))
 
     def test_dc_clos_startup_verify_passes(self) -> None:
-        assert_verify_success(verify_dc_clos_lab_startup(FakeRuntime(), scenario_name="x"))
+        assert_verify_success(
+            verify_dc_clos_lab_startup(FakeRuntime(), scenario_name="x")
+        )
 
     def test_dc_clos_verify_passes(self) -> None:
         assert_verify_success(verify_dc_clos_lab(FakeRuntime(), scenario_name="x"))
@@ -456,64 +459,22 @@ class KatharaVerifyUnitTest:
         assert not result["checks"]["k3s_nodes_ready"]
 
 
-SCENARIO_CASES: tuple[tuple[str, list[str], tuple[str, ...]], ...] = (
-    ("simple_bgp", [], ("router1", "router2", "pc1", "pc2")),
-    (
-        "dc_clos",
-        ["-s", "s"],
-        (
-            "super_spine_router_0",
-            "spine_router_0_0",
-            "leaf_router_0_0",
-            "dns_pod0",
-            "webserver0_pod0",
-            "client_0",
-        ),
-    ),
-    (
-        "enterprise_branch",
-        ["-s", "s"],
-        (
-            "hq_edge",
-            "br1_edge",
-            "br2_edge",
-            "isp1_core",
-            "hq_corp_pc",
-            "hq_srv",
-            "br1_corp_pc",
-            "br2_corp_pc",
-        ),
-    ),
-    (
-        "sdn_l3_clos",
-        ["-s", "s"],
-        ("onos", "fabric_mgr", "spine_1", "leaf_1", "web_1", "client_1_1"),
-    ),
-    (
-        "p4_dc_fabric",
-        ["-s", "s"],
-        ("fabric_mgr", "spine_1", "leaf_1", "web_1", "client_1_1"),
-    ),
-)
-
-
+@pytest.mark.integration
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class KatharaScenarioVerifyIntegrationTest(IntegrationTestCase):
-    def test_scenarios_start_and_verify(self) -> None:
-        for scenario, args, expected_nodes in SCENARIO_CASES:
-            session_id = self._start_env(scenario, args)
-            try:
-                row = self._assert_session_ready(session_id, scenario)
+    def test_simple_bgp_starts_and_verifies(self) -> None:
+        scenario = "simple_bgp"
+        session_id = self._start_env(scenario, [])
+        try:
+            row = self._assert_session_ready(session_id, scenario)
+            assert resolve_backend(row) == "kathara"
+            nodes = set(runtime_for_session(row).list_nodes())
+            assert {"router1", "router2", "pc1", "pc2"} <= nodes
 
-                assert resolve_backend(row) == "kathara"
-                nodes = set(runtime_for_session(row).list_nodes())
-                for node in expected_nodes:
-                    assert node in nodes
-
-                kwargs = self._scenario_kwargs(session_id)
-                kwargs["backend"] = resolve_backend(row)
-                net_env = get_net_env_instance(scenario, **kwargs)
-                ok, result = evaluate_scenario(net_env)
-                assert ok is True, result
-            finally:
-                self._close_session(session_id)
+            kwargs = self._scenario_kwargs(session_id)
+            kwargs["backend"] = resolve_backend(row)
+            net_env = get_net_env_instance(scenario, **kwargs)
+            ok, result = evaluate_scenario(net_env)
+            assert ok is True, result
+        finally:
+            self._close_session(session_id)

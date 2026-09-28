@@ -75,98 +75,15 @@ def _skip_when_docker_unreachable():
 
 
 def pytest_collection_modifyitems(config, items):
-    """Apply tier markers from path/name conventions when not explicitly set."""
+    """Require one explicit execution tier per collected test."""
+    tiers = {"unit", "contract", "integration", "e2e"}
+    invalid = []
     for item in items:
-        if item.get_closest_marker("unit") or item.get_closest_marker("contract"):
-            continue
-        path = str(item.fspath)
-        name = item.nodeid
-        norm_path = path.replace("\\", "/")
-
-        if "tests/ci/" in norm_path:
-            if not item.get_closest_marker("ci_smoke"):
-                item.add_marker(pytest.mark.ci_smoke)
-            continue
-
-        if any(
-            token in path
-            for token in (
-                "test_sandbox_security",
-                "test_sandbox_isolation",
-                "test_sandbox_benchmark",
-            )
-        ):
-            item.add_marker(pytest.mark.sandbox)
-            continue
-
-        if (
-            any(
-                token in path
-                for token in (
-                    "workflows/integration",
-                    "test_batch.py",
-                    "test_sandbox_agents",
-                    "leaderboard/test_e2e",
-                )
-            )
-            or "Pipeline" in name
-            or "pipeline" in path
-        ):
-            item.add_marker(pytest.mark.e2e)
-            continue
-
-        if (
-            "_live" in path
-            or "test_bgp_rpki_invalid" in path
-            or "test_bgp_max_prefix" in path
-        ):
-            if "PipelineCaseBase" not in name:
-                item.add_marker(pytest.mark.live)
-            continue
-
-        if any(
-            token in path
-            for token in (
-                "benchmark/test_",
-                "test_resource_mapping",
-                "test_compatibility",
-                "test_alias_load",
-                "test_inject_resolve",
-                "test_migrate",
-                "test_multi_fault_benchmark_row",
-                "test_isp_options",
-                "test_isp_bgp_symptom",
-                "test_isp_contract",
-                "test_healthy_cases",
-                "test_validation_contract",
-                "test_pack_validate",
-                "test_submit_validation",
-                "test_symptom_contracts",
-                "leaderboard/test_submit_unit",
-            )
-        ):
-            item.add_marker(pytest.mark.contract)
-            continue
-
-        if any(
-            token in path
-            for token in (
-                "_docker",
-                "_integration",
-                "failure_inject",
-                "failure_compat",
-                "test_kathara_api_smoke",
-                "service/pingmesh/test_integration",
-                "test_mcp_access",
-                "test_k8s_mcp",
-            )
-        ) or item.get_closest_marker("integration"):
-            item.add_marker(pytest.mark.integration)
-            continue
-
-        if "_unit" in path or path.endswith("test_scoring.py"):
-            item.add_marker(pytest.mark.unit)
-            continue
-
-        # Default fast tier for remaining pure-python tests.
-        item.add_marker(pytest.mark.unit)
+        marked = tiers.intersection(mark.name for mark in item.iter_markers())
+        if len(marked) != 1:
+            invalid.append(f"{item.nodeid}: {', '.join(sorted(marked)) or 'unmarked'}")
+    if invalid:
+        raise pytest.UsageError(
+            "Tests need exactly one execution tier (unit, contract, integration, e2e):\n"
+            + "\n".join(invalid)
+        )

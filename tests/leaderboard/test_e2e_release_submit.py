@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +21,8 @@ from tests.leaderboard.test_e2e_release_pack import (
     _freeze_mini_release,
     _write_mocked_trial,
 )
+
+pytestmark = pytest.mark.e2e
 
 
 def test_release_submit_packs_validates_and_opens_prs(

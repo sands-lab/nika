@@ -18,6 +18,7 @@ from tests.support.failure_contract import (
 from tests.support.prerequisites import containerlab_prerequisites, docker_available
 
 pytestmark = [
+    pytest.mark.integration,
     pytest.mark.ci_smoke,
 ]
 
@@ -57,9 +58,7 @@ def test_failure_inject_smoke(
     elif not docker_available():
         pytest.skip("Docker not available")
 
-    inject_params = resolve_inject_params(
-        scenario, problem, topo_size=topo_size or ""
-    )
+    inject_params = resolve_inject_params(scenario, problem, topo_size=topo_size or "")
     session_id = start_net_env(
         scenario,
         topo_size,

@@ -10,6 +10,7 @@ from tests.support.prerequisites import docker_available
 from tests.support.symptom import evaluate_symptom
 from tests.support.symptom.probe import _resolve_path
 
+
 WEB_DOS_SCENARIOS = (
     "dc_clos",
     "campus_lan",
@@ -80,6 +81,7 @@ def _params(**overrides) -> WebDoSParams:
     return WebDoSParams(**values)
 
 
+@pytest.mark.unit
 def test_web_dos_artifact_verify_only() -> None:
     problem = _DeterministicWebDoS()
     params = _params()
@@ -103,6 +105,7 @@ def test_web_dos_artifact_verify_only() -> None:
     )
 
 
+@pytest.mark.unit
 def test_web_dos_evaluate_symptom_degradation() -> None:
     problem = _DeterministicWebDoS()
     params = _params()
@@ -120,6 +123,7 @@ def test_web_dos_evaluate_symptom_degradation() -> None:
     assert symptom["details"]["degradation_ok"] is True
 
 
+@pytest.mark.unit
 def test_web_dos_rejects_observer_on_attacker() -> None:
     problem = _DeterministicWebDoS()
     params = _params(observer_device="client_4_1")
@@ -132,11 +136,13 @@ def test_web_dos_rejects_observer_on_attacker() -> None:
         raise AssertionError("expected observer/attacker validation failure")
 
 
+@pytest.mark.unit
 def test_web_dos_requires_an_independent_http_observer_scenario() -> None:
     assert compatible("web_dos_attack", "p4_dc_gateway")
     assert not compatible("web_dos_attack", "llmd_lab")
 
 
+@pytest.mark.unit
 def test_web_dos_probe_path_uses_case_observer_and_url() -> None:
     params = WebDoSParams(
         host_name="webserver0_pod0",
@@ -165,6 +171,7 @@ def test_web_dos_probe_path_uses_case_observer_and_url() -> None:
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker required")
+@pytest.mark.e2e
 class TestWebDoSAttackVerify(IntegrationTestCase):
     """Verify-only path: inject → verify_fault → recover."""
 
@@ -205,6 +212,7 @@ class TestWebDoSAttackVerify(IntegrationTestCase):
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker required")
+@pytest.mark.e2e
 class TestWebDoSAttackSymptom(IntegrationTestCase):
     """Symptom path: inject → verify_fault → evaluate_symptom → recover."""
 

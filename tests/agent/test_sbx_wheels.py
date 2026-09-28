@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from unittest.mock import patch
 
 from agent.sandbox.config import resolve_sandbox_config
@@ -11,6 +13,8 @@ from agent.sandbox.sbx.wheels import (
     sdk_wheel_dir,
     stage_sdk_wheels,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:

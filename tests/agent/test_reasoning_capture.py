@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 
@@ -16,6 +17,8 @@ from agent.utils.reasoning_capture import (
     extract_reasoning_text,
     reasoning_fields_for_log,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_extract_reasoning_from_openai_compat_fields() -> None:

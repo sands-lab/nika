@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.enterprise_branch.topology import (
     SCALE,
     build_topo_spec,
@@ -16,6 +18,8 @@ from nika.problems.forwarding_encapsulation_policy.wireguard import (
     WRONG_HUB_PEER_PUBLIC_KEY,
     allowed_ips_for_spoke_hub_peer,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_wrong_hub_peer_key_is_not_a_lab_edge_key() -> None:

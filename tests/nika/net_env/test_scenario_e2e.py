@@ -14,6 +14,8 @@ from tests.support.prerequisites import (
 )
 from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
 
+pytestmark = [pytest.mark.e2e, pytest.mark.nightly]
+
 
 def _iosxr_image_available() -> bool:
     from nika.net_env.iosxr_simple_bgp.lab import IMAGE
@@ -131,7 +133,6 @@ class Min3ClosScenarioE2ETest(IntegrationTestCase):
             self._close_session(session_id)
 
 
-@pytest.mark.integration
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class IspScenarioE2ETest(IntegrationTestCase):
     @pytest.mark.parametrize("case", _ISP_CASES, ids=lambda c: c.scenario)

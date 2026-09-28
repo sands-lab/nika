@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.routeros_simple_bgp.verify import (
     CLI_COMMAND,
     verify_routeros_simple_bgp_lab,
     verify_routeros_simple_bgp_lab_startup,
 )
 from tests.support.net_env import assert_verify_success
+
+pytestmark = pytest.mark.unit
 
 NODES = {"router1", "router2", "pc1", "pc2"}
 HOST_ADDRS = {

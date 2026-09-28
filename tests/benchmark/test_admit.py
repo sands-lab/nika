@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import threading
 import time
 from pathlib import Path
@@ -19,6 +21,8 @@ from nika.workflows.benchmark.admit import (
     resource_class_for_row,
 )
 from nika.workflows.benchmark.trials import Trial
+
+pytestmark = pytest.mark.unit
 
 
 def _trial(

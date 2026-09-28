@@ -11,6 +11,8 @@ import pytest
 from nika.net_env.contract import ValidationContract
 from nika.workflows.env.start import start_net_env
 
+pytestmark = pytest.mark.unit
+
 
 def _run_start_expecting(
     *,

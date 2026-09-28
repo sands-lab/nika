@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from nika.net_env.verify import frr_active_or_heal, should_heal_frr
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.parametrize(
     ("unit_active", "zebra_running", "already_healed", "expected"),

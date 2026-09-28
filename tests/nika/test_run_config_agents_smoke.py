@@ -14,6 +14,8 @@ from nika.utils.agent_config import (
     resolve_reasoning_effort,
 )
 
+pytestmark = pytest.mark.unit
+
 DEEPSEEK_FLASH = "deepseek-v4-flash"
 
 AGENT_SPECS = (

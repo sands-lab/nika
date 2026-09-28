@@ -139,6 +139,7 @@ COMPAT_CASES: tuple[CompatCase, ...] = (
 )
 
 
+@pytest.mark.contract
 def test_failure_registers_and_contracts() -> None:
     assert PROBLEM in list_avail_problem_names()
     cls = get_problem_class(PROBLEM)
@@ -239,6 +240,7 @@ def _probe_endpoints(
     return path.src_host, path.dst_ip
 
 
+@pytest.mark.e2e
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 @pytest.mark.parametrize("case", COMPAT_CASES, ids=lambda c: c.id)
 class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
