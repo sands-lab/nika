@@ -237,6 +237,33 @@ def test_cleanup_undeploys_before_deleting_run_json(
 
 
 @pytest.mark.unit
+def test_cleanup_survives_undeploy_failure(tmp_path: Path, monkeypatch) -> None:
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    db_path = tmp_path / "sessions.db"
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DB", db_path)
+    monkeypatch.setattr("nika.workflows.benchmark.resume.SESSIONS_DIR", sessions_dir)
+
+    session_id = "simple_bgp__link_flap__cafebabe__t01"
+    session_dir = tmp_path / "results" / "trials" / session_id
+    _write_run_json(session_dir, session_id=session_id, lab_name="simple_bgp__stale")
+
+    env = MagicMock()
+    env.lab_exists.return_value = True
+    env.backend = "kathara"
+    env.undeploy.side_effect = RuntimeError("docker daemon unavailable")
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch("nika.workflows.session.close.get_net_env_instance", return_value=env),
+    ):
+        cleanup_benchmark_session(session_id, session_dir)
+
+    env.undeploy.assert_called()
+    assert not session_dir.exists()
+
+
+@pytest.mark.unit
 def test_clear_session_can_stamp_error_status(tmp_path: Path, monkeypatch) -> None:
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()

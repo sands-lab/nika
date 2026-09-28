@@ -127,7 +127,11 @@ def cleanup_benchmark_session(
     session_id: str | None,
     session_dir: str | Path | None,
 ) -> None:
-    """Remove a partial or failed benchmark session and any runtime state."""
+    """Remove a partial or failed benchmark session and any runtime state.
+
+    Best effort: resume scans and retry passes call this for every stale slot,
+    so a single undeploy or filesystem error must not abort the whole run.
+    """
     if session_id:
         try:
             close_session(
@@ -137,12 +141,26 @@ def cleanup_benchmark_session(
             )
         except (FileNotFoundError, ValueError):
             pass
-        SessionIndex().purge(session_id)
-        runtime_path = Path(SESSIONS_DIR) / f"{session_id}.json"
-        if runtime_path.exists():
-            runtime_path.unlink()
+        except Exception as close_error:  # noqa: BLE001 - keep the run going
+            print(
+                f"WARNING: could not undeploy stale session {session_id}; "
+                f"its lab may be leaked: {close_error}"
+            )
+        try:
+            SessionIndex().purge(session_id)
+            runtime_path = Path(SESSIONS_DIR) / f"{session_id}.json"
+            if runtime_path.exists():
+                runtime_path.unlink()
+        except Exception as purge_error:  # noqa: BLE001 - keep the run going
+            print(
+                f"WARNING: could not purge runtime state for session "
+                f"{session_id}: {purge_error}"
+            )
 
     if session_dir:
         path = Path(session_dir)
         if path.exists():
-            shutil.rmtree(path)
+            try:
+                shutil.rmtree(path)
+            except OSError as rmtree_error:
+                print(f"WARNING: could not remove trial slot {path}: {rmtree_error}")
