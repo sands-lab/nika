@@ -1,29 +1,99 @@
+import re
+import time
+
 from pydantic import BaseModel, Field
 
-from nika.problems.rca.inventory import interface_on
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.rca.inventory import (
+    interface_on,
+    iter_link_termination_points,
+    parse_endpoint,
+    resolve_default_intf,
+)
+from nika.problems.rca.models import UnresolvedRootCauseError
 from nika.utils.logger import system_logger
+from nika.traffic.burst import BurstTrafficGenerator
 
 # ==================================================================
-# Problem: incast traffic causing performance degradation.
+# Problem: incast through a shallow egress buffer.
 # ==================================================================
+#
+# Several senders burst to one receiver at the same time. The bursts converge on
+# the last-hop egress port toward the receiver, whose buffer is too shallow to
+# absorb them, so the port tail-drops although average load stays below the
+# port rate. The root cause is the shallow egress queue on that port.
+
+_TC_SIZE_RE = re.compile(r"^(\d+(?:\.\d+)?)([kmg]?)b?$", re.IGNORECASE)
+_TBF_LIMIT_RE = re.compile(r"\btbf\b.*?\blimit\s+(\S+)", re.IGNORECASE)
+# Columns where the receiver hangs off a point-to-point forwarding hop.
+_INCAST_COLUMNS = frozenset(
+    {
+        "campus_lan",
+        "dc_clos",
+        "enterprise_branch",
+        "p4_dc_fabric",
+        "p4_dc_gateway",
+        "sdn_l3_clos",
+    }
+)
+
+
+def tc_size_bytes(value: str) -> int | None:
+    """Parse a tc byte size such as ``16kb``, ``16Kb`` or ``16384b``."""
+    match = _TC_SIZE_RE.match(value.strip())
+    if match is None:
+        return None
+    scale = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3}[match.group(2).lower()]
+    return int(float(match.group(1)) * scale)
 
 
 class IncastTrafficNetworkLimitationParams(BaseModel):
-    """Parameters for injecting an incast traffic network limitation fault."""
+    """Parameters for injecting incast through a shallow egress buffer."""
 
-    host_name: str = Field(description="Target web server host name.")
-    rate: str = Field(default="256kbit", description="Bandwidth rate.")
-    burst: str = Field(default="128kb", description="TBF burst.")
-    limit: str = Field(default="128kb", description="TBF limit.")
-    delay_ms: int = Field(default=300, description="Netem delay milliseconds.")
+    host_name: str = Field(description="Incast receiver (web server) host name.")
+    forwarding_device: str | None = Field(
+        default=None,
+        description=(
+            "Switch or router that forwards to the receiver; defaults to the "
+            "topology peer of the receiver's eth0."
+        ),
+    )
+    egress_intf: str | None = Field(
+        default=None,
+        description="Egress interface on forwarding_device toward the receiver.",
+    )
+    queue_limit: str = Field(
+        default="16kb",
+        description="Shallow egress buffer size (tc byte size).",
+    )
+    port_rate: str = Field(
+        default="100mbit",
+        description="Egress port line rate the queue drains at.",
+    )
+    port_burst: str = Field(
+        default="32kb",
+        description="Token-bucket depth for the emulated port rate.",
+    )
+    sender_count: int = Field(
+        default=4, ge=2, description="Maximum number of synchronized senders."
+    )
+    sender_rate: str = Field(
+        default="20M/64",
+        description=(
+            "Per-sender iperf3 bitrate with burst packet count; the aggregate "
+            "average stays below port_rate while the bursts overlap."
+        ),
+    )
+    packet_size: int = Field(default=1400, description="UDP payload bytes.")
+    duration: int = Field(default=300, description="Burst traffic seconds.")
+    seed: int = Field(default=7, description="Deterministic flow-port seed.")
     probe_dst_ip: str | None = Field(
         default=None,
-        description="ICMP-reachable IP of the inject host for path RTT symptom checks.",
+        description="ICMP-reachable IP of the receiver for symptom probes.",
     )
     observer_device: str | None = Field(
         default=None,
@@ -34,95 +104,164 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
 class IncastTrafficNetworkLimitation(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
     root_cause_name: str = "incast_traffic_network_limitation"
-    description = "Incast traffic exceeds available network capacity."
+    description = (
+        "An egress port buffer is too shallow to absorb synchronized many-to-one "
+        "bursts toward one receiver."
+    )
     TAGS: str = ["http"]
+    COMPATIBLE_COLUMNS = _INCAST_COLUMNS
 
     Params = IncastTrafficNetworkLimitationParams
 
     def __init__(self, scenario_name: str = "dc_clos", **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.scenario_name = scenario_name
+        self._senders: list[str] = []
+        self._receiver_ip: str | None = None
 
     def root_cause_resources(self, params: IncastTrafficNetworkLimitationParams):
-        return [interface_on(self.net_env, params.host_name, "eth0")]
+        device, intf = self._egress_port(params)
+        return [interface_on(self.net_env, device, intf)]
+
+    def _egress_port(
+        self, params: IncastTrafficNetworkLimitationParams
+    ) -> tuple[str, str]:
+        if params.forwarding_device and params.egress_intf:
+            return params.forwarding_device, params.egress_intf
+        needle = f"{params.host_name}:{resolve_default_intf('eth0', self.net_env)}"
+        for _key, tps in iter_link_termination_points(self.net_env):
+            endpoints = [str(ep) for ep in tps]
+            if needle not in endpoints or len(endpoints) != 2:
+                continue
+            other = endpoints[0] if endpoints[1] == needle else endpoints[1]
+            device, intf = parse_endpoint(other)
+            if device and intf and device == (params.forwarding_device or device):
+                return device, intf
+        raise UnresolvedRootCauseError(
+            f"{type(self).__name__}: {params.host_name} has no point-to-point "
+            "forwarding hop; pass forwarding_device and egress_intf."
+        )
+
+    def _sender_pool(self, receiver: str) -> list[str]:
+        servers = getattr(self.net_env, "servers", None) or {}
+        pool = list(self.net_env.hosts or [])
+        for role in ("web", "dns"):
+            pool.extend(servers.get(role) or [])
+        return sorted({h for h in pool if h != receiver})
+
+    def _host_ip(self, host: str) -> str:
+        # Same lookup BurstTrafficGenerator uses for the destination address.
+        return self.runtime.exec(
+            host, "hostname -I | awk '{print $1}'", timeout=10
+        ).strip()
+
+    def _pick_senders(self, params: IncastTrafficNetworkLimitationParams) -> list[str]:
+        receiver_ip = self._host_ip(params.host_name)
+        if not receiver_ip:
+            raise RuntimeError(f"Cannot resolve an IPv4 address for {params.host_name}")
+        self._receiver_ip = receiver_ip
+        senders: list[str] = []
+        for host in self._sender_pool(params.host_name):
+            has_iperf = self.runtime.exec(
+                host, "command -v iperf3 >/dev/null && echo yes || echo no", timeout=10
+            ).strip()
+            if has_iperf == "yes" and self.runtime.ping_ok(host, receiver_ip, count=1):
+                senders.append(host)
+            if len(senders) == params.sender_count:
+                break
+        if len(senders) < 2:
+            raise RuntimeError(
+                f"incast needs at least 2 senders that reach {params.host_name}; "
+                f"found {senders}"
+            )
+        return senders
 
     def inject_fault(self, params: IncastTrafficNetworkLimitationParams):
-        self.runtime.tc_set_netem(
-            host_name=params.host_name,
-            intf_name="eth0",
-            delay_ms=params.delay_ms,
-            handle="1",
-        )
+        device, intf = self._egress_port(params)
+        self._senders = self._pick_senders(params)
         self.runtime.tc_set_tbf(
-            host_name=params.host_name,
-            intf_name="eth0",
-            rate=params.rate,
-            burst=params.burst,
-            limit=params.limit,
-            handle="10",
-            parent="1:1",
+            host_name=device,
+            intf_name=intf,
+            rate=params.port_rate,
+            burst=params.port_burst,
+            limit=params.queue_limit,
+        )
+        BurstTrafficGenerator(self.runtime).run(
+            sources=self._senders,
+            destination=params.host_name,
+            protocol="udp",
+            rate=params.sender_rate,
+            packet_size=params.packet_size,
+            duration=params.duration,
+            synchronized_start=time.time() + 2.0,
+            seed=params.seed,
         )
         system_logger.info(
-            f"Injected network limitation on params.host_name {params.host_name}"
+            f"Injected incast: egress {device}:{intf} queue limit "
+            f"{params.queue_limit} at {params.port_rate}; senders {self._senders} "
+            f"burst {params.sender_rate} to {params.host_name}."
         )
-        od_dict: dict[str, dict[str, int]] = {}
-        mbps = 20
-        host_pool = list(self.net_env.hosts or [])
-        if not host_pool:
-            servers = getattr(self.net_env, "servers", None) or {}
-            host_pool = list(servers.get("web") or [])
-        if not host_pool:
-            from nika.problems.support.probe_paths import get_probe_path
 
-            path = get_probe_path(self.scenario_name or "")
-            if path is not None:
-                host_pool = [h for h in (path.src_host, path.peer_host) if h]
-        for h in host_pool:
-            if h != params.host_name:
-                od_dict.setdefault(h, {})
-                od_dict[h][params.host_name] = mbps
-        if od_dict:
-            labels = self.runtime.start_background_od_traffic(
-                od_dict, interval=300, unit="M", udp=True
-            )
-            system_logger.info(
-                f"Started background traffic generation {labels} to amplify the network limitation effect."
-            )
+    def _queue_limit_bytes(self, device: str, intf: str) -> tuple[int | None, str]:
+        output = self.runtime.tc_show_intf(device, intf).strip()
+        match = _TBF_LIMIT_RE.search(output)
+        return (tc_size_bytes(match.group(1)) if match else None), output
+
+    def _fan_in_senders(
+        self, params: IncastTrafficNetworkLimitationParams
+    ) -> list[str]:
+        receiver_ip = self._receiver_ip or self._host_ip(params.host_name)
+        senders = self._senders or self._sender_pool(params.host_name)
+        # ``-[c]`` keeps pgrep from matching the wrapper shell's own command line.
+        pattern = f"iperf3 -[c] {receiver_ip} "
+        return [
+            host
+            for host in senders
+            if self.runtime.exec(
+                host, f"pgrep -f '{pattern}' || true", timeout=10
+            ).strip()
+        ]
 
     def verify_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:
-        """Verify tc qdisc on eth0 has netem or tbf (incast network limitation)."""
-        tc_output = self.runtime.tc_show_intf(params.host_name, "eth0").strip()
-        verified = self.runtime.tc_qdisc_contains(
-            params.host_name, "eth0", "netem"
-        ) or self.runtime.tc_qdisc_contains(params.host_name, "eth0", "tbf")
+        """Verify the shallow egress queue and the running many-to-one bursts."""
+        device, intf = self._egress_port(params)
+        observed, tc_output = self._queue_limit_bytes(device, intf)
+        expected = tc_size_bytes(params.queue_limit)
+        queue_ok = (
+            observed is not None
+            and expected is not None
+            and abs(observed - expected) <= 1024
+        )
+        active = self._fan_in_senders(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "tc_output": tc_output},
+            verified=queue_ok and len(active) >= 2,
+            details={
+                "egress": f"{device}:{intf}",
+                "queue_limit_bytes": observed,
+                "expected_queue_limit_bytes": expected,
+                "tc_output": tc_output,
+                "active_senders": active,
+                "receiver": params.host_name,
+            },
         )
 
     def recover_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:
-        """Clear eth0 qdisc and stop background iperf used to amplify incast."""
-        hosts = set(self.net_env.hosts or [])
-        servers = getattr(self.net_env, "servers", None) or {}
-        hosts.update(servers.get("web") or [])
-        hosts.add(params.host_name)
-        for host in hosts:
+        """Remove the shallow egress queue and stop the burst senders."""
+        device, intf = self._egress_port(params)
+        senders = self._senders or self._sender_pool(params.host_name)
+        for host in [*senders, params.host_name]:
             try:
                 self.runtime.exec(host, "pkill -f 'iperf3' >/dev/null 2>&1 || true")
             except Exception:  # noqa: BLE001
                 pass
         try:
-            self.runtime.tc_clear_intf(params.host_name, "eth0")
+            self.runtime.tc_clear_intf(device, intf)
         except Exception:  # noqa: BLE001
             pass
-        tc_output = self.runtime.tc_show_intf(params.host_name, "eth0").strip()
-        verified = not (
-            self.runtime.tc_qdisc_contains(params.host_name, "eth0", "netem")
-            or self.runtime.tc_qdisc_contains(params.host_name, "eth0", "tbf")
-        )
+        observed, tc_output = self._queue_limit_bytes(device, intf)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "tc_output": tc_output},
+            verified=observed is None,
+            details={"egress": f"{device}:{intf}", "tc_output": tc_output},
         )

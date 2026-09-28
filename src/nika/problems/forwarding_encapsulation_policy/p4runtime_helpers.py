@@ -65,9 +65,7 @@ def probe_victim_ip(intent: dict[str, Any]) -> str:
     return victim.ip
 
 
-def lpm_prefix_for_dst(
-    intent: dict[str, Any], switch: str, dst_ip: str
-) -> str | None:
+def lpm_prefix_for_dst(intent: dict[str, Any], switch: str, dst_ip: str) -> str | None:
     """Return the longest programmed LPM prefix on ``switch`` that covers ``dst_ip``."""
     addr = ipaddress.ip_address(dst_ip)
     entries = intent["switches"][switch].get("ipv4_lpm") or []
@@ -81,7 +79,9 @@ def lpm_prefix_for_dst(
     return best
 
 
-def wrong_local_group_id(intent: dict[str, Any], switch: str, prefix: str) -> int | None:
+def wrong_local_group_id(
+    intent: dict[str, Any], switch: str, prefix: str
+) -> int | None:
     """Pick a local-host ActionSelector group that misroutes traffic off the rack."""
     entries = intent["switches"][switch].get("ipv4_lpm") or []
     for entry in entries:
@@ -139,6 +139,9 @@ def ecmp_target(intent: dict[str, Any], switch: str) -> tuple[str, int, int, str
     return prefix, group_id, member_id, peer
 
 
+_STAGED_PIPELINE_STEM = "pipeline_candidate"
+
+
 def lpm_capacity(intent: dict[str, Any]) -> int:
     """Return the pipeline LPM capacity exposed by the installed intent."""
     return int((intent.get("pipeline") or {}).get("ipv4_lpm_size") or 256)
@@ -147,7 +150,12 @@ def lpm_capacity(intent: dict[str, Any]) -> int:
 def load_blackhole_pipeline(
     runtime: LabRuntime, switch: str, source: Path
 ) -> tuple[str, str]:
-    """Compile a drop-all pipeline and stage it for the shared manager."""
+    """Compile a drop-all pipeline and stage it for the shared manager.
+
+    Staging files use a neutral name and the switch-side build files are removed,
+    so the lab filesystem does not name the fault. Call
+    :func:`remove_staged_pipeline` after ``set-pipeline``.
+    """
     from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
         FABRIC_DIR,
         _copy_in,
@@ -155,22 +163,31 @@ def load_blackhole_pipeline(
         compile_pipeline_on_switch,
     )
 
-    p4info = f"{FABRIC_DIR}/blackhole.p4info.txt"
-    json_path = f"{FABRIC_DIR}/blackhole.json"
-    _copy_in(runtime, switch, "/tmp/blackhole.p4", source.read_bytes())
+    stem = _STAGED_PIPELINE_STEM
+    p4info = f"{FABRIC_DIR}/{stem}.p4info.txt"
+    json_path = f"{FABRIC_DIR}/{stem}.json"
+    _copy_in(runtime, switch, f"/tmp/{stem}.p4", source.read_bytes())
     compile_pipeline_on_switch(
-        runtime, switch, "/tmp/blackhole.p4", "blackhole.p4info.txt", "blackhole.json"
+        runtime, switch, f"/tmp/{stem}.p4", f"{stem}.p4info.txt", f"{stem}.json"
     )
     _copy_in(
         runtime,
         "fabric_mgr",
         json_path,
-        _copy_out(runtime, switch, "/tmp/blackhole.json"),
+        _copy_out(runtime, switch, f"/tmp/{stem}.json"),
     )
     _copy_in(
         runtime,
         "fabric_mgr",
         p4info,
-        _copy_out(runtime, switch, "/tmp/blackhole.p4info.txt"),
+        _copy_out(runtime, switch, f"/tmp/{stem}.p4info.txt"),
+    )
+    runtime.exec(
+        switch, f"rm -f /tmp/{stem}.p4 /tmp/{stem}.json /tmp/{stem}.p4info.txt"
     )
     return p4info, json_path
+
+
+def remove_staged_pipeline(runtime: LabRuntime, p4info: str, json_path: str) -> None:
+    """Delete the manager-side staging copies once the pipeline is pushed."""
+    runtime.exec("fabric_mgr", f"rm -f {p4info} {json_path}")

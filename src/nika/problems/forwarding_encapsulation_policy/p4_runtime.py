@@ -16,6 +16,7 @@ from nika.net_env.verify import http_ok
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     ecmp_target as _ecmp_target,
     load_blackhole_pipeline,
+    remove_staged_pipeline,
     load_intent,
     lpm_capacity,
     run_manager,
@@ -224,6 +225,7 @@ class P4RuntimePipelineMismatch(ProblemBase):
             p4info=p4info,
             json_path=json_path,
         )
+        remove_staged_pipeline(self.runtime, p4info, json_path)
         set_error = result.get("set_error")
         if set_error:
             raise RuntimeError(

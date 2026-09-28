@@ -7,8 +7,7 @@ from dataclasses import replace
 from typing import Any
 
 from nika.net_env.verify import compare_symptom
-from nika.problems.link_interface.link import _resolve_link_intf
-from nika.runtime.kathara.runtime import KatharaRuntime
+from nika.problems.rca.inventory import resolve_default_intf
 from tests.support.symptom.types import ProbeSnapshot
 from nika.runtime.base import LabRuntime
 from tests.support.symptom.contracts import get_symptom_contract
@@ -92,7 +91,9 @@ def evaluate_symptom(
         if targets:
             path = replace(path, src_host=targets[0])
     if failure == "host_static_blackhole":
-        path = _resolve_blackhole_path(runtime, params, path)
+        path = _resolve_blackhole_path(runtime, params, path, problem)
+    if failure == "host_incorrect_ip" and getattr(problem, "_original_ip", None):
+        path = replace(path, old_ip=problem._original_ip)
     if failure == "mtu_mismatch" and problem is not None:
         path = _resolve_mtu_mismatch_path(problem, params, path)
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
@@ -168,8 +169,7 @@ def evaluate_symptom(
         latency_factor=contract.latency_factor,
     )
     if failure == "link_down":
-        backend = "kathara" if isinstance(runtime, KatharaRuntime) else "containerlab"
-        intf = _resolve_link_intf(getattr(params, "intf_name", "eth0"), backend)
+        intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
         host = getattr(params, "host_name", None)
         operstate = runtime.get_interface_operstate(host, intf) if host else "unknown"
         operstate_ok = operstate == "down"
@@ -203,8 +203,7 @@ def evaluate_symptom(
                 "prefix": prefix,
             }
     if failure == "link_detach":
-        backend = "kathara" if isinstance(runtime, KatharaRuntime) else "containerlab"
-        intf = _resolve_link_intf(getattr(params, "intf_name", "eth0"), backend)
+        intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
         host = getattr(params, "host_name", None)
         interface_gone = not runtime.interface_exists(host, intf) if host else False
         ok = ok and interface_gone

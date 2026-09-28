@@ -1,0 +1,19 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: host_static_blackhole
+  cases:
+  - inject:
+      host_name: router1
+    root_causes:
+    - resource:
+        kind: node
+        node: router1
+      fault_type: host_static_blackhole
+  - inject:
+      host_name: router2
+    root_causes:
+    - resource:
+        kind: node
+        node: router2
+      fault_type: host_static_blackhole

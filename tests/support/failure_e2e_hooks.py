@@ -6,7 +6,6 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from nika.problems.link_interface.link import _resolve_link_intf
 from nika.net_env.verify import ping_ok
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
@@ -31,7 +30,8 @@ _IPERF_DURATION_SEC = 5
 
 
 def _ctx_intf(ctx: FailureE2EContext) -> str:
-    return _resolve_link_intf(ctx.parsed.intf_name, "kathara")
+    # Kathara keeps the parsed interface name as-is (``resolve_default_intf``).
+    return ctx.parsed.intf_name
 
 
 def _require_probe_path(ctx: FailureE2EContext):
@@ -364,13 +364,12 @@ def assert_bmv2_switch_down(ctx: FailureE2EContext) -> None:
 
 
 def assert_incast_pre(ctx: FailureE2EContext) -> None:
-    from tests.support.symptom import get_symptom_contract
     from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size)
     assert path is not None and path.dst_ip
-    contract = get_symptom_contract(ctx.problem_name)
-    before = run_probe_snapshot(ctx.runtime, contract.probe, path, params=ctx.parsed)
+    # Healthy baseline: the receiver answers pings before the bursts start.
+    before = run_probe_snapshot(ctx.runtime, "path_ping", path, params=ctx.parsed)
     assert before.ping_ok is True, before.as_dict()
     assert before.rtt_avg_ms is not None and before.rtt_avg_ms > 0
     ctx.before = before

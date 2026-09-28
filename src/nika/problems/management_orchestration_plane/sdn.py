@@ -1,12 +1,23 @@
 """SDN controller / southbound failure implementations (ONOS)."""
 
+import time
+
 from pydantic import BaseModel, Field
 
+from nika.net_env.sdn_l3_clos.fabric_manager import (
+    get_openflow_listen_ports,
+    set_openflow_listen_ports,
+)
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
     build_verify_result,
+)
+from nika.service.lab.nft_api import (
+    nft_chain_has_rule,
+    nft_drop_chains,
+    nft_list_chain_command,
 )
 from nika.utils.logger import system_logger
 
@@ -14,6 +25,57 @@ logger = system_logger
 
 ONOS_OF_PORT_DEFAULT = 6653
 ONOS_OF_PORT_MISMATCH = 6633
+_DROP_TABLE = "filter"
+_DISCONNECT_WAIT_SEC = 30.0
+
+
+def _southbound_drop_rule(port: int) -> str:
+    return f"tcp dport {int(port)} drop"
+
+
+def _southbound_drop_present(runtime, host: str, port: int) -> bool:
+    """True when the controller drops ``port`` in every hooked filter chain."""
+    rule = _southbound_drop_rule(port)
+    return all(
+        nft_chain_has_rule(
+            runtime.exec(host, nft_list_chain_command(_DROP_TABLE, chain)), rule
+        )
+        for chain in nft_drop_chains("inet")
+    )
+
+
+def _tcp_listening(runtime, host: str, port: int) -> bool:
+    """True when ``host`` has a TCP socket in LISTEN on ``port`` (any address)."""
+    # /proc works on images without ss/netstat; state 0A is LISTEN.
+    out = runtime.exec(
+        host,
+        f"awk 'NR>1 && $4==\"0A\" && $2 ~ /:{int(port):04X}$/' "
+        "/proc/net/tcp /proc/net/tcp6 2>/dev/null | head -1",
+    ).strip()
+    return bool(out)
+
+
+def _switch_controller_state(runtime, net_env) -> dict[str, dict[str, str]]:
+    """Return each OVS bridge's controller target and is_connected flag."""
+    model = getattr(net_env, "model", None)
+    switches = list(getattr(model, "leaves", []) or []) + list(
+        getattr(model, "spines", []) or []
+    )
+    state: dict[str, dict[str, str]] = {}
+    for switch in switches:
+        raw = runtime.exec(
+            switch,
+            "ovs-vsctl --format=csv --no-headings --columns=target,is_connected "
+            "list controller 2>/dev/null || true",
+        ).strip()
+        target, _, connected = (
+            raw.splitlines()[0].rpartition(",") if raw else ("", "", "")
+        )
+        state[switch] = {
+            "target": target.strip().strip('"'),
+            "is_connected": connected.strip(),
+        }
+    return state
 
 
 class SDNControllerCrashParams(BaseModel):
@@ -95,6 +157,11 @@ class SouthboundPortBlockParams(BaseModel):
 
 
 class SouthboundPortBlock(ProblemBase):
+    """A firewall on the controller drops its OpenFlow port.
+
+    ONOS keeps listening on the port; switch connection attempts time out.
+    """
+
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name: str = "southbound_port_block"
     description = "Controller southbound channel port is blocked."
@@ -110,20 +177,27 @@ class SouthboundPortBlock(ProblemBase):
 
     def inject_fault(self, params: SouthboundPortBlockParams):
         self.runtime.add_nft_drop_rule(
-            params.host_name, f"tcp dport {params.southbound_port} drop"
+            params.host_name,
+            _southbound_drop_rule(params.southbound_port),
+            table=_DROP_TABLE,
         )
 
     def verify_fault(self, params: SouthboundPortBlockParams) -> dict:
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        verified = (
-            f"tcp dport {params.southbound_port}" in nft_output and "drop" in nft_output
+        blocked = _southbound_drop_present(
+            self.runtime, params.host_name, params.southbound_port
+        )
+        listening = _tcp_listening(
+            self.runtime, params.host_name, params.southbound_port
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "nft_output": nft_output},
+            verified=blocked and listening,
+            details={
+                "host": params.host_name,
+                "port": params.southbound_port,
+                "drop_rule_present": blocked,
+                "controller_listening": listening,
+            },
         )
 
 
@@ -133,15 +207,21 @@ class SouthboundPortMismatchParams(BaseModel):
     host_name: str = Field(description="Target SDN controller host name.")
     mismatched_port: int = Field(
         default=ONOS_OF_PORT_MISMATCH,
-        description="Port used after reconfigure (switches keep original).",
+        description="Only OpenFlow port the controller listens on after the change.",
     )
     original_port: int = Field(
         default=ONOS_OF_PORT_DEFAULT,
-        description="Expected original OpenFlow port.",
+        description="OpenFlow port the switches keep targeting.",
     )
 
 
 class SouthboundPortMismatch(ProblemBase):
+    """The controller's OpenFlow listener no longer matches the switch config.
+
+    ONOS ``openflowPorts`` is changed to ``mismatched_port`` only. Switches
+    still target ``original_port`` and are refused. No firewall rule is added.
+    """
+
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name: str = "southbound_port_mismatch"
     description = "Controller southbound listen port mismatches switch config."
@@ -151,45 +231,69 @@ class SouthboundPortMismatch(ProblemBase):
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
+        self._original_listen_ports: list[int] | None = None
 
     def root_cause_resources(self, params: SouthboundPortMismatchParams):
         return [node_resource(params.host_name)]
 
+    def _switch_targets_original(
+        self, params: SouthboundPortMismatchParams
+    ) -> tuple[dict[str, dict[str, str]], bool, bool]:
+        state = _switch_controller_state(self.runtime, self.net_env)
+        suffix = f":{params.original_port}"
+        targeting = [s for s in state.values() if s["target"].endswith(suffix)]
+        all_target_original = bool(state) and len(targeting) == len(state)
+        none_connected = all(s["is_connected"] != "true" for s in targeting)
+        return state, all_target_original, none_connected
+
     def inject_fault(self, params: SouthboundPortMismatchParams):
-        # Block the original OpenFlow port and listen on the mismatched port so
-        # switches still targeting original_port fail to session while evidence
-        # shows a listener on the wrong port.
-        self.runtime.add_nft_drop_rule(
-            params.host_name, f"tcp dport {params.original_port} drop"
-        )
-        self.runtime.exec(
+        if params.mismatched_port == params.original_port:
+            raise ValueError("mismatched_port must differ from original_port")
+        self._original_listen_ports = get_openflow_listen_ports(self.runtime)
+        set_openflow_listen_ports(self.runtime, [params.mismatched_port])
+        # ONOS restarts its listeners; wait until switches drop their sessions.
+        deadline = time.monotonic() + _DISCONNECT_WAIT_SEC
+        while time.monotonic() < deadline:
+            _, _, none_connected = self._switch_targets_original(params)
+            if none_connected and not _tcp_listening(
+                self.runtime, params.host_name, params.original_port
+            ):
+                break
+            time.sleep(2.0)
+        logger.info(
+            "Set ONOS openflowPorts on %s from %s to %s",
             params.host_name,
-            f'nohup python3 -c "import socket,time;s=socket.socket();'
-            f"s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);"
-            f"s.bind(('0.0.0.0',{params.mismatched_port}));s.listen(1);"
-            f'time.sleep(3600)" >/tmp/of_mismatch.log 2>&1 &',
+            self._original_listen_ports,
+            params.mismatched_port,
         )
 
     def verify_fault(self, params: SouthboundPortMismatchParams) -> dict:
-        nft_output = self.runtime.exec(
-            params.host_name, "nft list ruleset 2>/dev/null"
-        ).strip()
-        listen = self.runtime.exec(
-            params.host_name,
-            f"ss -lnt 2>/dev/null | grep ':{params.mismatched_port} ' || "
-            f"netstat -lnt 2>/dev/null | grep ':{params.mismatched_port} ' || echo NONE",
-        ).strip()
-        blocked = (
-            f"tcp dport {params.original_port}" in nft_output and "drop" in nft_output
+        ports = get_openflow_listen_ports(self.runtime)
+        config_mismatched = ports is not None and params.original_port not in ports
+        original_listening = _tcp_listening(
+            self.runtime, params.host_name, params.original_port
         )
-        listening = listen != "NONE" and str(params.mismatched_port) in listen
-        verified = blocked and listening
+        mismatched_listening = _tcp_listening(
+            self.runtime, params.host_name, params.mismatched_port
+        )
+        state, all_target_original, none_connected = self._switch_targets_original(
+            params
+        )
+        verified = (
+            config_mismatched
+            and not original_listening
+            and mismatched_listening
+            and all_target_original
+            and none_connected
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": params.host_name,
-                "nft_output": nft_output,
-                "listen": listen,
+                "openflow_ports": ports,
+                "original_port_listening": original_listening,
+                "mismatched_port_listening": mismatched_listening,
+                "switch_controllers": state,
             },
         )

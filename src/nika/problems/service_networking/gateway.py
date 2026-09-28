@@ -93,8 +93,8 @@ class LbConnectionStateExhaustion(ProblemBase):
         vip_ip, vip_port = _parse_vip(params.vip_url)
         client_ip = self.runtime.get_host_ip(params.client_host, with_prefix=False)
         src_port = 41000 + (params.seed % 900)
-        status_path = "/tmp/nika-lb-conn.status"
-        pid_path = "/tmp/nika-lb-conn.pid"
+        status_path = "/var/tmp/http-keepalive.status"
+        pid_path = "/var/tmp/http-keepalive.pid"
         self.runtime.exec(
             params.client_host,
             f"rm -f {status_path} {pid_path}",
@@ -110,7 +110,7 @@ class LbConnectionStateExhaustion(ProblemBase):
             dip=params.backend_dip,
         )
 
-        script_path = "/tmp/nika-lb-affinity.py"
+        script_path = "/var/tmp/http-keepalive.py"
         encoded = base64.b64encode(_AFFINITY_SCRIPT.encode()).decode()
         self.runtime.exec(
             params.client_host,
@@ -119,7 +119,7 @@ class LbConnectionStateExhaustion(ProblemBase):
         self.runtime.exec(
             params.client_host,
             f"python3 {script_path} {src_port} {vip_ip} {vip_port} {status_path} "
-            f">/tmp/nika-lb-conn.log 2>&1 & echo $! > {pid_path}",
+            f">/dev/null 2>&1 & echo $! > {pid_path}",
             timeout=10,
         )
         time.sleep(0.5)
@@ -237,16 +237,15 @@ class SnatPortPoolExhaustion(ProblemBase):
             raise ValueError("port_end must be greater than or equal to port_start")
         self.runtime.exec(
             params.host_name,
-            "nft add chain ip nat nika_snat_pool "
+            "nft add chain ip nat snat_outbound "
             "'{ type nat hook postrouting priority 99 ; policy accept; }' 2>/dev/null || true",
         )
-        self.runtime.exec(params.host_name, "nft flush chain ip nat nika_snat_pool")
+        self.runtime.exec(params.host_name, "nft flush chain ip nat snat_outbound")
         self.runtime.exec(
             params.host_name,
-            f"nft add rule ip nat nika_snat_pool ip protocol tcp "
+            f"nft add rule ip nat snat_outbound ip protocol tcp "
             f"ip saddr {params.source_prefix} "
-            f"snat to {params.public_ip}:{params.port_start}-{params.port_end} "
-            "comment 'nika-snat-pool'",
+            f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
         )
 
     def verify_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
@@ -290,11 +289,11 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         )
         self.runtime.exec(
             params.host_name,
-            "nft add chain ip nat nika_nat_failover "
+            "nft add chain ip nat snat_egress "
             "'{ type nat hook postrouting priority 98 ; policy accept; }' 2>/dev/null || true; "
-            "nft flush chain ip nat nika_nat_failover; "
-            f"nft add rule ip nat nika_nat_failover ip protocol tcp ip saddr {params.source_prefix} "
-            f"snat to {params.nat_ip_b} comment 'nika-nat-failover'; "
+            "nft flush chain ip nat snat_egress; "
+            f"nft add rule ip nat snat_egress ip protocol tcp ip saddr {params.source_prefix} "
+            f"snat to {params.nat_ip_b}; "
             f"ip addr del {params.nat_ip_a}/32 dev {params.wan_interface}",
         )
         self.runtime.exec(

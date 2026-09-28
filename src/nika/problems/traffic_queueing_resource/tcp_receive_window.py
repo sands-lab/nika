@@ -27,8 +27,6 @@ from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
 )
 from nika.utils.logger import system_logger
 
-_ORIGINAL_SYSCTL_PATH = "/tmp/nika_tcp_rwnd_original"
-
 
 class TcpReceiveWindowLimitedParams(BaseModel):
     """Parameters for constraining the TCP receiver receive buffer."""
@@ -102,32 +100,6 @@ class TcpReceiveWindowLimited(ProblemBase):
     def root_cause_resources(self, params: TcpReceiveWindowLimitedParams):
         return [node_resource(params.host_name)]
 
-    def _persist_original(self, params: TcpReceiveWindowLimitedParams) -> None:
-        assert self._original is not None
-        payload = (
-            f"{self._original.moderate_rcvbuf}\n"
-            f"{self._original.tcp_rmem}\n"
-            f"{self._original.rmem_max}\n"
-        )
-        self.runtime.write_file(params.host_name, _ORIGINAL_SYSCTL_PATH, payload)
-
-    def _load_original_from_disk(
-        self, params: TcpReceiveWindowLimitedParams
-    ) -> SysctlSnapshot | None:
-        raw = self.runtime.exec(
-            params.host_name,
-            f"cat {_ORIGINAL_SYSCTL_PATH} 2>/dev/null || true",
-            timeout=10,
-        ).strip()
-        lines = [line.strip() for line in raw.splitlines() if line.strip()]
-        if len(lines) != 3:
-            return None
-        return SysctlSnapshot(
-            moderate_rcvbuf=lines[0],
-            tcp_rmem=lines[1],
-            rmem_max=lines[2],
-        )
-
     def inject_fault(self, params: TcpReceiveWindowLimitedParams) -> None:
         baseline = measure_path_baseline(
             self.runtime,
@@ -146,8 +118,8 @@ class TcpReceiveWindowLimited(ProblemBase):
         self._baseline_bdp_bytes = baseline.bdp_bytes
         self._target_buffer_bytes = baseline.target_buffer_bytes
 
+        # Restore state stays in memory; a file on the receiver would expose it.
         self._original = read_sysctl_snapshot(self.runtime, params.host_name)
-        self._persist_original(params)
 
         rmem = format_tcp_rmem(baseline.target_buffer_bytes)
         injected = SysctlSnapshot(
@@ -233,7 +205,7 @@ class TcpReceiveWindowLimited(ProblemBase):
         )
 
     def recover_fault(self, params: TcpReceiveWindowLimitedParams) -> dict:
-        original = self._original or self._load_original_from_disk(params)
+        original = self._original
         if original is None:
             return {
                 "verified": False,
@@ -244,11 +216,6 @@ class TcpReceiveWindowLimited(ProblemBase):
             params.host_name,
             original,
             require_rmem_max=False,
-        )
-        self.runtime.exec(
-            params.host_name,
-            f"rm -f {_ORIGINAL_SYSCTL_PATH} 2>/dev/null || true",
-            timeout=5,
         )
         restored = read_sysctl_snapshot(self.runtime, params.host_name)
         ok = (

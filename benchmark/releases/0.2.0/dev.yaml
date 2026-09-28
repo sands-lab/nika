@@ -134,7 +134,23 @@ cases:
   root_causes:
   - resource:
       kind: node
+      node: dnvrng
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
       node: kscyng
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: losang
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: snvang
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: sttlng
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_dc_fabric
   problem: bmv2_switch_down
@@ -413,19 +429,15 @@ cases:
 - scenario: p4_dc_gateway
   problem: incast_traffic_network_limitation
   inject:
-    burst: 64kb
-    delay_ms: '400'
     host_name: service_1_1
-    limit: 64kb
     observer_device: client_1
     probe_dst_ip: 10.0.1.11
-    rate: 128kbit
   topo_size: m
   root_causes:
   - resource:
       kind: interface
-      node: service_1_1
-      name: eth0
+      node: leaf_1
+      name: eth4
     fault_type: incast_traffic_network_limitation
 - scenario: p4_dc_gateway
   problem: int_insufficient_mtu_headroom
@@ -475,7 +487,7 @@ cases:
   root_causes:
   - resource:
       kind: k8s
-      name: nika-deny-ingress
+      name: default-deny-ingress
       namespace: llm-d
       k8s_kind: NetworkPolicy
     fault_type: k8s_networkpolicy_deny
@@ -985,7 +997,17 @@ cases:
   - resource:
       kind: interface
       node: br1_edge
+      name: wg_dc2
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: interface
+      node: br1_edge
       name: wg_hq
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: interface
+      node: br1_edge
+      name: wg_hq_b
     fault_type: wireguard_peer_key_misconfiguration
 - scenario: min3clos
   problem: healthy

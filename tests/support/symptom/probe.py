@@ -238,34 +238,35 @@ def _resolve_blackhole_path(
     runtime: LabRuntime,
     params: Any,
     base: ProbePath,
+    problem: Any = None,
 ) -> ProbePath:
-    """Source from a leaf-local host toward the installed blackhole prefix."""
+    """Source from a leaf-local host toward the installed blackhole prefix.
+
+    Prefers the probe endpoints the live ``problem`` recorded at inject time;
+    otherwise reads the blackhole prefix from the router's routing table.
+    """
     router = _params_get(params, "host_name")
     if not router:
         return base
-    stored = exec_or_empty(
-        runtime, router, "cat /tmp/nika_blackhole_network 2>/dev/null || true"
-    ).strip()
-    src = exec_or_empty(
-        runtime, router, "cat /tmp/nika_blackhole_src 2>/dev/null || true"
-    ).strip()
-    dst_ip = (
-        exec_or_empty(
-            runtime, router, "cat /tmp/nika_blackhole_dst 2>/dev/null || true"
-        ).strip()
-        or base.dst_ip
-    )
-    if not dst_ip and stored and "/" in stored:
+    src = str(getattr(problem, "_probe_src", None) or "")
+    dst_ip = str(getattr(problem, "_probe_dst", None) or "") or base.dst_ip
+    if not dst_ip:
+        stored = str(getattr(problem, "_blackhole_network", None) or "")
+        if not stored:
+            routes = exec_or_empty(
+                runtime, router, "ip -4 route show type blackhole 2>/dev/null"
+            ).split()
+            # ``ip route`` prints "blackhole <prefix> ..." for each entry.
+            stored = routes[1] if len(routes) > 1 else ""
         try:
             network = ipaddress.ip_network(stored, strict=False)
+        except ValueError:
+            network = None
+        if network is not None:
             hosts_in_net = list(network.hosts())
             dst_ip = str(
                 hosts_in_net[-1] if hosts_in_net else network.network_address + 1
             )
-        except ValueError:
-            net = stored.split("/", 1)[0]
-            base_octets = net.rsplit(".", 1)[0]
-            dst_ip = f"{base_octets}.2"
     if not src:
         connected = runtime.get_connected_devices(router) or []
         for candidate in connected:
@@ -506,10 +507,6 @@ def run_probe_snapshot(
     if probe_kind == "ping_old_ip":
         inject_host = _params_get(params, "host_name") or src
         old_ip = path.old_ip
-        if not old_ip:
-            old_ip = exec_or_empty(
-                runtime, inject_host, "cat /tmp/nika_original_ip 2>/dev/null || true"
-            ).strip()
         peer = path.peer_host
         if not peer or peer == inject_host:
             peer = None

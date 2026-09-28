@@ -11,5 +11,25 @@ failure:
     root_causes:
     - resource:
         kind: node
+        node: be1_be
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
         node: es1_es
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: fr1_fr
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: il1_il
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: lu1_lu
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: nl1_nl
       fault_type: bgp_rpki_invalid_route_leak

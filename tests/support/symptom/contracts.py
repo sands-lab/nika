@@ -51,9 +51,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "link_down": _c("link_down", "unreachable", "path_ping"),
     "link_detach": _c("link_detach", "unreachable", "path_ping"),
     "link_flap": _c("link_flap", "loss", "custom"),
-    "link_packet_corruption": _c(
-        "link_packet_corruption", "degradation", "custom"
-    ),
+    "link_packet_corruption": _c("link_packet_corruption", "degradation", "custom"),
     "silent_egress_packet_loss": _c(
         "silent_egress_packet_loss", "gray", "artifact_only"
     ),
@@ -182,11 +180,9 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "sender_resource_contention", "degradation", "custom"
     ),
     "incast_traffic_network_limitation": _c(
-        "incast_traffic_network_limitation", "degradation", "path_ping_loss"
+        "incast_traffic_network_limitation", "degradation", "custom"
     ),
-    "link_capacity_bottleneck": _c(
-        "link_capacity_bottleneck", "degradation", "custom"
-    ),
+    "link_capacity_bottleneck": _c("link_capacity_bottleneck", "degradation", "custom"),
     "tcp_receive_window_limited": _c(
         "tcp_receive_window_limited", "degradation", "artifact_only"
     ),

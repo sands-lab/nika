@@ -139,7 +139,9 @@ class MultiFaultProblem(ProblemBase):
         return resources
 
     def inject_fault(self, params: MultiFaultParams | None = None) -> None:
-        resolved = params if isinstance(params, MultiFaultParams) else self._resolved_params
+        resolved = (
+            params if isinstance(params, MultiFaultParams) else self._resolved_params
+        )
         if not isinstance(resolved, MultiFaultParams):
             raise ValueError(
                 "MultiFaultProblem requires resolved parameters before injection."
@@ -154,7 +156,9 @@ class MultiFaultProblem(ProblemBase):
 
     def verify_fault(self, params: MultiFaultParams | None = None) -> dict:
         """Verify all sub-faults and aggregate results."""
-        resolved = params if isinstance(params, MultiFaultParams) else self._resolved_params
+        resolved = (
+            params if isinstance(params, MultiFaultParams) else self._resolved_params
+        )
         sub_results = []
         all_verified = True
         for name, fault in self._fault_pairs():
@@ -193,21 +197,4 @@ class MultiFaultProblem(ProblemBase):
         self._refresh_aggregates()
         return build_multi_ground_truth(
             self.sub_faults, failure_domain="multiple_faults"
-        )
-
-    def get_task_description(self) -> str:
-        base = super().get_task_description()
-        symptoms: list[str] = []
-        seen: set[str] = set()
-        for fault in self.sub_faults:
-            text = (getattr(fault, "symptom_desc", "") or "").strip()
-            if text and text not in seen:
-                seen.add(text)
-                symptoms.append(text)
-        if not symptoms:
-            return base
-        symptom_block = "\n".join(f"- {item}" for item in symptoms)
-        return (
-            f"{base}\n\nReported symptoms include:\n{symptom_block}\n\n"
-            "Multiple independent faults may be present; identify each root cause."
         )

@@ -111,7 +111,27 @@ cases:
   root_causes:
   - resource:
       kind: node
+      node: be1_be
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
       node: es1_es
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: fr1_fr
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: il1_il
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: lu1_lu
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: nl1_nl
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_dc_gateway
   problem: bmv2_switch_down
@@ -384,18 +404,14 @@ cases:
 - scenario: p4_dc_fabric
   problem: incast_traffic_network_limitation
   inject:
-    burst: 128kb
-    delay_ms: '300'
     host_name: web_2
-    limit: 128kb
     observer_device: client_1_1
     probe_dst_ip: 10.0.2.11
-    rate: 256kbit
   topo_size: l
   root_causes:
   - resource:
       kind: interface
-      node: web_2
+      node: leaf_2
       name: eth0
     fault_type: incast_traffic_network_limitation
 - scenario: p4_dc_gateway
@@ -446,7 +462,7 @@ cases:
   root_causes:
   - resource:
       kind: k8s
-      name: nika-deny-ingress
+      name: default-deny-ingress
       namespace: word-ns
       k8s_kind: NetworkPolicy
     fault_type: k8s_networkpolicy_deny
@@ -612,6 +628,11 @@ cases:
   - resource:
       kind: interface
       node: at1_at
+      name: eth0
+    fault_type: mtu_mismatch
+  - resource:
+      kind: interface
+      node: ch1_ch
       name: eth0
     fault_type: mtu_mismatch
 - scenario: enterprise_branch
@@ -927,7 +948,17 @@ cases:
   - resource:
       kind: interface
       node: br1_edge
+      name: wg_dc2
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: interface
+      node: br1_edge
       name: wg_hq
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: interface
+      node: br1_edge
+      name: wg_hq_b
     fault_type: wireguard_peer_key_misconfiguration
 - scenario: min3clos
   problem: bgp_missing_route_advertisement

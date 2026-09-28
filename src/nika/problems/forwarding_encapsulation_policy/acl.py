@@ -1,23 +1,28 @@
 from pydantic import BaseModel, Field
 
-import time
-
+from nika.net_env.verify import frr_bgp_has_established_session
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.polling import wait_until
 from nika.runtime.base import RuntimeCapabilityError
 
 
-def _verify_nft_drop(problem: ProblemBase, host_name: str, match_token: str) -> dict:
-    nft_output = problem.runtime.list_nft_ruleset(host_name)
-    verified = match_token in nft_output and "drop" in nft_output
+def _verify_nft_drop(
+    problem: ProblemBase, host_name: str, *rules: str, family: str = "inet"
+) -> dict:
+    """Verify every ``add_nft_drop_rule`` rule is live, matched exactly."""
+    present = {
+        rule: problem.runtime.nft_drop_rule_present(host_name, rule, family=family)
+        for rule in rules
+    }
     return build_verify_result(
         fault_type=problem.root_cause_name,
-        verified=verified,
-        details={"host": host_name, "nft_snippet": nft_output},
+        verified=all(present.values()),
+        details={"host": host_name, "family": family, "rules_present": present},
     )
 
 
@@ -55,28 +60,20 @@ class BGPAclBlock(ProblemBase):
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "tcp sport 179 drop", family="inet"
                 )
+                # Hard-reset every session so the ACL takes effect now instead
+                # of after the 180 s hold timer; blocked TCP 179 keeps them down.
                 self.runtime.exec(
                     params.host_name,
-                    "vtysh -c 'clear ip bgp * soft' 2>/dev/null || true",
+                    "vtysh -c 'clear ip bgp *' 2>/dev/null || true",
                 )
-                neighbor = self.runtime.exec(
-                    params.host_name,
-                    "vtysh -c 'show bgp summary' 2>/dev/null | awk 'NR==2 {print $1}'",
-                ).strip()
-                asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-                if neighbor and asn:
-                    self.runtime.exec(
-                        params.host_name,
-                        f"vtysh -c 'configure terminal' -c 'router bgp {asn}' "
-                        f"-c 'neighbor {neighbor} shutdown' -c 'end' 2>/dev/null || true",
-                    )
-                    time.sleep(2)
-                    self.runtime.exec(
-                        params.host_name,
-                        f"vtysh -c 'configure terminal' -c 'router bgp {asn}' "
-                        f"-c 'no neighbor {neighbor} shutdown' -c 'end' 2>/dev/null || true",
-                    )
-                time.sleep(8)
+                wait_until(
+                    lambda: (
+                        not frr_bgp_has_established_session(
+                            self.runtime, params.host_name
+                        )
+                    ),
+                    8,
+                )
             case backend:
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
@@ -93,12 +90,8 @@ class BGPAclBlock(ProblemBase):
                     details={"host": params.host_name, "srl_acl": verified},
                 )
             case "kathara":
-                nft_output = self.runtime.list_nft_ruleset(params.host_name)
-                verified = "tcp dport 179" in nft_output and "drop" in nft_output
-                return build_verify_result(
-                    fault_type=self.root_cause_name,
-                    verified=verified,
-                    details={"host": params.host_name, "nft_snippet": nft_output},
+                return _verify_nft_drop(
+                    self, params.host_name, "tcp dport 179 drop", "tcp sport 179 drop"
                 )
             case backend:
                 raise RuntimeCapabilityError(
@@ -135,7 +128,7 @@ class OSPFAclBlock(ProblemBase):
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
         """Verify nftables has a rule blocking OSPF protocol."""
-        return _verify_nft_drop(self, params.host_name, "ospf")
+        return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
 
 
 # ==================================================================
@@ -180,7 +173,7 @@ class ARPAclBlock(ProblemBase):
 
     def verify_fault(self, params: ARPAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ARP traffic."""
-        return _verify_nft_drop(self, params.host_name, "arp")
+        return _verify_nft_drop(self, params.host_name, "drop", family="arp")
 
 
 # ==================================================================
@@ -212,7 +205,9 @@ class IcmpAclBlock(ProblemBase):
 
     def verify_fault(self, params: IcmpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ICMP traffic."""
-        return _verify_nft_drop(self, params.host_name, "icmp")
+        return _verify_nft_drop(
+            self, params.host_name, "ip protocol icmp drop", family="ip"
+        )
 
 
 # ==================================================================
@@ -244,7 +239,7 @@ class HttpAclBlock(ProblemBase):
 
     def verify_fault(self, params: HttpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking HTTP (port 80) traffic."""
-        return _verify_nft_drop(self, params.host_name, "tcp dport 80")
+        return _verify_nft_drop(self, params.host_name, "tcp dport 80 drop")
 
 
 # ==================================================================
@@ -280,4 +275,6 @@ class DNSPortBlocked(ProblemBase):
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""
-        return _verify_nft_drop(self, params.host_name, "dport 53")
+        return _verify_nft_drop(
+            self, params.host_name, "tcp dport 53 drop", "udp dport 53 drop"
+        )

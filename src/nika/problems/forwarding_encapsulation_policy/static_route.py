@@ -139,11 +139,6 @@ class StaticBlackHole(ProblemBase):
         else:
             host_network = ipaddress.ip_network(remote_cidr, strict=False)
         self._blackhole_network = remote_cidr
-        # Persist for verify/probe on a fresh ProblemBase instance.
-        self.runtime.exec(
-            params.host_name,
-            f"printf '%s\\n' '{remote_cidr}' > /tmp/nika_blackhole_network",
-        )
         # Prefer probing from a locally attached endpoint through this router.
         local_src = next(
             (
@@ -170,15 +165,8 @@ class StaticBlackHole(ProblemBase):
             probe_dst = str(
                 hosts_in_net[-1] if hosts_in_net else host_network.network_address + 1
             )
-        self.runtime.exec(
-            params.host_name,
-            f"printf '%s\\n' '{probe_dst}' > /tmp/nika_blackhole_dst",
-        )
-        if local_src:
-            self.runtime.exec(
-                params.host_name,
-                f"printf '%s\\n' '{local_src}' > /tmp/nika_blackhole_src",
-            )
+        self._probe_dst = probe_dst
+        self._probe_src = local_src
         match self.lab_backend:
             case "containerlab":
                 self.runtime.srl_add_blackhole_static(
@@ -199,12 +187,6 @@ class StaticBlackHole(ProblemBase):
     def verify_fault(self, params: StaticBlackHoleParams) -> dict:
         """Verify a blackhole route for the victim's network exists."""
         host_network = getattr(self, "_blackhole_network", None)
-        if not host_network:
-            stored = self.runtime.exec(
-                params.host_name,
-                "cat /tmp/nika_blackhole_network 2>/dev/null || true",
-            ).strip()
-            host_network = stored or None
         if not host_network:
             host_network = str(
                 ipaddress.ip_network(

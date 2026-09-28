@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
 from nika.net_env.verify import http_download_stats, ping_stats
 from nika.problems.base import build_verify_result
-from nika.problems.service_networking.ab_helpers import ab_summary_to_dict
+from nika.problems.support.ab_helpers import ab_summary_to_dict
 from tests.support.symptom.flap_probes import evaluate_link_flap_symptom
 from tests.support.symptom.corruption_probes import (
     evaluate_device_forwarding_corruption_symptom,
@@ -411,7 +412,41 @@ def _receiver_resource_contention(
     return verified, result
 
 
+_QDISC_DROPPED_RE = re.compile(r"\bdropped (\d+)")
+_INCAST_SAMPLE_SEC = 5.0
+
+
+def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> int | None:
+    output = problem.runtime.exec(
+        device, f"tc -s qdisc show dev {intf} 2>/dev/null || true", timeout=10
+    )
+    counts = [int(m) for m in _QDISC_DROPPED_RE.findall(output or "")]
+    return sum(counts) if counts else None
+
+
+def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Synchronized bursts overflow the shallow egress queue: drops keep rising."""
+    device, intf = problem._egress_port(params)
+    before = _egress_qdisc_drops(problem, device, intf)
+    time.sleep(_INCAST_SAMPLE_SEC)
+    after = _egress_qdisc_drops(problem, device, intf)
+    delta = after - before if before is not None and after is not None else None
+    verified = delta is not None and delta > 0
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "egress": f"{device}:{intf}",
+            "drops_before": before,
+            "drops_after": after,
+            "drops_delta": delta,
+            "window_sec": _INCAST_SAMPLE_SEC,
+        },
+    )
+
+
 _CUSTOM: dict[str, Any] = {
+    "incast_traffic_network_limitation": _incast,
     "link_flap": evaluate_link_flap_symptom,
     "link_packet_corruption": evaluate_link_corruption_symptom,
     "link_capacity_bottleneck": evaluate_link_capacity_symptom,

@@ -5,46 +5,34 @@ failure:
   cases:
   - topo_size: s
     inject:
-      burst: 64kb
-      delay_ms: '400'
       host_name: service_1_1
-      limit: 64kb
       observer_device: client_1
       probe_dst_ip: 10.0.1.11
-      rate: 128kbit
     root_causes:
     - resource:
         kind: interface
-        node: service_1_1
-        name: eth0
+        node: leaf_1
+        name: eth2
       fault_type: incast_traffic_network_limitation
   - topo_size: m
     inject:
-      burst: 64kb
-      delay_ms: '400'
       host_name: service_1_1
-      limit: 64kb
       observer_device: client_1
       probe_dst_ip: 10.0.1.11
-      rate: 128kbit
     root_causes:
     - resource:
         kind: interface
-        node: service_1_1
-        name: eth0
+        node: leaf_1
+        name: eth4
       fault_type: incast_traffic_network_limitation
   - topo_size: l
     inject:
-      burst: 64kb
-      delay_ms: '400'
       host_name: service_1_1
-      limit: 64kb
       observer_device: client_1
       probe_dst_ip: 10.0.1.11
-      rate: 128kbit
     root_causes:
     - resource:
         kind: interface
-        node: service_1_1
-        name: eth0
+        node: leaf_1
+        name: eth8
       fault_type: incast_traffic_network_limitation

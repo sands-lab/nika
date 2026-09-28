@@ -7,6 +7,946 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-1
+      limit: 500kb
+      peer_host: pc_erlangen
+      probe_dst_ip: 10.254.0.6
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-1--erlangen:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-2
+      limit: 500kb
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-2--essen:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-3
+      limit: 500kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-3--frankfurt:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-4
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-4--hamburg:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-5
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-5--hannover:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-6
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-6--koeln:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-7--leipzig:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-8--muenchen:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: berlin
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-9--stuttgart:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-2
+      limit: 500kb
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-2--essen:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-3
+      limit: 500kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-3--frankfurt:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-4
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-4--hamburg:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-5
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-5--hannover:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-6
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-6--koeln:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-7--leipzig:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-8--muenchen:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: erlangen
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:e1-9--stuttgart:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-3
+      limit: 500kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-3--frankfurt:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-4
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-4--hamburg:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-5
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-5--hannover:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-6
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-6--koeln:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-7--leipzig:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-8--muenchen:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: essen
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:e1-9--stuttgart:e1-3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-10
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-10--stuttgart:e1-4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-4
+      limit: 500kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-4--hamburg:e1-4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-5
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-5--hannover:e1-4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-6
+      limit: 500kb
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-6--ip:e1-1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-7--koeln:e1-4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-8--leipzig:e1-4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: frankfurt
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-9--muenchen:e1-4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: e1-5
+      limit: 500kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-5--hannover:e1-5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: e1-6
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-6--koeln:e1-5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-7--leipzig:e1-5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-8--muenchen:e1-5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hamburg
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-9--stuttgart:e1-5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: e1-10
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-10--stuttgart:e1-6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: e1-6
+      limit: 500kb
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-6--ip:e1-2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-7--koeln:e1-6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-8--leipzig:e1-6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: hannover
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-9--muenchen:e1-6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: koeln
+      intf_name: e1-7
+      limit: 500kb
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      rate: 30kbit
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-7--leipzig:e1-7
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: koeln
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-8--muenchen:e1-7
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: koeln
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-9--stuttgart:e1-7
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: leipzig
+      intf_name: e1-8
+      limit: 500kb
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      rate: 30kbit
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:e1-8--muenchen:e1-8
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: leipzig
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:e1-9--stuttgart:e1-8
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      burst: 64kb
+      host_name: muenchen
+      intf_name: e1-9
+      limit: 500kb
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      rate: 30kbit
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:e1-9--stuttgart:e1-9
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

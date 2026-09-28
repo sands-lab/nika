@@ -14,6 +14,11 @@ failure:
         node: leaf_router_0_1
         name: eth2
       fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
+      fault_type: mtu_mismatch
   - topo_size: m
     inject:
       host_name: leaf_router_0_1
@@ -25,6 +30,11 @@ failure:
         node: leaf_router_0_1
         name: eth4
       fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
+      fault_type: mtu_mismatch
   - topo_size: l
     inject:
       host_name: leaf_router_0_1
@@ -35,4 +45,9 @@ failure:
         kind: interface
         node: leaf_router_0_1
         name: eth8
+      fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
       fault_type: mtu_mismatch

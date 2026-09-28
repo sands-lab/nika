@@ -83,14 +83,6 @@ def list_avail_problem_instances() -> dict[str, type[ProblemBase]]:
     return _PROBLEMS
 
 
-def list_avail_tags() -> list[str]:
-    """List all available tags for problems."""
-    tags: set[str] = set()
-    for problem_class in _PROBLEMS.values():
-        tags.update(problem_class.TAGS)
-    return list(tags)
-
-
 def get_problem_class(problem_name: str) -> type[ProblemBase] | None:
     """Return the registered class for *problem_name*, or None.
 

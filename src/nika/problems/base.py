@@ -77,6 +77,9 @@ class ProblemBase:
 
     failure_domain: ClassVar[FailureDomain | str | None] = None
     root_cause_name: ClassVar[str] = ""
+    # Submission owner kind ("interface" / "link" / "node_or_k8s") when it
+    # differs from the failure-domain default; must match root_cause_resources().
+    root_cause_owner: ClassVar[str | None] = None
     # Short meaning of the failure ID for agent ontology / registry.
     # Must not leak injection method, artifacts, or differential probe shortcuts.
     description: ClassVar[str] = ""

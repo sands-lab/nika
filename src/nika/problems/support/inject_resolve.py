@@ -79,13 +79,3 @@ def resolve_victim_host_ip(
     if ip is None:
         raise ValueError(f"Cannot resolve IP for victim host {victim!r}")
     return ip
-
-
-def resolve_intf(runtime: LabRuntime, host: str, intf_name: str = "eth0") -> str:
-    """Validate that ``intf_name`` exists on ``host``."""
-    interfaces = runtime.get_host_interfaces(host)
-    if intf_name not in interfaces:
-        raise ValueError(
-            f"Interface {intf_name!r} not found on {host}; available: {interfaces}"
-        )
-    return intf_name

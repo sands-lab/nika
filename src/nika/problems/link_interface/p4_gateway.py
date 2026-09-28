@@ -40,16 +40,10 @@ class SilentEgressPacketLoss(ProblemBase):
         self._result = set_deterministic_loss(
             self.runtime, params.host_name, params.bmv2_port, threshold
         )
-        self.runtime.exec(
-            params.host_name,
-            f"printf '%s\\n' '{self._result}' > /tmp/nika_silent_egress_result",
-        )
 
     def verify_fault(self, params: SilentEgressPacketLossParams) -> dict:
-        output = getattr(self, "_result", "") or self.runtime.exec(
-            params.host_name,
-            "cat /tmp/nika_silent_egress_result 2>/dev/null || true",
-        )
+        # The P4Runtime read API does not list the loss table; trust the write ack.
+        output = getattr(self, "_result", "")
         threshold = self.register_threshold(params.loss_basis_points)
         return build_verify_result(
             fault_type=self.root_cause_name,

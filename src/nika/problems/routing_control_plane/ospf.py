@@ -45,12 +45,14 @@ class OSPFAreaMisconfig(ProblemBase):
         pattern = re.compile(r"^\s*network\s+\S+\s+area\s+(\S+)", re.MULTILINE)
         m = pattern.search(running_cfg)
         if not m:
-            self.logger.error(f"Could not find OSPF area on {params.host_name}")
+            raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
         correct_area = m.group(1)
         wrong_area = "66" if correct_area != "66" else "99"
+        # Keep the original area set in memory; a .bak file would expose it.
+        self._orig_areas = set(pattern.findall(running_cfg))
         self.runtime.exec(
             params.host_name,
-            f"sed -i.bak -E 's/(area ){correct_area}$/\\1{wrong_area}/g' /etc/frr/frr.conf && service frr restart 2>/dev/null || true",
+            f"sed -i -E 's/(area ){correct_area}$/\\1{wrong_area}/g' /etc/frr/frr.conf && service frr restart 2>/dev/null || true",
         )
         self.logger.info(
             f"Injected OSPF area misconfiguration on {params.host_name} from area {correct_area} to {wrong_area}."
@@ -62,16 +64,12 @@ class OSPFAreaMisconfig(ProblemBase):
             params.host_name,
             "grep -E '^[[:space:]]*network .* area ' /etc/frr/frr.conf 2>/dev/null | awk '{print $NF}' | sort -u",
         ).strip()
-        orig_areas_raw = self.runtime.exec(
-            params.host_name,
-            "grep -E '^[[:space:]]*network .* area ' /etc/frr/frr.conf.bak 2>/dev/null | awk '{print $NF}' | sort -u",
-        ).strip()
         running_areas_raw = self.runtime.exec(
             params.host_name,
             "vtysh -c 'show running-config' 2>/dev/null | grep -E '^[[:space:]]*network .* area ' | awk '{print $NF}' | sort -u",
         ).strip()
         file_areas = set(file_areas_raw.splitlines()) if file_areas_raw else set()
-        orig_areas = set(orig_areas_raw.splitlines()) if orig_areas_raw else set()
+        orig_areas = set(getattr(self, "_orig_areas", None) or ())
         running_areas = (
             set(running_areas_raw.splitlines()) if running_areas_raw else set()
         )
@@ -95,6 +93,11 @@ class OSPFAreaMisconfig(ProblemBase):
 # ==================================================================
 # Problem: OSPF Neighbor Missing
 # ==================================================================
+
+
+# sed address range for the ``router ospf`` block: FRR indents block members, so
+# the block ends at the next unindented line (``!``, ``exit``, next ``router``).
+_OSPF_BLOCK_RANGE = "/^router ospf/,/^[^[:space:]]/"
 
 
 class OSPFNeighborMissingParams(BaseModel):
@@ -121,9 +124,11 @@ class OSPFNeighborMissing(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: OSPFNeighborMissingParams):
+        # Only the ``router ospf`` block: BGP ``network`` statements (ISP
+        # scenarios) must stay, or a second unlabeled fault is injected.
         cmd = (
-            "sed -i.bak -E "
-            "'s|^([[:space:]]*)network([[:space:]])|\\1# network\\2|' "
+            "sed -i -E "
+            f"'{_OSPF_BLOCK_RANGE} s|^([[:space:]]+)network([[:space:]])|\\1# network\\2|' "
             "/etc/frr/frr.conf"
         )
         self.runtime.exec(params.host_name, cmd)
@@ -134,7 +139,8 @@ class OSPFNeighborMissing(ProblemBase):
         """Verify network lines are commented in frr.conf and removed from the running daemon."""
         commented_count_raw = self.runtime.exec(
             params.host_name,
-            "grep -c '^[[:space:]]*# network' /etc/frr/frr.conf 2>/dev/null || echo 0",
+            f"sed -n -E '{_OSPF_BLOCK_RANGE} p' /etc/frr/frr.conf 2>/dev/null "
+            "| grep -c '^[[:space:]]*# network' || echo 0",
         ).strip()
         try:
             commented_count = int(commented_count_raw)
@@ -142,7 +148,9 @@ class OSPFNeighborMissing(ProblemBase):
             commented_count = 0
         running_network_count_raw = self.runtime.exec(
             params.host_name,
-            "vtysh -c 'show running-config' 2>/dev/null | grep -c '^[[:space:]]*network' || echo 0",
+            "vtysh -c 'show running-config' 2>/dev/null "
+            f"| sed -n -E '{_OSPF_BLOCK_RANGE} p' "
+            "| grep -c '^[[:space:]]*network' || echo 0",
         ).strip()
         try:
             running_network_count = int(running_network_count_raw)

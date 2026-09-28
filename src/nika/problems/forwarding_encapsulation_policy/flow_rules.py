@@ -44,9 +44,9 @@ def _onos_post_flow(runtime, device: str, body: dict) -> None:
     url = f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}/onos/v1/flows/{device}"
     runtime.exec(
         "fabric_mgr",
-        f"echo {payload} | base64 -d > /tmp/nika_flow.json && "
+        f"echo {payload} | base64 -d | "
         f"curl -s -u onos:rocks -H 'Content-Type: application/json' "
-        f"-X POST '{url}' --data-binary @/tmp/nika_flow.json >/dev/null || true",
+        f"-X POST '{url}' --data-binary @- >/dev/null || true",
         timeout=30,
     )
 

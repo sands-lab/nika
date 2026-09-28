@@ -64,6 +64,7 @@ class HostMissingIPParams(BaseModel):
 class HostMissingIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_missing_ip"
+    root_cause_owner = "interface"
     description = "Host interface has no IP address."
     TAGS: str = ["pc"]
 
@@ -88,9 +89,6 @@ class HostMissingIP(ProblemBase):
         real_gateway = self.runtime.get_default_gateway(params.host_name)
         self.runtime.exec(
             params.host_name, f"ip addr del {real_ip} dev {params.intf_name}"
-        )
-        self.runtime.exec(
-            params.host_name, f"echo '{real_ip} {real_gateway}' > /tmp/removed_ip.txt"
         )
         self.logger.info(
             f"Injected missing IP on {params.host_name} from {real_ip} and gateway {real_gateway}."
@@ -127,6 +125,7 @@ class HostIPConflictParams(BaseModel):
 class HostIPConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_ip_conflict"
+    root_cause_owner = "interface"
     description = "Two hosts are configured with the same IP address."
     TAGS: str = ["pc"]
 
@@ -187,6 +186,7 @@ class HostIncorrectIPParams(BaseModel):
 class HostIncorrectIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_incorrect_ip"
+    root_cause_owner = "interface"
     description = "Host IP address is incorrect."
     TAGS: str = ["pc"]
 
@@ -197,6 +197,7 @@ class HostIncorrectIP(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self._original_ip: str | None = None
+        self._injected_ip: str | None = None
 
     def root_cause_resources(self, params: HostIncorrectIPParams):
         return [interface_on(self.net_env, params.host_name, "eth0")]
@@ -204,14 +205,10 @@ class HostIncorrectIP(ProblemBase):
     def inject_fault(self, params: HostIncorrectIPParams):
         old_ip = _read_host_ipv4(self.runtime, params.host_name, "eth0")
         self._original_ip = old_ip
-        if old_ip:
-            self.runtime.exec(
-                params.host_name,
-                f"printf '%s\\n' '{old_ip.split('/')[0]}' > /tmp/nika_original_ip",
-            )
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
             self.runtime, params.host_name
         )
+        self._injected_ip = incorrect_ip
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -234,18 +231,16 @@ class HostIncorrectIP(ProblemBase):
                     current_ip = parts[i + 1]
                     break
         original = self._original_ip
-        if not original:
-            stored = self.runtime.exec(
-                params.host_name,
-                "cat /tmp/nika_original_ip 2>/dev/null || true",
-            ).strip()
-            if stored:
-                original = stored
+        injected = self._injected_ip or params.incorrect_ip
         current_addr = current_ip.split("/")[0] if current_ip else None
         original_addr = original.split("/")[0] if original else None
-        verified = (
-            bool(current_addr) and bool(original_addr) and current_addr != original_addr
-        )
+        injected_addr = injected.split("/")[0] if injected else None
+        if original_addr:
+            verified = bool(current_addr) and current_addr != original_addr
+        else:
+            # No in-memory original (fresh process): require the live address
+            # to be the configured incorrect one.
+            verified = bool(current_addr) and current_addr == injected_addr
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -253,6 +248,7 @@ class HostIncorrectIP(ProblemBase):
                 "host": params.host_name,
                 "ip_line": ip_line,
                 "original_ip": original,
+                "injected_ip": injected,
                 "current_ip": current_ip,
             },
         )
@@ -344,6 +340,7 @@ class HostIncorrectNetmaskParams(BaseModel):
 class HostIncorrectNetmask(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "host_incorrect_netmask"
+    root_cause_owner = "interface"
     description = "Host netmask/prefix length is incorrect."
     TAGS: str = ["pc", "frr"]
 
@@ -372,7 +369,7 @@ class HostIncorrectNetmask(ProblemBase):
         )
 
     def verify_fault(self, params: HostIncorrectNetmaskParams) -> dict:
-        """Verify that eth0 has a non-/24 prefix (injected wrong netmask)."""
+        """Verify that eth0 carries the injected ``netmask_prefix``."""
         ip_line = self.runtime.exec(
             params.host_name, "ip -4 -o addr show dev eth0 scope global"
         ).strip()
@@ -385,7 +382,7 @@ class HostIncorrectNetmask(ProblemBase):
                     if "/" in cidr:
                         prefix = int(cidr.split("/")[1])
                     break
-        verified = prefix is not None and prefix != 24
+        verified = prefix == params.netmask_prefix
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,

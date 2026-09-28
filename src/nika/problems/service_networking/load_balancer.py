@@ -15,23 +15,24 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
-from nika.problems.service_networking.ab_helpers import (
+from nika.problems.support.ab_helpers import (
     AbSummary,
     ab_summary_to_dict,
+    ab_worker_log_tail,
+    count_ab_workers,
+    ensure_ab,
     parse_ab_output,
+    start_ab_workers,
+    stop_ab_workers,
 )
 from nika.problems.support.cpu_quota_helpers import (
     NANOCPUS_PER_CPU,
-    clear_original_nano_cpus,
     cpu_quota_to_nano_cpus,
-    load_original_nano_cpus,
-    persist_original_nano_cpus,
     read_nano_cpus,
     set_nano_cpus,
 )
 from nika.utils.logger import system_logger
 
-_WORKER_TAG = "nika_lb_ovld_worker_"
 _VIP_PING_HOST = "web99.local"
 
 # Behavioral gates (fixed workload; not adaptive at runtime).
@@ -155,28 +156,6 @@ class LoadBalancerOverload(ProblemBase):
         # the campus core and break the control-path isolation gate.
         return hosts[:1]
 
-    def _ensure_ab(self, host: str) -> None:
-        check = self.runtime.exec(
-            host, "command -v ab >/dev/null 2>&1 && echo OK || echo MISSING", timeout=10
-        ).strip()
-        if "OK" in check:
-            return
-        install = self.runtime.exec(
-            host,
-            "export DEBIAN_FRONTEND=noninteractive; "
-            "apt-get update -qq && "
-            "apt-get install -y -qq apache2-utils >/tmp/nika_ab_install.log 2>&1; "
-            "command -v ab >/dev/null 2>&1 && echo OK || echo FAIL",
-            timeout=180,
-        ).strip()
-        if "OK" not in install:
-            log = self.runtime.exec(
-                host,
-                "tail -n 40 /tmp/nika_ab_install.log 2>/dev/null || true",
-                timeout=10,
-            )
-            raise RuntimeError(f"apachebench (ab) unavailable on {host}: {log!r}")
-
     def _run_ab(
         self,
         host: str,
@@ -262,59 +241,26 @@ class LoadBalancerOverload(ProblemBase):
         workers = 0
         ab_procs = 0
         for host in load_hosts:
-            w_out = self.runtime.exec(
-                host,
-                f"ps -eo args 2>/dev/null | grep -c '[{_WORKER_TAG[0]}]{_WORKER_TAG[1:]}' || true",
-                timeout=10,
-            ).strip()
-            a_out = self.runtime.exec(
-                host,
-                "ps -eo comm 2>/dev/null | grep -c '^ab$' || true",
-                timeout=10,
-            ).strip()
-            try:
-                workers += int(w_out.splitlines()[-1])
-            except (IndexError, ValueError):
-                pass
-            try:
-                ab_procs += int(a_out.splitlines()[-1])
-            except (IndexError, ValueError):
-                pass
+            host_workers, host_ab, _ = count_ab_workers(self.runtime, host)
+            workers += host_workers
+            ab_procs += host_ab
         return workers, ab_procs
 
     def _stop_background_load(self, load_hosts: list[str]) -> None:
         for host in load_hosts:
-            self.runtime.exec(
-                host,
-                f"pkill -f '[{_WORKER_TAG[0]}]{_WORKER_TAG[1:]}' 2>/dev/null || true; "
-                "pkill -x ab 2>/dev/null || true",
-                timeout=15,
-            )
+            stop_ab_workers(self.runtime, host)
 
     def _start_background_load(
         self, params: LoadBalancerOverloadParams, load_hosts: list[str]
     ) -> None:
-        quoted_url = shlex.quote(params.vip_url)
         for host in load_hosts:
-            self._ensure_ab(host)
-            self._stop_background_load([host])
-            cmds = []
-            for worker in range(params.load_workers):
-                inner = (
-                    "while true; do "
-                    f"ab -n 200000000 -c {int(params.concurrency)} {quoted_url}; "
-                    "sleep 0.05; done"
-                )
-                cmds.append(
-                    "nohup bash -c "
-                    + shlex.quote(inner)
-                    + f" {_WORKER_TAG}{worker} </dev/null "
-                    + f">/tmp/nika_lb_ovld_{worker}.log 2>&1 &"
-                )
-            self.runtime.exec(
+            ensure_ab(self.runtime, host)
+            start_ab_workers(
+                self.runtime,
                 host,
-                "command -v ab >/dev/null 2>&1 || exit 127; " + " ".join(cmds),
-                timeout=20,
+                params.vip_url,
+                workers=params.load_workers,
+                concurrency=params.concurrency,
             )
 
         expected_workers = len(load_hosts) * params.load_workers
@@ -326,22 +272,14 @@ class LoadBalancerOverload(ProblemBase):
             if workers >= expected_workers and ab_procs >= 1:
                 break
         if workers < expected_workers or ab_procs < 1:
-            logs = []
-            for host in load_hosts:
-                logs.append(
-                    self.runtime.exec(
-                        host,
-                        "tail -n 30 /tmp/nika_lb_ovld_0.log 2>/dev/null || true",
-                        timeout=10,
-                    )
-                )
+            logs = [ab_worker_log_tail(self.runtime, host) for host in load_hosts]
             raise RuntimeError(
                 "load_balancer_overload background traffic did not become ready: "
                 f"workers={workers}/{expected_workers} ab={ab_procs} logs={logs!r}"
             )
 
     def _collect_baseline(self, params: LoadBalancerOverloadParams) -> dict[str, Any]:
-        self._ensure_ab(params.client_host)
+        ensure_ab(self.runtime, params.client_host)
 
         vip = self._run_ab(
             params.client_host,
@@ -442,7 +380,6 @@ class LoadBalancerOverload(ProblemBase):
 
         original = read_nano_cpus(self.runtime, params.host_name)
         self._original_nano_cpus = original
-        persist_original_nano_cpus(self.runtime, params.host_name, original)
 
         pinned = cpu_quota_to_nano_cpus(params.cpu_quota)
         set_nano_cpus(self.runtime, params.host_name, pinned)
@@ -507,14 +444,12 @@ class LoadBalancerOverload(ProblemBase):
         workers, ab_procs = self._worker_counts(load_hosts)
         load_gone = workers == 0 and ab_procs == 0
 
+        # Restore state lives in this Problem instance, never on the node.
         original = self._original_nano_cpus
-        if original is None:
-            original = load_original_nano_cpus(self.runtime, params.host_name)
         quota_restored = True
         restored_nano = read_nano_cpus(self.runtime, params.host_name)
         if original is not None:
             set_nano_cpus(self.runtime, params.host_name, original)
-            clear_original_nano_cpus(self.runtime, params.host_name)
             restored_nano = read_nano_cpus(self.runtime, params.host_name)
             quota_restored = restored_nano == original
 

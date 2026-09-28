@@ -11,7 +11,7 @@ from nika.net_env.verify import (
     frr_bgp_has_established_session,
     ping_stats,
 )
-from nika.problems.link_interface.link import _resolve_link_intf
+from nika.problems.rca.inventory import resolve_default_intf
 from nika.problems.support.probe_paths import ProbePath
 from nika.runtime.base import LabRuntime
 from nika.runtime.kathara.runtime import KatharaRuntime
@@ -110,7 +110,9 @@ def _frr_control_plane_ok(runtime: LabRuntime, host: str) -> bool:
         "vtysh -c 'show ip ospf neighbor' 2>/dev/null || true",
         timeout=15,
     )
-    if any(field.startswith("Full") for line in ospf.splitlines() for field in line.split()):
+    if any(
+        field.startswith("Full") for line in ospf.splitlines() for field in line.split()
+    ):
         return True
     isis = exec_or_empty(
         runtime,
@@ -279,8 +281,7 @@ def evaluate_link_flap_symptom(
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path", "scenario": scenario}
 
-    backend = "kathara" if isinstance(runtime, KatharaRuntime) else "containerlab"
-    fault_intf = _resolve_link_intf(getattr(params, "intf_name", "eth0"), backend)
+    fault_intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
     fault_host = getattr(params, "host_name", None)
     if not fault_host:
         return False, {"error": "no_fault_host"}

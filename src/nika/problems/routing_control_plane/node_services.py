@@ -11,11 +11,6 @@ from nika.utils.logger import system_logger
 logger = system_logger
 
 # ==================================================================
-# Problem: P4 switch device failure (bmv2 switch down)
-# ==================================================================
-
-
-# ==================================================================
 # Problem: FRR service down on a router device
 # ==================================================================
 
@@ -57,6 +52,16 @@ class FrrDown(ProblemBase):
             "staticd",
             "ospf6d",
             "ripd",
+            "ripngd",
+            "isisd",
+            "fabricd",
+            "ldpd",
+            "eigrpd",
+            "bfdd",
+            "pathd",
+            "vrrpd",
+            "pimd",
+            "pim6d",
         ):
             self.runtime.kill_process(params.host_name, daemon)
 

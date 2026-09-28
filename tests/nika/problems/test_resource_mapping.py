@@ -343,3 +343,26 @@ class LinkInventoryHelpersTest:
         assert "link/pc1:eth0--router1:eth0" in ids
         assert "interface/pc1/eth0" in ids
         assert "node/pc1" in ids
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("split", ["dev", "test"])
+def test_submission_owner_kind_matches_default_release_ground_truth(split) -> None:
+    """The submit prompt's owner_kind hint must name the GT resource kind."""
+    from nika.problems.ownership import owner_kind_for_fault
+    from nika.workflows.benchmark.release import resolve_cases
+
+    owner_for_kind = {
+        "node": "node_or_k8s",
+        "k8s": "node_or_k8s",
+        "interface": "interface",
+        "link": "link",
+    }
+    mismatches = set()
+    for case in resolve_cases(split=split):
+        for cause in case.get("root_causes") or []:
+            fault_type = cause["fault_type"]
+            gt_owner = owner_for_kind[cause["resource"]["kind"]]
+            if owner_kind_for_fault(fault_type) != gt_owner:
+                mismatches.add((fault_type, gt_owner))
+    assert not mismatches
