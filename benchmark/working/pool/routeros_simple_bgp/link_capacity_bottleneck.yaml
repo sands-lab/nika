@@ -1,0 +1,38 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: link_capacity_bottleneck
+  cases:
+  - inject:
+      burst: 64kb
+      host_name: pc1
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: pc1:eth0--router1:eth2
+      fault_type: link_capacity_bottleneck
+  - inject:
+      burst: 64kb
+      host_name: pc2
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: pc2:eth0--router2:eth2
+      fault_type: link_capacity_bottleneck
+  - inject:
+      burst: 64kb
+      host_name: router1
+      intf_name: eth1
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: router1:eth1--router2:eth1
+      fault_type: link_capacity_bottleneck

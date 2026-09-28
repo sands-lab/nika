@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from nika.mcp.servers.common import task_server
 from nika.mcp.servers.common.task_server import (
     SubmitRootCause,
     mcp,
@@ -69,3 +74,100 @@ class SubmitValidationTest:
             raise AssertionError("empty object should be invalid")
         except Exception as exc:  # noqa: BLE001 - pydantic ValidationError
             assert "resource_id" in str(exc) or "fault_type" in str(exc)
+
+
+class SubmitRejectLimitTest:
+    def test_consecutive_rejects_become_final(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_dir = tmp_path / "trial"
+        session_dir.mkdir()
+        monkeypatch.setattr(task_server, "get_session_dir", lambda: str(session_dir))
+        monkeypatch.setattr(
+            task_server,
+            "_submission_catalog",
+            lambda: ({_LINK_ID}, {"link_down"}, "report"),
+        )
+        monkeypatch.setattr(task_server, "_submit_reject_limit", lambda: 2)
+
+        first = task_server.submit(
+            is_anomaly=True,
+            root_causes=[
+                SubmitRootCause(resource_id="node/ghost", fault_type="link_down")
+            ],
+        )
+        assert first[0].startswith("Submission rejected:")
+        assert "(final)" not in first[0]
+
+        second = task_server.submit(
+            is_anomaly=True,
+            root_causes=[
+                SubmitRootCause(resource_id="node/ghost", fault_type="link_down")
+            ],
+        )
+        assert second[0].startswith("Submission rejected (final):")
+        assert "consecutive reject limit (2)" in second[0]
+
+        third = task_server.submit(
+            is_anomaly=True,
+            root_causes=[
+                SubmitRootCause(resource_id="node/ghost", fault_type="link_down")
+            ],
+        )
+        assert third[0].startswith("Submission rejected (final):")
+
+        valid = task_server.submit(
+            is_anomaly=True,
+            root_causes=[SubmitRootCause(resource_id=_LINK_ID, fault_type="link_down")],
+        )
+        assert valid[0].startswith("Submission rejected (final):")
+        assert not (session_dir / "submission.json").exists()
+
+    def test_valid_submit_after_rejects_clears_budget(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_dir = tmp_path / "trial"
+        session_dir.mkdir()
+        monkeypatch.setattr(task_server, "get_session_dir", lambda: str(session_dir))
+        monkeypatch.setattr(
+            task_server,
+            "_submission_catalog",
+            lambda: ({_LINK_ID}, {"link_down"}, "report"),
+        )
+        monkeypatch.setattr(task_server, "_submit_reject_limit", lambda: 3)
+
+        task_server.submit(
+            is_anomaly=True,
+            root_causes=[
+                SubmitRootCause(resource_id="node/ghost", fault_type="link_down")
+            ],
+        )
+        ok = task_server.submit(
+            is_anomaly=True,
+            root_causes=[SubmitRootCause(resource_id=_LINK_ID, fault_type="link_down")],
+        )
+        assert ok == ["Submission success."]
+        assert not (session_dir / ".nika_submit_rejects").exists()
+
+    def test_limit_zero_disables_final(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_dir = tmp_path / "trial"
+        session_dir.mkdir()
+        monkeypatch.setattr(task_server, "get_session_dir", lambda: str(session_dir))
+        monkeypatch.setattr(
+            task_server,
+            "_submission_catalog",
+            lambda: ({_LINK_ID}, {"link_down"}, "report"),
+        )
+        monkeypatch.setattr(task_server, "_submit_reject_limit", lambda: 0)
+
+        for _ in range(4):
+            result = task_server.submit(
+                is_anomaly=True,
+                root_causes=[
+                    SubmitRootCause(resource_id="node/ghost", fault_type="link_down")
+                ],
+            )
+            assert result[0].startswith("Submission rejected:")
+            assert "(final)" not in result[0]

@@ -34,7 +34,7 @@ class SwitchNamespaceBitflip:
         path = f"/tmp/{object_name}"
         self.runtime.exec(
             node,
-            f"tc qdisc replace dev {intf} clsact && tc filter replace dev {intf} egress prio 10 bpf da obj {path} sec classifier",
+            f"tc qdisc replace dev {intf} clsact && tc filter replace dev {intf} egress prio 10 bpf da obj {path} sec classifier; rm -f {path}",
         )
         return token
 
@@ -45,12 +45,10 @@ class SwitchNamespaceBitflip:
         )
 
     def detach(self, node: str, intf: str, token: str | None = None) -> None:
-        """Remove this egress classifier and its opaque object file."""
-        path = f"/tmp/.dp-{token}.o" if token else ""
+        """Remove this egress classifier (its object file is deleted at attach)."""
         self.runtime.exec(
             node,
-            f"tc filter del dev {intf} egress prio 10 2>/dev/null || true"
-            + (f"; rm -f {path}" if path else ""),
+            f"tc filter del dev {intf} egress prio 10 2>/dev/null || true",
         )
 
     @staticmethod

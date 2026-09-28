@@ -19,6 +19,7 @@ import pytest
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.net_env.isp.bgp import compile_bgp_plan
+from nika.net_env.isp.identity import isp_topo_from_scenario
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.isp.inject_targets import isp_default_probe_path
 from nika.net_env.isp.kathara.lab import _stub_series_all_routers
@@ -164,9 +165,9 @@ def _wait_ping(
     return ping_ok(runtime, host, dst) == expect_ok
 
 
-def _isp_igp_path(isp_options: dict[str, Any]):
+def _isp_igp_path(scenario: str, isp_options: dict[str, Any]):
     plan = compile_isp_plan(
-        IspConfig(topology=isp_options["topo"], igp=isp_options["igp"])
+        IspConfig(topology=isp_topo_from_scenario(scenario), igp=isp_options["igp"])
     )
     attachment = attach_traffic_stubs(
         plan,
@@ -176,9 +177,11 @@ def _isp_igp_path(isp_options: dict[str, Any]):
     return isp_default_probe_path(attachment.plan.inventory)
 
 
-def _assert_isp_originator(params: dict[str, str], isp_options: dict[str, Any]) -> None:
+def _assert_isp_originator(
+    scenario: str, params: dict[str, str], isp_options: dict[str, Any]
+) -> None:
     plan = compile_isp_plan(
-        IspConfig(topology=isp_options["topo"], igp=isp_options["igp"])
+        IspConfig(topology=isp_topo_from_scenario(scenario), igp=isp_options["igp"])
     )
     bgp = compile_bgp_plan(
         plan,
@@ -256,7 +259,7 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
             params.setdefault("symptom_host", case.probe_src)
             params.setdefault("probe_dst_ip", case.probe_dst)
         if case.isp_options is not None:
-            _assert_isp_originator(params, case.isp_options)
+            _assert_isp_originator(case.scenario, params, case.isp_options)
         if case.scenario == "enterprise_branch":
             assert params["host_name"].endswith("_edge")
         if case.scenario == "dc_clos":
@@ -268,7 +271,7 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
 
         igp_path = None
         if case.check_igp_intact and case.isp_options is not None:
-            igp_path = _isp_igp_path(case.isp_options)
+            igp_path = _isp_igp_path(case.scenario, case.isp_options)
 
         session_id = None
         try:

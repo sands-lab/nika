@@ -11,7 +11,17 @@ failure:
     - resource:
         kind: interface
         node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: s
     inject:
@@ -21,7 +31,17 @@ failure:
     - resource:
         kind: interface
         node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
     inject:
@@ -31,7 +51,17 @@ failure:
     - resource:
         kind: interface
         node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
     inject:
@@ -41,7 +71,17 @@ failure:
     - resource:
         kind: interface
         node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
     inject:
@@ -51,7 +91,17 @@ failure:
     - resource:
         kind: interface
         node: br3_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br3_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
     inject:
@@ -61,7 +111,17 @@ failure:
     - resource:
         kind: interface
         node: br4_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br4_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -71,7 +131,17 @@ failure:
     - resource:
         kind: interface
         node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -81,7 +151,17 @@ failure:
     - resource:
         kind: interface
         node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -91,7 +171,17 @@ failure:
     - resource:
         kind: interface
         node: br3_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br3_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br3_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -101,7 +191,17 @@ failure:
     - resource:
         kind: interface
         node: br4_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br4_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br4_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -111,7 +211,17 @@ failure:
     - resource:
         kind: interface
         node: br5_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br5_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br5_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -121,7 +231,17 @@ failure:
     - resource:
         kind: interface
         node: br6_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br6_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br6_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -131,7 +251,17 @@ failure:
     - resource:
         kind: interface
         node: br7_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br7_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br7_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
     inject:
@@ -141,5 +271,15 @@ failure:
     - resource:
         kind: interface
         node: br8_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br8_edge
         name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br8_edge
+        name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration

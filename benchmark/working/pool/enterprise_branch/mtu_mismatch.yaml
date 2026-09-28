@@ -14,6 +14,11 @@ failure:
         node: br1_edge
         name: eth2
       fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: isp1_core
+        name: eth2
+      fault_type: mtu_mismatch
   - topo_size: m
     inject:
       host_name: br1_edge

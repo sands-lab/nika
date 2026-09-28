@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shlex
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -9,6 +8,12 @@ from pydantic import BaseModel, Field
 
 from nika.net_env.verify import http_download_stats, median_float
 from nika.problems.rca import node_resource
+from nika.problems.support.ab_helpers import (
+    ab_worker_log_tail,
+    count_ab_workers,
+    start_ab_workers,
+    stop_ab_workers,
+)
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -20,7 +25,13 @@ from nika.utils.logger import system_logger
 # Problem: Web service under DoS attack
 # ==================================================================
 
-_SLOW_HTTP_CLIENT = "/tmp/nika_web_dos_slow.py"
+# Node-visible names stay neutral: agents can list files, processes, and the
+# victim's access log, so nothing here names the injected fault.
+_SLOW_HTTP_CLIENT = "/var/tmp/http-hold.py"
+_SLOW_HTTP_PATTERN = "[h]ttp-hold.py"
+_ATTACK_OBJECT = "download.bin"
+_ATTACK_DIR = "archive"
+_ATTACK_DIR_ITEMS = 2000
 _SLOW_HTTP_SOURCE = """#!/usr/bin/env python3
 import socket
 import sys
@@ -36,7 +47,7 @@ while True:
         sock.settimeout(1.0)
         try:
             sock.connect((target, port))
-            sock.sendall(b"GET / HTTP/1.1\\r\\nHost: target\\r\\nX-Nika: ")
+            sock.sendall(b"GET / HTTP/1.1\\r\\nHost: target\\r\\nX-Request-Id: ")
             sockets.append(sock)
         except OSError:
             sock.close()
@@ -139,25 +150,7 @@ class WebDoS(ProblemBase):
         }
 
     def _worker_state(self, params: WebDoSParams) -> tuple[int, int, str]:
-        worker_output = self.runtime.exec(
-            params.attacker_device,
-            "ps -eo args 2>/dev/null | grep -c '[n]ika_web_dos_worker_' || true",
-            timeout=10,
-        ).strip()
-        ab_output = self.runtime.exec(
-            params.attacker_device,
-            "ps -eo comm 2>/dev/null | grep -c '^ab$' || true",
-            timeout=10,
-        ).strip()
-        try:
-            workers = int(worker_output.splitlines()[-1])
-        except (IndexError, ValueError):
-            workers = 0
-        try:
-            ab_processes = int(ab_output.splitlines()[-1])
-        except (IndexError, ValueError):
-            ab_processes = 0
-        return workers, ab_processes, f"workers={worker_output!r} ab={ab_output!r}"
+        return count_ab_workers(self.runtime, params.attacker_device)
 
     def _target_connections(self, host: str) -> int:
         output = self.runtime.exec(
@@ -173,7 +166,7 @@ class WebDoS(ProblemBase):
     def _slow_client_count(self, params: WebDoSParams) -> int:
         output = self.runtime.exec(
             params.attacker_device,
-            "ps -eo args 2>/dev/null | grep -c '[n]ika_web_dos_slow.py' || true",
+            f"ps -eo args 2>/dev/null | grep -c '{_SLOW_HTTP_PATTERN}' || true",
             timeout=10,
         ).strip()
         try:
@@ -203,61 +196,44 @@ class WebDoS(ProblemBase):
                 f"web_dos_attack requires a healthy HTTP baseline: {self._baseline}"
             )
 
+        # A large object (bulk transfer) and a large directory (expensive
+        # listing) give the flood real per-request server work.
         self.runtime.exec(
             web_server,
             (
-                "mkdir -p /var/www /var/www/html /var/www/nika-dos-dir; "
-                f"dd if=/dev/zero of=/var/www/nika-dos.bin bs=1M "
+                f"mkdir -p /var/www /var/www/html /var/www/{_ATTACK_DIR}; "
+                f"dd if=/dev/zero of=/var/www/{_ATTACK_OBJECT} bs=1M "
                 f"count={params.attack_object_mb} status=none 2>/dev/null; "
-                "cp /var/www/nika-dos.bin /var/www/html/nika-dos.bin "
+                f"cp /var/www/{_ATTACK_OBJECT} /var/www/html/{_ATTACK_OBJECT} "
                 "2>/dev/null || true; "
-                "for i in $(seq 1 2000); do "
-                ": > /var/www/nika-dos-dir/item-$i; done"
+                f"for i in $(seq 1 {_ATTACK_DIR_ITEMS}); do "
+                f": > /var/www/{_ATTACK_DIR}/item-$i; done"
             ),
             timeout=30,
         )
-        attack_url = params.attack_url or f"http://{target_ip}/nika-dos.bin"
+        attack_url = params.attack_url or f"http://{target_ip}/{_ATTACK_OBJECT}"
         attack_endpoint = urlsplit(attack_url)
         attack_host = attack_endpoint.hostname or target_ip
         attack_port = attack_endpoint.port or 80
-        quoted_url = shlex.quote(attack_url)
-        self.runtime.exec(
+        start_ab_workers(
+            self.runtime,
             attacker,
-            "pkill -f '[n]ika_web_dos_worker_' 2>/dev/null || true; "
-            "pkill -x ab 2>/dev/null || true",
-            timeout=10,
-        )
-        self.runtime.exec(
-            attacker,
-            "command -v ab >/dev/null 2>&1 || exit 127; "
-            + " ".join(
-                (
-                    "nohup bash -c "
-                    + shlex.quote(
-                        "while true; do "
-                        f"ab -n 200000000 -c {params.concurrency_per_worker} "
-                        f"{quoted_url}; "
-                        "sleep 0.05; done"
-                    )
-                    + f" nika_web_dos_worker_{worker} </dev/null "
-                    + f">/tmp/nika_web_dos_{worker}.log 2>&1 &"
-                )
-                for worker in range(params.workers)
-            ),
+            attack_url,
+            workers=params.workers,
+            concurrency=params.concurrency_per_worker,
             timeout=15,
         )
         if params.slow_connections:
             self.runtime.write_file(attacker, _SLOW_HTTP_CLIENT, _SLOW_HTTP_SOURCE)
             self.runtime.exec(
                 attacker,
-                "pkill -f '[n]ika_web_dos_slow.py' 2>/dev/null || true",
+                f"pkill -f '{_SLOW_HTTP_PATTERN}' 2>/dev/null || true",
                 timeout=10,
             )
             self.runtime.exec(
                 attacker,
                 f"nohup python3 {_SLOW_HTTP_CLIENT} {attack_host} {attack_port} "
-                f"{params.slow_connections} </dev/null "
-                ">/tmp/nika_web_dos_slow.log 2>&1 &",
+                f"{params.slow_connections} </dev/null >/dev/null 2>&1 &",
                 timeout=10,
             )
 
@@ -284,11 +260,7 @@ class WebDoS(ProblemBase):
             or not slow_client_running
             or connections < required_connections
         ):
-            logs = self.runtime.exec(
-                attacker,
-                "tail -n 20 /tmp/nika_web_dos_0.log 2>/dev/null || true",
-                timeout=10,
-            )
+            logs = ab_worker_log_tail(self.runtime, attacker, lines=20)
             raise RuntimeError(
                 "web_dos_attack traffic did not become ready: "
                 f"{state}, slow_client={slow_client_running}, "
@@ -334,11 +306,10 @@ class WebDoS(ProblemBase):
         )
 
     def recover_fault(self, params: WebDoSParams) -> dict:
+        stop_ab_workers(self.runtime, params.attacker_device)
         self.runtime.exec(
             params.attacker_device,
-            "pkill -f '[n]ika_web_dos_worker_' 2>/dev/null || true; "
-            "pkill -x ab 2>/dev/null || true; "
-            "pkill -f '[n]ika_web_dos_slow.py' 2>/dev/null || true",
+            f"pkill -f '{_SLOW_HTTP_PATTERN}' 2>/dev/null || true",
             timeout=10,
         )
         time.sleep(0.3)

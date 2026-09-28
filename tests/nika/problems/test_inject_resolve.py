@@ -59,7 +59,7 @@ def test_web_dos_resolves_one_independently_observed_http_path(
     if scenario == "p4_dc_gateway":
         expected["attack_url"] = url
     elif scenario == "enterprise_branch":
-        expected["attack_url"] = "http://10.0.20.2/nika-dos-dir/"
+        expected["attack_url"] = "http://10.0.20.2/archive/"
     assert inject == expected
     assert len({target, attacker, observer}) == 3
 

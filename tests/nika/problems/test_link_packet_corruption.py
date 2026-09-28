@@ -9,7 +9,7 @@ import pytest
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.net_env.verify import http_download_stats, iperf_tcp_metrics, ping_stats
-from nika.problems.link_interface.link import _resolve_link_intf
+from nika.problems.rca.inventory import resolve_default_intf
 from nika.problems.registry import get_problem_class, list_avail_problem_names
 from nika.runtime.kathara.runtime import KatharaRuntime
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
@@ -184,11 +184,7 @@ class TestLinkPacketCorruptionE2E(IntegrationTestCase):
                 assert verify["verified"] is True, verify
                 assert verify["details"]["artifact"]["verified"] is True
                 assert verify["details"]["symptom"]["verified"] is True
-
-                backend = (
-                    "kathara" if isinstance(runtime, KatharaRuntime) else "containerlab"
-                )
-                resolved_intf = _resolve_link_intf(parsed.intf_name, backend)
+                resolved_intf = resolve_default_intf(parsed.intf_name, runtime)
                 host_qdisc = _qdisc(runtime, parsed.host_name, resolved_intf)
                 assert "netem" not in host_qdisc and "tbf" not in host_qdisc, host_qdisc
 

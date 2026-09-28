@@ -5,6 +5,9 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
+from nika.problems.forwarding_encapsulation_policy.p4_gateway import (
+    read_runtime_config_value,
+)
 from nika.problems.rca import interface_resource
 from nika.problems.support.p4_gateway import set_ecn_threshold
 
@@ -31,25 +34,20 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
         return [interface_resource(params.host_name, params.intf_name)]
 
     def inject_fault(self, params: P4EcnThresholdMisconfigurationParams):
-        self._result = set_ecn_threshold(
+        set_ecn_threshold(
             self.runtime, params.host_name, params.bmv2_port, params.threshold
-        )
-        self.runtime.exec(
-            params.host_name,
-            f"printf '%s\\n' '{self._result}' > /tmp/nika_ecn_threshold_result",
         )
 
     def verify_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:
-        output = getattr(self, "_result", "") or self.runtime.exec(
-            params.host_name,
-            "cat /tmp/nika_ecn_threshold_result 2>/dev/null || true",
+        observed = read_runtime_config_value(
+            self.runtime, params.host_name, "ecn_config", params.bmv2_port
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=str(params.threshold) in output,
+            verified=observed == params.threshold,
             details={
                 "interface": params.intf_name,
                 "threshold": params.threshold,
-                "output": output[:200],
+                "observed_threshold": observed,
             },
         )

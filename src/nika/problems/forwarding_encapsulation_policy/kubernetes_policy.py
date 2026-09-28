@@ -15,7 +15,8 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
-DEFAULT_POLICY_NAME = "nika-deny-ingress"
+# Standard Kubernetes docs name for a namespace-wide ingress deny.
+DEFAULT_POLICY_NAME = "default-deny-ingress"
 
 
 def _match_labels(selector: str) -> dict[str, str]:

@@ -1,0 +1,14 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: host_ip_conflict
+  cases:
+  - inject:
+      host_name: pc1
+      host_name_2: pc2
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc2
+        name: eth0
+      fault_type: host_ip_conflict

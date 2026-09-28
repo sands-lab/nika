@@ -7,6 +7,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_0
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node
@@ -16,6 +19,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_0
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node
@@ -25,6 +31,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_1
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node
@@ -34,6 +43,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_0
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node
@@ -43,6 +55,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_1
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node
@@ -52,6 +67,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_2
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node
@@ -61,6 +79,9 @@ failure:
     inject:
       duration: '600'
       host_name: client_3
+      large_url: http://web0.pod0/large.bin
+      peer_host: webserver0_pod0
+      stress_cpus: '4'
     root_causes:
     - resource:
         kind: node

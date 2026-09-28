@@ -19,3 +19,8 @@ failure:
         node: atlam5
         name: eth0
       fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: atlang
+        name: eth0
+      fault_type: mtu_mismatch

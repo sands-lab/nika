@@ -94,10 +94,9 @@ def test_web_dos_artifact_verify_only() -> None:
         cmd for host, cmd in problem.runtime.commands if host == "client_4_1"
     ]
     assert any(
-        command.count("nika_web_dos_worker_") == params.workers
-        for command in attacker_commands
+        command.count("ab-loop-") == params.workers for command in attacker_commands
     )
-    assert any("/nika-dos.bin" in command for command in attacker_commands)
+    assert any("/download.bin" in command for command in attacker_commands)
     assert any(
         f"-c {params.concurrency_per_worker}" in command
         for command in attacker_commands

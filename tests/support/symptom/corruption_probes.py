@@ -11,7 +11,7 @@ from nika.net_env.verify import (
     iperf_tcp_metrics,
     ping_stats,
 )
-from nika.problems.link_interface.link import _resolve_link_intf
+from nika.problems.rca.inventory import resolve_default_intf
 from nika.runtime.base import LabRuntime
 from nika.runtime.kathara.runtime import KatharaRuntime
 from tests.support.symptom.flap_probes import _routing_probe_for
@@ -341,9 +341,7 @@ def evaluate_link_corruption_symptom(
     path = _resolve_path(scenario, params, topo_size=topo_size)
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path", "scenario": scenario}
-
-    backend = "kathara" if isinstance(runtime, KatharaRuntime) else "containerlab"
-    fault_intf = _resolve_link_intf(getattr(params, "intf_name", "eth0"), backend)
+    fault_intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
     fault_host = getattr(params, "host_name", None)
     if not fault_host:
         return False, {"error": "missing_fault_host"}
@@ -468,7 +466,6 @@ def evaluate_link_capacity_symptom(
     otherwise require the proxy/host TBF artifact plus a live path.
     """
     from nika.net_env.verify import iperf_throughput_bps, ping_ok, tbf_overlimits
-    from nika.problems.link_interface.link import _resolve_link_intf
     from nika.runtime.kathara.runtime import KatharaRuntime
     from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
@@ -482,9 +479,7 @@ def evaluate_link_capacity_symptom(
     fault_host = getattr(params, "host_name", None)
     if not fault_host:
         return False, {"error": "missing_fault_host"}
-
-    backend = "kathara" if isinstance(runtime, KatharaRuntime) else "containerlab"
-    fault_intf = _resolve_link_intf(getattr(params, "intf_name", "eth0"), backend)
+    fault_intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
 
     peer_host = path.peer_host or getattr(params, "peer_host", None)
     # Prefer the inject-enumerated probe address; only fall back to a live

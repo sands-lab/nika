@@ -18,10 +18,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.cpu_quota_helpers import (
-    clear_original_nano_cpus,
     cpu_quota_to_nano_cpus,
-    load_original_nano_cpus,
-    persist_original_nano_cpus,
     read_nano_cpus,
     set_nano_cpus,
 )
@@ -40,7 +37,9 @@ _CPU_STRESS_CMD = (
 _DOCROOT = "/var/www"
 _SMALL_OBJECT = f"{_DOCROOT}/small.bin"
 _LARGE_OBJECT = f"{_DOCROOT}/large.bin"
-_CPU_HTTP_SERVER = "/tmp/nika_cpu_http_server.py"
+# Neutral operator-style names: agents can list processes and files on the node.
+_CPU_HTTP_SERVER = "/usr/local/bin/static-httpd.py"
+_CPU_HTTP_LOG = "/var/log/static-httpd.log"
 
 # Injected large-object performance vs baseline (either gate may pass).
 # Target: unmistakable multi-x slowdown (order-of-magnitude class symptom).
@@ -50,9 +49,10 @@ _MAX_LOSS_PERCENT = 5.0
 _RECOVER_THROUGHPUT_MIN_RATIO = 0.70
 
 # CPU-sensitive static file server: heavy per-chunk hashing so competing
-# stress-ng under a tight CFS quota produces multi-x HTTP slowdown.
+# stress-ng under a tight CFS quota produces multi-x HTTP slowdown. The source
+# is written into the node, so it carries no comments naming the fault.
 _CPU_HTTP_SERVER_SRC = f'''#!/usr/bin/env python3
-"""CPU-sensitive file server for sender_resource_contention probes."""
+"""Static file server with per-block integrity hashing."""
 from __future__ import annotations
 
 import hashlib
@@ -60,11 +60,7 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 DOCROOT = "{_DOCROOT}"
-# Extra SHA256 rounds per 64 KiB. Each round hashes the full block (not the
-# digest) so work scales with object size on modern CPUs.
 ROUNDS_PER_64K_SMALL = 2
-# Enough hashing that a 0.02-CPU CFS quota + stress-ng yields multi-x slowdown
-# without making the healthy baseline a multi-minute download.
 ROUNDS_PER_64K_LARGE = 160
 LARGE_THRESHOLD = 1024 * 1024
 
@@ -243,7 +239,7 @@ class SenderResourceContention(ProblemBase):
             "nginx -s stop 2>/dev/null || true; "
             "killall -9 nginx 2>/dev/null || true; "
             "pkill -x nginx 2>/dev/null || true; "
-            "pkill -f '[p]ython3 /tmp/nika_cpu_http_server' 2>/dev/null || true; "
+            f"pkill -f '[p]ython3 {_CPU_HTTP_SERVER}' 2>/dev/null || true; "
             "pkill -f '[p]ython3 -m http.server' 2>/dev/null || true; "
             "sleep 0.3",
             timeout=15,
@@ -252,7 +248,7 @@ class SenderResourceContention(ProblemBase):
             host,
             (
                 f"nohup python3 {_CPU_HTTP_SERVER} </dev/null "
-                f">/tmp/nika_cpu_http_server.log 2>&1 & echo START:$!"
+                f">{_CPU_HTTP_LOG} 2>&1 & echo START:$!"
             ),
             timeout=15,
         )
@@ -271,7 +267,7 @@ class SenderResourceContention(ProblemBase):
         if probe not in {"200", "206"}:
             log = self.runtime.exec(
                 host,
-                "echo LOG; cat /tmp/nika_cpu_http_server.log 2>/dev/null || true; "
+                f"echo LOG; cat {_CPU_HTTP_LOG} 2>/dev/null || true; "
                 "echo PS; ps aux 2>/dev/null | head -n 30 || true; "
                 f"python3 -m py_compile {_CPU_HTTP_SERVER}; echo COMPILE:$?",
                 timeout=20,
@@ -355,7 +351,6 @@ class SenderResourceContention(ProblemBase):
 
         original = read_nano_cpus(self.runtime, params.host_name)
         self._original_nano_cpus = original
-        persist_original_nano_cpus(self.runtime, params.host_name, original)
 
         # Cap applied quota so selected Clos cases with 0.05 still contend hard.
         applied_quota = min(float(params.cpu_quota), 0.02)
@@ -400,7 +395,7 @@ class SenderResourceContention(ProblemBase):
         stress_running = self.runtime.process_running(params.host_name, "stress-ng")
         cpu_http_out = self.runtime.exec(
             params.host_name,
-            "pgrep -af '[p]ython3 /tmp/nika_cpu_http_server' 2>/dev/null || true",
+            f"pgrep -af '[p]ython3 {_CPU_HTTP_SERVER}' 2>/dev/null || true",
             timeout=10,
         ).strip()
         cpu_http_running = bool(cpu_http_out)
@@ -425,9 +420,8 @@ class SenderResourceContention(ProblemBase):
         )
 
     def recover_fault(self, params: SenderResourceContentionParams) -> dict:
+        # Restore state lives in this Problem instance, never on the node.
         original = self._original_nano_cpus
-        if original is None:
-            original = load_original_nano_cpus(self.runtime, params.host_name)
         if original is None:
             return {
                 "verified": False,
@@ -441,7 +435,6 @@ class SenderResourceContention(ProblemBase):
         )
         time.sleep(0.5)
         set_nano_cpus(self.runtime, params.host_name, original)
-        clear_original_nano_cpus(self.runtime, params.host_name)
 
         stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
         restored_nano = read_nano_cpus(self.runtime, params.host_name)
@@ -592,7 +585,7 @@ class ReceiverResourceContention(ProblemBase):
                 "http://127.0.0.1/large.bin 2>/dev/null | grep -qE '200|206' "
                 "|| (pkill -f '[p]ython3 -m http.server 80' 2>/dev/null || true; "
                 " cd /var/www && nohup python3 -m http.server 80 </dev/null "
-                " >/tmp/nika_receiver_http.log 2>&1 & sleep 0.5)"
+                " >/dev/null 2>&1 & sleep 0.5)"
             ),
             timeout=60,
         )

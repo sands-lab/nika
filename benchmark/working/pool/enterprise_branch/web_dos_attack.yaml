@@ -5,7 +5,7 @@ failure:
   cases:
   - topo_size: s
     inject:
-      attack_url: http://10.0.20.2/nika-dos-dir/
+      attack_url: http://10.0.20.2/archive/
       attacker_device: br1_corp_pc
       host_name: hq_srv
       observer_device: hq_corp_pc
@@ -17,7 +17,7 @@ failure:
       fault_type: web_dos_attack
   - topo_size: m
     inject:
-      attack_url: http://10.0.20.2/nika-dos-dir/
+      attack_url: http://10.0.20.2/archive/
       attacker_device: br1_corp_pc
       host_name: hq_srv
       observer_device: hq_corp_pc
@@ -29,7 +29,7 @@ failure:
       fault_type: web_dos_attack
   - topo_size: l
     inject:
-      attack_url: http://10.0.20.2/nika-dos-dir/
+      attack_url: http://10.0.20.2/archive/
       attacker_device: br1_corp_pc
       host_name: hq_srv
       observer_device: hq_corp_pc

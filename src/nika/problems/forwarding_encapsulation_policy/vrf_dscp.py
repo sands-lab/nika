@@ -25,7 +25,8 @@ from nika.problems.rca import interface_resource
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
-_NFT_TABLE = "nika_dscp"
+# iptables-nft naming, as an operator QoS policy would use.
+_NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
 _SETTLE_SEC = 4
 _PROBE_PORT = 5198
@@ -60,6 +61,7 @@ class VrfDscpRemarking(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "vrf_dscp_remarking"
+    root_cause_owner = "interface"
     description = "VRF edge incorrectly remarks high-priority DSCP."
     TAGS: list[str] = ["vpn"]
     Params = VrfDscpRemarkingParams

@@ -101,18 +101,17 @@ class ArpCachePoisoning(ProblemBase):
         )
         self.runtime.exec(
             params.host_name,
-            "nft delete table netdev nika_arp_poison 2>/dev/null || true",
+            "nft delete table netdev filter 2>/dev/null || true",
         )
-        self.runtime.exec(params.host_name, "nft add table netdev nika_arp_poison")
+        self.runtime.exec(params.host_name, "nft add table netdev filter")
         self.runtime.exec(
             params.host_name,
-            "nft 'add chain netdev nika_arp_poison egress "
+            "nft 'add chain netdev filter egress "
             f"{{ type filter hook egress device {egress_dev} priority 0 ; }}'",
         )
         self.runtime.exec(
             params.host_name,
-            f"nft add rule netdev nika_arp_poison egress "
-            f"ether daddr {params.fake_mac} drop",
+            f"nft add rule netdev filter egress ether daddr {params.fake_mac} drop",
         )
 
     def verify_fault(self, params: ArpCachePoisoningParams) -> dict:

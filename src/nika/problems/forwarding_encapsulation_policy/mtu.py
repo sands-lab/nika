@@ -61,6 +61,7 @@ class MtuMismatchParams(BaseModel):
 class MtuMismatch(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "mtu_mismatch"
+    root_cause_owner = "interface"
     description = "Path MTU is misconfigured on an intermediate hop."
     TAGS: list[str] = ["link", "icmp"]
     COMPATIBLE_COLUMNS = _MTU_MISMATCH_COLUMNS
@@ -78,7 +79,18 @@ class MtuMismatch(ProblemBase):
         self._peer: tuple[str, str] | None = None
 
     def root_cause_resources(self, params: MtuMismatchParams):
-        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+        resources = [interface_on(self.net_env, params.host_name, params.intf_name)]
+        peer = self._mtu_peer(params)
+        if peer is not None:
+            resources.append(interface_on(self.net_env, *peer))
+        return resources
+
+    def _mtu_peer(self, params: MtuMismatchParams) -> tuple[str, str] | None:
+        """Point-to-point peer whose MTU inject also lowers (None when skipped)."""
+        peer = self._peer_endpoint(params.host_name, params.intf_name)
+        if peer is None or self._skip_peer_mtu(peer[0]):
+            return None
+        return peer
 
     def inject_fault(self, params: MtuMismatchParams):
         match self.lab_backend:
@@ -115,23 +127,11 @@ class MtuMismatch(ProblemBase):
     def _inject_mtu_mismatch(self, params: MtuMismatchParams) -> None:
         self.mtu = params.mtu
         self._set_mtu(params.host_name, params.intf_name, params.mtu)
-        peer = self._peer_endpoint(params.host_name, params.intf_name)
+        # Ground truth labels this peer too, so a failed peer write must fail inject.
+        peer = self._mtu_peer(params)
         self._peer = peer
         if peer is not None:
-            peer_host, peer_intf = peer
-            if self._skip_peer_mtu(peer_host):
-                system_logger.info(
-                    f"Peer MTU set skipped for k3s node {peer_host}:{peer_intf}"
-                )
-                self._peer = None
-            else:
-                try:
-                    self._set_mtu(peer_host, peer_intf, params.mtu)
-                except Exception as exc:  # noqa: BLE001
-                    system_logger.warning(
-                        f"Peer MTU set skipped for {peer_host}:{peer_intf}: {exc}"
-                    )
-                    self._peer = None
+            self._set_mtu(peer[0], peer[1], params.mtu)
         system_logger.info(
             f"Injected path MTU mismatch on {params.host_name}:{params.intf_name} "
             f"(mtu={params.mtu})"
@@ -165,12 +165,13 @@ class MtuMismatch(ProblemBase):
             "mtu": params.mtu,
             "observed_mtu": observed,
         }
-        peer = self._peer or self._peer_endpoint(params.host_name, params.intf_name)
+        peer = self._mtu_peer(params)
         if peer is not None:
             peer_host, peer_intf = peer
             peer_mtu = self._read_mtu(peer_host, peer_intf)
             details["peer"] = f"{peer_host}:{peer_intf}"
             details["peer_mtu"] = peer_mtu
+            verified = verified and peer_mtu == int(params.mtu)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,

@@ -14,9 +14,10 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.rca import interface_resource
+from nika.problems.support.polling import wait_until
 from nika.utils.logger import system_logger
 
-# Settle after peer-key change + BGP neighbor clear so handshake/BGP state stabilize.
+# Upper bound for overlay BGP to drop after peer-key change + neighbor clear.
 _SETTLE_SEC = 25
 # AllowedIPs rewrite keeps BGP up; brief pause for syncconf to apply.
 _ALLOWED_IPS_SETTLE_SEC = 5
@@ -55,6 +56,16 @@ def allowed_ips_for_spoke_hub_peer(
     return ", ".join(entries)
 
 
+def _wg_syncconf(runtime: Any, edge: str, iface: str) -> None:
+    """Apply the edited conf live; the stripped temp file does not outlive the call."""
+    strip = f"/tmp/{iface}.strip"
+    runtime.exec(
+        edge,
+        f"wg-quick strip {iface} > {strip} && wg syncconf {iface} {strip}; "
+        f"rm -f {strip}",
+    )
+
+
 def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
     for line in summary.splitlines():
         fields = line.split()
@@ -76,13 +87,16 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     """Wrong WireGuard peer PublicKey on every tunnel of a Branch Edge.
 
     Under full WAN/hub redundancy, a single-tunnel peer-key fault would fail
-    over. Inject corrupts every WireGuard peer on the selected Branch Edge so
-    cross-site business for that branch fails while underlay and other branches
-    stay healthy. ``intf_name`` names the primary HQ peer for root-cause scoring.
+    over with no user-visible impact. Inject models one bad key rollout on the
+    Branch Edge (every Hub peer entry gets the same wrong key), so cross-site
+    business for that branch fails while underlay and other branches stay
+    healthy. Ground truth labels every WireGuard interface the inject rewrites;
+    ``intf_name`` must be one of them.
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
+    root_cause_owner = "interface"
     description = "WireGuard peer public key is incorrect."
     TAGS: str = ["vpn"]
     Params = WireGuardPeerKeyMisconfigParams
@@ -101,7 +115,9 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         self._hub_tunnel_ips: list[str] = []
 
     def root_cause_resources(self, params: WireGuardPeerKeyMisconfigParams):
-        return [interface_resource(params.host_name, params.intf_name)]
+        tunnels = self._spoke_tunnels(params.host_name)
+        ifaces = sorted({t.spoke_iface for t in tunnels}) or [params.intf_name]
+        return [interface_resource(params.host_name, iface) for iface in ifaces]
 
     def _spoke_site(self, edge_name: str) -> str:
         return _spoke_site_from_edge(edge_name)
@@ -159,16 +175,11 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         for iface in ifaces:
             hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
             conf_path = f"/etc/wireguard/{iface}.conf"
-            self.runtime.exec(edge, f"cp {conf_path} {conf_path}.bak")
             self.runtime.exec(
                 edge,
                 f"sed -i 's|^PublicKey = .*|PublicKey = {wrong_key}|' {conf_path}",
             )
-            self.runtime.exec(
-                edge,
-                f"wg-quick strip {iface} > /tmp/{iface}.strip "
-                f"&& wg syncconf {iface} /tmp/{iface}.strip",
-            )
+            _wg_syncconf(self.runtime, edge, iface)
             self.runtime.exec(
                 edge,
                 f"vtysh -c 'clear ip bgp {hub_tun_ip}' 2>/dev/null || true",
@@ -180,7 +191,20 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             f"Injected wrong WireGuard Hub peer PublicKey on all WG ifaces of "
             f"{edge} ({', '.join(ifaces)}); cleared BGP neighbors {cleared}."
         )
-        time.sleep(_SETTLE_SEC)
+        wait_until(
+            lambda: (
+                not any(
+                    _bgp_neighbor_established(
+                        self.runtime.exec(
+                            edge, "vtysh -c 'show bgp summary' 2>/dev/null || true"
+                        ),
+                        ip,
+                    )
+                    for ip in cleared
+                )
+            ),
+            _SETTLE_SEC,
+        )
 
     def verify_fault(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
         edge = params.host_name
@@ -268,6 +292,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name: str = "wireguard_allowed_ips_misconfiguration"
+    root_cause_owner = "interface"
     description = "WireGuard AllowedIPs omits a required remote prefix."
     TAGS: str = ["vpn"]
     Params = WireGuardAllowedIpsMisconfigParams
@@ -344,16 +369,11 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             )
 
         conf_path = f"/etc/wireguard/{iface}.conf"
-        self.runtime.exec(edge, f"cp {conf_path} {conf_path}.bak")
         self.runtime.exec(
             edge,
             f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
         )
-        self.runtime.exec(
-            edge,
-            f"wg-quick strip {iface} > /tmp/{iface}.strip "
-            f"&& wg syncconf {iface} /tmp/{iface}.strip",
-        )
+        _wg_syncconf(self.runtime, edge, iface)
         self.logger.info(
             f"Injected WireGuard AllowedIPs omit of {params.target_prefix} "
             f"on {edge}/{iface} (hub tunnel {hub_tun_ip} retained; BGP untouched)."

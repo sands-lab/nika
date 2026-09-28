@@ -63,6 +63,14 @@ class NetworkEnvBase:
         """Containerlab-native scenarios may override; Kathara scenarios return None."""
         return None
 
+    def overlay_interfaces(self) -> list[tuple[str, str]]:
+        """``(node, interface)`` pairs created at startup rather than by lab links.
+
+        Tunnel interfaces can carry root causes, so the submission catalog must
+        list them alongside link termination points.
+        """
+        return []
+
     def _build_runtime(self) -> LabRuntime:
         if self.runtime is None:
             self.runtime = runtime_for_net_env(self)

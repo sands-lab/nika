@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import shlex
+
 from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
@@ -11,11 +14,35 @@ from nika.problems.support.p4_gateway import (
     set_int_mtu,
     set_silent_destination_drop,
 )
+from nika.runtime.base import LabRuntime
+
+
+def read_runtime_config_value(
+    runtime: LabRuntime, switch: str, table: str, port: int
+) -> int | None:
+    """Read the live action parameter of ``table``'s entry for ``port`` via P4Runtime."""
+    output = runtime.exec(
+        "fabric_mgr",
+        f"python3 /opt/nika/p4rt_manager.py read --switch {shlex.quote(switch)}",
+        timeout=30,
+    )
+    try:
+        observed = json.loads(output)["switches"][switch]
+    except (ValueError, KeyError, TypeError):
+        return None
+    for row in (observed.get("runtime_config") or {}).get(table) or []:
+        if row.get("is_default") or int(row.get("key", -1)) != int(port):
+            continue
+        values = [v for k, v in row.items() if k.startswith("param_")]
+        if values:
+            return int(values[0])
+    return None
+
 
 # nftables match for ICMP Destination Unreachable / Fragmentation Needed.
-_FRAG_NEEDED_NFT_RULE = (
-    "ip protocol icmp icmp type destination-unreachable icmp code frag-needed drop"
-)
+# Written the way ``nft list`` prints it (nft adds and hides the implied
+# ``ip protocol icmp`` dependency), so verify_fault can match it exactly.
+_FRAG_NEEDED_NFT_RULE = "icmp type destination-unreachable icmp code frag-needed drop"
 
 _FRAG_NEEDED_COLUMNS = frozenset(
     {
@@ -68,10 +95,6 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     def inject_fault(self, params: IcmpFragNeededFilterMisconfigurationParams):
         if self._uses_p4_filter(params):
             self._result = set_icmp_frag_needed_filter(self.runtime, params.host_name)
-            self.runtime.exec(
-                params.host_name,
-                f"printf '%s\\n' '{self._result}' > /tmp/nika_icmp_frag_result",
-            )
             return
         self.runtime.add_nft_drop_rule(
             params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
@@ -80,23 +103,20 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
 
     def verify_fault(self, params: IcmpFragNeededFilterMisconfigurationParams) -> dict:
         if self._uses_p4_filter(params):
-            output = getattr(self, "_result", "") or self.runtime.exec(
-                params.host_name,
-                "cat /tmp/nika_icmp_frag_result 2>/dev/null || true",
-            )
+            # The P4Runtime read API does not list this ACL; trust the write ack.
+            output = getattr(self, "_result", "")
             return build_verify_result(
                 self.root_cause_name,
                 "icmp-frag-needed" in output,
                 {"gateway": params.host_name, "output": output[:200]},
             )
-        nft_output = self.runtime.list_nft_ruleset(params.host_name)
-        verified = "frag-needed" in nft_output or (
-            "destination-unreachable" in nft_output and "drop" in nft_output
+        verified = self.runtime.nft_drop_rule_present(
+            params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
         )
         return build_verify_result(
             self.root_cause_name,
             verified,
-            {"host": params.host_name, "nft_snippet": nft_output[:400]},
+            {"host": params.host_name, "nft_rule": _FRAG_NEEDED_NFT_RULE},
         )
 
 
@@ -148,6 +168,7 @@ class IntInsufficientMtuHeadroomParams(BaseModel):
 class IntInsufficientMtuHeadroom(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "int_insufficient_mtu_headroom"
+    root_cause_owner = "interface"
     description = "INT encapsulation lacks sufficient MTU headroom."
     symptom_desc = "Near-MTU watched packets cannot carry the fixed INT-MX header."
     TAGS = ["p4_runtime", "int", "telemetry", "http"]
@@ -158,25 +179,18 @@ class IntInsufficientMtuHeadroom(ProblemBase):
         return [interface_resource(params.host_name, params.intf_name)]
 
     def inject_fault(self, params: IntInsufficientMtuHeadroomParams):
-        self._result = set_int_mtu(
-            self.runtime, params.host_name, params.bmv2_port, params.int_mtu
-        )
-        self.runtime.exec(
-            params.host_name,
-            f"printf '%s\\n' '{self._result}' > /tmp/nika_int_mtu_result",
-        )
+        set_int_mtu(self.runtime, params.host_name, params.bmv2_port, params.int_mtu)
 
     def verify_fault(self, params: IntInsufficientMtuHeadroomParams) -> dict:
-        output = getattr(self, "_result", "") or self.runtime.exec(
-            params.host_name,
-            "cat /tmp/nika_int_mtu_result 2>/dev/null || true",
+        observed = read_runtime_config_value(
+            self.runtime, params.host_name, "int_mtu_config", params.bmv2_port
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=str(params.int_mtu) in output,
+            verified=observed == params.int_mtu,
             details={
                 "interface": params.intf_name,
                 "int_mtu": params.int_mtu,
-                "output": output[:200],
+                "observed_int_mtu": observed,
             },
         )
