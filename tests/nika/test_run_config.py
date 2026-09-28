@@ -243,8 +243,8 @@ def test_example_yaml_loads() -> None:
     assert cfg.version == 1
     assert cfg.nika.result_dir == "results"
     assert cfg.agent.type == "byo.langgraph"
-    assert cfg.agent.provider == "openai"
-    assert cfg.agent.model is None
+    assert cfg.agent.provider == "deepseek"
+    assert cfg.agent.model == "deepseek-v4-flash"
 
 
 def test_provider_validation_via_schema() -> None:
