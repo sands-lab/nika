@@ -1,5 +1,5 @@
-"""LangGraph-based agents (LangChain ReAct workers + StateGraph orchestration)."""
+"""LangGraph-based agents (LangChain ReAct workers)."""
 
-from agent.byo.langgraph.react_agent import AgentState, BasicReActAgent
+from agent.byo.langgraph.react_agent import BasicReActAgent
 
-__all__ = ["AgentState", "BasicReActAgent"]
+__all__ = ["BasicReActAgent"]

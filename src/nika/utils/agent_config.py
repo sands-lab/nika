@@ -69,6 +69,21 @@ def resolve_reasoning_effort(
     return _cfg(config).agent.reasoning_effort
 
 
+# mock has no LLM; SADE is excluded; Codex exposes no output-token cap setting.
+_MAX_TOKENS_UNSUPPORTED = frozenset(
+    {"mock", "community.sade", "cli.codex", "sdk.codex_sdk"}
+)
+
+
+def resolve_max_tokens(
+    agent_type: str, *, config: RunConfig | None = None
+) -> int | None:
+    """Effective ``agent.max_tokens`` for *agent_type* (None when not applied)."""
+    if agent_type.lower() in _MAX_TOKENS_UNSUPPORTED:
+        return None
+    return _cfg(config).agent.max_tokens
+
+
 def _warn_legacy_models_field() -> None:
     global _legacy_models_warned  # noqa: PLW0603
     if _legacy_models_warned:

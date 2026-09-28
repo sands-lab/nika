@@ -40,6 +40,7 @@ Configure shared values in `config/nika.yaml` or override them on `nika agent ru
 | `-m`, `--model` | `agent.model` | None |
 | `-n`, `--max-steps` | `agent.max_steps` | `20`; LLM turns per phase, for every agent (see [Step limit](#step-limit)) |
 | (run config only) | `agent.timeout_sec` | `1800`; wall-clock budget for the whole agent run, for every agent |
+| (run config only) | `agent.max_tokens` | `8192`; output-token cap per model response, for every LLM agent except `cli.codex`, `sdk.codex_sdk`, and `community.sade` |
 | `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
 | `--base-url` | `agent.custom.base_url` | None |
 

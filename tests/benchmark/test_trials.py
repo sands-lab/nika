@@ -348,6 +348,27 @@ class TestTrialHelpers:
         with pytest.raises(ValueError, match="n_trials"):
             merge_run_config(existing=existing, proposed=proposed)
 
+    def test_merge_run_config_checks_max_tokens_when_recorded(self) -> None:
+        existing = {
+            "benchmark_id": "nika-bench",
+            "version": "mini",
+            "split": "dev",
+            "agent_type": "byo.langgraph",
+            "model": "m",
+            "llm_provider": "openai",
+            "max_steps": 20,
+            "n_trials": 1,
+            "case_timeout_sec": 2400,
+            "official": True,
+            "run_id": "keep",
+            "job_id": "keep",
+        }
+        proposed = {**existing, "max_tokens": 8192}
+        # Runs recorded before max_tokens existed still resume.
+        merged = merge_run_config(existing=existing, proposed=proposed)
+        with pytest.raises(ValueError, match="max_tokens"):
+            merge_run_config(existing={**merged, "max_tokens": 4096}, proposed=proposed)
+
 
 class TestTrialOrchestration:
     def test_cardinality_and_isolation(self, tmp_path: Path) -> None:
@@ -518,7 +539,9 @@ class TestAgentFailedFinalization:
         (tmp_path / "submission.json").write_text("{}", encoding="utf-8")
         _require_submission(tmp_path)
 
-    def test_agent_failure_keeps_counted_trial(self, tmp_path: Path) -> None:
+    def test_agent_failure_keeps_counted_trial(
+        self, tmp_path: Path, request: pytest.FixtureRequest
+    ) -> None:
         result_dir = tmp_path / "run"
         trials = expand_trials([ROW_A], n_trials=1)
         trial = trials[0]
@@ -553,6 +576,8 @@ class TestAgentFailedFinalization:
                     "backend": "kathara",
                 }
             )
+            # close_session is patched out; drop the runtime row ourselves.
+            request.addfinalizer(lambda: SessionStore().delete_session(sid))
             return sid
 
         def fake_inject(**kwargs):
@@ -624,7 +649,9 @@ class TestAgentFailedFinalization:
                 case_key=trial.case_key,
             )
 
-        assert sid == trial.trial_id
+        from nika.workflows.benchmark.run import store_session_id_for_trial
+
+        assert sid == store_session_id_for_trial(trial.trial_id, result_dir)
         assert sdir == session_path
         assert is_valid_trial(session_path)
         run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
@@ -711,6 +738,7 @@ class TestReleaseRunMetadata:
             assert first is not None
             run_id = first["run_id"]
             assert first["n_trials"] == release.n_trials
+            assert first["max_tokens"] is None
             assert (result_dir / RUN_CONFIG_FILENAME).is_file()
             assert (result_dir / JOB_FILENAME).is_file()
             assert run_trials.call_args.kwargs["continue_on_error"] is True

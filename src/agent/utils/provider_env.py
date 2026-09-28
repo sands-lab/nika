@@ -179,6 +179,16 @@ def resolve_custom_model(sources: Mapping[str, str] | None = None) -> str | None
     return value or None
 
 
+def require_provider(provider: str | None) -> str:
+    """Return the normalized provider name, or raise when it is unset."""
+    if provider and str(provider).strip():
+        return str(provider).strip().lower()
+    raise ValueError(
+        "Missing LLM provider: set agent.provider in config/nika.yaml "
+        "or pass -p/--provider."
+    )
+
+
 def validate_provider_for_agent(agent_type: str, provider: str) -> str:
     """Normalize and validate *provider* for *agent_type*."""
     normalized_agent = agent_type.lower()
@@ -195,23 +205,6 @@ def validate_provider_for_agent(agent_type: str, provider: str) -> str:
             f"Allowed: {', '.join(sorted(allowed))}."
         )
     return normalized
-
-
-def provider_credential_keys(provider: str) -> frozenset[str]:
-    """Keys that belong to *provider* (for allowlisting / sandbox sync)."""
-    match provider:
-        case "openai":
-            return frozenset({ENV_OPENAI_API_KEY})
-        case "anthropic":
-            return frozenset({ENV_ANTHROPIC_API_KEY})
-        case "deepseek":
-            return frozenset({ENV_DEEPSEEK_API_KEY})
-        case "custom":
-            return frozenset(
-                {ENV_CUSTOM_BASE_URL, ENV_CUSTOM_API_KEY, ENV_CUSTOM_MODEL}
-            )
-        case _:
-            return frozenset()
 
 
 def has_provider_credentials(
@@ -334,16 +327,14 @@ def _copy_base_env(base: Mapping[str, str]) -> dict[str, str]:
     for key, value in base.items():
         if key in _FORBIDDEN_AGENT_KEYS:
             continue
-        if key in _BASE_SUBPROCESS_KEYS or key.startswith("NIKA_"):
-            # Still strip remote token / judge even if NIKA_*
-            if key in _FORBIDDEN_AGENT_KEYS:
-                continue
-            if "TOKEN" in key and key != "ANTHROPIC_AUTH_TOKEN":
-                if key == "NIKA_REMOTE_TOKEN":
-                    continue
-            text = str(value).strip() if value is not None else ""
-            if text:
-                env[key] = str(value)
+        if key not in _BASE_SUBPROCESS_KEYS and not key.startswith("NIKA_"):
+            continue
+        # NIKA_* secrets (remote token, gateway phase token) stay on the host.
+        if key.startswith("NIKA_") and "TOKEN" in key:
+            continue
+        text = str(value).strip() if value is not None else ""
+        if text:
+            env[key] = str(value)
     # Always allow PATH scaffolding even when empty-ish
     for key in ("PATH", "HOME", "USER", "LANG", "LC_ALL"):
         if key in base and key not in env:
@@ -426,4 +417,3 @@ def provider_env_context(
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-

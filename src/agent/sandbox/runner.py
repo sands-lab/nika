@@ -1,4 +1,11 @@
-"""Container entrypoint: load manifest and run the configured agent."""
+"""Sandbox entrypoint: run one pipeline phase of the configured SDK agent.
+
+``python -m agent.sandbox.runner diagnosis`` runs the diagnosis phase and
+writes the report to ``diagnosis_report.json``. The host then freezes the
+report and advances the MCP gateway (the phase-advance secret never enters the
+sandbox), writes ``submission_context.json``, and starts
+``python -m agent.sandbox.runner submission``.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +21,13 @@ from agent.sandbox.config import (
     ENV_SANDBOX_EXECUTION,
     ENV_SESSION_DIR,
 )
-from agent.sandbox.constants import MANIFEST_FILENAME, RUNTIME_ENV_FILENAME
+from agent.protocols import DIAGNOSIS, PHASES
+from agent.sandbox.constants import (
+    DIAGNOSIS_REPORT_FILENAME,
+    MANIFEST_FILENAME,
+    RUNTIME_ENV_FILENAME,
+    SUBMISSION_CONTEXT_FILENAME,
+)
 
 
 _FORCE_RUNTIME_ENV_KEYS = frozenset(
@@ -45,7 +58,11 @@ def _apply_runtime_env(workspace_dir: Path) -> None:
             os.environ.setdefault(key, text)
 
 
-def main() -> None:
+def main(phase: str) -> None:
+    if phase not in PHASES:
+        raise SystemExit(
+            f"Usage: python -m agent.sandbox.runner {{{'|'.join(PHASES)}}}"
+        )
     session_dir = os.environ.get(ENV_SESSION_DIR, "").strip() or os.getcwd()
     workspace_dir = Path(session_dir).resolve()
 
@@ -74,6 +91,7 @@ def main() -> None:
         raw = os.environ.get("NIKA_MAX_STEPS", "20").strip()
         max_steps = int(raw) if raw.isdigit() else 20
     reasoning_effort = manifest.get("reasoning_effort")
+    max_tokens = manifest.get("max_tokens")
     llm_provider = manifest.get("llm_provider")
     stream_output = bool(manifest.get("stream_output", True))
     task_description = manifest["task_description"]
@@ -85,14 +103,27 @@ def main() -> None:
         model=model,
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens,
         stream_output=stream_output,
     )
-    asyncio.run(agent.run(task_description=task_description))
+    if phase == DIAGNOSIS:
+        report = asyncio.run(agent.run_diagnosis(task_description))
+        (workspace_dir / DIAGNOSIS_REPORT_FILENAME).write_text(
+            json.dumps({"report": report}, ensure_ascii=False), encoding="utf-8"
+        )
+        return
+    report = json.loads(
+        (workspace_dir / DIAGNOSIS_REPORT_FILENAME).read_text(encoding="utf-8")
+    )["report"]
+    context = json.loads(
+        (workspace_dir / SUBMISSION_CONTEXT_FILENAME).read_text(encoding="utf-8")
+    )
+    asyncio.run(agent.run_submission(report, context))
 
 
 if __name__ == "__main__":
     try:
-        main()
+        main(sys.argv[1] if len(sys.argv) > 1 else "")
     except Exception as exc:
         print(f"Sandbox runner failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

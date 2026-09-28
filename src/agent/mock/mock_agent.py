@@ -1,6 +1,6 @@
-"""Mock LLM agent that simulates BasicReActAgent behaviour without a real LLM.
+"""Mock LLM agent that simulates a troubleshooting agent without a real LLM.
 
-The agent mirrors the two-phase architecture of BasicReActAgent:
+The agent follows the shared two-phase pipeline (``TwoPhaseAgent``):
   1. diagnosis phase  – calls lab MCP tools and emits a deterministic report
   2. submission phase – calls submit via task MCP server using frozen context
 
@@ -19,10 +19,11 @@ from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
+from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.loggers import tool_event_payload
 from agent.utils.mcp_servers import select_diagnosis_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.two_phase import TwoPhaseAgent
 from nika.problems.rca import RootCause
 from nika.runtime.factory import resolve_backend
 from nika.utils.session import Session
@@ -208,8 +209,8 @@ def _mock_diagnosis_report(*, devices: list[str], preferred: list[str]) -> str:
     )
 
 
-class MockAgent:
-    """Deterministic mock agent that mirrors the BasicReActAgent interface."""
+class MockAgent(TwoPhaseAgent):
+    """Deterministic mock agent on the shared two-phase pipeline."""
 
     def __init__(
         self,
@@ -220,21 +221,14 @@ class MockAgent:
         self.session_id = session_id
         self.model = model
         self.max_steps = max_steps
+        self.stream_output = False
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
+        self.trace_dir = self.session.session_dir
 
-    def load_session(self) -> None:
+    async def diagnose(self, task_description: str) -> str:
         self.session.load_running_session(session_id=self.session_id)
-
-    async def run(self, task_description: str) -> dict[str, Any]:
-        self.load_session()
-        diagnosis_report = await self._run_diagnosis(task_description)
-        await self._run_submission(diagnosis_report)
-        return {"diagnosis_report": diagnosis_report}
-
-    async def _run_diagnosis(self, task_description: str) -> str:
         logger = self._make_logger(DIAGNOSIS)
-        logger.log_agent_start(task_preview=task_description[:200])
         logger.log(
             "llm_start",
             {
@@ -250,7 +244,9 @@ class MockAgent:
         preferred = _preferred_devices_from_gt(gt)
         devices = _session_device_names(self.session_id) or list(preferred)
 
-        config = load_session_mcp_config(self.session_id, scenario, backend=backend)
+        config = load_session_mcp_config(
+            self.session_id, scenario, backend=backend, phase=DIAGNOSIS
+        )
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
@@ -292,16 +288,14 @@ class MockAgent:
             )
 
         logger.log("llm_end", {"text": diagnosis_report})
-        logger.log_agent_done(report_length=len(diagnosis_report))
         return diagnosis_report
 
-    async def _run_submission(self, diagnosis_report: str) -> None:
+    async def submit(self, diagnosis_report: str, context: dict[str, Any]) -> str:
         logger = self._make_logger(SUBMISSION)
         backend = resolve_backend(self.session)
         scenario = str(getattr(self.session, "scenario_name", "") or "")
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
 
-        logger.log_agent_start()
         logger.log(
             "llm_start",
             {
@@ -317,14 +311,12 @@ class MockAgent:
             },
         )
 
-        begin_submission_mcp_phase(self.session_id, diagnosis_report)
-        config = load_session_mcp_config(self.session_id, scenario, backend=backend)
+        config = load_session_mcp_config(
+            self.session_id, scenario, backend=backend, phase=SUBMISSION
+        )
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        from nika.workflows.agent.submission import load_submission_context
-
-        context = load_submission_context(self.session_id)
         catalog_ids = [str(item["id"]) for item in context["resources"]]
         catalog_set = set(catalog_ids)
         avail = [
@@ -387,11 +379,9 @@ class MockAgent:
             ),
         )
 
-        logger.log(
-            "llm_end",
-            {"text": (f"Submitted: root_causes = {chosen}")},
-        )
-        logger.log_agent_done()
+        result = f"Submitted: root_causes = {chosen}"
+        logger.log("llm_end", {"text": result})
+        return result
 
     def _make_logger(self, agent_name: str):
         """Return a MessageLogger for *agent_name*."""

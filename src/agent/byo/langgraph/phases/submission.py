@@ -24,13 +24,13 @@ class SubmissionPhase:
         model: str = "gpt-5-mini",
         scenario_name: str = "",
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
         max_steps: int = 20,
     ):
         session = Session()
         session.load_running_session(session_id=session_id)
         mcp_server_config = load_session_mcp_config(
-            session_id,
-            scenario_name or session.scenario_name,
+            session_id, scenario_name or session.scenario_name, phase=SUBMISSION
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
@@ -40,6 +40,7 @@ class SubmissionPhase:
             llm_provider=llm_provider,
             model=model,
             reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
         )
 
     async def load_tools(self):

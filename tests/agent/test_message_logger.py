@@ -141,3 +141,31 @@ def test_mcp_agent_post_tool_call_includes_correlation_fields(tmp_path: Path) ->
     assert end["tool_call_id"] == "call-3"
     assert start["input"] == '{"router_name": "router1"}'
     assert end["input"] == '{"router_name": "router1"}'
+
+
+def test_tool_end_logs_readable_output_and_structured_input(tmp_path: Path) -> None:
+    logger = AgentCallbackLogger(phase=DIAGNOSIS, session_dir=str(tmp_path))
+    logger.on_tool_start(
+        {"name": "get_host_net_config"},
+        "{'host_name': 'pc1'}",
+        inputs={"host_name": "pc1"},
+        tool_call_id="call-3",
+    )
+    logger.on_tool_end(
+        ToolMessage(
+            content=[{"type": "text", "text": '{"host_name": "pc1"}'}],
+            tool_call_id="call-3",
+            name="get_host_net_config",
+        ),
+        tool_call_id="call-3",
+    )
+
+    start, end = (
+        json.loads(line)
+        for line in (tmp_path / "messages.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    assert start["input"] == '{"host_name": "pc1"}'
+    assert end["output"] == '{"host_name": "pc1"}'
+    assert end["input"] == '{"host_name": "pc1"}'

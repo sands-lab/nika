@@ -547,6 +547,7 @@ _RUN_IDENTITY_FIELDS = (
     "model",
     "llm_provider",
     "max_steps",
+    "max_tokens",
     "n_trials",
     "case_timeout_sec",
     "official",
@@ -560,13 +561,16 @@ def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:
 def assert_run_config_compatible(
     existing: dict[str, Any], proposed: dict[str, Any]
 ) -> None:
-    """Refuse resume when run identity fields diverge."""
+    """Refuse resume when run identity fields diverge.
+
+    Fields absent from ``existing`` predate their introduction and are skipped.
+    """
     old = run_config_identity(existing)
     new = run_config_identity(proposed)
     mismatches = [
         f"{key}: existing={old[key]!r} requested={new[key]!r}"
         for key in _RUN_IDENTITY_FIELDS
-        if old.get(key) != new.get(key)
+        if key in existing and old.get(key) != new.get(key)
     ]
     if mismatches:
         raise ValueError(

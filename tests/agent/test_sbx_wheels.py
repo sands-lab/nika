@@ -73,17 +73,17 @@ def test_sdk_requirements_are_exact_pins() -> None:
     assert any(req.startswith("openai-codex==") for req in SDK_PIP_PACKAGES)
 
 
-def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
+def test_resolve_sandbox_config_offline_sdk_wheels_default_on() -> None:
     from nika.run_config.loader import reset_run_config, set_run_config
     from nika.run_config.schema import RunConfig
 
     reset_run_config()
     set_run_config(RunConfig())
-    assert resolve_sandbox_config().offline_sdk_wheels is False
+    assert resolve_sandbox_config().offline_sdk_wheels is True
 
     set_run_config(
-        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": True}}})
+        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": False}}})
     )
-    assert resolve_sandbox_config().offline_sdk_wheels is True
-    assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False
+    assert resolve_sandbox_config().offline_sdk_wheels is False
+    assert resolve_sandbox_config(offline_sdk_wheels=True).offline_sdk_wheels is True
     reset_run_config()

@@ -20,10 +20,11 @@ Two layers (keep names stable so inspect can match uniformly):
   ``agent_start`` → ``agent_done`` | ``agent_error``
   One pair per pipeline phase (diagnosis / submission).
 
-All agents (Codex SDK, Claude SDK, CLI, BYO, …) should emit the phase
-bookends via :meth:`MessageLogger.log_agent_start` /
-:meth:`MessageLogger.log_agent_done` /
-:meth:`MessageLogger.log_agent_error` so inspect pairing stays agent-agnostic.
+Every agent emits the phase bookends through
+:class:`~agent.utils.two_phase.TwoPhaseAgent` (which calls
+:meth:`MessageLogger.log_agent_start` / :meth:`MessageLogger.log_agent_done` /
+:meth:`MessageLogger.log_agent_error`), so inspect pairing stays agent-agnostic.
+Workers log one ``llm_end`` per model response (the ``max_steps`` unit).
 
 Extending
 ---------
@@ -34,6 +35,7 @@ unchanged to the JSONL record.
 
 import json
 import os
+from contextvars import ContextVar, Token
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -42,9 +44,17 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.outputs.generation import Generation
 
+from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.usage import normalize_usage
 
 MESSAGES_FILENAME = "messages.jsonl"
+
+# Active LangChain chat-model call so HTTP-level retries can emit ``llm_retry``
+# markers into the same messages.jsonl span (inspect splits them for display).
+_ActiveLlmLog = tuple["MessageLogger", str | None]
+_active_llm_log: ContextVar[_ActiveLlmLog | None] = ContextVar(
+    "nika_active_llm_log", default=None
+)
 
 
 def normalize_tool_input(value: Any) -> str:
@@ -114,6 +124,52 @@ class PendingToolCallTracker:
         return {"name": name or "", "input": ""}
 
 
+def tool_output_content(output: Any) -> Any:
+    """Tool result body for ``messages.jsonl`` (not the ``ToolMessage`` repr).
+
+    Text-only content blocks are joined into one string; other content is kept
+    as-is for JSON serialization.
+    """
+    content = getattr(output, "content", output)
+    if isinstance(content, list) and all(
+        isinstance(block, dict) and block.get("type") == "text" for block in content
+    ):
+        return "\n".join(str(block.get("text", "")) for block in content)
+    return content
+
+
+def _run_id_field(kwargs: dict[str, Any]) -> dict[str, str]:
+    """LangChain ``run_id`` so readers can pair concurrent llm_start/llm_end."""
+    run_id = kwargs.get("run_id")
+    return {"run_id": str(run_id)} if run_id is not None else {}
+
+
+def log_llm_retry(
+    error: BaseException,
+    *,
+    failed_attempt: int,
+    max_retries: int,
+) -> None:
+    """Record an HTTP/provider retry inside the current ``llm_start`` span.
+
+    OpenAI-compat clients otherwise retry silently between ``llm_start`` and
+    ``llm_end``, so inspect would show one multi-timeout wall-clock bar.
+    """
+    active = _active_llm_log.get()
+    if active is None:
+        return
+    logger, run_id = active
+    payload: dict[str, Any] = {
+        "error": str(error),
+        "failed_attempt": int(failed_attempt),
+        "next_attempt": int(failed_attempt) + 1,
+        "max_retries": int(max_retries),
+    }
+    if run_id:
+        payload["run_id"] = run_id
+    logger.log("llm_retry", payload)
+
+
 def _resolve_tool_name(output: Any, kwargs: dict[str, Any]) -> str | None:
     name = kwargs.get("name")
     if name:
@@ -167,10 +223,33 @@ class MessageLogger:
 class AgentCallbackLogger(BaseCallbackHandler):
     """LangChain callback handler that delegates to ``MessageLogger``."""
 
+    # Async model calls otherwise run sync handlers in a copied context, so
+    # the ``_active_llm_log`` set in on_chat_model_start never reaches
+    # ``log_llm_retry`` inside ``_agenerate``.
+    run_inline = True
+
     def __init__(self, phase: str, session_dir: str) -> None:
         super().__init__()
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._pending_tool_calls = PendingToolCallTracker()
+        self._active_llm_tokens: list[Token] = []
+        # Latest non-empty model text; the report when max_steps runs out.
+        self.last_text = ""
+
+    def _push_active_llm(self, run_id: str | None) -> None:
+        token = _active_llm_log.set((self._logger, run_id))
+        self._active_llm_tokens.append(token)
+
+    def _pop_active_llm(self) -> None:
+        if not self._active_llm_tokens:
+            return
+        token = self._active_llm_tokens.pop()
+        try:
+            _active_llm_log.reset(token)
+        except ValueError:
+            # LangGraph/LangChain may run on_llm_end in a different Context
+            # than on_chat_model_start; Token.reset is context-bound.
+            _active_llm_log.set(None)
 
     def on_chat_model_start(
         self,
@@ -178,22 +257,30 @@ class AgentCallbackLogger(BaseCallbackHandler):
         messages: list[list[BaseMessage]],
         **kwargs,
     ) -> None:
+        run_fields = _run_id_field(kwargs)
         self._logger.log(
             "llm_start",
             {
                 "messages": messages[0][-1],
-                "model": serialized,
+                # Non-serializable models (e.g. ChatDeepSeek) carry a ``repr``
+                # with client fields such as ``openai_api_key=SecretStr(...)``,
+                # which fails the leaderboard trajectory secret scan.
+                "model": {k: v for k, v in serialized.items() if k != "repr"},
+                **run_fields,
             },
         )
+        self._push_active_llm(run_fields.get("run_id"))
 
     def on_llm_end(self, response, **kwargs) -> None:
-        payload: dict[str, Any] = {}
+        payload: dict[str, Any] = _run_id_field(kwargs)
         try:
             res: Generation = response.generations[0][0]
             if res:
                 text = getattr(res, "text", None)
                 if text:
                     payload["text"] = res.text
+                    if str(text).strip():
+                        self.last_text = str(text)
                 generation_info = getattr(res, "generation_info", None)
                 if generation_info:
                     payload["generation_info"] = res.generation_info
@@ -206,6 +293,7 @@ class AgentCallbackLogger(BaseCallbackHandler):
                     payload["usage_metadata"] = (
                         normalize_usage(raw_usage) if raw_usage else None
                     )
+                    payload.update(reasoning_fields_for_log(message))
             self._logger.log("llm_end", payload)
         except Exception as exc:
             import traceback
@@ -216,16 +304,30 @@ class AgentCallbackLogger(BaseCallbackHandler):
                     "error": str(exc),
                     "traceback": traceback.format_exc(),
                     "response": str(response),
+                    **_run_id_field(kwargs),
                 },
             )
+        finally:
+            self._pop_active_llm()
+
+    def on_llm_error(self, error: BaseException, **kwargs) -> None:
+        # Close the llm_start span for failed calls (timeouts, provider errors).
+        try:
+            self._logger.log(
+                "llm_end_error", {"error": str(error), **_run_id_field(kwargs)}
+            )
+        finally:
+            self._pop_active_llm()
 
     def on_tool_start(
         self, serialized: dict[str, Any], input_str: str, **kwargs
     ) -> None:
         tool_name = str(serialized.get("name", ""))
+        # ``input_str`` is ``str(dict)``; prefer the structured args when given.
+        inputs = kwargs.get("inputs")
         payload = self._pending_tool_calls.register(
             name=tool_name,
-            input=input_str,
+            input=inputs if isinstance(inputs, dict) else input_str,
             tool_call_id=kwargs.get("tool_call_id"),
         )
         self._logger.log("tool_start", payload)
@@ -246,13 +348,15 @@ class AgentCallbackLogger(BaseCallbackHandler):
             tool_call_id=tool_call_id,
         )
         if getattr(output, "status", None) == "error":
-            self._logger.log("tool_error", {**correlation, "output": output})
+            self._logger.log(
+                "tool_error", {**correlation, "output": tool_output_content(output)}
+            )
             return
         self._logger.log(
             "tool_end",
             {
                 **correlation,
-                "output": output,
+                "output": tool_output_content(output),
                 "output_type": type(output).__name__,
             },
         )

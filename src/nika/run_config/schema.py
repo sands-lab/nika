@@ -255,6 +255,8 @@ class AgentSettings(BaseModel):
     # Consecutive submit() validation failures before a final rejection (0 = unlimited).
     submit_reject_limit: int = 5
     reasoning_effort: str | None = None
+    # Output-token cap per model response. Not applied by Codex agents or SADE.
+    max_tokens: int = 8192
     models: AgentModels = Field(default_factory=AgentModels)
     custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
@@ -265,6 +267,13 @@ class AgentSettings(BaseModel):
     def _max_steps_positive(cls, value: int) -> int:
         if value < 1:
             raise ValueError("agent.max_steps must be >= 1")
+        return value
+
+    @field_validator("max_tokens")
+    @classmethod
+    def _max_tokens_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("agent.max_tokens must be >= 1")
         return value
 
     @field_validator("timeout_sec")

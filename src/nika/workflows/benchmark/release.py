@@ -575,6 +575,7 @@ def build_job_metadata(
     job_id: str | None = None,
     llm_provider: str | None = None,
     max_steps: int | None = None,
+    max_tokens: int | None = None,
     n_trials: int = 1,
 ) -> dict[str, Any]:
     commit, dirty = read_git_commit()
@@ -600,6 +601,7 @@ def build_job_metadata(
         "llm_provider": llm_provider,
         "model": model,
         "max_steps": max_steps,
+        "max_tokens": max_tokens,
         "n_trials": int(n_trials),
         "official": official,
     }

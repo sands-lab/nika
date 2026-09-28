@@ -24,3 +24,16 @@ def resolve_agent_session_dir(session_dir: str) -> str:
     if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
         return override
     return session_dir
+
+
+def resolve_agent_trace_dir(session_id: str, session_dir: str) -> str:
+    """Keep host-orchestrated CLI traces in the result directory."""
+    if not os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
+        return session_dir
+
+    from nika.utils.session_store import SessionStore
+
+    row = SessionStore().find_by_agent_session_id(session_id)
+    if row is None or not row.get("session_dir"):
+        raise FileNotFoundError(f"Host session for agent {session_id!r} not found")
+    return str(row["session_dir"])

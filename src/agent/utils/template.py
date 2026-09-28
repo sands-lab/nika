@@ -39,8 +39,9 @@ SUBMIT_PROMPT_TEMPLATE = dedent("""\
     owner_kind, description, or natural-language alias), and each resource_id
     must be an exact inventory id. Do not invent ids. For a healthy case submit
     is_anomaly=false with root_causes=[]. If submit is rejected, fix the
-    arguments and call submit again until it returns success. Do not replace
-    submit() with plain-text JSON. After one successful submit, stop.
+    arguments and call submit again. After a final rejection (consecutive
+    reject limit), stop. Do not replace submit() with plain-text JSON. After
+    one successful submit, stop.
     Rely only on the MCP tools available to you; do not execute arbitrary shell commands.\
 """).strip()
 

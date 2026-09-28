@@ -39,11 +39,13 @@ def test_mcp_agent_custom_provider_uses_nika_custom(monkeypatch) -> None:
             }
         )
     )
-    apply_custom_provider_env()
-    try:
-        settings = _openai_settings_for_provider("openai/gpt-4o-mini", "custom")
-    finally:
-        reset_run_config()
+    # apply_custom_provider_env writes os.environ directly; restore it afterwards.
+    with patch.dict("os.environ"):
+        apply_custom_provider_env()
+        try:
+            settings = _openai_settings_for_provider("openai/gpt-4o-mini", "custom")
+        finally:
+            reset_run_config()
 
     assert settings.base_url == "https://openrouter.ai/api/v1"
     assert settings.api_key == "sk-or-test"
@@ -67,21 +69,24 @@ def test_autogen_create_model_client_uses_custom(monkeypatch) -> None:
             }
         )
     )
-    apply_custom_provider_env()
-    try:
-        fake = MagicMock(name="client")
-        with patch(
-            "agent.byo.autogen.runner.OpenAIChatCompletionClient", return_value=fake
-        ) as ctor:
-            client = create_model_client("openai/gpt-4o-mini", provider="custom")
+    # apply_custom_provider_env writes os.environ directly; restore it afterwards.
+    with patch.dict("os.environ"):
+        apply_custom_provider_env()
+        try:
+            fake = MagicMock(name="client")
+            with patch(
+                "agent.byo.autogen.runner.OpenAIChatCompletionClient",
+                return_value=fake,
+            ) as ctor:
+                client = create_model_client("openai/gpt-4o-mini", provider="custom")
+        finally:
+            reset_run_config()
 
-        assert client is fake
-        kwargs = ctor.call_args.kwargs
-        assert kwargs["model"] == "openai/gpt-4o-mini"
-        assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
-        assert kwargs["api_key"] == "sk-or-test"
-    finally:
-        reset_run_config()
+    assert client is fake
+    kwargs = ctor.call_args.kwargs
+    assert kwargs["model"] == "openai/gpt-4o-mini"
+    assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
+    assert kwargs["api_key"] == "sk-or-test"
 
 
 def test_autogen_deepseek_provider(monkeypatch) -> None:
@@ -173,6 +178,25 @@ def test_autogen_passes_reasoning_effort(monkeypatch) -> None:
     assert ctor.call_args.kwargs["reasoning_effort"] == "medium"
 
 
+def test_autogen_passes_max_tokens_per_provider(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+    monkeypatch.setenv("NIKA_CUSTOM_BASE_URL", "http://example:8000/v1")
+    with (
+        patch("agent.byo.autogen.runner.OpenAIChatCompletionClient") as openai_ctor,
+        patch("agent.byo.autogen.runner.AnthropicChatCompletionClient") as anthropic,
+    ):
+        create_model_client("gpt-5-mini", provider="openai", max_tokens=8192)
+        assert openai_ctor.call_args.kwargs["max_completion_tokens"] == 8192
+        assert "max_tokens" not in openai_ctor.call_args.kwargs
+        for provider in ("deepseek", "custom"):
+            create_model_client("m", provider=provider, max_tokens=8192)
+            assert openai_ctor.call_args.kwargs["max_tokens"] == 8192
+        create_model_client("claude-opus-4-6", provider="anthropic", max_tokens=8192)
+        assert anthropic.call_args.kwargs["max_tokens"] == 8192
+
+
 def test_autogen_deepseek_ignores_reasoning_effort(monkeypatch) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
     fake = MagicMock(name="client")
@@ -239,3 +263,12 @@ def test_mcp_agent_anthropic_request_params_use_output_config(monkeypatch) -> No
     )
     assert params.metadata == {"output_config": {"effort": "low"}}
     assert params.reasoning_effort is None
+
+
+def test_mcp_agent_request_params_carry_max_tokens() -> None:
+    from agent.byo.mcp_agent.config import build_mcp_request_params
+
+    params = build_mcp_request_params(
+        model="gpt-5-mini", max_steps=10, max_tokens=8192, provider="openai"
+    )
+    assert params.maxTokens == 8192

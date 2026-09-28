@@ -44,7 +44,3 @@ def redact_text(text: str) -> str:
             redacted,
         )
     return redacted
-
-
-def redact_env_dict(env: dict[str, str]) -> dict[str, str]:
-    return {key: redact_env_value(key, value) for key, value in env.items()}

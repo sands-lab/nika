@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
+import json
 import logging
 import os
 import shutil
@@ -14,9 +14,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agent.sandbox.config import ENV_SESSION_DIR, SandboxConfig
-from agent.sandbox.constants import MANIFEST_FILENAME
+from agent.sandbox.constants import (
+    DIAGNOSIS_REPORT_FILENAME,
+    MANIFEST_FILENAME,
+    SUBMISSION_CONTEXT_FILENAME,
+)
 from agent.sandbox.env import format_env_for_log
 from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
+from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.sandbox.redact import redact_text
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME, native_sbx_agent
 from agent.sandbox.sbx.client import (
@@ -38,14 +43,17 @@ from agent.sandbox.sbx.policy import (
     sanitize_sandbox_name,
 )
 from agent.sandbox.sbx.proxy import ensure_sbx_proxy_config, resolve_sbx_upstream_proxy
+from agent.utils.skills import ENV_ENABLE_SKILLS, skills_enabled
 from agent.sandbox.sbx.wheels import (
     install_sdk_packages_in_sandbox,
     stage_sdk_wheels,
 )
 from agent.sandbox.sbx.workspace import (
+    TraceMirror,
     cleanup_workspace,
     collect_artifacts,
     prepare_workspace,
+    trace_mirror,
 )
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
@@ -73,6 +81,9 @@ class SbxSession:
     sandbox_name: str
     workspace_dir: Path
     gateway_port: int
+    agent_session_id: str = ""
+    # In-VM SDK agents only: copies the workspace trace into the host trace.
+    trace_mirror: TraceMirror | None = None
 
 
 class SbxSandboxManager:
@@ -89,6 +100,7 @@ class SbxSandboxManager:
         model: str,
         max_steps: int | None,
         reasoning_effort: str | None,
+        max_tokens: int | None,
         llm_provider: str | None,
         mcp_gateway_agent_url: str,
         stream_output: bool,
@@ -106,6 +118,7 @@ class SbxSandboxManager:
             "model": model,
             "max_steps": max_steps,
             "reasoning_effort": reasoning_effort,
+            "max_tokens": max_tokens,
             "llm_provider": llm_provider,
             "task_description": session.task_description,
             "scenario_name": scenario_name,
@@ -116,13 +129,6 @@ class SbxSandboxManager:
         # Bake the session-specific gateway URL into the workspace.  Parallel
         # CLI trials share the host process environment, so resolving this URL
         # later from NIKA_MCP_GATEWAY_* can pick up a sibling trial's value.
-        # Bake the submission catalog for every sandbox agent: SDK microVMs have
-        # no SessionStore, and host-side CLI orchestrators only hold the opaque
-        # agent session id when NIKA_SANDBOX_EXECUTION=1.
-        from nika.workflows.agent.submission import load_submission_catalog
-
-        # Catalog load needs the canonical SessionStore key.
-        manifest["submission_context"] = load_submission_catalog(session.session_id)
         manifest["mcp_servers"] = build_sandbox_mcp_servers(
             session_id=agent_sid,
             scenario_name=scenario_name,
@@ -179,6 +185,7 @@ class SbxSandboxManager:
         model: str,
         max_steps: int | None,
         reasoning_effort: str | None,
+        max_tokens: int | None,
         llm_provider: str | None,
         mcp_gateway_agent_url: str,
         gateway_port: int,
@@ -200,6 +207,7 @@ class SbxSandboxManager:
             model=model,
             max_steps=max_steps,
             reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
             llm_provider=llm_provider,
             mcp_gateway_agent_url=mcp_gateway_agent_url,
             stream_output=stream_output,
@@ -215,6 +223,7 @@ class SbxSandboxManager:
             "NIKA_SESSION_ID": agent_sid,
             "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
             "PYTHONPATH": str(workspace_path / "agent"),
+            ENV_ENABLE_SKILLS: "1" if skills_enabled() else "0",
         }
         backend = getattr(session, "backend", "").strip()
         if backend:
@@ -241,10 +250,12 @@ class SbxSandboxManager:
             agent_session_id=agent_sid,
             workspace_dir=workspace_path,
         )
+        mirror: TraceMirror | None = None
         if agent_type in SDK_AGENT_TYPES:
             self._bundle_agent_sources(workspace.workspace_dir)
             if self.config.offline_sdk_wheels:
                 stage_sdk_wheels(workspace.workspace_dir)
+            mirror = trace_mirror(workspace)
 
         run_sbx_optional(["rm", "--force", sandbox_name])
 
@@ -312,13 +323,19 @@ class SbxSandboxManager:
                     os.environ[key] = value
                 else:
                     os.environ.setdefault(key, value)
+            if mirror is not None:
+                mirror.start()
             yield SbxSession(
                 sandbox_name=sandbox_name,
                 workspace_dir=workspace.workspace_dir,
                 gateway_port=gateway_port,
+                agent_session_id=agent_sid,
+                trace_mirror=mirror,
             )
         finally:
             try:
+                if mirror is not None:
+                    mirror.stop()
                 if prior_sbx_name is None:
                     os.environ.pop(ENV_SBX_SANDBOX_NAME, None)
                 else:
@@ -350,7 +367,7 @@ class SbxSandboxManager:
                             # Keep the manifest even when artifact collection or
                             # earlier sandbox cleanup fails.
                             (session_dir / MANIFEST_FILENAME).write_text(
-                                __import__("json").dumps(manifest, indent=2),
+                                json.dumps(manifest, indent=2),
                                 encoding="utf-8",
                             )
                             cleanup_workspace(workspace)
@@ -365,35 +382,113 @@ class SbxSandboxManager:
             finally:
                 _sandbox_env_lock.release()
 
-    def _run_sdk_in_sandbox(
+    def _run_sdk_step(
         self,
         *,
         sbx_session: SbxSession,
+        phase: str,
         stream_output: bool,
+        timeout_sec: float | None,
+        budget_sec: int,
     ) -> None:
+        """Run one pipeline phase of the SDK agent inside the sandbox."""
         workspace = sbx_session.workspace_dir
         py_path = workspace / "agent"
         inner = (
-            f"cd {workspace} && PYTHONPATH={py_path} python3 -m agent.sandbox.runner"
+            f"cd {workspace} && PYTHONPATH={py_path} "
+            f"python3 -m agent.sandbox.runner {phase}"
         )
         proc = stream_sbx(
             ["exec", "-d", sbx_session.sandbox_name, "bash", "-lc", inner]
         )
         assert proc.stdout is not None
-        captured: list[str] = []
-        for line in proc.stdout:
-            captured.append(line)
-            if stream_output:
-                import sys
+        timed_out = threading.Event()
 
-                sys.stdout.write(line)
-                sys.stdout.flush()
-        returncode = proc.wait()
+        def _kill_on_timeout() -> None:
+            timed_out.set()
+            proc.kill()
+
+        timer = (
+            threading.Timer(max(timeout_sec, 0.0), _kill_on_timeout)
+            if timeout_sec is not None
+            else None
+        )
+        if timer is not None:
+            timer.start()
+        captured: list[str] = []
+        try:
+            for line in proc.stdout:
+                captured.append(line)
+                if stream_output:
+                    import sys
+
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+            returncode = proc.wait()
+        finally:
+            if timer is not None:
+                timer.cancel()
+        if timed_out.is_set():
+            from agent.registry import AgentTimeoutError
+
+            raise AgentTimeoutError(
+                f"agent run exceeded agent.timeout_sec ({budget_sec}s)"
+            )
         if returncode != 0:
             detail = "".join(captured).strip() or "(no output)"
             raise RuntimeError(
-                f"SDK sandbox runner exited with code {returncode}:\n{detail}"
+                f"SDK sandbox runner ({phase}) exited with code {returncode}:\n{detail}"
             )
+
+    def _run_sdk_in_sandbox(
+        self,
+        *,
+        sbx_session: SbxSession,
+        stream_output: bool,
+        timeout_sec: int,
+    ) -> None:
+        """Diagnosis in the VM, freeze + phase advance on the host, then submission.
+
+        The gateway's phase-advance secret stays in this host process, so the
+        in-VM agent cannot reach the submission context before its diagnosis
+        step has exited.
+        """
+        from agent.utils.mcp_client import begin_submission_mcp_phase
+
+        deadline = time.monotonic() + timeout_sec if timeout_sec > 0 else None
+
+        def remaining() -> float | None:
+            return None if deadline is None else deadline - time.monotonic()
+
+        workspace = sbx_session.workspace_dir
+        mirror = sbx_session.trace_mirror
+        self._run_sdk_step(
+            sbx_session=sbx_session,
+            phase=DIAGNOSIS,
+            stream_output=stream_output,
+            timeout_sec=remaining(),
+            budget_sec=timeout_sec,
+        )
+        report_path = workspace / DIAGNOSIS_REPORT_FILENAME
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))["report"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise RuntimeError(f"SDK diagnosis step left no report: {exc}") from exc
+        if not isinstance(report, str):
+            raise RuntimeError("SDK diagnosis step left a non-text report")
+        if mirror is not None:
+            mirror.set_phase(SUBMISSION)
+        context = begin_submission_mcp_phase(sbx_session.agent_session_id, report)
+        (workspace / SUBMISSION_CONTEXT_FILENAME).write_text(
+            json.dumps(context, ensure_ascii=False), encoding="utf-8"
+        )
+        self._run_sdk_step(
+            sbx_session=sbx_session,
+            phase=SUBMISSION,
+            stream_output=stream_output,
+            timeout_sec=remaining(),
+            budget_sec=timeout_sec,
+        )
 
     def run(
         self,
@@ -402,7 +497,9 @@ class SbxSandboxManager:
         agent_type: str,
         model: str,
         max_steps: int | None,
+        timeout_sec: int,
         reasoning_effort: str | None,
+        max_tokens: int | None,
         llm_provider: str | None,
         mcp_gateway_agent_url: str,
         gateway_port: int,
@@ -415,6 +512,7 @@ class SbxSandboxManager:
             model=model,
             max_steps=max_steps,
             reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
             llm_provider=llm_provider,
             mcp_gateway_agent_url=mcp_gateway_agent_url,
             gateway_port=gateway_port,
@@ -424,9 +522,10 @@ class SbxSandboxManager:
                 self._run_sdk_in_sandbox(
                     sbx_session=sbx_session,
                     stream_output=stream_output,
+                    timeout_sec=timeout_sec,
                 )
             else:
-                from agent.registry import create_agent
+                from agent.registry import create_agent, run_agent
 
                 agent = create_agent(
                     agent_type,
@@ -435,9 +534,10 @@ class SbxSandboxManager:
                     model=model,
                     max_steps=max_steps,
                     reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens,
                     stream_output=stream_output,
                 )
-                asyncio.run(agent.run(task_description=session.task_description))
+                run_agent(agent, session.task_description, timeout_sec=timeout_sec)
 
         return SbxSandboxRunResult(
             returncode=0,
