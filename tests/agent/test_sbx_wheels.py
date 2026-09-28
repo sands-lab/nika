@@ -39,7 +39,7 @@ def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
         )
 
     command = run.call_args.args[0]
-    assert command[:3] == ["exec", "-d", "nika-test"]
+    assert command[:2] == ["exec", "nika-test"]
     assert "--no-index" in command[-1]
     assert str(wheels) in command[-1]
     assert "-r '" in command[-1]
@@ -59,7 +59,7 @@ def test_sdk_packages_install_from_pypi_when_offline_disabled(tmp_path) -> None:
         )
 
     command = run.call_args.args[0]
-    assert command[:3] == ["exec", "-d", "nika-test"]
+    assert command[:2] == ["exec", "nika-test"]
     assert "--no-index" not in command[-1]
     assert "pip3 install" in command[-1]
     assert "-r '" in command[-1]

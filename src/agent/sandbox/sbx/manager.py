@@ -398,9 +398,7 @@ class SbxSandboxManager:
             f"cd {workspace} && PYTHONPATH={py_path} "
             f"python3 -m agent.sandbox.runner {phase}"
         )
-        proc = stream_sbx(
-            ["exec", "-d", sbx_session.sandbox_name, "bash", "-lc", inner]
-        )
+        proc = stream_sbx(["exec", sbx_session.sandbox_name, "bash", "-lc", inner])
         assert proc.stdout is not None
         timed_out = threading.Event()
 

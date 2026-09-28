@@ -87,7 +87,7 @@ def test_exec_command_uses_sandbox_relative_paths() -> None:
             env={"CODEX_HOME": "/tmp/sandbox/codex_workspace/.codex_home"},
         )
 
-    assert command[:4] == ["sbx", "exec", "-d", "nika-test"]
+    assert command[:3] == ["sbx", "exec", "nika-test"]
     assert "CODEX_HOME=.codex_home" in command[-1]
     assert "cd codex_workspace" in command[-1]
 
