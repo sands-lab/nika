@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.lab import LINK_IFACE
+from nika.net_env.iosxr_simple_bgp.lab import LINK_IFACE
 from nika.net_env.verify import (
     build_lab_verify_result,
     default_route_via,

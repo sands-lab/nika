@@ -6,7 +6,7 @@ import pytest
 from types import SimpleNamespace
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
-from traffic.burst import build_burst_flows, flow_id_for_five_tuple
+from nika.traffic.burst import build_burst_flows, flow_id_for_five_tuple
 from nika.net_env.p4_dc_gateway.control import build_gateway_intent
 from nika.net_env.p4_dc_gateway.topology_model import (
     CONN_TABLE_CAPACITY,

@@ -1,6 +1,6 @@
 """Shared Cisco IOS-XR (XRd) helpers for Kathara labs."""
 
-from nika.net_env.iosxr.common import (
+from nika.net_env.utils.iosxr.common import (
     CONFIG_FILE_PATH,
     IMAGE,
     XR_ZTP_DISABLE_ENV,

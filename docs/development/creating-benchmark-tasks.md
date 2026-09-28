@@ -182,7 +182,7 @@ OD-matrix iperf3 traffic:
 ```python
 import asyncio
 
-from traffic.od_flows import ODFLowGenerator
+from nika.traffic.od_flows import ODFLowGenerator
 
 
 async def run_traffic(lab_name: str):

@@ -50,7 +50,7 @@ def active_tcp_probe(
     Change endpoints or ports to exercise a different ECMP path. Reports
     endpoint observations only; does not infer intermediate nodes.
     """
-    from traffic.active_probe import run_active_tcp_probe
+    from nika.traffic.active_probe import run_active_tcp_probe
 
     from nika.runtime.factory import runtime_for_session
 

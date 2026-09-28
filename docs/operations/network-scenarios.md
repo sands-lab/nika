@@ -263,7 +263,7 @@ Or place the file at `vendor/xrd-*.tgz` and run `./scripts/install.sh --with-ven
 
 1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
 
-2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
+2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/utils/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
 
 ```shell
 docker load -i xrd-control-plane-container-x86_64-<version>.tgz
@@ -308,7 +308,7 @@ cd vrnetlab/mikrotik/routeros
 make docker-image
 ```
 
-3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/kathara/interdomain_routing/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
+3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
 
 ```shell
 docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5

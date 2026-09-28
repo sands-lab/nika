@@ -11,7 +11,7 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.iosxr.common import (
+from nika.net_env.utils.iosxr.common import (
     CONFIG_FILE_PATH,
     IMAGE,
     XR_ZTP_DISABLE_ENV,
@@ -162,7 +162,7 @@ class IosXrSimpleBGP(NetworkEnvBase):
         super().deploy()
 
     def startup_verify_lab(self) -> dict:
-        from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.verify import (
+        from nika.net_env.iosxr_simple_bgp.verify import (
             verify_iosxr_simple_bgp_lab_startup,
         )
 
@@ -171,7 +171,7 @@ class IosXrSimpleBGP(NetworkEnvBase):
         )
 
     def verify_lab(self) -> dict:
-        from nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.verify import (
+        from nika.net_env.iosxr_simple_bgp.verify import (
             verify_iosxr_simple_bgp_lab,
         )
 

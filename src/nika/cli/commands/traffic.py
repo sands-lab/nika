@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 import typer
 
-from traffic.od_flows import ODFLowGenerator
-from traffic.web_access import WebBrowsingTrafficGenerator
+from nika.traffic.od_flows import ODFLowGenerator
+from nika.traffic.web_access import WebBrowsingTrafficGenerator
 from nika.net_env.net_env_pool import get_net_env_instance, scenario_requires_topo_size
 from nika.runtime.factory import runtime_for_net_env
 from nika.utils.session_resolve import resolve_running_session_id
@@ -258,7 +258,7 @@ def traffic_run(
     scenario, size_resolved = _resolve_lab_and_size(lab=lab, size=size_n)
 
     if t == "burst":
-        from traffic.burst import BurstTrafficGenerator
+        from nika.traffic.burst import BurstTrafficGenerator
 
         if not sources or not destination:
             raise typer.BadParameter("burst requires --sources and --destination.")
@@ -414,7 +414,7 @@ def _run_sndlib(
     server_args: str,
     client_args: str,
 ) -> None:
-    from traffic.sndlib_replay import SndlibTrafficReplayer
+    from nika.traffic.sndlib_replay import SndlibTrafficReplayer
     from nika.net_env.isp.traffic import resolve_traffic_series
     from nika.net_env.isp.traffic.models import DEFAULT_TRAFFIC_SCALE
     from nika.net_env.isp.identity import (
