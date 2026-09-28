@@ -696,7 +696,7 @@ def _finalize_timed_out_trial(
     if not (session_dir / "ground_truth.json").is_file():
         # Killed during deploy/inject: nothing to score, but undeploy the lab
         # so it cannot overlap the next (possibly exclusive) trial.
-        _close_quietly(session_id, session_dir)
+        _close_quietly(session_id, session_dir, status="error")
         return
     outcome = _finalize_post_inject_failure(
         session_id=session_id,

@@ -807,6 +807,23 @@ class TestAgentFailedFinalization:
         )
         assert metrics.get("rca_f1") == 0.0
 
+    def test_finalize_without_ground_truth_keeps_error_status(
+        self, tmp_path: Path
+    ) -> None:
+        trial = expand_trials([ROW_A], n_trials=1)[0]
+        session_path = trial_dir(tmp_path, trial.case_key, trial.trial_index)
+        session_path.mkdir(parents=True)
+
+        with patch("nika.workflows.benchmark.run.close_session") as close:
+            _finalize_timed_out_trial(
+                trial,
+                result_dir=str(tmp_path),
+                error=RuntimeError("trial worker exited with code 1"),
+            )
+
+        assert close.call_args.kwargs["status"] == "error"
+        assert not is_valid_trial(session_path)
+
 
 @pytest.mark.contract
 class TestReleaseRunMetadata:
