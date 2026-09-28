@@ -13,6 +13,8 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_failure_compat import write_probe_report
 
+pytestmark = pytest.mark.integration
+
 REPORT_PATH = Path("results/test/p4_dc_fabric_acceptance.json")
 
 

@@ -22,6 +22,8 @@ from nika.mcp.gateway.session_registry import (
     register_session,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def registered_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

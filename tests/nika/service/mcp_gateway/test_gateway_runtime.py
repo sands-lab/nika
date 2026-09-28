@@ -14,6 +14,8 @@ from nika.mcp.gateway.context import get_bound_session_id
 from nika.mcp.gateway.session_registry import clear_sessions, register_session
 from nika.mcp.servers.common.pingmesh_server import mcp as pingmesh_mcp
 
+pytestmark = pytest.mark.integration
+
 _ACCEPT = {"Accept": "application/json, text/event-stream"}
 _URL = "/mcp/pingmesh_mcp_server/mcp"
 _OPEN = {"tools": ["*"], "node_roles": ["*"], "node_ids": []}

@@ -6,6 +6,8 @@ import pytest
 
 from nika.workflows.env.start import _resolve_isp_kwargs
 
+pytestmark = pytest.mark.unit
+
 
 def _kwargs(**overrides):
     base = {

@@ -18,6 +18,8 @@ from tests.support.api_smoke import ApiSmokeMixin, assert_json_payload
 from tests.support.prerequisites import min3clos_prerequisites
 from tests.support.integration_base import SharedSessionTestCase
 
+pytestmark = pytest.mark.integration
+
 CLIENT_INTF = "eth1"
 LEAF_INTF = "e1-1"
 

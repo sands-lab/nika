@@ -23,6 +23,8 @@ from nika.workflows.session.close import close_session
 from nika.workflows.session.list import list_sessions
 from tests.support.prerequisites import docker_available, privileged_lab_supported
 
+pytestmark = pytest.mark.integration
+
 # Hard ceiling per deploy (verify + bootstrap). Successful llmd_lab runs ~2-3 min.
 _DEPLOY_HARD_TIMEOUT_SEC = 900.0
 # Tighter verify budget for tests so a dead controller fails in ~10 min, not 30.
@@ -180,7 +182,6 @@ def _assert_hot_faster(
     )
 
 
-@pytest.mark.live
 @pytest.mark.integration
 @pytest.mark.skipif(
     not (docker_available() and privileged_lab_supported()),
@@ -199,7 +200,6 @@ def test_llmd_lab_redeploy_is_faster_with_cached_workload_images(capsys) -> None
     _assert_hot_faster(cold_elapsed, hot_elapsed, scenario="llmd_lab")
 
 
-@pytest.mark.live
 @pytest.mark.integration
 @pytest.mark.skipif(
     not (docker_available() and privileged_lab_supported()),

@@ -8,6 +8,8 @@ from nika.mcp.gateway.session_registry import (
 )
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 def test_submission_phase_cannot_be_reversed() -> None:
     clear_sessions()

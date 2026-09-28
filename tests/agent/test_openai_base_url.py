@@ -9,6 +9,8 @@ import pytest
 from agent.byo.autogen.runner import create_model_client
 from agent.byo.mcp_agent.config import _openai_settings_for_provider
 
+pytestmark = pytest.mark.unit
+
 
 def test_mcp_agent_openai_settings_reads_openai_base_url(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")

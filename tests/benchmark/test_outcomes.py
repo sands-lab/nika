@@ -24,6 +24,8 @@ from nika.workflows.benchmark.trials import (
 )
 from tests.benchmark.trial_helpers import ROW_A
 
+pytestmark = pytest.mark.unit
+
 
 def _write_jsonl(path: Path, events: list[dict]) -> None:
     path.write_text(

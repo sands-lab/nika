@@ -10,6 +10,8 @@ from nika.net_env.net_env_pool import (
     resolve_scenario_id,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_only_canonical_scenario_ids_resolve() -> None:
     assert resolve_scenario_id("dc_clos") == "dc_clos"

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from agent.byo.autogen.config import to_mcp_params
 from agent.byo.mcp_agent.config import _to_server_settings
 from agent.utils.mcp_servers import mcp_read_timeout_seconds
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
+
+pytestmark = pytest.mark.unit
 
 
 def _set_mcp_timeout(seconds: float) -> None:

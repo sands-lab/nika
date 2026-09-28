@@ -16,6 +16,7 @@ def _isolate_cache_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(cache, "cache_root", lambda: tmp_path / "k8s-images")
 
 
+@pytest.mark.unit
 def test_workload_images_for_supported_scenarios() -> None:
     assert cache.K8S_LAB_WORKLOAD_IMAGES
     assert cache.LLMD_LAB_WORKLOAD_IMAGES
@@ -32,6 +33,7 @@ def test_workload_images_for_supported_scenarios() -> None:
         assert image in cache.LLMD_LAB_WORKLOAD_IMAGES
 
 
+@pytest.mark.unit
 def test_cache_tar_path_is_stable_and_unique() -> None:
     a = cache.cache_tar_path("quay.io/metallb/controller:v0.14.9")
     b = cache.cache_tar_path("postgres:16")
@@ -40,6 +42,7 @@ def test_cache_tar_path_is_stable_and_unique() -> None:
     assert "quay.io" in a.name
 
 
+@pytest.mark.unit
 def test_ensure_cached_skips_pull_and_save_when_tar_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -58,6 +61,7 @@ def test_ensure_cached_skips_pull_and_save_when_tar_exists(
     get_client.assert_not_called()
 
 
+@pytest.mark.unit
 def test_ensure_cached_pulls_and_saves_when_missing(tmp_path: Path) -> None:
     saved = b"docker-tar"
 
@@ -80,6 +84,7 @@ def test_ensure_cached_pulls_and_saves_when_missing(tmp_path: Path) -> None:
     assert result.read_bytes() == saved
 
 
+@pytest.mark.unit
 def test_preload_raises_without_cached_tars() -> None:
     net_env = MagicMock()
     net_env.LAB_NAME = "llmd_lab"
@@ -100,6 +105,7 @@ def test_preload_raises_without_cached_tars() -> None:
     )
 
 
+@pytest.mark.unit
 def test_ensure_cached_returns_none_when_pull_fails() -> None:
     with (
         patch.object(cache, "image_exists", return_value=False),
@@ -108,6 +114,7 @@ def test_ensure_cached_returns_none_when_pull_fails() -> None:
         assert cache.ensure_cached("ghcr.io/example:v1") is None
 
 
+@pytest.mark.unit
 def test_preload_raises_when_k3s_api_times_out() -> None:
     net_env = MagicMock()
     net_env.LAB_NAME = "llmd_lab"
@@ -132,6 +139,7 @@ def test_preload_raises_when_k3s_api_times_out() -> None:
     )
 
 
+@pytest.mark.unit
 def test_preload_imports_cached_tars_for_all_nodes() -> None:
     net_env = MagicMock()
     net_env.LAB_NAME = "llmd_lab"
@@ -159,6 +167,7 @@ def test_preload_imports_cached_tars_for_all_nodes() -> None:
     )
 
 
+@pytest.mark.unit
 def test_import_tar_to_node_requires_exit_marker() -> None:
     runtime = MagicMock()
     runtime.exec.return_value = "some docker noise without marker"
@@ -166,12 +175,14 @@ def test_import_tar_to_node_requires_exit_marker() -> None:
         cache.import_tar_to_node(runtime, "controller", Path("/tmp/x.tar"))
 
 
+@pytest.mark.unit
 def test_import_tar_to_node_accepts_success_marker() -> None:
     runtime = MagicMock()
     runtime.exec.return_value = "imported\nNIKA_IMPORT_EXIT:0\n"
     cache.import_tar_to_node(runtime, "controller", Path("/tmp/x.tar"))
 
 
+@pytest.mark.unit
 def test_mount_workload_cache_always_mounts_for_k8s_scenarios(
     tmp_path: Path,
 ) -> None:

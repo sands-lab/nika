@@ -44,6 +44,7 @@ def _traffic(plan):
     )
 
 
+@pytest.mark.contract
 def test_ospf_contract_covers_v1_properties_and_is_deterministic() -> None:
     original = _plan()
     traffic = _traffic(original)
@@ -74,6 +75,7 @@ def test_ospf_contract_covers_v1_properties_and_is_deterministic() -> None:
     assert first.design_source["denied_external_prefixes"] == ["192.0.2.0/24"]
 
 
+@pytest.mark.contract
 def test_bgp_contract_uses_bgp_plan_sessions_and_prefix_expectations() -> None:
     original = _plan()
     traffic = _traffic(original)
@@ -105,6 +107,7 @@ class _ContractRuntime:
         return self.outputs.get((host, command), "")
 
 
+@pytest.mark.contract
 def test_runtime_verifier_reports_per_intent_evidence() -> None:
     original = _plan()
     traffic = _traffic(original)

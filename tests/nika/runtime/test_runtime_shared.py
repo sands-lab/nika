@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import subprocess
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -11,6 +13,8 @@ from nika.runtime.containerlab.runtime import ContainerlabRuntime
 from nika.runtime.shared.execution import merge_exec_output
 from nika.service.containerlab.host_tc import host_veth_for
 from nika.service.kathara.docker_utils import link_neighbors
+
+pytestmark = pytest.mark.unit
 
 
 def test_exec_output_merges_streams_without_markers() -> None:

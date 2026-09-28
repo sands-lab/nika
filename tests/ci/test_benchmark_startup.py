@@ -23,6 +23,7 @@ from tests.benchmark.trial_helpers import ROW_A, mini_cases_yaml
 from tests.support.prerequisites import docker_available
 
 pytestmark = [
+    pytest.mark.e2e,
     pytest.mark.ci_smoke,
     pytest.mark.skipif(not docker_available(), reason="Docker not available"),
 ]

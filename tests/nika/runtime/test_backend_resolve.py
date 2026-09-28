@@ -8,6 +8,8 @@ from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 
+pytestmark = pytest.mark.unit
+
 
 class BackendResolveTest:
     @pytest.fixture(autouse=True)

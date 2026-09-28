@@ -85,66 +85,13 @@ jobs:
       - name: Install (dev + labs import deps)
         run: uv sync --group labs --extra sade --extra sdk --group dev
       - name: Run unit and contract tests
-        # Offline contracts under problems/service/net_env are included;
-        # Docker E2E modules stay ignored.
         env:
           COLUMNS: "120"
           NO_COLOR: "1"
           TERM: dumb
         run: >
           uv run pytest
-          -m "(unit or contract) and not e2e and not integration and not live and not sandbox and not ci_smoke and not nightly"
-          --ignore=tests/ci
-          --ignore=tests/nika/net_env/isp
-          --ignore=tests/nika/net_env/test_scenario_e2e.py
-          --ignore=tests/nika/net_env/test_docker_images.py
-          --ignore=tests/nika/net_env/test_kathara_verify.py
-          --ignore=tests/nika/net_env/test_clab_min3clos_verify.py
-          --ignore=tests/nika/net_env/test_containerlab_mgmt_subnet.py
-          --ignore=tests/nika/net_env/test_k8s_lab_verify.py
-          --ignore=tests/nika/net_env/test_llmd_lab_verify.py
-          --ignore=tests/nika/net_env/test_iosxr_simple_bgp_verify.py
-          --ignore=tests/nika/net_env/test_enterprise_branch_wireguard.py
-          --ignore=tests/nika/net_env/test_p4_dc_fabric.py
-          --ignore=tests/nika/net_env/test_p4_dc_fabric_live.py
-          --ignore=tests/nika/net_env/test_p4_dc_gateway.py
-          --ignore=tests/nika/net_env/test_sdn_l3_clos.py
-          --ignore=tests/nika/net_env/test_k8s_workload_cache.py
-          --ignore=tests/nika/net_env/test_k8s_workload_cache_live.py
-          --ignore=tests/nika/problems/test_failure_e2e.py
-          --ignore=tests/nika/problems/test_failure_inject_contract.py
-          --ignore=tests/nika/problems/test_scenario_failure_compat.py
-          --ignore=tests/nika/problems/test_bgp_missing_route_advertisement_e2e.py
-          --ignore=tests/nika/problems/test_bgp_max_prefix_exceeded_e2e.py
-          --ignore=tests/nika/problems/test_bgp_rpki_invalid_route_leak_e2e.py
-          --ignore=tests/nika/problems/test_bgp_blackhole_community_leak_e2e.py
-          --ignore=tests/nika/problems/test_p4runtime_partial_write_e2e.py
-          --ignore=tests/nika/problems/test_p4_table_entry_fabric_e2e.py
-          --ignore=tests/nika/problems/test_multi_fault_agent_e2e.py
-          --ignore=tests/nika/problems/test_multi_fault_inject.py
-          --ignore=tests/nika/problems/test_web_dos_attack.py
-          --ignore=tests/nika/problems/test_gateway_nat_failures.py
-          --ignore=tests/nika/problems/test_device_forwarding_packet_corruption.py
-          --ignore=tests/nika/problems/test_link_packet_corruption.py
-          --ignore=tests/nika/problems/test_pmtu_blackhole_combo.py
-          --ignore=tests/nika/service/mcp_gateway
-          --ignore=tests/nika/service/pingmesh
-          --ignore=tests/nika/service/kathara
-          --ignore=tests/nika/service/containerlab
-          --ignore=tests/nika/service/test_k8s_mcp_gateway_e2e.py
-          --ignore=tests/nika/service/test_k8s_mcp_server.py
-          --ignore=tests/nika/service/test_mcp_access_e2e.py
-          --ignore=tests/nika/service/test_mcp_tools_live.py
-          --ignore=tests/nika/service/test_packet_capture.py
-          --ignore=tests/nika/validation
-          --ignore=tests/nika/workflows/integration
-          --ignore=tests/benchmark/test_trials.py
-          --ignore=tests/benchmark/test_batch.py
-          --ignore=tests/benchmark/test_sandbox_benchmark.py
-          --ignore=tests/benchmark/test_curated_release_e2e.py
-          --ignore=tests/agent/test_sandbox_agents.py
-          --ignore=tests/agent/test_sandbox_security.py
-          --ignore=tests/agent/test_sandbox_isolation.py
+          -m "(unit or contract) and not live"
           -q --tb=line
 
   images:

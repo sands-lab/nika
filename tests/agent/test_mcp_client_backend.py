@@ -8,6 +8,8 @@ import pytest
 
 from agent.utils.mcp_client import load_session_mcp_config
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def gateway_url(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -21,6 +21,8 @@ from nika.topology.models import (
     TopoNode,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def _tiny_topology(
     *,

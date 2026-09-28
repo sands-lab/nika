@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import json
 from pathlib import Path
 
@@ -11,6 +13,8 @@ from nika.utils.session_artifacts import (
     last_session_error,
     order_run_json,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def _write_events(session_dir: Path, records: list[dict | str]) -> None:

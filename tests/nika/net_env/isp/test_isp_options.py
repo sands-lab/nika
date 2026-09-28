@@ -11,6 +11,8 @@ from nika.workflows.benchmark.isp_options import (
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
+pytestmark = pytest.mark.contract
+
 
 def test_isp_config_does_not_select_rpki_for_max_prefix() -> None:
     cfg = isp_config_for_problem("bgp_max_prefix_exceeded", {"bgp", "isp"})

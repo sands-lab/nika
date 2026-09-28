@@ -137,6 +137,7 @@ def _ready(node: str) -> bool:
     return len(fields) > 1 and fields[1] == "Ready"
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _require_live_k8s(),
     reason="Requires Docker and privileged Kathara/k3s support",
@@ -341,6 +342,8 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
         )
 
 
+@pytest.mark.e2e
+@pytest.mark.live
 @pytest.mark.skipif(
     not _require_live_k8s(),
     reason="Requires Docker and privileged Kathara/k3s support",
@@ -429,6 +432,7 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
         )
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _require_live_k8s(),
     reason="Requires Docker and privileged Kathara/k3s support",
@@ -495,6 +499,8 @@ class LlmdMcpGatewayIntegrationTest(SharedSessionTestCase):
             )
 
 
+@pytest.mark.e2e
+@pytest.mark.live
 @pytest.mark.skipif(
     not _require_live_k8s(),
     reason="Requires Docker and privileged Kathara/k3s support",
@@ -653,6 +659,7 @@ def _prod_shape_mcp_probe(
         return result
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _require_live_k8s(),
     reason="Requires Docker and privileged Kathara/k3s support",

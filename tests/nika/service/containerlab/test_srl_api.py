@@ -1,7 +1,11 @@
 from __future__ import annotations
+
+import pytest
 from unittest.mock import MagicMock
 from nika.service.containerlab.adapters import LabRuntimeContainerlabAPI
 from nika.service.containerlab.srl_api import NIKA_BGP_WITHDRAW, SRLAPIMixin
+
+pytestmark = pytest.mark.integration
 
 
 class _SRLStub(SRLAPIMixin):

@@ -14,6 +14,7 @@ from nika.mcp.gateway.session_registry import (
     register_session,
 )
 from nika.utils.session_store import SessionStore
+from nika.workflows.agent.submission import fault_candidates
 
 
 def _phase_headers() -> dict[str, str]:
@@ -21,6 +22,9 @@ def _phase_headers() -> dict[str, str]:
         "NIKA-Session-Id": "sess-1",
         "NIKA-Phase-Token": phase_advance_token("sess-1"),
     }
+
+
+pytestmark = pytest.mark.unit
 
 
 class GatewayPhaseRouteTest:
@@ -57,6 +61,8 @@ class GatewayPhaseRouteTest:
         assert response.status_code == 200
         assert response.json()["phase"] == "submission"
         context = response.json()["submission_context"]
+        # Every launch mode offers the same fixed candidate set.
+        assert [item["id"] for item in context["fault_ontology"]] == fault_candidates()
         assert "node/pc1" in {item["id"] for item in context["resources"]}
 
         messages = (session_dir / "messages.jsonl").read_text(encoding="utf-8")
@@ -125,6 +131,8 @@ class GatewayPhaseRouteTest:
         assert response.status_code == 200
         assert response.json()["phase"] == "submission"
         context = response.json()["submission_context"]
+        # Every launch mode offers the same fixed candidate set.
+        assert [item["id"] for item in context["fault_ontology"]] == fault_candidates()
         assert "node/pc1" in {item["id"] for item in context["resources"]}
 
         repeated = client.post(

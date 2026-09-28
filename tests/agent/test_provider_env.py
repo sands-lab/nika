@@ -19,6 +19,8 @@ from agent.utils.provider_env import (
     validate_provider_for_agent,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_validate_provider_rejects_unsupported_combo() -> None:
     with pytest.raises(ValueError, match="not supported"):
@@ -156,6 +158,7 @@ def test_anthropic_provider_adapts_custom_openai_compat_url() -> None:
         },
     )
     assert mapped["ANTHROPIC_BASE_URL"] == "http://mcnode33:8000"
+
 
 def test_custom_openai_compat_maps_key() -> None:
     mapped = map_provider_credentials(

@@ -1,6 +1,9 @@
+import pytest
 from nika.net_env.p4_dc_gateway.l4_lb import L4GatewayState, bucket_for
 from nika.problems.registry import get_problem_class
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+pytestmark = pytest.mark.unit
 
 
 def test_gateway_and_nat_failures_register() -> None:

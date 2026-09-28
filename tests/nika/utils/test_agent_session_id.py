@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.utils.agent_session_id import (
     AGENT_SESSION_TAG,
     make_agent_session_id,
     resolve_agent_session_id,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_make_agent_session_id_is_opaque_tagged() -> None:

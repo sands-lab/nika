@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.llmd_lab.lab import LLMDInferenceCluster
 from tests.support.net_env import instantiate_with_mocked_kathara
+
+pytestmark = pytest.mark.unit
 
 
 class LLMDLabUnitTest:

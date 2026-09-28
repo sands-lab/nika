@@ -1,5 +1,7 @@
 """Contract tests for test-path failure symptom metadata."""
 
+import pytest
+
 from nika.problems.registry import list_avail_problem_names
 from tests.support.symptom.types import ProbePath
 from tests.support.symptom import (
@@ -7,6 +9,8 @@ from tests.support.symptom import (
     list_symptom_contracts,
 )
 from tests.support.symptom.custom import _CUSTOM
+
+pytestmark = pytest.mark.contract
 
 
 def test_all_failures_have_symptom_contracts() -> None:

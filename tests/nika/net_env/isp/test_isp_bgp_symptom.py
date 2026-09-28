@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+pytestmark = pytest.mark.contract
 
 
 def test_isp_bgp_symptom_targets_attached() -> None:

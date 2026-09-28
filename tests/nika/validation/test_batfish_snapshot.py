@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 import json
 
 from nika.net_env.isp.kathara.lab import Isp
 from nika.topology import list_sndlib_topologies
 from nika.validation.batfish.snapshot import build_isp_snapshot
+
+pytestmark = pytest.mark.unit
 
 
 def _environment(topology: str = "abilene") -> Isp:

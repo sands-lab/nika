@@ -24,6 +24,8 @@ from tests.support.integration_pipeline import (
     load_test_env,
 )
 
+pytestmark = pytest.mark.e2e
+
 load_test_env()
 
 DEEPSEEK_FLASH = "deepseek-v4-flash"

@@ -99,12 +99,12 @@ pythonpath = ["src", "."]
 python_classes = ["Test*", "*Test", "*Tests", "*TestCase"]
 asyncio_mode = "auto"
 markers = [
-    "unit: fast tests with no Docker or external services",
-    "contract: benchmark/registry/schema/artifact contracts without emulators",
-    "integration: env deploy, failure inject, traffic, MCP smoke (Docker/clab)",
-    "sandbox: sandbox isolation and security probes",
-    "e2e: full user flows (mock agent benchmark/pipeline)",
-    "live: real LLM, GitHub, or Batfish live tests (credentials required)",
+    "unit: isolated logic without Docker or external services",
+    "contract: offline benchmark, registry, schema, and artifact contracts",
+    "integration: real backend or service interaction without a complete workflow",
+    "e2e: complete user, benchmark, scenario, or failure workflows",
+    "sandbox: Docker Sandbox isolation and security tests (additional marker)",
+    "live: real LLM, GitHub, or Batfish service tests (additional marker)",
     "ci_smoke: curated dual-arch GitHub Actions smoke (images, startup, pipeline)",
     "nightly: heavy suites for scheduled/self-hosted runners (k8s, llmd, full verify)",
 ]

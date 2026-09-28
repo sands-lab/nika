@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.service.kathara import base_api
+
+pytestmark = pytest.mark.unit
 
 
 class _LiveKathara:

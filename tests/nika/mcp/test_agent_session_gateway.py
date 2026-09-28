@@ -19,9 +19,9 @@ from nika.mcp.gateway.session_registry import (
 )
 from nika.mcp.session_context import get_session_meta, require_session_id
 
-CASE_KEY = (
-    "campus_lan__link_down__s__host_name-backend_web_0__intf_name-eth0__t01"
-)
+pytestmark = pytest.mark.unit
+
+CASE_KEY = "campus_lan__link_down__s__host_name-backend_web_0__intf_name-eth0__t01"
 OPAQUE = "20260101-120000-a-abc123"
 
 
@@ -108,7 +108,9 @@ def test_mcp_errors_omit_canonical_case_key(tmp_path: Path, monkeypatch) -> None
                 "status": "finished",
             },
         ):
-            with pytest.raises(ValueError, match="Session is not running") as not_running:
+            with pytest.raises(
+                ValueError, match="Session is not running"
+            ) as not_running:
                 get_session_meta()
         assert CASE_KEY not in str(not_running.value)
     finally:
@@ -145,7 +147,9 @@ def test_mcp_errors_omit_canonical_case_key(tmp_path: Path, monkeypatch) -> None
     assert CASE_KEY not in submit_result[0]
 
 
-def test_resolve_canonical_falls_back_to_session_store(tmp_path: Path, monkeypatch) -> None:
+def test_resolve_canonical_falls_back_to_session_store(
+    tmp_path: Path, monkeypatch
+) -> None:
     """Opaque ids still resolve when the in-process gateway registry misses."""
     from nika.utils.session_store import SessionStore
 

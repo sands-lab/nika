@@ -11,6 +11,8 @@ import pytest
 from agent.utils.loggers import MessageLogger
 from agent.utils.two_phase import TwoPhaseAgent, max_steps_report
 
+pytestmark = pytest.mark.unit
+
 
 class _Agent(TwoPhaseAgent):
     def __init__(self, trace_dir: Path, report: str) -> None:

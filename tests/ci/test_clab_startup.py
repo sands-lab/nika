@@ -8,6 +8,7 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import containerlab_prerequisites
 
 pytestmark = [
+    pytest.mark.integration,
     pytest.mark.ci_smoke,
     pytest.mark.skipif(
         not containerlab_prerequisites(),

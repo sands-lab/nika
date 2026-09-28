@@ -5,6 +5,8 @@ from typing import ClassVar
 from tests.nika.workflows.integration import pipeline_case
 from tests.support.integration_pipeline import _min3clos_prerequisites
 
+pytestmark = pytest.mark.e2e
+
 MIN3CLOS_NODES = frozenset({"leaf1", "leaf2", "spine", "client1", "client2"})
 
 

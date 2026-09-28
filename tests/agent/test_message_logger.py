@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import json
 from pathlib import Path
 
@@ -14,6 +16,8 @@ from agent.utils.loggers import (
     PendingToolCallTracker,
     tool_event_payload,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_tool_end_includes_tool_name_from_kwargs(tmp_path: Path) -> None:

@@ -11,6 +11,8 @@ from nika.mcp.servers.common.task_server import (
     validate_root_cause_choices,
 )
 
+pytestmark = pytest.mark.contract
+
 _LINK_ID = "link/pc1:eth0--router1:eth0"
 
 

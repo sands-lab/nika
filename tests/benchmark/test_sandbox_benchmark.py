@@ -22,6 +22,8 @@ from tests.support.integration_pipeline import (
     load_test_env,
 )
 
+pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
+
 load_test_env()
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]

@@ -16,6 +16,8 @@ from nika.workflows.benchmark.run import store_session_id_for_trial
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import DEFAULT_INJECT_PARAMS
 
+pytestmark = pytest.mark.e2e
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 

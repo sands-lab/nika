@@ -33,6 +33,8 @@ from tests.benchmark.curated import (
 )
 from tests.leaderboard.test_e2e_release_pack import _fill_staging, _write_mocked_trial
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.contract
 def test_curated_rows_are_subset_of_0_2_0_test_split() -> None:

@@ -1,4 +1,8 @@
+import pytest
+
 from agent.cli.claude.vllm_shim import fold_system_turns
+
+pytestmark = pytest.mark.unit
 
 
 def test_body_without_system_turns_is_unchanged() -> None:

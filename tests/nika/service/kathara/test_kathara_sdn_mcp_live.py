@@ -14,6 +14,8 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.integration
+
 
 def _text(raw: object) -> str:
     return "\n".join(tool_text_list(raw)).strip()

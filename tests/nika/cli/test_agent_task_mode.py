@@ -10,6 +10,8 @@ from typer.testing import CliRunner
 
 from nika.cli.main import app
 
+pytestmark = pytest.mark.unit
+
 _RUNNER = CliRunner()
 
 
@@ -46,7 +48,16 @@ class TestAgentRunTaskMode:
     def test_set_without_problem_rejected(self) -> None:
         result = _RUNNER.invoke(
             app,
-            ["agent", "run", "-a", "cli.claude", "-m", "mock-v1", "--set", "host_name=pc1"],
+            [
+                "agent",
+                "run",
+                "-a",
+                "cli.claude",
+                "-m",
+                "mock-v1",
+                "--set",
+                "host_name=pc1",
+            ],
             env={"COLUMNS": "120", "NO_COLOR": "1"},
         )
         assert result.exit_code != 0

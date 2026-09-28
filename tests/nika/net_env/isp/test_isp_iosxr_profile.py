@@ -10,6 +10,8 @@ from nika.net_env.isp.profiles import (
 )
 from nika.workflows.env.start import _resolve_isp_kwargs
 
+pytestmark = pytest.mark.unit
+
 
 def test_iosxr_profile_normalizes() -> None:
     assert normalize_device_profile("iosxr") == "iosxr"

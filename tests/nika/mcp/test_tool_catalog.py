@@ -13,6 +13,8 @@ from nika.mcp.servers.kathara.iosxr_server import mcp as iosxr_mcp
 from nika.mcp.servers.kathara.routeros_server import mcp as routeros_mcp
 from nika.mcp.servers.kathara.sdn_server import mcp as sdn_mcp
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.asyncio
 async def test_generic_and_specialized_tool_catalog() -> None:

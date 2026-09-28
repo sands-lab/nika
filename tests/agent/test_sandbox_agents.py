@@ -7,7 +7,10 @@ from agent.protocols import DIAGNOSIS
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 from nika.utils.session_store import SessionStore
-from tests.agent._assertions import assert_phase_messages, assert_no_codex_tool_item_mirrors
+from tests.agent._assertions import (
+    assert_phase_messages,
+    assert_no_codex_tool_item_mirrors,
+)
 from tests.agent.sandbox_support import (
     sandbox_anthropic_credential_available,
     sandbox_openai_credential_available,
@@ -23,6 +26,8 @@ from tests.support.integration_pipeline import (
     load_test_env,
     sade_available,
 )
+
+pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
 
 load_test_env()
 DEEPSEEK_FLASH = "deepseek-v4-flash"

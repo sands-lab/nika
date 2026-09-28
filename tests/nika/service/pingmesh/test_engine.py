@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from nika.service.pingmesh.engine import run_pingmesh_snapshot
 
+pytestmark = pytest.mark.unit
+
 OK_OUTPUT = "\n4 packets transmitted, 4 received, 0% packet loss, time 3005ms\nrtt min/avg/max/mdev = 0.045/0.062/0.089/0.018 ms\n"
 DOWN_OUTPUT = "\n4 packets transmitted, 0 received, 100% packet loss, time 3050ms\n"
 HIGH_LATENCY_OUTPUT = "\n4 packets transmitted, 4 received, 0% packet loss, time 3005ms\nrtt min/avg/max/mdev = 120.0/150.0/180.0/10.0 ms\n"

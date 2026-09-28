@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 import importlib
 import sys
 import warnings
 
 import pydantic
+
+pytestmark = pytest.mark.unit
 
 
 def test_mcp_agent_import_avoids_after_model_validator_deprecation() -> None:

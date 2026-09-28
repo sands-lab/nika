@@ -1,6 +1,10 @@
 from __future__ import annotations
+
+import pytest
 from pathlib import Path
 from nika.runtime.containerlab.runtime import ContainerlabRuntime
+
+pytestmark = pytest.mark.unit
 
 
 class ClabConnectedDevicesTest:

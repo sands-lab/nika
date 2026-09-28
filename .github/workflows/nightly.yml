@@ -15,8 +15,8 @@ env:
   GNMIC_VERSION: "0.48.0"
   # Boot / artifact checks only — no deep evaluate_scenario or symptom E2E.
   NIKA_CI_VERIFY_DEPTH: artifact
-  # Representative ISP subset for GHA wall-clock; full SNDlib matrix remains local default.
-  NIKA_CI_ISP_TOPOS: "pdh,polska"
+  # GHA wall-clock subset of the release ISP variants the tests run locally.
+  NIKA_CI_ISP_TOPOS: "pdh,abilene,janos-us"
   # eBGP prefix fan-out is currently unreliable on shared GHA runners.
   NIKA_CI_ISP_BGP_MODES: "ibgp_rr"
 

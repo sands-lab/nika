@@ -23,6 +23,8 @@ from nika.workflows.leaderboard.submit import (
 )
 from nika.workflows.leaderboard.validate import LeaderboardValidateError
 
+pytestmark = pytest.mark.contract
+
 
 def _write_minimal_package(root: Path, *, version: str = "0.2.0") -> Path:
     """Write a package that submit can path-resolve (skip_validate=True)."""
@@ -116,9 +118,9 @@ def test_remote_path_helpers() -> None:
     assert remote_trajectories_relpath("0.2.0", "20260101_unit") == (
         "trajectories/0.2.0/20260101_unit"
     )
-    assert remote_trajectories_relpath(
-        "0.2.0", "20260101_unit_trajectories"
-    ) == ("trajectories/0.2.0/20260101_unit")
+    assert remote_trajectories_relpath("0.2.0", "20260101_unit_trajectories") == (
+        "trajectories/0.2.0/20260101_unit"
+    )
     assert trajectories_browser_url("0.2.0", "20260101_unit").endswith(
         "/trajectories/0.2.0/20260101_unit"
     )
@@ -192,9 +194,7 @@ def test_submit_hf_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     )
     assert result.pr_url is None
     assert result.trajectories_pr_num == 7
-    assert result.trajectories_remote_path == (
-        "trajectories/0.2.0/20260101_unit_agent"
-    )
+    assert result.trajectories_remote_path == ("trajectories/0.2.0/20260101_unit_agent")
 
 
 def test_submit_requires_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -216,9 +216,7 @@ def test_submit_validate_failure(tmp_path: Path) -> None:
     pkg.mkdir()
     (pkg / "README.md").write_text("x\n", encoding="utf-8")
     with pytest.raises(LeaderboardValidateError):
-        _submit_packed_package(
-            pkg, skip_validate=False, skip_trajectories=True
-        )
+        _submit_packed_package(pkg, skip_validate=False, skip_trajectories=True)
 
 
 def test_submit_direct_push_opens_pr(

@@ -29,6 +29,8 @@ from tests.support.integration_pipeline import (
 )
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 load_test_env()
 
 PROBLEM = "bgp_max_prefix_exceeded"
@@ -235,6 +237,7 @@ class _BGPMaxPrefixAgentPipelineBase(OrderedPipelineTestCase):
         assert metrics.get("tool_calls", 0) >= 1
 
 
+@pytest.mark.live
 @pytest.mark.skipif(
     not (docker_available() and deepseek_api_key_available()),
     reason="Docker and DEEPSEEK_API_KEY required for max-prefix agent e2e",

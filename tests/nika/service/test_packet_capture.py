@@ -35,6 +35,7 @@ from tests.support.prerequisites import docker_available
 # --- limits -----------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestClampStartLimits:
     def test_uses_defaults_when_agent_omits_args(self) -> None:
         limits = clamp_start_limits(
@@ -68,6 +69,7 @@ class TestClampStartLimits:
             clamp_start_limits(max_duration_sec=0, max_packets=None, max_bytes=None)
 
 
+@pytest.mark.unit
 class TestClampInspectLimit:
     def test_defaults_to_page_size(self) -> None:
         assert clamp_inspect_limit(None) == HARD_INSPECT_PAGE_SIZE
@@ -86,6 +88,7 @@ def _packet(layers: dict) -> dict:
     return {"_source": {"layers": layers}}
 
 
+@pytest.mark.unit
 class TestProtocolFields:
     def test_tcp_fields(self) -> None:
         fields = extract_protocol_fields(
@@ -158,6 +161,7 @@ class TestProtocolFields:
 # --- inspect ----------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestInspectCapture:
     def test_packets_view_reports_truncation(self) -> None:
         runtime = MagicMock()
@@ -200,6 +204,7 @@ class TestInspectCapture:
 # --- registry / gateway -----------------------------------------------------
 
 
+@pytest.mark.unit
 class TestPacketCaptureRegistry:
     def test_selected_by_default(self) -> None:
         servers = select_diagnosis_servers("simple_bgp", backend="kathara")
@@ -267,6 +272,7 @@ class FakeRuntime:
         return ""
 
 
+@pytest.mark.unit
 class TestCaptureLifecycle:
     def test_concurrent_captures_have_distinct_ids(self) -> None:
         runtime = FakeRuntime()
@@ -317,7 +323,7 @@ class TestCaptureLifecycle:
 # --- live e2e ---------------------------------------------------------------
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class PacketCaptureLiveE2ETest(SharedSessionTestCase):
     """Exercise CaptureManager against a real Kathara simple_bgp lab."""

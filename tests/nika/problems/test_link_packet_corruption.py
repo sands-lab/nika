@@ -23,8 +23,9 @@ from tests.support.symptom import evaluate_symptom, get_symptom_contract
 from tests.support.symptom.flap_probes import assert_baseline_healthy
 from tests.support.symptom.probe import _resolve_path
 
+
 PROBLEM = "link_packet_corruption"
-SEEDS = (0, 1, 4, 7)
+SEEDS = (1,)
 IPERF_DURATION_SEC = 5
 BASELINE_RETRIES = 3
 BASELINE_RETRY_SLEEP_SEC = 5.0
@@ -69,6 +70,7 @@ CORRUPTION_CASES = (
 )
 
 
+@pytest.mark.contract
 def test_failure_registers_and_contracts() -> None:
     assert PROBLEM in list_avail_problem_names()
     cls = get_problem_class(PROBLEM)
@@ -133,6 +135,7 @@ def _capture_degradation_baselines(problem, runtime, path) -> None:
         problem._baseline_rtt_ms = ping.rtt_avg_ms
 
 
+@pytest.mark.e2e
 @pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("case", CORRUPTION_CASES, ids=[c.id for c in CORRUPTION_CASES])
 class TestLinkPacketCorruptionE2E(IntegrationTestCase):

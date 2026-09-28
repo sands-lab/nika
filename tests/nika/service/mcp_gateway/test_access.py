@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.mcp.gateway.access import decide_diagnosis_access
+
+pytestmark = pytest.mark.unit
 
 
 def test_role_policy_restricts_tool_and_node_role() -> None:

@@ -22,6 +22,8 @@ from nika.workflows.benchmark.selection import (
     CoverageState,
 )
 
+pytestmark = pytest.mark.contract
+
 
 def _synthetic_pool() -> list[dict]:
     scenarios = ("dc_clos", "campus_lan", "enterprise_branch")

@@ -70,6 +70,7 @@ def _mini_cases_yaml(path: Path, rows: list[dict] | None = None) -> Path:
     return mini_cases_yaml(path, rows)
 
 
+@pytest.mark.contract
 class TestTrialHelpers:
     def test_case_key_and_trial_dirname_are_stable(self) -> None:
         key = case_key_for_row(ROW_A)
@@ -447,6 +448,7 @@ class TestTrialHelpers:
             merge_run_config(existing={**merged, "max_tokens": 4096}, proposed=proposed)
 
 
+@pytest.mark.contract
 class TestTrialOrchestration:
     def test_cardinality_and_isolation(self, tmp_path: Path) -> None:
         cases = _mini_cases_yaml(tmp_path / "cases.yaml")
@@ -608,6 +610,7 @@ class TestTrialOrchestration:
         )
 
 
+@pytest.mark.contract
 class TestAgentFailedFinalization:
     def test_missing_submission_is_an_agent_failure(self, tmp_path: Path) -> None:
         with pytest.raises(RuntimeError, match="without writing required submission"):
@@ -805,6 +808,7 @@ class TestAgentFailedFinalization:
         assert metrics.get("rca_f1") == 0.0
 
 
+@pytest.mark.contract
 class TestReleaseRunMetadata:
     def test_release_writes_stable_run_config(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])

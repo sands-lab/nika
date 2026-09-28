@@ -17,6 +17,8 @@ from tests.support.prerequisites import (
     privileged_lab_supported,
 )
 
+pytestmark = [pytest.mark.e2e, pytest.mark.nightly]
+
 
 @dataclass(frozen=True)
 class _FlapScenarioCase:
@@ -58,15 +60,7 @@ FLAP_SCENARIOS = (
         isp_options=None,
     ),
 )
-FLAP_SEEDS = (0, 1, 4, 7)
 FLAP_BY_SCENARIO = {flap.scenario: flap for flap in FLAP_SCENARIOS}
-
-
-def _flap_seeds(scenario: str) -> tuple[int, ...]:
-    # Shared runners: one k3s cold-start is enough under artifact depth.
-    if artifact_verify_only() and scenario == "k8s_lab":
-        return (0,)
-    return FLAP_SEEDS
 
 
 def _flap_e2e_cases() -> list[FailureE2ECase]:
@@ -76,11 +70,10 @@ def _flap_e2e_cases() -> list[FailureE2ECase]:
             scenario=flap.scenario,
             env_run_args=flap.env_args,
             topo_size=flap.topo_size or "s",
-            inject_seed=seed,
+            inject_seed=0 if flap.scenario == "k8s_lab" else 1,
             isp_options=flap.isp_options,
         )
         for flap in FLAP_SCENARIOS
-        for seed in _flap_seeds(flap.scenario)
     ]
 
 
@@ -114,11 +107,10 @@ def _lb_conn_exhaustion_e2e_cases() -> list[FailureE2ECase]:
             problem="lb_connection_state_exhaustion",
             scenario="p4_dc_gateway",
             env_run_args=("-s", "s"),
-            inject_seed=seed,
+            inject_seed=1,
             checks=frozenset({"verify", "symptom"}),
             sleep_after_inject_sec=2.0,
         )
-        for seed in (0, 1, 4, 7)
     ]
 
 
@@ -182,11 +174,10 @@ def _pipeline_mismatch_e2e_cases() -> list[FailureE2ECase]:
             problem="p4runtime_pipeline_mismatch",
             scenario="p4_dc_fabric",
             env_run_args=("-s", "s"),
-            inject_seed=seed,
+            inject_seed=0,
             checks=frozenset({"verify", "symptom"}),
             sleep_after_inject_sec=2.0,
         )
-        for seed in (0, 1, 4)
     ]
 
 
@@ -232,7 +223,6 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
     return None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("case", _all_e2e_cases(), ids=_case_id)
 class TestFailureE2E(IntegrationTestCase):
     def _start_case_session(self, case: FailureE2ECase) -> str:

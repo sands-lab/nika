@@ -17,6 +17,8 @@ from tests.support.prerequisites import (
     min3clos_prerequisites,
 )
 
+pytestmark = [pytest.mark.integration, pytest.mark.nightly]
+
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class TestVendorMcpLive(IntegrationTestCase):

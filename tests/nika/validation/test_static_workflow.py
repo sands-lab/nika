@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 from types import SimpleNamespace
 
 from nika.net_env.contract import ValidationContract, ValidationReport
 from nika.validation.base import ValidationSnapshot
 from nika.workflows.validation.static import run_static_validation
+
+pytestmark = pytest.mark.unit
 
 
 def _contract(scenario: str) -> ValidationContract:

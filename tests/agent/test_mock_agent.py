@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from agent.mock.mock_agent import (
     _mock_diagnosis_tool_calls,
     _pick_pair,
     _pick_router,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_pick_pair_prefers_ground_truth_devices() -> None:

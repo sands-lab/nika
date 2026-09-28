@@ -40,6 +40,8 @@ from nika.workflows.leaderboard.schema import (
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
+pytestmark = pytest.mark.contract
+
 
 def _mini_cases_yaml(path: Path) -> Path:
     payload = {
@@ -124,9 +126,7 @@ def _write_trial_artifacts(
     (session_dir / "messages.jsonl").write_text(
         '{"role":"assistant","content":"ok"}\n', encoding="utf-8"
     )
-    (session_dir / "nika.jsonl").write_text(
-        '{"event":"env_start"}\n', encoding="utf-8"
-    )
+    (session_dir / "nika.jsonl").write_text('{"event":"env_start"}\n', encoding="utf-8")
     if score_status == "scored":
         score_vals = {
             "detection_score": 1.0,
@@ -516,9 +516,9 @@ class TestLeaderboardPackValidate:
         assert packed["agent"]["model"] == "gpt-4.1"
         assert packed["agent"]["framework"] == "autogen"
         assert packed["agent"]["extra"]["note"] == "from-dir"
-        assert "From staging dir" in (
-            package.scores_dir / README_FILENAME
-        ).read_text(encoding="utf-8")
+        assert "From staging dir" in (package.scores_dir / README_FILENAME).read_text(
+            encoding="utf-8"
+        )
         assert validate_leaderboard_submission(package.scores_dir).ok
         from nika.workflows.leaderboard.validate_trajectories import (
             validate_trajectory_package,

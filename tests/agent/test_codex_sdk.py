@@ -6,6 +6,8 @@ from agent.sdk.codex_sdk.config import (
 )
 from tests.support.integration_pipeline import load_test_env
 
+pytestmark = pytest.mark.unit
+
 load_test_env()
 
 
@@ -36,7 +38,5 @@ class CodexSdkConfigTest:
         auth_file = tmp_path / ".codex" / "auth.json"
         auth_file.parent.mkdir(parents=True)
         auth_file.write_text("{}", encoding="utf-8")
-        monkeypatch.setattr(
-            "agent.sdk.codex_sdk.config.Path.home", lambda: tmp_path
-        )
+        monkeypatch.setattr("agent.sdk.codex_sdk.config.Path.home", lambda: tmp_path)
         assert codex_sdk_local_auth_available()

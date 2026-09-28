@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from pathlib import Path
 
 import yaml
@@ -7,9 +9,14 @@ import yaml
 from nika.problems.rca import canonical_root_causes
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
-from nika.workflows.benchmark.candidate_context import collapse_candidates, pool_context_key
+from nika.workflows.benchmark.candidate_context import (
+    collapse_candidates,
+    pool_context_key,
+)
 from nika.workflows.benchmark.load_config import load_candidate_catalog
 from nika.workflows.benchmark.pool_audit import audit_candidate_pool
+
+pytestmark = pytest.mark.contract
 
 
 def _link_down_case(host_name: str, intf_name: str = "eth0") -> dict:

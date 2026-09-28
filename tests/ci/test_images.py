@@ -17,6 +17,7 @@ from tests.ci.constants import CI_NIKA_IMAGES
 from tests.support.prerequisites import docker_available
 
 pytestmark = [
+    pytest.mark.integration,
     pytest.mark.ci_smoke,
     pytest.mark.skipif(not docker_available(), reason="Docker not available"),
 ]
@@ -45,7 +46,9 @@ def _ensure_image(image: str) -> None:
     build_nika_image(image)
 
 
-@pytest.mark.parametrize("image", _selected_images(), ids=lambda i: i.replace("/", "_").replace(":", "_"))
+@pytest.mark.parametrize(
+    "image", _selected_images(), ids=lambda i: i.replace("/", "_").replace(":", "_")
+)
 def test_nika_image_build_and_arch(image: str) -> None:
     """Build (or rebuild) one nika image and assert host-arch + creatable."""
     _ensure_image(image)

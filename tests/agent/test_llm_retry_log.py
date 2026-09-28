@@ -13,6 +13,8 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from agent.utils.loggers import AgentCallbackLogger, log_llm_retry
 
+pytestmark = pytest.mark.unit
+
 
 class _RetryOnceModel(BaseChatModel):
     """Chat model that reports one HTTP retry from inside the model call."""

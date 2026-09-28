@@ -6,6 +6,8 @@ import pytest
 
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.parametrize(
     "scenario", ["dc_clos_service", "ospf_enterprise_dhcp", "p4_counter"]

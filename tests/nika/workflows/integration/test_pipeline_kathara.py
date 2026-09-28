@@ -5,6 +5,8 @@ import pytest
 from tests.nika.workflows.integration import pipeline_case
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class KatharaPipelineIntegrationTest(pipeline_case.PipelineCaseBase):

@@ -13,6 +13,8 @@ from nika.workflows.benchmark.run import (
     run_single_case,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_cleanup_benchmark_interrupt_closes_only_result_dir_sessions(
     tmp_path: Path,

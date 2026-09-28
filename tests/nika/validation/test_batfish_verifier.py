@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.net_env.contract import (
     AdjacencyExpectation,
     NetworkEntity,
@@ -10,6 +12,8 @@ from nika.net_env.contract import (
 )
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.verifier import BatfishVerifier
+
+pytestmark = pytest.mark.unit
 
 
 class _FakeClient:

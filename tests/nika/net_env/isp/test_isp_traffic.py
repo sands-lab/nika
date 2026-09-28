@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pathlib import Path
 
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
@@ -20,6 +22,8 @@ from nika.net_env.isp.traffic.models import (
     TrafficMatrixSeries,
 )
 from nika.topology import load_sndlib_topology
+
+pytestmark = pytest.mark.unit
 
 
 def test_demands_series_polska() -> None:

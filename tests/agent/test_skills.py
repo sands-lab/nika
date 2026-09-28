@@ -27,6 +27,8 @@ from nika.run_config.schema import RunConfig
 from tests.agent._assertions import marker_before_first_mcp_tool, skill_invoked
 from tests.support.integration_pipeline import load_test_env
 
+pytestmark = pytest.mark.unit
+
 load_test_env()
 
 

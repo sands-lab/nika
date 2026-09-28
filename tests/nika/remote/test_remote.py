@@ -22,6 +22,8 @@ from nika.remote.protocol import EnvStartRequest, EnvStartResponse
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _clear_run_config(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,7 +106,9 @@ def test_handle_env_start_forwards_static_validation() -> None:
             return_value={"session_id": "sess-static"},
         ),
     ):
-        handle_env_start(EnvStartRequest(scenario="isp_abilene", static_validation=True))
+        handle_env_start(
+            EnvStartRequest(scenario="isp_abilene", static_validation=True)
+        )
     assert start.call_args.kwargs["static_validation"] is True
 
 

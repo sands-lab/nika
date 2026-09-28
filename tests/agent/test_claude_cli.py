@@ -15,6 +15,8 @@ from agent.cli.claude.config import (
 )
 from tests.support.integration_pipeline import load_test_env
 
+pytestmark = pytest.mark.unit
+
 load_test_env()
 
 

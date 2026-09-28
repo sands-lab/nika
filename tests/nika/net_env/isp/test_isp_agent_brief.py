@@ -10,6 +10,8 @@ from nika.net_env.net_env_pool import (
     list_all_net_envs,
 )
 
+pytestmark = pytest.mark.unit
+
 _REQUIRED = (
     "Network Description:",
     "PCs:",

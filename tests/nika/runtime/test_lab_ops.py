@@ -6,6 +6,8 @@ from unittest.mock import MagicMock
 from nika.runtime.base import LabRuntime, RuntimeCapabilityError
 from nika.problems.base import ProblemBase
 
+pytestmark = pytest.mark.unit
+
 
 class _StubRuntime(LabRuntime):
     def __init__(self, responses: dict[tuple[str, str], str] | None = None) -> None:

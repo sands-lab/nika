@@ -11,6 +11,7 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
 pytestmark = [
+    pytest.mark.integration,
     pytest.mark.ci_smoke,
     pytest.mark.skipif(not docker_available(), reason="Docker not available"),
 ]

@@ -12,6 +12,8 @@ from tests.support.integration_base import PerTestEnvTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available, min3clos_prerequisites
 
+pytestmark = pytest.mark.integration
+
 
 def _invoke_pingmesh(
     session_id: str,

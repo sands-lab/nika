@@ -37,6 +37,8 @@ from agent.sandbox.sbx.proxy import (
 )
 from agent.sandbox.sbx.workspace import collect_artifacts, prepare_workspace
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.parametrize(
     ("agent_type", "image"),

@@ -28,12 +28,14 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
 
+@pytest.mark.unit
 def test_size_table_matches_plan() -> None:
     assert SIZE_TABLE["s"] == (2, 4, 2)
     assert SIZE_TABLE["m"] == (4, 8, 4)
     assert SIZE_TABLE["l"] == (8, 16, 4)
 
 
+@pytest.mark.unit
 def test_model_scales_without_hardcoding() -> None:
     for size in ("s", "m", "l"):
         model = build_clos_fabric_model(size)
@@ -47,6 +49,7 @@ def test_model_scales_without_hardcoding() -> None:
         assert len(model.expected_device_ids()) == spines + leaves
 
 
+@pytest.mark.unit
 def test_forwarding_rules_ecmp_groups() -> None:
     model = build_clos_fabric_model("s")
     rules = build_forwarding_rules(model)
@@ -59,6 +62,7 @@ def test_forwarding_rules_ecmp_groups() -> None:
         assert group["device_id"] == device_id(dpid_for_leaf(1))
 
 
+@pytest.mark.unit
 def test_forwarding_rules_spine_prefixes() -> None:
     model = build_clos_fabric_model("s")
     rules = build_forwarding_rules(model)
@@ -67,6 +71,7 @@ def test_forwarding_rules_spine_prefixes() -> None:
     assert all(f["device_id"] == device_id(dpid_for_spine(1)) for f in spine_flows)
 
 
+@pytest.mark.unit
 def test_onos_batch_splits_large_command_payload() -> None:
     class Runtime:
         def __init__(self) -> None:
@@ -85,6 +90,7 @@ def test_onos_batch_splits_large_command_payload() -> None:
     assert len(__import__("json").loads(result)) == len(runtime.commands)
 
 
+@pytest.mark.unit
 def test_is_transient_onos_failure_matches_connection_refused() -> None:
     assert fabric_apply._is_transient_onos_failure(
         {
@@ -99,6 +105,7 @@ def test_is_transient_onos_failure_matches_connection_refused() -> None:
     )
 
 
+@pytest.mark.unit
 def test_onos_batch_resilient_retries_connection_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -134,6 +141,7 @@ def test_onos_batch_resilient_retries_connection_refused(
     assert all(item["status"] == 200 for item in __import__("json").loads(result))
 
 
+@pytest.mark.unit
 def test_recover_onos_rest_does_not_restart_live_jvm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -150,6 +158,7 @@ def test_recover_onos_rest_does_not_restart_live_jvm(
     assert started == []
 
 
+@pytest.mark.unit
 def test_onos_batch_resilient_treats_delete_404_as_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -164,6 +173,7 @@ def test_onos_batch_resilient_treats_delete_404_as_success(
     assert __import__("json").loads(result)[0]["status"] == 404
 
 
+@pytest.mark.unit
 def test_onos_batch_resilient_does_not_retry_invalid_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -183,6 +193,7 @@ def test_onos_batch_resilient_does_not_retry_invalid_json(
     assert calls["n"] == 1
 
 
+@pytest.mark.unit
 def test_prune_groups_removes_only_failed_link_buckets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -230,6 +241,7 @@ def test_prune_groups_removes_only_failed_link_buckets(
     assert len(waits[0]) == 6
 
 
+@pytest.mark.unit
 def test_local_arp_flood_actions_translate_at_all_sizes() -> None:
     """Multi-host racks must keep local ARP flood rules installable."""
     for size in ("s", "m", "l"):
@@ -247,6 +259,7 @@ def test_local_arp_flood_actions_translate_at_all_sizes() -> None:
             assert body is not None, (size, flow["match"], flow["actions"])
 
 
+@pytest.mark.unit
 def test_apply_forwarding_fails_on_group_build_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -275,6 +288,7 @@ def test_apply_forwarding_fails_on_group_build_error(
         apply_forwarding(object(), model)  # type: ignore[arg-type]
 
 
+@pytest.mark.unit
 def test_apply_forwarding_fails_on_flow_build_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -304,6 +318,7 @@ def test_apply_forwarding_fails_on_flow_build_error(
         apply_forwarding(object(), model)  # type: ignore[arg-type]
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
     """SDN Clos dataplane recovery and startup validation regressions."""

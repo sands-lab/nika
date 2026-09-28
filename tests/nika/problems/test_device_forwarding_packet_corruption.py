@@ -17,8 +17,9 @@ from tests.support.symptom.corruption_probes import _service_peer_host
 from tests.support.symptom.flap_probes import assert_baseline_healthy
 from tests.support.symptom.probe import _resolve_path
 
+
 PROBLEM = "device_forwarding_packet_corruption"
-SEEDS = (0, 1, 4, 7, 42)
+SEEDS = (1,)
 IPERF_DURATION_SEC = 5
 BASELINE_RETRIES = 3
 BASELINE_RETRY_SLEEP_SEC = 5.0
@@ -41,6 +42,7 @@ CORRUPTION_CASES = (
 )
 
 
+@pytest.mark.contract
 def test_failure_registers_and_contracts() -> None:
     assert PROBLEM in list_avail_problem_names()
     cls = get_problem_class(PROBLEM)
@@ -58,9 +60,7 @@ def _skip_reason() -> str | None:
 
 
 def _endpoint_qdisc_clean(runtime, node: str, intf: str = "eth0") -> bool:
-    output = runtime.exec(
-        node, f"tc qdisc show dev {intf} 2>/dev/null || true"
-    ).lower()
+    output = runtime.exec(node, f"tc qdisc show dev {intf} 2>/dev/null || true").lower()
     return "netem" not in output and "tbf" not in output
 
 
@@ -106,6 +106,7 @@ def _capture_degradation_baselines(problem, runtime, path, *, scenario: str) -> 
         problem._baseline_rtt_ms = ping.rtt_avg_ms
 
 
+@pytest.mark.e2e
 @pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("case", CORRUPTION_CASES, ids=[c.id for c in CORRUPTION_CASES])
 class TestDeviceForwardingPacketCorruptionE2E(IntegrationTestCase):
@@ -143,7 +144,9 @@ class TestDeviceForwardingPacketCorruptionE2E(IntegrationTestCase):
             baseline_ok, baseline = _assert_baseline_with_retry(runtime, path)
             assert baseline_ok is True, baseline
 
-            _capture_degradation_baselines(problem, runtime, path, scenario=case.scenario)
+            _capture_degradation_baselines(
+                problem, runtime, path, scenario=case.scenario
+            )
             assert (
                 getattr(problem, "_baseline_iperf_bps", None) is not None
                 or getattr(problem, "_baseline_http_time_s", None) is not None

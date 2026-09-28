@@ -7,6 +7,8 @@ from pathlib import Path
 from nika.utils.session_index import SessionIndex
 from nika.utils.session_store import SessionStore
 
+pytestmark = pytest.mark.unit
+
 RUN_FILENAME = "run.json"
 GROUND_TRUTH_FILENAME = "ground_truth.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import pytest
+
 import importlib
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
 from nika.cli.main import app
+
+pytestmark = pytest.mark.unit
 
 _RUNNER = CliRunner()
 CLI_COMMAND_MODULES = [

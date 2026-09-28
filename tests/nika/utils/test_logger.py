@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 import json
 from pathlib import Path
 
 from nika.utils.logger import bind_session_dir, log_event
+
+pytestmark = pytest.mark.unit
 
 
 def test_bind_session_dir_accepts_str_and_path(tmp_path: Path) -> None:

@@ -18,6 +18,8 @@ from nika.utils.agent_config import (
     resolve_reasoning_effort,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _clear_run_config():
@@ -101,9 +103,7 @@ class AgentConfigTest:
         ]
         for agent_type, model in cases:
             provider = (
-                "openai"
-                if agent_type in ("cli.codex", "sdk.codex_sdk")
-                else "deepseek"
+                "openai" if agent_type in ("cli.codex", "sdk.codex_sdk") else "deepseek"
             )
             set_run_config(
                 RunConfig.model_validate(
@@ -134,7 +134,8 @@ class AgentConfigTest:
             warnings.simplefilter("always")
             assert resolve_agent_model("byo.langgraph", None) == "legacy-model"
         assert any(
-            issubclass(w.category, DeprecationWarning) and "agent.models" in str(w.message)
+            issubclass(w.category, DeprecationWarning)
+            and "agent.models" in str(w.message)
             for w in caught
         )
 

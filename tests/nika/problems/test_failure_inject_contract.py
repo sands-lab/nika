@@ -22,6 +22,8 @@ from tests.support.failure_contract import (
 )
 from tests.support.prerequisites import docker_available, linux_vrf_available
 
+pytestmark = [pytest.mark.integration, pytest.mark.nightly]
+
 HOST = "pc1"
 INTF = "eth0"
 LINK_PARAMS = {"host_name": HOST, "intf_name": INTF}
@@ -88,7 +90,7 @@ def _kathara_cases():
         elif problem == "host_incorrect_gateway" or problem == "host_incorrect_ip":
             params = {"host_name": HOST}
         else:
-            params = resolve_inject_params("simple_bgp", problem)
+            params = None
         yield pytest.param(
             "simple_bgp",
             [],
@@ -101,7 +103,7 @@ def _kathara_cases():
             "campus_lan",
             ["-s", "s"],
             problem,
-            resolve_inject_params("campus_lan", problem, topo_size="s"),
+            None,
             id=f"kathara-campus_lan-{problem}",
         )
     for problem in ENTERPRISE_BRANCH_LINK_FAILURES:
@@ -109,7 +111,7 @@ def _kathara_cases():
             "enterprise_branch",
             ["-s", "s"],
             problem,
-            resolve_inject_params("enterprise_branch", problem, topo_size="s"),
+            None,
             id=f"kathara-enterprise_branch-{problem}",
         )
     for problem in P4_GATEWAY_LINK_FAILURES:
@@ -117,7 +119,7 @@ def _kathara_cases():
             "p4_dc_gateway",
             ["-s", "s"],
             problem,
-            resolve_inject_params("p4_dc_gateway", problem, topo_size="s"),
+            None,
             id=f"kathara-p4_dc_gateway-{problem}",
         )
 
@@ -128,7 +130,7 @@ def _clab_cases():
             "min3clos",
             [],
             problem,
-            resolve_inject_params("min3clos", problem),
+            None,
             id=f"clab-min3clos-{problem}",
         )
 
@@ -143,7 +145,7 @@ def test_kathara_failure_inject_contract(
     scenario: str,
     env_run_args: list[str],
     problem: str,
-    inject_params: dict[str, str],
+    inject_params: dict[str, str] | None,
 ) -> None:
     if scenario == "enterprise_branch" and not linux_vrf_available():
         pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
@@ -155,6 +157,10 @@ def test_kathara_failure_inject_contract(
     topo_size = None
     if "-s" in env_run_args:
         topo_size = env_run_args[env_run_args.index("-s") + 1]
+    if inject_params is None:
+        inject_params = resolve_inject_params(
+            scenario, problem, topo_size=topo_size or ""
+        )
     session_id = start_net_env(
         scenario,
         topo_size,
@@ -182,8 +188,10 @@ def test_clab_failure_inject_contract(
     scenario: str,
     env_run_args: list[str],
     problem: str,
-    inject_params: dict[str, str],
+    inject_params: dict[str, str] | None,
 ) -> None:
+    if inject_params is None:
+        inject_params = resolve_inject_params(scenario, problem)
     session_id = start_net_env(
         scenario,
         None,

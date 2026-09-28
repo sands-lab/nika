@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import json
 import os
 from unittest.mock import patch
@@ -11,6 +13,8 @@ from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.sandbox.session_dir import resolve_agent_session_dir
 from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
 from agent.utils.mcp_client import load_session_mcp_config
+
+pytestmark = pytest.mark.unit
 
 
 def test_sandbox_logs_and_commands_redact_secrets() -> None:
