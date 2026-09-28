@@ -18,6 +18,10 @@ spec:
         image: postgres:16
         ports:
         - containerPort: 5432
+        readinessProbe:
+          exec:
+            command: [pg_isready, -h, 127.0.0.1, -U, root, -d, worddb]
+          periodSeconds: 2
         env:
         - name: POSTGRES_DB
           value: worddb
@@ -53,6 +57,10 @@ spec:
         image: postgres:16
         ports:
         - containerPort: 5432
+        readinessProbe:
+          exec:
+            command: [pg_isready, -h, 127.0.0.1, -U, root, -d, weatherdb]
+          periodSeconds: 2
         env:
         - name: POSTGRES_DB
           value: weatherdb

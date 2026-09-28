@@ -406,8 +406,8 @@ def start_net_env(
                     error=str(preload_exc),
                     error_type=type(preload_exc).__name__,
                 )
-                # k8s/llmd nodes have no registry egress; continuing would hang
-                # controller.startup on ImagePullBackOff for up to VERIFY_MAX_WAIT.
+                # Controller startup waits for the preload signal; continuing
+                # after a failed import would leave workload readiness uncertain.
                 from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS
 
                 if canonical in K8S_SCENARIOS:

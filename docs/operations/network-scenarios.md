@@ -430,7 +430,7 @@ Both fixed Kathara scenarios run one k3s server and five workers on the pinned i
 
 If verification aborts with `k3s node container(s) not running: ['controller']`, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
-k3s nodes in these labs have no registry egress, so in-cluster images are pulled on the host and sideloaded during `nika env run` / benchmark deploy (see `[k8s-cache]` stderr lines). Cached artifacts live under `.nika_cache/` (gitignored). Watch progress with:
+NIKA pulls in-cluster images on the host and imports them into each k3s node during `nika env run` and benchmark deployment (see `[k8s-cache]` stderr lines). This keeps deployment independent of registry pulls from individual nodes. The `k8s_lab` topology also has NAT egress through `as2r1`, and `llmd_lab` bridges its k3s nodes to the Docker network. Cached artifacts live under `.nika_cache/` (gitignored). Watch progress with:
 
 - stderr: `[k8s-cache]` (host pull + node import) and `[env-verify]` (readiness checks)
 - session `nika.jsonl` (`env_preload_progress`, `env_verify_progress`)
