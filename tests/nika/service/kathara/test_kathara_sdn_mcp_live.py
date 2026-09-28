@@ -46,18 +46,15 @@ class TestSDNMCPToolsLive(IntegrationTestCase):
 
             with mcp_gateway_for_session(session_id, scenario_name="sdn_l3_clos"):
                 config = MCPServerConfig(session_id=session_id).load_http_config(
-                    ["kathara_sdn_mcp_server"]
+                    ["kathara_sdn_mcp_server", "kathara_base_mcp_server"]
                 )
 
                 async def _run() -> dict[str, str]:
                     client = MultiServerMCPClient(connections=config)
                     tools = {tool.name: tool for tool in await client.get_tools()}
-                    required = {
-                        "sdn_onos_rest",
-                        "sdn_ovs_exec",
-                        "sdn_controller_logs",
-                    }
-                    assert not (required - set(tools)), sorted(required - set(tools))
+                    assert "sdn_onos_rest" in tools and "exec_shell" in tools
+                    assert "sdn_ovs_exec" not in tools
+                    assert "sdn_controller_logs" not in tools
 
                     return {
                         "devices": _text(
@@ -66,9 +63,9 @@ class TestSDNMCPToolsLive(IntegrationTestCase):
                             )
                         ),
                         "flows": _text(
-                            await tools["sdn_ovs_exec"].ainvoke(
+                            await tools["exec_shell"].ainvoke(
                                 {
-                                    "switch_name": "leaf_1",
+                                    "host_name": "leaf_1",
                                     "command": (
                                         "ovs-ofctl -O OpenFlow13 dump-flows leaf_1"
                                     ),
@@ -76,7 +73,12 @@ class TestSDNMCPToolsLive(IntegrationTestCase):
                             )
                         ),
                         "logs": _text(
-                            await tools["sdn_controller_logs"].ainvoke({"rows": 20})
+                            await tools["exec_shell"].ainvoke(
+                                {
+                                    "host_name": "onos",
+                                    "command": "tail -n 20 /root/onos/apache-karaf-*/data/log/karaf.log",
+                                }
+                            )
                         ),
                     }
 
@@ -85,21 +87,13 @@ class TestSDNMCPToolsLive(IntegrationTestCase):
             devices = json.loads(results["devices"])
             assert devices["path"] == "/onos/v1/devices"
             assert "body" in devices
-            flows = json.loads(results["flows"])
-            assert flows["switch"] == "leaf_1"
-            assert "dump-flows" in flows["command"]
+            assert "OFPST_FLOW" in results["flows"] or "cookie=" in results["flows"]
             _assert_tool_ok(
                 "sdn_onos_rest",
                 results["devices"],
                 must_contain=("onos_oob", "body"),
             )
-            _assert_tool_ok(
-                "sdn_ovs_exec",
-                results["flows"],
-                must_contain=("leaf_1", "output"),
-            )
-            _assert_tool_ok(
-                "sdn_controller_logs", results["logs"], must_contain=("onos",)
-            )
+            _assert_tool_ok("exec_shell flows", results["flows"])
+            _assert_tool_ok("exec_shell logs", results["logs"])
         finally:
             self._close_session(session_id)

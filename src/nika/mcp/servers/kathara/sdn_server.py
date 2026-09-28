@@ -32,23 +32,5 @@ def sdn_onos_rest(path: str) -> str:
     return _json(_api().sdn_onos_rest(path))
 
 
-@safe_tool
-@mcp.tool()
-def sdn_ovs_exec(switch_name: str, command: str) -> str:
-    """Run an OVS/OpenFlow CLI command on a switch.
-
-    Typical commands: ``ovs-ofctl -O OpenFlow13 dump-flows <switch>``,
-    ``ovs-vsctl show``, ``ovs-vsctl get-controller <switch>``.
-    """
-    return _json(_api().sdn_ovs_exec(switch_name, command))
-
-
-@safe_tool
-@mcp.tool()
-def sdn_controller_logs(rows: int = 80) -> str:
-    """Return recent ONOS/karaf controller log lines (1-500; default 80)."""
-    return _json(_api().sdn_controller_logs(rows=rows))
-
-
 if __name__ == "__main__":
     mcp.run(transport="stdio")

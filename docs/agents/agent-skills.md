@@ -61,7 +61,7 @@ description: Diagnose link and interface faults. Use when an interface is DOWN o
 
 # Link Faults
 
-1. Call `get_host_net_config` on the suspect host.
+1. Call `exec_shell` on the suspect host with `ip addr && ip route`.
 2. Call `exec_shell` with `ip link show`.
 3. ...
 ```

@@ -204,9 +204,8 @@ class TestPacketCaptureRegistry:
     def test_selected_by_default(self) -> None:
         servers = select_diagnosis_servers("simple_bgp", backend="kathara")
         assert DIAGNOSIS_PACKET_CAPTURE_SERVER in servers
-        assert servers.index(DIAGNOSIS_PACKET_CAPTURE_SERVER) < servers.index(
-            "kathara_frr_mcp_server"
-        )
+        assert servers.index(DIAGNOSIS_PACKET_CAPTURE_SERVER) == 2
+        assert "kathara_frr_mcp_server" not in servers
 
     def test_gateway_mount_registered(self) -> None:
         assert DIAGNOSIS_PACKET_CAPTURE_SERVER in _MCP_MODULE_ATTRS

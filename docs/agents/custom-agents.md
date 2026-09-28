@@ -83,10 +83,10 @@ class MyAgent:
         tools = {tool.name: tool for tool in await client.get_tools()}
 
         # Replace this block with your framework or model loop.
-        result = await tools["ping_pair"].ainvoke(
-            {"host_a": "pc1", "host_b": "pc2", "count": 2}
+        result = await tools["exec_shell"].ainvoke(
+            {"host_name": "pc1", "command": "ping -c 2 195.11.14.1"}
         )
-        diagnosis = f"Observed ping_pair output: {result}"
+        diagnosis = f"Observed ping output: {result}"
 
         logger.log("llm_end", {"text": diagnosis, "model": self.model})
         return diagnosis
@@ -168,7 +168,7 @@ from agent.utils.loggers import MessageLogger
 from agent.protocols import DIAGNOSIS
 
 logger = MessageLogger(phase=DIAGNOSIS, session_dir=session.session_dir)
-logger.log("tool_start", {"tool": {"name": "ping_pair"}, "input": {"host_a": "pc1", "host_b": "pc2"}})
+logger.log("tool_start", {"tool": {"name": "exec_shell"}, "input": {"host_name": "pc1", "command": "ip route"}})
 logger.log("tool_end", {"output": "success"})
 ```
 

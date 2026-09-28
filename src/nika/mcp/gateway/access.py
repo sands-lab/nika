@@ -12,33 +12,15 @@ from nika.runtime.spec import NodeRole
 # that selects a lab node; the gateway checks all supplied targets before the
 # server receives the call.
 TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "ping_pair": ("host_a", "host_b"),
-    "traceroute": ("host_name",),
-    "systemctl_ops": ("host_name",),
-    "get_host_net_config": ("host_name",),
-    "get_tc_statistics": ("host_name",),
-    "netstat": ("host_name",),
-    "ip_addr_statistics": ("host_name",),
-    "ethtool": ("host_name",),
     "curl_web_test": ("host_name",),
     "iperf_test": ("client_host_name", "server_host_name"),
     "active_tcp_probe": ("source", "destination"),
     "packet_capture_start": ("device",),
-    "cat_file": ("host_name",),
     "exec_shell": ("host_name",),
-    "exec_shell_dual": ("host1", "host2"),
-    "frr_get_bgp_conf": ("router_name",),
-    "frr_show_running_config": ("router_name",),
-    "frr_show_ip_route": ("router_name",),
-    "frr_get_ospf_conf": ("router_name",),
-    "frr_exec": ("router_name",),
     "frr_get_rpki_status": ("device",),
+    "iosxr_exec": ("router_name",),
+    "routeros_exec": ("router_name",),
     "srl_exec_cli": ("device_name",),
-    "srl_get_bgp_as": ("device_name",),
-    "srl_show_running_config": ("device_name",),
-    "srl_show_bgp_summary": ("device_name",),
-    "srl_show_ip_route": ("device_name",),
-    "sdn_ovs_exec": ("switch_name",),
 }
 
 

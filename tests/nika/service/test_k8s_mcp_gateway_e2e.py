@@ -102,12 +102,36 @@ def _wait_host_api(session_id: str, *, timeout_sec: float = 300.0) -> None:
 async def _with_k8s_tools(session_id: str, scenario: str, coro_fn):
     reset_client(session_id)
     with mcp_gateway_for_session(session_id, scenario_name=scenario):
-        cfg = MCPServerConfig(session_id=session_id).load_http_config([K8S_MCP_SERVER])
+        cfg = MCPServerConfig(session_id=session_id).load_http_config(
+            [K8S_MCP_SERVER, "kathara_base_mcp_server"]
+        )
         assert K8S_MCP_SERVER in cfg
         client = MultiServerMCPClient(connections=cfg)
         tools = {t.name: t for t in await client.get_tools()}
-        assert "k8s_list_nodes" in tools
+        assert "k8s_list_events" in tools and "exec_shell" in tools
+        assert {name for name in tools if name.startswith("k8s_")} == {
+            "k8s_list_events"
+        }
         return await coro_fn(tools)
+
+
+async def _kubectl(tools, command: str):
+    return "\n".join(
+        tool_text_list(
+            await tools["exec_shell"].ainvoke(
+                {
+                    "host_name": "controller",
+                    "command": f"kubectl {command}",
+                    "timeout": 60,
+                }
+            )
+        )
+    )
+
+
+def _ready(node: str) -> bool:
+    fields = node.split()
+    return len(fields) > 1 and fields[1] == "Ready"
 
 
 @pytest.mark.skipif(
@@ -130,21 +154,22 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
 
     def test_01_gateway_lists_nodes_and_services(self) -> None:
         async def _check(tools):
-            nodes = _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
-            services = _tool_payload(
-                await tools["k8s_list_services"].ainvoke({"all_namespaces": True})
+            nodes = await _kubectl(tools, "get nodes --no-headers")
+            services = await _kubectl(tools, "get services -A --no-headers")
+            events = _tool_payload(
+                await tools["k8s_list_events"].ainvoke(
+                    {"namespace": "kube-system", "limit": 20}
+                )
             )
-            return nodes, services
+            return nodes, services, events
 
-        nodes, services = asyncio.run(
+        nodes, services, events = asyncio.run(
             _with_k8s_tools(self.session_id, self.SCENARIO, _check)
         )
-        assert isinstance(nodes, list) and len(nodes) >= 6
-        assert any(n.get("ready") for n in nodes if isinstance(n, dict))
-        assert isinstance(services, list)
-        assert any(
-            isinstance(s, dict) and s.get("name") == "kubernetes" for s in services
-        )
+        assert len(nodes.splitlines()) >= 6
+        assert any(_ready(n) for n in nodes.splitlines())
+        assert any("kubernetes" in s for s in services.splitlines())
+        assert isinstance(events, list)
 
     def test_02_missing_session_header_rejected(self) -> None:
         import urllib.error
@@ -185,10 +210,12 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
             deadline = time.time() + 240
             last = None
             while time.time() < deadline:
-                last = _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
-                if isinstance(last, list):
+                last = await _kubectl(tools, "get nodes --no-headers")
+                if last:
                     not_ready = [
-                        n for n in last if isinstance(n, dict) and not n.get("ready")
+                        n
+                        for n in last.splitlines()
+                        if n.startswith("worker1 ") and not _ready(n)
                     ]
                     if not_ready:
                         return last, not_ready
@@ -218,56 +245,21 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
         self._assert_failure_injected("k8s_coredns_isolated")
 
         async def _check(tools):
-            endpoints = _tool_payload(
-                await tools["k8s_get_endpoints"].ainvoke(
-                    {"service": "kube-dns", "namespace": "kube-system"}
-                )
+            endpoints = await _kubectl(
+                tools,
+                "get service kube-dns -n kube-system -o jsonpath={.spec.clusterIP}",
             )
-            pods = _tool_payload(
-                await tools["k8s_list_pods"].ainvoke(
-                    {
-                        "namespace": "kube-system",
-                        "selector": "k8s-app=kube-dns",
-                    }
-                )
+            pods = await _kubectl(
+                tools, "get pods -n kube-system -l k8s-app=kube-dns --no-headers"
             )
-            app_pods = _tool_payload(
-                await tools["k8s_list_pods"].ainvoke(
-                    {"namespace": "word-ns", "selector": "app=word"}
-                )
-            )
-            dns_result = None
-            if isinstance(app_pods, list) and app_pods:
-                pod = app_pods[0]
-                dns_result = _tool_payload(
-                    await tools["k8s_dns_query"].ainvoke(
-                        {
-                            "pod": pod["name"],
-                            "namespace": pod["namespace"],
-                            "query": "kubernetes.default.svc.cluster.local",
-                        }
-                    )
-                )
-            return endpoints, pods, dns_result
+            return endpoints, pods
 
-        endpoints, pods, dns_result = asyncio.run(
+        endpoints, pods = asyncio.run(
             _with_k8s_tools(self.session_id, self.SCENARIO, _check)
         )
-        assert isinstance(endpoints, dict)
-        assert endpoints.get("cluster_ip")
-        assert isinstance(pods, list) and pods
-        assert all(p.get("ready") for p in pods if isinstance(p, dict))
-        if isinstance(dns_result, dict):
-            stdout = (dns_result.get("stdout") or "").lower()
-            stderr = (dns_result.get("stderr") or "").lower()
-            ok = dns_result.get("ok")
-            assert (
-                ok is False
-                or "nxdomain" in stdout
-                or "timed out" in (stdout + stderr)
-                or "servfail" in (stdout + stderr)
-                or not stdout.strip()
-            )
+        assert endpoints and "." in endpoints
+        assert pods.strip()
+        assert all("1/1" in pod for pod in pods.splitlines())
 
         lab_name = SessionStore().get_session(self.session_id)["lab_name"]
         from nika.service.kathara.base_api import KatharaBaseAPI
@@ -297,22 +289,19 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
         self._assert_failure_injected("k8s_clusterip_routing_broken")
 
         async def _check(tools):
-            nodes = _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
-            endpoints = _tool_payload(
-                await tools["k8s_get_endpoints"].ainvoke(
-                    {"service": "kubernetes", "namespace": "default"}
-                )
+            nodes = await _kubectl(tools, "get nodes --no-headers")
+            endpoints = await _kubectl(
+                tools, "get service kubernetes -n default -o jsonpath={.spec.clusterIP}"
             )
             return nodes, endpoints
 
         nodes, endpoints = asyncio.run(
             _with_k8s_tools(self.session_id, self.SCENARIO, _check)
         )
-        assert isinstance(nodes, list)
-        ready = [n for n in nodes if isinstance(n, dict) and n.get("ready")]
+        assert isinstance(nodes, str)
+        ready = [n for n in nodes.splitlines() if _ready(n)]
         assert len(ready) >= 5
-        assert isinstance(endpoints, dict)
-        assert endpoints.get("cluster_ip") or endpoints.get("addresses")
+        assert endpoints and "." in endpoints
 
         lab_name = SessionStore().get_session(self.session_id)["lab_name"]
         from nika.service.kathara.base_api import KatharaBaseAPI
@@ -388,10 +377,8 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
             f"{row.get('task_description') or ''}\n\n"
             "Reported symptom (investigate with cluster tools first):\n"
             f"{symptom}\n\n"
-            "IMPORTANT: Prefer the Kubernetes MCP tools from k8s_mcp_server "
-            "(k8s_list_nodes, k8s_list_pods, k8s_list_services, k8s_dns_query, "
-            "k8s_get_network_policies, k8s_check_connectivity, etc.) before using "
-            "host/shell or FRR tools. This is primarily a Kubernetes cluster fault."
+            "Use exec_shell on controller for kubectl get/describe/logs and "
+            "k8s_list_events for cluster events. This is a Kubernetes cluster fault."
         )
         session = Session()
         session.load_running_session(session_id=self.session_id)
@@ -433,8 +420,9 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
         tool_names: list[str] = []
         for entry in messages:
             tool_names.extend(_extract_tool_names(entry))
-        k8s_tools = [n for n in tool_names if "k8s_" in n]
-        assert k8s_tools, f"expected k8s_* MCP tool use, got {tool_names}"
+        assert any("exec_shell" in n or "k8s_list_events" in n for n in tool_names), (
+            tool_names
+        )
 
 
 @pytest.mark.skipif(
@@ -455,10 +443,10 @@ class LlmdMcpGatewayIntegrationTest(SharedSessionTestCase):
 
     def test_01_gateway_lists_nodes(self) -> None:
         async def _check(tools):
-            return _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
+            return await _kubectl(tools, "get nodes --no-headers")
 
         nodes = asyncio.run(_with_k8s_tools(self.session_id, self.SCENARIO, _check))
-        assert isinstance(nodes, list) and len(nodes) >= 6
+        assert len(nodes.splitlines()) >= 6
 
     def test_02_coredns_isolated_via_mcp(self) -> None:
         assert self.session_id is not None
@@ -469,27 +457,20 @@ class LlmdMcpGatewayIntegrationTest(SharedSessionTestCase):
         self._assert_failure_injected("k8s_coredns_isolated")
 
         async def _check(tools):
-            endpoints = _tool_payload(
-                await tools["k8s_get_endpoints"].ainvoke(
-                    {"service": "kube-dns", "namespace": "kube-system"}
-                )
+            endpoints = await _kubectl(
+                tools,
+                "get service kube-dns -n kube-system -o jsonpath={.spec.clusterIP}",
             )
-            pods = _tool_payload(
-                await tools["k8s_list_pods"].ainvoke(
-                    {
-                        "namespace": "kube-system",
-                        "selector": "k8s-app=kube-dns",
-                    }
-                )
+            pods = await _kubectl(
+                tools, "get pods -n kube-system -l k8s-app=kube-dns --no-headers"
             )
             return endpoints, pods
 
         endpoints, pods = asyncio.run(
             _with_k8s_tools(self.session_id, self.SCENARIO, _check)
         )
-        assert isinstance(endpoints, dict)
-        assert endpoints.get("cluster_ip")
-        assert isinstance(pods, list) and pods
+        assert endpoints and "." in endpoints
+        assert pods.strip()
 
         from nika.service.kathara.base_api import KatharaBaseAPI
 
@@ -541,8 +522,8 @@ class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
 
         steered = (
             f"{row.get('task_description') or ''}\n\n"
-            "IMPORTANT: Prefer Kubernetes MCP tools from k8s_mcp_server "
-            "(k8s_list_nodes, k8s_list_pods, k8s_list_events) to diagnose the fault."
+            "Use exec_shell on controller for kubectl get/describe/logs and "
+            "k8s_list_events for cluster events to diagnose the fault."
         )
         session = Session()
         session.load_running_session(session_id=self.session_id)
@@ -568,7 +549,9 @@ class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
         tool_names: list[str] = []
         for entry in messages:
             tool_names.extend(_extract_tool_names(entry))
-        assert any("k8s_" in n for n in tool_names), tool_names
+        assert any("exec_shell" in n or "k8s_list_events" in n for n in tool_names), (
+            tool_names
+        )
 
 
 def _prod_shape_mcp_probe(
@@ -596,20 +579,18 @@ def _prod_shape_mcp_probe(
 
         async def _exercise() -> dict[str, object]:
             cfg = MCPServerConfig(session_id=session_id).load_http_config(
-                [K8S_MCP_SERVER]
+                [K8S_MCP_SERVER, "kathara_base_mcp_server"]
             )
             client = MultiServerMCPClient(connections=cfg)
             tools = {t.name: t for t in await client.get_tools()}
-            assert "k8s_list_nodes" in tools and "k8s_get_node" in tools
+            assert "k8s_list_events" in tools and "exec_shell" in tools
 
-            nodes = _tool_payload(await tools["k8s_list_nodes"].ainvoke({}))
-            assert isinstance(nodes, list) and len(nodes) >= 6
+            nodes = await _kubectl(tools, "get nodes --no-headers")
+            assert len(nodes.splitlines()) >= 6
 
-            ctrl = _tool_payload(
-                await tools["k8s_get_node"].ainvoke({"name": "controller"})
+            uid = await _kubectl(
+                tools, "get node controller -o jsonpath={.metadata.uid}"
             )
-            assert isinstance(ctrl, dict)
-            uid = (ctrl.get("metadata") or {}).get("uid")
             assert uid
 
             if smoke_extra_tools:
@@ -620,57 +601,34 @@ def _prod_shape_mcp_probe(
                 )
                 assert isinstance(events, list)
 
-                netpols = _tool_payload(
-                    await tools["k8s_get_network_policies"].ainvoke(
-                        {"all_namespaces": True}
-                    )
-                )
-                assert isinstance(netpols, list)
+                netpols = await _kubectl(tools, "get networkpolicy -A --no-headers")
+                assert "error:" not in netpols.lower()
 
-                dns_pods = _tool_payload(
-                    await tools["k8s_list_pods"].ainvoke(
-                        {
-                            "namespace": "kube-system",
-                            "selector": "k8s-app=kube-dns",
-                        }
-                    )
+                dns_pods = await _kubectl(
+                    tools, "get pods -n kube-system -l k8s-app=kube-dns -o name"
                 )
-                assert isinstance(dns_pods, list) and dns_pods
-                pod0 = dns_pods[0]
-                logs = _tool_payload(
-                    await tools["k8s_get_logs"].ainvoke(
-                        {
-                            "name": pod0["name"],
-                            "namespace": pod0["namespace"],
-                            "tail_lines": 20,
-                        }
-                    )
-                )
-                assert isinstance(logs, (str, dict))
+                assert dns_pods
+                pod0 = dns_pods.splitlines()[0]
+                logs = await _kubectl(tools, f"logs -n kube-system {pod0} --tail=20")
+                assert isinstance(logs, str)
 
-                app_pods = _tool_payload(
-                    await tools["k8s_list_pods"].ainvoke(
-                        {"namespace": "word-ns", "selector": "app=word"}
-                    )
+                app_pods = await _kubectl(
+                    tools, "get pods -n word-ns -l app=word -o name"
                 )
-                if isinstance(app_pods, list) and app_pods:
-                    src = app_pods[0]
-                    conn = _tool_payload(
-                        await tools["k8s_check_connectivity"].ainvoke(
-                            {
-                                "pod": src["name"],
-                                "namespace": src["namespace"],
-                                "target": "kubernetes.default.svc.cluster.local",
-                                "port": 443,
-                            }
-                        )
+                if app_pods:
+                    src = app_pods.splitlines()[0]
+                    conn = await _kubectl(
+                        tools,
+                        f"exec -n word-ns {src} -- sh -c "
+                        "'nslookup kubernetes.default.svc.cluster.local || "
+                        "getent hosts kubernetes.default.svc.cluster.local'",
                     )
-                    assert isinstance(conn, dict)
+                    assert isinstance(conn, str)
 
             return {
                 "gateway_port": gw.port,
                 "controller_uid": uid,
-                "node_count": len(nodes),
+                "node_count": len(nodes.splitlines()),
             }
 
         result = asyncio.run(_exercise())
