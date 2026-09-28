@@ -539,7 +539,9 @@ class TestAgentFailedFinalization:
         (tmp_path / "submission.json").write_text("{}", encoding="utf-8")
         _require_submission(tmp_path)
 
-    def test_agent_failure_keeps_counted_trial(self, tmp_path: Path) -> None:
+    def test_agent_failure_keeps_counted_trial(
+        self, tmp_path: Path, request: pytest.FixtureRequest
+    ) -> None:
         result_dir = tmp_path / "run"
         trials = expand_trials([ROW_A], n_trials=1)
         trial = trials[0]
@@ -574,6 +576,8 @@ class TestAgentFailedFinalization:
                     "backend": "kathara",
                 }
             )
+            # close_session is patched out; drop the runtime row ourselves.
+            request.addfinalizer(lambda: SessionStore().delete_session(sid))
             return sid
 
         def fake_inject(**kwargs):
@@ -645,7 +649,9 @@ class TestAgentFailedFinalization:
                 case_key=trial.case_key,
             )
 
-        assert sid == trial.trial_id
+        from nika.workflows.benchmark.run import store_session_id_for_trial
+
+        assert sid == store_session_id_for_trial(trial.trial_id, result_dir)
         assert sdir == session_path
         assert is_valid_trial(session_path)
         run_meta = json.loads((session_path / "run.json").read_text(encoding="utf-8"))
