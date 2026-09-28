@@ -40,6 +40,11 @@ _INCAST_COLUMNS = frozenset(
         "sdn_l3_clos",
     }
 )
+# (port_rate, sender_rate) defaults per forwarding plane. BMv2 forwards in
+# software at roughly 10 Mbit/s, so a 100mbit egress never queues behind it; the
+# emulated port must drain slower than the switch forwards for bursts to pile up.
+_KERNEL_RATES = ("100mbit", "20M/64")
+_BMV2_RATES = ("4mbit", "500K/64")
 
 
 def tc_size_bytes(value: str) -> int | None:
@@ -70,9 +75,12 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
         default="16kb",
         description="Shallow egress buffer size (tc byte size).",
     )
-    port_rate: str = Field(
-        default="100mbit",
-        description="Egress port line rate the queue drains at.",
+    port_rate: str | None = Field(
+        default=None,
+        description=(
+            "Egress port line rate the queue drains at; defaults to 100mbit, or "
+            "4mbit when the forwarding device is a BMv2 switch."
+        ),
     )
     port_burst: str = Field(
         default="32kb",
@@ -81,11 +89,12 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
     sender_count: int = Field(
         default=4, ge=2, description="Maximum number of synchronized senders."
     )
-    sender_rate: str = Field(
-        default="20M/64",
+    sender_rate: str | None = Field(
+        default=None,
         description=(
             "Per-sender iperf3 bitrate with burst packet count; the aggregate "
-            "average stays below port_rate while the bursts overlap."
+            "average stays below port_rate while the bursts overlap. Defaults to "
+            "20M/64, or 500K/64 when the forwarding device is a BMv2 switch."
         ),
     )
     packet_size: int = Field(default=1400, description="UDP payload bytes.")
@@ -178,11 +187,18 @@ class IncastTrafficNetworkLimitation(ProblemBase):
 
     def inject_fault(self, params: IncastTrafficNetworkLimitationParams):
         device, intf = self._egress_port(params)
+        default_port, default_sender = (
+            _BMV2_RATES
+            if device in (self.net_env.bmv2_switches or [])
+            else _KERNEL_RATES
+        )
+        port_rate = params.port_rate or default_port
+        sender_rate = params.sender_rate or default_sender
         self._senders = self._pick_senders(params)
         self.runtime.tc_set_tbf(
             host_name=device,
             intf_name=intf,
-            rate=params.port_rate,
+            rate=port_rate,
             burst=params.port_burst,
             limit=params.queue_limit,
         )
@@ -190,7 +206,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
             sources=self._senders,
             destination=params.host_name,
             protocol="udp",
-            rate=params.sender_rate,
+            rate=sender_rate,
             packet_size=params.packet_size,
             duration=params.duration,
             synchronized_start=time.time() + 2.0,
@@ -198,8 +214,8 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         )
         system_logger.info(
             f"Injected incast: egress {device}:{intf} queue limit "
-            f"{params.queue_limit} at {params.port_rate}; senders {self._senders} "
-            f"burst {params.sender_rate} to {params.host_name}."
+            f"{params.queue_limit} at {port_rate}; senders {self._senders} "
+            f"burst {sender_rate} to {params.host_name}."
         )
 
     def _queue_limit_bytes(self, device: str, intf: str) -> tuple[int | None, str]:
