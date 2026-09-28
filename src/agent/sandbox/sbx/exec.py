@@ -106,7 +106,7 @@ def build_sbx_exec_command(
     cwd: str | None = None,
     env: dict[str, str] | None = None,
 ) -> list[str]:
-    """Build ``sbx exec -d`` argv for *command*."""
+    """Build ``sbx exec`` argv for *command*."""
     sandbox_root = _sandbox_root()
     cwd_path = Path(cwd).resolve() if cwd else None
     inner_cwd = _inner_path(cwd, sandbox_root=sandbox_root, cwd=None) if cwd else None
@@ -132,7 +132,7 @@ def build_sbx_exec_command(
         inner_cmd = " ".join(exports + [inner_cmd])
     if inner_cwd:
         inner_cmd = f"cd {shlex.quote(inner_cwd)} && {inner_cmd}"
-    return ["sbx", "exec", "-d", sandbox_name, "bash", "-lc", inner_cmd]
+    return ["sbx", "exec", sandbox_name, "bash", "-lc", inner_cmd]
 
 
 async def exec_in_sandbox(

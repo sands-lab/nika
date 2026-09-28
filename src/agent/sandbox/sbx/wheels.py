@@ -204,7 +204,7 @@ def install_sdk_packages_in_sandbox(
     else:
         logger.info("Installing frozen SDK packages from PyPI in %s", sandbox_name)
     inner = _pip_install_inner(workspace_dir=workspace_dir, offline=offline)
-    run_sbx_checked(["exec", "-d", sandbox_name, "bash", "-lc", inner])
+    run_sbx_checked(["exec", sandbox_name, "bash", "-lc", inner])
 
 
 def install_sdk_wheels_in_sandbox(

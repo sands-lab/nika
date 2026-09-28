@@ -160,7 +160,6 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
                         [
                             "sbx",
                             "exec",
-                            "-d",
                             sandbox_name,
                             "bash",
                             "-lc",
@@ -269,7 +268,7 @@ def run_cross_sandbox_isolation_probe() -> None:
                     'echo "$peer_body" | grep -qi "Blocked by network policy"'
                 )
                 result = subprocess.run(
-                    ["sbx", "exec", "-d", sandbox_name, "bash", "-lc", inner],
+                    ["sbx", "exec", sandbox_name, "bash", "-lc", inner],
                     capture_output=True,
                     text=True,
                     check=False,
