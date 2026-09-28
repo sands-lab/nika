@@ -2,10 +2,9 @@
 
 Scoring reuses ``nika.workflows.leaderboard.aggregate`` so this report and a
 leaderboard submission built from the same result directory cannot disagree.
-Two things the raw summary CSV cannot express are handled here:
 
-* ``outcome=agent_failed`` trials carry ``-1.0`` metric sentinels. Averaging
-  those raw yields negative scores; ``score_for_average`` maps them to 0.0.
+* Non-``scored`` trials contribute ``0.0`` to the primary mean via
+  ``score_for_primary`` (scores are ``[0, 1]`` or ``null``, never ``-1``).
 * Healthy (no-fault) cases have no root cause, so RCA/localization are
   meaningless for them and only ``detection_score`` is reported.
 """
@@ -21,7 +20,7 @@ from nika.utils.session_artifacts import RUN_FILENAME
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
     build_rca_confusion,
-    score_for_average,
+    score_for_primary,
 )
 from nika.workflows.leaderboard.schema import PRIMARY_METRIC, TrialResult
 from nika.workflows.leaderboard.trial_results import (
@@ -106,6 +105,11 @@ class SummaryReport:
     n_agent_failed: int = 0
     n_unreadable: int = 0
     expected_is_known: bool = False
+    status_counts: dict[str, int] = field(default_factory=dict)
+    submission_rate: float = 0.0
+    conditional_mean_rca_f1: float | None = None
+    conditional_mean_localization_f1: float | None = None
+    conditional_mean_detection_score: float | None = None
 
     # Headline means over every trial, missing expected trials counted as 0.
     mean_rca_f1: float = 0.0
@@ -195,7 +199,9 @@ def _stats_for(records: list[_TrialRecord]) -> MetricStats:
     )
     for metric in REPORT_METRICS:
         total = sum(
-            score_for_average(r.result.metrics.get(metric), outcome=r.result.outcome)
+            score_for_primary(
+                r.result.metrics.get(metric), score_status=r.result.score_status
+            )
             for r in records
         )
         setattr(stats, metric, total / denom)
@@ -345,6 +351,11 @@ def build_summary_report(
         n_agent_failed=aggregated.n_agent_failed,
         n_unreadable=n_unreadable,
         expected_is_known=expected_is_known,
+        status_counts=dict(aggregated.status_counts),
+        submission_rate=aggregated.submission_rate,
+        conditional_mean_rca_f1=aggregated.conditional_mean_rca_f1,
+        conditional_mean_localization_f1=aggregated.conditional_mean_localization_f1,
+        conditional_mean_detection_score=aggregated.conditional_mean_detection_score,
         mean_rca_f1=aggregated.mean_rca_f1,
         mean_localization_f1=aggregated.mean_localization_f1,
         mean_detection_score=aggregated.mean_detection_score,

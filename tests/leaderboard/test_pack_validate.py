@@ -90,16 +90,20 @@ def _write_trial_artifacts(
     session_dir: Path,
     *,
     outcome: str = "success",
+    score_status: str | None = None,
     rca_f1: float = 1.0,
     predicted_fault_types: list[str] | None = None,
     write_submission: bool | None = None,
 ) -> None:
     session_dir.mkdir(parents=True, exist_ok=True)
+    if score_status is None:
+        score_status = "scored" if outcome == "success" else "no_submission"
     _write_json(
         session_dir / "run.json",
         {
             "status": "finished",
             "outcome": outcome,
+            "score_status": score_status,
             "session_id": session_dir.name,
             "scenario_name": "dc_clos",
             "problem_names": ["link_down"],
@@ -123,16 +127,44 @@ def _write_trial_artifacts(
     (session_dir / "nika.jsonl").write_text(
         '{"event":"env_start"}\n', encoding="utf-8"
     )
+    if score_status == "scored":
+        score_vals = {
+            "detection_score": 1.0,
+            "localization_accuracy": 1.0,
+            "localization_precision": 1.0,
+            "localization_recall": 1.0,
+            "localization_f1": 1.0,
+            "rca_accuracy": rca_f1,
+            "rca_precision": rca_f1,
+            "rca_recall": rca_f1,
+            "rca_f1": rca_f1,
+        }
+    elif score_status == "no_submission":
+        score_vals = {
+            "detection_score": 0.0,
+            "localization_accuracy": 0.0,
+            "localization_precision": 0.0,
+            "localization_recall": 0.0,
+            "localization_f1": 0.0,
+            "rca_accuracy": 0.0,
+            "rca_precision": 0.0,
+            "rca_recall": 0.0,
+            "rca_f1": 0.0,
+        }
+    else:
+        score_vals = {
+            "detection_score": None,
+            "localization_accuracy": None,
+            "localization_precision": None,
+            "localization_recall": None,
+            "localization_f1": None,
+            "rca_accuracy": None,
+            "rca_precision": None,
+            "rca_recall": None,
+            "rca_f1": None,
+        }
     metrics = {
-        "detection_score": 1.0 if outcome == "success" else -1.0,
-        "localization_accuracy": 1.0 if outcome == "success" else -1.0,
-        "localization_precision": 1.0 if outcome == "success" else -1.0,
-        "localization_recall": 1.0 if outcome == "success" else -1.0,
-        "localization_f1": 1.0 if outcome == "success" else -1.0,
-        "rca_accuracy": rca_f1 if outcome == "success" else -1.0,
-        "rca_precision": rca_f1 if outcome == "success" else -1.0,
-        "rca_recall": rca_f1 if outcome == "success" else -1.0,
-        "rca_f1": rca_f1 if outcome == "success" else -1.0,
+        **score_vals,
         "in_tokens": 10,
         "out_tokens": 5,
         "steps": 2,
@@ -141,7 +173,9 @@ def _write_trial_artifacts(
     }
     _write_json(session_dir / "eval_metrics.json", metrics)
     should_write = (
-        write_submission if write_submission is not None else outcome == "success"
+        write_submission
+        if write_submission is not None
+        else score_status in ("scored", "grading_error")
     )
     if should_write:
         pred = (
@@ -397,6 +431,50 @@ class TestLeaderboardPackValidate:
         assert confusion["pairs"] == [
             {"gt": "link_down", "predicted": "host_missing_ip", "count": 1}
         ]
+
+    def test_validate_rejects_grading_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        release = _freeze_mini(tmp_path, n_trials=1)
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR",
+            tmp_path / "releases",
+        )
+        result_dir = _build_release_run(tmp_path, release)
+        trial = expand_trials(release.cases, release.n_trials)[0]
+        session = trial_dir(result_dir, trial.case_key, trial.trial_index)
+        _write_trial_artifacts(
+            session,
+            outcome="success",
+            score_status="grading_error",
+            write_submission=True,
+        )
+        package = _pack(result_dir)
+        report = validate_leaderboard_submission(package)
+        assert not report.ok
+        assert any("grading_error" in e for e in report.errors)
+
+    def test_validate_rejects_residual_infra_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        release = _freeze_mini(tmp_path, n_trials=1)
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR",
+            tmp_path / "releases",
+        )
+        result_dir = _build_release_run(tmp_path, release)
+        trial = expand_trials(release.cases, release.n_trials)[0]
+        session = trial_dir(result_dir, trial.case_key, trial.trial_index)
+        _write_trial_artifacts(
+            session,
+            outcome="agent_failed",
+            score_status="infra_error",
+            write_submission=False,
+        )
+        package = _pack(result_dir)
+        report = validate_leaderboard_submission(package)
+        assert not report.ok
+        assert any("infra_error" in e for e in report.errors)
 
     def test_identity_rejects_unknown_fields(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env

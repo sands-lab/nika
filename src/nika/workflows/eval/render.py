@@ -105,11 +105,19 @@ def _render_run_health(console: Console, report: SummaryReport) -> None:
 
     console.print("  ".join(parts))
 
-    if report.n_agent_failed:
-        console.print(
-            f"[dim]{report.n_agent_failed} agent_failed trial(s) scored as 0.0 "
-            "(their eval_metrics.json holds -1.0 sentinels).[/]"
-        )
+    status_bits = [
+        f"{name}={count}"
+        for name, count in sorted((report.status_counts or {}).items())
+        if count
+    ]
+    if status_bits:
+        console.print(f"[dim]score_status: {', '.join(status_bits)}[/]")
+    console.print(
+        f"[dim]submission_rate={report.submission_rate:.3f} "
+        f"(conditional rca_f1="
+        f"{'n/a' if report.conditional_mean_rca_f1 is None else f'{report.conditional_mean_rca_f1:.3f}'}"
+        f")[/]"
+    )
 
 
 def _render_case_split(console: Console, report: SummaryReport) -> None:

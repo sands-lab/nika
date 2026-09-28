@@ -57,6 +57,11 @@ from nika.workflows.benchmark.outcomes import (
     is_signal_exit_code,
     trace_ends_in_llm_call,
 )
+from nika.evaluator.score_status import (
+    is_infra_error_evidence,
+    resolve_score_status,
+    scores_for_status,
+)
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     RUN_CONFIG_FILENAME,
@@ -97,7 +102,6 @@ from nika.workflows.benchmark.trials import (
 )
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import (
-    build_eval_metrics_payload,
     eval_results,
     run_eval_metrics,
 )
@@ -471,13 +475,23 @@ def _require_submission(session_dir: Path) -> None:
         )
 
 
-def _ensure_placeholder_eval_metrics(session_dir: Path) -> None:
+def _ensure_placeholder_eval_metrics(
+    session_dir: Path, *, score_status: str = "no_submission"
+) -> None:
     metrics_path = session_dir / "eval_metrics.json"
     if metrics_path.exists():
         return
+    scores = scores_for_status(score_status)  # type: ignore[arg-type]
     write_json_atomic(
         metrics_path,
-        build_eval_metrics_payload(gt={}, submission=None, trace_metrics={}),
+        {
+            **scores,
+            "in_tokens": None,
+            "out_tokens": None,
+            "steps": None,
+            "tool_calls": None,
+            "tool_errors": None,
+        },
     )
 
 
@@ -487,12 +501,15 @@ def _set_trial_outcome(
     outcome: str,
     status: str = "finished",
     agent_error: str | None = None,
+    score_status: str | None = None,
 ) -> None:
     def _stamp(run_meta: dict[str, Any]) -> None:
         run_meta["outcome"] = outcome
         run_meta["status"] = status
         if agent_error is not None:
             run_meta["agent_error"] = agent_error
+        if score_status is not None:
+            run_meta["score_status"] = score_status
         # Watchdog kills never reach session.end_session(); stamp end_time here
         # so inspect Duration is not "—" for counted agent_failed / error slots.
         if not run_meta.get("end_time"):
@@ -549,30 +566,71 @@ def _finalize_failed_trial(
     error: BaseException,
     outcome: str,
 ) -> None:
-    """Close the lab and stamp a post-inject failure outcome.
+    """Close the lab and stamp a post-inject failure outcome with ``score_status``.
 
-    ``agent_failed`` is a counted finished slot (scores 0.0, kept by resume).
+    ``agent_failed`` is a counted finished slot (kept by resume).
     ``endpoint_failed`` / ``infra_failed`` are retryable: ``status=error``, not
-    counted, cleaned on resume.
+    counted, cleaned on resume — no eval_metrics placeholders for those.
     """
     status = "finished" if outcome == "agent_failed" else "error"
     _close_quietly(session_id, session_dir, status=status)
     _ensure_messages_file(session_dir)
-    # Stamp outcome immediately after close so a later kill during metrics
-    # still leaves a recoverable trial for resume (counted or retryable).
-    _set_trial_outcome(session_dir, outcome=outcome, status=status)
 
-    if outcome == "agent_failed":
+    has_submission = has_valid_submission(session_dir)
+    has_ground_truth = (session_dir / "ground_truth.json").is_file()
+    if has_submission:
+        # Submission-first: agent finished even if a later step failed.
+        outcome = "success"
+        status = "finished"
+        score_status = "scored"
+    elif outcome == "infra_failed":
+        score_status = "infra_error"
+    elif outcome == "endpoint_failed":
+        score_status = resolve_score_status(
+            has_submission=False,
+            infra_evidence=False,
+            has_ground_truth=has_ground_truth,
+        )
+    else:
+        score_status = resolve_score_status(
+            has_submission=False,
+            infra_evidence=is_infra_error_evidence(error),
+            has_ground_truth=has_ground_truth,
+        )
+
+    _set_trial_outcome(
+        session_dir,
+        outcome=outcome,
+        status=status,
+        agent_error=str(error),
+        score_status=score_status,
+    )
+
+    # Counted finished slots get metrics; retryable error slots do not.
+    if status == "finished":
         try:
             run_eval_metrics(
-                session_id=session_id, result_dir=result_dir, session_dir=session_dir
+                session_id=session_id,
+                result_dir=result_dir,
+                session_dir=session_dir,
+                infra_evidence=score_status == "infra_error",
             )
         except Exception as eval_error:  # noqa: BLE001 - still record failure
             print(
-                f"WARNING: could not write eval metrics for agent_failed "
+                f"WARNING: could not write eval metrics for "
                 f"trial {session_id}: {eval_error}"
             )
-            _ensure_placeholder_eval_metrics(session_dir)
+            if has_valid_submission(session_dir):
+                score_status = "grading_error"
+                outcome = "success"
+            _ensure_placeholder_eval_metrics(session_dir, score_status=score_status)
+            _set_trial_outcome(
+                session_dir,
+                outcome=outcome,
+                status=status,
+                agent_error=str(error),
+                score_status=score_status,
+            )
 
     _stamp_closed_outcome(
         session_id=session_id,
@@ -582,6 +640,13 @@ def _finalize_failed_trial(
         status=status,
         agent_error=str(error),
     )
+    try:
+        session = Session().load_closed_session(
+            session_id=session_id, result_dir=result_dir, session_dir=session_dir
+        )
+        session.update_run_meta("score_status", score_status)
+    except Exception:  # noqa: BLE001 - best effort
+        pass
 
 
 def _finalize_post_inject_failure(
@@ -656,7 +721,9 @@ def _close_and_eval_success(
     # A teardown hiccup must not turn a valid submission into agent_failed.
     _close_quietly(session_id, session_dir)
     _ensure_messages_file(session_dir)
-    _set_trial_outcome(session_dir, outcome="success", agent_error=agent_error)
+    _set_trial_outcome(
+        session_dir, outcome="success", agent_error=agent_error, score_status="scored"
+    )
     try:
         run_eval_metrics(
             session_id=session_id, result_dir=result_dir, session_dir=session_dir
@@ -895,7 +962,9 @@ def run_single_case(
                 )
                 closed.update_run_meta("outcome", "success")
             except Exception:  # noqa: BLE001 - still mark outcome on disk
-                _set_trial_outcome(session_dir, outcome="success")
+                _set_trial_outcome(
+                    session_dir, outcome="success", score_status="scored"
+                )
     except BaseException as exc:
         # Ctrl+C / SystemExit: undeploy the lab, leave the trial incomplete for
         # --resume, and re-raise. Do not count as agent_failed.

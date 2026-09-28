@@ -13,7 +13,7 @@ nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 
 Default split is `test`. Each case runs `n_trials=3` times (`case_count × 3` deterministic trials). Official and leaderboard scoring use rule-based RCA F1 only (`leaderboard_primary: rca_f1`; `judge_allowed: false`). Optional `nika eval judge` output is for local analysis and does not count toward submissions.
 
-Operator reference: [Benchmark configuration](../../../docs/benchmarks/benchmark-configuration.md). Leaderboard pack/validate: [Leaderboard submission](../../../docs/benchmarks/leaderboard-submission.md).
+Operator reference: [Benchmark configuration](../../../docs/benchmarks/benchmark-configuration.md). Leaderboard pack/validate: [Leaderboard submission](../../../docs/benchmarks/leaderboard-submission.md). Scoring: [Root-cause evaluation](../../../docs/benchmarks/root-cause-evaluation.md#score-a-submission).
 
 ## Suite shape
 

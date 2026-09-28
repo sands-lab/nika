@@ -9,16 +9,23 @@ from nika.evaluator.llm_judge import LLMJudge
 from nika.evaluator.result_log import EVAL_METRICS_FILENAME, MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.evaluator.scoring import (
+    GradingError,
     score_detection,
     score_rca_v2,
 )
+from nika.evaluator.score_status import (
+    infer_score_status_from_artifacts,
+    null_scores,
+    resolve_score_status,
+    scores_for_status,
+)
 from nika.utils.logger import bind_session_dir, log_event, system_logger
 from nika.utils.session import Session
+from nika.utils.session_artifacts import write_json_atomic
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_finished_session,
     iter_session_dirs,
-    write_json_atomic,
 )
 from nika.utils.session_store import SessionStore
 from nika.workflows.session.close import close_session
@@ -88,38 +95,71 @@ def generic_eval(gt, submission):
 
 def build_eval_metrics_payload(
     *,
-    gt: dict,
+    gt: dict | None,
     submission: dict | None,
     trace_metrics: dict,
-) -> dict:
-    """Build the persisted rule-based metrics payload from session artifacts."""
-    if submission is not None:
-        scores = generic_eval(gt, submission)
-    else:
-        scores = {
-            "detection_score": -1.0,
-            "localization_accuracy": -1.0,
-            "localization_precision": -1.0,
-            "localization_recall": -1.0,
-            "localization_f1": -1.0,
-            "rca_accuracy": -1.0,
-            "rca_precision": -1.0,
-            "rca_recall": -1.0,
-            "rca_f1": -1.0,
-            "fault_type_precision": -1.0,
-            "fault_type_recall": -1.0,
-            "fault_type_f1": -1.0,
-        }
+    infra_evidence: bool = False,
+    has_ground_truth: bool | None = None,
+) -> tuple[dict, str]:
+    """Build metrics payload and resolved ``score_status``.
 
-    return {
+    Returns ``(payload, score_status)``. Score columns are ``[0, 1]`` or ``null``;
+    never ``-1``.
+    """
+    gt_present = has_ground_truth if has_ground_truth is not None else gt is not None
+    if submission is None:
+        status = resolve_score_status(
+            has_submission=False,
+            infra_evidence=infra_evidence,
+            has_ground_truth=gt_present,
+        )
+        scores = scores_for_status(status)  # type: ignore[arg-type]
+    else:
+        if not gt_present or gt is None:
+            status = "grading_error"
+            scores = dict(null_scores())
+            payload = {
+                **scores,
+                "in_tokens": trace_metrics.get("in_tokens"),
+                "out_tokens": trace_metrics.get("out_tokens"),
+                "steps": trace_metrics.get("steps"),
+                "tool_calls": trace_metrics.get("tool_calls"),
+                "tool_errors": trace_metrics.get("tool_errors"),
+            }
+            return payload, status
+        try:
+            scores = generic_eval(gt, submission)
+            status = "scored"
+        except GradingError:
+            status = "grading_error"
+            scores = dict(null_scores())
+        except Exception:
+            status = "grading_error"
+            scores = dict(null_scores())
+
+    payload = {
         **scores,
         "in_tokens": trace_metrics.get("in_tokens"),
         "out_tokens": trace_metrics.get("out_tokens"),
-        "reasoning_tokens": trace_metrics.get("reasoning_tokens"),
         "steps": trace_metrics.get("steps"),
         "tool_calls": trace_metrics.get("tool_calls"),
         "tool_errors": trace_metrics.get("tool_errors"),
     }
+    return payload, status
+
+
+def _stamp_score_status(session_dir: Path, score_status: str) -> None:
+    run_path = Path(session_dir) / RUN_FILENAME
+    if not run_path.is_file():
+        return
+    try:
+        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    if not isinstance(run_meta, dict):
+        return
+    run_meta["score_status"] = score_status
+    run_path.write_text(json.dumps(run_meta, indent=2, default=str), encoding="utf-8")
 
 
 def run_eval_metrics(
@@ -127,16 +167,15 @@ def run_eval_metrics(
     session_id: str | None = None,
     result_dir: str | Path | None = None,
     session_dir: str | Path | None = None,
+    infra_evidence: bool = False,
 ) -> None:
-    """Compute rule-based scores and trace stats; write ``eval_metrics.json`` under each session dir.
-
-    ``session_dir`` (with ``session_id``) skips the results-tree lookup.
-    """
+    """Compute rule-based scores and trace stats; write ``eval_metrics.json`` under each session dir."""
     for sid in _iter_eval_session_ids(session_id=session_id, result_dir=result_dir):
         _run_eval_metrics_one(
             session_id=sid,
             result_dir=result_dir,
             session_dir=session_dir if session_id is not None else None,
+            infra_evidence=infra_evidence,
         )
 
 
@@ -145,6 +184,7 @@ def _run_eval_metrics_one(
     session_id: str,
     result_dir: str | Path | None = None,
     session_dir: str | Path | None = None,
+    infra_evidence: bool = False,
 ) -> None:
     session = Session()
     session.load_closed_session(
@@ -152,26 +192,87 @@ def _run_eval_metrics_one(
     )
     bind_session_dir(session.session_dir)
 
-    gt_path = Path(session.session_dir) / "ground_truth.json"
-    gt = json.loads(gt_path.read_text())
+    session_dir = Path(session.session_dir)
+    submission_path = session_dir / "submission.json"
+    has_submission = submission_path.is_file()
+    submission = None
+    if has_submission:
+        try:
+            submission = json.loads(submission_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            # Corrupt submission file: treat as present but grading will fail.
+            submission = {}
+            has_submission = True
 
-    submission_path = Path(session.session_dir) / "submission.json"
-    submission = (
-        json.loads(submission_path.read_text()) if submission_path.exists() else None
-    )
-    if submission is None:
+    if not has_submission:
         logger.error(f"Submission file not found: {submission_path}")
 
+    run_meta: dict = {}
+    try:
+        raw = json.loads((session_dir / RUN_FILENAME).read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            run_meta = raw
+    except (json.JSONDecodeError, OSError):
+        pass
+
+    effective_infra = infra_evidence or (
+        not has_submission
+        and infer_score_status_from_artifacts(
+            has_submission=False,
+            run_meta=run_meta,
+            has_ground_truth=(session_dir / "ground_truth.json").is_file(),
+        )
+        == "infra_error"
+    )
+
+    gt_path = session_dir / "ground_truth.json"
+    try:
+        gt = json.loads(gt_path.read_text(encoding="utf-8"))
+        if not isinstance(gt, dict):
+            raise GradingError("ground_truth.json is not an object")
+    except (json.JSONDecodeError, OSError, GradingError) as exc:
+        if has_submission:
+            status = "grading_error"
+            scores = dict(null_scores())
+        else:
+            status = resolve_score_status(
+                has_submission=False,
+                infra_evidence=effective_infra,
+                has_ground_truth=False,
+            )
+            scores = scores_for_status(status)  # type: ignore[arg-type]
+        payload = {
+            **scores,
+            "in_tokens": None,
+            "out_tokens": None,
+            "steps": None,
+            "tool_calls": None,
+            "tool_errors": None,
+        }
+        out_path = session_dir / EVAL_METRICS_FILENAME
+        write_json_atomic(out_path, payload)
+        _stamp_score_status(session_dir, status)
+        session.update_run_meta("eval_metrics", payload)
+        session.update_run_meta("score_status", status)
+        logger.error(f"Ground truth unreadable for {session_id}: {exc}")
+        return
+
     trace_path = os.path.join(session.session_dir, MESSAGES_FILENAME)
-    trace_metrics = AgentTraceParser(trace_path=trace_path).parse_trace()
-    payload = build_eval_metrics_payload(
+    try:
+        trace_metrics = AgentTraceParser(trace_path=trace_path).parse_trace()
+    except Exception:  # noqa: BLE001 - traces optional for scoring
+        trace_metrics = {}
+    payload, status = build_eval_metrics_payload(
         gt=gt,
         submission=submission,
         trace_metrics=trace_metrics,
+        infra_evidence=effective_infra,
     )
-    out_path = Path(session.session_dir) / EVAL_METRICS_FILENAME
+    out_path = session_dir / EVAL_METRICS_FILENAME
     write_json_atomic(out_path, payload)
+    _stamp_score_status(session_dir, status)
     session.update_run_meta("eval_metrics", payload)
+    session.update_run_meta("score_status", status)
     log_event(
         "eval_metrics_saved",
         f"Wrote numeric eval metrics to {out_path}",

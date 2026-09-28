@@ -101,6 +101,7 @@ def _write_mocked_trial(
         "session_id": trial_id,
         "status": "finished",
         "outcome": outcome,
+        "score_status": "scored" if outcome == "success" else "no_submission",
         "trial_id": trial_id,
         "trial_index": trial_index,
         "case_key": case_key,
@@ -136,18 +137,22 @@ def _write_mocked_trial(
         encoding="utf-8",
     )
     success = outcome == "success"
+
+    def zero_or(v: float) -> float:
+        return v if success else 0.0
+
     _write_json(
         session_dir / "eval_metrics.json",
         {
-            "detection_score": 1.0 if success else -1.0,
-            "localization_accuracy": 1.0 if success else -1.0,
-            "localization_precision": 1.0 if success else -1.0,
-            "localization_recall": 1.0 if success else -1.0,
-            "localization_f1": 1.0 if success else -1.0,
-            "rca_accuracy": rca_f1 if success else -1.0,
-            "rca_precision": rca_f1 if success else -1.0,
-            "rca_recall": rca_f1 if success else -1.0,
-            "rca_f1": rca_f1 if success else -1.0,
+            "detection_score": zero_or(1.0),
+            "localization_accuracy": zero_or(1.0),
+            "localization_precision": zero_or(1.0),
+            "localization_recall": zero_or(1.0),
+            "localization_f1": zero_or(1.0),
+            "rca_accuracy": zero_or(rca_f1),
+            "rca_precision": zero_or(rca_f1),
+            "rca_recall": zero_or(rca_f1),
+            "rca_f1": zero_or(rca_f1),
             "in_tokens": 20,
             "out_tokens": 8,
             "steps": 3,

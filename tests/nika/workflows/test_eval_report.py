@@ -1,10 +1,10 @@
 """Aggregation contract for ``nika eval summary``'s terminal report.
 
-These cover the cases the raw summary CSV gets wrong: ``-1.0`` sentinels from
-failed agents, healthy (no-fault) controls pooled with fault cases, and trials
-that never landed being left out of the denominator. The last test pins the
-report's headline to ``nika leaderboard pack``'s aggregate so the two published
-numbers for one run cannot drift apart.
+These cover non-scored trials (``no_submission`` / null scores), healthy
+(no-fault) controls pooled with fault cases, and trials that never landed
+being left out of the denominator. The last test pins the report's headline
+to ``nika leaderboard pack``'s aggregate so the two published numbers for one
+run cannot drift apart.
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ def _write_trial(
     session_dir: Path,
     *,
     outcome: str = "success",
+    score_status: str | None = None,
     problem: str | None = "link_down",
     scenario: str = "dc_clos",
     failure_domain: str = "link_interface",
@@ -46,11 +47,14 @@ def _write_trial(
     """Write one trial dir. ``problem=None`` makes it a healthy control case."""
     healthy = problem is None
     session_dir.mkdir(parents=True, exist_ok=True)
+    if score_status is None:
+        score_status = "scored" if outcome == "success" else "no_submission"
     _write_json(
         session_dir / "run.json",
         {
             "status": "finished",
             "outcome": outcome,
+            "score_status": score_status,
             "session_id": session_dir.name,
             "scenario_name": scenario,
             "scenario_topo_size": topo_size,
@@ -69,8 +73,12 @@ def _write_trial(
             "failure_domain": "" if healthy else failure_domain,
         },
     )
-    # Failed agents get -1.0 sentinels; this is what pollutes a naive CSV mean.
-    value = score if outcome == "success" else -1.0
+    if score_status == "scored":
+        value: float | None = score
+    elif score_status == "no_submission":
+        value = 0.0
+    else:
+        value = None
     _write_json(
         session_dir / "eval_metrics.json",
         {
@@ -84,7 +92,7 @@ def _write_trial(
             "tool_errors": 1,
         },
     )
-    if outcome == "success":
+    if score_status in ("scored", "grading_error"):
         _write_json(
             session_dir / "submission.json",
             {
@@ -107,8 +115,8 @@ def _report(root: Path, **kwargs):
 
 
 class TestEvalReportAggregation:
-    def test_agent_failed_sentinels_score_zero_not_negative(self, tmp_path: Path):
-        """A -1.0 sentinel must clamp to 0.0, never drag the mean below zero."""
+    def test_agent_failed_no_submission_scores_zero_not_negative(self, tmp_path: Path):
+        """``no_submission`` contributes 0.0, never a negative mean."""
         trials = tmp_path / "trials"
         _write_trial(trials / "ok__t01", outcome="success", score=1.0)
         _write_trial(trials / "bad__t01", outcome="agent_failed")
