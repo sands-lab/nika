@@ -74,3 +74,13 @@ A test is not complete if assertions pass but its resources remain or it does no
 * Never delete unrelated runtime, Docker, emulator, Kubernetes, or experiment resources.
 * Prefer NIKA lifecycle operations for session cleanup.
 * Preserve scenario data, topology files, startup configs, P4 programs, manifests, and traffic datasets unless the task explicitly changes them.
+
+## Cursor Cloud specific instructions
+
+* The Cloud Agent image installs Docker, `uv`, Containerlab (`clab`), `gnmic`, `tshark`, and `iproute2`, then runs `uv sync --extra labs --group dev`. It copies `.env.example` to `.env` and `config/nika.example.yaml` to `config/nika.yaml` only when those files are missing.
+* `start` launches `dockerd` with the `fuse-overlayfs` storage driver and an unlimited core-file ulimit. The `ubuntu` user is in the `docker` and `clab_admins` groups. Use a new login shell if `docker` commands return a socket permission error immediately after install.
+* Representative lab check (no API key): `uv run pytest tests/nika/workflows/integration/test_pipeline_kathara.py -v`. That deploys the `simple_bgp` Kathará lab, injects `link_down`, runs the mock agent, and closes the session.
+* Offline checks that stay off the emulators: `uv run pytest tests/nika/evaluator tests/nika/cli tests/leaderboard -q`.
+* `pytest -m "unit or contract"` also selects some Kubernetes and Containerlab tests, because unmarked tests default to `unit`. Run Kubernetes, LLMd, and Containerlab scenarios one at a time. Close anything you start with `uv run nika session close`.
+* This kernel image does not ship the `sch_netem` qdisc, so controller-side `tc netem` corruption cannot be configured. Kathará connectivity labs such as `simple_bgp` do not need it.
+* Live LLM runs need `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `DEEPSEEK_API_KEY` in `.env`. Leaderboard trajectory upload needs `HF_TOKEN`. Lab deploy and the mock-agent pipeline do not.
