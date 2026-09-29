@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 # config.py lives at <repo>/src/nika/config.py
 _PKG_DIR = Path(__file__).resolve().parent
 REPO_ROOT = _PKG_DIR.parent.parent
-_REPO_ROOT = REPO_ROOT  # backward-compatible alias
 
 # MCP servers are spawned as subprocesses with an unrelated cwd; load .env from repo root.
 load_dotenv(REPO_ROOT / ".env")

@@ -1,8 +1,8 @@
-"""Pydantic schema for versioned NIKA run configuration (``config/nika.yaml``)."""
+"""Pydantic schema for NIKA run configuration (``config/nika.yaml``)."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -166,26 +166,10 @@ class NikaSettings(BaseModel):
     )
 
 
-class AgentModels(BaseModel):
-    """Legacy per-agent model fields; prefer ``agent.model`` in new YAML."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    langgraph: str | None = None
-    mcp_agent: str | None = None
-    autogen: str | None = None
-    codex: str | None = None
-    codex_sdk: str | None = None
-    claude: str | None = None
-    claude_sdk: str | None = None
-    sade: str | None = None
-
-
 class CustomModelSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     base_url: str | None = None
-    model: str | None = None
 
 
 class AgentLlmSettings(BaseModel):
@@ -243,7 +227,6 @@ class AgentSettings(BaseModel):
 
     type: str = "byo.langgraph"
     provider: str = "openai"
-    # Canonical model id for the active agent type (see agent.models.* for legacy YAML).
     model: str | None = None
     max_steps: int = 20
     # Wall-clock budget for one agent run (diagnosis + submission), all agent types.
@@ -257,7 +240,6 @@ class AgentSettings(BaseModel):
     reasoning_effort: str | None = None
     # Output-token cap per model response. Not applied by Codex agents or SADE.
     max_tokens: int = 8192
-    models: AgentModels = Field(default_factory=AgentModels)
     custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
@@ -320,89 +302,21 @@ class BenchmarkSettings(BaseModel):
 
 
 class RunConfig(BaseModel):
-    """Top-level versioned run configuration."""
+    """Top-level run configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
-    version: int = 1
     # agent first: most user-edited knobs; dump order follows field order.
     agent: AgentSettings = Field(default_factory=AgentSettings)
     nika: NikaSettings = Field(default_factory=NikaSettings)
     benchmark: BenchmarkSettings = Field(default_factory=BenchmarkSettings)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_nika_enable_skills(cls, data: Any) -> Any:
-        """Accept legacy ``nika.enable_skills`` as ``agent.enable_skills``."""
-        if not isinstance(data, dict):
-            return data
-        nika = data.get("nika")
-        if not isinstance(nika, dict) or "enable_skills" not in nika:
-            return data
-        skills = nika.pop("enable_skills")
-        agent = data.get("agent")
-        if not isinstance(agent, dict):
-            agent = {}
-            data["agent"] = agent
-        agent.setdefault("enable_skills", skills)
-        return data
 
     @model_validator(mode="after")
     def _validate_agent_provider(self) -> RunConfig:
         agent_type = self.agent.type.strip()
         if agent_type.lower() != "mock":
             validate_provider_for_agent(agent_type, self.agent.provider)
-        if (
-            self.agent.provider == "custom"
-            and not (self.agent.custom.base_url or "").strip()
-        ):
-            # Allow incomplete configs at load time for templates; resolve later.
-            pass
         return self
-
-    def model_for_agent(self, agent_type: str | None = None) -> str | None:
-        """Return model from ``agent.model`` or legacy ``agent.models.*`` (no CLI)."""
-        if self.agent.model:
-            return self.agent.model
-        return self.legacy_model_for_agent(agent_type)
-
-    def legacy_model_for_agent(self, agent_type: str | None = None) -> str | None:
-        """Return legacy ``agent.models.*`` for *agent_type* (ignores ``agent.model``)."""
-        at = (agent_type or self.agent.type).lower()
-        models = self.agent.models
-        match at:
-            case "byo.langgraph":
-                return models.langgraph
-            case "byo.mcp_agent":
-                return models.mcp_agent
-            case "byo.autogen":
-                return models.autogen
-            case "cli.codex":
-                return models.codex
-            case "sdk.codex_sdk":
-                return models.codex_sdk or models.codex
-            case "cli.claude":
-                return models.claude
-            case "sdk.claude_sdk":
-                return models.claude_sdk or models.claude
-            case "community.sade":
-                return models.sade or models.claude
-            case _:
-                return None
-
-    def to_display_dict(self) -> dict[str, Any]:
-        """Effective config for ``nika config show`` (new agent.model shape).
-
-        Resolves ``agent.model`` from the canonical field or legacy
-        ``agent.models.*``, and omits the deprecated ``models`` map so the
-        dump matches the post-convergence YAML style.
-        """
-        data = self.model_dump(mode="python")
-        agent = data.get("agent")
-        if isinstance(agent, dict):
-            agent["model"] = self.model_for_agent()
-            agent.pop("models", None)
-        return data
 
 
 def default_run_config() -> RunConfig:

@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-import os
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 # Operational keys that used to live in .env and must move to config/nika.yaml
 LEGACY_OPERATIONAL_ENV_KEYS: tuple[str, ...] = (
@@ -79,63 +75,30 @@ CREDENTIAL_ENV_KEYS: tuple[str, ...] = (
     "HF_TOKEN",
 )
 
-_warned = False
 
-
-def _present(keys: tuple[str, ...], environ: dict[str, str] | None = None) -> list[str]:
-    src = environ if environ is not None else os.environ
+def _present(keys: tuple[str, ...], environ: dict[str, str]) -> list[str]:
     found: list[str] = []
     for key in keys:
-        value = (src.get(key) or "").strip()
+        value = (environ.get(key) or "").strip()
         if value:
             found.append(key)
     return found
 
 
-def detect_legacy_operational_env(
-    environ: dict[str, str] | None = None,
-) -> list[str]:
+def detect_legacy_operational_env(environ: dict[str, str]) -> list[str]:
     return _present(LEGACY_OPERATIONAL_ENV_KEYS, environ)
 
 
-def detect_removed_env(environ: dict[str, str] | None = None) -> list[str]:
+def detect_removed_env(environ: dict[str, str]) -> list[str]:
     return _present(REMOVED_ENV_KEYS, environ)
 
 
-def warn_legacy_operational_env(environ: dict[str, str] | None = None) -> None:
-    """Emit a one-shot warning if operational settings remain in the environment.
-
-    Values are **not** applied (CLI > YAML > defaults only).
-    """
-    global _warned
-    if _warned:
-        return
-    _warned = True
-    # Bridge keys are exported from YAML via apply_custom_provider_env(); ignore them
-    # so a later warn after injection does not false-positive.
-    bridge = frozenset({"NIKA_CUSTOM_BASE_URL", "NIKA_CUSTOM_MODEL", "CUSTOM_API_BASE"})
-    legacy = [k for k in detect_legacy_operational_env(environ) if k not in bridge]
-    removed = detect_removed_env(environ)
-    if not legacy and not removed:
-        return
-    parts: list[str] = []
-    if legacy:
-        parts.append(
-            "Operational settings in .env are ignored. Move them to config/nika.yaml "
-            f"via `nika config migrate`. Detected: {', '.join(legacy)}"
-        )
-    if removed:
-        parts.append(
-            "These variables were removed and have no effect: "
-            f"{', '.join(removed)}. "
-            "Sandbox always uses the repo-root .env; remote no longer uses a token."
-        )
-    message = " ".join(parts)
-    logger.warning(message)
-    print(f"WARNING: {message}", flush=True)
-
-
-def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
+def legacy_env_to_partial_dict(
+    environ: dict[str, str],
+    *,
+    agent_type: str = "byo.langgraph",
+    provider: str = "openai",
+) -> dict[str, Any]:
     """Map legacy .env operational keys into a partial RunConfig dict."""
 
     def g(key: str) -> str | None:
@@ -161,7 +124,6 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
         return float(raw)
 
     agent: dict[str, Any] = {}
-    models: dict[str, Any] = {}
     custom: dict[str, Any] = {}
     llm: dict[str, Any] = {}
     nika: dict[str, Any] = {}
@@ -185,25 +147,37 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
     if v := g("NIKA_CODEX_REASONING_EFFORT"):
         agent["reasoning_effort"] = v
 
-    model_map = {
-        "NIKA_LANGGRAPH_MODEL": "langgraph",
-        "NIKA_MCP_AGENT_MODEL": "mcp_agent",
-        "NIKA_AUTOGEN_MODEL": "autogen",
-        "NIKA_CODEX_MODEL": "codex",
-        "NIKA_CODEX_SDK_MODEL": "codex_sdk",
-        "NIKA_CLAUDE_MODEL": "claude",
-        "NIKA_CLAUDE_SDK_MODEL": "claude_sdk",
-        "NIKA_SADE_MODEL": "sade",
-        "ANTHROPIC_MODEL": "claude",
-    }
-    for env_key, field in model_map.items():
-        if v := g(env_key):
-            models.setdefault(field, v)
+    if "model" not in agent:
+        model_keys = {
+            "byo.langgraph": ("NIKA_LANGGRAPH_MODEL",),
+            "byo.mcp_agent": ("NIKA_MCP_AGENT_MODEL",),
+            "byo.autogen": ("NIKA_AUTOGEN_MODEL",),
+            "cli.codex": ("NIKA_CODEX_MODEL",),
+            "sdk.codex_sdk": ("NIKA_CODEX_SDK_MODEL", "NIKA_CODEX_MODEL"),
+            "cli.claude": ("NIKA_CLAUDE_MODEL", "ANTHROPIC_MODEL"),
+            "sdk.claude_sdk": (
+                "NIKA_CLAUDE_SDK_MODEL",
+                "NIKA_CLAUDE_MODEL",
+                "ANTHROPIC_MODEL",
+            ),
+            "community.sade": (
+                "NIKA_SADE_MODEL",
+                "NIKA_CLAUDE_MODEL",
+                "ANTHROPIC_MODEL",
+            ),
+        }
+        selected_type = agent.get("type", agent_type)
+        selected_provider = agent.get("provider", provider)
+        candidates = (
+            ("NIKA_CUSTOM_MODEL",) if selected_provider == "custom" else ()
+        ) + model_keys.get(selected_type, ())
+        for key in candidates:
+            if v := g(key):
+                agent["model"] = v
+                break
 
     if v := g("NIKA_CUSTOM_BASE_URL") or g("CUSTOM_API_BASE"):
         custom["base_url"] = v
-    if v := g("NIKA_CUSTOM_MODEL"):
-        custom["model"] = v
 
     if (f := g_float("NIKA_LLM_TIMEOUT")) is not None:
         llm["timeout_sec"] = f
@@ -279,8 +253,6 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
     if v := g_int("NIKA_RETRY_PASSES"):
         benchmark["retry_passes"] = v
 
-    if models:
-        agent["models"] = models
     if custom:
         agent["custom"] = custom
     if llm:
@@ -300,7 +272,7 @@ def legacy_env_to_partial_dict(environ: dict[str, str]) -> dict[str, Any]:
     if mcp:
         nika["mcp"] = mcp
 
-    out: dict[str, Any] = {"version": 1}
+    out: dict[str, Any] = {}
     if agent:
         out["agent"] = agent
     if nika:

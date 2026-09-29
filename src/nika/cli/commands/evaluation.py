@@ -6,7 +6,6 @@ from pathlib import Path
 import typer
 
 from nika.config import ENV_RESULT_DIR, resolve_results_root
-from nika.run_config.legacy import warn_legacy_operational_env
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -38,7 +37,6 @@ def eval_metrics(
     ),
 ) -> None:
     """Compute rule-based scores and trace stats on closed session(s); write eval_metrics.json."""
-    warn_legacy_operational_env()
     cfg_path = export_run_config_env(run_config)
     cfg = merge_cli(load_run_config(cfg_path), result_dir=result_dir)
     set_run_config(cfg)
@@ -81,7 +79,6 @@ def eval_judge(
     ),
 ) -> None:
     """Run LLM-as-judge on closed session(s); write llm_judge.json."""
-    warn_legacy_operational_env()
     cfg_path = export_run_config_env(run_config)
     cfg = merge_cli(
         load_run_config(cfg_path),

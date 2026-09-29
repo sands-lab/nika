@@ -6,7 +6,6 @@ import os
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-ENV_REMOTE_ENABLED = "NIKA_REMOTE_ENABLED"  # legacy (ignored; use YAML)
 ENV_REMOTE_URL = "NIKA_REMOTE_URL"
 ENV_REMOTE_SERVER = "NIKA_REMOTE_SERVER"
 ENV_REMOTE_ARTIFACT_ROOT = "NIKA_REMOTE_ARTIFACT_ROOT"
