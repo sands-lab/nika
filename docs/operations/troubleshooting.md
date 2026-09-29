@@ -171,9 +171,9 @@ Add the sudoers rule from [Allow Containerlab link faults](installation.md#allow
 
 `sudo -n "$(command -v tc)" qdisc show dev lo` prints the loopback qdisc without a prompt, and the fault injects.
 
-## VPN routes overlap the Docker bridge subnet
+## Host routes overlap Docker subnets
 
-Some VPN clients install routes for private ranges that Docker also uses by default, such as `172.17.0.0/16` (the `docker0` bridge) and `172.18.0.0/16` (the first pool for new Docker networks). The VPN interface can own a different subnet, for example `172.19.1.0/24`, and still route those ranges into the tunnel. Reply packets for containers then leave through the VPN instead of `docker0`.
+By default, Docker gives the `docker0` bridge `172.17.0.0/16` and allocates new Docker networks from `172.17.0.0/16`–`172.31.0.0/16`, then `192.168.0.0/16`. Docker skips ranges that are already routed when it creates a network, but a route added later, for example by a VPN client or a change to the host network, can overlap a subnet Docker already uses. The VPN interface can own a different subnet, for example `172.19.1.0/24`, and still route those ranges into the tunnel. Reply packets for containers then leave through that route instead of the Docker bridge.
 
 ### Match these symptoms
 
@@ -208,7 +208,7 @@ The VPN client owns these routes, so NIKA cannot fix them from inside a lab.
 
 ### Fix
 
-Move Docker to address ranges that the VPN does not route. The VPN configuration stays unchanged.
+Move Docker to address ranges that no other host route covers. The VPN or host network configuration stays unchanged.
 
 1. List the ranges the host already routes, and pick two private ranges that do not appear in the output. The example below uses `10.210.0.0/24` for `docker0` and `10.211.0.0/16` for new Docker networks.
 

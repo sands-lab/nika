@@ -23,8 +23,9 @@ usage() {
 Usage: ./scripts/install.sh [options]
 
 Installs Docker (if needed), uv, lab Python deps (Kathará), Containerlab,
-gnmic, plus clang and iproute2 for fault injection (via apt-get). Creates
-.env and config/nika.yaml from examples when missing.
+gnmic, plus clang and iproute2 for fault injection (via apt-get). Raises
+and persists host inotify limits for k3s and XRd labs. Creates .env and
+config/nika.yaml from examples when missing.
 
 Options:
   --track stable|latest
@@ -403,21 +404,30 @@ find_xrd_tarball() {
   return 1
 }
 
-ensure_xrd_inotify() {
-  if [[ "$(id -u)" -eq 0 ]]; then
-    sysctl -w fs.inotify.max_user_instances=64000 >/dev/null
-    sysctl -w fs.inotify.max_user_watches=64000 >/dev/null
-    log "Raised inotify limits for XRd"
+ensure_inotify_limits() {
+  # k3s (k8s_lab, llmd_lab) and Cisco XRd exhaust the kernel default of 128
+  # instances; every running container's shim also holds one. Never lower a
+  # value the host already set higher.
+  local conf=/etc/sysctl.d/99-nika-inotify.conf
+  local key value settings=""
+  for key in max_user_instances max_user_watches; do
+    value="$(sysctl -n "fs.inotify.${key}")"
+    if (( value < 64000 )); then
+      value=64000
+    fi
+    settings+="fs.inotify.${key}=${value}"$'\n'
+  done
+
+  local sudo=""
+  if [[ "$(id -u)" -ne 0 ]]; then
+    sudo=sudo
+  fi
+  if printf '%s' "${settings}" | ${sudo} tee "${conf}" >/dev/null \
+    && ${sudo} sysctl -p "${conf}" >/dev/null; then
+    log "Raised inotify limits (persisted in ${conf})"
     return
   fi
-  if command -v sudo >/dev/null 2>&1; then
-    if sudo sysctl -w fs.inotify.max_user_instances=64000 >/dev/null \
-      && sudo sysctl -w fs.inotify.max_user_watches=64000 >/dev/null; then
-      log "Raised inotify limits for XRd"
-      return
-    fi
-  fi
-  warn "Could not raise inotify limits; for XRd run:"
+  warn "Could not raise inotify limits; k8s_lab, llmd_lab, and iosxr_simple_bgp need:"
   warn "  sudo sysctl -w fs.inotify.max_user_instances=64000"
   warn "  sudo sysctl -w fs.inotify.max_user_watches=64000"
 }
@@ -425,7 +435,6 @@ ensure_xrd_inotify() {
 ensure_xrd_image() {
   if docker_image_exists "${XRD_IMAGE}"; then
     log "XRd image already present: ${XRD_IMAGE}"
-    ensure_xrd_inotify
     return
   fi
 
@@ -455,7 +464,6 @@ ensure_xrd_image() {
   fi
   docker_image_exists "${XRD_IMAGE}" || die "failed to create ${XRD_IMAGE}"
   log "XRd image ready: ${XRD_IMAGE}"
-  ensure_xrd_inotify
 }
 
 # Returns 0 once a tarball is present, 1 if the user skips or stdin is not a TTY.
@@ -551,6 +559,7 @@ main() {
   install_gnmic
   bootstrap_config
   install_fault_injection_tools
+  ensure_inotify_limits
   if [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]]; then
     install_vendor_images
   fi

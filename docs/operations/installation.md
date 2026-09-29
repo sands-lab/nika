@@ -14,6 +14,10 @@ You need Linux, Python 3.12+, `curl`, and `sudo`. After a fresh Docker install, 
 
 This installs Docker (if needed), uv, Kathará and Python deps, Containerlab, gnmic, clang, iproute2, plus `.env` and `config/nika.yaml` when they are missing. On non-apt systems, install clang and iproute2 yourself. See `./scripts/install.sh --help` for every flag.
 
+The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+
+Check that no other route on the host, such as one from a VPN or the host network, overlaps a subnet Docker uses (by default `172.17.0.0/16`–`172.31.0.0/16` and `192.168.0.0/16`). Overlapping routes break container networking and the Kubernetes API of `k8s_lab` and `llmd_lab`. See [Host routes overlap Docker subnets](troubleshooting.md#host-routes-overlap-docker-subnets).
+
 ## Choose `main` or `dev`
 
 Most users can skip this section. If you already cloned a branch, leave it alone: the installer does not change git unless you pass `--track`.
@@ -50,7 +54,7 @@ That prepares both images when possible: RouterOS always (CHR download + build),
 
 Vendor artifacts land under `.nika_cache/vendor/` (gitignored): XRd tarballs as `xrd-*.tgz`, CHR zip downloads, and the `hellt/vrnetlab` clone at `vrnetlab/`. Provide XRd via `--xrd-tarball`, `NIKA_XRD_TARBALL`, or a file in that directory. Override the cache root with `NIKA_VENDOR_CACHE`. If the target Docker image tag already exists, the step is skipped.
 
-For XRd, the installer also tries to raise inotify limits. Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-scenario), [RouterOS](network-scenarios.md#routeros-simple-bgp-scenario).
+Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-scenario), [RouterOS](network-scenarios.md#routeros-simple-bgp-scenario).
 
 ## Allow Containerlab link faults
 
