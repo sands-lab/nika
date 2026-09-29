@@ -2,10 +2,10 @@
 
 Heavy labs contend on host-shared capacity even when CPU looks idle.
 ``resource_class`` + ``class_limits`` keep a global ``batch_size`` ceiling
-while exclusive classes run alone on the host.
+while, with ``serialize_heavy``, exclusive classes run alone on the host.
 
-Exclusive (one session, no peers): Containerlab, k8s/llmd/XRd, and any case
-with ``topo_size`` / ``topo`` ``l``.
+Exclusive (one session, no peers under ``serialize_heavy``): Containerlab,
+k8s/llmd/XRd, and any case with ``topo_size`` / ``topo`` ``l``.
 """
 
 from __future__ import annotations
@@ -95,6 +95,11 @@ def _in_flight_total(in_flight: Mapping[ResourceClass, int]) -> int:
     return sum(max(0, int(count)) for count in in_flight.values())
 
 
+def _runs_exclusive(cls: ResourceClass, limits: Mapping[ResourceClass, int]) -> bool:
+    # ``serialize_heavy`` caps exclusive classes at 1; flat limits do not.
+    return cls in EXCLUSIVE_CLASSES and limits.get(cls, 1) == 1
+
+
 def can_admit(
     cls: ResourceClass,
     *,
@@ -105,11 +110,11 @@ def can_admit(
     if in_flight.get(cls, 0) >= limits.get(cls, 1):
         return False
     total = _in_flight_total(in_flight)
-    if cls in EXCLUSIVE_CLASSES:
+    if _runs_exclusive(cls, limits):
         # Exclusive labs need the whole host (no peer sessions of any class).
         return total == 0
     for exclusive in EXCLUSIVE_CLASSES:
-        if in_flight.get(exclusive, 0) > 0:
+        if _runs_exclusive(exclusive, limits) and in_flight.get(exclusive, 0) > 0:
             return False
     return True
 
@@ -132,6 +137,6 @@ def pick_admissible(
         cls = resource_class(trial)
         if can_admit(cls, in_flight=in_flight, limits=limits):
             return index
-        if cls in EXCLUSIVE_CLASSES and limits.get(cls, 1) == 1:
+        if _runs_exclusive(cls, limits):
             return None
     return None
