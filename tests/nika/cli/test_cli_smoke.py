@@ -51,7 +51,7 @@ CLI_HELP_ARGS = [
     ["benchmark", "describe", "--help"],
     ["config", "--help"],
     ["config", "show", "--help"],
-    ["config", "migrate", "--help"],
+    ["config", "set", "--help"],
     ["env", "--help"],
     ["env", "list", "--help"],
     ["env", "run", "--help"],
