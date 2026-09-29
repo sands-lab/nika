@@ -159,15 +159,4 @@ Default production and benchmark paths use light runtime checks without Batfish 
 
 Benchmark case lists and injection parameters remain in `--release` data or a `--config` case matrix. See the [benchmark configuration reference](../benchmarks/benchmark-configuration.md).
 
-## Migrate operational `.env` keys
-
-Existing installations can convert legacy operational environment variables:
-
-```shell
-uv run nika config migrate
-uv run nika config migrate --write-env
-```
-
-The command prints the proposed YAML and asks before writing. `--write-env` also backs up `.env` to `.env.bak`, then keeps recognized credentials in `.env`. Pass `-y` to skip both confirmations.
-
-NIKA ignores legacy operational variables during normal runs. `NIKA_RUN_CONFIG` selects the YAML file rather than configuring a run value.
+NIKA ignores old operational variables in `.env`; move any needed values to `config/nika.yaml`. `NIKA_RUN_CONFIG` selects the YAML file rather than configuring a run value.

@@ -23,7 +23,7 @@
 ## 📰 News
 
 - **2026-09-01:** Published [nika-bench 0.2.0](benchmark/releases/0.2.0/README.md). `nika leaderboard submit` now packs agent trajectories and opens a Hugging Face dataset PR; see [leaderboard submission](docs/benchmarks/leaderboard-submission.md).
-- **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`; existing installations with operational `.env` keys can run [`nika config migrate`](docs/operations/cli-reference.md#nika-config).
+- **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`.
 - **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/benchmarks/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
 
 ## ❓ What is NIKA?
@@ -140,7 +140,7 @@ Keys live in `.env`; agent and benchmark settings live in `config/nika.yaml` (CL
 uv run nika config show
 ```
 
-If an existing `.env` still holds operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/operations/configuration.md) for precedence, defaults, and validation rules.
+Old operational settings in `.env` are ignored; move the values you still need into `config/nika.yaml`. See the [run configuration reference](docs/operations/configuration.md) for precedence, defaults, and validation rules.
 
 **Provider** — use a built-in provider (`openai` / `anthropic` / `deepseek`). Put the matching API key in `.env`, and set `agent.provider` in YAML:
 
