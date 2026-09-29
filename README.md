@@ -119,7 +119,7 @@ cd nika
 Prerequisites: Linux, Python 3.12+, `curl`, `sudo`. If Docker was just installed, open a new shell or run `newgrp docker`.
 
 > [!IMPORTANT]
-> If a VPN on the host routes the subnets Docker uses (by default `172.17.0.0/16` and `172.18.0.0/16`), containers lose network access and `k8s_lab` / `llmd_lab` agent runs fail. Move Docker to unused subnets as described in [VPN routes overlap the Docker bridge subnet](docs/operations/troubleshooting.md#vpn-routes-overlap-the-docker-bridge-subnet).
+> If another route on the host overlaps the subnets Docker uses (by default `172.17.0.0/16` and `172.18.0.0/16`), for example one added by a VPN or the host network, containers lose network access and `k8s_lab` / `llmd_lab` agent runs fail. Move Docker to unused subnets as described in [VPN routes overlap the Docker bridge subnet](docs/operations/troubleshooting.md#vpn-routes-overlap-the-docker-bridge-subnet).
 
 More install options: [Installation](docs/operations/installation.md).
 For installing NIKA in remote environments, see [remote lab execution](docs/operations/remote.md).

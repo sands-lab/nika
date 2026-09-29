@@ -16,7 +16,7 @@ This installs Docker (if needed), uv, Kathará and Python deps, Containerlab, gn
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
-If you use a VPN on the host, check that it does not route Docker's default subnets (`172.17.0.0/16` and `172.18.0.0/16`). Such routes break container networking and the Kubernetes API of `k8s_lab` and `llmd_lab`. See [VPN routes overlap the Docker bridge subnet](troubleshooting.md#vpn-routes-overlap-the-docker-bridge-subnet).
+Check that no other route on the host, such as one from a VPN or the host network, overlaps Docker's default subnets (`172.17.0.0/16` and `172.18.0.0/16`). Overlapping routes break container networking and the Kubernetes API of `k8s_lab` and `llmd_lab`. See [VPN routes overlap the Docker bridge subnet](troubleshooting.md#vpn-routes-overlap-the-docker-bridge-subnet).
 
 ## Choose `main` or `dev`
 
