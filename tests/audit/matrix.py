@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import multiprocessing
+import os
 import subprocess
 import time
 import traceback
@@ -182,6 +183,46 @@ def _available_gib() -> float:
     return 0.0
 
 
+_EXTRA_LOCK = Path("/tmp/nika-env-audit-extra.lock")
+
+
+def _lock_holder_alive(path: Path) -> bool:
+    try:
+        pid = int(path.read_text(encoding="utf-8").strip() or "0")
+    except (OSError, ValueError):
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _try_extra_lock() -> bool:
+    """Allow one light lab beside an existing benchmark lab."""
+    try:
+        fd = os.open(_EXTRA_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        if _lock_holder_alive(_EXTRA_LOCK):
+            return False
+        _EXTRA_LOCK.unlink(missing_ok=True)
+        return _try_extra_lock()
+    os.write(fd, str(os.getpid()).encode())
+    os.close(fd)
+    return True
+
+
+def _release_extra_lock() -> None:
+    if not _EXTRA_LOCK.is_file():
+        return
+    try:
+        holder = int(_EXTRA_LOCK.read_text(encoding="utf-8").strip() or "0")
+    except (OSError, ValueError):
+        return
+    if holder == os.getpid():
+        _EXTRA_LOCK.unlink(missing_ok=True)
+
+
 def wait_for_slot(row: dict[str, Any]) -> None:
     """Wait until this host can take ``row`` without stacking an exclusive lab."""
     exclusive = effective_class(row) != "light"
@@ -191,8 +232,14 @@ def wait_for_slot(row: dict[str, Any]) -> None:
         if exclusive:
             if count == 0 and memory >= 8:
                 return
-        elif count < 45 and memory >= 6:
+        elif memory >= 8 and count < 40:
             return
+        elif memory >= 8 and count < 130 and _try_extra_lock():
+            return
+        print(
+            f"waiting containers={count} memory={memory:.1f}GiB exclusive={exclusive}",
+            flush=True,
+        )
         time.sleep(20)
 
 
@@ -273,6 +320,8 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 - one case must not stop the matrix
         error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
         audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
+    finally:
+        _release_extra_lock()
     return {
         "audit": _shrink(audit),
         "diagnosis": diagnose(audit, None if error is None else error),

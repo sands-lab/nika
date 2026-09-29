@@ -153,6 +153,13 @@ def audit_open_session(
     probe = declared_probe(fault) if not is_healthy_case(fault) else ""
     session = Session().load_running_session(session_id=session_id)
     kwargs = dict(getattr(session, "scenario_params", None) or {})
+    from nika.net_env.isp.identity import is_isp_scenario
+
+    # Session metadata records the fixed ISP scale for benchmark sampling.
+    # The scenario id owns the topology, and the lab constructor rejects topo_size.
+    if is_isp_scenario(session.scenario_name):
+        kwargs.pop("topo_size", None)
+        kwargs.pop("topo", None)
     net_env = get_net_env_instance(session.scenario_name, **kwargs)
     stages: list[StageResult] = []
     pause = window_for(fault) if window_sec is None else window_sec
@@ -278,17 +285,21 @@ def audit_open_session(
 
 def audit_case(row: dict[str, Any], *, window_sec: float | None = None) -> CaseAudit:
     """Deploy ``row``, audit it, and undeploy that session."""
+    from nika.net_env.net_env_pool import scenario_requires_topo_size
     from nika.utils.session_id import resolve_session_tag
     from nika.workflows.env.start import start_net_env
     from nika.workflows.session.close import close_session
 
+    scenario = str(row["scenario"])
     size = row.get("topo_size") or None
+    if size and not scenario_requires_topo_size(scenario):
+        size = None
     kwargs: dict[str, Any] = {}
     for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
         if key in row and row[key] is not None:
             kwargs[key] = row[key]
     session_id = start_net_env(
-        str(row["scenario"]),
+        scenario,
         size,
         session_tag=resolve_session_tag(context="test"),
         **kwargs,
