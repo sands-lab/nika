@@ -110,9 +110,8 @@ def _control_stage(fault: str, payload: dict[str, Any] | None) -> StageResult:
             return _stage(
                 "control_path", "fail", "control path failed", {"fault": fault}
             )
-        return _stage(
-            "control_path", "no_evidence", "missing observation", {"fault": fault}
-        )
+        # Probe snapshots always include the key. None means this fault has
+        # no separate control path, which is different from a failed probe.
     return _stage(
         "control_path",
         "unsupported",

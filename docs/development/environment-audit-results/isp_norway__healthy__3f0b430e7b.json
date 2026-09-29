@@ -1,0 +1,38 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "isp_norway",
+      "topo_size": "",
+      "backend": "kathara",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "healthy",
+      "inject": {}
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"norway\", \"igp\": \"isis\", \"node_count\": 27, \"link_count\": 51, \"inventory\": {\"topology_name\": \"norway\", \"igp\": \"isis\", \"metric_strategy\": \"constant\", \"constant_metric\": 10, \"node_count\": 27, \"link_count\": 51, \"nodes\": [{\"node_id\": \"N1\", \"device\": \"n1\", \"loopback\""
+        }
+      },
+      {
+        "stage": "final_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"norway\", \"igp\": \"isis\", \"node_count\": 27, \"link_count\": 51, \"inventory\": {\"topology_name\": \"norway\", \"igp\": \"isis\", \"metric_strategy\": \"constant\", \"constant_metric\": 10, \"node_count\": 27, \"link_count\": 51, \"nodes\": [{\"node_id\": \"N1\", \"device\": \"n1\", \"loopback\""
+        }
+      }
+    ],
+    "symptom_probe": ""
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 93.1,
+  "error": null,
+  "resource_class": "light"
+}

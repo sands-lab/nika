@@ -1,0 +1,142 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "isp_abilene_ebgp_rtbh",
+      "topo_size": "s",
+      "backend": "kathara",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "frr",
+      "fault": "bgp_blackhole_community_leak",
+      "inject": {
+        "host_name": "kscyng",
+        "peer_host": "pc_kscyng",
+        "probe_dst_ip": "198.51.100.1",
+        "symptom_host": "iplsng"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp_abilene_ebgp_rtbh\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"rtbh_baseline_healthy\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"abilene\", \"igp\": \"ospf\", \"node_count\": 12, \"link_count\": 15, \"inventory\": {\"topology_name\": \"abil"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "kscyng",
+          "leaker_device": "kscyng",
+          "legitimate_origin_device": "washng",
+          "rtbh_provider_device": "iplsng",
+          "target_prefix": "198.51.100.0/24",
+          "blackhole_community": "65003:666",
+          "observer": "iplsng",
+          "dst_ip": "198.51.100.1",
+          "origin_preserved": true,
+          "community_present": true,
+          "rtbh_forwarding_active": true,
+          "sessions_ok": true
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_blackhole_community_leak\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\""
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "bgp_blackhole_community_leak"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "kscyng",
+          "leaker_device": "kscyng",
+          "legitimate_origin_device": "washng",
+          "rtbh_provider_device": "iplsng",
+          "target_prefix": "198.51.100.0/24",
+          "blackhole_community": "65003:666",
+          "observer": "iplsng",
+          "dst_ip": "198.51.100.1",
+          "origin_preserved": true,
+          "community_present": true,
+          "rtbh_forwarding_active": true,
+          "sessions_ok": true
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_blackhole_community_leak\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\""
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "kscyng",
+          "leaker_device": "kscyng",
+          "legitimate_origin_device": "washng",
+          "rtbh_provider_device": "iplsng",
+          "target_prefix": "198.51.100.0/24",
+          "blackhole_community": "65003:666",
+          "observer": "iplsng",
+          "dst_ip": "198.51.100.1",
+          "origin_preserved": true,
+          "community_present": true,
+          "rtbh_forwarding_active": true,
+          "sessions_ok": true
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_blackhole_community_leak\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\""
+        }
+      }
+    ],
+    "symptom_probe": "path_ping"
+  },
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 89.5,
+  "error": null,
+  "resource_class": "light"
+}

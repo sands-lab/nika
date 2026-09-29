@@ -1,0 +1,105 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "enterprise_branch",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "tcp_receive_window_limited",
+      "inject": {
+        "host_name": "br1_corp_pc",
+        "large_url": "http://10.0.20.2/large.bin",
+        "sender_host": "hq_srv",
+        "sender_ip": "10.0.20.2",
+        "small_url": "http://10.0.20.2/small.bin"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"enterprise_branch\", \"checks\": {\"nodes_deployed\": true, \"host_ipv4_hq_corp_pc\": true, \"host_ipv4_hq_srv\": true, \"host_ipv4_hq_guest_pc\": true, \"host_ipv4_dc2_corp_pc\": true, \"host_ipv4_dc2_srv\": true, \"host_ipv4_dc2_guest_pc\": true, \"host_ipv4_br1_corp_pc\": true, \"host_ipv4_br1_guest_pc\": true, \"host_ipv4_br2_corp_pc\": true, \"host_ipv4_br2_guest_pc\": true, \"vrf_hq_corp\": true, \"vrf_hq_server\": true, \"vrf_hq_guest\": true, \"vrf_dc2_corp\": true, \"vrf_dc2_server\": true, \"vrf_dc2_guest\": true, \"vrf_br1_corp\": true, \"vrf_br1_guest\": true, \"vrf_br2_corp\": true, \"vr"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {}
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"receiver\": \"br1_corp_pc\", \"tcp_moderate_rcvbuf\": \"0\", \"tcp_rmem\": \"4096\\t16384\\t16384\", \"rmem_max\": \"sysctl: cannot stat /proc/sys/net/core/rmem_max: No such file or directory\", \"rmem_max_applied\": false, \"iface_up\": true, \"original\": {\"tcp_moderate_rcvbuf\": \"1\", \"tcp_rmem\": \"4096\\t131072\\t6291456\", \"rmem_max\": \"sysctl: cannot stat /proc/sys/net/core/rmem_max: No such file or directory\"}, \"injected\": {\"tcp_moderate_rcvbuf\": \"0\", \"tcp_rmem\": \"4096 16384 16384\", \"rmem_max\": \"16384\"}, \"estimated_bdp_bytes\": 97374.03871320763, \"target_buffer_bytes\": 16384, \"healthy_throughput_bps\": 9177355.73744"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "degradation"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "tcp_receive_window_limited",
+          "scope": "tcp_receive_window_limited"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"receiver\": \"br1_corp_pc\", \"tcp_moderate_rcvbuf\": \"0\", \"tcp_rmem\": \"4096\\t16384\\t16384\", \"rmem_max\": \"sysctl: cannot stat /proc/sys/net/core/rmem_max: No such file or directory\", \"rmem_max_applied\": false, \"iface_up\": true, \"original\": {\"tcp_moderate_rcvbuf\": \"1\", \"tcp_rmem\": \"4096\\t131072\\t6291456\", \"rmem_max\": \"sysctl: cannot stat /proc/sys/net/core/rmem_max: No such file or directory\"}, \"injected\": {\"tcp_moderate_rcvbuf\": \"0\", \"tcp_rmem\": \"4096 16384 16384\", \"rmem_max\": \"16384\"}, \"estimated_bdp_bytes\": 97374.03871320763, \"target_buffer_bytes\": 16384, \"healthy_throughput_bps\": 9177355.73744"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "degradation"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"receiver\": \"br1_corp_pc\", \"tcp_moderate_rcvbuf\": \"0\", \"tcp_rmem\": \"4096\\t16384\\t16384\", \"rmem_max\": \"sysctl: cannot stat /proc/sys/net/core/rmem_max: No such file or directory\", \"rmem_max_applied\": false, \"iface_up\": true, \"original\": {\"tcp_moderate_rcvbuf\": \"1\", \"tcp_rmem\": \"4096\\t131072\\t6291456\", \"rmem_max\": \"sysctl: cannot stat /proc/sys/net/core/rmem_max: No such file or directory\"}, \"injected\": {\"tcp_moderate_rcvbuf\": \"0\", \"tcp_rmem\": \"4096 16384 16384\", \"rmem_max\": \"16384\"}, \"estimated_bdp_bytes\": 97374.03871320763, \"target_buffer_bytes\": 16384, \"healthy_throughput_bps\": 9177355.73744"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "degradation"
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only"
+  },
+  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+  "elapsed_sec": 123.8,
+  "error": null,
+  "resource_class": "light"
+}

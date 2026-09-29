@@ -1,0 +1,110 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "p4_dc_gateway",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "int_insufficient_mtu_headroom",
+      "inject": {
+        "bmv2_port": "2",
+        "host_name": "gateway_1",
+        "int_mtu": "1480",
+        "intf_name": "eth1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"p4_dc_gateway\", \"checks\": {\"nodes\": true, \"bmv2\": true, \"p4runtime\": true, \"client_to_service_http\": true, \"collector_process\": true, \"int_telemetry\": true}, \"details\": {\"dimensions\": {\"gateways\": 2, \"spines\": 2, \"leaves\": 2, \"clients\": 2, \"services\": 4}, \"gateway_spine_links\": 4, \"spine_leaf_links\": 4, \"p4runtime\": {\"gateway_1\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 3, \"groups\": 3, \"members\": 5}, \"gateway_2\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 3, \"groups\": 3, \"members\": 5}, \"spine_1\": {\"pipeline_ok\": true, \"mismatches\": [], \""
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {}
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "interface": "eth1",
+          "int_mtu": 1480,
+          "observed_int_mtu": 1480
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "int_insufficient_mtu_headroom",
+          "scope": "int_insufficient_mtu_headroom"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "interface": "eth1",
+          "int_mtu": 1480,
+          "observed_int_mtu": 1480
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "interface": "eth1",
+          "int_mtu": 1480,
+          "observed_int_mtu": 1480
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only"
+  },
+  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+  "elapsed_sec": 56.7,
+  "error": null,
+  "resource_class": "light"
+}

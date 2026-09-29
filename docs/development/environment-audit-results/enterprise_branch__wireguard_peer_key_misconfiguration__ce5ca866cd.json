@@ -1,0 +1,108 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "enterprise_branch",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "wireguard_peer_key_misconfiguration",
+      "inject": {
+        "host_name": "br1_edge",
+        "intf_name": "wg_hq"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"enterprise_branch\", \"checks\": {\"nodes_deployed\": true, \"host_ipv4_hq_corp_pc\": true, \"host_ipv4_hq_srv\": true, \"host_ipv4_hq_guest_pc\": true, \"host_ipv4_dc2_corp_pc\": true, \"host_ipv4_dc2_srv\": true, \"host_ipv4_dc2_guest_pc\": true, \"host_ipv4_br1_corp_pc\": true, \"host_ipv4_br1_guest_pc\": true, \"host_ipv4_br2_corp_pc\": true, \"host_ipv4_br2_guest_pc\": true, \"vrf_hq_corp\": true, \"vrf_hq_server\": true, \"vrf_hq_guest\": true, \"vrf_dc2_corp\": true, \"vrf_dc2_server\": true, \"vrf_dc2_guest\": true, \"vrf_br1_corp\": true, \"vrf_br1_guest\": true, \"vrf_br2_corp\": true, \"vr"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"expected_public_key\": \"6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=\", \"ifaces\": [\"wg_dc2\", \"wg_hq\", \"wg_hq_b\"], \"per_iface\": {\"wg_dc2\": {\"conf_public_key_line\": \"PublicKey = 6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=\", \"iface_link\": \"6: wg_dc2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc htb state UNKNOWN mode DEFAULT group default qlen 1000\\\\    link/none\", \"wg_show\": \"interface: wg_dc2\\n  public key: 0zs157c4sM3B/6cQO49C+9nrQ+w6IJlYB2K9qchJ52s=\\n  private key: (hidden)\\n  listening port: 51822\\n\\npeer: 6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"wireguard_peer_key_misconfiguration\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comp"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "wireguard_peer_key_misconfiguration",
+          "scope": "wireguard_peer_key_misconfiguration"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"expected_public_key\": \"6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=\", \"ifaces\": [\"wg_dc2\", \"wg_hq\", \"wg_hq_b\"], \"per_iface\": {\"wg_dc2\": {\"conf_public_key_line\": \"PublicKey = 6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=\", \"iface_link\": \"6: wg_dc2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc htb state UNKNOWN mode DEFAULT group default qlen 1000\\\\    link/none\", \"wg_show\": \"interface: wg_dc2\\n  public key: 0zs157c4sM3B/6cQO49C+9nrQ+w6IJlYB2K9qchJ52s=\\n  private key: (hidden)\\n  listening port: 51822\\n\\npeer: 6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"wireguard_peer_key_misconfiguration\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comp"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"expected_public_key\": \"6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=\", \"ifaces\": [\"wg_dc2\", \"wg_hq\", \"wg_hq_b\"], \"per_iface\": {\"wg_dc2\": {\"conf_public_key_line\": \"PublicKey = 6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9HrDpeD4=\", \"iface_link\": \"6: wg_dc2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc htb state UNKNOWN mode DEFAULT group default qlen 1000\\\\    link/none\", \"wg_show\": \"interface: wg_dc2\\n  public key: 0zs157c4sM3B/6cQO49C+9nrQ+w6IJlYB2K9qchJ52s=\\n  private key: (hidden)\\n  listening port: 51822\\n\\npeer: 6jkI0AS2rVGsA2+bTLNGUGcQ42mmHgFZEaL9"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"wireguard_peer_key_misconfiguration\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comp"
+        }
+      }
+    ],
+    "symptom_probe": "path_ping"
+  },
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 51.7,
+  "error": null,
+  "resource_class": "light"
+}

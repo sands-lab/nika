@@ -1,0 +1,118 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "campus_lan",
+      "topo_size": "s",
+      "backend": "kathara",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "arp_cache_poisoning",
+      "inject": {
+        "host_name": "pc_1_1_1_1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"campus_lan\", \"checks\": {\"ospf_process\": true, \"ospf_neighbors\": true, \"core_link_up\": true, \"dist_gateway_configured\": true, \"host_ipv4\": true, \"host_default_route\": true, \"gateway_reachable\": true, \"peer_host_reachable\": true, \"dns_server_reachable\": true, \"dns_service_active\": true, \"dns_resolution_web0\": true, \"web_http_web0\": true, \"cross_pod_web_http\": true, \"host_dhcp_ip\": true, \"dhcp_server_active\": true, \"dhcp_relay_active\": true, \"web_service_active\": true, \"load_balancer_nginx\": true, \"dns_resolution_web99\": true, \"load_balancer_http\": true}, \"det"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "pc_1_1_1_1",
+          "gateway": "10.1.1.1",
+          "fake_mac": "00:11:22:33:44:55",
+          "neigh_entry": "10.1.1.1 dev eth0 lladdr 00:11:22:33:44:55 PERMANENT",
+          "gateway_neigh": "10.1.1.1 dev eth0 lladdr 00:11:22:33:44:55 PERMANENT"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"arp_cache_poisoning\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expec"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "arp_cache_poisoning"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "pc_1_1_1_1",
+          "gateway": "10.1.1.1",
+          "fake_mac": "00:11:22:33:44:55",
+          "neigh_entry": "10.1.1.1 dev eth0 lladdr 00:11:22:33:44:55 PERMANENT",
+          "gateway_neigh": "10.1.1.1 dev eth0 lladdr 00:11:22:33:44:55 PERMANENT"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"arp_cache_poisoning\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expec"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "pc_1_1_1_1",
+          "gateway": "10.1.1.1",
+          "fake_mac": "00:11:22:33:44:55",
+          "neigh_entry": "10.1.1.1 dev eth0 lladdr 00:11:22:33:44:55 PERMANENT",
+          "gateway_neigh": "10.1.1.1 dev eth0 lladdr 00:11:22:33:44:55 PERMANENT"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"arp_cache_poisoning\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expec"
+        }
+      }
+    ],
+    "symptom_probe": "path_ping"
+  },
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 99.6,
+  "error": null,
+  "resource_class": "light"
+}

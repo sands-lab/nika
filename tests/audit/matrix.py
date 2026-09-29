@@ -234,7 +234,7 @@ def wait_for_slot(row: dict[str, Any]) -> None:
                 return
         elif memory >= 8 and count < 40:
             return
-        elif memory >= 8 and count < 130 and _try_extra_lock():
+        elif memory >= 8 and count < 160 and _try_extra_lock():
             return
         print(
             f"waiting containers={count} memory={memory:.1f}GiB exclusive={exclusive}",
@@ -253,19 +253,54 @@ def _shrink(audit: CaseAudit) -> dict[str, Any]:
     return data
 
 
+def _evidence_text(stage: StageResult | None) -> str:
+    if stage is None:
+        return ""
+    # Shrunk evidence stores a JSON snippet inside a string, so unescape once.
+    return json.dumps(stage.evidence, default=str).replace('\\"', '"')
+
+
 def diagnose(audit: CaseAudit, error: str | None = None) -> str:
     """Say whether a bad result comes from the fault or from the check."""
     if error:
         text = error.lower()
+        if "not found locally" in text or "build it with" in text:
+            return "verify: the scenario image is not installed on this host"
+        if "cpu-sensitive http server failed" in text or "exceeded 20s" in text:
+            return "verify: the HTTP readiness command timed out before a status code returned"
         if "verify_lab" in text or "evaluate_scenario" in text:
             return "verify: the lab health check raised before inject"
         return f"runner: {error.splitlines()[-1][:240]}"
     by_stage = {stage.stage: stage for stage in audit.stages}
     baseline = by_stage.get("baseline_lab")
     if baseline is not None and baseline.status == "fail":
+        blob = _evidence_text(baseline)
+        if '"rpki_rtr_connected": false' in blob:
+            fault_ok = all(
+                by_stage[name].status == "pass"
+                for name in ("inject_artifact", "symptom", "final_symptom")
+                if name in by_stage
+            )
+            if fault_ok and "inject_artifact" in by_stage:
+                return (
+                    "verify: verify_lab failed on rpki_rtr_connected; "
+                    "the fault artifact and symptom passed"
+                )
+            return (
+                "verify: verify_lab failed on rpki_rtr_connected; "
+                "the other lab checks passed"
+            )
         return "verify: verify_lab failed before inject"
     path = by_stage.get("baseline_path")
     if path is not None and path.status == "fail":
+        evidence = path.evidence or {}
+        probe = audit.symptom_probe or "the path probe"
+        if evidence.get("control_plane_ok") is False:
+            return f"verify: {probe} was already down before inject"
+        if evidence.get("ping_ok") is False:
+            return f"verify: {probe} was already down before inject"
+        if evidence.get("http_ok") is False:
+            return f"verify: {probe} was already down before inject"
         return "verify: the healthy path probe failed before inject"
     injected = by_stage.get("inject_artifact")
     if injected is not None and injected.status == "fail":
@@ -274,23 +309,46 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
         stage = by_stage.get(name)
         if stage is not None and stage.status == "fail":
             return "case: the artifact was absent before cleanup"
-    symptom_failed = False
-    artifact_only = False
-    for name in ("symptom", "persistence_symptom", "final_symptom"):
-        stage = by_stage.get(name)
-        if stage is None:
-            continue
-        if stage.status == "fail":
-            symptom_failed = True
-        if stage.status == "no_evidence" and stage.reason == "artifact_only":
-            artifact_only = True
+    symptom_stages = [
+        by_stage[name]
+        for name in ("symptom", "persistence_symptom", "final_symptom")
+        if name in by_stage
+    ]
+    symptom_failed = [stage for stage in symptom_stages if stage.status == "fail"]
+    artifact_only = any(
+        stage.status == "no_evidence" and stage.reason == "artifact_only"
+        for stage in symptom_stages
+    )
     if symptom_failed:
+        blob = " ".join(_evidence_text(stage) for stage in symptom_failed)
+        passed = any(stage.status == "pass" for stage in symptom_stages)
+        if '"drops_delta": 0' in blob:
+            return "case: the incast probe saw no queue-drop increase on the recorded egress"
+        if '"nginx_saturated": false' in blob:
+            return "case: nginx CPU stayed under the saturation ratio after inject"
+        if "throughput_ratio" in blob:
+            return "case: receiver throughput stayed near the healthy rate after inject"
+        if '"ping_loss_percent": 0' in blob and passed:
+            return (
+                "case: the corruption artifact stayed attached; "
+                "some samples saw no ping loss"
+            )
+        if '"ping_loss_percent": 0' in blob:
+            return "case: the corruption artifact stayed attached and the samples saw no ping loss"
         return "case: the symptom probe did not observe the network effect"
     if artifact_only:
         return "verify: the symptom contract is artifact_only, so this run has no network-effect observation"
+    if any(stage.reason == "control_plane_only" for stage in audit.stages):
+        return "verify: the symptom contract is control_plane_only, so this run has no data-plane observation"
     if audit.admission() == "pass":
         return "pass"
     if audit.admission() == "unsupported":
+        weak = [stage for stage in audit.stages if stage.status != "pass"]
+        if weak and all(
+            stage.stage == "control_path" and stage.reason == "no_control_path"
+            for stage in weak
+        ):
+            return "verify: the behavioral stages passed and this fault has no separate control path"
         return "verify: a recorded stage has no behavioral check"
     return audit.admission()
 
@@ -298,10 +356,13 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
 def _failed_audit(row: dict[str, Any], message: str) -> CaseAudit:
     fault = str(row.get("problem") or "")
     probe = "" if is_healthy_case(fault) else declared_probe(fault)
+    status = "fail"
+    if "not found locally" in message or "Build it with" in message:
+        status = "unsupported"
     return CaseAudit(
         identity=identity_from_row(row),
         stages=[
-            StageResult(stage="audit", status="fail", reason=message[:500]),
+            StageResult(stage="audit", status=status, reason=message[:500]),
         ],
         symptom_probe=probe,
     )

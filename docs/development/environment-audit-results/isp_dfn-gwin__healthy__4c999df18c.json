@@ -1,0 +1,38 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "isp_dfn-gwin",
+      "topo_size": "s",
+      "backend": "kathara",
+      "igp": "isis",
+      "bgp_mode": "none",
+      "rpki": "False",
+      "device_profile": "",
+      "fault": "healthy",
+      "inject": {}
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"dfn-gwin\", \"igp\": \"isis\", \"node_count\": 11, \"link_count\": 47, \"inventory\": {\"topology_name\": \"dfn-gwin\", \"igp\": \"isis\", \"metric_strategy\": \"constant\", \"constant_metric\": 10, \"node_count\": 11, \"link_count\": 47, \"nodes\": [{\"node_id\": \"Berlin\", \"device\": \"berlin\""
+        }
+      },
+      {
+        "stage": "final_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"dfn-gwin\", \"igp\": \"isis\", \"node_count\": 11, \"link_count\": 47, \"inventory\": {\"topology_name\": \"dfn-gwin\", \"igp\": \"isis\", \"metric_strategy\": \"constant\", \"constant_metric\": 10, \"node_count\": 11, \"link_count\": 47, \"nodes\": [{\"node_id\": \"Berlin\", \"device\": \"berlin\""
+        }
+      }
+    ],
+    "symptom_probe": ""
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 74.4,
+  "error": null,
+  "resource_class": "light"
+}

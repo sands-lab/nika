@@ -1,0 +1,130 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "isp_abilene",
+      "topo_size": "s",
+      "backend": "kathara",
+      "igp": "ospf",
+      "bgp_mode": "ebgp",
+      "rpki": "False",
+      "device_profile": "frr",
+      "fault": "bgp_max_prefix_exceeded",
+      "inject": {
+        "flood_count": "120",
+        "neighbor_ip": "10.0.0.21",
+        "peer_name": "losang",
+        "receiver_name": "hstnng"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"abilene\", \"igp\": \"ospf\", \"node_count\": 12, \"link_count\": 15, \"inventory\": {\"topology_name\": \"abilene\", \"igp\": \"ospf\", \"metric_strategy\": \"constant"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": true,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "receiver": "hstnng",
+          "peer": "losang",
+          "neighbor_ip": "10.0.0.21",
+          "session_down": true,
+          "max_prefix_evidence": true,
+          "business_routes_missing": false,
+          "exceeded_seen_during_inject": false,
+          "limit": 10
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_max_prefix_exceeded\", \"probe\": \"control_plane_bgp\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"compar"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "bgp_max_prefix_exceeded"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "receiver": "hstnng",
+          "peer": "losang",
+          "neighbor_ip": "10.0.0.21",
+          "session_down": true,
+          "max_prefix_evidence": true,
+          "business_routes_missing": false,
+          "exceeded_seen_during_inject": false,
+          "limit": 10
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_max_prefix_exceeded\", \"probe\": \"control_plane_bgp\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"compar"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "receiver": "hstnng",
+          "peer": "losang",
+          "neighbor_ip": "10.0.0.21",
+          "session_down": true,
+          "max_prefix_evidence": true,
+          "business_routes_missing": false,
+          "exceeded_seen_during_inject": false,
+          "limit": 10
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_max_prefix_exceeded\", \"probe\": \"control_plane_bgp\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"compar"
+        }
+      }
+    ],
+    "symptom_probe": "control_plane_bgp"
+  },
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 86.5,
+  "error": null,
+  "resource_class": "light"
+}

@@ -1,0 +1,146 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "p4_dc_gateway",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "lb_connection_state_exhaustion",
+      "inject": {
+        "attacker_device": "client_2",
+        "backend_dip": "10.0.1.11",
+        "capacity": "256",
+        "client_host": "client_1",
+        "host_name": "gateway_1",
+        "seed": "42",
+        "syn_timeout_sec": "10",
+        "vip_url": "http://20.0.0.1:80/"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"p4_dc_gateway\", \"checks\": {\"nodes\": true, \"bmv2\": true, \"p4runtime\": true, \"client_to_service_http\": true, \"collector_process\": true, \"int_telemetry\": true}, \"details\": {\"dimensions\": {\"gateways\": 2, \"spines\": 2, \"leaves\": 2, \"clients\": 2, \"services\": 4}, \"gateway_spine_links\": 4, \"spine_leaf_links\": 4, \"p4runtime\": {\"gateway_1\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 3, \"groups\": 3, \"members\": 5}, \"gateway_2\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 3, \"groups\": 3, \"members\": 5}, \"spine_1\": {\"pipeline_ok\": true, \"mismatches\": [], \""
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "unsupported",
+        "reason": "custom probe has no shared healthy baseline",
+        "evidence": {
+          "scope": "lb_connection_state_exhaustion"
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "gateway": "gateway_1",
+          "tables": {
+            "lb_vip": 1,
+            "lb_conn_table": 256,
+            "lb_transit_table": 0,
+            "lb_pool": 128
+          }
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "fault_type": "lb_connection_state_exhaustion",
+          "details": {
+            "affinity_status": "broken",
+            "affinity_broken": true,
+            "vip_ok": true,
+            "backend_dip": "10.0.1.11",
+            "vip_url": "http://20.0.0.1:80/"
+          }
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "lb_connection_state_exhaustion",
+          "scope": "lb_connection_state_exhaustion"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "gateway": "gateway_1",
+          "tables": {
+            "lb_vip": 1,
+            "lb_conn_table": 256,
+            "lb_transit_table": 0,
+            "lb_pool": 128
+          }
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "fault_type": "lb_connection_state_exhaustion",
+          "details": {
+            "affinity_status": "broken",
+            "affinity_broken": true,
+            "vip_ok": true,
+            "backend_dip": "10.0.1.11",
+            "vip_url": "http://20.0.0.1:80/"
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "gateway": "gateway_1",
+          "tables": {
+            "lb_vip": 1,
+            "lb_conn_table": 256,
+            "lb_transit_table": 0,
+            "lb_pool": 128
+          }
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "fault_type": "lb_connection_state_exhaustion",
+          "details": {
+            "affinity_status": "broken",
+            "affinity_broken": true,
+            "vip_ok": true,
+            "backend_dip": "10.0.1.11",
+            "vip_url": "http://20.0.0.1:80/"
+          }
+        }
+      }
+    ],
+    "symptom_probe": "custom"
+  },
+  "diagnosis": "verify: a recorded stage has no behavioral check",
+  "elapsed_sec": 66.8,
+  "error": null,
+  "resource_class": "light"
+}

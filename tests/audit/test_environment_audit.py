@@ -17,7 +17,7 @@ from nika.audit.environment import (
     identity_from_row,
 )
 from tests.audit.live import _artifact_stage, _baseline_path, _control_stage
-from tests.audit.matrix import audit_plan
+from tests.audit.matrix import audit_plan, diagnose
 from tests.audit.report_doc import DOC_PATH, render_environment_audit_doc
 
 pytestmark = pytest.mark.unit
@@ -97,6 +97,48 @@ def test_audit_plan_covers_every_scenario_and_failure() -> None:
     assert resource_class_for_row(arp) == "light"
 
 
+def test_diagnose_separates_check_from_fault() -> None:
+    identity = identity_from_row(
+        {"scenario": "campus_lan", "problem": "frr_service_down", "topo_size": "s"}
+    )
+    down = CaseAudit(
+        identity=identity,
+        symptom_probe="control_plane_bgp",
+        stages=[
+            StageResult(stage="baseline_lab", status="pass"),
+            StageResult(
+                stage="baseline_path",
+                status="fail",
+                evidence={"control_plane_ok": False, "control_ok": None},
+            ),
+        ],
+    )
+    assert diagnose(down) == "verify: control_plane_bgp was already down before inject"
+    image = CaseAudit(
+        identity=identity_from_row(
+            {"scenario": "routeros_simple_bgp", "problem": "healthy"}
+        ),
+        stages=[StageResult(stage="audit", status="unsupported", reason="missing")],
+    )
+    assert (
+        diagnose(image, "RuntimeError: image not found locally")
+        == "verify: the scenario image is not installed on this host"
+    )
+    behavioral = CaseAudit(
+        identity=identity_from_row(
+            {"scenario": "campus_lan", "problem": "arp_cache_poisoning"}
+        ),
+        stages=[
+            StageResult(stage="baseline_lab", status="pass"),
+            StageResult(stage="symptom", status="pass"),
+            StageResult(
+                stage="control_path", status="unsupported", reason="no_control_path"
+            ),
+        ],
+    )
+    assert "no separate control path" in diagnose(behavioral)
+
+
 def test_control_and_baseline_helpers() -> None:
     class _Snap:
         ping_ok = True
@@ -109,6 +151,10 @@ def test_control_and_baseline_helpers() -> None:
     assert _baseline_path("path_ping", _Snap()).status == "pass"
     assert _baseline_path("artifact_only", _Snap()).status == "no_evidence"
     assert _control_stage("link_down", {"comparison": {}}).status == "unsupported"
+    assert _control_stage("link_down", {"after": {"control_ok": None}}).status == (
+        "unsupported"
+    )
+    assert _control_stage("link_down", {"control_ok": False}).status == "fail"
     assert _artifact_stage(
         "final_artifact", {"present": False, "error": "gone"}
     ).status == ("fail")

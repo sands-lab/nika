@@ -1,0 +1,105 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "enterprise_branch",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "snat_port_pool_exhaustion",
+      "inject": {
+        "host_name": "br1_edge",
+        "port_end": "40063",
+        "port_start": "40000",
+        "public_ip": "198.18.1.10",
+        "source_prefix": "10.1.40.0/24"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"enterprise_branch\", \"checks\": {\"nodes_deployed\": true, \"host_ipv4_hq_corp_pc\": true, \"host_ipv4_hq_srv\": true, \"host_ipv4_hq_guest_pc\": true, \"host_ipv4_dc2_corp_pc\": true, \"host_ipv4_dc2_srv\": true, \"host_ipv4_dc2_guest_pc\": true, \"host_ipv4_br1_corp_pc\": true, \"host_ipv4_br1_guest_pc\": true, \"host_ipv4_br2_corp_pc\": true, \"host_ipv4_br2_guest_pc\": true, \"vrf_hq_corp\": true, \"vrf_hq_server\": true, \"vrf_hq_guest\": true, \"vrf_dc2_corp\": true, \"vrf_dc2_server\": true, \"vrf_dc2_guest\": true, \"vrf_br1_corp\": true, \"vrf_br1_guest\": true, \"vrf_br2_corp\": true, \"vr"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {}
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"edge\": \"br1_edge\", \"rules\": \"table ip nat { # handle 1\\n\\tchain DOCKER_OUTPUT { # handle 1\\n\\t\\tip daddr 127.0.0.11 tcp dport 53 counter packets 0 bytes 0 dnat to 127.0.0.11:38069 # handle 9\\n\\t\\tip daddr 127.0.0.11 udp dport 53 counter packets 0 bytes 0 dnat to 127.0.0.11:59727 # handle 7\\n\\t}\\n\\n\\tchain OUTPUT { # handle 2\\n\\t\\ttype nat hook output priority -100; policy accept;\\n\\t\\tip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_OUTPUT # handle 3\\n\\t}\\n\\n\\tchain DOCKER_POSTROUTING { # handle 4\\n\\t\\tip saddr 127.0.0.11 tcp sport 38069 counter packets 0 bytes 0 snat to :53 # handl"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "snat_port_pool_exhaustion",
+          "scope": "snat_port_pool_exhaustion"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"edge\": \"br1_edge\", \"rules\": \"table ip nat { # handle 1\\n\\tchain DOCKER_OUTPUT { # handle 1\\n\\t\\tip daddr 127.0.0.11 tcp dport 53 counter packets 0 bytes 0 dnat to 127.0.0.11:38069 # handle 9\\n\\t\\tip daddr 127.0.0.11 udp dport 53 counter packets 0 bytes 0 dnat to 127.0.0.11:59727 # handle 7\\n\\t}\\n\\n\\tchain OUTPUT { # handle 2\\n\\t\\ttype nat hook output priority -100; policy accept;\\n\\t\\tip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_OUTPUT # handle 3\\n\\t}\\n\\n\\tchain DOCKER_POSTROUTING { # handle 4\\n\\t\\tip saddr 127.0.0.11 tcp sport 38069 counter packets 0 bytes 0 snat to :53 # handl"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"edge\": \"br1_edge\", \"rules\": \"table ip nat { # handle 1\\n\\tchain DOCKER_OUTPUT { # handle 1\\n\\t\\tip daddr 127.0.0.11 tcp dport 53 counter packets 0 bytes 0 dnat to 127.0.0.11:38069 # handle 9\\n\\t\\tip daddr 127.0.0.11 udp dport 53 counter packets 0 bytes 0 dnat to 127.0.0.11:59727 # handle 7\\n\\t}\\n\\n\\tchain OUTPUT { # handle 2\\n\\t\\ttype nat hook output priority -100; policy accept;\\n\\t\\tip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_OUTPUT # handle 3\\n\\t}\\n\\n\\tchain DOCKER_POSTROUTING { # handle 4\\n\\t\\tip saddr 127.0.0.11 tcp sport 38069 counter packets 0 bytes 0 snat to :53 # handl"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only"
+  },
+  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+  "elapsed_sec": 46.6,
+  "error": null,
+  "resource_class": "light"
+}

@@ -52,18 +52,18 @@ uv run python -c "from tests.audit.report_doc import write_environment_audit_doc
 ## Coverage
 
 Release 0.2.0 has 169 cases (dev 84, test 85).
-Admitted cases: 0.
+Admitted cases: 4.
 64 cases declare an `artifact_only` symptom probe.
 A full audit records `no_evidence` for that symptom stage.
 
 | Status | Cases |
 | --- | --- |
-| `pass` | 0 |
-| `fail` | 0 |
+| `pass` | 4 |
+| `fail` | 8 |
 | `skipped` | 0 |
-| `unsupported` | 0 |
-| `no_evidence` | 0 |
-| `not_run` | 169 |
+| `unsupported` | 29 |
+| `no_evidence` | 28 |
+| `not_run` | 100 |
 
 Symptom probes declared for these cases:
 
@@ -87,7 +87,153 @@ Symptom probes declared for these cases:
 Each row is one live `audit_case` run: one healthy lab per scenario, and one fault case per failure.
 The release table below changes only when that run has the same scenario, scale, backend, design, fault, and inject parameters.
 
-No live audit result is stored yet.
+A diagnosis that starts with `verify` names the check or the host prerequisite.
+A diagnosis that starts with `case` names the fault symptom on that lab.
+
+| Scenario | Fault | Scale | Backend | Design | Inject | Admission | Diagnosis |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| campus_lan | arp_cache_poisoning | s | kathara | none | host_name=pc_1_1_1_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| campus_lan | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | frr_service_down | s | kathara | none | host_name=server_access_router | fail | verify: control_plane_bgp was already down before inject |
+| campus_lan | healthy | s | kathara | none | none | pass | pass |
+| campus_lan | host_incorrect_gateway | s | kathara | none | host_name=pc_1_1_1_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| campus_lan | host_ip_conflict | s | kathara | none | host_name=web_server_2, host_name_2=pc_1_1_1_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | fail | case: nginx CPU stayed under the saturation ratio after inject |
+| campus_lan | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| campus_lan | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| campus_lan | sender_resource_contention | s | kathara | none | client_host=pc_1_1_1_1, cpu_quota=0.05, dst_ip=10.200.0.3, duration=600, host_name=web_server_0, large_url=http://10.200.0.3/large.bin, small_url=http://10.200.0.3/small.bin, stress_cpus=16 | fail | verify: the HTTP readiness command timed out before a status code returned |
+| dc_clos | bgp_asn_misconfig | s | kathara | none | host_name=super_spine_router_0 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| dc_clos | dns_lookup_latency | s | scenario default | none | delay_ms=1000, host_name=dns_pod0, intf_name=eth0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| dc_clos | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| dc_clos | dns_service_down | s | scenario default | none | host_name=dns_pod0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| dc_clos | healthy | s | scenario default | none | none | pass | pass |
+| dc_clos | host_incorrect_dns | s | scenario default | none | host_name=client_0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| dc_clos | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| dc_clos | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | fail | case: receiver throughput stayed near the healthy rate after inject |
+| enterprise_branch | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| enterprise_branch | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| enterprise_branch | healthy | m | scenario default | none | none | pass | pass |
+| enterprise_branch | host_incorrect_netmask | m | scenario default | none | host_name=br1_corp_pc, netmask_prefix=8 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| enterprise_branch | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | unsupported | verify: a recorded stage has no behavioral check |
+| enterprise_branch | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| enterprise_branch | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| enterprise_branch | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| enterprise_branch | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| enterprise_branch | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| enterprise_branch | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| isp_abilene | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| isp_abilene | healthy | none | kathara | none | none | pass | pass |
+| isp_abilene | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| isp_abilene_ebgp_rpki | bgp_rpki_invalid_route_leak | s | kathara | device_profile=frr | host_name=kscyng | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| isp_abilene_ebgp_rpki | healthy | none | kathara | none | none | pass | pass |
+| isp_abilene_ebgp_rtbh | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| isp_abilene_ebgp_rtbh | healthy | none | kathara | none | none | pass | pass |
+| isp_atlanta | healthy | none | kathara | none | none | pass | pass |
+| isp_dfn-bwin | healthy | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False | none | pass | pass |
+| isp_dfn-bwin | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| isp_dfn-bwin_ebgp_rtbh | healthy | none | kathara | none | none | pass | pass |
+| isp_dfn-bwin_ebgp_rtbh | ospf_neighbor_missing | s | kathara | device_profile=frr | host_name=berlin | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| isp_dfn-gwin | healthy | s | kathara | igp=isis, bgp_mode=none, rpki=False | none | pass | pass |
+| isp_di-yuan | healthy | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False | none | pass | pass |
+| isp_di-yuan | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | unsupported | verify: a recorded stage has no behavioral check |
+| isp_france | healthy | none | kathara | none | none | pass | pass |
+| isp_geant | healthy | none | kathara | none | none | pass | pass |
+| isp_geant_ebgp_rpki | healthy | none | kathara | none | none | fail | verify: verify_lab failed on rpki_rtr_connected; the other lab checks passed |
+| isp_geant_ebgp_rpki | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
+| isp_geant_ebgp_rpki | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
+| isp_janos-us | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| isp_janos-us | healthy | none | kathara | none | none | pass | pass |
+| isp_newyork | healthy | none | kathara | none | none | pass | pass |
+| isp_nobel-eu | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| isp_nobel-eu | healthy | none | kathara | none | none | pass | pass |
+| isp_nobel-germany | healthy | none | kathara | none | none | pass | pass |
+| isp_nobel-us | healthy | none | kathara | none | none | pass | pass |
+| isp_norway | healthy | none | kathara | none | none | pass | pass |
+| isp_pdh | healthy | s | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False | none | pass | pass |
+| isp_polska | healthy | none | kathara | none | none | pass | pass |
+| isp_sun | healthy | none | kathara | none | none | pass | pass |
+| isp_ta1 | healthy | none | kathara | none | none | pass | pass |
+| p4_dc_fabric | healthy | s | kathara | none | none | pass | pass |
+| p4_dc_fabric | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_fabric | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_fabric | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_fabric | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_gateway | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_gateway | healthy | m | scenario default | none | none | pass | pass |
+| p4_dc_gateway | host_incorrect_ip | s | scenario default | none | host_name=client_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_gateway | http_acl_block | m | scenario default | none | host_name=client_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_gateway | icmp_acl_block | s | scenario default | none | host_name=client_1 | fail | verify: path_ping was already down before inject |
+| p4_dc_gateway | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | fail | case: the incast probe saw no queue-drop increase on the recorded egress |
+| p4_dc_gateway | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | unsupported | verify: a recorded stage has no behavioral check |
+| p4_dc_gateway | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_gateway | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | fail | verify: path_http was already down before inject |
+| p4_dc_gateway | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| p4_dc_gateway | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| p4_dc_gateway | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| routeros_simple_bgp | healthy | none | kathara | none | none | unsupported | verify: the scenario image is not installed on this host |
+| sdn_l3_clos | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | fail | case: the corruption artifact stayed attached; some samples saw no ping loss |
+| sdn_l3_clos | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| sdn_l3_clos | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
+| sdn_l3_clos | healthy | m | scenario default | none | none | pass | pass |
+| sdn_l3_clos | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | unsupported | verify: a recorded stage has no behavioral check |
+| sdn_l3_clos | sdn_controller_crash | m | scenario default | none | host_name=onos | no_evidence | verify: the symptom contract is control_plane_only, so this run has no data-plane observation |
+| sdn_l3_clos | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | no_evidence | verify: the symptom contract is control_plane_only, so this run has no data-plane observation |
+| sdn_l3_clos | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | no_evidence | verify: the symptom contract is control_plane_only, so this run has no data-plane observation |
+| sdn_l3_clos | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | unsupported | verify: a recorded stage has no behavioral check |
+
+### Rows to inspect
+
+These runs left a failed stage or a host prerequisite. The diagnosis says whether that came from the fault or from the check.
+
+| Scenario | Fault | Admission | Diagnosis |
+| --- | --- | --- | --- |
+| campus_lan | frr_service_down | fail | verify: control_plane_bgp was already down before inject |
+| campus_lan | load_balancer_overload | fail | case: nginx CPU stayed under the saturation ratio after inject |
+| campus_lan | sender_resource_contention | fail | verify: the HTTP readiness command timed out before a status code returned |
+| dc_clos | receiver_resource_contention | fail | case: receiver throughput stayed near the healthy rate after inject |
+| isp_geant_ebgp_rpki | healthy | fail | verify: verify_lab failed on rpki_rtr_connected; the other lab checks passed |
+| isp_geant_ebgp_rpki | host_static_blackhole | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
+| isp_geant_ebgp_rpki | mtu_mismatch | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
+| p4_dc_gateway | icmp_acl_block | fail | verify: path_ping was already down before inject |
+| p4_dc_gateway | incast_traffic_network_limitation | fail | case: the incast probe saw no queue-drop increase on the recorded egress |
+| p4_dc_gateway | p4_tcam_entry_corruption | fail | verify: path_http was already down before inject |
+| routeros_simple_bgp | healthy | unsupported | verify: the scenario image is not installed on this host |
+| sdn_l3_clos | device_forwarding_packet_corruption | fail | case: the corruption artifact stayed attached; some samples saw no ping loss |
+
+### Audits still waiting
+
+These rows are exclusive labs. The runner starts one when the host has no other containers.
+
+| Resource | Scenario | Fault |
+| --- | --- | --- |
+| k8s | iosxr_simple_bgp | healthy |
+| large | isp_brain | healthy |
+| large | isp_cost266 | healthy |
+| large | isp_germany50 | healthy |
+| large | isp_giul39 | healthy |
+| large | isp_india35 | healthy |
+| large | isp_janos-us-ca | healthy |
+| large | isp_pioro40 | healthy |
+| large | isp_ta2 | healthy |
+| large | isp_zib54 | healthy |
+| k8s | k8s_lab | healthy |
+| k8s | llmd_lab | healthy |
+| clab | min3clos | healthy |
+| k8s | k8s_lab | k8s_clusterip_routing_broken |
+| k8s | k8s_lab | k8s_coredns_isolated |
+| k8s | k8s_lab | k8s_networkpolicy_deny |
+| k8s | k8s_lab | k8s_worker_apiserver_partition |
 
 
 ## Cases
@@ -96,27 +242,27 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | path_ping | not_run |
-| dev | host_incorrect_netmask | m | scenario default | none | host_name=br1_corp_pc, netmask_prefix=8 | route_get_onlink | not_run |
+| dev | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | path_ping | unsupported |
+| dev | host_incorrect_netmask | m | scenario default | none | host_name=br1_corp_pc, netmask_prefix=8 | route_get_onlink | unsupported |
 | dev | mtu_mismatch | l | scenario default | none | host_name=br1_edge, intf_name=eth2, mtu=500 | path_mtu_frag_needed | not_run |
-| dev | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | artifact_only | not_run |
+| dev | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | artifact_only | no_evidence |
 | dev | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | artifact_only | not_run |
 | dev | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | artifact_only | not_run |
-| dev | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | artifact_only | not_run |
+| dev | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | artifact_only | no_evidence |
 | dev | wireguard_allowed_ips_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | not_run |
-| dev | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | not_run |
+| dev | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | unsupported |
 | test | bgp_hijacking | l | scenario default | none | host_name=br1_edge | artifact_only | not_run |
-| test | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | path_ping | not_run |
+| test | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | path_ping | unsupported |
 | test | host_static_blackhole | l | scenario default | none | host_name=br1_edge | path_ping | not_run |
 | test | link_down | l | scenario default | none | host_name=br1_corp_pc, intf_name=eth0 | path_ping | not_run |
-| test | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | custom | not_run |
+| test | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | custom | unsupported |
 | test | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | artifact_only | not_run |
-| test | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | artifact_only | not_run |
-| test | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | artifact_only | not_run |
+| test | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | artifact_only | no_evidence |
+| test | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | artifact_only | no_evidence |
 | test | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | artifact_only | not_run |
-| test | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | not_run |
+| test | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | unsupported |
 | test | wireguard_peer_key_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | not_run |
-| test | healthy | m | scenario default | none | none | healthy | not_run |
+| test | healthy | m | scenario default | none | none | healthy | pass |
 
 ### `k8s_lab`
 
@@ -137,7 +283,7 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | artifact_only | not_run |
+| dev | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | artifact_only | no_evidence |
 
 ### `isp_cost266`
 
@@ -149,13 +295,13 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | path_ping | not_run |
+| dev | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | path_ping | unsupported |
 
 ### `isp_janos-us`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | artifact_only | not_run |
+| dev | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | artifact_only | no_evidence |
 
 ### `isp_geant`
 
@@ -173,89 +319,89 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_rpki_invalid_route_leak | s | kathara | device_profile=frr | host_name=kscyng | path_ping | not_run |
+| dev | bgp_rpki_invalid_route_leak | s | kathara | device_profile=frr | host_name=kscyng | path_ping | unsupported |
 
 ### `p4_dc_fabric`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | bmv2_switch_down | l | scenario default | none | host_name=leaf_1 | path_http | not_run |
-| dev | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | path_ping | not_run |
+| dev | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | path_ping | unsupported |
 | dev | mac_address_conflict | m | scenario default | none | host_name=web_2, host_name_2=client_3_2 | artifact_only | not_run |
 | dev | p4_action_selector_member_misconfig | m | scenario default | none | host_name=leaf_1 | artifact_only | not_run |
 | dev | p4_ecmp_group_member_missing | l | scenario default | none | host_name=leaf_1 | artifact_only | not_run |
 | dev | p4_table_entry_misconfig | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | not_run |
-| dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | artifact_only | not_run |
+| dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | artifact_only | no_evidence |
 | dev | p4runtime_partial_write | l | scenario default | none | host_name=leaf_1 | path_http | not_run |
-| dev | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | path_ping | not_run |
+| dev | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | path_ping | unsupported |
 | test | incast_traffic_network_limitation | l | scenario default | none | host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | custom | not_run |
-| test | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | not_run |
+| test | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | unsupported |
 
 ### `sdn_l3_clos`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | custom | not_run |
+| dev | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | custom | fail |
 | dev | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | artifact_only | not_run |
 | dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | artifact_only | not_run |
-| dev | sdn_controller_crash | m | scenario default | none | host_name=onos | artifact_only | not_run |
+| dev | sdn_controller_crash | m | scenario default | none | host_name=onos | artifact_only | no_evidence |
 | dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | custom | not_run |
 | dev | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | artifact_only | not_run |
-| dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | artifact_only | not_run |
+| dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | artifact_only | no_evidence |
 | test | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | path_ping | not_run |
-| test | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | artifact_only | not_run |
-| test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | artifact_only | not_run |
-| test | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | custom | not_run |
+| test | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | artifact_only | no_evidence |
+| test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | artifact_only | no_evidence |
+| test | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | custom | unsupported |
 | test | sdn_controller_crash | l | scenario default | none | host_name=onos | artifact_only | not_run |
-| test | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | artifact_only | not_run |
+| test | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | artifact_only | no_evidence |
 | test | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | artifact_only | not_run |
-| test | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | custom | not_run |
-| test | healthy | m | scenario default | none | none | healthy | not_run |
+| test | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | custom | unsupported |
+| test | healthy | m | scenario default | none | none | healthy | pass |
 | test | healthy | l | scenario default | none | none | healthy | not_run |
 
 ### `campus_lan`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | not_run |
+| dev | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | no_evidence |
 | dev | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run |
-| dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run |
+| dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | no_evidence |
 | dev | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run |
 | dev | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | not_run |
-| dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | not_run |
+| dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | fail |
 | test | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | custom | not_run |
 | test | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | not_run |
-| test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run |
+| test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | no_evidence |
 | test | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run |
-| test | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run |
-| test | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | not_run |
+| test | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | no_evidence |
+| test | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | no_evidence |
 | test | dns_lookup_latency | m | scenario default | none | delay_ms=1000, host_name=dns_server, intf_name=eth0 | http_by_name | not_run |
 | test | dns_port_blocked | l | scenario default | none | host_name=dns_server | path_http | not_run |
-| test | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | artifact_only | not_run |
+| test | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | artifact_only | no_evidence |
 | test | dns_service_down | m | scenario default | none | host_name=dns_server | path_http | not_run |
 | test | host_incorrect_dns | m | scenario default | none | host_name=pc_1_1_1_1 | http_by_name | not_run |
 | test | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | not_run |
-| test | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | artifact_only | not_run |
-| test | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | control_plane_ospf | not_run |
+| test | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | artifact_only | no_evidence |
+| test | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | control_plane_ospf | unsupported |
 | test | ospf_neighbor_missing | l | scenario default | none | host_name=router_core_1 | control_plane_ospf | not_run |
 
 ### `dc_clos`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | dns_lookup_latency | s | scenario default | none | delay_ms=1000, host_name=dns_pod0, intf_name=eth0 | http_by_name | not_run |
-| dev | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | path_http | not_run |
+| dev | dns_lookup_latency | s | scenario default | none | delay_ms=1000, host_name=dns_pod0, intf_name=eth0 | http_by_name | unsupported |
+| dev | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | path_http | unsupported |
 | dev | dns_record_error | l | scenario default | none | host_name=dns_pod0, target_domain=pod0, target_website=web0 | artifact_only | not_run |
-| dev | dns_service_down | s | scenario default | none | host_name=dns_pod0 | path_http | not_run |
-| dev | host_incorrect_dns | s | scenario default | none | host_name=client_0 | http_by_name | not_run |
+| dev | dns_service_down | s | scenario default | none | host_name=dns_pod0 | path_http | unsupported |
+| dev | host_incorrect_dns | s | scenario default | none | host_name=client_0 | http_by_name | unsupported |
 | dev | web_dos_attack | m | scenario default | none | attacker_device=client_0, host_name=webserver0_pod0, observer_device=dns_pod0, probe_url=http://10.0.1.2/small.bin | custom | not_run |
 | test | arp_acl_block | m | scenario default | none | host_name=client_0 | path_ping | not_run |
 | test | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | path_ping | not_run |
-| test | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | path_ping | not_run |
-| test | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | custom | not_run |
+| test | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | path_ping | unsupported |
+| test | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | custom | fail |
 | test | healthy | m | scenario default | none | none | healthy | not_run |
 | test | healthy | l | scenario default | none | none | healthy | not_run |
-| test | healthy | s | scenario default | none | none | healthy | not_run |
+| test | healthy | s | scenario default | none | none | healthy | pass |
 
 ### `llmd_lab`
 
@@ -278,43 +424,43 @@ No live audit result is stored yet.
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | host_ip_conflict | l | scenario default | none | host_name=service_4_2, host_name_2=service_2_1 | artifact_only | not_run |
-| dev | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | custom | not_run |
-| dev | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | artifact_only | not_run |
+| dev | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | custom | fail |
+| dev | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | artifact_only | no_evidence |
 | dev | lb_connection_state_exhaustion | l | scenario default | none | attacker_device=client_8, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | not_run |
-| dev | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | artifact_only | not_run |
-| dev | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | artifact_only | not_run |
+| dev | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | artifact_only | no_evidence |
+| dev | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | artifact_only | no_evidence |
 | dev | p4_table_entry_missing | l | scenario default | none | host_name=gateway_1 | path_http | not_run |
 | dev | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | path_http | not_run |
-| dev | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | artifact_only | not_run |
-| dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | artifact_only | not_run |
-| test | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | path_http | not_run |
-| test | host_incorrect_ip | s | scenario default | none | host_name=client_1 | ping_old_ip | not_run |
-| test | http_acl_block | m | scenario default | none | host_name=client_1 | path_http | not_run |
-| test | icmp_acl_block | s | scenario default | none | host_name=client_1 | path_ping | not_run |
+| dev | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | artifact_only | no_evidence |
+| dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | artifact_only | no_evidence |
+| test | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | path_http | unsupported |
+| test | host_incorrect_ip | s | scenario default | none | host_name=client_1 | ping_old_ip | unsupported |
+| test | http_acl_block | m | scenario default | none | host_name=client_1 | path_http | unsupported |
+| test | icmp_acl_block | s | scenario default | none | host_name=client_1 | path_ping | fail |
 | test | icmp_frag_needed_filter_misconfiguration | m | scenario default | none | host_name=gateway_1 | artifact_only | not_run |
 | test | int_insufficient_mtu_headroom | m | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | artifact_only | not_run |
-| test | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | not_run |
+| test | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | unsupported |
 | test | lb_pending_connection_update_race | l | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | artifact_only | not_run |
-| test | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | artifact_only | not_run |
-| test | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | artifact_only | not_run |
-| test | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | artifact_only | not_run |
+| test | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | artifact_only | no_evidence |
+| test | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | artifact_only | no_evidence |
+| test | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | artifact_only | no_evidence |
 | test | p4_ecn_threshold_misconfiguration | l | scenario default | none | bmv2_port=10, host_name=spine_1, intf_name=eth9, threshold=1024 | artifact_only | not_run |
-| test | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | path_http | not_run |
+| test | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | path_http | unsupported |
 | test | p4_table_resource_exhaustion | l | scenario default | none | host_name=leaf_1 | artifact_only | not_run |
-| test | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | path_http | not_run |
-| test | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | path_http | not_run |
+| test | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | path_http | fail |
+| test | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | path_http | unsupported |
 | test | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | path_ping | not_run |
 | test | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | artifact_only | not_run |
 | test | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.4.12, target_port=80 | artifact_only | not_run |
-| test | healthy | m | scenario default | none | none | healthy | not_run |
+| test | healthy | m | scenario default | none | none | healthy | pass |
 
 ### `isp_geant_ebgp_rpki`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | path_ping | not_run |
+| dev | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | path_ping | fail |
 | test | bgp_rpki_invalid_route_leak | m | kathara | device_profile=frr | host_name=es1_es | path_ping | not_run |
-| test | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | path_mtu_frag_needed | not_run |
+| test | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | path_mtu_frag_needed | fail |
 
 ### `isp_janos-us-ca`
 
@@ -326,8 +472,8 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | artifact_only | not_run |
-| test | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | control_plane_bgp | not_run |
+| dev | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | artifact_only | no_evidence |
+| test | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | control_plane_bgp | unsupported |
 
 ### `min3clos`
 
@@ -347,7 +493,7 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | path_ping | not_run |
+| dev | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | path_ping | unsupported |
 | dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | not_run |
 
 ### `isp_nobel-germany`
@@ -379,7 +525,7 @@ No live audit result is stored yet.
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | ospf_neighbor_missing | s | kathara | device_profile=frr | host_name=berlin | control_plane_ospf | not_run |
+| dev | ospf_neighbor_missing | s | kathara | device_profile=frr | host_name=berlin | control_plane_ospf | unsupported |
 | test | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=frankfurt, peer_host=pc_frankfurt, probe_dst_ip=198.51.100.1, symptom_host=hamburg | path_ping | not_run |
 
 ### `isp_di-yuan`
@@ -389,7 +535,7 @@ No live audit result is stored yet.
 | dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | not_run |
 | dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | not_run |
 | dev | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | healthy | not_run |
-| test | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | custom | not_run |
+| test | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | custom | unsupported |
 
 ### `isp_pdh`
 

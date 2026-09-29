@@ -1,0 +1,37 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "campus_lan",
+      "topo_size": "s",
+      "backend": "kathara",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "sender_resource_contention",
+      "inject": {
+        "host_name": "web_server_0",
+        "client_host": "pc_1_1_1_1",
+        "dst_ip": "10.200.0.3",
+        "small_url": "http://10.200.0.3/small.bin",
+        "large_url": "http://10.200.0.3/large.bin",
+        "cpu_quota": "0.05",
+        "stress_cpus": "16",
+        "duration": "600"
+      }
+    },
+    "stages": [
+      {
+        "stage": "audit",
+        "status": "fail",
+        "reason": "RuntimeError: CPU-sensitive HTTP server failed to serve on web_server_0: http_code=\"[TIMEOUT] Command '/bin/bash -c 'curl -s -o /dev/null -w '\\\\''%{http_code}'\\\\'' --max-time 10 http://127.0.0.1/small.bin || true'' on 'web_server_0' exceeded 20s.\" start_out='START:168' diag=\"[TIMEOUT] Command '/bin/bash -c 'echo LOG; cat /var/log/static-httpd.log 2>/dev/null || true; echo PS; ps aux 2>/dev/null | head -n 30 || true; python3 -m py_compile /usr/local/bin/static-httpd.py; echo COMPILE:$?'' on 'web_",
+        "evidence": {}
+      }
+    ],
+    "symptom_probe": "custom"
+  },
+  "diagnosis": "verify: the HTTP readiness command timed out before a status code returned",
+  "elapsed_sec": 193.8,
+  "error": "RuntimeError: CPU-sensitive HTTP server failed to serve on web_server_0: http_code=\"[TIMEOUT] Command '/bin/bash -c 'curl -s -o /dev/null -w '\\\\''%{http_code}'\\\\'' --max-time 10 http://127.0.0.1/small.bin || true'' on 'web_server_0' exceeded 20s.\" start_out='START:168' diag=\"[TIMEOUT] Command '/bin/bash -c 'echo LOG; cat /var/log/static-httpd.log 2>/dev/null || true; echo PS; ps aux 2>/dev/null | head -n 30 || true; python3 -m py_compile /usr/local/bin/static-httpd.py; echo COMPILE:$?'' on 'web_",
+  "resource_class": "light"
+}

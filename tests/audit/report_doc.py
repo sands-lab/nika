@@ -198,6 +198,24 @@ def render_environment_audit_doc(
     return "\n".join(lines)
 
 
+def _pending_rows() -> list[dict]:
+    from nika.net_env.net_env_pool import _NET_ENV_SPECS
+    from tests.audit.matrix import audit_plan, result_path
+
+    pending: list[dict] = []
+    for row in audit_plan():
+        if result_path(row).is_file():
+            continue
+        spec = _NET_ENV_SPECS.get(str(row.get("scenario") or ""))
+        module = getattr(spec, "module", "")
+        # Pytest registers lab doubles such as simple_bgp. The audit page
+        # lists production scenarios only.
+        if str(module).startswith("tests."):
+            continue
+        pending.append(row)
+    return pending
+
+
 def _executed_section(records: list[dict]) -> list[str]:
     lines = [
         "",
@@ -205,6 +223,9 @@ def _executed_section(records: list[dict]) -> list[str]:
         "",
         "Each row is one live `audit_case` run: one healthy lab per scenario, and one fault case per failure.",
         "The release table below changes only when that run has the same scenario, scale, backend, design, fault, and inject parameters.",
+        "",
+        "A diagnosis that starts with `verify` names the check or the host prerequisite.",
+        "A diagnosis that starts with `case` names the fault symptom on that lab.",
         "",
     ]
     if not records:
@@ -244,6 +265,83 @@ def _executed_section(records: list[dict]) -> list[str]:
             )
             + " |"
         )
+    lines.append("")
+    lines.extend(_closer_look(parsed))
+    lines.extend(_pending_section())
+    return lines
+
+
+_GENERIC_DIAGNOSIS = {
+    "pass",
+    "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+    "verify: the behavioral stages passed and this fault has no separate control path",
+    "verify: a recorded stage has no behavioral check",
+    "verify: the symptom contract is control_plane_only, so this run has no data-plane observation",
+}
+
+
+def _closer_look(parsed: list[tuple[CaseAudit, str]]) -> list[str]:
+    rows = [
+        (audit, diagnosis)
+        for audit, diagnosis in parsed
+        if diagnosis not in _GENERIC_DIAGNOSIS
+    ]
+    if not rows:
+        return []
+    lines = [
+        "### Rows to inspect",
+        "",
+        "These runs left a failed stage or a host prerequisite. The diagnosis says whether that came from the fault or from the check.",
+        "",
+        "| Scenario | Fault | Admission | Diagnosis |",
+        "| --- | --- | --- | --- |",
+    ]
+    for audit, diagnosis in rows:
+        identity = audit.identity
+        lines.append(
+            "| "
+            + " | ".join(
+                _cell(part)
+                for part in (
+                    identity.scenario,
+                    identity.fault,
+                    audit.admission(),
+                    diagnosis,
+                )
+            )
+            + " |"
+        )
+    lines.append("")
+    return lines
+
+
+def _pending_section() -> list[str]:
+    pending = _pending_rows()
+    lines = [
+        "### Audits still waiting",
+        "",
+    ]
+    if not pending:
+        lines.append("Every planned scenario and failure has a stored result.")
+        lines.append("")
+        return lines
+    lines.append(
+        "These rows are exclusive labs. The runner starts one when the host has no other containers."
+    )
+    lines.append("")
+    lines.extend(
+        [
+            "| Resource | Scenario | Fault |",
+            "| --- | --- | --- |",
+        ]
+    )
+    from tests.audit.matrix import effective_class
+
+    for row in pending:
+        resource = _cell(effective_class(row))
+        scenario = _cell(str(row.get("scenario") or ""))
+        fault = _cell(str(row.get("problem") or ""))
+        lines.append(f"| {resource} | {scenario} | {fault} |")
     lines.append("")
     return lines
 

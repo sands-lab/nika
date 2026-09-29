@@ -1,0 +1,105 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "enterprise_branch",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "nat_mapping_removed_without_drain",
+      "inject": {
+        "host_name": "br1_edge",
+        "nat_ip_a": "198.18.1.10",
+        "nat_ip_b": "198.18.1.11",
+        "source_prefix": "10.1.40.0/24",
+        "wan_interface": "eth2"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"enterprise_branch\", \"checks\": {\"nodes_deployed\": true, \"host_ipv4_hq_corp_pc\": true, \"host_ipv4_hq_srv\": true, \"host_ipv4_hq_guest_pc\": true, \"host_ipv4_dc2_corp_pc\": true, \"host_ipv4_dc2_srv\": true, \"host_ipv4_dc2_guest_pc\": true, \"host_ipv4_br1_corp_pc\": true, \"host_ipv4_br1_guest_pc\": true, \"host_ipv4_br2_corp_pc\": true, \"host_ipv4_br2_guest_pc\": true, \"vrf_hq_corp\": true, \"vrf_hq_server\": true, \"vrf_hq_guest\": true, \"vrf_dc2_corp\": true, \"vrf_dc2_server\": true, \"vrf_dc2_guest\": true, \"vrf_br1_corp\": true, \"vrf_br1_guest\": true, \"vrf_br2_corp\": true, \"vr"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {}
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"edge\": \"br1_edge\", \"before\": \"81269: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc netem state UP group default qlen 1000\\n    inet 100.64.0.17/30 scope global eth2\\n       valid_lft forever preferred_lft forever\\n    inet 198.18.1.10/32 scope global eth2\\n       valid_lft forever preferred_lft forever\\n    inet 198.18.1.11/32 scope global eth2\\n       valid_lft forever preferred_lft forever\", \"addresses\": \"81269: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc netem state UP group default qlen 1000\\n    inet 100.64.0.17/30 scope global eth2\\n       valid_lft forever preferre"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "nat_mapping_removed_without_drain",
+          "scope": "nat_mapping_removed_without_drain"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"edge\": \"br1_edge\", \"before\": \"81269: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc netem state UP group default qlen 1000\\n    inet 100.64.0.17/30 scope global eth2\\n       valid_lft forever preferred_lft forever\\n    inet 198.18.1.10/32 scope global eth2\\n       valid_lft forever preferred_lft forever\\n    inet 198.18.1.11/32 scope global eth2\\n       valid_lft forever preferred_lft forever\", \"addresses\": \"81269: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc netem state UP group default qlen 1000\\n    inet 100.64.0.17/30 scope global eth2\\n       valid_lft forever preferre"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"edge\": \"br1_edge\", \"before\": \"81269: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc netem state UP group default qlen 1000\\n    inet 100.64.0.17/30 scope global eth2\\n       valid_lft forever preferred_lft forever\\n    inet 198.18.1.10/32 scope global eth2\\n       valid_lft forever preferred_lft forever\\n    inet 198.18.1.11/32 scope global eth2\\n       valid_lft forever preferred_lft forever\", \"addresses\": \"81269: eth2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc netem state UP group default qlen 1000\\n    inet 100.64.0.17/30 scope global eth2\\n       valid_lft forever preferre"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only"
+  },
+  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+  "elapsed_sec": 42.9,
+  "error": null,
+  "resource_class": "light"
+}

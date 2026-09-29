@@ -1,0 +1,114 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "isp_janos-us",
+      "topo_size": "m",
+      "backend": "kathara",
+      "igp": "isis",
+      "bgp_mode": "ibgp_rr",
+      "rpki": "False",
+      "device_profile": "frr",
+      "fault": "bgp_hijacking",
+      "inject": {
+        "host_name": "albany",
+        "peer_host": "pc_albany",
+        "probe_dst_ip": "198.18.0.1",
+        "symptom_host": "atlanta",
+        "target_network": "198.18.0.0/24"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"janos-us\", \"igp\": \"isis\", \"node_count\": 26, \"link_count\": 84, \"inventory\": {\"topology_name\": \"janos-us\", \"igp\": \"isis\", \"metric_strategy\": \"consta"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {}
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "albany",
+          "target_network": "198.18.0.0/24",
+          "has_advertisement": true,
+          "has_lo_ip": true
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "control_plane"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "bgp_hijacking",
+          "scope": "bgp_hijacking"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "albany",
+          "target_network": "198.18.0.0/24",
+          "has_advertisement": true,
+          "has_lo_ip": true
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "control_plane"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "albany",
+          "target_network": "198.18.0.0/24",
+          "has_advertisement": true,
+          "has_lo_ip": true
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "control_plane"
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only"
+  },
+  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+  "elapsed_sec": 106.9,
+  "error": null,
+  "resource_class": "light"
+}

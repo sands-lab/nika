@@ -1,0 +1,141 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "sdn_l3_clos",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "web_dos_attack",
+      "inject": {
+        "attacker_device": "client_4_1",
+        "host_name": "web_2",
+        "observer_device": "client_1_1",
+        "probe_url": "http://10.0.2.11/"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "sdn_l3_clos",
+          "checks": {
+            "nodes_deployed": true,
+            "onos_link_up": true,
+            "onos_process": true,
+            "ovs_switches_ready": true,
+            "of_sessions": true,
+            "virtual_gateway_mac": true,
+            "no_stp_or_normal": true,
+            "ecmp_groups": true,
+            "controller_dataplane_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "cross_rack_http": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          },
+          "details": {}
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "unsupported",
+        "reason": "custom probe has no shared healthy baseline",
+        "evidence": {
+          "scope": "web_dos_attack"
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "attacker": "client_4_1",
+          "target_ip": "10.0.2.11",
+          "workers": 12,
+          "ab_processes": 12,
+          "target_connections": 836,
+          "slow_client_running": true,
+          "process_state": "workers='12' ab='12'",
+          "attack_ready": true
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 6.446000000000001, \"p95_ms\": 53.597, \"samples_ms\": [4.77, 7.182, 6.446000000000001, 53.597, 5.621], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 2403.279, \"p95_ms\": 3603.5409999999997, \"samples_ms\": [2403.279, 1412.885, 2466.275, 1443.9470000000001, 3603.5409999999997], \"h"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "web_dos_attack",
+          "scope": "web_dos_attack"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "attacker": "client_4_1",
+          "target_ip": "10.0.2.11",
+          "workers": 12,
+          "ab_processes": 12,
+          "target_connections": 1544,
+          "slow_client_running": true,
+          "process_state": "workers='12' ab='12'",
+          "attack_ready": true
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 6.446000000000001, \"p95_ms\": 53.597, \"samples_ms\": [4.77, 7.182, 6.446000000000001, 53.597, 5.621], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 871.529, \"p95_ms\": 2096.484, \"samples_ms\": [1405.023, 2096.484, 871.529, 732.5, 699.7560000000001], \"http_codes\": [\"200\", \"200\","
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "attacker": "client_4_1",
+          "target_ip": "10.0.2.11",
+          "workers": 12,
+          "ab_processes": 12,
+          "target_connections": 1552,
+          "slow_client_running": true,
+          "process_state": "workers='12' ab='12'",
+          "attack_ready": true
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 6.446000000000001, \"p95_ms\": 53.597, \"samples_ms\": [4.77, 7.182, 6.446000000000001, 53.597, 5.621], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 1725.19, \"p95_ms\": 2750.646, \"samples_ms\": [716.97, 2750.646, 1766.6360000000002, 764.1139999999999, 1725.19], \"http_codes\": [\"2"
+        }
+      }
+    ],
+    "symptom_probe": "custom"
+  },
+  "diagnosis": "verify: a recorded stage has no behavioral check",
+  "elapsed_sec": 120.8,
+  "error": null,
+  "resource_class": "light"
+}

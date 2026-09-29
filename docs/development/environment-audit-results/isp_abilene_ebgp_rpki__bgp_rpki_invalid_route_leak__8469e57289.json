@@ -1,0 +1,139 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "isp_abilene_ebgp_rpki",
+      "topo_size": "s",
+      "backend": "kathara",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "frr",
+      "fault": "bgp_rpki_invalid_route_leak",
+      "inject": {
+        "host_name": "kscyng"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp_abilene_ebgp_rpki\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"rpki_rtr_connected\": true, \"rpki_leak_absent\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"abilene\", \"igp\": \"ospf\", \"node_count\": 12, \"link_count\": 15, \"inventory\": "
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "kscyng",
+          "leaker_device": "kscyng",
+          "leak_prefixes": [
+            "203.0.113.0/24",
+            "203.0.114.0/24"
+          ],
+          "advertised": true,
+          "non_rov_learned": true,
+          "rov_rejected": true,
+          "sessions_ok": true,
+          "rov_observer": "iplsng",
+          "non_rov_observer": "hstnng"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_rpki_invalid_route_leak\", \"probe\": \"path_ping\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": true, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\""
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "bgp_rpki_invalid_route_leak"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "kscyng",
+          "leaker_device": "kscyng",
+          "leak_prefixes": [
+            "203.0.113.0/24",
+            "203.0.114.0/24"
+          ],
+          "advertised": true,
+          "non_rov_learned": true,
+          "rov_rejected": true,
+          "sessions_ok": true,
+          "rov_observer": "iplsng",
+          "non_rov_observer": "hstnng"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_rpki_invalid_route_leak\", \"probe\": \"path_ping\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": true, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\""
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "kscyng",
+          "leaker_device": "kscyng",
+          "leak_prefixes": [
+            "203.0.113.0/24",
+            "203.0.114.0/24"
+          ],
+          "advertised": true,
+          "non_rov_learned": true,
+          "rov_rejected": true,
+          "sessions_ok": true,
+          "rov_observer": "iplsng",
+          "non_rov_observer": "hstnng"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"bgp_rpki_invalid_route_leak\", \"probe\": \"path_ping\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": true, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\""
+        }
+      }
+    ],
+    "symptom_probe": "path_ping"
+  },
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 86.7,
+  "error": null,
+  "resource_class": "light"
+}

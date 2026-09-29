@@ -1,0 +1,108 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "campus_lan",
+      "topo_size": "s",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "dhcp_spoofed_dns",
+      "inject": {
+        "host_name": "dhcp_server",
+        "host_name_2": "pc_1_1_1_1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"campus_lan\", \"checks\": {\"ospf_process\": true, \"ospf_neighbors\": true, \"core_link_up\": true, \"dist_gateway_configured\": true, \"host_ipv4\": true, \"host_default_route\": true, \"gateway_reachable\": true, \"peer_host_reachable\": true, \"dns_server_reachable\": true, \"dns_service_active\": true, \"dns_resolution_web0\": true, \"web_http_web0\": true, \"cross_pod_web_http\": true, \"host_dhcp_ip\": true, \"dhcp_server_active\": true, \"dhcp_relay_active\": true, \"web_service_active\": true, \"load_balancer_nginx\": true, \"dns_resolution_web99\": true, \"load_balancer_http\": true}, \"det"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {}
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "dhcp_server": "dhcp_server",
+          "wrong_dns": "192.0.2.1",
+          "grep_result": "option domain-name-servers 192.0.2.1;\nfound"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "dhcp_spoofed_dns",
+          "scope": "dhcp_spoofed_dns"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "dhcp_server": "dhcp_server",
+          "wrong_dns": "192.0.2.1",
+          "grep_result": "option domain-name-servers 192.0.2.1;\nfound"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "dhcp_server": "dhcp_server",
+          "wrong_dns": "192.0.2.1",
+          "grep_result": "option domain-name-servers 192.0.2.1;\nfound"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "no_evidence",
+        "reason": "artifact_only",
+        "evidence": {
+          "skipped": true,
+          "reason": "artifact_only",
+          "symptom_class": "unreachable"
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only"
+  },
+  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
+  "elapsed_sec": 91.1,
+  "error": null,
+  "resource_class": "light"
+}

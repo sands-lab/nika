@@ -1,0 +1,243 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "p4_dc_fabric",
+      "topo_size": "m",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "p4_table_entry_missing",
+      "inject": {
+        "host_name": "leaf_1",
+        "observer_device": "client_1_1",
+        "probe_dst_ip": "10.0.2.11"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"p4_dc_fabric\", \"checks\": {\"nodes_deployed\": true, \"bmv2_grpc_ready\": true, \"control_network\": true, \"interfaces_up\": true, \"intent_present\": true, \"p4runtime_consistent\": true, \"same_rack_ping\": true, \"cross_rack_ping\": true, \"multi_rack_ping\": true, \"cross_rack_http\": true, \"ecmp_multi_path\": true, \"web_1_ipv4\": true, \"web_1_gateway_neigh\": true, \"client_1_1_ipv4\": true, \"client_1_1_gateway_neigh\": true}, \"details\": {\"p4runtime\": {\"leaf_1\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 11, \"groups\": 11, \"members\": 32}, \"leaf_2\": {\"pipeline_ok\": true,"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 18.738999999999997,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "params.host_name": "leaf_1",
+          "prefix": "10.0.2.0/24",
+          "present": false,
+          "readable": true,
+          "ipv4_lpm": [
+            {
+              "prefix": "10.0.1.11/32",
+              "group_id": 1
+            },
+            {
+              "prefix": "10.0.1.12/32",
+              "group_id": 2
+            },
+            {
+              "prefix": "10.0.1.13/32",
+              "group_id": 3
+            },
+            {
+              "prefix": "10.0.1.14/32",
+              "group_id": 4
+            },
+            {
+              "prefix": "10.0.3.0/24",
+              "group_id": 103
+            },
+            {
+              "prefix": "10.0.4.0/24",
+              "group_id": 104
+            },
+            {
+              "prefix": "10.0.5.0/24",
+              "group_id": 105
+            },
+            {
+              "prefix": "10.0.6.0/24",
+              "group_id": 106
+            },
+            {
+              "prefix": "10.0.7.0/24",
+              "group_id": 107
+            },
+            {
+              "prefix": "10.0.8.0/24",
+              "group_id": 108
+            }
+          ]
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"p4_table_entry_missing\", \"probe\": \"path_http\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": false, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"ex"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "p4_table_entry_missing"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "params.host_name": "leaf_1",
+          "prefix": "10.0.2.0/24",
+          "present": false,
+          "readable": true,
+          "ipv4_lpm": [
+            {
+              "prefix": "10.0.1.11/32",
+              "group_id": 1
+            },
+            {
+              "prefix": "10.0.1.12/32",
+              "group_id": 2
+            },
+            {
+              "prefix": "10.0.1.13/32",
+              "group_id": 3
+            },
+            {
+              "prefix": "10.0.1.14/32",
+              "group_id": 4
+            },
+            {
+              "prefix": "10.0.3.0/24",
+              "group_id": 103
+            },
+            {
+              "prefix": "10.0.4.0/24",
+              "group_id": 104
+            },
+            {
+              "prefix": "10.0.5.0/24",
+              "group_id": 105
+            },
+            {
+              "prefix": "10.0.6.0/24",
+              "group_id": 106
+            },
+            {
+              "prefix": "10.0.7.0/24",
+              "group_id": 107
+            },
+            {
+              "prefix": "10.0.8.0/24",
+              "group_id": 108
+            }
+          ]
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"p4_table_entry_missing\", \"probe\": \"path_http\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": false, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"ex"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "params.host_name": "leaf_1",
+          "prefix": "10.0.2.0/24",
+          "present": false,
+          "readable": true,
+          "ipv4_lpm": [
+            {
+              "prefix": "10.0.1.11/32",
+              "group_id": 1
+            },
+            {
+              "prefix": "10.0.1.12/32",
+              "group_id": 2
+            },
+            {
+              "prefix": "10.0.1.13/32",
+              "group_id": 3
+            },
+            {
+              "prefix": "10.0.1.14/32",
+              "group_id": 4
+            },
+            {
+              "prefix": "10.0.3.0/24",
+              "group_id": 103
+            },
+            {
+              "prefix": "10.0.4.0/24",
+              "group_id": 104
+            },
+            {
+              "prefix": "10.0.5.0/24",
+              "group_id": 105
+            },
+            {
+              "prefix": "10.0.6.0/24",
+              "group_id": 106
+            },
+            {
+              "prefix": "10.0.7.0/24",
+              "group_id": 107
+            },
+            {
+              "prefix": "10.0.8.0/24",
+              "group_id": 108
+            }
+          ]
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"p4_table_entry_missing\", \"probe\": \"path_http\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": false, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"ex"
+        }
+      }
+    ],
+    "symptom_probe": "path_http"
+  },
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 125.9,
+  "error": null,
+  "resource_class": "light"
+}

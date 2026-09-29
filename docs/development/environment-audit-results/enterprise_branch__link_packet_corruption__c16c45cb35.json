@@ -1,0 +1,131 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "enterprise_branch",
+      "topo_size": "m",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "link_packet_corruption",
+      "inject": {
+        "corruption_percentage": "10",
+        "host_name": "br1_edge",
+        "intf_name": "eth3",
+        "observer_device": "br1_corp_pc",
+        "probe_dst_ip": "10.0.20.2"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"enterprise_branch\", \"checks\": {\"nodes_deployed\": true, \"host_ipv4_hq_corp_pc\": true, \"host_ipv4_hq_corp_pc2\": true, \"host_ipv4_hq_srv\": true, \"host_ipv4_hq_iot_pc\": true, \"host_ipv4_hq_iot_pc2\": true, \"host_ipv4_hq_guest_pc\": true, \"host_ipv4_hq_guest_pc2\": true, \"host_ipv4_dc2_corp_pc\": true, \"host_ipv4_dc2_corp_pc2\": true, \"host_ipv4_dc2_srv\": true, \"host_ipv4_dc2_iot_pc\": true, \"host_ipv4_dc2_iot_pc2\": true, \"host_ipv4_dc2_guest_pc\": true, \"host_ipv4_dc2_guest_pc2\": true, \"host_ipv4_br1_corp_pc\": true, \"host_ipv4_br1_corp_pc2\": true, \"host_ipv4_br1_iot_p"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "unsupported",
+        "reason": "custom probe has no shared healthy baseline",
+        "evidence": {
+          "scope": "link_packet_corruption"
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "artifact": {
+            "verified": true,
+            "host": "br1_edge",
+            "intf": "eth3"
+          },
+          "symptom": {
+            "verified": true,
+            "host_operstate": "up",
+            "peer_operstate": "up",
+            "link_up": true
+          }
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 10.0, \"ping_received\": 90, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 737943.15815999, \"injected_iperf_retrans\": 44, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.150837}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"partial"
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "unsupported",
+        "reason": "no_control_path",
+        "evidence": {
+          "fault": "link_packet_corruption",
+          "scope": "link_packet_corruption"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "artifact": {
+            "verified": true,
+            "host": "br1_edge",
+            "intf": "eth3"
+          },
+          "symptom": {
+            "verified": true,
+            "host_operstate": "up",
+            "peer_operstate": "up",
+            "link_up": true
+          }
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 14.0, \"ping_received\": 86, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 735370.028401421, \"injected_iperf_retrans\": 31, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.184769}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"partia"
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "artifact": {
+            "verified": true,
+            "host": "br1_edge",
+            "intf": "eth3"
+          },
+          "symptom": {
+            "verified": true,
+            "host_operstate": "up",
+            "peer_operstate": "up",
+            "link_up": true
+          }
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 12.0, \"ping_received\": 88, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 857866.3363218342, \"injected_iperf_retrans\": 36, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.133823}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"parti"
+        }
+      }
+    ],
+    "symptom_probe": "custom"
+  },
+  "diagnosis": "verify: a recorded stage has no behavioral check",
+  "elapsed_sec": 99.7,
+  "error": null,
+  "resource_class": "light"
+}
