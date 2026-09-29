@@ -44,7 +44,6 @@ _NOISY_LOGGERS = (
     "sse_starlette",
     "sse_starlette.sse",
     "nika.run_config.loader",
-    "nika.run_config.legacy",
 )
 
 

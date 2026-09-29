@@ -36,7 +36,6 @@ class FailureEffectContract(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal["1.0"] = "1.0"
     failure: str = Field(min_length=1)
     expected_change: tuple[EffectExpectation, ...] = ()
     must_preserve: tuple[str, ...] = ()
@@ -49,7 +48,6 @@ class FailureEffectReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal["1.0"] = "1.0"
     failure: str = Field(min_length=1)
     status: EffectStatus
     expected_change: tuple[EffectExpectation, ...] = ()

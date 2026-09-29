@@ -90,7 +90,9 @@ def config_show(
     """Print the effective run configuration (no secrets)."""
     cfg = load_run_config(run_config)
     typer.echo(
-        yaml.safe_dump(cfg.to_display_dict(), sort_keys=False, allow_unicode=True)
+        yaml.safe_dump(
+            cfg.model_dump(mode="python"), sort_keys=False, allow_unicode=True
+        )
     )
 
 
@@ -197,13 +199,17 @@ def config_migrate(
 
     legacy = detect_legacy_operational_env(values)
     removed = detect_removed_env(values)
-    partial = legacy_env_to_partial_dict(values)
-
     base = default_run_config().model_dump(mode="python")
     if out_path.is_file():
         existing = yaml.safe_load(out_path.read_text(encoding="utf-8")) or {}
         if isinstance(existing, dict):
             base = _deep_merge(base, existing)
+    base_agent = base["agent"]
+    partial = legacy_env_to_partial_dict(
+        values,
+        agent_type=base_agent["type"],
+        provider=base_agent["provider"],
+    )
     merged = _deep_merge(base, partial)
     cfg = RunConfig.model_validate(merged)
 
@@ -222,7 +228,7 @@ def config_migrate(
         typer.echo(
             "For a new setup, prefer: cp config/nika.example.yaml config/nika.yaml"
         )
-        typer.echo("Continuing writes built-in defaults (agent.models.* stay null).")
+        typer.echo("Continuing writes built-in defaults.")
     if removed:
         typer.echo("Removed keys (will not migrate; safe to delete from .env):")
         for key in removed:
@@ -243,7 +249,9 @@ def config_migrate(
 
     typer.echo("\nProposed YAML:")
     typer.echo(
-        yaml.safe_dump(cfg.to_display_dict(), sort_keys=False, allow_unicode=True)
+        yaml.safe_dump(
+            cfg.model_dump(mode="python"), sort_keys=False, allow_unicode=True
+        )
     )
 
     if not yes:

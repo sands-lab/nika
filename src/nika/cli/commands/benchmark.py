@@ -10,7 +10,6 @@ from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from nika.cli.utils import fmt_table
 from nika.cli.warning_capture import install_warning_capture
 from nika.net_env.net_env_pool import scenario_requires_topo_size
-from nika.run_config.legacy import warn_legacy_operational_env
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -493,7 +492,6 @@ def benchmark_run(
             f"reasoning_effort must be one of {', '.join(REASONING_EFFORT_LEVELS)}"
         )
 
-    warn_legacy_operational_env()
     # Spawn trial workers inherit process env, not ContextVar; export the path
     # so children reload the same YAML (skills, sandbox, MCP, agent defaults).
     cfg_path = export_run_config_env(run_config)
@@ -525,9 +523,7 @@ def benchmark_run(
     # Resolve before scheduling so spawn kwargs are concrete when CLI omitted them.
     agent_type = resolve_agent_type(agent_type, config=cfg)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type, config=cfg)
-    model = resolve_agent_model(
-        agent_type, model, llm_provider=llm_provider, config=cfg
-    )
+    model = resolve_agent_model(agent_type, model, config=cfg)
     max_steps = resolve_max_steps(max_steps, config=cfg)
 
     bench = cfg.benchmark

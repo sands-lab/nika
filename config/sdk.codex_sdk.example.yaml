@@ -4,8 +4,6 @@
 # Credentials stay in the repo-root .env file. Other keys use built-in defaults;
 # see config/nika.example.yaml for the full platform / benchmark reference.
 
-version: 1
-
 agent:
   type: sdk.codex_sdk
   provider: openai

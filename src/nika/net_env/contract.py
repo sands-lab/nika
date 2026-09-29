@@ -193,7 +193,6 @@ class ValidationIntent(ContractModel):
 
 
 class ValidationContract(ContractModel):
-    schema_version: Literal["1.0"] = "1.0"
     contract_id: str = Field(min_length=1)
     scenario: str = Field(min_length=1)
     design_source: dict[str, Any]

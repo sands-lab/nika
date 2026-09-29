@@ -62,7 +62,7 @@ def test_agent_resolves_from_yaml_and_cli(
 
     assert resolve_agent_type(None) == agent_type
     assert resolve_llm_provider(None, agent_type=agent_type) == provider
-    assert resolve_agent_model(agent_type, None, llm_provider=provider) == model
+    assert resolve_agent_model(agent_type, None) == model
     assert resolve_max_steps(None) == 11
 
 
@@ -86,7 +86,7 @@ def test_agent_resolves_from_yaml_only(
 
     assert resolve_agent_type(None) == agent_type
     assert resolve_llm_provider(None, agent_type=agent_type) == provider
-    assert resolve_agent_model(agent_type, None, llm_provider=provider) == model
+    assert resolve_agent_model(agent_type, None) == model
     assert resolve_max_steps(None) == 9
     if agent_type in ("byo.langgraph", "cli.codex", "sdk.codex_sdk"):
         assert resolve_reasoning_effort(None) == "low"
