@@ -254,6 +254,8 @@ function isNikaRunLengthBookend(ev: CanonicalTraceEvent): boolean {
 
 function usesDurationBackdate(ev: CanonicalTraceEvent): boolean {
   if (isNikaRunLengthBookend(ev)) return false;
+  // Claude request elapsed sits on the response's first block, not its end.
+  if (ev.source === "agent" && ev.kind === "llm") return false;
   return eventDurationMs(ev) != null;
 }
 

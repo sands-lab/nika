@@ -600,6 +600,70 @@ class TestAdapters:
         assert "frr_show_ip_route" in str(end.tool.output)
         assert end.tool.error is not None
 
+    def test_claude_request_duration_spans_response_blocks(
+        self, tmp_path: Path
+    ) -> None:
+        from nika.inspect.adapters import load_agent_events
+
+        def assistant(ts: str, message_id: str, block: dict) -> dict:
+            return {
+                "timestamp": ts,
+                "phase": "diagnosis",
+                "event": "assistant",
+                "claude_event": {
+                    "type": "assistant",
+                    "message": {"id": message_id, "content": [block]},
+                },
+            }
+
+        def tool_result(ts: str) -> dict:
+            return {
+                "timestamp": ts,
+                "phase": "diagnosis",
+                "event": "user",
+                "claude_event": {
+                    "type": "user",
+                    "message": {
+                        "content": [{"type": "tool_result", "tool_use_id": "t"}]
+                    },
+                },
+            }
+
+        tool_use = {"type": "tool_use", "id": "t", "name": "ping", "input": {}}
+        rows = [
+            {
+                "timestamp": "2026-01-01T12:00:00+00:00",
+                "phase": "diagnosis",
+                "event": "system",
+                "claude_event": {"type": "system", "subtype": "init"},
+            },
+            assistant(
+                "2026-01-01T12:00:03+00:00",
+                "m1",
+                {"type": "thinking", "thinking": "plan"},
+            ),
+            assistant("2026-01-01T12:00:05+00:00", "m1", tool_use),
+            tool_result("2026-01-01T12:00:06+00:00"),
+            assistant("2026-01-01T12:00:07+00:00", "m1", tool_use),
+            tool_result("2026-01-01T12:00:10+00:00"),
+            assistant("2026-01-01T12:00:12+00:00", "m2", tool_use),
+            tool_result("2026-01-01T12:00:13+00:00"),
+            assistant(
+                "2026-01-01T12:00:14+00:00",
+                "m3",
+                {"type": "text", "text": "done"},
+            ),
+        ]
+        session = tmp_path / "sess"
+        session.mkdir()
+        _write_jsonl(session / "messages.jsonl", rows)
+
+        events = load_agent_events(session)
+        durations = {e.id: e.duration_ms for e in events if e.duration_ms}
+        # m1: init 12:00:00 → last block 12:00:07; m2 has no llm row;
+        # m3: tool result 12:00:13 → 12:00:14.
+        assert durations == {"agent-1": 7000.0, "agent-8": 1000.0}
+
     def test_nika_lifecycle_event(self) -> None:
         event = adapt_nika_event(
             {
