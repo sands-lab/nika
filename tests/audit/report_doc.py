@@ -6,6 +6,7 @@ execute stays ``not_run``. That status is not a pass.
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -19,6 +20,7 @@ DOC_PATH = (
     / "development"
     / "environment-audit.md"
 )
+RESULTS_DIR = DOC_PATH.parent / "environment-audit-results"
 
 
 def _design(identity) -> str:
@@ -44,12 +46,28 @@ def _cell(value: str) -> str:
     return value.replace("|", "\\|")
 
 
+def load_stored_records() -> list[dict]:
+    """Return stored full-audit records. Missing files yield an empty list."""
+    if not RESULTS_DIR.is_dir():
+        return []
+    records: list[dict] = []
+    for path in sorted(RESULTS_DIR.glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and isinstance(payload.get("audit"), dict):
+            records.append(payload)
+    return records
+
+
 def render_environment_audit_doc(
     *,
     version: str = "0.2.0",
     audits: list[CaseAudit] | None = None,
+    records: list[dict] | None = None,
 ) -> str:
     """Return the reference page for release ``version``."""
+    stored = load_stored_records() if records is None and audits is None else records
+    if audits is None:
+        audits = [CaseAudit.model_validate(item["audit"]) for item in (stored or [])]
     rows = release_cases(version)
     for row in rows:
         row["symptom_probe"] = (
@@ -137,6 +155,7 @@ def render_environment_audit_doc(
     for probe, count in sorted(probes.items()):
         label = probe or "healthy"
         lines.append(f"| `{label}` | {count} |")
+    lines.extend(_executed_section(stored or []))
     lines.extend(["", "## Cases", ""])
     by_scenario: dict[str, list[dict]] = {}
     for item in covered:
@@ -177,6 +196,56 @@ def render_environment_audit_doc(
     lines.append("Rows with admission `not_run` are coverage gaps for the full audit.")
     lines.append("")
     return "\n".join(lines)
+
+
+def _executed_section(records: list[dict]) -> list[str]:
+    lines = [
+        "",
+        "## Executed audits",
+        "",
+        "Each row is one live `audit_case` run: one healthy lab per scenario, and one fault case per failure.",
+        "The release table below changes only when that run has the same scenario, scale, backend, design, fault, and inject parameters.",
+        "",
+    ]
+    if not records:
+        lines.append("No live audit result is stored yet.")
+        lines.append("")
+        return lines
+    lines.extend(
+        [
+            "| Scenario | Fault | Scale | Backend | Design | Inject | Admission | Diagnosis |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    parsed = [
+        (
+            CaseAudit.model_validate(item["audit"]),
+            str(item.get("diagnosis") or ""),
+        )
+        for item in records
+    ]
+    parsed.sort(key=lambda item: (item[0].identity.scenario, item[0].identity.fault))
+    for audit, diagnosis in parsed:
+        identity = audit.identity
+        lines.append(
+            "| "
+            + " | ".join(
+                _cell(part)
+                for part in (
+                    identity.scenario,
+                    identity.fault,
+                    identity.topo_size or "none",
+                    identity.backend or "scenario default",
+                    _design(identity),
+                    _inject(identity),
+                    audit.admission(),
+                    diagnosis,
+                )
+            )
+            + " |"
+        )
+    lines.append("")
+    return lines
 
 
 def _split_counts(covered: list[dict]) -> str:

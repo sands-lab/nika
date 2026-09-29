@@ -17,6 +17,7 @@ from nika.audit.environment import (
     identity_from_row,
 )
 from tests.audit.live import _artifact_stage, _baseline_path, _control_stage
+from tests.audit.matrix import audit_plan
 from tests.audit.report_doc import DOC_PATH, render_environment_audit_doc
 
 pytestmark = pytest.mark.unit
@@ -65,7 +66,7 @@ def test_admission_rejects_gaps() -> None:
     assert admits(audit.admission()) is False
 
 
-def test_release_report_lists_every_case_and_admits_none() -> None:
+def test_release_report_lists_every_case() -> None:
     text = render_environment_audit_doc()
     rows = release_cases("0.2.0")
     assert text == DOC_PATH.read_text(encoding="utf-8")
@@ -74,9 +75,26 @@ def test_release_report_lists_every_case_and_admits_none() -> None:
             f"| {row['problem']} |" in text
             or f"| {row['split']} | {row['problem']} |" in text
         )
-    assert "Admitted cases: 0." in text
-    assert f"| `not_run` | {len(rows)} |" in text
+    assert "Admitted cases:" in text
     assert admits("not_run") is False
+    assert admits("no_evidence") is False
+    assert admits("fail") is False
+
+
+def test_audit_plan_covers_every_scenario_and_failure() -> None:
+    from nika.net_env.net_env_pool import list_all_net_envs
+    from nika.problems.registry import list_avail_problem_names
+    from nika.workflows.benchmark.admit import resource_class_for_row
+
+    plan = audit_plan()
+    healthy = [row for row in plan if row["problem"] == "healthy"]
+    faults = [row for row in plan if row["problem"] != "healthy"]
+    assert {row["scenario"] for row in healthy} == set(list_all_net_envs())
+    assert {row["problem"] for row in faults} == set(list_avail_problem_names())
+    link_down = next(row for row in faults if row["problem"] == "link_down")
+    assert resource_class_for_row(link_down) == "light"
+    arp = next(row for row in faults if row["problem"] == "arp_cache_poisoning")
+    assert resource_class_for_row(arp) == "light"
 
 
 def test_control_and_baseline_helpers() -> None:

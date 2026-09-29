@@ -82,6 +82,14 @@ Symptom probes declared for these cases:
 | `ping_old_ip` | 2 |
 | `route_get_onlink` | 2 |
 
+## Executed audits
+
+Each row is one live `audit_case` run: one healthy lab per scenario, and one fault case per failure.
+The release table below changes only when that run has the same scenario, scale, backend, design, fault, and inject parameters.
+
+No live audit result is stored yet.
+
+
 ## Cases
 
 ### `enterprise_branch`
