@@ -157,6 +157,17 @@ def test_large_exclusive_blocks_peers() -> None:
     assert not can_admit(CLASS_LARGE, in_flight={CLASS_LIGHT: 1}, limits=limits)
 
 
+def test_flat_limits_run_heavy_classes_concurrently() -> None:
+    limits = class_limits(batch_size=3, serialize_heavy=False)
+    assert can_admit(CLASS_K8S, in_flight={CLASS_K8S: 2}, limits=limits)
+    assert not can_admit(CLASS_K8S, in_flight={CLASS_K8S: 3}, limits=limits)
+    assert can_admit(CLASS_LIGHT, in_flight={CLASS_CLAB: 1}, limits=limits)
+    assert can_admit(CLASS_LARGE, in_flight={CLASS_LIGHT: 1}, limits=limits)
+    k8s_a = _trial(scenario="llmd_lab", trial_index=1, case_index=0)
+    k8s_b = _trial(scenario="llmd_lab", trial_index=1, case_index=1)
+    assert pick_admissible([k8s_a, k8s_b], in_flight={CLASS_K8S: 1}, limits=limits) == 0
+
+
 def test_pick_admissible_drains_host_for_blocked_exclusive() -> None:
     light_a = _trial(scenario="dc_clos", trial_index=1, case_index=0)
     k8s = _trial(scenario="k8s_lab", trial_index=1, case_index=1)
