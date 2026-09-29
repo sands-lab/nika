@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -133,6 +134,23 @@ def _load_parent_job(session_dir: Path) -> tuple[Path | None, dict[str, Any] | N
             break
     _cache_put(_PARENT_JOB_CACHE, str(run_root), (signature, job))
     return run_root, job
+
+
+def _start_time(run: dict[str, Any]) -> str | None:
+    """``start_time`` is set at injection; sessions that fail during deploy only have ``created_at``."""
+    if run.get("start_time"):
+        return run["start_time"]
+    created = run.get("created_at")
+    if not created:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(created))
+    except ValueError:
+        return None
+    # start_time / end_time are naive server-local; created_at is tz-aware UTC.
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone().replace(tzinfo=None)
+    return parsed.isoformat()
 
 
 def _inject_params(run: dict[str, Any]) -> dict[str, str]:
@@ -352,7 +370,7 @@ def _build_session_summary(
         problem_names=[str(p) for p in problem_names if p],
         failure_domain=run.get("failure_domain"),
         inject_params=_inject_params(run),
-        start_time=run.get("start_time"),
+        start_time=_start_time(run),
         end_time=run.get("end_time"),
         outcome=run.get("outcome"),
         detection_score=_metric(metrics, "detection_score"),

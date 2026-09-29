@@ -38,7 +38,6 @@ def start_agent(
     sandbox_offline_sdk_wheels: bool | None = None,
 ) -> None:
     """Load the running session, run the agent on ``task_description``, then end the session."""
-    from nika.run_config.legacy import warn_legacy_operational_env
     from nika.utils.agent_config import apply_custom_provider_env
 
     # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
@@ -47,7 +46,6 @@ def start_agent(
 
         quiet_third_party_logging()
 
-    warn_legacy_operational_env()
     apply_custom_provider_env()
 
     agent_type = resolve_agent_type(agent_type)
@@ -56,7 +54,7 @@ def start_agent(
     reasoning_effort = resolve_reasoning_effort(reasoning_effort)
     max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
-    model = resolve_agent_model(agent_type, model, llm_provider=llm_provider)
+    model = resolve_agent_model(agent_type, model)
     sandbox_config = resolve_sandbox_config(
         keep_container=sandbox_keep_container,
         cpus=sandbox_cpus,

@@ -45,12 +45,6 @@ The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the 
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
 
-## Top-level settings
-
-| Key | Schema default | Meaning and constraints |
-| --- | --- | --- |
-| `version` | `1` | Run configuration format version. |
-
 ## `agent` settings
 
 | Key | Schema default | Meaning and constraints |
@@ -65,18 +59,14 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
 | `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
 | `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. Set via YAML, `nika config set agent.custom.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
-| `agent.custom.model` | `null` | Deprecated fallback when `provider: custom` and `agent.model` is unset. |
 | `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
-| `agent.models.<agent>` | `null` | Deprecated per-agent model ids. Sub-keys: `langgraph`, `mcp_agent`, `autogen`, `codex`, `codex_sdk`, `claude`, `claude_sdk`, `sade`. NIKA reads one only when `-m` and `agent.model` are unset, and prints a deprecation warning. |
 | `agent.access.role` | `default` | Diagnosis access role for the run. `--role` on `agent run` / `benchmark run` overrides it. The role must exist in `agent.access.roles`. Benchmark runs record it in the run identity. |
 | `agent.access.roles.<role>.tools` | `["*"]` | MCP tools the agent may call during diagnosis. `*` allows every tool. Submission always allows only `submit`. |
 | `agent.access.roles.<role>.node_roles` | `["*"]` | Scenario node roles that node-targeted tools may address. `*` allows every role. |
 | `agent.access.roles.<role>.node_ids` | `[]` | Extra node names allowed regardless of `node_roles`. |
 
-Model resolution order: `-m/--model`, then `agent.model`, then `agent.custom.model` when `provider: custom`, then deprecated `agent.models.*` (emits a warning).
-
-`agent.models` is deprecated. Set `agent.model` in one YAML file per run profile. To compare models, copy the YAML or pass `-m`.
+Model resolution order: `-m/--model`, then `agent.model`.
 
 | Agent | Providers |
 | --- | --- |
@@ -169,15 +159,4 @@ Default production and benchmark paths use light runtime checks without Batfish 
 
 Benchmark case lists and injection parameters remain in `--release` data or a `--config` case matrix. See the [benchmark configuration reference](../benchmarks/benchmark-configuration.md).
 
-## Migrate operational `.env` keys
-
-Existing installations can convert legacy operational environment variables:
-
-```shell
-uv run nika config migrate
-uv run nika config migrate --write-env
-```
-
-The command prints the proposed YAML and asks before writing. `--write-env` also backs up `.env` to `.env.bak`, then keeps recognized credentials in `.env`. Pass `-y` to skip both confirmations.
-
-NIKA ignores legacy operational variables during normal runs and prints one warning listing the detected keys. `NIKA_RUN_CONFIG` remains supported because it selects the YAML file rather than configuring a run value.
+NIKA ignores old operational variables in `.env`; move any needed values to `config/nika.yaml`. `NIKA_RUN_CONFIG` selects the YAML file rather than configuring a run value.

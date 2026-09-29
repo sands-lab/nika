@@ -11,7 +11,6 @@ from nika.run_config.loader import (
     persist_effective_run_config,
     set_run_config,
 )
-from nika.run_config.legacy import warn_legacy_operational_env
 from nika.utils.agent_config import apply_custom_provider_env
 
 SUPPORTED_AGENT_TYPES = (
@@ -60,7 +59,6 @@ def _activate_run_config(
     sandbox_offline_sdk_wheels: bool | None,
     sandbox_upstream_proxy: str | None,
 ) -> None:
-    warn_legacy_operational_env()
     cfg_path = export_run_config_env(run_config)
     cfg = load_run_config(cfg_path)
     cfg = merge_cli(

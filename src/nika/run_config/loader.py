@@ -66,8 +66,7 @@ def load_run_config(path: str | Path | None = None) -> RunConfig:
             _warned_missing = True
             logger.warning(
                 "Run config not found at %s; using built-in defaults. "
-                "Copy config/nika.example.yaml to config/nika.yaml "
-                "(use `nika config migrate` only to convert legacy .env ops).",
+                "Copy config/nika.example.yaml to config/nika.yaml.",
                 cfg_path,
             )
         return default_run_config()

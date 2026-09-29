@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import warnings
-
 import pytest
 
 from nika.run_config.loader import reset_run_config, set_run_config
@@ -117,90 +115,6 @@ class AgentConfigTest:
                 )
             )
             assert resolve_agent_model(agent_type, None) == model
-
-    def test_legacy_models_field_fallback(self) -> None:
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "byo.langgraph",
-                        "provider": "openai",
-                        "models": {"langgraph": "legacy-model"},
-                    }
-                }
-            )
-        )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            assert resolve_agent_model("byo.langgraph", None) == "legacy-model"
-        assert any(
-            issubclass(w.category, DeprecationWarning)
-            and "agent.models" in str(w.message)
-            for w in caught
-        )
-
-    def test_custom_model_fallback(self) -> None:
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "byo.langgraph",
-                        "provider": "custom",
-                        "custom": {
-                            "base_url": "http://localhost:11434/v1",
-                            "model": "qwen2.5:7b",
-                        },
-                    }
-                }
-            )
-        )
-        assert (
-            resolve_agent_model("byo.langgraph", None, llm_provider="custom")
-            == "qwen2.5:7b"
-        )
-
-    def test_custom_model_wins_over_legacy_models(self) -> None:
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "byo.langgraph",
-                        "provider": "custom",
-                        "models": {"langgraph": "gpt-5-mini"},
-                        "custom": {
-                            "base_url": "http://localhost:11434/v1",
-                            "model": "otel-31b",
-                        },
-                    }
-                }
-            )
-        )
-        assert (
-            resolve_agent_model("byo.langgraph", None, llm_provider="custom")
-            == "otel-31b"
-        )
-
-    def test_agent_model_wins_over_legacy_models_for_custom(self) -> None:
-        set_run_config(
-            RunConfig.model_validate(
-                {
-                    "agent": {
-                        "type": "byo.langgraph",
-                        "provider": "custom",
-                        "model": "otel-31b",
-                        "models": {"langgraph": "gpt-5-mini"},
-                        "custom": {
-                            "base_url": "http://localhost:11434/v1",
-                            "model": "qwen2.5:7b",
-                        },
-                    }
-                }
-            )
-        )
-        assert (
-            resolve_agent_model("byo.langgraph", None, llm_provider="custom")
-            == "otel-31b"
-        )
 
     def test_apply_custom_provider_env_exports_agent_model(self, monkeypatch) -> None:
         for key in ("NIKA_CUSTOM_MODEL", "NIKA_CUSTOM_BASE_URL", "CUSTOM_API_BASE"):

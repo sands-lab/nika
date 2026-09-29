@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-ENV_SANDBOX_KEEP = "NIKA_SANDBOX_KEEP"  # legacy name (ignored for ops; use YAML)
 ENV_SANDBOX_CPUS = "NIKA_SANDBOX_CPUS"
 ENV_SANDBOX_MEMORY = "NIKA_SANDBOX_MEMORY"
 ENV_SANDBOX_OFFLINE_SDK_WHEELS = "NIKA_SANDBOX_OFFLINE_SDK_WHEELS"

@@ -139,9 +139,9 @@ class SbxSandboxManager:
 
     def _bundle_agent_sources(self, workspace_dir: Path) -> None:
         """Copy agent code (prompts, SDK workers) into the sandbox workspace."""
-        from nika.config import _REPO_ROOT
+        from nika.config import REPO_ROOT
 
-        src = _REPO_ROOT / "src" / "agent"
+        src = REPO_ROOT / "src" / "agent"
         dst = workspace_dir / "agent"
         if dst.exists():
             shutil.rmtree(dst)

@@ -5,16 +5,11 @@ Operational settings no longer come from ``.env``. Credentials remain in ``.env`
 
 from __future__ import annotations
 
-import logging
 import os
-import warnings
 
 from nika.run_config.loader import get_run_config
 from nika.run_config.schema import RunConfig
 from agent.utils.provider_env import validate_provider_for_agent
-
-logger = logging.getLogger(__name__)
-_legacy_models_warned = False
 
 
 def _cfg(config: RunConfig | None) -> RunConfig:
@@ -84,41 +79,19 @@ def resolve_max_tokens(
     return _cfg(config).agent.max_tokens
 
 
-def _warn_legacy_models_field() -> None:
-    global _legacy_models_warned  # noqa: PLW0603
-    if _legacy_models_warned:
-        return
-    _legacy_models_warned = True
-    warnings.warn(
-        "agent.models.* is deprecated; set agent.model in config/nika.yaml instead.",
-        DeprecationWarning,
-        stacklevel=3,
-    )
-
-
 def resolve_agent_model(
     agent_type: str,
     model: str | None = None,
     *,
-    llm_provider: str | None = None,
     config: RunConfig | None = None,
 ) -> str:
-    """Resolve model id: CLI ``-m`` → agent.model → custom.model → models.*."""
+    """Resolve model id from CLI or ``agent.model``."""
     if model:
         return model
 
     cfg = _cfg(config)
-    provider = (llm_provider or cfg.agent.provider or "").strip().lower()
-
     if yaml_model := (cfg.agent.model or "").strip():
         return yaml_model
-
-    if provider == "custom" and (custom := (cfg.agent.custom.model or "").strip()):
-        return custom
-
-    if legacy := cfg.legacy_model_for_agent(agent_type):
-        _warn_legacy_models_field()
-        return legacy
 
     match agent_type.lower():
         case "cli.claude" | "sdk.claude_sdk" | "community.sade":
@@ -169,7 +142,7 @@ def apply_custom_provider_env(config: RunConfig | None = None) -> None:
     """
     cfg = _cfg(config)
     base = (cfg.agent.custom.base_url or "").strip()
-    model = (cfg.agent.model or "").strip() or (cfg.agent.custom.model or "").strip()
+    model = (cfg.agent.model or "").strip()
     if base:
         os.environ["NIKA_CUSTOM_BASE_URL"] = base
         os.environ["CUSTOM_API_BASE"] = base

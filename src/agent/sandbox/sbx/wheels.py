@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from agent.sandbox.sbx.client import run_sbx_checked
-from nika.config import _REPO_ROOT
+from nika.config import REPO_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ SDK_WHEEL_DIRNAME = ".sdk_wheels"
 SDK_REQUIREMENTS_FILENAME = "requirements-sdk.txt"
 _SBX_DIR = Path(__file__).resolve().parent
 SDK_REQUIREMENTS_FILE = _SBX_DIR / SDK_REQUIREMENTS_FILENAME
-_WHEEL_CACHE = _REPO_ROOT / ".nika_cache" / "sbx-sdk-wheels"
+_WHEEL_CACHE = REPO_ROOT / ".nika_cache" / "sbx-sdk-wheels"
 _CACHE_REQ_STAMP = ".requirements-sdk.txt"
 _TARGET_PYTHON = "3.14"
 _TARGET_PLATFORM = "manylinux_2_17_x86_64"

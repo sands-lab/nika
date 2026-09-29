@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import json
+import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +19,24 @@ from tests.support.prerequisites import docker_available
 @pytest.fixture(autouse=True)
 def _isolate_cache_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cache, "cache_root", lambda: tmp_path / "k8s-images")
+
+
+def _image_tar(*, complete: bool = True) -> bytes:
+    """Minimal ``docker save`` archive; incomplete omits the layer blob."""
+    manifest = [{"Config": "blobs/sha256/config", "Layers": ["blobs/sha256/layer"]}]
+    members = {
+        "manifest.json": json.dumps(manifest).encode(),
+        "blobs/sha256/config": b"{}",
+    }
+    if complete:
+        members["blobs/sha256/layer"] = b"layer"
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
 
 
 @pytest.mark.unit
@@ -74,7 +95,7 @@ def test_ensure_cached_skips_pull_and_save_when_tar_exists(
 ) -> None:
     tar_path = cache.cache_tar_path("postgres:16")
     tar_path.parent.mkdir(parents=True, exist_ok=True)
-    tar_path.write_bytes(b"cached")
+    tar_path.write_bytes(_image_tar())
 
     with (
         patch.object(cache, "pull_image") as pull,
@@ -89,7 +110,7 @@ def test_ensure_cached_skips_pull_and_save_when_tar_exists(
 
 @pytest.mark.unit
 def test_ensure_cached_pulls_and_saves_when_missing(tmp_path: Path) -> None:
-    saved = b"docker-tar"
+    saved = _image_tar()
 
     class _FakeImage:
         def save(self, *, named: bool = True):
@@ -108,6 +129,29 @@ def test_ensure_cached_pulls_and_saves_when_missing(tmp_path: Path) -> None:
     pull.assert_called_once_with("postgres:16")
     assert result == cache.cache_tar_path("postgres:16")
     assert result.read_bytes() == saved
+
+
+@pytest.mark.unit
+def test_ensure_cached_rejects_tars_missing_layers() -> None:
+    tar_path = cache.cache_tar_path("rancher/mirrored-metrics-server:v0.8.0")
+    tar_path.parent.mkdir(parents=True, exist_ok=True)
+    tar_path.write_bytes(_image_tar(complete=False))
+
+    class _FakeImage:
+        def save(self, *, named: bool = True):
+            yield _image_tar(complete=False)
+
+    fake_client = MagicMock()
+    fake_client.images.get.return_value = _FakeImage()
+
+    with (
+        patch.object(cache, "image_exists", return_value=True),
+        patch.object(cache, "_get_client", return_value=fake_client),
+    ):
+        result = cache.ensure_cached("rancher/mirrored-metrics-server:v0.8.0")
+
+    assert result is None
+    assert list(cache.cache_root().iterdir()) == []
 
 
 @pytest.mark.unit
