@@ -267,3 +267,30 @@ class CoreDNSIsolation(K8sProblemBase):
                 return False, {"target_devices": devices, "error": str(exc)}
 
         return self.poll_verify(check)
+
+    def recheck_artifact(self, params: CoreDNSIsolationParams) -> dict:
+        """Re-read the DNS drop rules. Does not query DNS or open a TCP port."""
+        k8s = self.runtime.lab_api
+        devices = self._target_devices(params, k8s)
+        destinations = self._dns_destinations(params, k8s)
+        specs = self._drop_specs(params, destinations)
+        unfiltered: list[str] = []
+        for device in devices:
+            node_filter = NodeFilter(self.runtime, device)
+            unfiltered.extend(
+                f"{device}:{spec.describe()}:{chain}"
+                for spec in specs
+                for chain, installed in node_filter.blocked_spec(spec).items()
+                if not installed
+            )
+        present = not unfiltered
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_devices": devices,
+                "unfiltered": unfiltered,
+            },
+            "error": None if present else "fault artifact absent",
+        }

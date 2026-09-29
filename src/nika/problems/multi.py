@@ -191,6 +191,36 @@ class MultiFaultProblem(ProblemBase):
             details={"sub_results": sub_results},
         )
 
+    def recheck_artifact(self, params: MultiFaultParams | None = None) -> dict:
+        """Recheck each sub-fault on the instance that injected it."""
+        resolved = (
+            params if isinstance(params, MultiFaultParams) else self._resolved_params
+        )
+        sub_results = []
+        errors: list[str] = []
+        present = True
+        for name, fault in self._fault_pairs():
+            parsed = (
+                resolved.sub_params.get(name)
+                if isinstance(resolved, MultiFaultParams)
+                else None
+            )
+            if parsed is not None:
+                item = fault.recheck_artifact(parsed)
+            else:
+                item = fault.recheck_artifact()
+            sub_results.append(item)
+            if not item.get("present"):
+                present = False
+                errors.append(f"{name}: {item.get('error') or 'fault artifact absent'}")
+        return {
+            "present": present,
+            "fault": ",".join(self.problem_names) or str(self.root_cause_name),
+            "scope": "artifact",
+            "evidence": {"sub_results": sub_results},
+            "error": None if present else "; ".join(errors),
+        }
+
     def get_ground_truth(self) -> ProblemGroundTruth:
         from nika.problems.rca.materialize import build_multi_ground_truth
 

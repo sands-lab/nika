@@ -306,6 +306,39 @@ class ProblemBase:
                     f"lacks required capabilities: {missing_text}."
                 )
 
+    def recheck_artifact(self, params: Any = None) -> dict[str, Any]:
+        """Read this instance's fault artifacts.
+
+        Call this on the instance that ran ``inject_fault``. A new instance
+        does not have inject-time state, and this method does not create one.
+        The result reports artifact presence. It does not report a network effect.
+        """
+        if params is not None:
+            result = self.verify_fault(params=params)
+        else:
+            result = self.verify_fault()
+        if not isinstance(result, dict):
+            return {
+                "present": False,
+                "fault": str(
+                    getattr(self, "root_cause_name", "") or type(self).__name__
+                ),
+                "scope": "artifact",
+                "evidence": {},
+                "error": "verify_fault did not return a dict",
+            }
+        present = bool(result.get("verified"))
+        details = result.get("details")
+        evidence = details if isinstance(details, dict) else {"details": details}
+        fault = result.get("fault_type") or getattr(self, "root_cause_name", "")
+        return {
+            "present": present,
+            "fault": fault if isinstance(fault, str) else str(fault),
+            "scope": "artifact",
+            "evidence": evidence,
+            "error": None if present else "fault artifact absent",
+        }
+
 
 def build_verify_result(
     fault_type: str,

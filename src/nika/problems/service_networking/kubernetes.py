@@ -257,3 +257,23 @@ class ClusterIPRoutingBroken(K8sProblemBase):
                 }
 
         return self.poll_verify(check)
+
+    def recheck_artifact(self, params: ClusterIPRoutingBrokenParams) -> dict:
+        """Re-read the raw-table drops. Does not open a TCP connection."""
+        k8s = self.runtime.lab_api
+        device = self._target_device(params)
+        target = self.blocked_target or self._block_target(params, k8s)
+        blocked = NodeFilter(self.runtime, device).blocked(target)
+        present = bool(blocked.get("prerouting")) and bool(blocked.get("output"))
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_device": device,
+                "blocked_target": target,
+                "raw_prerouting_blocked": bool(blocked.get("prerouting")),
+                "raw_output_blocked": bool(blocked.get("output")),
+            },
+            "error": None if present else "fault artifact absent",
+        }

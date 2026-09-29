@@ -42,6 +42,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | --- | --- | --- |
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
+| Read per-case environment-audit status for release 0.2.0 | [Environment audit](development/environment-audit.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation

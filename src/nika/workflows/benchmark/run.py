@@ -52,6 +52,7 @@ from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
+    ENVIRONMENT_INVALID,
     RETRYABLE_OUTCOMES,
     classify_trial_failure,
     is_signal_exit_code,
@@ -569,8 +570,9 @@ def _finalize_failed_trial(
     """Close the lab and stamp a post-inject failure outcome with ``score_status``.
 
     ``agent_failed`` is a counted finished slot (kept by resume).
-    ``endpoint_failed`` / ``infra_failed`` are retryable: ``status=error``, not
-    counted, cleaned on resume — no eval_metrics placeholders for those.
+    ``endpoint_failed``, ``infra_failed``, and ``environment_invalid`` are
+    retryable: ``status=error``, not counted, cleaned on resume. Those slots
+    do not get eval_metrics placeholders.
     """
     status = "finished" if outcome == "agent_failed" else "error"
     _close_quietly(session_id, session_dir, status=status)
@@ -578,7 +580,10 @@ def _finalize_failed_trial(
 
     has_submission = has_valid_submission(session_dir)
     has_ground_truth = (session_dir / "ground_truth.json").is_file()
-    if has_submission:
+    if outcome == ENVIRONMENT_INVALID:
+        # A submission does not make a disappeared fault into an agent result.
+        score_status = "infra_error"
+    elif has_submission:
         # Submission-first: agent finished even if a later step failed.
         outcome = "success"
         status = "finished"
@@ -660,8 +665,24 @@ def _finalize_post_inject_failure(
 
     A valid ``submission.json`` means the agent finished its task, so the trial
     is a ``success`` even when a later step (agent timeout, sandbox teardown,
-    worker kill) failed. Otherwise classify the failure. Returns the outcome.
+    worker kill) failed. An ``environment_invalid`` recheck overrides that:
+    the fault artifact did not last, so the slot is not an agent result.
+    Otherwise classify the failure. Returns the outcome.
     """
+    from nika.validation.presence import is_environment_invalid
+
+    existing = trial_outcome(session_dir)
+    if existing == ENVIRONMENT_INVALID:
+        return existing
+    if is_environment_invalid(error):
+        _finalize_failed_trial(
+            session_id=session_id,
+            session_dir=session_dir,
+            result_dir=result_dir,
+            error=error,
+            outcome=ENVIRONMENT_INVALID,
+        )
+        return ENVIRONMENT_INVALID
     if has_valid_submission(session_dir):
         _close_and_eval_success(
             session_id=session_id,

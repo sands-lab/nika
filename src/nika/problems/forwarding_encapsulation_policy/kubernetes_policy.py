@@ -163,6 +163,30 @@ class NetworkPolicyDeny(K8sProblemBase):
 
         return self.poll_verify(evaluate)
 
+    def recheck_artifact(self, params: NetworkPolicyDenyParams) -> dict:
+        """Re-read the NetworkPolicy object. Does not request the symptom URL."""
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        policy_exists = bool(
+            k8s.k8s_object_exists(
+                control,
+                "networkpolicy",
+                params.policy_name,
+                namespace=params.namespace,
+            )
+        )
+        return {
+            "present": policy_exists,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "namespace": params.namespace,
+                "policy_name": params.policy_name,
+                "policy_exists": policy_exists,
+            },
+            "error": None if policy_exists else "fault artifact absent",
+        }
+
     def recover_fault(self, params: NetworkPolicyDenyParams) -> dict:
         k8s = self.runtime.lab_api
         control = self.control_node(params)

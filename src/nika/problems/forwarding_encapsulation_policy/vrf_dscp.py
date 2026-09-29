@@ -311,6 +311,17 @@ class VrfDscpRemarking(ProblemBase):
             details=details,
         )
 
+    def recheck_artifact(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
+        """Re-read the nft remark rule. Does not sample DSCP or send bulk traffic."""
+        remark_ok = bool(self._remark_present(params))
+        return {
+            "present": remark_ok,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {"remark_present": remark_ok, "intf": params.intf_name},
+            "error": None if remark_ok else "fault artifact absent",
+        }
+
     def recover_fault(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
         """Remove remarking, confirm DSCP/performance recovery, then stop workload."""
         self._remove_remark(params)

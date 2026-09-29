@@ -325,6 +325,16 @@ def inject_failure(
         scenario=session.scenario_name,
         duration_ms=elapsed_ms(workflow_started),
     )
+    from nika.validation.presence import bind_injected_problem, record_injection_verify
+
+    if len(resolved_names) == 1:
+        fault_name = resolved_names[0]
+    else:
+        fault_name = ",".join(resolved_names)
+    bind_injected_problem(session.session_id, inject_problem, fault_params)
+    record_injection_verify(
+        session.session_dir, fault=fault_name, verify_result=verify_payload
+    )
     task_description = inject_problem.get_task_description()
     session.update_session("task_description", task_description)
 

@@ -102,7 +102,12 @@ def start_agent(
         max_steps=max_steps,
         timeout_sec=timeout_sec,
     )
+    from nika.validation.presence import PresenceWatch, raise_if_presence_failed
+
+    presence = PresenceWatch(session.session_id, session.session_dir)
+    presence.start()
     agent_started = time.perf_counter()
+    agent_exc: BaseException | None = None
     if agent_type == "cli.codex" and stream_output:
         effort_line = (
             f" | Reasoning effort: {reasoning_effort}" if reasoning_effort else ""
@@ -216,18 +221,21 @@ def start_agent(
                             session.task_description,
                             timeout_sec=timeout_sec,
                         )
-    except Exception as exc:
-        log_error_event(
-            "agent_error",
-            f"Agent run failed for session {session.session_id}: {exc}",
-            session_id=session.session_id,
-            agent_type=agent_type,
-            model=model,
-            error=str(exc),
-            error_type=type(exc).__name__,
-            duration_ms=elapsed_ms(agent_started),
-        )
-        raise
+    except BaseException as exc:
+        agent_exc = exc
+        if not isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            log_error_event(
+                "agent_error",
+                f"Agent run failed for session {session.session_id}: {exc}",
+                session_id=session.session_id,
+                agent_type=agent_type,
+                model=model,
+                error=str(exc),
+                error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(agent_started),
+            )
+    presence_failure = presence.finish()
+    raise_if_presence_failed(presence_failure, agent_exc)
 
     session.end_session()
     log_event(

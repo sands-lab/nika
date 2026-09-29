@@ -255,3 +255,27 @@ class WorkerApiServerPartition(K8sProblemBase):
                 return False, {"target_device": device, "error": str(exc)}
 
         return self.poll_verify(check, timeout=NODE_NOTREADY_TIMEOUT_SEC)
+
+    def recheck_artifact(self, params: WorkerApiServerPartitionParams) -> dict:
+        """Re-read the worker iptables drops. Does not ping or open kubectl logs."""
+        k8s = self.runtime.lab_api
+        device = self._target_device(params)
+        specs = self._drop_specs(params, k8s)
+        node_filter = NodeFilter(self.runtime, device)
+        unfiltered = [
+            f"{spec.describe()}:{chain}"
+            for spec in specs
+            for chain, installed in node_filter.blocked_spec(spec).items()
+            if not installed
+        ]
+        present = not unfiltered
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_device": device,
+                "unfiltered": unfiltered,
+            },
+            "error": None if present else "fault artifact absent",
+        }
