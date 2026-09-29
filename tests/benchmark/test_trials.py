@@ -74,7 +74,8 @@ def _mini_cases_yaml(path: Path, rows: list[dict] | None = None) -> Path:
 class TestTrialHelpers:
     def test_case_key_and_trial_dirname_are_stable(self) -> None:
         key = case_key_for_row(ROW_A)
-        assert key == "dc_clos__link_down__s__host_name-client_0__intf_name-eth0"
+        assert key == "dc_clos__link_down__s__h0477bc828c02"
+        assert len(trial_dirname(key, 1)) <= 48
         assert trial_dirname(key, 1) == f"{key}__t01"
         assert trial_dirname(key, 12) == f"{key}__t12"
         assert case_key_for_row(ROW_A) == key
@@ -934,6 +935,20 @@ class TestReleaseRunMetadata:
         }
         assert case_key_for_row(ROW_A) != case_key_for_row(other)
         assert benchmark_row_fingerprint(ROW_A) != benchmark_row_fingerprint(other)
+
+    def test_long_trial_directory_keeps_readable_case_prefix(self) -> None:
+        row = {
+            "scenario": "llmd_lab",
+            "problem": "k8s_worker_apiserver_partition",
+            "inject": {"control_node": "controller", "node_name": "worker1"},
+        }
+        key = case_key_for_row(row)
+        dirname = trial_dirname(key, 1)
+        assert dirname == "llmd_lab__k8s_worker_apiserv__h0e0b63d80bc1__t01"
+        assert len(dirname) <= 48
+        assert key != case_key_for_row(
+            {**row, "inject": {**row["inject"], "node_name": "worker2"}}
+        )
 
     def test_runtime_progress_tracks_completed_trials(self, tmp_path: Path) -> None:
         cases = _mini_cases_yaml(tmp_path / "cases.yaml")

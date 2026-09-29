@@ -23,6 +23,7 @@ from nika.workflows.benchmark.outcomes import (
     agent_demonstrably_started,
 )
 from nika.workflows.benchmark.resume import (
+    benchmark_row_fingerprint,
     benchmark_row_identity,
     cleanup_benchmark_session,
 )
@@ -133,14 +134,15 @@ def case_key_for_row(row: dict[str, Any]) -> str:
         parts.append("rpki")
     base = "__".join(parts)
     inject_parts = _inject_case_key_parts(identity.get("inject"))
-    if not inject_parts:
-        return base
     full = "__".join([base, *inject_parts])
-    # Linux NAME_MAX is 255; trial dirname appends ``__tNN``.
-    if len(full) + 5 <= 240:
+    # Keep trial directory names short for nested runtime paths. Retain the
+    # readable scenario/problem prefix and hash the full identity when needed.
+    if len(full) + 5 <= 48:
         return full
-    digest = hashlib.sha1(full.encode("utf-8")).hexdigest()[:16]
-    return f"{base}__inj-{digest}"
+    digest = hashlib.sha1(benchmark_row_fingerprint(row).encode("utf-8")).hexdigest()[
+        :12
+    ]
+    return f"{base[:28].rstrip('_-')}__h{digest}"
 
 
 def trial_dirname(case_key: str, trial_index: int) -> str:

@@ -260,16 +260,16 @@ nika benchmark run --config benchmark/working/pool --batch-size 4
 
 ### Task ids
 
-Each benchmark case has a public `task_id`. NIKA derives it from scenario, problem, deploy options, and inject params. The same string is the filesystem `case_key`. Trial directories append `__tNN` (`{task_id}__t01`).
+Each benchmark case has a public `task_id`. NIKA derives it from scenario, problem, deploy options, and inject params. The same string is the filesystem `case_key`. Long ids keep a readable prefix and a stable hash, so trial directory names stay within 48 characters after appending `__tNN` (`{task_id}__t01`). Use `nika benchmark describe` to see the full parameters.
 
 Use these commands when you need to look up a case or re-run one failed trial without rebuilding `--set` flags by hand:
 
 ```shell
 nika benchmark list --release 0.2.0 --split test
-nika benchmark describe dc_clos__link_detach__m__host_name-client_0__intf_name-eth0 \
+nika benchmark describe dc_clos__link_detach__m__h240c6b1dc30f \
   --release 0.2.0 --split test
 nika benchmark run --release 0.2.0 --split test \
-  --task-id dc_clos__link_detach__m__host_name-client_0__intf_name-eth0__t01 \
+  --task-id dc_clos__link_detach__m__h240c6b1dc30f__t01 \
   --result_dir results/one-case
 ```
 
