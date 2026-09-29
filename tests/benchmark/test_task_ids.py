@@ -29,8 +29,8 @@ from tests.benchmark.trial_helpers import ROW_A, ROW_B, mini_cases_yaml
 pytestmark = pytest.mark.unit
 
 _RUNNER = CliRunner()
-TASK_A = "dc_clos__link_down__s__host_name-client_0__intf_name-eth0"
-TASK_B = "dc_clos__link_flap__s__host_name-client_0__intf_name-eth0"
+TASK_A = "dc_clos__link_down__s__h0477bc828c02"
+TASK_B = "dc_clos__link_flap__s__hcc30df961cd6"
 
 
 @pytest.fixture(autouse=True)
