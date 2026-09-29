@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import sys
+import tarfile
+import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -121,11 +125,27 @@ def _progress(message: str) -> None:
         pass
 
 
+def _tar_is_complete(path: Path) -> bool:
+    """Whether every config and layer listed in the tar's manifest.json is present."""
+    try:
+        with tarfile.open(path) as archive:
+            names = set(archive.getnames())
+            manifest = json.load(archive.extractfile("manifest.json"))
+        return all(
+            entry["Config"] in names and set(entry["Layers"]) <= names
+            for entry in manifest
+        )
+    except (tarfile.TarError, KeyError, TypeError, AttributeError, ValueError):
+        return False
+
+
 def ensure_cached(image: str) -> Path | None:
     """Pull ``image`` on the host when needed and return its tar cache path."""
     tar_path = cache_tar_path(image)
     if cache_tar_exists(image):
-        return tar_path
+        if _tar_is_complete(tar_path):
+            return tar_path
+        tar_path.unlink(missing_ok=True)
 
     cache_root().mkdir(parents=True, exist_ok=True)
     try:
@@ -136,14 +156,29 @@ def ensure_cached(image: str) -> Path | None:
         return None
 
     client = _get_client()
+    # Concurrent trials may cache the same image; publish only complete tars.
+    fd, tmp_name = tempfile.mkstemp(dir=cache_root(), suffix=".tmp")
+    tmp_path = Path(tmp_name)
     try:
-        with tar_path.open("wb") as handle:
+        with os.fdopen(fd, "wb") as handle:
             for chunk in client.images.get(image).save(named=True):
                 handle.write(chunk)
+        # The containerd image store can omit blobs for layers shared with
+        # another local image (moby/moby#49473); k3s then pulls the image.
+        if not _tar_is_complete(tmp_path):
+            print(
+                f"WARNING: docker save exported {image} without all layers; "
+                "not caching it",
+                file=sys.stderr,
+            )
+            return None
+        tmp_path.chmod(0o644)
+        tmp_path.replace(tar_path)
     except Exception as exc:  # noqa: BLE001 - continue caching other images
         print(f"WARNING: could not save {image} to cache: {exc}", file=sys.stderr)
-        tar_path.unlink(missing_ok=True)
         return None
+    finally:
+        tmp_path.unlink(missing_ok=True)
     return tar_path
 
 
