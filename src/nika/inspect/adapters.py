@@ -612,11 +612,43 @@ def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
                 yield row
 
 
+def _annotate_claude_request_durations(
+    entries: list[dict[str, Any]], events: list[CanonicalTraceEvent]
+) -> None:
+    """Set ``duration_ms`` on the first llm row of each Claude API response.
+
+    Claude stream-json has no request bookends. Content blocks of one response
+    share ``message.id``; the request is sent right after the preceding entry
+    (tool results or ``system init``) and completes with its last block.
+    """
+    groups: dict[str, list[int]] = {}
+    for i, entry in enumerate(entries):
+        claude = _claude_event(entry) or {}
+        message = claude.get("message")
+        if claude.get("type") == "assistant" and isinstance(message, dict):
+            message_id = message.get("id")
+            if isinstance(message_id, str) and message_id:
+                groups.setdefault(message_id, []).append(i)
+    for indices in groups.values():
+        target = next((i for i in indices if events[i].kind == "llm"), None)
+        if indices[0] == 0 or target is None:
+            continue
+        try:
+            start = datetime.fromisoformat(entries[indices[0] - 1]["timestamp"])
+            end = datetime.fromisoformat(entries[indices[-1]]["timestamp"])
+            elapsed_ms = (end - start).total_seconds() * 1000
+        except (KeyError, TypeError, ValueError):
+            continue
+        if elapsed_ms > 0:
+            events[target].duration_ms = elapsed_ms
+
+
 def load_agent_events(session_dir: Path) -> list[CanonicalTraceEvent]:
     path = session_dir / "messages.jsonl"
-    return [
-        adapt_agent_event(entry, index=i) for i, entry in enumerate(iter_jsonl(path))
-    ]
+    entries = list(iter_jsonl(path))
+    events = [adapt_agent_event(entry, index=i) for i, entry in enumerate(entries)]
+    _annotate_claude_request_durations(entries, events)
+    return events
 
 
 def load_nika_events(session_dir: Path) -> list[CanonicalTraceEvent]:
