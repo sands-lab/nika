@@ -1,4 +1,3 @@
-import hashlib
 import re
 import time
 
@@ -595,21 +594,12 @@ class LinkDetach(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
-        self._detach_netns: str | None = None
+        self._detach_pid: str | None = None
         self._saved_addrs: list[str] = []
         self._saved_routes: list[str] = []
 
     def root_cause_resources(self, params: LinkDetachParams):
         return [interface_on(self.net_env, params.host_name, params.intf_name)]
-
-    @staticmethod
-    def _detach_netns_name(lab_name: str, host: str, intf: str) -> str:
-        key = hashlib.blake2s(
-            f"{lab_name}:{host}:{intf}".encode(),
-            digest_size=16,
-        ).hexdigest()
-        # UUID-style name like the per-sandbox netns a CNI runtime leaves behind.
-        return f"cni-{key[:8]}-{key[8:12]}-{key[12:16]}-{key[16:20]}-{key[20:]}"
 
     def _save_l3_state(self, host: str, intf: str) -> None:
         """Remember addresses and static routes; the netns move drops them.
@@ -668,18 +658,29 @@ class LinkDetach(ProblemBase):
         self._inject_link_detach(params, intf)
 
     def _inject_link_detach(self, params: LinkDetachParams, intf_name: str) -> None:
-        """Move the attachment into a private netns so it disappears from inventory."""
+        """Move the attachment into a private netns so it disappears from inventory.
+
+        The netns is held by a background process instead of `ip netns add`,
+        whose bind mount is denied by Docker's default AppArmor profile.
+        """
         self.faulty_intf = intf_name
-        netns = self._detach_netns_name(
-            self.runtime.lab_name, params.host_name, intf_name
-        )
-        self._detach_netns = netns
         host = params.host_name
         self._save_l3_state(host, intf_name)
-        self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
-        add_out = self.runtime.exec(host, f"ip netns add {netns} 2>&1")
+        start_out = self.runtime.exec(
+            host,
+            "nohup unshare -n sleep infinity </dev/null >/dev/null 2>&1 & echo PID:$!",
+        )
+        match = re.search(r"PID:(\d+)", start_out)
+        pid = match.group(1) if match else ""
+        self._detach_pid = pid or None
+        # The holder enters its netns only once `unshare` runs; moving the
+        # interface before that is a silent no-op.
         move_out = self.runtime.exec(
-            host, f"ip link set dev {intf_name} netns {netns} 2>&1"
+            host,
+            f'i=0; while [ $i -lt 50 ] && [ "$(readlink /proc/{pid}/ns/net)" = '
+            f'"$(readlink /proc/self/ns/net)" ]; do sleep 0.1; i=$((i+1)); done; '
+            f"ip link set dev {intf_name} netns {pid} 2>&1",
+            timeout=15,
         )
         # Brief settle: some runners still list the iface until the move commits.
         deadline = time.time() + 5.0
@@ -688,14 +689,17 @@ class LinkDetach(ProblemBase):
                 break
             time.sleep(0.2)
         else:
+            if pid:
+                self.runtime.exec(host, f"kill {pid} 2>/dev/null || true")
+            self._detach_pid = None
             raise RuntimeError(
                 f"link_detach failed: {host}:{intf_name} still present after "
-                f"moving to netns {netns}. netns add output={add_out!r}; "
+                f"moving to the netns of pid {pid or '?'}. start output={start_out!r}; "
                 f"move output={move_out!r}. Containers need NET_ADMIN/SYS_ADMIN "
-                "(or privileged) for `ip link set … netns`."
+                "(or privileged) for `unshare -n` and `ip link set … netns`."
             )
         system_logger.info(
-            f"Injected link detach on {host}:{intf_name} (moved to netns {netns})"
+            f"Injected link detach on {host}:{intf_name} (moved to netns of pid {pid})"
         )
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
@@ -733,18 +737,17 @@ class LinkDetach(ProblemBase):
     def recover_fault(self, params: LinkDetachParams) -> dict:
         """Move the detached interface back into the node namespace."""
         intf = resolve_default_intf(params.intf_name, self.net_env)
-        netns = self._detach_netns or self._detach_netns_name(
-            self.runtime.lab_name, params.host_name, intf
-        )
         host = params.host_name
-        self.runtime.exec(
-            host,
-            f"ip netns exec {netns} ip link set dev {intf} netns 1 2>/dev/null || true",
-        )
+        pid = self._detach_pid
+        if pid:
+            self.runtime.exec(
+                host,
+                f"nsenter -t {pid} -n ip link set dev {intf} netns 1 2>/dev/null || true",
+            )
+            self.runtime.exec(host, f"kill {pid} 2>/dev/null || true")
         self.runtime.exec(host, f"ip link set dev {intf} up 2>/dev/null || true")
-        self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
         self._restore_l3_state(host, intf)
-        self._detach_netns = None
+        self._detach_pid = None
         restored = self.runtime.interface_exists(host, intf)
         return {
             "verified": restored,
