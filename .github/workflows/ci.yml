@@ -110,6 +110,7 @@ jobs:
           - nika/pox
           - nika/onos
           - nika/fabric-controller
+          - nika/tc-bpf
           - nika/routinator:v0.14.2
     steps:
       - uses: actions/checkout@v5
