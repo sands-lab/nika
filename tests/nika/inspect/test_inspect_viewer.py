@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -729,6 +730,30 @@ class TestCatalog:
         assert [
             s.session_id for s in list_sessions(results_root=tmp_path, status="error")
         ] == ["errored"]
+
+    def test_deploy_failure_start_time_falls_back_to_created_at(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        failed = tmp_path / "deploy-failed"
+        failed.mkdir()
+        _write_json(
+            failed / "run.json",
+            {
+                "session_id": "deploy-failed",
+                "status": "error",
+                "created_at": "2026-01-01T12:00:00+00:00",
+                "end_time": "2026-01-01T14:00:30",
+            },
+        )
+
+        # start_time is naive server-local like end_time; created_at is UTC.
+        monkeypatch.setenv("TZ", "Europe/Helsinki")
+        time.tzset()
+        try:
+            assert summarize_session_dir(failed).start_time == "2026-01-01T14:00:00"
+        finally:
+            monkeypatch.undo()
+            time.tzset()
 
     def test_benchmark_trial_enrichment(self, tmp_path: Path) -> None:
         run_root = tmp_path / "bench-demo-run"
