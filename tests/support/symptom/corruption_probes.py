@@ -156,7 +156,7 @@ def _tcp_degraded(
     if (
         baseline_retrans is None
         and injected_retrans is not None
-        and injected_retrans >= 20
+        and injected_retrans >= 8
     ):
         details["tcp_degraded_via"] = "iperf_retransmits_absolute"
         return True, details

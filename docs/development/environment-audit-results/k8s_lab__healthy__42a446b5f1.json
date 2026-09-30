@@ -1,0 +1,70 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "k8s_lab",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "healthy",
+      "inject": {}
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "k8s_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          },
+          "details": {
+            "ingress_ip": "101.0.0.1",
+            "ready_nodes": 6,
+            "word_url": "http://datacenter.com/word"
+          }
+        }
+      },
+      {
+        "stage": "final_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "k8s_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          },
+          "details": {
+            "ingress_ip": "101.0.0.1",
+            "ready_nodes": 6,
+            "word_url": "http://datacenter.com/word"
+          }
+        }
+      }
+    ],
+    "symptom_probe": ""
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 308.4,
+  "error": null,
+  "resource_class": "k8s"
+}

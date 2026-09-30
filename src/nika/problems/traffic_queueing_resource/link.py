@@ -44,7 +44,11 @@ _INCAST_COLUMNS = frozenset(
 # software at roughly 10 Mbit/s, so a 100mbit egress never queues behind it; the
 # emulated port must drain slower than the switch forwards for bursts to pile up.
 _KERNEL_RATES = ("100mbit", "20M/64")
-_BMV2_RATES = ("4mbit", "500K/64")
+# Four senders at 3 Mbit/s exceed the 4 Mbit/s port even when the bursts
+# do not overlap. simple_switch transmits with PACKET_QDISC_BYPASS, so the
+# switch root qdisc never counts those packets; the receiver ingress police
+# is the queue the symptom reads.
+_BMV2_RATES = ("4mbit", "3M/64")
 
 
 def tc_size_bytes(value: str) -> int | None:
@@ -92,9 +96,8 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
     sender_rate: str | None = Field(
         default=None,
         description=(
-            "Per-sender iperf3 bitrate with burst packet count; the aggregate "
-            "average stays below port_rate while the bursts overlap. Defaults to "
-            "20M/64, or 500K/64 when the forwarding device is a BMv2 switch."
+            "Per-sender iperf3 bitrate with burst packet count. Defaults to "
+            "20M/64, or 3M/64 when the forwarding device is a BMv2 switch."
         ),
     )
     packet_size: int = Field(default=1400, description="UDP payload bytes.")
@@ -202,6 +205,12 @@ class IncastTrafficNetworkLimitation(ProblemBase):
             burst=params.port_burst,
             limit=params.queue_limit,
         )
+        self._incast_observe = (device, intf)
+        if device in (self.net_env.bmv2_switches or []):
+            self._install_bmv2_ingress_police(
+                params.host_name, port_rate, params.port_burst
+            )
+            self._incast_observe = (params.host_name, "eth0")
         BurstTrafficGenerator(self.runtime).run(
             sources=self._senders,
             destination=params.host_name,
@@ -216,6 +225,25 @@ class IncastTrafficNetworkLimitation(ProblemBase):
             f"Injected incast: egress {device}:{intf} queue limit "
             f"{params.queue_limit} at {port_rate}; senders {self._senders} "
             f"burst {sender_rate} to {params.host_name}."
+        )
+
+    def _install_bmv2_ingress_police(
+        self, receiver: str, rate: str, burst: str
+    ) -> None:
+        """Police packets arriving at the receiver.
+
+        simple_switch transmits with PACKET_QDISC_BYPASS, so a root qdisc on
+        the switch port does not see the incast. The receiver ingress filter
+        is the queue those packets actually enter.
+        """
+        self.runtime.exec(
+            receiver,
+            "tc qdisc del dev eth0 ingress >/dev/null 2>&1 || true; "
+            "tc qdisc add dev eth0 handle ffff: ingress && "
+            "tc filter add dev eth0 parent ffff: protocol ip prio 1 "
+            "u32 match u32 0 0 "
+            f"police rate {rate} burst {burst} drop",
+            timeout=20,
         )
 
     def _queue_limit_bytes(self, device: str, intf: str) -> tuple[int | None, str]:
@@ -275,6 +303,15 @@ class IncastTrafficNetworkLimitation(ProblemBase):
             self.runtime.tc_clear_intf(device, intf)
         except Exception:  # noqa: BLE001
             pass
+        if device in (self.net_env.bmv2_switches or []):
+            try:
+                self.runtime.exec(
+                    params.host_name,
+                    "tc qdisc del dev eth0 ingress >/dev/null 2>&1 || true",
+                    timeout=15,
+                )
+            except Exception:  # noqa: BLE001
+                pass
         observed, tc_output = self._queue_limit_bytes(device, intf)
         return build_verify_result(
             fault_type=self.root_cause_name,

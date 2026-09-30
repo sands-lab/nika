@@ -232,6 +232,11 @@ def wait_for_slot(row: dict[str, Any]) -> None:
         if exclusive:
             if count == 0 and memory >= 8:
                 return
+            # One exclusive lab can share the host with a running benchmark
+            # when memory still covers it. The extra lock keeps a second
+            # exclusive lab from starting.
+            if memory >= 12 and count < 80 and _try_extra_lock():
+                return
         elif memory >= 8 and count < 40:
             return
         elif memory >= 8 and count < 160 and _try_extra_lock():

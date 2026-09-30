@@ -68,7 +68,9 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "bgp_missing_route_advertisement": _c(
         "bgp_missing_route_advertisement", "unreachable", "path_ping"
     ),
-    "frr_service_down": _c("frr_service_down", "control_plane", "control_plane_bgp"),
+    "frr_service_down": _c(
+        "frr_service_down", "control_plane", "control_plane_routing"
+    ),
     "ospf_area_misconfiguration": _c(
         "ospf_area_misconfiguration", "control_plane", "control_plane_ospf"
     ),
@@ -115,8 +117,10 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "p4_table_resource_exhaustion": _c(
         "p4_table_resource_exhaustion", "unreachable", "artifact_only"
     ),
+    # The silent drop matches the destination address. Ping that address.
+    # HTTP to a service DIP is not a healthy client path on the gateway fabric.
     "p4_tcam_entry_corruption": _c(
-        "p4_tcam_entry_corruption", "unreachable", "path_http"
+        "p4_tcam_entry_corruption", "unreachable", "path_ping"
     ),
     "int_insufficient_mtu_headroom": _c(
         "int_insufficient_mtu_headroom", "unreachable", "artifact_only"

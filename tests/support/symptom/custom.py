@@ -159,7 +159,7 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
 
     lb_cpu = problem._cpu_ratio_of_quota(
         params.host_name,
-        quota_cpus=params.cpu_quota,
+        quota_cpus=problem._applied_quota(params),
         sample_sec=params.cpu_sample_sec,
     )
     backend_cpu = problem._cpu_ratio_of_quota(
@@ -418,7 +418,10 @@ _INCAST_SAMPLE_SEC = 5.0
 
 def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> int | None:
     output = problem.runtime.exec(
-        device, f"tc -s qdisc show dev {intf} 2>/dev/null || true", timeout=10
+        device,
+        f"tc -s qdisc show dev {intf} 2>/dev/null || true; "
+        f"tc -s filter show dev {intf} ingress 2>/dev/null || true",
+        timeout=10,
     )
     counts = [int(m) for m in _QDISC_DROPPED_RE.findall(output or "")]
     return sum(counts) if counts else None
@@ -426,7 +429,11 @@ def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> int | None:
 
 def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Synchronized bursts overflow the shallow egress queue: drops keep rising."""
-    device, intf = problem._egress_port(params)
+    observe = getattr(problem, "_incast_observe", None)
+    if observe:
+        device, intf = observe
+    else:
+        device, intf = problem._egress_port(params)
     before = _egress_qdisc_drops(problem, device, intf)
     time.sleep(_INCAST_SAMPLE_SEC)
     after = _egress_qdisc_drops(problem, device, intf)

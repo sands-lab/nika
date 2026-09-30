@@ -52,33 +52,34 @@ uv run python -c "from tests.audit.report_doc import write_environment_audit_doc
 ## Coverage
 
 Release 0.2.0 has 169 cases (dev 84, test 85).
-Admitted cases: 4.
+Admitted cases: 5.
 64 cases declare an `artifact_only` symptom probe.
 A full audit records `no_evidence` for that symptom stage.
 
 | Status | Cases |
 | --- | --- |
-| `pass` | 4 |
+| `pass` | 5 |
 | `fail` | 8 |
 | `skipped` | 0 |
 | `unsupported` | 29 |
 | `no_evidence` | 28 |
-| `not_run` | 100 |
+| `not_run` | 99 |
 
 Symptom probes declared for these cases:
 
 | Probe | Cases |
 | --- | --- |
 | `artifact_only` | 64 |
-| `control_plane_bgp` | 4 |
+| `control_plane_bgp` | 2 |
 | `control_plane_ospf` | 4 |
+| `control_plane_routing` | 2 |
 | `custom` | 20 |
 | `healthy` | 18 |
 | `http_by_name` | 4 |
 | `isolation_http` | 4 |
-| `path_http` | 16 |
+| `path_http` | 15 |
 | `path_mtu_frag_needed` | 2 |
-| `path_ping` | 29 |
+| `path_ping` | 30 |
 | `ping_old_ip` | 2 |
 | `route_get_onlink` | 2 |
 
@@ -126,6 +127,7 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | enterprise_branch | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
 | enterprise_branch | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
 | enterprise_branch | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
+| iosxr_simple_bgp | healthy | none | kathara | none | none | unsupported | verify: the scenario image is not installed on this host |
 | isp_abilene | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
 | isp_abilene | healthy | none | kathara | none | none | pass | pass |
 | isp_abilene | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
@@ -134,6 +136,8 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | isp_abilene_ebgp_rtbh | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
 | isp_abilene_ebgp_rtbh | healthy | none | kathara | none | none | pass | pass |
 | isp_atlanta | healthy | none | kathara | none | none | pass | pass |
+| isp_brain | healthy | none | kathara | none | none | pass | pass |
+| isp_cost266 | healthy | none | kathara | none | none | pass | pass |
 | isp_dfn-bwin | healthy | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False | none | pass | pass |
 | isp_dfn-bwin | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
 | isp_dfn-bwin_ebgp_rtbh | healthy | none | kathara | none | none | pass | pass |
@@ -146,8 +150,12 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | isp_geant_ebgp_rpki | healthy | none | kathara | none | none | fail | verify: verify_lab failed on rpki_rtr_connected; the other lab checks passed |
 | isp_geant_ebgp_rpki | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
 | isp_geant_ebgp_rpki | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
+| isp_germany50 | healthy | none | kathara | none | none | pass | pass |
+| isp_giul39 | healthy | none | kathara | none | none | pass | pass |
+| isp_india35 | healthy | none | kathara | none | none | pass | pass |
 | isp_janos-us | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
 | isp_janos-us | healthy | none | kathara | none | none | pass | pass |
+| isp_janos-us-ca | healthy | none | kathara | none | none | pass | pass |
 | isp_newyork | healthy | none | kathara | none | none | pass | pass |
 | isp_nobel-eu | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | no_evidence | verify: the symptom contract is artifact_only, so this run has no network-effect observation |
 | isp_nobel-eu | healthy | none | kathara | none | none | pass | pass |
@@ -155,9 +163,13 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | isp_nobel-us | healthy | none | kathara | none | none | pass | pass |
 | isp_norway | healthy | none | kathara | none | none | pass | pass |
 | isp_pdh | healthy | s | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False | none | pass | pass |
+| isp_pioro40 | healthy | none | kathara | none | none | pass | pass |
 | isp_polska | healthy | none | kathara | none | none | pass | pass |
 | isp_sun | healthy | none | kathara | none | none | pass | pass |
 | isp_ta1 | healthy | none | kathara | none | none | pass | pass |
+| isp_ta2 | healthy | none | kathara | none | none | pass | pass |
+| isp_zib54 | healthy | none | kathara | none | none | pass | pass |
+| k8s_lab | healthy | none | scenario default | none | none | pass | pass |
 | p4_dc_fabric | healthy | s | kathara | none | none | pass | pass |
 | p4_dc_fabric | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
 | p4_dc_fabric | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | unsupported | verify: the behavioral stages passed and this fault has no separate control path |
@@ -202,6 +214,7 @@ These runs left a failed stage or a host prerequisite. The diagnosis says whethe
 | campus_lan | load_balancer_overload | fail | case: nginx CPU stayed under the saturation ratio after inject |
 | campus_lan | sender_resource_contention | fail | verify: the HTTP readiness command timed out before a status code returned |
 | dc_clos | receiver_resource_contention | fail | case: receiver throughput stayed near the healthy rate after inject |
+| iosxr_simple_bgp | healthy | unsupported | verify: the scenario image is not installed on this host |
 | isp_geant_ebgp_rpki | healthy | fail | verify: verify_lab failed on rpki_rtr_connected; the other lab checks passed |
 | isp_geant_ebgp_rpki | host_static_blackhole | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
 | isp_geant_ebgp_rpki | mtu_mismatch | fail | verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed |
@@ -217,17 +230,6 @@ These rows are exclusive labs. The runner starts one when the host has no other 
 
 | Resource | Scenario | Fault |
 | --- | --- | --- |
-| k8s | iosxr_simple_bgp | healthy |
-| large | isp_brain | healthy |
-| large | isp_cost266 | healthy |
-| large | isp_germany50 | healthy |
-| large | isp_giul39 | healthy |
-| large | isp_india35 | healthy |
-| large | isp_janos-us-ca | healthy |
-| large | isp_pioro40 | healthy |
-| large | isp_ta2 | healthy |
-| large | isp_zib54 | healthy |
-| k8s | k8s_lab | healthy |
 | k8s | llmd_lab | healthy |
 | clab | min3clos | healthy |
 | k8s | k8s_lab | k8s_clusterip_routing_broken |
@@ -269,7 +271,7 @@ These rows are exclusive labs. The runner starts one when the host has no other 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | arp_cache_poisoning | none | scenario default | none | host_name=client | path_ping | not_run |
-| dev | frr_service_down | none | scenario default | none | host_name=leaf_1_1 | control_plane_bgp | not_run |
+| dev | frr_service_down | none | scenario default | none | host_name=leaf_1_1 | control_plane_routing | not_run |
 | dev | host_incorrect_gateway | none | scenario default | none | host_name=client | path_ping | not_run |
 | dev | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | isolation_http | not_run |
 | test | bgp_asn_misconfig | none | scenario default | none | host_name=leaf_1_1 | artifact_only | not_run |
@@ -277,7 +279,7 @@ These rows are exclusive labs. The runner starts one when the host has no other 
 | test | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | artifact_only | not_run |
 | test | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://datacenter.com/weather?location=London, namespace=word-ns, pod_selector=app=word, symptom_host=client, symptom_url=http://datacenter.com/word | isolation_http | not_run |
 | test | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | not_run |
-| test | healthy | none | scenario default | none | none | healthy | not_run |
+| test | healthy | none | scenario default | none | none | healthy | pass |
 
 ### `isp_nobel-eu`
 
@@ -430,7 +432,7 @@ These rows are exclusive labs. The runner starts one when the host has no other 
 | dev | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | artifact_only | no_evidence |
 | dev | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | artifact_only | no_evidence |
 | dev | p4_table_entry_missing | l | scenario default | none | host_name=gateway_1 | path_http | not_run |
-| dev | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | path_http | not_run |
+| dev | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | path_ping | not_run |
 | dev | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | artifact_only | no_evidence |
 | dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | artifact_only | no_evidence |
 | test | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | path_http | unsupported |
@@ -519,7 +521,7 @@ These rows are exclusive labs. The runner starts one when the host has no other 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | ospf_area_misconfiguration | l | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_ospf | not_run |
-| test | frr_service_down | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_bgp | not_run |
+| test | frr_service_down | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_routing | not_run |
 
 ### `isp_dfn-bwin_ebgp_rtbh`
 

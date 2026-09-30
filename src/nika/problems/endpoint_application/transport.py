@@ -252,15 +252,15 @@ class SenderResourceContention(ProblemBase):
             ),
             timeout=15,
         )
-        deadline = time.time() + 25.0
+        deadline = time.time() + 90.0
         probe = ""
         while time.time() < deadline:
             time.sleep(0.5)
             probe = self.runtime.exec(
                 host,
-                "curl -s -o /dev/null -w '%{http_code}' --max-time 10 "
+                "curl -s -o /dev/null -w '%{http_code}' --max-time 8 "
                 "http://127.0.0.1/small.bin || true",
-                timeout=20,
+                timeout=45,
             ).strip()
             if probe in {"200", "206"}:
                 break
@@ -270,7 +270,7 @@ class SenderResourceContention(ProblemBase):
                 f"echo LOG; cat {_CPU_HTTP_LOG} 2>/dev/null || true; "
                 "echo PS; ps aux 2>/dev/null | head -n 30 || true; "
                 f"python3 -m py_compile {_CPU_HTTP_SERVER}; echo COMPILE:$?",
-                timeout=20,
+                timeout=30,
             )
             raise RuntimeError(
                 f"CPU-sensitive HTTP server failed to serve on {host}: "
@@ -625,8 +625,21 @@ class ReceiverResourceContention(ProblemBase):
         self._baseline_throughput_bps = bps
         self._baseline_time_s = time_s
 
-        # Stress-only: avoid Docker NanoCpus updates on llmd/k3s nodes where
-        # clearing NanoCPUs back to unlimited is rejected or no-ops.
+        # Share one small CPU slice between stress-ng and the download.
+        # A multi-core container lets stress-ng and curl run side by side,
+        # so the transfer never slows down. llmd/k3s rejects NanoCPUs updates;
+        # those nodes keep the stress-only path.
+        self._receiver_quota_applied = False
+        try:
+            self._original_nano_cpus = read_nano_cpus(self.runtime, params.host_name)
+            set_nano_cpus(
+                self.runtime,
+                params.host_name,
+                cpu_quota_to_nano_cpus(0.10),
+            )
+            self._receiver_quota_applied = True
+        except Exception:  # noqa: BLE001
+            self._receiver_quota_applied = False
         self.runtime.exec(
             params.host_name,
             _CPU_STRESS_CMD.format(
@@ -682,6 +695,15 @@ class ReceiverResourceContention(ProblemBase):
             timeout=15,
         )
         time.sleep(1.0)
+        if getattr(self, "_receiver_quota_applied", False):
+            try:
+                set_nano_cpus(
+                    self.runtime,
+                    params.host_name,
+                    int(getattr(self, "_original_nano_cpus", 0) or 0),
+                )
+            except Exception:  # noqa: BLE001
+                pass
         stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
         return {
             "verified": bool(stress_gone),

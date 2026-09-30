@@ -377,10 +377,16 @@ def run_probe_snapshot(
             snap.extra["gray_probe_failed"] = True
         return snap
     if probe_kind in {"path_ping", "path_ping_loss"} and path.dst_ip:
+        dst_ip = path.dst_ip
+        # The gateway VIP is an L4 TCP listener, not an ICMP endpoint.
+        if dst_ip == "20.0.0.1":
+            from nika.net_env.p4_dc_gateway.topology_model import service_ip
+
+            dst_ip = service_ip(1, 1)
         if probe_kind == "path_ping_loss":
-            stats = ping_stats(runtime, src, path.dst_ip, count=path.ping_count)
+            stats = ping_stats(runtime, src, dst_ip, count=path.ping_count)
         else:
-            snap.ping_ok = ping_ok(runtime, src, path.dst_ip)
+            snap.ping_ok = ping_ok(runtime, src, dst_ip)
             return snap
         snap.ping_ok = stats.received > 0
         snap.loss_percent = stats.loss_percent
@@ -576,6 +582,22 @@ def run_probe_snapshot(
             snap.control_plane_ok = frr_bgp_has_established_session(
                 runtime, path.control_plane_host
             )
+        return snap
+    if probe_kind == "control_plane_routing" and path.control_plane_host:
+        # Campus access routers run OSPF; ISP routers run BGP. Either daemon
+        # answering `show ip route` is the healthy FRR signal.
+        route = exec_or_empty(
+            runtime,
+            path.control_plane_host,
+            "vtysh -c 'show ip route' 2>&1 || true",
+            timeout=20,
+        )
+        lowered = route.lower()
+        snap.control_plane_ok = (
+            "Codes:" in route
+            and "failed to connect" not in lowered
+            and "not running" not in lowered
+        )
         return snap
     if probe_kind == "control_plane_ospf" and path.control_plane_host:
         output = runtime.exec(

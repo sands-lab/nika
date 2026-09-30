@@ -16,6 +16,7 @@ from nika.audit.environment import (
     classify_observation,
     identity_from_row,
 )
+from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.registry import get_problem_class
 from nika.workflows.benchmark.healthy import is_healthy_case
 from tests.support.failure_e2e_hooks import HOOKS, FailureE2EContext
@@ -97,6 +98,56 @@ def _baseline_path(probe: str, snapshot: Any) -> StageResult:
         "target path was not healthy before inject",
         data,
     )
+
+
+def _note_sibling_control(
+    runtime: Any,
+    scenario: str,
+    parsed: Any,
+    topo_size: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Record a sibling path when that path still works.
+
+    A failed sibling is not stored. The fault may share that path, and a
+    missing control stays unsupported instead of becoming a failed stage.
+    """
+    after = payload.get("after") if isinstance(payload.get("after"), dict) else {}
+    if payload.get("control_ok") is True or after.get("control_ok") is True:
+        return payload
+    path = _resolve_path(scenario, parsed, topo_size=topo_size)
+    if path is None or not path.peer_host or path.peer_host == path.src_host:
+        return payload
+    ok: bool | None = None
+    if path.dst_ip:
+        ok = ping_ok(runtime, path.peer_host, path.dst_ip)
+    elif path.http_url:
+        ok = http_ok(runtime, path.peer_host, path.http_url)
+    if ok is not True:
+        return payload
+    noted = dict(payload)
+    noted["control_ok"] = True
+    return noted
+
+
+def _healthy_custom_baseline(
+    runtime: Any, scenario: str, parsed: Any, topo_size: str
+) -> StageResult | None:
+    """Return a passing baseline when the scenario path is healthy."""
+    path = _resolve_path(scenario, parsed, topo_size=topo_size)
+    if path is None:
+        return None
+    if path.http_url:
+        kind = "path_http"
+    elif path.dst_ip:
+        kind = "path_ping"
+    else:
+        return None
+    snapshot = run_probe_snapshot(runtime, kind, path, params=parsed)
+    stage = _baseline_path(kind, snapshot)
+    if stage.status != "pass":
+        return None
+    return stage
 
 
 def _control_stage(fault: str, payload: dict[str, Any] | None) -> StageResult:
@@ -198,14 +249,23 @@ def audit_open_session(
     if probe == "artifact_only":
         stages.append(_stage("baseline_path", "no_evidence", "artifact_only"))
     elif probe in {"custom", "undeclared"}:
-        stages.append(
-            _stage(
-                "baseline_path",
-                "unsupported",
-                f"{probe} probe has no shared healthy baseline",
-                {"scope": fault},
-            )
+        healthy = _healthy_custom_baseline(
+            runtime,
+            identity.scenario,
+            parsed,
+            identity.topo_size or "s",
         )
+        if healthy is not None:
+            stages.append(healthy)
+        else:
+            stages.append(
+                _stage(
+                    "baseline_path",
+                    "unsupported",
+                    f"{probe} probe has no shared healthy baseline",
+                    {"scope": fault},
+                )
+            )
     else:
         path = _resolve_path(
             identity.scenario, parsed, topo_size=identity.topo_size or "s"
@@ -242,6 +302,13 @@ def audit_open_session(
         problem=problem,
     )
     symptom_payload = symptom if isinstance(symptom, dict) else {}
+    symptom_payload = _note_sibling_control(
+        runtime,
+        identity.scenario,
+        parsed,
+        identity.topo_size or "s",
+        symptom_payload,
+    )
     stages.append(_from_observation("symptom", symptom_payload, ok=symptom_ok))
     stages.append(_control_stage(fault, symptom_payload))
 

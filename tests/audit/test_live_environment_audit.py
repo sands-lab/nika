@@ -51,9 +51,13 @@ def test_dc_clos_link_down_observes_path_and_cleans_up() -> None:
     assert stages["persistence_symptom"] == "pass"
     assert stages["final_artifact"] == "pass"
     assert stages["final_symptom"] == "pass"
-    assert stages["control_path"] == "unsupported"
-    assert report.admission() == "unsupported"
-    assert admits(report.admission()) is False
+    if stages["control_path"] == "pass":
+        assert report.admission() == "pass"
+        assert admits(report.admission()) is True
+    else:
+        assert stages["control_path"] == "unsupported"
+        assert report.admission() == "unsupported"
+        assert admits(report.admission()) is False
     assert after <= before
 
 

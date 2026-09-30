@@ -315,23 +315,44 @@ class Isp(NetworkEnvBase):
                     self._rpki_attachment is not None
                     and node.device_name == self._rpki_attachment["router"]
                 ):
+                    iface = self._rpki_attachment["router_iface"]
+                    address = self._rpki_attachment["router_address"]
+                    prefixlen = self._rpki_attachment["prefixlen"]
+                    # The RTR link comes up after Kathara has created every
+                    # node. Retry until the address is configured.
                     extras.append(
-                        "ip addr add "
-                        f"{self._rpki_attachment['router_address']}/"
-                        f"{self._rpki_attachment['prefixlen']} "
-                        f"dev {self._rpki_attachment['router_iface']}"
+                        'i=0; while [ "$i" -lt 20 ]; do '
+                        f"ip link set {iface} up && "
+                        f"ip addr replace {address}/{prefixlen} dev {iface} "
+                        "&& break; i=$((i+1)); sleep 1; done"
                     )
                 if "service frr start" in startup:
                     idx = startup.index("service frr start")
                     post_frr: list[str] = []
                     if bgp_node is not None and bgp_node.rpki_cache is not None:
-                        # RPKI module must be started after bgpd is up.
-                        post_frr.append("vtysh -c 'rpki start'")
+                        # bgpd and Routinator are not ready on the first try
+                        # on large topologies. Keep starting the RPKI module
+                        # until the cache connection is up.
+                        post_frr.append(
+                            'i=0; while [ "$i" -lt 30 ]; do '
+                            "vtysh -c 'rpki start' >/dev/null 2>&1 || true; "
+                            "vtysh -c 'show rpki cache-connection' 2>/dev/null "
+                            "| tr '[:upper:]' '[:lower:]' | grep -v 'not connected' "
+                            "| grep -Eq 'connected|established' && break; "
+                            "i=$((i+1)); sleep 2; done"
+                        )
                     startup = startup[:idx] + extras + startup[idx:] + post_frr
                 else:
                     startup = startup + extras
                     if bgp_node is not None and bgp_node.rpki_cache is not None:
-                        startup.append("vtysh -c 'rpki start'")
+                        startup.append(
+                            'i=0; while [ "$i" -lt 30 ]; do '
+                            "vtysh -c 'rpki start' >/dev/null 2>&1 || true; "
+                            "vtysh -c 'show rpki cache-connection' 2>/dev/null "
+                            "| tr '[:upper:]' '[:lower:]' | grep -v 'not connected' "
+                            "| grep -Eq 'connected|established' && break; "
+                            "i=$((i+1)); sleep 2; done"
+                        )
             machine.create_file_from_string(frr_conf, "/etc/frr/frr.conf")
             self.deployment_configs[node.device_name] = frr_conf
             self.lab.create_file_from_list(

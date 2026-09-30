@@ -16,6 +16,7 @@ ProbeKind = Literal[
     "gray_ping_loss",
     "control_plane_bgp",
     "control_plane_ospf",
+    "control_plane_routing",
     "isolation_http",
     "degradation_http",
     "http_by_name",
