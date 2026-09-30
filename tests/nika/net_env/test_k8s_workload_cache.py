@@ -238,6 +238,48 @@ def test_preload_imports_cached_tars_for_all_nodes() -> None:
 
 
 @pytest.mark.unit
+def test_preload_records_stopped_node_before_failure_cleanup() -> None:
+    net_env = MagicMock()
+    net_env.LAB_NAME = "k8s_lab"
+    net_env.name = "k8s_lab__test"
+    net_env.kubernetes_nodes = ["controller", "worker3"]
+    runtime = net_env._build_runtime.return_value
+    container = runtime.get_container.return_value
+    container.id = "worker3-container-id"
+    container.attrs = {
+        "State": {"Status": "exited", "ExitCode": 137, "OOMKilled": True}
+    }
+    container.logs.return_value = b"k3s agent exited\n"
+    tar = Path("/tmp/postgres__16.tar")
+
+    def import_image(_runtime, node, _tar):
+        if node == "worker3":
+            raise RuntimeError("container is not running")
+
+    with (
+        patch.object(cache, "cache_scenario"),
+        patch.object(cache, "cached_tar_paths", return_value=[tar]),
+        patch.object(cache, "_wait_k3s_api"),
+        patch.object(cache, "import_tar_to_node", side_effect=import_image),
+        patch("nika.utils.logger.log_error_event") as log_error,
+        pytest.raises(RuntimeError, match="worker3 while importing postgres__16.tar"),
+    ):
+        cache.preload_workload_images(net_env)
+
+    event = log_error.call_args
+    assert event.args[0] == "env_preload_node_failed"
+    assert event.kwargs["node"] == "worker3"
+    assert event.kwargs["image_tar"] == "postgres__16.tar"
+    assert event.kwargs["container_id"] == "worker3-container-id"
+    assert event.kwargs["container_state"]["ExitCode"] == 137
+    assert event.kwargs["container_state"]["OOMKilled"] is True
+    assert "k3s agent exited" in event.kwargs["container_logs_tail"]
+    assert not any(
+        "nika-images-preloaded" in str(call) for call in runtime.exec.call_args_list
+    )
+
+
+@pytest.mark.unit
 def test_import_tar_to_node_requires_exit_marker() -> None:
     runtime = MagicMock()
     runtime.exec.return_value = "some docker noise without marker"

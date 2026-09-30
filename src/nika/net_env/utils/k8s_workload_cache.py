@@ -299,13 +299,6 @@ def signal_preload_complete(
     )
 
 
-def _import_all_tars_to_node(
-    runtime: LabRuntime, node: str, tar_paths: list[Path]
-) -> None:
-    for tar_path in tar_paths:
-        import_tar_to_node(runtime, node, tar_path)
-
-
 def preload_workload_images(net_env: NetworkEnvBase) -> None:
     """Import cached workload images into k3s nodes before bootstrap applies manifests.
 
@@ -352,12 +345,50 @@ def preload_workload_images(net_env: NetworkEnvBase) -> None:
     started = time.time()
 
     def import_node(node: str) -> None:
+        # Keep the Docker object before k3s can exit; Kathara may no longer
+        # resolve a stopped machine when the failure handler inspects it.
         try:
-            _import_all_tars_to_node(runtime, node, tar_paths)
-        except Exception as exc:
-            raise RuntimeError(
-                f"Workload image preload failed on {node}: {exc}"
-            ) from exc
+            container = runtime.get_container(node)
+        except Exception:  # noqa: BLE001 - diagnostics must not block imports
+            container = None
+        for tar_path in tar_paths:
+            try:
+                import_tar_to_node(runtime, node, tar_path)
+            except Exception as exc:
+                details: dict = {
+                    "scenario": scenario,
+                    "lab_name": net_env.name,
+                    "node": node,
+                    "image_tar": tar_path.name,
+                    "error": str(exc),
+                }
+                try:
+                    if container is None:
+                        container = runtime.get_container(node)
+                    details["container_id"] = container.id
+                    container.reload()
+                    details["container_state"] = container.attrs.get("State", {})
+                    logs = container.logs(tail=100, timestamps=True)
+                    details["container_logs_tail"] = logs.decode(errors="replace")[
+                        -8192:
+                    ]
+                except Exception as diagnostics_exc:  # noqa: BLE001
+                    details["container_diagnostics_error"] = str(diagnostics_exc)
+                try:
+                    from nika.utils.logger import log_error_event
+
+                    log_error_event(
+                        "env_preload_node_failed",
+                        f"Workload image preload failed on {node} while importing "
+                        f"{tar_path.name}: {exc}",
+                        **details,
+                    )
+                except Exception:  # noqa: BLE001 - preserve the import failure
+                    pass
+                raise RuntimeError(
+                    f"Workload image preload failed on {node} while importing "
+                    f"{tar_path.name}: {exc}"
+                ) from exc
 
     bounded_parallel_map(import_node, nodes, max_workers=workers)
 
