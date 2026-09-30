@@ -25,6 +25,9 @@ jobs:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          # The action otherwise defaults to opus, even for an existing agent.
+          # Match NIKA-dev's configured ChatGPT subscription provider and model.
+          model: chatgpt-plus/gpt-6-astra
           track_progress: true
           prompt: |
             First decide whether this request requires NIKA repository work. For a response-only question that needs no repository inspection, edits, builds, or tests, answer in this GitHub-hosted environment.
@@ -33,4 +36,4 @@ jobs:
 
             Teleport this conversation to the selected environment and continue the task there; do not merely recommend that the user teleport. If the target is unavailable or teleport fails, explain the blocker rather than silently developing on the GitHub runner.
 
-            After teleporting, remember that working directories, checked-out files, credentials, and installed software stay on their original computer. On the destination, establish a safe checkout of `sands-lab/nika` and the relevant issue/PR branch before repository work; do not modify the default branch directly. For substantial coding work, load and follow the project skill `/orchestrating-claude-code` to brief Claude Code and run it headlessly inside Docker Sandbox when available. Letta remains responsible for context, reviewing delegated changes, and validation.
+            After teleporting, remember that working directories, checked-out files, credentials, and installed software stay on their original computer. On the destination, establish a safe checkout of `sands-lab/nika` and the relevant issue/PR branch before repository work; do not modify the default branch directly.
