@@ -6,7 +6,7 @@ on:
   issue_comment:
     types: [created]
   pull_request:
-    types: [opened, labeled]
+    types: [opened, synchronize, ready_for_review, reopened]
   pull_request_review_comment:
     types: [created]
 
@@ -25,6 +25,7 @@ jobs:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          track_progress: true
           prompt: |
             First decide whether this request requires NIKA repository work. For a response-only question that needs no repository inspection, edits, builds, or tests, answer in this GitHub-hosted environment.
 
