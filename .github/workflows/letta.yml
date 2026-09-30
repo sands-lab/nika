@@ -28,6 +28,10 @@ jobs:
           # The action otherwise defaults to opus, even for an existing agent.
           # Match NIKA-dev's configured ChatGPT subscription provider and model.
           model: chatgpt-plus/gpt-6-astra
+          # CLI 0.34 routes --conversation to a Cloud harness, which rejects the
+          # action's local --yolo/model flags. Start on the runner with a fresh
+          # conversation; NIKA-dev's memory and fetched GitHub context remain.
+          letta_args: --new
           track_progress: true
           prompt: |
             First decide whether this request requires NIKA repository work. For a response-only question that needs no repository inspection, edits, builds, or tests, answer in this GitHub-hosted environment.
