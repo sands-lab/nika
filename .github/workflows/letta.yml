@@ -1,0 +1,35 @@
+name: Letta Code
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, labeled]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  letta:
+    name: Letta Code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: letta-ai/letta-code-action@v0
+        with:
+          letta_api_key: ${{ secrets.LETTA_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          prompt: |
+            First decide whether this request requires NIKA repository work. For a response-only question that needs no repository inspection, edits, builds, or tests, answer in this GitHub-hosted environment.
+
+            If repository inspection, code changes, a build, or tests are needed, do not do that development work on the GitHub Actions runner. Choose the most suitable online Letta remote environment using the agent's persistent memories and project context. Check the available environments if useful; prefer one whose remembered purpose and resources fit this NIKA task. Default to `cornaca-copilot`, an Ubuntu VM with Docker and Docker Sandboxes (`sbx`), unless memory/context clearly identifies a more suitable available environment.
+
+            Teleport this conversation to the selected environment and continue the task there; do not merely recommend that the user teleport. If the target is unavailable or teleport fails, explain the blocker rather than silently developing on the GitHub runner.
+
+            After teleporting, remember that working directories, checked-out files, credentials, and installed software stay on their original computer. On the destination, establish a safe checkout of `sands-lab/nika` and the relevant issue/PR branch before repository work; do not modify the default branch directly. For substantial coding work, load and follow the project skill `/orchestrating-claude-code` to brief Claude Code and run it headlessly inside Docker Sandbox when available. Letta remains responsible for context, reviewing delegated changes, and validation.
