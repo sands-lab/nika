@@ -119,8 +119,12 @@ def _note_sibling_control(
     if path is None or not path.peer_host or path.peer_host == path.src_host:
         return payload
     ok: bool | None = None
-    if path.dst_ip:
-        ok = ping_ok(runtime, path.peer_host, path.dst_ip)
+    dst_ip = path.dst_ip
+    # The gateway VIP answers TCP/80 and does not answer ICMP.
+    if dst_ip == "20.0.0.1" and path.http_url:
+        ok = http_ok(runtime, path.peer_host, path.http_url)
+    elif dst_ip:
+        ok = ping_ok(runtime, path.peer_host, dst_ip)
     elif path.http_url:
         ok = http_ok(runtime, path.peer_host, path.http_url)
     if ok is not True:
