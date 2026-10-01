@@ -6,6 +6,7 @@ import time
 import pytest
 
 from nika.net_env.k8s_lab.lab import K8sFatTreeBGP
+from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE
 from nika.service.kathara.base_api import KatharaBaseAPI
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.net_env import instantiate_with_mocked_kathara, ready_node_count
@@ -86,7 +87,7 @@ class K8sLabUnitTest:
             assert machine.meta.get("entrypoint") == "/bin/sh"
             assert "/var/run/nika-net-ready" in args
             assert "exec /bin/k3s" in args
-            assert machine.get_image() == "rancher/k3s:v1.34.1-k3s1"
+            assert machine.get_image() == K3S_IMAGE
             if node_name == "controller":
                 assert "server --disable" in args
             else:

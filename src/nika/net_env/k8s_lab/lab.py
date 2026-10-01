@@ -5,20 +5,21 @@ The lab includes FRR routers for BGP routing and k3s nodes for Kubernetes.
 """
 
 import os
+from pathlib import Path
 
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.utils.k8s_workload_cache import mount_workload_cache
+from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE, mount_workload_cache
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
 _FRR_IMAGE = "nika/frr"
-_K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1"
+_K3S_IMAGE = K3S_IMAGE
 _BASE_IMAGE = "nika/base"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
@@ -152,7 +153,8 @@ class K8sFatTreeBGP(NetworkEnvBase):
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
         _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
         _k3s_server = (
-            "server --disable servicelb --disable traefik --write-kubeconfig-mode 644"
+            "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
+            "--disable-default-registry-endpoint"
         )
         for name, links in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
@@ -185,7 +187,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
             else:
                 m.add_meta(
                     "args",
-                    f'-c "{_k3s_wait}exec /bin/k3s agent"',
+                    f'-c "{_k3s_wait}exec /bin/k3s agent --disable-default-registry-endpoint"',
                 )
                 m.add_meta("env", "K3S_URL=https://controller:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
@@ -205,6 +207,11 @@ class K8sFatTreeBGP(NetworkEnvBase):
         )
         self.lab.connect_machine_to_link("client", "W")
         all_machines["client"] = client
+
+        all_machines["controller"].create_file_from_path(
+            str(Path(__file__).resolve().parent.parent / "utils" / "k8s_bootstrap.sh"),
+            "/nika-bootstrap.sh",
+        )
 
         # Load per-machine configuration directories and startup scripts
         for name, m in all_machines.items():

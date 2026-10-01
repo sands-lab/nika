@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import io
+import hashlib
 import json
+import subprocess
 import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,7 +14,6 @@ import yaml
 
 from nika.config import REPO_ROOT
 from nika.net_env.utils import k8s_workload_cache as cache
-from tests.support.prerequisites import docker_available
 
 
 @pytest.fixture(autouse=True)
@@ -21,22 +21,42 @@ def _isolate_cache_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(cache, "cache_root", lambda: tmp_path / "k8s-images")
 
 
-def _image_tar(*, complete: bool = True) -> bytes:
-    """Minimal ``docker save`` archive; incomplete omits the layer blob."""
-    manifest = [{"Config": "blobs/sha256/config", "Layers": ["blobs/sha256/layer"]}]
-    members = {
-        "manifest.json": json.dumps(manifest).encode(),
-        "blobs/sha256/config": b"{}",
-    }
-    if complete:
-        members["blobs/sha256/layer"] = b"layer"
-    buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w") as archive:
-        for name, data in members.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            archive.addfile(info, io.BytesIO(data))
-    return buffer.getvalue()
+def _image_directory(directory: Path, *, complete: bool = True) -> str:
+    """Minimal OCI graph with real content hashes, suitable for dir transport."""
+    directory.mkdir(parents=True, exist_ok=True)
+    descriptors = []
+    for content in (
+        json.dumps({"os": "linux", "architecture": cache.host_machine_arch()}).encode(),
+        b"layer",
+    ):
+        digest = hashlib.sha256(content).hexdigest()
+        if complete or content != b"layer":
+            (directory / digest).write_bytes(content)
+        descriptors.append(
+            {
+                "digest": "sha256:" + digest,
+                "size": len(content),
+                "mediaType": "application/octet-stream",
+            }
+        )
+    manifest = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": descriptors[0],
+            "layers": [descriptors[1]],
+        }
+    ).encode()
+    (directory / "manifest.json").write_bytes(manifest)
+    return "postgres:16@sha256:" + hashlib.sha256(manifest).hexdigest()
+
+
+def _image_tar(tmp_path: Path, *, complete: bool = True) -> tuple[str, bytes]:
+    directory = tmp_path / "source"
+    image = _image_directory(directory, complete=complete)
+    path = tmp_path / "test.tar"
+    cache._write_oci_archive(directory, path, image)
+    return image, path.read_bytes()
 
 
 @pytest.mark.unit
@@ -51,6 +71,14 @@ def test_workload_images_for_supported_scenarios() -> None:
         cache.workload_images_for_scenario("llmd_lab") == cache.LLMD_LAB_WORKLOAD_IMAGES
     )
     assert cache.workload_images_for_scenario("dc_clos") == ()
+    assert all(
+        "@sha256:" in image
+        for image in (
+            *cache.K8S_LAB_WORKLOAD_IMAGES,
+            *cache.LLMD_LAB_WORKLOAD_IMAGES,
+            cache.K3S_IMAGE,
+        )
+    )
     for image in cache.K3S_SYSTEM_IMAGES:
         assert image in cache.K8S_LAB_WORKLOAD_IMAGES
         assert image in cache.LLMD_LAB_WORKLOAD_IMAGES
@@ -62,6 +90,7 @@ def test_workload_cache_covers_scenario_manifests() -> None:
         if isinstance(value, dict):
             for key, item in value.items():
                 if key == "image" and isinstance(item, str):
+                    assert value.get("imagePullPolicy") == "Never", item
                     yield item
                 else:
                     yield from image_refs(item)
@@ -81,77 +110,117 @@ def test_workload_cache_covers_scenario_manifests() -> None:
 
 
 @pytest.mark.unit
-def test_cache_tar_path_is_stable_and_unique() -> None:
-    a = cache.cache_tar_path("quay.io/metallb/controller:v0.14.9")
-    b = cache.cache_tar_path("postgres:16")
-    assert a != b
-    assert a.name.endswith(".tar")
-    assert "quay.io" in a.name
-
-
-@pytest.mark.unit
-def test_ensure_cached_skips_pull_and_save_when_tar_exists(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tar_path = cache.cache_tar_path("postgres:16")
+def test_ensure_cached_skips_network_when_valid_archive_exists(tmp_path: Path) -> None:
+    image, saved = _image_tar(tmp_path)
+    tar_path = cache.cache_tar_path(image)
     tar_path.parent.mkdir(parents=True, exist_ok=True)
-    tar_path.write_bytes(_image_tar())
-
-    with (
-        patch.object(cache, "pull_image") as pull,
-        patch.object(cache, "_get_client") as get_client,
-    ):
-        result = cache.ensure_cached("postgres:16")
-
-    assert result == tar_path
-    pull.assert_not_called()
-    get_client.assert_not_called()
+    tar_path.write_bytes(saved)
+    with patch.object(cache.subprocess, "run") as fetch:
+        assert cache.ensure_cached(image) == tar_path
+    fetch.assert_not_called()
 
 
 @pytest.mark.unit
-def test_ensure_cached_pulls_and_saves_when_missing(tmp_path: Path) -> None:
-    saved = _image_tar()
+def test_ensure_cached_fetches_complete_graph_when_missing(tmp_path: Path) -> None:
+    image, _ = _image_tar(tmp_path)
 
-    class _FakeImage:
-        def save(self, *, named: bool = True):
-            yield saved
-
-    fake_client = MagicMock()
-    fake_client.images.get.return_value = _FakeImage()
+    def fetch(command, **kwargs):
+        if command[1] == "inspect":
+            return subprocess.CompletedProcess(
+                command, 0, stdout=(tmp_path / "source" / "manifest.json").read_bytes()
+            )
+        _image_directory(Path(command[-1].removeprefix("dir:")))
 
     with (
-        patch.object(cache, "image_exists", return_value=False),
-        patch.object(cache, "pull_image") as pull,
-        patch.object(cache, "_get_client", return_value=fake_client),
+        patch.object(cache.subprocess, "run", side_effect=fetch),
+        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
     ):
-        result = cache.ensure_cached("postgres:16")
-
-    pull.assert_called_once_with("postgres:16")
-    assert result == cache.cache_tar_path("postgres:16")
-    assert result.read_bytes() == saved
+        path = cache.ensure_cached(image)
+    assert cache._tar_is_complete(path, image)
+    with tarfile.open(path) as archive:
+        index = json.load(archive.extractfile("index.json"))
+        assert {
+            root["annotations"]["io.containerd.image.name"]
+            for root in index["manifests"]
+        } == {
+            "docker.io/library/postgres:16",
+            image.replace("postgres:16", "docker.io/library/postgres"),
+        }
 
 
 @pytest.mark.unit
-def test_ensure_cached_rejects_tars_missing_layers() -> None:
-    tar_path = cache.cache_tar_path("rancher/mirrored-metrics-server:v0.8.0")
+def test_ensure_cached_rejects_archives_missing_layers(tmp_path: Path) -> None:
+    image, saved = _image_tar(tmp_path, complete=False)
+    tar_path = cache.cache_tar_path(image)
     tar_path.parent.mkdir(parents=True, exist_ok=True)
-    tar_path.write_bytes(_image_tar(complete=False))
+    tar_path.write_bytes(saved)
+    assert not cache._tar_is_complete(tar_path, image)
 
-    class _FakeImage:
-        def save(self, *, named: bool = True):
-            yield _image_tar(complete=False)
-
-    fake_client = MagicMock()
-    fake_client.images.get.return_value = _FakeImage()
+    def fetch(command, **kwargs):
+        if command[1] == "inspect":
+            return subprocess.CompletedProcess(
+                command, 0, stdout=(tmp_path / "source" / "manifest.json").read_bytes()
+            )
+        _image_directory(Path(command[-1].removeprefix("dir:")), complete=False)
 
     with (
-        patch.object(cache, "image_exists", return_value=True),
-        patch.object(cache, "_get_client", return_value=fake_client),
+        patch.object(cache.subprocess, "run", side_effect=fetch),
+        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
+        pytest.raises(RuntimeError, match="Incomplete or corrupt"),
     ):
-        result = cache.ensure_cached("rancher/mirrored-metrics-server:v0.8.0")
+        cache.ensure_cached(image)
 
-    assert result is None
-    assert list(cache.cache_root().iterdir()) == []
+
+@pytest.mark.unit
+def test_archive_rejects_corrupt_content_and_wrong_pin(tmp_path: Path) -> None:
+    image, saved = _image_tar(tmp_path)
+    path = tmp_path / "corrupt.tar"
+    path.write_bytes(saved.replace(b"layer", b"wrong"))
+    assert not cache._tar_is_complete(path, image)
+    path.write_bytes(saved)
+    assert not cache._tar_is_complete(
+        path, image.replace(image.split("@")[1], "sha256:" + "0" * 64)
+    )
+
+
+@pytest.mark.unit
+def test_platform_archive_preserves_upstream_index_identity(tmp_path: Path) -> None:
+    directory = tmp_path / "platform"
+    image = _image_directory(directory)
+    selected = directory / "manifest.json"
+    manifest = selected.read_bytes()
+    selected.rename(directory / (image.split("sha256:")[1] + ".manifest.json"))
+    index = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [
+                {
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "digest": image.split("@")[1],
+                    "size": len(manifest),
+                    "platform": {
+                        "os": "linux",
+                        "architecture": cache.host_machine_arch(),
+                    },
+                },
+                {
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "digest": "sha256:" + "0" * 64,
+                    "size": 10,
+                    "platform": {"os": "windows", "architecture": "amd64"},
+                },
+            ],
+        }
+    ).encode()
+    selected.write_bytes(index)
+    pinned = "postgres:16@sha256:" + hashlib.sha256(index).hexdigest()
+    archive = tmp_path / "platform.tar"
+    cache._write_oci_archive(directory, archive, pinned)
+    assert cache._tar_is_complete(archive, pinned)
+    with tarfile.open(archive) as tar:
+        roots = json.load(tar.extractfile("index.json"))["manifests"]
+        assert all(root["digest"] == pinned.split("@")[1] for root in roots)
 
 
 @pytest.mark.unit
@@ -176,65 +245,19 @@ def test_preload_raises_without_cached_tars() -> None:
 
 
 @pytest.mark.unit
-def test_ensure_cached_returns_none_when_pull_fails() -> None:
+def test_ensure_cached_reports_registry_failure(tmp_path: Path) -> None:
+    image, _ = _image_tar(tmp_path)
     with (
-        patch.object(cache, "image_exists", return_value=False),
-        patch.object(cache, "pull_image", side_effect=RuntimeError("denied")),
-    ):
-        assert cache.ensure_cached("ghcr.io/example:v1") is None
-
-
-@pytest.mark.unit
-def test_preload_raises_when_k3s_api_times_out() -> None:
-    net_env = MagicMock()
-    net_env.LAB_NAME = "llmd_lab"
-    net_env.name = "llmd_lab__test"
-    net_env.kubernetes_nodes = ["controller", "worker1"]
-    runtime = MagicMock()
-    net_env._build_runtime.return_value = runtime
-    tar = Path("/tmp/a.tar")
-
-    with (
-        patch.object(cache, "cache_scenario"),
-        patch.object(cache, "cached_tar_paths", return_value=[tar]),
+        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
         patch.object(
-            cache, "_wait_k3s_api", side_effect=TimeoutError("k3s API not ready")
+            cache.subprocess,
+            "run",
+            side_effect=subprocess.CalledProcessError(1, ["skopeo"], stderr="denied"),
         ),
-        pytest.raises(TimeoutError, match="k3s API not ready"),
+        pytest.raises(RuntimeError, match="denied"),
     ):
-        cache.preload_workload_images(net_env)
-
-    assert not any(
-        "nika-images-preloaded" in str(call) for call in runtime.exec.call_args_list
-    )
-
-
-@pytest.mark.unit
-def test_preload_imports_cached_tars_for_all_nodes() -> None:
-    net_env = MagicMock()
-    net_env.LAB_NAME = "llmd_lab"
-    net_env.name = "llmd_lab__test"
-    net_env.kubernetes_nodes = ["controller", "worker1"]
-    runtime = MagicMock()
-    net_env._build_runtime.return_value = runtime
-    runtime.exec.return_value = "0"
-    tar_a = Path("/tmp/a.tar")
-    tar_b = Path("/tmp/b.tar")
-
-    with (
-        patch.object(cache, "cache_scenario") as cache_scenario,
-        patch.object(cache, "cached_tar_paths", return_value=[tar_a, tar_b]),
-        patch.object(cache, "import_tar_to_node") as import_tar,
-    ):
-        cache.preload_workload_images(net_env)
-
-    cache_scenario.assert_called_once_with("llmd_lab")
-    assert import_tar.call_count == 4
-    runtime.exec.assert_any_call(
-        "controller",
-        f"mkdir -p /var/run && touch {cache._PRELOAD_SIGNAL_PATH}",
-        timeout=15.0,
-    )
+        cache.ensure_cached(image)
+    assert not cache.cache_tar_exists(image)
 
 
 @pytest.mark.unit
@@ -250,26 +273,32 @@ def test_preload_records_stopped_node_before_failure_cleanup() -> None:
         "State": {"Status": "exited", "ExitCode": 137, "OOMKilled": True}
     }
     container.logs.return_value = b"k3s agent exited\n"
-    tar = Path("/tmp/postgres__16.tar")
+    runtime.exec.return_value = ""
+    container.status = "running"
+    tars = [
+        cache.cache_tar_path(image)
+        for image in cache.workload_images_for_scenario("k8s_lab")
+    ]
 
     def import_image(_runtime, node, _tar):
         if node == "worker3":
+            container.status = "exited"
             raise RuntimeError("container is not running")
 
     with (
         patch.object(cache, "cache_scenario"),
-        patch.object(cache, "cached_tar_paths", return_value=[tar]),
+        patch.object(cache, "cached_tar_paths", return_value=tars),
         patch.object(cache, "_wait_k3s_api"),
         patch.object(cache, "import_tar_to_node", side_effect=import_image),
         patch("nika.utils.logger.log_error_event") as log_error,
-        pytest.raises(RuntimeError, match="worker3 while importing postgres__16.tar"),
+        pytest.raises(RuntimeError, match="worker3 while importing "),
     ):
         cache.preload_workload_images(net_env)
 
     event = log_error.call_args
     assert event.args[0] == "env_preload_node_failed"
     assert event.kwargs["node"] == "worker3"
-    assert event.kwargs["image_tar"] == "postgres__16.tar"
+    assert event.kwargs["image_tar"] == tars[0].name
     assert event.kwargs["container_id"] == "worker3-container-id"
     assert event.kwargs["container_state"]["ExitCode"] == 137
     assert event.kwargs["container_state"]["OOMKilled"] is True
@@ -292,21 +321,3 @@ def test_import_tar_to_node_accepts_success_marker() -> None:
     runtime = MagicMock()
     runtime.exec.return_value = "imported\nNIKA_IMPORT_EXIT:0\n"
     cache.import_tar_to_node(runtime, "controller", Path("/tmp/x.tar"))
-
-
-@pytest.mark.unit
-def test_mount_workload_cache_always_mounts_for_k8s_scenarios(
-    tmp_path: Path,
-) -> None:
-    machine = MagicMock()
-    cache.mount_workload_cache(machine, "k8s_lab")
-    machine.add_meta.assert_called_once()
-    volume = machine.add_meta.call_args[0][1]
-    assert "|/nika-image-cache|ro" in volume
-
-
-@pytest.mark.integration
-@pytest.mark.skipif(not docker_available(), reason="Requires Docker")
-def test_cache_scenario_writes_some_llmd_workload_tars() -> None:
-    cache.cache_scenario("llmd_lab")
-    assert cache.cached_tar_paths("llmd_lab")

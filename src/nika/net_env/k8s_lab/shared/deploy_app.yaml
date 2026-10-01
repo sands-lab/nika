@@ -15,12 +15,13 @@ spec:
     spec:
       initContainers:
       - name: wait-for-worddb
-        image: postgres:16
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        imagePullPolicy: Never
         command: [sh, -c, 'until pg_isready -h worddb -p 5432 -U root -d worddb -t 2; do sleep 2; done']
       containers:
       - name: word-container
-        image: ik2227/word:latest
-        imagePullPolicy: IfNotPresent
+        image: ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
         startupProbe:
@@ -46,12 +47,13 @@ spec:
     spec:
       initContainers:
       - name: wait-for-weatherdb
-        image: postgres:16
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        imagePullPolicy: Never
         command: [sh, -c, 'until pg_isready -h weatherdb -p 5432 -U root -d weatherdb -t 2; do sleep 2; done']
       containers:
       - name: weather-container
-        image: ik2227/weather:latest
-        imagePullPolicy: IfNotPresent
+        image: ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
         startupProbe:

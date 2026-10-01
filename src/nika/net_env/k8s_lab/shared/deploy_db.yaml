@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: worddb-container
-        image: postgres:16
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        imagePullPolicy: Never
         ports:
         - containerPort: 5432
         readinessProbe:
@@ -54,7 +55,8 @@ spec:
     spec:
       containers:
       - name: weatherdb-container
-        image: postgres:16
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        imagePullPolicy: Never
         ports:
         - containerPort: 5432
         readinessProbe:
