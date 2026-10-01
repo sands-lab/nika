@@ -14,6 +14,7 @@ from nika.net_env.verify import (
     host_has_ipv4,
     nodes_deployed,
     ping_ok,
+    srl_bgp_established_peers,
 )
 from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
@@ -243,10 +244,7 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
             'sr_cli "show network-instance default protocols bgp neighbor"',
             timeout=30,
         )
-        established = sum(
-            1 for line in output.splitlines() if "established" in line.lower()
-        )
-        return established >= len(peers)
+        return len(srl_bgp_established_peers(output)) >= len(peers)
 
     return all(bounded_parallel_map(device_ok, needed.items()))
 

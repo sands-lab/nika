@@ -8,7 +8,7 @@ import subprocess
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from nika.net_env.verify import frr_bgp_established_peers
+from nika.net_env.verify import frr_bgp_established_peers, srl_bgp_established_peers
 from nika.runtime.containerlab.runtime import ContainerlabRuntime
 from nika.runtime.shared.execution import merge_exec_output
 from nika.service.containerlab.host_tc import host_veth_for
@@ -36,6 +36,24 @@ def test_bgp_established_peers_accepts_numbered_and_unnumbered() -> None:
         "Total number of neighbors 3\n"
     )
     assert frr_bgp_established_peers(summary) == {"10.0.0.2", "spine1(eth1)"}
+
+
+def test_srl_bgp_established_peers_ignores_summary_line() -> None:
+    output = (
+        "| default | 10.0.0.1 | clos01 | S | 65056 | active      | - |  |  |\n"
+        "| default | 10.0.0.5 | clos01 | S | 65002 | established | 0d:0h:1m:0s |"
+        " ipv4-unicast | [2/2/2] |\n"
+        "Summary:\n"
+        "2 configured neighbors, 1 configured sessions are established, "
+        "0 disabled peers\n"
+    )
+    assert srl_bgp_established_peers(output) == {"10.0.0.5"}
+    assert (
+        srl_bgp_established_peers(
+            output.splitlines()[0] + "\n0 configured sessions are established\n"
+        )
+        == set()
+    )
 
 
 def _link(name: str, *members: str) -> SimpleNamespace:

@@ -24,6 +24,7 @@ from nika.net_env.verify import (
     ping_ok,
     ping_stats,
     route_is_onlink,
+    srl_bgp_established_peers,
     tbf_overlimits,
 )
 from nika.problems.support.probe_paths import ProbePath, get_probe_path
@@ -360,18 +361,14 @@ def _cluster_dns_ok(
 
 def _srl_bgp_established_peers(runtime: LabRuntime, host: str) -> set[str]:
     """Established peers from the SR Linux neighbor table (no vtysh there)."""
-    output = exec_or_empty(
-        runtime,
-        host,
-        'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
-        timeout=30,
+    return srl_bgp_established_peers(
+        exec_or_empty(
+            runtime,
+            host,
+            'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
+            timeout=30,
+        )
     )
-    peers: set[str] = set()
-    for line in output.splitlines():
-        cells = [cell.strip() for cell in line.split("|")]
-        if len(cells) > 6 and cells[6] == "established":
-            peers.add(cells[2])
-    return peers
 
 
 def _first_hop_answers(runtime: LabRuntime, router: str, target: str) -> bool | None:
