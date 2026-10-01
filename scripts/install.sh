@@ -23,7 +23,8 @@ usage() {
 Usage: ./scripts/install.sh [options]
 
 Installs Docker (if needed), uv, lab Python deps (Kathará), Containerlab,
-gnmic, plus clang and iproute2 for fault injection (via apt-get). Raises
+gnmic, skopeo for Kubernetes image preparation, plus clang and iproute2
+for fault injection (via apt-get). Raises
 and persists host inotify limits for k3s and XRd labs. Creates .env and
 config/nika.yaml from examples when missing.
 
@@ -247,13 +248,13 @@ bootstrap_config() {
 
 install_fault_injection_tools() {
   if ! command -v apt-get >/dev/null 2>&1; then
-    log "Skipping clang and iproute2: apt-get not found; install them manually for fault injection"
+    log "apt-get not found; install skopeo, clang and iproute2 manually"
     return
   fi
   need_cmd sudo
-  log "Installing fault-injection tools (clang for eBPF, iproute2 for tc)"
+  log "Installing host tools (skopeo for Kubernetes images, clang for eBPF, iproute2 for tc)"
   sudo apt-get update
-  sudo apt-get install -y clang iproute2
+  sudo apt-get install -y clang iproute2 skopeo
 }
 
 checkout_track() {

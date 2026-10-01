@@ -1,12 +1,11 @@
+. /nika-bootstrap.sh
+
 # Configure Reachable IP Address
 ip address add 201.1.1.2/24 dev eth0
 
 # Wait for a default route (bridged eth1 may still be attaching).
 echo "[nika-startup] waiting for default route"
-for _ in $(seq 1 60); do
-  ip route show default 2>/dev/null | grep -q . && break
-  sleep 1
-done
+nika_wait "default route" 60 sh -c 'ip route show default | grep -q .'
 
 # Prefer the lab default route (bridged eth1 may already have a Docker default).
 # Bridging is required for host port publish of the API; this restores fabric egress.
@@ -18,102 +17,64 @@ touch /var/run/nika-net-ready
 echo "[nika-startup] nika-net-ready; waiting for k3s API"
 
 # Wait Kubernetes control plane startup
-kubectl api-versions &> /dev/null
-while [[ $? != 0 ]]; do sleep 1; kubectl api-versions &> /dev/null; done
+nika_wait "k3s API" 600 kubectl --request-timeout=5s get --raw=/readyz
 echo "[nika-startup] k3s API ready; waiting for host image preload"
 
 # Wait for the host-side preload orchestrator to finish all k3s nodes.
-for _ in $(seq 1 900); do
-  [ -f /var/run/nika-images-preloaded ] && break
-  sleep 1
-done
-if [ -f /var/run/nika-images-preloaded ]; then
-  echo "[nika-startup] image preload signal present"
-else
-  echo "[nika-startup] WARNING: preload signal missing after 900s; continuing"
-fi
+nika_wait "host image preload" 900 test -f /var/run/nika-images-preloaded
 
 # Start MetalLB
 echo "[nika-startup] applying MetalLB"
-kubectl apply -f /k8s/metallb-frr.yaml
+nika_run "apply /k8s/metallb-frr.yaml" kubectl --request-timeout=30s apply -f /k8s/metallb-frr.yaml
 
 # Wait MetalLB controller startup
 echo "[nika-startup] waiting for MetalLB controller"
-until kubectl wait -n metallb-system --for=condition=ready pod \
-  --selector component=controller --timeout 60s; do
-  echo "[nika-startup] MetalLB controller not ready yet; retrying"
-  sleep 2
-done
+nika_ready "metallb-system component=controller" -n metallb-system --selector component=controller
 echo "[nika-startup] MetalLB controller ready"
 
 # Apply MetalLB configuration
-kubectl apply -f /k8s/metallb-conf.yaml
+nika_run "apply /k8s/metallb-conf.yaml" kubectl --request-timeout=30s apply -f /k8s/metallb-conf.yaml
 
 # Wait MetalLB speakers startup
 echo "[nika-startup] waiting for MetalLB speakers"
-until kubectl wait -n metallb-system --for=condition=ready pod \
-  --selector component=speaker --timeout 60s; do
-  echo "[nika-startup] MetalLB speakers not ready yet; retrying"
-  sleep 2
-done
+nika_ready "metallb-system component=speaker" -n metallb-system --selector component=speaker
 echo "[nika-startup] MetalLB speakers ready"
 
 # Start NGINX Ingress Controller
 echo "[nika-startup] applying ingress-nginx"
-kubectl apply -f /k8s/ingress-nginx.yaml
+nika_run "apply /k8s/ingress-nginx.yaml" kubectl --request-timeout=30s apply -f /k8s/ingress-nginx.yaml
 
 # Wait NGINX Ingress Controller startup
 echo "[nika-startup] waiting for ingress-nginx"
-until kubectl wait -n ingress-nginx --for=condition=ready pod \
-  --selector app.kubernetes.io/component=controller --timeout 60s; do
-  echo "[nika-startup] ingress-nginx not ready yet; retrying"
-  sleep 2
-done
+nika_ready "ingress-nginx app.kubernetes.io/component=controller" -n ingress-nginx --selector app.kubernetes.io/component=controller
 echo "[nika-startup] ingress-nginx ready"
 
 # Apply PVs
-kubectl apply -f /k8s/pv.yaml
+nika_run "apply /k8s/pv.yaml" kubectl --request-timeout=30s apply -f /k8s/pv.yaml
 
 # Apply sample workloads in dependency order (namespaces before deployments).
 echo "[nika-startup] applying sample workloads"
-kubectl apply -f /shared/ns.yaml
-kubectl apply -f /shared/pvc.yaml
-kubectl apply -f /shared/deploy_db.yaml
+nika_run "apply /shared/ns.yaml" kubectl --request-timeout=30s apply -f /shared/ns.yaml
+nika_run "apply /shared/pvc.yaml" kubectl --request-timeout=30s apply -f /shared/pvc.yaml
+nika_run "apply /shared/deploy_db.yaml" kubectl --request-timeout=30s apply -f /shared/deploy_db.yaml
 
 echo "[nika-startup] waiting for databases"
-until kubectl wait -n word-ns --for=condition=ready pod -l app=worddb --timeout 60s; do
-  echo "[nika-startup] worddb not ready yet; retrying"
-  sleep 2
-done
-until kubectl wait -n weather-ns --for=condition=ready pod -l app=weatherdb --timeout 60s; do
-  echo "[nika-startup] weatherdb not ready yet; retrying"
-  sleep 2
-done
+nika_ready "word-ns app=worddb" -n word-ns -l app=worddb
+nika_ready "weather-ns app=weatherdb" -n weather-ns -l app=weatherdb
 echo "[nika-startup] databases ready"
 
-kubectl apply -f /shared/deploy_app.yaml
-kubectl apply -f /shared/svc.yaml
-kubectl apply -f /shared/ing.yaml
+nika_run "apply /shared/deploy_app.yaml" kubectl --request-timeout=30s apply -f /shared/deploy_app.yaml
+nika_run "apply /shared/svc.yaml" kubectl --request-timeout=30s apply -f /shared/svc.yaml
+nika_run "apply /shared/ing.yaml" kubectl --request-timeout=30s apply -f /shared/ing.yaml
 
 echo "[nika-startup] waiting for sample apps"
-until kubectl wait -n word-ns --for=condition=ready pod -l app=word --timeout 60s; do
-  echo "[nika-startup] word app not ready yet; retrying"
-  sleep 2
-done
-until kubectl wait -n weather-ns --for=condition=ready pod -l app=weather --timeout 60s; do
-  echo "[nika-startup] weather app not ready yet; retrying"
-  sleep 2
-done
+nika_ready "word-ns app=word" -n word-ns -l app=word
+nika_ready "weather-ns app=weather" -n weather-ns -l app=weather
 # The images initialize their databases at process startup. Start one replica
 # first so the initial schema/data writes do not race across two pods.
-kubectl scale -n word-ns deployment/word-dply --replicas=2
-kubectl scale -n weather-ns deployment/weather-dply --replicas=2
-until kubectl rollout status -n word-ns deployment/word-dply --timeout 60s; do
-  echo "[nika-startup] word replicas not ready yet; retrying"
-  sleep 2
-done
-until kubectl rollout status -n weather-ns deployment/weather-dply --timeout 60s; do
-  echo "[nika-startup] weather replicas not ready yet; retrying"
-  sleep 2
-done
+nika_run "scale replicas" kubectl --request-timeout=30s scale -n word-ns deployment/word-dply --replicas=2
+nika_run "scale replicas" kubectl --request-timeout=30s scale -n weather-ns deployment/weather-dply --replicas=2
+nika_wait "word-dply rollout" 300 kubectl --request-timeout=15s rollout status -n word-ns deployment/word-dply --timeout=5s
+nika_wait "weather-dply rollout" 300 kubectl --request-timeout=15s rollout status -n weather-ns deployment/weather-dply --timeout=5s
 echo "[nika-startup] sample apps ready"
+touch /var/run/nika-startup-complete

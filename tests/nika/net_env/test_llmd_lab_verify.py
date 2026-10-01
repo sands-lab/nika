@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from nika.net_env.llmd_lab.lab import LLMDInferenceCluster
+from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE
 from tests.support.net_env import instantiate_with_mocked_kathara
 
 pytestmark = pytest.mark.unit
@@ -64,7 +65,7 @@ class LLMDLabUnitTest:
             assert machine.meta.get("entrypoint") == "/bin/sh"
             assert "/var/run/nika-net-ready" in args
             assert "exec /bin/k3s" in args
-            assert machine.get_image() == "rancher/k3s:v1.34.1-k3s1"
+            assert machine.get_image() == K3S_IMAGE
             if node_name == "controller":
                 assert "server --disable" in args
             else:

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
-import os
 import re
+import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -14,12 +17,9 @@ from typing import TYPE_CHECKING
 
 from nika.config import REPO_ROOT
 from nika.net_env.utils.kathara.docker_files.docker_images import (
-    _get_client,
     ensure_nika_docker_images,
-    image_exists,
-    pull_image,
+    host_machine_arch,
 )
-from nika.utils.parallel import bounded_parallel_map
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
@@ -28,49 +28,51 @@ if TYPE_CHECKING:
 K8S_LAB = "k8s_lab"
 LLMD_LAB = "llmd_lab"
 
+K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c"
+
 K8S_LAB_HOST_IMAGES = (
     "nika/frr",
-    "rancher/k3s:v1.34.1-k3s1",
+    K3S_IMAGE,
     "nika/base",
 )
 
 LLMD_LAB_HOST_IMAGES = (
-    "rancher/k3s:v1.34.1-k3s1",
+    K3S_IMAGE,
     "nika/base",
 )
 
 # System images used by rancher/k3s:v1.34.1-k3s1.
 K3S_SYSTEM_IMAGES = (
-    "rancher/mirrored-pause:3.6",
-    "rancher/mirrored-coredns-coredns:1.12.3",
-    "rancher/mirrored-metrics-server:v0.8.0",
-    "rancher/local-path-provisioner:v0.0.32",
+    "rancher/mirrored-pause:3.6@sha256:74c4244427b7312c5b901fe0f67cbc53683d06f4f24c6faee65d4182bf0fa893",
+    "rancher/mirrored-coredns-coredns:1.12.3@sha256:1391544c978029fcddc65068f6ad67f396e55585b664ecccd7fefba029b9b706",
+    "rancher/mirrored-metrics-server:v0.8.0@sha256:89258156d0e9af60403eafd44da9676fd66f600c7934d468ccc17e42b199aee2",
+    "rancher/local-path-provisioner:v0.0.32@sha256:9289da488b07912cb4128eb96928a331a5f3e60c28c5cfc5790f354a4ad0cc68",
 )
 
 K8S_LAB_WORKLOAD_IMAGES = (
     *K3S_SYSTEM_IMAGES,
-    "quay.io/metallb/controller:v0.14.9",
-    "quay.io/metallb/speaker:v0.14.9",
-    "quay.io/frrouting/frr:9.1.0",
-    "registry.k8s.io/ingress-nginx/controller:v1.12.0",
-    "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0",
-    "postgres:16",
-    "ik2227/word:latest",
-    "ik2227/weather:latest",
+    "quay.io/metallb/controller:v0.14.9@sha256:86261567e5ff03978893bf03ea865275283ad1e3f0f20dd342ed501b651fdf78",
+    "quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993",
+    "quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4",
+    "registry.k8s.io/ingress-nginx/controller:v1.12.0@sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa",
+    "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0@sha256:aaafd456bda110628b2d4ca6296f38731a3aaf0bf7581efae824a41c770a8fc4",
+    "postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54",
+    "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d",
+    "ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e",
 )
 
 LLMD_LAB_WORKLOAD_IMAGES = (
     *K3S_SYSTEM_IMAGES,
-    "quay.io/metallb/controller:v0.16.1",
-    "quay.io/metallb/speaker:v0.16.1",
-    "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0",
-    "ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0",
-    "ghcr.io/llm-d/llm-d-inference-sim:latest",
+    "quay.io/metallb/controller:v0.16.1@sha256:f51ab515de9ccd20dc3dccb093e48df8adddac019326c456f449e55ba91b6420",
+    "quay.io/metallb/speaker:v0.16.1@sha256:16561e96531e1852d5c229ad7fae6e994dcfa983ff7f4de6b6208b34a4e2ddbc",
+    "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0@sha256:873179822ab0895a37ea09f2112ca39a6ae50a26612561c8bfad7f9a8c5af6f5",
+    "ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0@sha256:4cc3f15f254c26df7611e3b92ff7c82f83ad4ecb325de639c9dfb32873c6ce90",
+    "ghcr.io/llm-d/llm-d-inference-sim:latest@sha256:32144df791330a0006b747edfdf2b114a0fe728e023a9d1b3463eeb48d32abb9",
     # agentgateway Helm chart v1.1.0 (llmd_lab/lab.py _AGENTGATEWAY_VERSION):
     # the controller defaults to the chart appVersion and deploys proxies
     # with the same release tag.
-    "cr.agentgateway.dev/controller:v1.1.0",
-    "cr.agentgateway.dev/agentgateway:v1.1.0",
+    "cr.agentgateway.dev/controller:v1.1.0@sha256:0c4179780a3353a20f403ed51c764127f2806b6aa1a5ecb6da7655b5b27d7926",
+    "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
 )
 
 K8S_SCENARIOS = frozenset({K8S_LAB, LLMD_LAB})
@@ -80,8 +82,6 @@ _MOUNT_CACHE_DIR = "/nika-image-cache"
 _K3S_API_WAIT_SEC = 600.0
 _K3S_API_POLL_SEC = 2.0
 _IMPORT_TIMEOUT_SEC = 600.0
-# Serial imports avoid Kathara exec races and containerd sock contention.
-_IMPORT_NODE_WORKERS = 1
 
 
 def cache_root() -> Path:
@@ -106,7 +106,7 @@ def host_images_for_scenario(scenario: str) -> tuple[str, ...]:
 
 def cache_tar_path(image: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9._-]+", "__", image)
-    return cache_root() / f"{safe}.tar"
+    return cache_root() / f"{safe}__linux-{host_machine_arch()}.tar"
 
 
 def cache_tar_exists(image: str) -> bool:
@@ -125,60 +125,190 @@ def _progress(message: str) -> None:
         pass
 
 
-def _tar_is_complete(path: Path) -> bool:
-    """Whether every config and layer listed in the tar's manifest.json is present."""
+def _tar_is_complete(path: Path, image: str | None = None) -> bool:
+    """Validate the pinned OCI graph for the host platform, including blob hashes."""
     try:
         with tarfile.open(path) as archive:
-            names = set(archive.getnames())
-            manifest = json.load(archive.extractfile("manifest.json"))
-        return all(
-            entry["Config"] in names and set(entry["Layers"]) <= names
-            for entry in manifest
-        )
-    except (tarfile.TarError, KeyError, TypeError, AttributeError, ValueError):
+            index = json.load(archive.extractfile("index.json"))
+            roots = index["manifests"]
+            if not roots or (image and roots[0]["digest"] != image.split("@")[1]):
+                return False
+            visited: set[str] = set()
+
+            def validate(descriptor: dict) -> None:
+                digest = descriptor["digest"]
+                if digest in visited:
+                    return
+                algorithm, value = digest.split(":", 1)
+                if algorithm != "sha256":
+                    raise ValueError("Only SHA256 image digests are supported")
+                member = archive.getmember(f"blobs/sha256/{value}")
+                if member.size != descriptor["size"]:
+                    raise ValueError("Blob size does not match descriptor")
+                stream = archive.extractfile(member)
+                if hashlib.file_digest(stream, "sha256").hexdigest() != value:
+                    raise ValueError("Blob digest does not match content")
+                visited.add(digest)
+                if (
+                    "manifest" in descriptor["mediaType"]
+                    or "index" in descriptor["mediaType"]
+                ):
+                    document = json.load(archive.extractfile(member))
+                    children = document.get("manifests", [])
+                    children = [
+                        child
+                        for child in children
+                        if not child.get("platform")
+                        or (
+                            child["platform"].get("os") == "linux"
+                            and child["platform"].get("architecture")
+                            == host_machine_arch()
+                        )
+                    ]
+                    if "manifests" in document and not children:
+                        raise ValueError("No image for the host platform")
+                    for child in children:
+                        validate(child)
+                    if "config" in document:
+                        validate(document["config"])
+                        config_path = document["config"]["digest"].replace(":", "/", 1)
+                        config = json.load(archive.extractfile("blobs/" + config_path))
+                        if (
+                            config.get("os") != "linux"
+                            or config.get("architecture") != host_machine_arch()
+                        ):
+                            raise ValueError(
+                                "Image configuration does not support the host platform"
+                            )
+                    for child in document.get("layers", []):
+                        validate(child)
+
+            for root in roots:
+                validate(root)
+        return True
+    except (OSError, tarfile.TarError, KeyError, TypeError, AttributeError, ValueError):
         return False
 
 
-def ensure_cached(image: str) -> Path | None:
-    """Pull ``image`` on the host when needed and return its tar cache path."""
-    tar_path = cache_tar_path(image)
-    if cache_tar_exists(image):
-        if _tar_is_complete(tar_path):
-            return tar_path
-        tar_path.unlink(missing_ok=True)
+def _write_oci_archive(directory: Path, archive_path: Path, image: str) -> None:
+    """Package skopeo's dir transport without converting upstream manifests.
 
-    cache_root().mkdir(parents=True, exist_ok=True)
-    try:
-        if not image_exists(image):
-            pull_image(image)
-    except RuntimeError as exc:
-        print(f"WARNING: skipping cache for {image}: {exc}", file=sys.stderr)
-        return None
-
-    client = _get_client()
-    # Concurrent trials may cache the same image; publish only complete tars.
-    fd, tmp_name = tempfile.mkstemp(dir=cache_root(), suffix=".tmp")
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "wb") as handle:
-            for chunk in client.images.get(image).save(named=True):
-                handle.write(chunk)
-        # The containerd image store can omit blobs for layers shared with
-        # another local image (moby/moby#49473); k3s then pulls the image.
-        if not _tar_is_complete(tmp_path):
-            print(
-                f"WARNING: docker save exported {image} without all layers; "
-                "not caching it",
-                file=sys.stderr,
+    The OCI transport converts Docker manifest lists, changing their digests.
+    Preserve the original graph so Kubernetes digest references resolve offline.
+    """
+    manifest = (directory / "manifest.json").read_bytes()
+    digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
+    if digest != image.split("@")[1]:
+        raise RuntimeError(f"Registry returned an unexpected manifest for {image}")
+    name = image.split("@")[0]
+    if "/" not in name:
+        name = "docker.io/library/" + name
+    elif "." not in name.split("/")[0] and ":" not in name.split("/")[0]:
+        name = "docker.io/" + name
+    descriptor = {
+        "mediaType": json.loads(manifest)["mediaType"],
+        "digest": digest,
+        "size": len(manifest),
+        "annotations": {"io.containerd.image.name": name},
+    }
+    digest_reference = name.rsplit(":", 1)[0] + "@" + digest
+    digest_descriptor = dict(
+        descriptor, annotations={"io.containerd.image.name": digest_reference}
+    )
+    with tarfile.open(archive_path, "w") as archive:
+        for name, data in {
+            "oci-layout": b'{"imageLayoutVersion":"1.0.0"}',
+            "index.json": json.dumps(
+                {"schemaVersion": 2, "manifests": [descriptor, digest_descriptor]}
+            ).encode(),
+        }.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+        for blob in directory.iterdir():
+            if blob.name == "version":
+                continue
+            value = (
+                digest.split(":")[1]
+                if blob.name == "manifest.json"
+                else blob.name.removesuffix(".manifest.json")
             )
-            return None
-        tmp_path.chmod(0o644)
-        tmp_path.replace(tar_path)
-    except Exception as exc:  # noqa: BLE001 - continue caching other images
-        print(f"WARNING: could not save {image} to cache: {exc}", file=sys.stderr)
-        return None
-    finally:
-        tmp_path.unlink(missing_ok=True)
+            archive.add(blob, arcname=f"blobs/sha256/{value}", recursive=False)
+
+
+def ensure_cached(image: str) -> Path:
+    """Fetch a digest-pinned, complete image graph independently of Docker's store."""
+    if "@sha256:" not in image:
+        raise ValueError(f"Workload image must be pinned by digest: {image}")
+    tar_path = cache_tar_path(image)
+    if cache_tar_exists(image) and _tar_is_complete(tar_path, image):
+        return tar_path
+    if not shutil.which("skopeo"):
+        raise RuntimeError(
+            "Kubernetes image preparation requires skopeo; run scripts/install.sh or install skopeo"
+        )
+    cache_root().mkdir(parents=True, exist_ok=True)
+    _progress(f"fetching {image}")
+    repository, digest = image.split("@", 1)
+    source = (
+        (
+            repository.rsplit(":", 1)[0]
+            if ":" in repository.rsplit("/", 1)[-1]
+            else repository
+        )
+        + "@"
+        + digest
+    )
+    with tempfile.TemporaryDirectory(dir=cache_root()) as tmp:
+        directory = Path(tmp) / "image"
+        staged = Path(tmp) / "image.tar"
+        try:
+            subprocess.run(
+                [
+                    "skopeo",
+                    "copy",
+                    "--override-os",
+                    "linux",
+                    "--override-arch",
+                    host_machine_arch(),
+                    "--preserve-digests",
+                    "--retry-times",
+                    "2",
+                    f"docker://{source}",
+                    f"dir:{directory}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=600,
+                check=True,
+            )
+            # Keep the upstream index identity while including only the selected
+            # platform's blobs. ctr --platform resolves this sparse index offline.
+            root = subprocess.run(
+                ["skopeo", "inspect", "--raw", f"docker://{source}"],
+                capture_output=True,
+                timeout=60,
+                check=True,
+            ).stdout
+            selected = directory / "manifest.json"
+            selected.replace(
+                directory
+                / (hashlib.sha256(selected.read_bytes()).hexdigest() + ".manifest.json")
+            )
+            selected.write_bytes(root)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"Could not cache {image}: {exc.stderr.strip()[-2000:]}"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Image preparation timed out after {exc.timeout}s: {image}"
+            ) from exc
+        _write_oci_archive(directory, staged, image)
+        if not _tar_is_complete(staged, image):
+            raise RuntimeError(f"Incomplete or corrupt image archive for {image}")
+        staged.chmod(0o644)
+        staged.replace(tar_path)
     return tar_path
 
 
@@ -189,8 +319,11 @@ def ensure_workload_cache(scenario: str) -> list[Path]:
     cached: list[Path] = []
     for image in images:
         tar_path = ensure_cached(image)
-        if tar_path is not None:
-            cached.append(tar_path)
+        cached.append(tar_path)
+    # Retire only the known tag-only archives after their replacements validate.
+    for image in images:
+        legacy_name = re.sub(r"[^A-Za-z0-9._-]+", "__", image.split("@")[0])
+        (cache_root() / f"{legacy_name}.tar").unlink(missing_ok=True)
     built = len(cached) - already
     if images:
         _progress(
@@ -211,12 +344,7 @@ def cache_scenario(scenario: str) -> None:
     if scenario == LLMD_LAB:
         from nika.net_env.llmd_lab.lab import ensure_helm_charts
 
-        try:
-            ensure_helm_charts()
-        except Exception as exc:  # noqa: BLE001 - charts fall back to OCI at deploy
-            print(
-                f"WARNING: could not cache llmd_lab Helm charts: {exc}", file=sys.stderr
-            )
+        ensure_helm_charts()
 
 
 def cached_tar_paths(scenario: str) -> list[Path]:
@@ -227,17 +355,37 @@ def cached_tar_paths(scenario: str) -> list[Path]:
     ]
 
 
-def _wait_k3s_api(runtime: LabRuntime, controller: str = "controller") -> None:
+def _wait_k3s_api(
+    runtime: LabRuntime,
+    controller: str = "controller",
+    *,
+    nodes: list[str] | None = None,
+) -> None:
+    from nika.net_env.verify import raise_for_k8s_startup_failure
+
     deadline = time.time() + _K3S_API_WAIT_SEC
+    containers = {node: runtime.get_container(node) for node in nodes or [controller]}
     started = time.time()
     last_log = 0.0
     while time.time() < deadline:
+        raise_for_k8s_startup_failure(runtime, containers)
         output = runtime.exec(
             controller,
-            "kubectl api-versions >/dev/null 2>&1; echo EXIT:$?",
+            "kubectl --request-timeout=5s get --raw=/readyz >/dev/null 2>&1; echo EXIT:$?",
             timeout=30.0,
         ).strip()
         if "EXIT:0" in output or output.splitlines()[-1:] == ["0"]:
+            if nodes:
+                from nika.net_env.verify import k8s_ready_node_count
+
+                ready = runtime.exec(
+                    controller,
+                    "kubectl --request-timeout=5s get nodes --no-headers",
+                    timeout=15,
+                )
+                if k8s_ready_node_count(ready) < len(nodes):
+                    time.sleep(_K3S_API_POLL_SEC)
+                    continue
             _progress(
                 f"k3s API ready on {controller} after {time.time() - started:.0f}s"
             )
@@ -256,11 +404,17 @@ def _wait_k3s_api(runtime: LabRuntime, controller: str = "controller") -> None:
 
 
 def mount_workload_cache(machine, scenario: str) -> None:
-    """Mount the host image-cache directory read-only into k3s nodes."""
+    """Stage the image cache and block node registry fallback, including system pods."""
     if scenario not in K8S_SCENARIOS:
         return
     cache_root().mkdir(parents=True, exist_ok=True)
     machine.add_meta("volume", f"{cache_root()}|{_MOUNT_CACHE_DIR}|ro")
+    # A refused local endpoint prevents mutable system-image tags from being
+    # fetched before host preload. Empty mirror entries are discarded by k3s.
+    machine.create_file_from_string(
+        'mirrors:\n  "*":\n    endpoint:\n    - "http://127.0.0.1:1"\n',
+        "/etc/rancher/k3s/registries.yaml",
+    )
 
 
 def import_tar_to_node(runtime: LabRuntime, node: str, tar_path: Path) -> None:
@@ -272,8 +426,7 @@ def import_tar_to_node(runtime: LabRuntime, node: str, tar_path: Path) -> None:
         node,
         f"if [ ! -f {remote_path} ]; then echo NIKA_IMPORT_MISSING; exit 1; fi; "
         f"ctr --address /run/k3s/containerd/containerd.sock -n k8s.io "
-        f"images import {remote_path} >/tmp/nika-import.log 2>&1 "
-        f"|| ctr -n k8s.io images import {remote_path} >/tmp/nika-import.log 2>&1; "
+        f"images import --local --platform linux/{host_machine_arch()} {remote_path} >/tmp/nika-import.log 2>&1; "
         f"echo NIKA_IMPORT_EXIT:$?; "
         f"tail -c 400 /tmp/nika-import.log 2>/dev/null || true",
         timeout=_IMPORT_TIMEOUT_SEC,
@@ -289,22 +442,14 @@ def import_tar_to_node(runtime: LabRuntime, node: str, tar_path: Path) -> None:
         )
 
 
-def signal_preload_complete(
-    runtime: LabRuntime, controller: str = "controller"
-) -> None:
-    runtime.exec(
-        controller,
-        f"mkdir -p /var/run && touch {_PRELOAD_SIGNAL_PATH}",
-        timeout=15.0,
-    )
-
-
 def preload_workload_images(net_env: NetworkEnvBase) -> None:
     """Import cached workload images into k3s nodes before bootstrap applies manifests.
 
     Raises on failure. Does **not** write the preload signal unless imports succeed,
     so ``controller.startup`` will not apply MetalLB/apps against an empty containerd.
     """
+    from nika.net_env.verify import raise_for_k8s_startup_failure
+
     scenario = getattr(net_env, "LAB_NAME", None) or net_env.name
     if scenario not in K8S_SCENARIOS:
         return
@@ -317,7 +462,7 @@ def preload_workload_images(net_env: NetworkEnvBase) -> None:
     if not tar_paths:
         raise RuntimeError(
             f"No workload images available for {scenario} after cache ensure "
-            f"(host pull/save failed; check registry connectivity)"
+            f"(image preparation failed; check registry connectivity)"
         )
     if len(tar_paths) < expected:
         missing = [
@@ -325,34 +470,32 @@ def preload_workload_images(net_env: NetworkEnvBase) -> None:
             for image in workload_images_for_scenario(scenario)
             if not cache_tar_exists(image)
         ]
-        _progress(
-            f"warning: {len(missing)} image(s) still uncached "
-            f"(will try network pull inside cluster if reachable): "
-            f"{', '.join(missing[:6])}{'…' if len(missing) > 6 else ''}"
+        raise RuntimeError(
+            f"Workload image cache is incomplete for {scenario}: {missing}"
         )
-
-    _wait_k3s_api(runtime, controller)
 
     nodes = list(getattr(net_env, "kubernetes_nodes", []) or [])
     if not nodes:
         nodes = [name for name in runtime.list_nodes() if name.startswith("worker")]
         nodes.insert(0, controller)
 
+    _wait_k3s_api(runtime, controller, nodes=nodes)
+    containers = {node: runtime.get_container(node) for node in nodes}
+
     _progress(
         f"preloading {len(tar_paths)} image(s) × {len(nodes)} node(s) for {scenario}"
     )
-    workers = min(_IMPORT_NODE_WORKERS, len(nodes))
     started = time.time()
 
-    def import_node(node: str) -> None:
+    # Serial imports avoid Kathara exec races and containerd socket contention.
+    for node in nodes:
         # Keep the Docker object before k3s can exit; Kathara may no longer
         # resolve a stopped machine when the failure handler inspects it.
-        try:
-            container = runtime.get_container(node)
-        except Exception:  # noqa: BLE001 - diagnostics must not block imports
-            container = None
+        container = containers[node]
+        _progress(f"importing images on {node} for {scenario}")
         for tar_path in tar_paths:
             try:
+                raise_for_k8s_startup_failure(runtime, containers)
                 import_tar_to_node(runtime, node, tar_path)
             except Exception as exc:
                 details: dict = {
@@ -363,8 +506,6 @@ def preload_workload_images(net_env: NetworkEnvBase) -> None:
                     "error": str(exc),
                 }
                 try:
-                    if container is None:
-                        container = runtime.get_container(node)
                     details["container_id"] = container.id
                     container.reload()
                     details["container_state"] = container.attrs.get("State", {})
@@ -389,10 +530,13 @@ def preload_workload_images(net_env: NetworkEnvBase) -> None:
                     f"Workload image preload failed on {node} while importing "
                     f"{tar_path.name}: {exc}"
                 ) from exc
+        _progress(f"images ready on {node} for {scenario}")
 
-    bounded_parallel_map(import_node, nodes, max_workers=workers)
-
-    signal_preload_complete(runtime, controller)
+    runtime.exec(
+        controller,
+        f"mkdir -p /var/run && touch {_PRELOAD_SIGNAL_PATH}",
+        timeout=15.0,
+    )
     _progress(
         f"preload complete for {scenario} "
         f"({len(tar_paths)} images × {len(nodes)} nodes in {time.time() - started:.0f}s)"

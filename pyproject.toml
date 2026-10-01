@@ -72,6 +72,7 @@ include = ["nika*", "agent*"]
 "nika.net_env.min3clos" = ["*.tmpl", "configs/*"]
 "nika.net_env.p4_dc_fabric" = ["*.p4"]
 "nika.net_env.p4_dc_gateway" = ["*.p4"]
+"nika.net_env.utils" = ["k8s_bootstrap.sh"]
 "nika.net_env.utils.kathara" = [
     "*/daemons*",
     "*/vtysh.conf",

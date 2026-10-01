@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import re
+import shlex
 import time
 
 import pytest
 
 from nika.net_env.k8s_lab.lab import K8sFatTreeBGP
+from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE
 from nika.service.kathara.base_api import KatharaBaseAPI
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.net_env import instantiate_with_mocked_kathara, ready_node_count
@@ -86,7 +89,7 @@ class K8sLabUnitTest:
             assert machine.meta.get("entrypoint") == "/bin/sh"
             assert "/var/run/nika-net-ready" in args
             assert "exec /bin/k3s" in args
-            assert machine.get_image() == "rancher/k3s:v1.34.1-k3s1"
+            assert machine.get_image() == K3S_IMAGE
             if node_name == "controller":
                 assert "server --disable" in args
             else:
@@ -235,3 +238,63 @@ class K8sLabIntegrationTest(SharedSessionTestCase):
         )
 
         assert "London" in body
+
+    def test_ingress_reachable_after_cross_leaf_rescheduling(self) -> None:
+        """Local ingress endpoints must advertise and serve the VIP on both leaves."""
+        deployment = "deployment/ingress-nginx-controller -n ingress-nginx"
+        selector = json.loads(
+            self._exec(
+                "controller",
+                f"kubectl get {deployment} -o jsonpath='{{.spec.template.spec.nodeSelector}}'",
+            )
+        )
+        original_host = selector.get("kubernetes.io/hostname")
+        try:
+            for node in ("worker1", "worker3"):
+                patch = {
+                    "spec": {
+                        "template": {
+                            "spec": {"nodeSelector": {"kubernetes.io/hostname": node}}
+                        }
+                    }
+                }
+                self._exec(
+                    "controller",
+                    f"kubectl patch {deployment} --type merge -p {shlex.quote(json.dumps(patch))}",
+                )
+                rollout = self._exec(
+                    "controller", f"kubectl rollout status {deployment} --timeout=90s"
+                )
+                assert "successfully rolled out" in rollout, rollout
+                pods = json.loads(
+                    self._exec(
+                        "controller",
+                        "kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller -o json",
+                    )
+                )["items"]
+                assert {
+                    pod["spec"]["nodeName"]
+                    for pod in pods
+                    if not pod["metadata"].get("deletionTimestamp")
+                } == {node}
+                for path in ("word", "weather?location=London"):
+                    output = self._exec(
+                        "client",
+                        "curl -fsS --retry 10 --retry-all-errors --retry-delay 2 "
+                        f"--max-time 5 -o /dev/null 'http://datacenter.com/{path}'; echo NIKA_CURL_EXIT:$?",
+                    )
+                    assert "NIKA_CURL_EXIT:0" in output, (node, path, output)
+        finally:
+            patch = {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "nodeSelector": {"kubernetes.io/hostname": original_host}
+                        }
+                    }
+                }
+            }
+            self._exec(
+                "controller",
+                f"kubectl patch {deployment} --type merge -p {shlex.quote(json.dumps(patch))}",
+            )
