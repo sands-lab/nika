@@ -384,7 +384,3 @@ def write_environment_audit_doc(path: Path | None = None) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render_environment_audit_doc(), encoding="utf-8")
     return target
-
-
-def case_keys(version: str = "0.2.0") -> list[tuple]:
-    return [identity_from_row(row).key() for row in release_cases(version)]

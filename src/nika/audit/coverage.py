@@ -10,9 +10,6 @@ from typing import Any
 
 from nika.audit.environment import (
     CaseAudit,
-    CaseIdentity,
-    StageResult,
-    admission_status,
     identity_from_row,
 )
 from nika.workflows.benchmark.release import load_release
@@ -88,29 +85,3 @@ def gap_count(covered: list[dict[str, Any]]) -> dict[str, int]:
     counts["cases"] = len(covered)
     counts["admitted"] = counts["pass"]
     return counts
-
-
-def empty_audit(identity: CaseIdentity) -> CaseAudit:
-    """A case the full audit did not execute."""
-    return CaseAudit(
-        identity=identity,
-        stages=[
-            StageResult(stage="audit", status="not_run", reason="not_run"),
-        ],
-    )
-
-
-def static_admission(probe: str) -> str:
-    """Admission implied by a symptom-contract probe, before any live run.
-
-    A live audit replaces this. ``artifact_only`` cannot be admitted from the
-    contract alone. Other probes stay ``not_run`` until a live audit records
-    stages.
-    """
-    if probe == "artifact_only":
-        return admission_status(["no_evidence"])
-    if probe in {"control_plane_bgp", "control_plane_ospf"}:
-        return admission_status(["not_run"])
-    if not probe:
-        return "not_run"
-    return "not_run"
