@@ -260,7 +260,9 @@ class ContainerlabApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
         )
         self.smoke(
             "ContainerlabSRLAPI.srl_bgp_acl_drop_179_present",
-            lambda: api.srl_bgp_acl_drop_179_present(LEAF1),
+            lambda: api.srl_bgp_acl_drop_179_present(
+                LEAF1, api.srl_bgp_acl_drop_179_entries(LEAF1)
+            ),
             expect_type=bool,
         )
         assert (

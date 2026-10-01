@@ -12,11 +12,11 @@ NIKA_BGP_WITHDRAW = "nika_bgp_withdraw"
 NIKA_BGP_WITHDRAW_PFX = "nika_bgp_withdraw_pfx"
 NIKA_BGP_EXPORT_GROUP = "clos01"
 NIKA_BLACKHOLE_NHG = "nika_blackhole"
-# CPM filter entry sequence -> transport port field matched against TCP/179.
-_NIKA_BGP_ACL_ENTRIES: dict[int, str] = {
-    185: "destination-port",
-    186: "source-port",
-}
+# Transport port fields matched against TCP/179, in drop-entry order.
+_NIKA_BGP_ACL_PORTS = ("destination-port", "source-port")
+_CPM_IPV4_ENTRY_RE = re.compile(
+    r"^set / acl acl-filter cpm type ipv4 entry (\d+) (.+)$", re.MULTILINE
+)
 
 # Containerlab maps SRL YANG interfaces to Linux veth names in the netns.
 _SRL_SUBIF_TO_LINUX: dict[str, str] = {
@@ -97,15 +97,60 @@ class SRLAPIMixin:
             f"/network-instance default protocols bgp autonomous-system {asn}",
         )
 
-    def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> None:
+    def _srl_cpm_ipv4_entries(
+        self: SupportsSRL, device_name: str
+    ) -> dict[int, list[str]]:
+        output = self.srl_exec_cli(
+            device_name, "info flat from running acl acl-filter cpm type ipv4"
+        )
+        entries: dict[int, list[str]] = {}
+        for seq, rest in _CPM_IPV4_ENTRY_RE.findall(output):
+            entries.setdefault(int(seq), []).append(rest)
+        return entries
+
+    def srl_bgp_acl_drop_179_entries(
+        self: SupportsSRL, device_name: str
+    ) -> dict[int, str]:
+        """Choose free CPM filter sequence IDs for the TCP/179 drop entries.
+
+        The drops must precede the lowest entry accepting TCP/179 (the first
+        entry when none does); they take the middle of the nearest gap with
+        two free IDs below it. Returns sequence ID -> transport port field.
+        """
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        if not entries:
+            raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
+        bgp_matches = {
+            f"match transport {port} value 179" for port in _NIKA_BGP_ACL_PORTS
+        }
+        bgp_accepts = [
+            seq
+            for seq, lines in entries.items()
+            if not bgp_matches.isdisjoint(lines)
+            and any(line.startswith("action accept") for line in lines)
+        ]
+        anchor = min(bgp_accepts or entries)
+        hi = anchor
+        for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
+            if hi - lo > 2:
+                first = min((lo + hi) // 2, hi - 2)
+                return dict(zip((first, first + 1), _NIKA_BGP_ACL_PORTS))
+            hi = lo
+        raise ValueError(
+            f"No two adjacent free CPM IPv4 filter sequence IDs before entry "
+            f"{anchor} on SRL node {device_name!r}"
+        )
+
+    def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> dict[int, str]:
         """Drop BGP TCP/179 in the CPM filter, then reset established peers.
 
         BGP runs in the ``srbase-default`` netns, so root-netns iptables rules
-        never see it. The drop entries sit ahead of the default CPM filter's
-        BGP accept entries (190/200).
+        never see it. Returns the drop entries (sequence ID -> transport port
+        field), placed by ``srl_bgp_acl_drop_179_entries``.
         """
+        drop_entries = self.srl_bgp_acl_drop_179_entries(device_name)
         commands: list[str] = []
-        for seq, port in _NIKA_BGP_ACL_ENTRIES.items():
+        for seq, port in drop_entries.items():
             entry = f"/acl acl-filter cpm type ipv4 entry {seq}"
             commands += [
                 f"{entry} description {NIKA_BGP_ACL}",
@@ -134,19 +179,18 @@ class SRLAPIMixin:
                     for peer in neighbors
                 ],
             )
+        return drop_entries
 
-    def srl_bgp_acl_drop_179_present(self: SupportsSRL, device_name: str) -> bool:
-        for seq, port in _NIKA_BGP_ACL_ENTRIES.items():
-            output = self.srl_exec_cli(
-                device_name,
-                f"info flat from running acl acl-filter cpm type ipv4 entry {seq}",
-            )
-            if not (
-                f"match transport {port} value 179" in output
-                and "action drop" in output
-            ):
-                return False
-        return True
+    def srl_bgp_acl_drop_179_present(
+        self: SupportsSRL, device_name: str, drop_entries: dict[int, str]
+    ) -> bool:
+        """Return True when every ``drop_entries`` entry drops TCP/179."""
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        return bool(drop_entries) and all(
+            f"match transport {port} value 179" in entries.get(seq, [])
+            and "action drop" in entries.get(seq, [])
+            for seq, port in drop_entries.items()
+        )
 
     def srl_withdraw_client_prefix(
         self: SupportsSRL,
