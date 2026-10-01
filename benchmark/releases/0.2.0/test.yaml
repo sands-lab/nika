@@ -961,14 +961,14 @@ cases:
       name: wg_hq_b
     fault_type: wireguard_peer_key_misconfiguration
 - scenario: min3clos
-  problem: bgp_missing_route_advertisement
+  problem: bgp_asn_misconfig
   inject:
     host_name: leaf1
   root_causes:
   - resource:
       kind: node
       node: leaf1
-    fault_type: bgp_missing_route_advertisement
+    fault_type: bgp_asn_misconfig
 - scenario: llmd_lab
   problem: healthy
   inject: {}

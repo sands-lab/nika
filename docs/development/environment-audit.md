@@ -57,14 +57,14 @@ uv run python -c "from tests.audit.report_doc import write_environment_audit_doc
 ## Coverage
 
 Release 0.2.0 has 169 cases (dev 84, test 85).
-Admitted cases: 168.
+Admitted cases: 169.
 20 cases declare an `artifact_only` symptom probe.
 Their full audit uses a scenario health-check delta; a check that stays healthy does not prove fault effect.
 
 | Status | Cases |
 | --- | --- |
-| `pass` | 168 |
-| `fail` | 1 |
+| `pass` | 169 |
+| `fail` | 0 |
 | `skipped` | 0 |
 | `unsupported` | 0 |
 | `no_evidence` | 0 |
@@ -76,7 +76,7 @@ Symptom probes declared for these cases:
 | --- | --- |
 | `artifact_only` | 20 |
 | `bgp_hijack_route` | 2 |
-| `control_plane_bgp` | 6 |
+| `control_plane_bgp` | 7 |
 | `control_plane_ospf` | 6 |
 | `control_plane_routing` | 2 |
 | `custom` | 56 |
@@ -86,19 +86,9 @@ Symptom probes declared for these cases:
 | `isolation_http` | 4 |
 | `path_http` | 14 |
 | `path_mtu_frag_needed` | 2 |
-| `path_ping` | 29 |
+| `path_ping` | 28 |
 | `ping_old_ip` | 2 |
 | `route_get_onlink` | 2 |
-
-### Release cases outside the current compatibility rules
-
-Published releases do not change, so these cases stay in the release.
-The fault now lists the scenario in `INCOMPATIBLE_SCENARIOS`, and `nika benchmark generate` no longer creates the case.
-Expect the audit of such a case to fail: the scenario hides the fault effect.
-
-| Split | Scenario | Fault | Admission | Reason |
-| --- | --- | --- | --- | --- |
-| test | min3clos | bgp_missing_route_advertisement | fail | The IGP also carries the host subnets, so peers keep a route after BGP stops advertising it. |
 
 ## Executed audits
 
@@ -218,7 +208,7 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | llmd_lab | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | pass | pass |
 | llmd_lab | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | pass | pass |
 | llmd_lab | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | pass | pass |
-| min3clos | bgp_missing_route_advertisement | none | scenario default | none | host_name=leaf1 | fail | case: the symptom probe did not observe the network effect |
+| min3clos | bgp_asn_misconfig | none | scenario default | none | host_name=leaf1 | pass | pass |
 | min3clos | healthy | none | scenario default | none | none | pass | pass |
 | min3clos | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | pass | pass |
 | p4_dc_fabric | bmv2_switch_down | l | scenario default | none | host_name=leaf_1 | pass | pass |
@@ -279,14 +269,6 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | sdn_l3_clos | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
 | sdn_l3_clos | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | pass | pass |
-
-### Rows to inspect
-
-These runs left a failed stage or a host prerequisite. The diagnosis says whether that came from the fault or from the check.
-
-| Scenario | Fault | Admission | Diagnosis |
-| --- | --- | --- | --- |
-| min3clos | bgp_missing_route_advertisement | fail | case: the symptom probe did not observe the network effect |
 
 ### Audits still waiting
 
@@ -538,7 +520,7 @@ Every planned scenario and failure has a stored result.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | custom | pass |
 | dev | healthy | none | scenario default | none | none | healthy | pass |
-| test | bgp_missing_route_advertisement | none | scenario default | none | host_name=leaf1 | path_ping | fail |
+| test | bgp_asn_misconfig | none | scenario default | none | host_name=leaf1 | control_plane_bgp | pass |
 
 ### `isp_ta2`
 

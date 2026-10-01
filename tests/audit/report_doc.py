@@ -161,7 +161,6 @@ def render_environment_audit_doc(
     for probe, count in sorted(probes.items()):
         label = probe or "healthy"
         lines.append(f"| `{label}` | {count} |")
-    lines.extend(_excluded_section(covered))
     lines.extend(
         _executed_section(
             [
@@ -369,48 +368,6 @@ def _pending_section() -> list[str]:
         fault = _cell(str(row.get("problem") or ""))
         lines.append(f"| {resource} | {scenario} | {fault} |")
     lines.append("")
-    return lines
-
-
-def _excluded_section(covered: list[dict]) -> list[str]:
-    from nika.problems.registry import get_problem_class
-
-    rows = []
-    for item in covered:
-        identity = item["identity"]
-        problem_cls = get_problem_class(identity.fault)
-        reasons = getattr(problem_cls, "INCOMPATIBLE_SCENARIOS", {})
-        if identity.scenario in reasons:
-            rows.append((item, reasons[identity.scenario]))
-    if not rows:
-        return []
-    lines = [
-        "",
-        "### Release cases outside the current compatibility rules",
-        "",
-        "Published releases do not change, so these cases stay in the release.",
-        "The fault now lists the scenario in `INCOMPATIBLE_SCENARIOS`, and `nika benchmark generate` no longer creates the case.",
-        "Expect the audit of such a case to fail: the scenario hides the fault effect.",
-        "",
-        "| Split | Scenario | Fault | Admission | Reason |",
-        "| --- | --- | --- | --- | --- |",
-    ]
-    for item, reason in rows:
-        identity = item["identity"]
-        lines.append(
-            "| "
-            + " | ".join(
-                _cell(part)
-                for part in (
-                    str(item["split"]),
-                    identity.scenario,
-                    identity.fault,
-                    str(item["admission"]),
-                    reason,
-                )
-            )
-            + " |"
-        )
     return lines
 
 
