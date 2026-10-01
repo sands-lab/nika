@@ -829,7 +829,7 @@ cases:
 - scenario: llmd_lab
   problem: receiver_resource_contention
   inject:
-    duration: '600'
+    duration: '3600'
     host_name: client
   root_causes:
   - resource:
@@ -852,7 +852,7 @@ cases:
     client_host: client_2_1
     cpu_quota: '0.05'
     dst_ip: 10.0.1.11
-    duration: '600'
+    duration: '3600'
     host_name: web_1
     large_url: http://10.0.1.11/large.bin
     small_url: http://10.0.1.11/small.bin

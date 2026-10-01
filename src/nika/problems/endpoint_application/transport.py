@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field
 
@@ -53,6 +54,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DOCROOT = "{_DOCROOT}"
@@ -98,7 +100,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 80
+    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 '''
 
 
@@ -111,7 +114,7 @@ class SenderResourceContentionParams(BaseModel):
     """Parameters for injecting HTTP-server CPU resource contention."""
 
     host_name: str = Field(description="Target HTTP server host name.")
-    duration: int = Field(default=600, description="Stress duration in seconds.")
+    duration: int = Field(default=3600, description="Stress duration in seconds.")
     cpu_quota: float = Field(
         default=0.05,
         description="Docker CPU quota applied to the HTTP server (fractional CPUs).",
@@ -212,8 +215,9 @@ class SenderResourceContention(ProblemBase):
         return params.model_copy(update=updates)
 
     def _ensure_http_objects(self, params: SenderResourceContentionParams) -> None:
-        """Create objects and run a CPU-sensitive HTTP server on :80."""
+        """Create objects and run a CPU-sensitive HTTP server on the URL port."""
         host = params.host_name
+        port = urlsplit(params.large_url).port or 80
         # Always (re)write probe objects so a pre-existing tiny large.bin cannot
         # skip hashing (ROUNDS_PER_64K_LARGE only applies above 1 MiB).
         self.runtime.exec(
@@ -243,7 +247,7 @@ class SenderResourceContention(ProblemBase):
         start_out = self.runtime.exec(
             host,
             (
-                f"nohup python3 {_CPU_HTTP_SERVER} </dev/null "
+                f"nohup python3 {_CPU_HTTP_SERVER} {port} </dev/null "
                 f">{_CPU_HTTP_LOG} 2>&1 & echo START:$!"
             ),
             timeout=15,
@@ -255,7 +259,7 @@ class SenderResourceContention(ProblemBase):
             probe = self.runtime.exec(
                 host,
                 "curl -s -o /dev/null -w '%{http_code}' --max-time 8 "
-                "http://127.0.0.1/small.bin || true",
+                f"http://127.0.0.1:{port}/small.bin || true",
                 timeout=45,
             ).strip()
             if probe in {"200", "206"}:
@@ -486,7 +490,7 @@ class ReceiverResourceContentionParams(BaseModel):
     """Parameters for injecting a receiver resource contention fault."""
 
     host_name: str = Field(description="Target receiver host name.")
-    duration: int = Field(default=600, description="Stress duration in seconds.")
+    duration: int = Field(default=3600, description="Stress duration in seconds.")
     stress_cpus: int = Field(
         default=8,
         description="Number of stress-ng CPU workers on the receiver.",

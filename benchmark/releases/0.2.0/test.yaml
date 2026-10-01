@@ -780,7 +780,7 @@ cases:
 - scenario: dc_clos
   problem: receiver_resource_contention
   inject:
-    duration: '600'
+    duration: '3600'
     host_name: client_0
   topo_size: s
   root_causes:
@@ -804,7 +804,7 @@ cases:
     client_host: client
     cpu_quota: '0.05'
     dst_ip: 200.0.0.8
-    duration: '600'
+    duration: '3600'
     host_name: web
     large_url: http://200.0.0.8/large.bin
     small_url: http://200.0.0.8/small.bin

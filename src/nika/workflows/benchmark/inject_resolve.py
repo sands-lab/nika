@@ -1336,7 +1336,7 @@ def resolve_inject_params(
             params["burst"] = "64kb"
             params["limit"] = "500kb"
         if problem == "receiver_resource_contention":
-            params["duration"] = "600"
+            params["duration"] = "3600"
             if scenario == "dc_clos":
                 params["peer_host"] = "webserver0_pod0"
                 params["large_url"] = "http://web0.pod0/large.bin"
@@ -1937,8 +1937,9 @@ def resolve_inject_params(
             )
             params["client_host"] = "pc_1_1_1_1" if "pc_1_1_1_1" in host_pool else host0
             params["dst_ip"] = "10.200.0.3"
-            params["small_url"] = "http://10.200.0.3/small.bin"
-            params["large_url"] = "http://10.200.0.3/large.bin"
+            # web_server_0 already runs the scenario web service on :80.
+            params["small_url"] = "http://10.200.0.3:8080/small.bin"
+            params["large_url"] = "http://10.200.0.3:8080/large.bin"
             params["cpu_quota"] = "0.05"
             params["stress_cpus"] = "16"
         elif scenario == "llmd_lab":
@@ -1982,7 +1983,7 @@ def resolve_inject_params(
             params["host_name"] = (
                 web0 if web0 in web_pool else (_first(web_pool) or host0)
             )
-        params["duration"] = "900" if scenario == "enterprise_branch" else "600"
+        params["duration"] = "3600"
 
     elif problem in {"k8s_clusterip_routing_broken", "k8s_worker_apiserver_partition"}:
         k8s_nodes = pools.get("k8s_nodes") or []

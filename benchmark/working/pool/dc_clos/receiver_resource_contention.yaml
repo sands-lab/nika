@@ -5,7 +5,7 @@ failure:
   cases:
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_0
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
@@ -17,7 +17,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_0
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
@@ -29,7 +29,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_1
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
@@ -41,7 +41,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_0
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
@@ -53,7 +53,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_1
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
@@ -65,7 +65,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_2
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
@@ -77,7 +77,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_3
       large_url: http://web0.pod0/large.bin
       peer_host: webserver0_pod0
