@@ -213,11 +213,6 @@ def _remove_path(path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
-def vendor_cache_root() -> Path:
-    override = os.environ.get("NIKA_VENDOR_CACHE")
-    return Path(override) if override else REPO_ROOT / ".nika_cache" / "vendor"
-
-
 def prune_stale_caches() -> list[str]:
     """Remove ``.nika_cache`` entries the current release no longer uses."""
     from nika.net_env.llmd_lab.lab import (
@@ -252,7 +247,9 @@ def prune_stale_caches() -> list[str]:
     )
 
     routeros_version = ROUTEROS_IMAGE.rsplit(":", 1)[1]
-    vendor = vendor_cache_root()
+    vendor = Path(
+        os.environ.get("NIKA_VENDOR_CACHE") or REPO_ROOT / ".nika_cache" / "vendor"
+    )
     if vendor.is_dir():
         for entry in sorted(vendor.glob("chr-*")):
             current = entry.name.startswith(
@@ -264,21 +261,19 @@ def prune_stale_caches() -> list[str]:
     return actions
 
 
-def prepare_all_images(*, force_rebuild: bool = False, prune: bool = True) -> None:
+def prepare_all_images(*, force_rebuild: bool = False) -> None:
     """Reconcile, then build, pull, and cache everything benchmarks deploy."""
     from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
     from agent.sandbox.sbx.images import ensure_configured_sbx_template_images
 
-    if prune:
-        actions = prune_stale_caches() + prune_stale_images()
-        for action in actions:
-            print(action)
-        if not actions:
-            print("No stale NIKA images or caches")
+    actions = prune_stale_caches() + prune_stale_images()
+    for action in actions:
+        print(action)
+    if not actions:
+        print("No stale NIKA images or caches")
     ensure_nika_docker_images(runtime_images(), force_rebuild=force_rebuild)
     for scenario in sorted(K8S_SCENARIOS):
         cache_scenario(scenario)
     ensure_configured_sbx_template_images()
-    if prune:
-        for action in prune_stale_images():
-            print(action)
+    for action in prune_stale_images():
+        print(action)

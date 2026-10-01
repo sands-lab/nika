@@ -12,11 +12,6 @@ def images_prepare(
     force_rebuild: bool = typer.Option(
         False, "--force-rebuild", help="Rebuild every local nika/* image."
     ),
-    prune: bool = typer.Option(
-        True,
-        "--prune/--no-prune",
-        help="Remove superseded NIKA images and stale .nika_cache entries.",
-    ),
 ) -> None:
     """Build, pull, and cache every image benchmarks deploy (vendor images excluded).
 
@@ -25,7 +20,7 @@ def images_prepare(
     """
     from nika.workflows.setup.images import prepare_all_images
 
-    prepare_all_images(force_rebuild=force_rebuild, prune=prune)
+    prepare_all_images(force_rebuild=force_rebuild)
 
 
 @images_app.command("list")
