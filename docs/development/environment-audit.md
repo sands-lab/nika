@@ -116,8 +116,8 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | campus_lan | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | pass | pass |
 | campus_lan | dns_service_down | m | scenario default | none | host_name=dns_server | pass | pass |
 | campus_lan | host_incorrect_dns | m | scenario default | none | host_name=pc_1_1_1_1 | pass | pass |
-| campus_lan | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | pass | pass |
-| campus_lan | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | pass | pass |
+| campus_lan | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=200, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=4, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | pass | pass |
+| campus_lan | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=200, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=4, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | pass | pass |
 | campus_lan | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | pass | pass |
 | campus_lan | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | pass | pass |
 | campus_lan | ospf_neighbor_missing | l | scenario default | none | host_name=router_core_1 | pass | pass |
@@ -250,8 +250,8 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | p4_dc_gateway | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | pass | pass |
 | p4_dc_gateway | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
 | p4_dc_gateway | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
-| p4_dc_gateway | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.4.12, target_port=80 | pass | pass |
-| p4_dc_gateway | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | pass | pass |
+| p4_dc_gateway | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.4.12, target_port=80 | pass | pass |
+| p4_dc_gateway | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.1.12, target_port=80 | pass | pass |
 | sdn_l3_clos | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | pass | pass |
 | sdn_l3_clos | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | pass | pass |
 | sdn_l3_clos | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | pass | pass |
@@ -407,7 +407,7 @@ Every planned scenario and failure has a stored result.
 | dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
 | dev | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
 | dev | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
-| dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
+| dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=200, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=4, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
 | test | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | custom | pass |
 | test | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
 | test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
@@ -419,7 +419,7 @@ Every planned scenario and failure has a stored result.
 | test | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | dns_answer | pass |
 | test | dns_service_down | m | scenario default | none | host_name=dns_server | path_http | pass |
 | test | host_incorrect_dns | m | scenario default | none | host_name=pc_1_1_1_1 | http_by_name | pass |
-| test | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
+| test | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=200, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=4, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
 | test | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass |
 | test | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass |
 | test | ospf_neighbor_missing | l | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass |
@@ -471,7 +471,7 @@ Every planned scenario and failure has a stored result.
 | dev | p4_table_entry_missing | l | scenario default | none | host_name=gateway_1 | path_http | pass |
 | dev | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | custom | pass |
 | dev | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | custom | pass |
-| dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | custom | pass |
+| dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.1.12, target_port=80 | custom | pass |
 | test | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | path_http | pass |
 | test | host_incorrect_ip | s | scenario default | none | host_name=client_1 | ping_old_ip | pass |
 | test | http_acl_block | m | scenario default | none | host_name=client_1 | path_http | pass |
@@ -490,7 +490,7 @@ Every planned scenario and failure has a stored result.
 | test | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | path_http | pass |
 | test | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | path_ping | pass |
 | test | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | custom | pass |
-| test | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.4.12, target_port=80 | custom | pass |
+| test | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.4.12, target_port=80 | custom | pass |
 | test | healthy | m | scenario default | none | none | healthy | pass |
 
 ### `isp_geant_ebgp_rpki`
