@@ -132,7 +132,7 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | dc_clos | host_incorrect_dns | s | scenario default | none | host_name=client_0 | pass | pass |
 | dc_clos | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | pass | pass |
 | dc_clos | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | pass | pass |
-| dc_clos | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | pass | pass |
+| dc_clos | receiver_resource_contention | s | scenario default | none | duration=3600, host_name=client_0 | pass | pass |
 | dc_clos | web_dos_attack | m | scenario default | none | attacker_device=client_0, host_name=webserver0_pod0, observer_device=dns_pod0, probe_url=http://10.0.1.2/small.bin | pass | pass |
 | enterprise_branch | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | pass | pass |
 | enterprise_branch | bgp_hijacking | l | scenario default | none | host_name=br1_edge | pass | pass |
@@ -206,8 +206,8 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | llmd_lab | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | pass | pass |
 | llmd_lab | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | pass | pass |
 | llmd_lab | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | pass | pass |
-| llmd_lab | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | pass | pass |
-| llmd_lab | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | pass | pass |
+| llmd_lab | receiver_resource_contention | none | scenario default | none | duration=3600, host_name=client | pass | pass |
+| llmd_lab | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=3600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | pass | pass |
 | min3clos | bgp_asn_misconfig | none | scenario default | none | host_name=leaf1 | pass | pass |
 | min3clos | healthy | none | scenario default | none | none | pass | pass |
 | min3clos | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | pass | pass |
@@ -263,7 +263,7 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | sdn_l3_clos | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | pass | pass |
 | sdn_l3_clos | sdn_controller_crash | m | scenario default | none | host_name=onos | pass | pass |
 | sdn_l3_clos | sdn_controller_crash | l | scenario default | none | host_name=onos | pass | pass |
-| sdn_l3_clos | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | pass | pass |
+| sdn_l3_clos | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=3600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | pass | pass |
 | sdn_l3_clos | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
@@ -384,7 +384,7 @@ Every planned scenario and failure has a stored result.
 | dev | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | custom | pass |
 | dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | custom | pass |
 | dev | sdn_controller_crash | m | scenario default | none | host_name=onos | artifact_only | pass |
-| dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | custom | pass |
+| dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=3600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | custom | pass |
 | dev | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | custom | pass |
 | dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass |
 | test | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | path_ping | pass |
@@ -437,7 +437,7 @@ Every planned scenario and failure has a stored result.
 | test | arp_acl_block | m | scenario default | none | host_name=client_0 | path_ping | pass |
 | test | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | path_ping | pass |
 | test | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | path_ping | pass |
-| test | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | custom | pass |
+| test | receiver_resource_contention | s | scenario default | none | duration=3600, host_name=client_0 | custom | pass |
 | test | healthy | m | scenario default | none | none | healthy | pass |
 | test | healthy | l | scenario default | none | none | healthy | pass |
 | test | healthy | s | scenario default | none | none | healthy | pass |
@@ -451,11 +451,11 @@ Every planned scenario and failure has a stored result.
 | dev | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass |
 | dev | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | isolation_http | pass |
 | dev | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass |
-| dev | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | custom | pass |
+| dev | receiver_resource_contention | none | scenario default | none | duration=3600, host_name=client | custom | pass |
 | test | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | custom | pass |
 | test | host_missing_ip | none | scenario default | none | host_name=client, intf_name=eth0 | path_ping | pass |
 | test | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | isolation_http | pass |
-| test | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | custom | pass |
+| test | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=3600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | custom | pass |
 | test | healthy | none | scenario default | none | none | healthy | pass |
 
 ### `p4_dc_gateway`
