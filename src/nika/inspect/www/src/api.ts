@@ -41,6 +41,19 @@ export interface ArtifactFlags {
   submission: boolean;
   eval_metrics: boolean;
   llm_judge: boolean;
+  annotations?: boolean;
+}
+
+export interface AnnotationComment {
+  id: string;
+  event_id: string;
+  text: string;
+  created_at?: string | null;
+}
+
+export interface Annotations {
+  tags: string[];
+  comments: AnnotationComment[];
 }
 
 export interface SessionSummary {
@@ -68,6 +81,7 @@ export interface SessionSummary {
   out_tokens?: number | null;
   steps?: number | null;
   tool_calls?: number | null;
+  tags?: string[];
   artifacts: ArtifactFlags;
   is_benchmark?: boolean;
   case_key?: string | null;
@@ -133,12 +147,15 @@ export interface SessionFacets {
   failure_domains: string[];
   topo_sizes: string[];
   trial_indices?: number[];
+  tags?: string[];
 }
 
 export interface SessionListResponse {
   sessions: SessionSummary[];
   benchmarks: BenchmarkRunSummary[];
   facets?: SessionFacets;
+  /** Trajectory search hit counts keyed by session key. */
+  content_hits?: Record<string, number>;
   results_root: string;
   selected_root?: string;
   total: number;
@@ -270,6 +287,39 @@ export function fetchScores(id: string, root?: string | null) {
   return getJson<ScoresResponse>(
     `/api/sessions/${encodeURIComponent(id)}/scores${rootQuery(root)}`,
   );
+}
+
+export function fetchSessionSearch(id: string, q: string, root?: string | null) {
+  const params = withRoot(new URLSearchParams({ q }), root);
+  return getJson<{ session_id: string; query: string; event_ids: string[] }>(
+    `/api/sessions/${encodeURIComponent(id)}/search?${params}`,
+  );
+}
+
+export function fetchAnnotations(id: string, root?: string | null) {
+  return getJson<Annotations>(
+    `/api/sessions/${encodeURIComponent(id)}/annotations${rootQuery(root)}`,
+  );
+}
+
+export async function saveAnnotations(
+  id: string,
+  annotations: Annotations,
+  root?: string | null,
+) {
+  const res = await fetch(
+    `/api/sessions/${encodeURIComponent(id)}/annotations${rootQuery(root)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(annotations),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<Annotations>;
 }
 
 export function fetchRaw(id: string, filename: string, root?: string | null) {

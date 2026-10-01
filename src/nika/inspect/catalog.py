@@ -9,8 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from pydantic import ValidationError
+
 from nika.config import resolve_results_root
+from nika.inspect.adapters import iter_jsonl
 from nika.inspect.models import (
+    Annotations,
     ArtifactFlags,
     BenchmarkRunSummary,
     ScoresResponse,
@@ -23,7 +27,10 @@ from nika.utils.session_artifacts import (
     is_job_run_dir,
     iter_session_dirs,
     normalize_session_status,
+    write_json_atomic,
 )
+
+ANNOTATIONS_FILENAME = "annotations.json"
 
 ARTIFACT_FILES = {
     "run": RUN_FILENAME,
@@ -33,7 +40,12 @@ ARTIFACT_FILES = {
     "submission": "submission.json",
     "eval_metrics": "eval_metrics.json",
     "llm_judge": "llm_judge.json",
+    "annotations": ANNOTATIONS_FILENAME,
 }
+
+# Trajectory search only reads the logs the timeline already shows; the answer
+# key and score files are never scanned.
+_SEARCHABLE_LOGS = (("agent", "messages.jsonl"), ("nika", "nika.jsonl"))
 
 RAW_ALLOWLIST = frozenset(ARTIFACT_FILES.values())
 
@@ -380,6 +392,7 @@ def _build_session_summary(
         out_tokens=_metric(metrics, "out_tokens"),
         steps=_metric(metrics, "steps"),
         tool_calls=_metric(metrics, "tool_calls"),
+        tags=load_annotations(session_dir).tags,
         artifacts=_artifact_flags(session_dir),
         **bench,
     )
@@ -644,6 +657,7 @@ def build_session_facets(sessions: list[SessionSummary]) -> SessionFacets:
         failure_domains=failure_domains,
         topo_sizes=topo_sizes,
         trial_indices=trial_indices,
+        tags=uniq([t for s in sessions for t in s.tags]),
     )
 
 
@@ -660,8 +674,10 @@ def filter_sessions(
     trial_index: int | None = None,
     q: str | None = None,
     has_score: bool | None = None,
+    tag: str | None = None,
 ) -> list[SessionSummary]:
     """Filter session summaries for the homepage list."""
+    tag_v = tag.strip() if tag else None
     scenario_v = scenario.strip() if scenario else None
     agent_v = agent.strip() if agent else None
     model_v = model.strip() if model else None
@@ -692,6 +708,8 @@ def filter_sessions(
             continue
         if has_score is False and summary.rca_f1 is not None:
             continue
+        if tag_v and tag_v not in summary.tags:
+            continue
         if query:
             haystack = " ".join(
                 [
@@ -710,6 +728,7 @@ def filter_sessions(
                     summary.benchmark_run_id or "",
                     summary.benchmark_label or "",
                     summary.scoring_id or "",
+                    " ".join(summary.tags),
                 ]
             ).lower()
             if query not in haystack:
@@ -767,6 +786,55 @@ def load_scores(session_dir: Path) -> ScoresResponse:
         submission=_read_json(session_dir / "submission.json"),
         llm_judge=_read_json(session_dir / "llm_judge.json"),
     )
+
+
+def _contains_text(value: Any, needle: str) -> bool:
+    if isinstance(value, str):
+        return needle in value.lower()
+    if isinstance(value, dict):
+        return any(_contains_text(v, needle) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_text(v, needle) for v in value)
+    return False
+
+
+def session_content_hits(session_dir: Path, needle: str) -> list[str]:
+    """Timeline event ids whose full log record contains ``needle`` (case-insensitive).
+
+    Ids follow the timeline adapters (``agent-{i}`` / ``nika-{i}``) and match
+    the untruncated record, not the slimmed ``raw`` the timeline API returns.
+    """
+    query = needle.lower().strip()
+    if not query:
+        return []
+    hits: list[str] = []
+    for prefix, filename in _SEARCHABLE_LOGS:
+        for index, entry in enumerate(iter_jsonl(session_dir / filename)):
+            if _contains_text(entry, query):
+                hits.append(f"{prefix}-{index}")
+    return hits
+
+
+def load_annotations(session_dir: Path) -> Annotations:
+    data = _read_json(session_dir / ANNOTATIONS_FILENAME)
+    if data is None:
+        return Annotations()
+    try:
+        return Annotations.model_validate(data)
+    except ValidationError:
+        return Annotations()
+
+
+def save_annotations(session_dir: Path, annotations: Annotations) -> Annotations:
+    """Replace ``annotations.json``; refused while the session is running."""
+    if is_session_running(session_dir):
+        raise ValueError("Annotations are read-only while the session is running")
+    write_json_atomic(
+        session_dir / ANNOTATIONS_FILENAME,
+        annotations.model_dump(),
+        ensure_ascii=False,
+    )
+    return annotations
 
 
 def read_raw_artifact(session_dir: Path, filename: str) -> Any:
