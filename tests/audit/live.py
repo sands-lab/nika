@@ -144,6 +144,9 @@ def _note_sibling_control(
     after = payload.get("after") if isinstance(payload.get("after"), dict) else {}
     if payload.get("control_ok") is True or after.get("control_ok") is True:
         return payload
+    details = payload.get("details")
+    if isinstance(details, dict) and details.get("control_ok") is True:
+        return {**payload, "control_ok": True}
     path = _resolve_path(scenario, parsed, topo_size=topo_size)
     if path is None or not path.peer_host or path.peer_host == path.src_host:
         return payload
