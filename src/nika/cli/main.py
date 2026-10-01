@@ -50,6 +50,11 @@ LAZY_COMMANDS.update(
             "config_app",
             "Run configuration (config/nika.yaml).",
         ),
+        "images": LazyCommandSpec(
+            "nika.cli.commands.images",
+            "images_app",
+            "Prepare and list NIKA Docker images and caches.",
+        ),
         "inspect": LazyCommandSpec(
             "nika.cli.commands.inspect_cmd",
             "inspect_app",
