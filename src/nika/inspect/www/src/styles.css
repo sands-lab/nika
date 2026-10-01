@@ -2724,3 +2724,236 @@ body.is-resizing * {
     grid-template-columns: 1fr;
   }
 }
+
+/* Review workflow: saved views, trajectory find, tags, comments */
+.home-toolbar .home-search {
+  width: min(16rem, 26vw);
+}
+
+.home-search + .home-search {
+  margin-left: 0;
+}
+
+.home-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 20px 0;
+  font-size: 12px;
+}
+
+.col-picker {
+  position: relative;
+}
+
+.col-picker summary,
+.view-btn,
+.view-select {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  padding: 4px 9px;
+  list-style: none;
+}
+
+.col-picker-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(8rem, auto));
+  gap: 4px 14px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.col-picker-menu label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+table.sessions .th-filter.invalid {
+  border-color: var(--bad);
+}
+
+table.sessions .th-filter-num {
+  max-width: 6rem;
+}
+
+table.sessions tr.sessions-empty-row td {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 18px;
+}
+
+.chip.hit-chip {
+  margin-left: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chip.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+  background: var(--role-score-bg);
+  color: var(--role-score);
+}
+
+.tag-editor {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tag-input {
+  width: 6.5rem;
+  padding: 2px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.event-nav {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.event-nav button {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.find-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.find-box input {
+  width: 13rem;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.find-box input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.find-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.traj-table tbody tr.find-hit td {
+  background: rgba(250, 204, 21, 0.18);
+}
+
+.traj-table tbody tr.find-hit.selected td {
+  background: rgba(250, 204, 21, 0.32);
+}
+
+.comment-mark {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.inspector-comments {
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.comment {
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.comment-text {
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.comment-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.comment-delete {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.comment-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.comment-form textarea {
+  flex: 1;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.comment-form button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  padding: 5px 10px;
+  cursor: pointer;
+}

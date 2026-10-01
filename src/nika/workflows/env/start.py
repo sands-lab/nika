@@ -381,6 +381,10 @@ def start_net_env(
                     )
 
         lab_exists = net_env.lab_exists()
+        from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
+
+        if canonical in K8S_SCENARIOS:
+            cache_scenario(canonical)
         if redeploy or not lab_exists:
             # When run config selects a sandbox agent, preload its sbx
             # template alongside lab images (not at per-case agent start).

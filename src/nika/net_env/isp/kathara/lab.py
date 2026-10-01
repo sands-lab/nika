@@ -362,16 +362,6 @@ class Isp(NetworkEnvBase):
 
         self.load_machines()
 
-    def _ensure_routinator_image(self) -> str:
-        """Ensure the root-USER Routinator wrapper for Kathara startup."""
-        from nika.net_env.utils.kathara.docker_files.docker_images import (
-            ensure_nika_docker_images,
-        )
-
-        image = "nika/routinator:v0.14.2"
-        ensure_nika_docker_images([image])
-        return image
-
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""
         import json
@@ -399,12 +389,12 @@ class Isp(NetworkEnvBase):
         prefixlen = int(rtr.get("prefixlen") or RPKI_PREFIXLEN)
         port = int(rtr.get("port") or RPKI_RTR_PORT)
         machine_name = str(rtr.get("machine") or ROUTINATOR_MACHINE)
-        image = self._ensure_routinator_image()
-
+        # Root-USER Routinator wrapper for Kathara startup; built at deploy by
+        # the lab image ensure.
         routinator = self.lab.new_machine(
             machine_name,
             **{
-                "image": image,
+                "image": "nika/routinator:v0.14.2",
                 "shell": "/bin/sh",
                 "entrypoint": "/bin/sh",
                 "args": ["-c", "while true; do sleep 3600; done"],

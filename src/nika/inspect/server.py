@@ -28,14 +28,19 @@ from nika.inspect.catalog import (
     list_browse_entries,
     list_selectable_roots,
     is_session_running,
+    load_annotations,
     load_scores,
     read_raw_artifact,
     resolve_results_selection,
+    save_annotations,
+    session_content_hits,
 )
 from nika.inspect.live_progress import list_benchmark_progress
 from nika.inspect.models import (
+    Annotations,
     BenchmarkProgressResponse,
     BrowseResponse,
+    ContentSearchResponse,
     ResultsRootsResponse,
     SessionListResponse,
     TimelineResponse,
@@ -79,7 +84,7 @@ def create_inspect_app(
     - all interfaces (``0.0.0.0`` / ``::``): read-only, limited to the base root;
     - ``None`` (embedding/tests): no host policy.
 
-    Cross-origin DELETE is always refused.
+    Cross-origin writes (DELETE, PUT) are always refused.
     """
 
     base_root = Path(results_root).resolve()
@@ -90,17 +95,20 @@ def create_inspect_app(
         host = _hostname(request.headers.get("host"))
         if loopback_only and host not in _LOOPBACK_HOSTNAMES:
             return _error("Host not allowed", status=403, error_type="Forbidden")
-        if request.method == "DELETE":
+        if request.method in {"DELETE", "PUT"}:
+            action = "Delete" if request.method == "DELETE" else "Editing"
             if remote:
                 return _error(
-                    "Delete is disabled when inspect listens on all interfaces",
+                    f"{action} is disabled when inspect listens on all interfaces",
                     status=403,
                     error_type="Forbidden",
                 )
             origin = request.headers.get("origin")
             if origin is not None and _hostname(origin) != host:
                 return _error(
-                    "Cross-origin delete refused", status=403, error_type="Forbidden"
+                    f"Cross-origin {action.lower()} refused",
+                    status=403,
+                    error_type="Forbidden",
                 )
         return await call_next(request)
 
@@ -183,12 +191,24 @@ def create_inspect_app(
             trial_index=trial_index,
             q=request.query_params.get("q"),
             has_score=has_score,
+            tag=request.query_params.get("tag"),
         )
+        content_hits: dict[str, int] = {}
+        content = (request.query_params.get("content") or "").strip()
+        if content:
+            matched = []
+            for item in items:
+                hits = session_content_hits(Path(item.session_dir), content)
+                if hits:
+                    matched.append(item)
+                    content_hits[item.session_key or item.session_id] = len(hits)
+            items = matched
         selected = request.query_params.get("root") or "."
         body = SessionListResponse(
             sessions=items,
             benchmarks=aggregate_benchmark_runs(items),
             facets=facets,
+            content_hits=content_hits,
             results_root=str(active),
             selected_root=selected,
             total=len(items),
@@ -320,6 +340,39 @@ def create_inspect_app(
             return resolved
         return JSONResponse(load_scores(resolved).model_dump())
 
+    def session_search(request: Request) -> JSONResponse:
+        session_id = request.path_params["session_id"]
+        resolved = _resolve(request, session_id)
+        if isinstance(resolved, JSONResponse):
+            return resolved
+        query = request.query_params.get("q") or ""
+        body = ContentSearchResponse(
+            session_id=session_id,
+            query=query,
+            event_ids=session_content_hits(resolved, query),
+        )
+        return JSONResponse(body.model_dump())
+
+    def session_annotations_get(request: Request) -> JSONResponse:
+        resolved = _resolve(request, request.path_params["session_id"])
+        if isinstance(resolved, JSONResponse):
+            return resolved
+        return JSONResponse(load_annotations(resolved).model_dump())
+
+    async def session_annotations_put(request: Request) -> JSONResponse:
+        resolved = _resolve(request, request.path_params["session_id"])
+        if isinstance(resolved, JSONResponse):
+            return resolved
+        try:
+            annotations = Annotations.model_validate(await request.json())
+        except ValueError as exc:
+            return _error(f"Invalid annotations: {exc}")
+        try:
+            saved = save_annotations(resolved, annotations)
+        except ValueError as exc:
+            return _error(str(exc), status=409, error_type="Conflict")
+        return JSONResponse(saved.model_dump())
+
     def session_raw(request: Request) -> Response:
         session_id = request.path_params["session_id"]
         filename = request.path_params["filename"]
@@ -363,6 +416,17 @@ def create_inspect_app(
         Route("/api/sessions/{session_id:path}/messages", session_messages),
         Route("/api/sessions/{session_id:path}/nika", session_nika),
         Route("/api/sessions/{session_id:path}/scores", session_scores),
+        Route("/api/sessions/{session_id:path}/search", session_search),
+        Route(
+            "/api/sessions/{session_id:path}/annotations",
+            session_annotations_get,
+            methods=["GET"],
+        ),
+        Route(
+            "/api/sessions/{session_id:path}/annotations",
+            session_annotations_put,
+            methods=["PUT"],
+        ),
         Route("/api/sessions/{session_id:path}/raw/{filename}", session_raw),
         Route("/api/sessions/{session_id:path}", session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id:path}", session_delete, methods=["DELETE"]),

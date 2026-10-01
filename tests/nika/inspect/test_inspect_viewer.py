@@ -1375,3 +1375,84 @@ class TestSymlinkedSessionKey:
         monkeypatch.setattr(catalog, "iter_session_dirs", _no_scan)
         found = catalog.find_session_dir("linked/run1/sess", results_root=base)
         assert found == base.absolute() / "linked" / "run1" / "sess"
+
+
+class TestTrajectorySearch:
+    def test_search_matches_full_records_case_insensitively(
+        self, fixture_root: Path
+    ) -> None:
+        client = TestClient(create_inspect_app(results_root=fixture_root))
+        sid = "20260101-120000-abc123"
+
+        found = client.get(f"/api/sessions/{sid}/search", params={"q": "PC2"})
+        assert found.status_code == 200
+        assert found.json()["event_ids"] == ["agent-1", "agent-2"]
+        nika = client.get(f"/api/sessions/{sid}/search", params={"q": "lab deployed"})
+        assert nika.json()["event_ids"] == ["nika-0"]
+
+        listed = client.get("/api/sessions", params={"content": "packet loss"}).json()
+        assert [s["session_id"] for s in listed["sessions"]] == [sid]
+        assert listed["content_hits"] == {sid: 1}
+
+    def test_search_never_reads_answer_key(self, fixture_root: Path) -> None:
+        client = TestClient(create_inspect_app(results_root=fixture_root))
+        sid = "20260101-120000-abc123"
+        hidden = client.get(f"/api/sessions/{sid}/search", params={"q": "s1/eth1"})
+        assert hidden.json()["event_ids"] == []
+        listed = client.get("/api/sessions", params={"content": "s1/eth1"}).json()
+        assert listed["sessions"] == [] and listed["content_hits"] == {}
+
+
+class TestAnnotations:
+    def test_round_trip_tags_feed_summary_facets_and_filter(
+        self, tmp_path: Path
+    ) -> None:
+        trial = _finished_session(tmp_path / "done", "done")
+        _finished_session(tmp_path / "other", "other")
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+        assert client.get("/api/sessions/done/annotations").json() == {
+            "tags": [],
+            "comments": [],
+        }
+
+        doc = {
+            "tags": [" wrong-localization ", "wrong-localization", ""],
+            "comments": [{"id": "c1", "event_id": "agent-3", "text": "missed BGP"}],
+        }
+        saved = client.put("/api/sessions/done/annotations", json=doc)
+        assert saved.status_code == 200
+        assert saved.json()["tags"] == ["wrong-localization"]
+        on_disk = json.loads((trial / "annotations.json").read_text(encoding="utf-8"))
+        assert on_disk["comments"][0]["event_id"] == "agent-3"
+
+        listed = client.get("/api/sessions").json()
+        assert listed["facets"]["tags"] == ["wrong-localization"]
+        tagged = client.get("/api/sessions", params={"tag": "wrong-localization"})
+        assert [s["session_id"] for s in tagged.json()["sessions"]] == ["done"]
+        searched = client.get("/api/sessions", params={"q": "wrong-local"})
+        assert [s["session_id"] for s in searched.json()["sessions"]] == ["done"]
+
+        bad = client.put("/api/sessions/done/annotations", json={"tags": "x"})
+        assert bad.status_code == 400
+
+    def test_writes_refused_remote_cross_origin_and_running(
+        self, tmp_path: Path
+    ) -> None:
+        _finished_session(tmp_path / "done", "done")
+        live = tmp_path / "live"
+        live.mkdir()
+        _write_json(live / "run.json", {"session_id": "live", "status": "running"})
+        doc = {"tags": ["x"], "comments": []}
+
+        remote = TestClient(create_inspect_app(results_root=tmp_path, bind_host="::"))
+        assert remote.put("/api/sessions/done/annotations", json=doc).status_code == 403
+        local = TestClient(create_inspect_app(results_root=tmp_path))
+        cross = local.put(
+            "/api/sessions/done/annotations",
+            json=doc,
+            headers={"origin": "http://evil.example"},
+        )
+        assert cross.status_code == 403
+        assert local.put("/api/sessions/live/annotations", json=doc).status_code == 409
+        assert not (tmp_path / "done" / "annotations.json").exists()
+        assert not (live / "annotations.json").exists()

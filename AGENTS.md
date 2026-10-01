@@ -19,18 +19,18 @@ NIKA is a platform for generating and running executable benchmarks for network 
 
 `dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
 
-### Commit message (PR title = squash subject)
+### Commit message
 
 Conventional Commits + GitHub auto-close, e.g.:
 `fix(benchmark): resolve serial batching race in run scheduler`
 
 - `type(scope): imperative summary` — type: `feat/fix/docs/refactor/perf/test/chore/ci/build/revert`.
-- Don't append the PR number — GitHub's squash-and-merge (UI or `gh pr merge --squash`) adds `(#N)` automatically. Just verify it's still there before confirming.
+- Keep the PR title as the Conventional Commit line without a PR number. The squash commit subject should end with `(#<PR number>)`. In the GitHub UI, check the proposed subject and add the suffix if missing. With `gh pr merge --squash --subject`, include the suffix explicitly; the supplied subject is used as written. Verify the merged commit on `dev`.
 - Body: short summary plus `Fixes #<issue>` (or `Closes`/`Resolves`) so merging auto-closes it. Skip the keyword if there is no issue. Multiple issues: one keyword each.
 
-`gh pr merge --squash` must pass both `--subject` and `--body`. Subject is the Conventional Commit line (no `(#N)`). Body is the summary above, not the PR's commit list. `--subject` alone still uses GitHub's default squash body, which concatenates every PR commit and repeats `Co-authored-by: Cursor` once per commit. Do not amend+force-push `dev` to clean that up.
+`gh pr merge --squash` must pass both `--subject` and `--body`. Subject is the Conventional Commit line followed by `(#<PR number>)`. Body is the summary above, not the PR's commit list. `--subject` alone still uses GitHub's default squash body, which concatenates every PR commit and repeats `Co-authored-by: Cursor` once per commit. Do not amend+force-push `dev` to clean that up.
 
-Never merge into `dev` via manual local `git merge --squash` + push — bypasses review and the auto-appended PR number.
+Never merge into `dev` via manual local `git merge --squash` + push — bypasses review and the required PR number in the squash subject.
 
 ## Scenarios and failures
 

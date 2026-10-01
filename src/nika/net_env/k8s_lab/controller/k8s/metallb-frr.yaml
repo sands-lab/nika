@@ -1807,7 +1807,8 @@ spec:
           value: memberlist
         - name: METALLB_DEPLOYMENT
           value: controller
-        image: quay.io/metallb/controller:v0.14.9
+        image: quay.io/metallb/controller:v0.14.9@sha256:86261567e5ff03978893bf03ea865275283ad1e3f0f20dd342ed501b651fdf78
+        imagePullPolicy: Never
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -1894,7 +1895,8 @@ spec:
         env:
         - name: TINI_SUBREAPER
           value: "true"
-        image: quay.io/frrouting/frr:9.1.0
+        image: quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4
+        imagePullPolicy: Never
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -1922,7 +1924,8 @@ spec:
           name: frr-conf
       - command:
         - /etc/frr_reloader/frr-reloader.sh
-        image: quay.io/frrouting/frr:9.1.0
+        image: quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4
+        imagePullPolicy: Never
         name: reloader
         volumeMounts:
         - mountPath: /var/run/frr
@@ -1938,7 +1941,8 @@ spec:
         env:
         - name: VTYSH_HISTFILE
           value: /dev/null
-        image: quay.io/frrouting/frr:9.1.0
+        image: quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4
+        imagePullPolicy: Never
         name: frr-metrics
         ports:
         - containerPort: 7473
@@ -1980,7 +1984,8 @@ spec:
           value: app=metallb,component=speaker
         - name: METALLB_ML_SECRET_KEY_PATH
           value: /etc/ml_secret_key
-        image: quay.io/metallb/speaker:v0.14.9
+        image: quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993
+        imagePullPolicy: Never
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -2031,7 +2036,8 @@ spec:
         - /bin/sh
         - -c
         - cp -rLf /tmp/frr/* /etc/frr/
-        image: quay.io/frrouting/frr:9.1.0
+        image: quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4
+        imagePullPolicy: Never
         name: cp-frr-files
         securityContext:
           runAsGroup: 101
@@ -2045,7 +2051,8 @@ spec:
         - /cp-tool
         - /frr-reloader.sh
         - /etc/frr_reloader/frr-reloader.sh
-        image: quay.io/metallb/speaker:v0.14.9
+        image: quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993
+        imagePullPolicy: Never
         name: cp-reloader
         volumeMounts:
         - mountPath: /etc/frr_reloader
@@ -2054,7 +2061,8 @@ spec:
         - /cp-tool
         - /frr-metrics
         - /etc/frr_metrics/frr-metrics
-        image: quay.io/metallb/speaker:v0.14.9
+        image: quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993
+        imagePullPolicy: Never
         name: cp-metrics
         volumeMounts:
         - mountPath: /etc/frr_metrics

@@ -1,47 +1,61 @@
 """LLM disaggregated inference lab (llmd-lab).
 
 A star topology with Kubernetes (k3s) deploying llm-d with disaggregated Prefill/Decode.
-All nodes connect to a single bridged switch and use the internet for downloading models.
+All nodes connect to a single bridged switch; the host stages workload images.
 """
 
+import hashlib
 import os
 import platform
 import shutil
-import sys
 import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path
+
+import yaml
 
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import REPO_ROOT, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.utils.k8s_workload_cache import mount_workload_cache
+from nika.net_env.utils.k8s_workload_cache import (
+    K3S_IMAGE,
+    LLMD_LAB_WORKLOAD_IMAGES,
+    mount_workload_cache,
+)
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-_K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1"
+_K3S_IMAGE = K3S_IMAGE
 _BASE_IMAGE = "nika/base"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 _HELM_VERSION = "v3.21.3"
+_HELM_ARCHIVE_SHA256 = {
+    "amd64": "15e041a93a590dce8100f39385cd98c84a765c9e36aeeb9e2dc6ff9e4769e2e0",
+    "arm64": "67f58155079ff9ffab98ba5c88daff0ed9b542f3a4732f5dd426dde7dd0f5244",
+}
 machine = platform.machine().lower()
 if machine in ("x86_64", "amd64"):
     _HELM_ARCHITECTURE = "amd64"
 elif machine in ("aarch64", "arm64"):
     _HELM_ARCHITECTURE = "arm64"
 else:
-    _HELM_ARCHITECTURE = "amd64"
+    raise RuntimeError(f"Unsupported Helm host architecture: {machine}")
 _HELM_ARCHIVE_URL = (
     f"https://get.helm.sh/helm-{_HELM_VERSION}-linux-{_HELM_ARCHITECTURE}.tar.gz"
 )
 _AGENTGATEWAY_VERSION = "v1.1.0"
+_HELM_CHART_SHA256 = {
+    "agentgateway-crds": "abc114babffc70061248d1526c0508357c39cfaada00640d1b60f4bc6cad3a1e",
+    "agentgateway": "4c04f0ae3fc01869fd49d41cbbb246377e8a7c3d3b6ac7c665f2bbc68cf6c2b6",
+}
 _HELM_CHART_SPECS = (
     ("agentgateway-crds", "oci://cr.agentgateway.dev/charts/agentgateway-crds"),
     ("agentgateway", "oci://cr.agentgateway.dev/charts/agentgateway"),
@@ -58,7 +72,19 @@ def _ensure_helm_binary() -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / "helm.tgz"
-        urllib.request.urlretrieve(_HELM_ARCHIVE_URL, archive)
+        with (
+            urllib.request.urlopen(_HELM_ARCHIVE_URL, timeout=60) as response,
+            archive.open("wb") as output,
+        ):
+            shutil.copyfileobj(response, output)
+        with archive.open("rb") as handle:
+            if (
+                hashlib.file_digest(handle, "sha256").hexdigest()
+                != _HELM_ARCHIVE_SHA256[_HELM_ARCHITECTURE]
+            ):
+                raise RuntimeError(
+                    "Helm archive checksum does not match the pinned release"
+                )
         with tarfile.open(archive, "r:gz") as tar:
             member = tar.getmember(f"linux-{_HELM_ARCHITECTURE}/helm")
             tar.extract(member, path=tmp, filter="data")
@@ -79,39 +105,44 @@ def ensure_helm_charts() -> list[Path]:
     for chart_name, oci_url in _HELM_CHART_SPECS:
         chart_path = cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz"
         if not chart_path.is_file():
-            print(f"Pulling Helm chart {oci_url} ({_AGENTGATEWAY_VERSION})...")
-            subprocess.run(
-                [
-                    str(helm_bin),
-                    "pull",
-                    oci_url,
-                    "--version",
-                    _AGENTGATEWAY_VERSION,
-                    "-d",
-                    str(cache_dir),
-                ],
-                check=True,
-            )
-        if not chart_path.is_file():
-            raise RuntimeError(f"Helm chart cache missing after pull: {chart_path}")
+            with tempfile.TemporaryDirectory(dir=cache_dir) as tmp:
+                subprocess.run(
+                    [
+                        str(helm_bin),
+                        "pull",
+                        oci_url,
+                        "--version",
+                        _AGENTGATEWAY_VERSION,
+                        "-d",
+                        tmp,
+                    ],
+                    check=True,
+                    timeout=120,
+                )
+                staged = Path(tmp) / chart_path.name
+                with staged.open("rb") as handle:
+                    if (
+                        hashlib.file_digest(handle, "sha256").hexdigest()
+                        != _HELM_CHART_SHA256[chart_name]
+                    ):
+                        raise RuntimeError(
+                            f"Helm chart checksum mismatch: {chart_name}"
+                        )
+                staged.replace(chart_path)
+        with chart_path.open("rb") as handle:
+            if (
+                hashlib.file_digest(handle, "sha256").hexdigest()
+                != _HELM_CHART_SHA256[chart_name]
+            ):
+                raise RuntimeError(f"Helm chart cache checksum mismatch: {chart_path}")
         chart_paths.append(chart_path)
     return chart_paths
-
-
-def cached_helm_charts() -> list[Path]:
-    """Return staged Helm chart paths when already present under ``.nika_cache``."""
-    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
-    return [
-        cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz"
-        for chart_name, _ in _HELM_CHART_SPECS
-        if (cache_dir / f"{chart_name}-{_AGENTGATEWAY_VERSION}.tgz").is_file()
-    ]
 
 
 class LLMDInferenceCluster(NetworkEnvBase):
     LAB_NAME = "llmd_lab"
     VERIFY_MAX_WAIT_SEC = 1800
-    VERIFY_RETRY_DELAY_SEC = 20
+    VERIFY_RETRY_DELAY_SEC = 2
     TOPO_LEVEL = "hard"
     TOPO_SIZE = None
     TAGS = [
@@ -139,8 +170,8 @@ class LLMDInferenceCluster(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = (
             "A star-topology Kubernetes (k3s) cluster running llm-d with disaggregated "
-            "Prefill/Decode inference. All nodes are bridged for internet access to pull "
-            "container images. Uses Gateway API and inference extensions."
+            "Prefill/Decode inference. All workload images are prepared on the host; "
+            "uses Gateway API and inference extensions."
         )
         self.kubernetes_nodes = []
 
@@ -160,7 +191,8 @@ class LLMDInferenceCluster(NetworkEnvBase):
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
         _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
         _k3s_server = (
-            "server --disable servicelb --disable traefik --write-kubeconfig-mode 644"
+            "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
+            "--disable-default-registry-endpoint"
         )
         for name, (links, is_controller) in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
@@ -194,7 +226,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
             else:
                 m.add_meta(
                     "args",
-                    f'-c "{_k3s_wait}exec /bin/k3s agent"',
+                    f'-c "{_k3s_wait}exec /bin/k3s agent --disable-default-registry-endpoint"',
                 )
                 m.add_meta("env", "K3S_URL=https://controller:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
@@ -236,18 +268,34 @@ class LLMDInferenceCluster(NetworkEnvBase):
         )
         # Stage charts now; the preload-time cache_scenario() runs after
         # machine files are staged, and BusyBox wget cannot fetch HTTPS.
-        try:
-            chart_paths = ensure_helm_charts()
-        except Exception as exc:  # noqa: BLE001 - startup falls back to OCI pull
-            print(
-                f"WARNING: could not cache llmd_lab Helm charts: {exc}",
-                file=sys.stderr,
-            )
-            chart_paths = cached_helm_charts()
+        chart_paths = ensure_helm_charts()
+        gateway_images = {
+            image.split("@")[0].split("/")[-1].split(":")[0]: image.split("/")[
+                -1
+            ].split(":", 1)[1]
+            for image in LLMD_LAB_WORKLOAD_IMAGES
+            if image.startswith("cr.agentgateway.dev/")
+        }
+        all_machines["controller"].create_file_from_string(
+            yaml.safe_dump(
+                {
+                    "controller": {"image": {"tag": gateway_images["controller"]}},
+                    "proxy": {"image": {"tag": gateway_images["agentgateway"]}},
+                    "inferenceExtension": {"enabled": True},
+                    "image": {"pullPolicy": "Never"},
+                }
+            ),
+            "/helm-charts/values.yaml",
+        )
         for chart_path in chart_paths:
             all_machines["controller"].create_file_from_path(
                 str(chart_path), f"/helm-charts/{chart_path.name}"
             )
+
+        all_machines["controller"].create_file_from_path(
+            str(Path(__file__).resolve().parent.parent / "utils" / "k8s_bootstrap.sh"),
+            "/nika-bootstrap.sh",
+        )
 
         # Load per-machine configuration directories and startup scripts
         for name, m in all_machines.items():

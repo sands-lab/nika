@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, Any, Literal
@@ -817,40 +817,24 @@ def k8s_namespace_phase_active(output: str) -> bool:
     return output.strip() == "Active"
 
 
-def _k8s_lab_nodes_running(net_env: NetworkEnvBase) -> tuple[bool, list[str]]:
-    """Return whether all k3s lab nodes are running and any dead node names."""
-    nodes = list(getattr(net_env, "kubernetes_nodes", []) or [])
-    if not nodes:
-        return True, []
-    dead: list[str] = []
-    try:
-        runtime = net_env._build_runtime()
-        for node in nodes:
-            try:
-                if runtime.get_container(node).status != "running":
-                    dead.append(node)
-            except Exception:
-                dead.append(node)
-    except Exception:
-        return False, nodes
-    return not dead, dead
-
-
-def _restart_dead_k8s_nodes(net_env: NetworkEnvBase, dead_nodes: list[str]) -> None:
-    """Best-effort Docker start for k3s node containers that exited mid-boot."""
-    if not dead_nodes:
-        return
-    try:
-        runtime = net_env._build_runtime()
-    except Exception:
-        return
-    for node in dead_nodes:
-        try:
-            container = runtime.get_container(node)
-            if container.status != "running":
-                container.start()
-        except Exception:
-            continue
+def raise_for_k8s_startup_failure(
+    runtime: LabRuntime, containers: Mapping[str, Any]
+) -> None:
+    """Surface controller bootstrap errors or exited k3s nodes immediately."""
+    for node, container in containers.items():
+        container.reload()
+        if container.status != "running":
+            raise RuntimeError(
+                f"k3s node {node!r} exited during startup: "
+                f"{container.attrs.get('State', {})}; "
+                f"{container.logs(tail=30).decode(errors='replace')[-4000:]}"
+            )
+    failure = exec_or_empty(
+        runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
+    ).strip()
+    if failure:
+        log = exec_or_empty(runtime, "controller", "tail -60 /var/log/startup.log")
+        raise RuntimeError(f"k3s controller bootstrap failed: {failure}\n{log}")
 
 
 def _runtime_validation_depth() -> Literal["light", "full"]:
@@ -896,6 +880,11 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
         verify = net_env.verify_lab
     else:
         verify = getattr(net_env, "startup_verify_lab", net_env.verify_lab)
+    k3s_nodes = list(getattr(net_env, "kubernetes_nodes", []) or [])
+    k3s_runtime = net_env._build_runtime() if k3s_nodes else None
+    k3s_containers = {node: k3s_runtime.get_container(node) for node in k3s_nodes}
+    if k3s_nodes:
+        raise_for_k8s_startup_failure(k3s_runtime, k3s_containers)
     result = verify()
     if result is None:
         return None
@@ -906,8 +895,6 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     started = time.time()
     deadline = started + max_wait_sec
     last_result = result
-    dead_since: float | None = None
-    restarted = False
     # Log immediately, then about every 30s (or each retry if slower).
     progress_interval_sec = max(30.0, float(retry_delay_sec))
     last_progress_log = 0.0
@@ -940,33 +927,22 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
         _emit_verify_progress(force=True)
 
     while time.time() < deadline:
-        nodes_ok, dead_nodes = _k8s_lab_nodes_running(net_env)
-        if not nodes_ok:
-            now = time.time()
-            if dead_since is None:
-                dead_since = now
-            # After ~60s of dead nodes, try one Docker restart wave.
-            if not restarted and now - dead_since >= 60:
-                _restart_dead_k8s_nodes(net_env, dead_nodes)
-                restarted = True
-                dead_since = now
-            # Abort if nodes stay down for another 3 minutes after restart (or 4 min total).
-            abort_after = 180.0 if restarted else 240.0
-            if now - dead_since >= abort_after or now + retry_delay_sec >= deadline:
-                raise RuntimeError(
-                    f"Lab verification aborted for {net_env.name!r}: "
-                    f"k3s node container(s) not running: {dead_nodes or ['unknown']}"
-                )
-            print(
-                f"[env-verify] k3s node container(s) not running: "
-                f"{dead_nodes or ['unknown']}",
-                file=sys.stderr,
-                flush=True,
-            )
-            time.sleep(retry_delay_sec)
-            continue
-        dead_since = None
+        if k3s_nodes:
+            raise_for_k8s_startup_failure(k3s_runtime, k3s_containers)
         last_result = verify()
+        if k3s_nodes:
+            runtime = k3s_runtime
+            raise_for_k8s_startup_failure(runtime, k3s_containers)
+            complete = (
+                exec_or_empty(
+                    runtime,
+                    "controller",
+                    "test -f /var/run/nika-startup-complete && echo complete",
+                ).strip()
+                == "complete"
+            )
+            last_result["checks"]["bootstrap_complete"] = complete
+            last_result["verified"] = bool(last_result.get("verified") and complete)
         if last_result.get("verified", False):
             elapsed = time.time() - started
             print(
