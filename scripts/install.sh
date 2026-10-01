@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Install Docker, uv, lab deps (Kathará), Containerlab, gnmic, and fault-injection tools.
+# Install Docker, uv, lab deps (Kathará), Containerlab, gnmic, and fault-injection tools,
+# then build/pull every runtime image. Re-runs upgrade outdated parts and prune stale ones.
 # Optionally switch git track and prepare vendor router images (RouterOS CHR, Cisco XRd).
 # Usage: ./scripts/install.sh [options]
 set -euo pipefail
 
 GNMIC_VERSION="${GNMIC_VERSION:-0.48.0}"
+# Older Containerlab releases are upgraded; newer ones are kept.
+CLAB_MIN_VERSION="${CLAB_MIN_VERSION:-0.79.0}"
+INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
 
 # Keep in sync with lab.py IMAGE constants.
 ROUTEROS_VERSION="${ROUTEROS_VERSION:-7.21.5}"
@@ -16,7 +20,9 @@ CHR_BASE_URL="${CHR_BASE_URL:-https://download.mikrotik.com/routeros/${ROUTEROS_
 
 TRACK=""
 WITH_VENDOR_IMAGES=0
+SKIP_IMAGES=0
 XRD_TARBALL="${NIKA_XRD_TARBALL:-}"
+ORIG_ARGS=("$@")
 
 usage() {
   cat <<EOF
@@ -27,6 +33,13 @@ gnmic, skopeo for Kubernetes image preparation, plus clang and iproute2
 for fault injection (via apt-get). Raises
 and persists host inotify limits for k3s and XRd labs. Creates .env and
 config/nika.yaml from examples when missing.
+
+Then builds and pulls every Docker image the non-vendor scenarios use and
+caches the Kubernetes workload images and Helm charts, so benchmarks start
+without image builds. Re-running upgrades an outdated gnmic or Containerlab,
+rebuilds nika/* images whose Dockerfiles changed, and removes images and
+.nika_cache entries that older NIKA releases left behind.
+Undo with ./scripts/uninstall.sh.
 
 Options:
   --track stable|latest
@@ -44,6 +57,9 @@ Options:
   --xrd-tarball PATH
       Path to a Cisco XRd Control Plane container .tgz (no public URL).
       Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under the repo.
+
+  --skip-images
+      Skip building/pulling runtime images (labs then prepare them on first deploy).
 
   -h, --help        Show this help
 
@@ -68,6 +84,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --with-vendor-images) WITH_VENDOR_IMAGES=1; shift ;;
+    --skip-images) SKIP_IMAGES=1; shift ;;
     --xrd-tarball)
       [[ $# -ge 2 ]] || { echo "error: --xrd-tarball requires a path" >&2; exit 2; }
       XRD_TARBALL="$2"
@@ -112,6 +129,10 @@ docker_usable() {
 
 docker_image_exists() {
   docker image inspect "$1" >/dev/null 2>&1
+}
+# version_lt A B: true when version A sorts before B.
+version_lt() {
+  [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" == "$1" ]]
 }
 
 ensure_path_uv() {
@@ -171,6 +192,7 @@ ensure_docker() {
 }
 
 install_uv() {
+  ensure_path_uv
   if command -v uv >/dev/null 2>&1; then
     log "uv already installed: $(command -v uv)"
     return
@@ -193,10 +215,16 @@ sync_python() {
 
 install_containerlab() {
   if command -v clab >/dev/null 2>&1; then
-    log "Containerlab already installed: $(command -v clab)"
-    return
+    local current
+    current="$(clab version 2>/dev/null | sed -n 's/^ *version: *//p' | head -n1)"
+    if [[ -n "${current}" ]] && ! version_lt "${current}" "${CLAB_MIN_VERSION}"; then
+      log "Containerlab ${current} already installed"
+      return
+    fi
+    log "Upgrading Containerlab ${current:-unknown} (need >= ${CLAB_MIN_VERSION})"
+  else
+    log "Installing Containerlab"
   fi
-  log "Installing Containerlab"
   need_cmd curl
   need_cmd bash
   bash -c "$(curl -fsSL https://get.containerlab.dev)"
@@ -206,10 +234,16 @@ install_containerlab() {
 
 install_gnmic() {
   if command -v gnmic >/dev/null 2>&1; then
-    log "gnmic already installed: $(command -v gnmic)"
-    return
+    local current
+    current="$(gnmic version 2>/dev/null | sed -n 's/^ *version *: *//p' | head -n1)"
+    if [[ "${current}" == "${GNMIC_VERSION}" ]]; then
+      log "gnmic ${current} already installed"
+      return
+    fi
+    log "Replacing gnmic ${current:-unknown} with pinned ${GNMIC_VERSION}"
+  else
+    log "Installing gnmic ${GNMIC_VERSION}"
   fi
-  log "Installing gnmic ${GNMIC_VERSION}"
   need_cmd curl
   need_cmd bash
   curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
@@ -337,12 +371,15 @@ ensure_routeros_image() {
   download_file "${chr_url}" "${chr_zip}"
 
   build_dir="${VENDOR_CACHE}/vrnetlab"
-  if [[ ! -d "${build_dir}/.git" ]]; then
+  # The build rewrites a tracked Dockerfile, so refresh with a hard reset.
+  if [[ -d "${build_dir}/.git" ]] \
+    && git -C "${build_dir}" fetch --depth 1 origin \
+    && git -C "${build_dir}" reset --hard FETCH_HEAD; then
+    log "Refreshed vrnetlab clone at ${build_dir}"
+  else
     log "Cloning ${VRNETLAB_REPO_URL}"
     rm -rf "${build_dir}"
     git clone --depth 1 "${VRNETLAB_REPO_URL}" "${build_dir}"
-  else
-    log "Using existing vrnetlab clone at ${build_dir}"
   fi
 
   local ros_dir="${build_dir}/mikrotik/routeros"
@@ -408,14 +445,25 @@ find_xrd_tarball() {
 ensure_inotify_limits() {
   # k3s (k8s_lab, llmd_lab) and Cisco XRd exhaust the kernel default of 128
   # instances; every running container's shim also holds one. Never lower a
-  # value the host already set higher.
-  local conf=/etc/sysctl.d/99-nika-inotify.conf
-  local key value settings=""
+  # value the host already set higher. "# nika-original" lines keep the
+  # pre-install values for scripts/uninstall.sh; a conf written by an older
+  # installer has none, so its originals are unknown.
+  local conf="${INOTIFY_CONF}"
+  local key value original settings=""
   for key in max_user_instances max_user_watches; do
     value="$(sysctl -n "fs.inotify.${key}")"
+    original="${value}"
+    if [[ -f "${conf}" ]]; then
+      original="$(sed -n "s/^# nika-original fs\.inotify\.${key}=//p" "${conf}")"
+      if [[ -z "${original}" ]]; then
+        original=unknown
+        log "Migrating ${conf} from an older installer (original ${key} unknown)"
+      fi
+    fi
     if (( value < 64000 )); then
       value=64000
     fi
+    settings="# nika-original fs.inotify.${key}=${original}"$'\n'"${settings}"
     settings+="fs.inotify.${key}=${value}"$'\n'
   done
 
@@ -505,6 +553,23 @@ prompt_for_xrd_tarball() {
   done
 }
 
+validate_config() {
+  # Never rewritten: obsolete keys fail validation and must be fixed by hand.
+  if [[ -f config/nika.yaml ]] && ! uv run nika config show >/dev/null; then
+    warn "config/nika.yaml does not validate against this NIKA version (see error above)."
+    warn "Compare it with config/nika.example.yaml and remove or rename obsolete keys."
+  fi
+}
+
+prepare_images() {
+  if [[ "${SKIP_IMAGES}" -eq 1 ]]; then
+    log "Skipping runtime image preparation (--skip-images)"
+    return
+  fi
+  log "Preparing runtime images and caches (first run: ~20 min, ~16 GB; later runs only update what changed)"
+  uv run nika images prepare
+}
+
 install_vendor_images() {
   log "Preparing vendor router images"
   mkdir -p "${VENDOR_CACHE}"
@@ -546,6 +611,7 @@ Vendor labs (after --with-vendor-images):
 New Docker install: open a new shell or run newgrp docker.
 Remote install: docs/operations/remote.md
 Optional sbx: docs/operations/agent-sandbox.md
+Remove NIKA again: ./scripts/uninstall.sh
 EOF
 }
 
@@ -554,13 +620,20 @@ main() {
 
   checkout_track
   ensure_docker
+  if ! docker_usable && [[ -z "${NIKA_INSTALL_UNDER_SG:-}" ]]; then
+    log "Continuing under the new docker group membership (sg docker)"
+    export NIKA_INSTALL_UNDER_SG=1
+    exec sg docker -c "$(printf '%q ' "${ROOT}/scripts/install.sh" "${ORIG_ARGS[@]}")"
+  fi
   install_uv
   sync_python
   install_containerlab
   install_gnmic
   bootstrap_config
+  validate_config
   install_fault_injection_tools
   ensure_inotify_limits
+  prepare_images
   if [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]]; then
     install_vendor_images
   fi

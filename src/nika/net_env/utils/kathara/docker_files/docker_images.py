@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
+import re
 import subprocess
 from pathlib import Path
 from typing import Iterable, Set
@@ -13,6 +15,13 @@ from docker.errors import APIError, BuildError, ImageNotFound
 
 NIKA_IMAGE_PREFIX = "nika/"
 DOCKER_FILES_DIR = Path(__file__).resolve().parent
+
+# Labels on locally built nika/* images. The build hash covers the Dockerfile,
+# its COPY/ADD sources, and the local parent image IDs, so a stale build is
+# rebuilt after a Dockerfile change or a newer upstream parent pull.
+IMAGE_LABEL = "io.nika.image"
+BUILD_HASH_LABEL = "io.nika.build-hash"
+_BUILD_HASH_VERSION = "1"
 
 # Scenario-local images required at deploy time. Upstream Kathara images
 # (kathara/base, kathara/frr, …) are pulled, not listed here.
@@ -192,9 +201,106 @@ def _migrate_legacy_image(image: str) -> bool:
     return False
 
 
-def build_nika_image(image: str) -> None:
+def _dockerfile_instructions(dockerfile: Path) -> list[tuple[str, str]]:
+    """Return ``(INSTRUCTION, arguments)`` pairs with continuations joined."""
+    instructions: list[tuple[str, str]] = []
+    pending = ""
+    for raw in dockerfile.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not pending and (not line or line.startswith("#")):
+            continue
+        if line.endswith("\\"):
+            pending += line[:-1] + " "
+            continue
+        pending += line
+        keyword, _, rest = pending.partition(" ")
+        instructions.append((keyword.upper(), rest.strip()))
+        pending = ""
+    return instructions
+
+
+def dockerfile_parents(image: str) -> list[str]:
+    """Return external ``FROM`` references of a buildable image (no stage names)."""
+    args: dict[str, str] = {}
+    stages: set[str] = set()
+    parents: list[str] = []
+    for keyword, rest in _dockerfile_instructions(_dockerfile_for_image(image)):
+        if keyword == "ARG" and "=" in rest:
+            name, _, default = rest.partition("=")
+            args.setdefault(name.strip(), default.strip())
+        elif keyword == "FROM":
+            tokens = [token for token in rest.split() if not token.startswith("--")]
+            ref = re.sub(
+                r"\$\{?(\w+)\}?",
+                lambda match: args.get(match.group(1), match.group(0)),
+                tokens[0],
+            )
+            if ref not in stages and ref != "scratch" and ref not in parents:
+                parents.append(ref)
+            if len(tokens) >= 3 and tokens[1].lower() == "as":
+                stages.add(tokens[2])
+    return parents
+
+
+def _copy_sources(dockerfile: Path) -> list[Path]:
+    files: list[Path] = []
+    for keyword, rest in _dockerfile_instructions(dockerfile):
+        if keyword not in ("COPY", "ADD"):
+            continue
+        tokens = rest.split()
+        if any(token.startswith("--from") for token in tokens):
+            continue
+        sources = [token for token in tokens if not token.startswith("--")][:-1]
+        for source in sources:
+            for match in sorted(dockerfile.parent.glob(source)):
+                if match.is_dir():
+                    files.extend(sorted(p for p in match.rglob("*") if p.is_file()))
+                elif match.is_file():
+                    files.append(match)
+    return files
+
+
+def _local_image_id(image: str) -> str | None:
+    try:
+        return _get_client().images.get(image).id
+    except ImageNotFound:
+        return None
+
+
+def _image_build_hash(image: str) -> str | None:
+    """Return the build-hash label of a local image, or None if absent."""
+    try:
+        labels = _get_client().images.get(image).labels or {}
+    except ImageNotFound:
+        return None
+    return labels.get(BUILD_HASH_LABEL)
+
+
+def build_hash(image: str) -> str:
+    """Hash of everything that determines a local nika/* build."""
+    dockerfile = _dockerfile_for_image(image)
+    digest = hashlib.sha256()
+    digest.update(
+        f"{_BUILD_HASH_VERSION}\0{_platform_for_image(image) or ''}\0".encode()
+    )
+    digest.update(dockerfile.read_bytes())
+    for path in _copy_sources(dockerfile):
+        digest.update(f"\0{path.relative_to(dockerfile.parent)}\0".encode())
+        digest.update(path.read_bytes())
+    for parent in dockerfile_parents(image):
+        digest.update(f"\0{parent}\0".encode())
+        if "@sha256:" not in parent:
+            digest.update((_local_image_id(parent) or "missing").encode())
+    return digest.hexdigest()
+
+
+def build_nika_image(image: str, *, expected_hash: str | None = None) -> None:
     dockerfile = _dockerfile_for_image(image)
     docker_platform = _platform_for_image(image)
+    labels = {
+        IMAGE_LABEL: image,
+        BUILD_HASH_LABEL: expected_hash or build_hash(image),
+    }
     if docker_platform:
         _require_platform_support(image, docker_platform)
         print(
@@ -213,6 +319,7 @@ def build_nika_image(image: str) -> None:
             "-t",
             image,
             "--network=host",
+            *(f"--label={key}={value}" for key, value in labels.items()),
             ".",
         ]
         if docker_platform:
@@ -234,6 +341,7 @@ def build_nika_image(image: str) -> None:
             "tag": image,
             "network_mode": "host",
             "rm": True,
+            "labels": labels,
         }
         if docker_platform:
             build_kwargs["platform"] = docker_platform
@@ -271,16 +379,42 @@ def pull_image(image: str, *, platform: str | None = None) -> None:
         _assert_image_architecture(image, _arch_from_platform(docker_platform))
 
 
+def _ensure_built(image: str, *, force_rebuild: bool, ensured: set[str]) -> None:
+    if image in ensured:
+        return
+    ensured.add(image)
+    for parent in dockerfile_parents(image):
+        if _is_locally_buildable(parent):
+            _ensure_built(parent, force_rebuild=force_rebuild, ensured=ensured)
+        elif "@sha256:" not in parent and not image_exists(parent):
+            pull_image(parent)
+
+    if not image_exists(image):
+        _migrate_legacy_image(image)
+    expected = build_hash(image)
+    if force_rebuild:
+        reason = "force rebuild"
+    elif not image_exists(image):
+        reason = "missing"
+    elif _image_build_hash(image) != expected:
+        reason = "outdated"
+    else:
+        return
+    print(f"Docker image {image}: {reason}")
+    build_nika_image(image, expected_hash=expected)
+
+
 def ensure_nika_docker_images(
     required_images: Iterable[str], *, force_rebuild: bool = False
 ) -> None:
-    """Ensure required images are available locally.
+    """Ensure required images are available locally and current.
 
-    Locally buildable ``nika/*`` images are built when missing, after first
-    checking for and renaming legacy ``kathara/nika-*`` tags. Other images
-    (e.g. upstream ``kathara/p4``) are pulled. With
-    ``force_rebuild=True``, every buildable image is rebuilt; pullable images
-    are still only fetched when missing.
+    Locally buildable ``nika/*`` images are built when missing or when their
+    build-hash label does not match the current Dockerfile, sources, and
+    parent images. Missing images are first recovered from legacy
+    ``kathara/nika-*`` tags. Parent images are ensured before their children.
+    Other images (e.g. upstream ``kathara/p4``) are pulled when missing. With
+    ``force_rebuild=True``, every buildable image is rebuilt.
 
     Images listed in ``NIKA_IMAGE_PLATFORMS`` are built/pulled for that
     platform. ``nika/onos`` builds for the host architecture.
@@ -292,25 +426,11 @@ def ensure_nika_docker_images(
     buildable = {img for img in required if _is_locally_buildable(img)}
     pullable = required - buildable
 
-    if force_rebuild:
-        to_build = buildable
-    else:
-        missing_buildable = {img for img in buildable if not image_exists(img)}
-        to_build = set()
-        for image in sorted(missing_buildable):
-            if not _migrate_legacy_image(image):
-                to_build.add(image)
+    ensured: set[str] = set()
+    for image in sorted(buildable):
+        _ensure_built(image, force_rebuild=force_rebuild, ensured=ensured)
 
     to_pull = {img for img in pullable if not image_exists(img)}
-
-    if to_build:
-        if force_rebuild:
-            print(f"Force rebuilding Docker images: {', '.join(sorted(to_build))}")
-        else:
-            print(f"Missing Docker images (build): {', '.join(sorted(to_build))}")
-        for image in sorted(to_build):
-            build_nika_image(image)
-
     if to_pull:
         print(f"Missing Docker images (pull): {', '.join(sorted(to_pull))}")
         for image in sorted(to_pull):
