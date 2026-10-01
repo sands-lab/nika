@@ -6,9 +6,9 @@ failure:
   - topo_size: s
     inject:
       attacker_device: client_1
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.2.11
       target_port: '80'
@@ -20,9 +20,9 @@ failure:
   - topo_size: s
     inject:
       attacker_device: client_2
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.2.11
       target_port: '80'
@@ -34,9 +34,9 @@ failure:
   - topo_size: m
     inject:
       attacker_device: client_1
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.1.12
       target_port: '80'
@@ -48,9 +48,9 @@ failure:
   - topo_size: m
     inject:
       attacker_device: client_2
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.1.12
       target_port: '80'
@@ -62,9 +62,9 @@ failure:
   - topo_size: m
     inject:
       attacker_device: client_3
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.1.12
       target_port: '80'
@@ -76,9 +76,9 @@ failure:
   - topo_size: m
     inject:
       attacker_device: client_4
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.1.12
       target_port: '80'
@@ -90,9 +90,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_1
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -104,9 +104,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_2
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -118,9 +118,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_3
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -132,9 +132,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_4
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -146,9 +146,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_5
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -160,9 +160,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_6
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -174,9 +174,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_7
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'
@@ -188,9 +188,9 @@ failure:
   - topo_size: l
     inject:
       attacker_device: client_8
-      duration: '60'
-      flows: '40'
-      rate_pps: '100'
+      duration: '3600'
+      flows: '100'
+      rate_pps: '1000'
       seed: '42'
       target_ip: 10.0.4.12
       target_port: '80'

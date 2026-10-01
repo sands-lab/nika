@@ -1142,9 +1142,9 @@ def resolve_inject_params(
                 attacker_device=rng.choice(model.clients).name,
                 target_ip=service.ip,
                 target_port="80",
-                rate_pps="100",
-                duration="60",
-                flows="40",
+                rate_pps="1000",
+                duration="3600",
+                flows="100",
                 seed=str(seed),
             )
         elif problem == "p4_tcam_entry_corruption":
@@ -2059,8 +2059,8 @@ def resolve_inject_params(
             backend_probe_host="load_balancer",
             backend_cpu_host="backend_web_0",
             cpu_quota="0.2",
-            concurrency="160",
-            load_workers="2",
+            concurrency="200",
+            load_workers="4",
             warmup_sec="5",
             probe_requests="60",
             probe_concurrency="4",

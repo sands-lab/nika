@@ -92,11 +92,11 @@ class LoadBalancerOverloadParams(BaseModel):
         description="Fixed LB CPU capacity (fractional CPUs) for the whole experiment.",
     )
     concurrency: int = Field(
-        default=160,
+        default=200,
         description="ApacheBench concurrency per background load worker.",
     )
     load_workers: int = Field(
-        default=2,
+        default=4,
         description="Background ab worker processes per load client host.",
     )
     warmup_sec: float = Field(

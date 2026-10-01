@@ -260,11 +260,17 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
     vip_probe_failed = vip.p95_ms is None or vip.complete_requests in {None, 0}
     vip_degraded = vip_tail_ok or vip_errors_ok or vip_probe_failed
 
+    # A healthy control path has a measured p95 and no errors. When the VIP is
+    # so overloaded that its probe completes no request (p95 is None, the
+    # strongest degradation), the control stays the independent healthy path;
+    # otherwise it must also sit well below the VIP tail.
     control_ok = (
         control.p95_ms is not None
         and control.error_count == 0
-        and vip.p95_ms is not None
-        and control.p95_ms <= vip.p95_ms * _CONTROL_VS_VIP_MAX_RATIO
+        and (
+            vip.p95_ms is None
+            or control.p95_ms <= vip.p95_ms * _CONTROL_VS_VIP_MAX_RATIO
+        )
     )
     base_backend_local_time = baseline.get("backend_local_time_s")
     backend_local_time_ratio = None
