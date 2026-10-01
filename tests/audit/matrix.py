@@ -217,7 +217,7 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
         if '"nginx_saturated": false' in blob:
             return "case: nginx CPU stayed under the saturation ratio after inject"
         if "throughput_ratio" in blob:
-            return "case: receiver throughput stayed near the healthy rate after inject"
+            return "case: the transfer comparison did not show the contention effect"
         if (
             audit.identity.fault
             in {

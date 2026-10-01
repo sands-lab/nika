@@ -19,6 +19,7 @@ The recheck reads that worker, queue, or quota on the injected instance.
 
 Run the full audit through `audit_case` in `tests/audit/live.py`.
 To audit all release cases, run `uv run python -m tests.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.
+The matrix writes one JSON record per case to `runtime/environment-audit-results/`. Those records stay local; this page is the committed summary.
 Benchmark runs stay on `startup_verify_lab`, `verify_fault`, and `PresenceWatch`.
 For one selected case, `audit_case` deploys a lab and runs `verify_lab` plus a healthy probe of the fault path before inject.
 After inject it runs `verify_fault`, the symptom probe, and a control-path observation.
@@ -56,38 +57,48 @@ uv run python -c "from tests.audit.report_doc import write_environment_audit_doc
 ## Coverage
 
 Release 0.2.0 has 169 cases (dev 84, test 85).
-Admitted cases: 116.
-40 cases declare an `artifact_only` symptom probe.
+Admitted cases: 168.
+20 cases declare an `artifact_only` symptom probe.
 Their full audit uses a scenario health-check delta; a check that stays healthy does not prove fault effect.
 
 | Status | Cases |
 | --- | --- |
-| `pass` | 116 |
-| `fail` | 27 |
+| `pass` | 168 |
+| `fail` | 1 |
 | `skipped` | 0 |
 | `unsupported` | 0 |
-| `no_evidence` | 2 |
-| `not_run` | 24 |
+| `no_evidence` | 0 |
+| `not_run` | 0 |
 
 Symptom probes declared for these cases:
 
 | Probe | Cases |
 | --- | --- |
-| `artifact_only` | 40 |
+| `artifact_only` | 20 |
 | `bgp_hijack_route` | 2 |
 | `control_plane_bgp` | 6 |
 | `control_plane_ospf` | 6 |
 | `control_plane_routing` | 2 |
-| `custom` | 34 |
+| `custom` | 56 |
 | `dns_answer` | 2 |
 | `healthy` | 18 |
 | `http_by_name` | 4 |
 | `isolation_http` | 4 |
 | `path_http` | 14 |
 | `path_mtu_frag_needed` | 2 |
-| `path_ping` | 31 |
+| `path_ping` | 29 |
 | `ping_old_ip` | 2 |
 | `route_get_onlink` | 2 |
+
+### Release cases outside the current compatibility rules
+
+Published releases do not change, so these cases stay in the release.
+The fault now lists the scenario in `INCOMPATIBLE_SCENARIOS`, and `nika benchmark generate` no longer creates the case.
+Expect the audit of such a case to fail: the scenario hides the fault effect.
+
+| Split | Scenario | Fault | Admission | Reason |
+| --- | --- | --- | --- | --- |
+| test | min3clos | bgp_missing_route_advertisement | fail | The IGP also carries the host subnets, so peers keep a route after BGP stops advertising it. |
 
 ## Executed audits
 
@@ -99,21 +110,27 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 
 | Scenario | Fault | Scale | Backend | Design | Inject | Admission | Diagnosis |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| campus_lan | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | pass | pass |
+| campus_lan | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
+| campus_lan | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dns_lookup_latency | m | scenario default | none | delay_ms=1000, host_name=dns_server, intf_name=eth0 | pass | pass |
+| campus_lan | dns_port_blocked | l | scenario default | none | host_name=dns_server | pass | pass |
 | campus_lan | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | pass | pass |
 | campus_lan | dns_service_down | m | scenario default | none | host_name=dns_server | pass | pass |
 | campus_lan | host_incorrect_dns | m | scenario default | none | host_name=pc_1_1_1_1 | pass | pass |
+| campus_lan | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | pass | pass |
 | campus_lan | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | pass | pass |
 | campus_lan | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | pass | pass |
 | campus_lan | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | pass | pass |
+| campus_lan | ospf_neighbor_missing | l | scenario default | none | host_name=router_core_1 | pass | pass |
 | dc_clos | arp_acl_block | m | scenario default | none | host_name=client_0 | pass | pass |
 | dc_clos | dns_lookup_latency | s | scenario default | none | delay_ms=1000, host_name=dns_pod0, intf_name=eth0 | pass | pass |
 | dc_clos | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | pass | pass |
@@ -121,51 +138,60 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | dc_clos | dns_service_down | s | scenario default | none | host_name=dns_pod0 | pass | pass |
 | dc_clos | healthy | m | scenario default | none | none | pass | pass |
 | dc_clos | healthy | s | scenario default | none | none | pass | pass |
+| dc_clos | healthy | l | scenario default | none | none | pass | pass |
 | dc_clos | host_incorrect_dns | s | scenario default | none | host_name=client_0 | pass | pass |
+| dc_clos | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | pass | pass |
 | dc_clos | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | pass | pass |
-| dc_clos | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | fail | case: receiver throughput stayed near the healthy rate after inject |
+| dc_clos | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | pass | pass |
 | dc_clos | web_dos_attack | m | scenario default | none | attacker_device=client_0, host_name=webserver0_pod0, observer_device=dns_pod0, probe_url=http://10.0.1.2/small.bin | pass | pass |
 | enterprise_branch | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | pass | pass |
+| enterprise_branch | bgp_hijacking | l | scenario default | none | host_name=br1_edge | pass | pass |
 | enterprise_branch | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | pass | pass |
 | enterprise_branch | healthy | m | scenario default | none | none | pass | pass |
 | enterprise_branch | host_incorrect_netmask | m | scenario default | none | host_name=br1_corp_pc, netmask_prefix=8 | pass | pass |
+| enterprise_branch | host_static_blackhole | l | scenario default | none | host_name=br1_edge | pass | pass |
+| enterprise_branch | link_down | l | scenario default | none | host_name=br1_corp_pc, intf_name=eth0 | pass | pass |
 | enterprise_branch | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | pass | pass |
 | enterprise_branch | mtu_mismatch | l | scenario default | none | host_name=br1_edge, intf_name=eth2, mtu=500 | pass | pass |
-| enterprise_branch | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | fail | verify: scenario health checks did not expose the fault effect |
-| enterprise_branch | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | fail | verify: scenario health checks did not expose the fault effect |
-| enterprise_branch | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | fail | verify: scenario health checks did not expose the fault effect |
+| enterprise_branch | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | pass | pass |
+| enterprise_branch | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | pass | pass |
+| enterprise_branch | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | pass | pass |
+| enterprise_branch | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | pass | pass |
 | enterprise_branch | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | pass | pass |
 | enterprise_branch | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | pass | pass |
 | enterprise_branch | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | pass | pass |
 | enterprise_branch | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | pass | pass |
 | enterprise_branch | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | pass | pass |
+| enterprise_branch | wireguard_allowed_ips_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | pass | pass |
+| enterprise_branch | wireguard_peer_key_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq | pass | pass |
 | enterprise_branch | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | pass | pass |
 | isp_abilene | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | pass | pass |
-| isp_abilene | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | fail | verify: scenario health checks did not expose the fault effect |
+| isp_abilene | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | pass | pass |
 | isp_abilene_ebgp_rpki | bgp_rpki_invalid_route_leak | s | kathara | device_profile=frr | host_name=kscyng | pass | pass |
 | isp_abilene_ebgp_rtbh | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | pass | pass |
 | isp_cost266 | bgp_asn_misconfig | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | pass | pass |
-| isp_dfn-bwin | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | fail | verify: verify_lab failed before inject |
+| isp_dfn-bwin | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_dfn-bwin | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | pass | pass |
 | isp_dfn-bwin_ebgp_rtbh | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=frankfurt, peer_host=pc_frankfurt, probe_dst_ip=198.51.100.1, symptom_host=hamburg | pass | pass |
 | isp_dfn-bwin_ebgp_rtbh | ospf_neighbor_missing | s | kathara | device_profile=frr | host_name=berlin | pass | pass |
 | isp_dfn-gwin | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
-| isp_di-yuan | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | fail | verify: verify_lab failed before inject |
-| isp_di-yuan | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | fail | runner: RuntimeError: clab deploy failed for isp_di-yuan__0930162947-d1431d: 16:31:40 ERRO failed to create exec in container /clab-isp_di-yuan__0930162947-d1431d-n_7: Error response from daemon: container 0c33aad53ba29196ce24729d38fd60d809d08be005 |
+| isp_di-yuan | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
+| isp_di-yuan | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_di-yuan | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_di-yuan | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | pass | pass |
 | isp_geant | bgp_max_prefix_exceeded | m | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.35, peer_name=nl1_nl, receiver_name=de1_de | pass | pass |
 | isp_geant_ebgp_rpki | bgp_rpki_invalid_route_leak | m | kathara | device_profile=frr | host_name=es1_es | pass | pass |
 | isp_geant_ebgp_rpki | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | pass | pass |
 | isp_geant_ebgp_rpki | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | pass | pass |
+| isp_germany50 | frr_service_down | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | pass | pass |
 | isp_germany50 | ospf_area_misconfiguration | l | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | pass | pass |
 | isp_india35 | link_packet_corruption | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | corruption_percentage=10, host_name=n_0, intf_name=eth0, peer_host=pc_n_24, probe_dst_ip=10.254.0.70, symptom_host=pc_n_0 | pass | pass |
 | isp_janos-us | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | pass | pass |
 | isp_janos-us-ca | icmp_acl_block | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=pc_atlanta | pass | pass |
 | isp_nobel-eu | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | pass | pass |
 | isp_nobel-germany | link_flap | m | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | down_time=1, host_name=berlin, intf_name=eth0, peer_host=pc_hamburg, probe_dst_ip=10.254.0.26, symptom_host=pc_berlin, up_time=1 | pass | pass |
-| isp_pdh | bgp_acl_block | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | host_name=n1 | fail | verify: control_plane_bgp was already down before inject |
-| isp_pdh | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | fail | verify: verify_lab failed before inject |
+| isp_pdh | bgp_acl_block | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | host_name=n1 | pass | pass |
+| isp_pdh | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_pdh | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_pdh | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_pioro40 | bgp_missing_route_advertisement | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=n7, peer_host=pc_n7, prefix=203.0.113.0/24, probe_dst_ip=203.0.113.1, symptom_host=n0 | pass | pass |
@@ -178,25 +204,26 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | k8s_lab | host_incorrect_gateway | none | scenario default | none | host_name=client | pass | pass |
 | k8s_lab | host_incorrect_netmask | none | scenario default | none | host_name=client, netmask_prefix=8 | pass | pass |
 | k8s_lab | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | pass | pass |
-| k8s_lab | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | fail | runner: LabVerifyTimeoutError: Lab verification failed for 'k8s_lab__0930154937-cb008e' within 1800s; failed checks: {'word_app_http': False, 'weather_app_http': False} |
-| k8s_lab | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://datacenter.com/weather?location=London, namespace=word-ns, pod_selector=app=word, symptom_host=client, symptom_url=http://datacenter.com/word | no_evidence | no_evidence |
+| k8s_lab | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | pass | pass |
+| k8s_lab | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://datacenter.com/weather?location=London, namespace=word-ns, pod_selector=app=word, symptom_host=client, symptom_url=http://datacenter.com/word | pass | pass |
 | k8s_lab | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | pass | pass |
 | llmd_lab | healthy | none | scenario default | none | none | pass | pass |
 | llmd_lab | host_incorrect_ip | none | scenario default | none | host_name=client | pass | pass |
-| llmd_lab | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | fail | verify: scenario health checks did not expose the fault effect |
+| llmd_lab | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | pass | pass |
 | llmd_lab | host_missing_ip | none | scenario default | none | host_name=client, intf_name=eth0 | pass | pass |
 | llmd_lab | http_acl_block | none | scenario default | none | host_name=client | pass | pass |
 | llmd_lab | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | pass | pass |
-| llmd_lab | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | no_evidence | no_evidence |
+| llmd_lab | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | pass | pass |
 | llmd_lab | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | pass | pass |
 | llmd_lab | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | pass | pass |
-| llmd_lab | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | fail | case: receiver throughput stayed near the healthy rate after inject |
-| llmd_lab | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | fail | case: verify_fault did not accept the injected artifact |
+| llmd_lab | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | pass | pass |
+| llmd_lab | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | pass | pass |
 | min3clos | bgp_missing_route_advertisement | none | scenario default | none | host_name=leaf1 | fail | case: the symptom probe did not observe the network effect |
 | min3clos | healthy | none | scenario default | none | none | pass | pass |
 | min3clos | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | pass | pass |
 | p4_dc_fabric | bmv2_switch_down | l | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_fabric | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | pass | pass |
+| p4_dc_fabric | incast_traffic_network_limitation | l | scenario default | none | host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | pass | pass |
 | p4_dc_fabric | mac_address_conflict | m | scenario default | none | host_name=web_2, host_name_2=client_3_2 | pass | pass |
 | p4_dc_fabric | p4_action_selector_member_misconfig | m | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_fabric | p4_ecmp_group_member_missing | l | scenario default | none | host_name=leaf_1 | pass | pass |
@@ -208,39 +235,47 @@ A diagnosis that starts with `case` names the fault symptom on that lab.
 | p4_dc_gateway | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | pass | pass |
 | p4_dc_gateway | healthy | m | scenario default | none | none | pass | pass |
 | p4_dc_gateway | host_incorrect_ip | s | scenario default | none | host_name=client_1 | pass | pass |
-| p4_dc_gateway | host_ip_conflict | l | scenario default | none | host_name=service_4_2, host_name_2=service_2_1 | fail | verify: scenario health checks did not expose the fault effect |
+| p4_dc_gateway | host_ip_conflict | l | scenario default | none | host_name=service_4_2, host_name_2=service_2_1 | pass | pass |
 | p4_dc_gateway | http_acl_block | m | scenario default | none | host_name=client_1 | pass | pass |
 | p4_dc_gateway | icmp_acl_block | s | scenario default | none | host_name=client_1 | pass | pass |
-| p4_dc_gateway | icmp_frag_needed_filter_misconfiguration | m | scenario default | none | host_name=gateway_1 | fail | verify: scenario health checks did not expose the fault effect |
+| p4_dc_gateway | icmp_frag_needed_filter_misconfiguration | m | scenario default | none | host_name=gateway_1 | pass | pass |
 | p4_dc_gateway | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | pass | pass |
-| p4_dc_gateway | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | int_insufficient_mtu_headroom | m | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | fail | verify: scenario health checks did not expose the fault effect |
+| p4_dc_gateway | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | pass | pass |
+| p4_dc_gateway | int_insufficient_mtu_headroom | m | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | pass | pass |
 | p4_dc_gateway | lb_connection_state_exhaustion | l | scenario default | none | attacker_device=client_8, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | pass | pass |
 | p4_dc_gateway | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | pass | pass |
-| p4_dc_gateway | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | fail | verify: scenario health checks did not expose the fault effect |
+| p4_dc_gateway | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | pass | pass |
+| p4_dc_gateway | lb_pending_connection_update_race | l | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | pass | pass |
+| p4_dc_gateway | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | pass | pass |
 | p4_dc_gateway | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_gateway | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | pass | pass |
-| p4_dc_gateway | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | fail | verify: scenario health checks did not expose the fault effect |
+| p4_dc_gateway | p4_ecn_threshold_misconfiguration | l | scenario default | none | bmv2_port=10, host_name=spine_1, intf_name=eth9, threshold=1024 | pass | pass |
+| p4_dc_gateway | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | pass | pass |
 | p4_dc_gateway | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_gateway | p4_table_entry_missing | l | scenario default | none | host_name=gateway_1 | pass | pass |
+| p4_dc_gateway | p4_table_resource_exhaustion | l | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_gateway | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | pass | pass |
 | p4_dc_gateway | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | pass | pass |
 | p4_dc_gateway | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | pass | pass |
-| p4_dc_gateway | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | fail | case: the symptom probe did not observe the network effect |
+| p4_dc_gateway | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | pass | pass |
+| p4_dc_gateway | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
 | p4_dc_gateway | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
-| p4_dc_gateway | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | fail | verify: scenario health checks did not expose the fault effect |
+| p4_dc_gateway | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.4.12, target_port=80 | pass | pass |
+| p4_dc_gateway | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | pass | pass |
+| sdn_l3_clos | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | pass | pass |
 | sdn_l3_clos | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | pass | pass |
 | sdn_l3_clos | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | pass | pass |
 | sdn_l3_clos | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | pass | pass |
 | sdn_l3_clos | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | pass | pass |
-| sdn_l3_clos | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | fail | verify: scenario health checks did not expose the fault effect |
+| sdn_l3_clos | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | pass | pass |
 | sdn_l3_clos | healthy | m | scenario default | none | none | pass | pass |
+| sdn_l3_clos | healthy | l | scenario default | none | none | pass | pass |
 | sdn_l3_clos | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | pass | pass |
 | sdn_l3_clos | sdn_controller_crash | m | scenario default | none | host_name=onos | pass | pass |
-| sdn_l3_clos | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | fail | case: verify_fault did not accept the injected artifact |
+| sdn_l3_clos | sdn_controller_crash | l | scenario default | none | host_name=onos | pass | pass |
+| sdn_l3_clos | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | pass | pass |
 | sdn_l3_clos | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | pass | pass |
-| sdn_l3_clos | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | fail | case: the symptom probe did not observe the network effect |
+| sdn_l3_clos | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
 | sdn_l3_clos | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | pass | pass |
@@ -251,382 +286,327 @@ These runs left a failed stage or a host prerequisite. The diagnosis says whethe
 
 | Scenario | Fault | Admission | Diagnosis |
 | --- | --- | --- | --- |
-| dc_clos | receiver_resource_contention | fail | case: receiver throughput stayed near the healthy rate after inject |
-| enterprise_branch | nat_mapping_removed_without_drain | fail | verify: scenario health checks did not expose the fault effect |
-| enterprise_branch | snat_port_pool_exhaustion | fail | verify: scenario health checks did not expose the fault effect |
-| enterprise_branch | snat_port_pool_exhaustion | fail | verify: scenario health checks did not expose the fault effect |
-| isp_abilene | icmp_frag_needed_filter_misconfiguration | fail | verify: scenario health checks did not expose the fault effect |
-| isp_dfn-bwin | healthy | fail | verify: verify_lab failed before inject |
-| isp_di-yuan | healthy | fail | verify: verify_lab failed before inject |
-| isp_di-yuan | healthy | fail | runner: RuntimeError: clab deploy failed for isp_di-yuan__0930162947-d1431d: 16:31:40 ERRO failed to create exec in container /clab-isp_di-yuan__0930162947-d1431d-n_7: Error response from daemon: container 0c33aad53ba29196ce24729d38fd60d809d08be005 |
-| isp_pdh | bgp_acl_block | fail | verify: control_plane_bgp was already down before inject |
-| isp_pdh | healthy | fail | verify: verify_lab failed before inject |
-| k8s_lab | k8s_coredns_isolated | fail | runner: LabVerifyTimeoutError: Lab verification failed for 'k8s_lab__0930154937-cb008e' within 1800s; failed checks: {'word_app_http': False, 'weather_app_http': False} |
-| k8s_lab | k8s_networkpolicy_deny | no_evidence | no_evidence |
-| llmd_lab | host_ip_conflict | fail | verify: scenario health checks did not expose the fault effect |
-| llmd_lab | k8s_coredns_isolated | no_evidence | no_evidence |
-| llmd_lab | receiver_resource_contention | fail | case: receiver throughput stayed near the healthy rate after inject |
-| llmd_lab | sender_resource_contention | fail | case: verify_fault did not accept the injected artifact |
 | min3clos | bgp_missing_route_advertisement | fail | case: the symptom probe did not observe the network effect |
-| p4_dc_gateway | host_ip_conflict | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | icmp_frag_needed_filter_misconfiguration | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | int_insufficient_mtu_headroom | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | int_insufficient_mtu_headroom | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | lb_pending_connection_update_race | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | mac_address_conflict | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | p4_ecn_threshold_misconfiguration | fail | verify: scenario health checks did not expose the fault effect |
-| p4_dc_gateway | silent_egress_packet_loss | fail | case: the symptom probe did not observe the network effect |
-| p4_dc_gateway | tcp_syn_flood_attack | fail | verify: scenario health checks did not expose the fault effect |
-| sdn_l3_clos | flow_rule_shadowing | fail | verify: scenario health checks did not expose the fault effect |
-| sdn_l3_clos | sender_resource_contention | fail | case: verify_fault did not accept the injected artifact |
-| sdn_l3_clos | southbound_port_block | fail | case: the symptom probe did not observe the network effect |
 
 ### Audits still waiting
 
-The runner schedules these cases by resource class and host capacity.
-
-| Resource | Scenario | Fault |
-| --- | --- | --- |
-| large | enterprise_branch | wireguard_allowed_ips_misconfiguration |
-| large | sdn_l3_clos | arp_cache_poisoning |
-| large | enterprise_branch | bgp_hijacking |
-| large | campus_lan | device_forwarding_packet_corruption |
-| large | campus_lan | dhcp_missing_subnet |
-| large | campus_lan | dhcp_spoofed_dns |
-| large | campus_lan | dns_port_blocked |
-| large | isp_germany50 | frr_service_down |
-| large | dc_clos | host_incorrect_gateway |
-| large | enterprise_branch | host_static_blackhole |
-| large | p4_dc_fabric | incast_traffic_network_limitation |
-| large | p4_dc_gateway | lb_pending_connection_update_race |
-| large | enterprise_branch | link_down |
-| large | campus_lan | load_balancer_overload |
-| large | enterprise_branch | nat_mapping_removed_without_drain |
-| large | campus_lan | ospf_neighbor_missing |
-| large | p4_dc_gateway | p4_ecn_threshold_misconfiguration |
-| large | p4_dc_gateway | p4_table_resource_exhaustion |
-| large | p4_dc_gateway | p4runtime_pipeline_mismatch |
-| large | sdn_l3_clos | sdn_controller_crash |
-| large | p4_dc_gateway | tcp_syn_flood_attack |
-| large | enterprise_branch | wireguard_peer_key_misconfiguration |
-| large | dc_clos | healthy |
-| large | sdn_l3_clos | healthy |
+Every planned scenario and failure has a stored result.
 
 
 ## Cases
 
 ### `enterprise_branch`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | path_ping | pass | [JSON](environment-audit-results/enterprise_branch__arp_acl_block__dcdf53456f.json) |
-| dev | host_incorrect_netmask | m | scenario default | none | host_name=br1_corp_pc, netmask_prefix=8 | route_get_onlink | pass | [JSON](environment-audit-results/enterprise_branch__host_incorrect_netmask__bca0915584.json) |
-| dev | mtu_mismatch | l | scenario default | none | host_name=br1_edge, intf_name=eth2, mtu=500 | path_mtu_frag_needed | pass | [JSON](environment-audit-results/enterprise_branch__mtu_mismatch__7963177d72.json) |
-| dev | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | artifact_only | fail | [JSON](environment-audit-results/enterprise_branch__nat_mapping_removed_without_drain__5e5ac2dd2e.json) |
-| dev | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | artifact_only | fail | [JSON](environment-audit-results/enterprise_branch__snat_port_pool_exhaustion__75160ee727.json) |
-| dev | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | custom | pass | [JSON](environment-audit-results/enterprise_branch__tcp_receive_window_limited__23959b50c3.json) |
-| dev | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | custom | pass | [JSON](environment-audit-results/enterprise_branch__vrf_dscp_remarking__d95e72176f.json) |
-| dev | wireguard_allowed_ips_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | not_run | — |
-| dev | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | pass | [JSON](environment-audit-results/enterprise_branch__wireguard_peer_key_misconfiguration__ce5ca866cd.json) |
-| test | bgp_hijacking | l | scenario default | none | host_name=br1_edge | bgp_hijack_route | not_run | — |
-| test | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | path_ping | pass | [JSON](environment-audit-results/enterprise_branch__bgp_missing_route_advertisement__e629ddd77f.json) |
-| test | host_static_blackhole | l | scenario default | none | host_name=br1_edge | path_ping | not_run | — |
-| test | link_down | l | scenario default | none | host_name=br1_corp_pc, intf_name=eth0 | path_ping | not_run | — |
-| test | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | custom | pass | [JSON](environment-audit-results/enterprise_branch__link_packet_corruption__c16c45cb35.json) |
-| test | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | artifact_only | not_run | — |
-| test | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | artifact_only | fail | [JSON](environment-audit-results/enterprise_branch__snat_port_pool_exhaustion__efaf6040ca.json) |
-| test | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | custom | pass | [JSON](environment-audit-results/enterprise_branch__tcp_receive_window_limited__bbd70ba901.json) |
-| test | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | custom | pass | [JSON](environment-audit-results/enterprise_branch__vrf_dscp_remarking__e4fbe02ca1.json) |
-| test | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | pass | [JSON](environment-audit-results/enterprise_branch__wireguard_allowed_ips_misconfiguration__0895e9d93c.json) |
-| test | wireguard_peer_key_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | not_run | — |
-| test | healthy | m | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/enterprise_branch__healthy__747b6a5e72.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | arp_acl_block | s | scenario default | none | host_name=br1_corp_pc | path_ping | pass |
+| dev | host_incorrect_netmask | m | scenario default | none | host_name=br1_corp_pc, netmask_prefix=8 | route_get_onlink | pass |
+| dev | mtu_mismatch | l | scenario default | none | host_name=br1_edge, intf_name=eth2, mtu=500 | path_mtu_frag_needed | pass |
+| dev | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | custom | pass |
+| dev | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | custom | pass |
+| dev | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | custom | pass |
+| dev | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | custom | pass |
+| dev | wireguard_allowed_ips_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | pass |
+| dev | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | pass |
+| test | bgp_hijacking | l | scenario default | none | host_name=br1_edge | bgp_hijack_route | pass |
+| test | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | path_ping | pass |
+| test | host_static_blackhole | l | scenario default | none | host_name=br1_edge | path_ping | pass |
+| test | link_down | l | scenario default | none | host_name=br1_corp_pc, intf_name=eth0 | path_ping | pass |
+| test | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | custom | pass |
+| test | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | custom | pass |
+| test | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | custom | pass |
+| test | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | custom | pass |
+| test | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | custom | pass |
+| test | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | path_ping | pass |
+| test | wireguard_peer_key_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq | path_ping | pass |
+| test | healthy | m | scenario default | none | none | healthy | pass |
 
 ### `k8s_lab`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | arp_cache_poisoning | none | scenario default | none | host_name=client | path_ping | pass | [JSON](environment-audit-results/k8s_lab__arp_cache_poisoning__f8e5836613.json) |
-| dev | frr_service_down | none | scenario default | none | host_name=leaf_1_1 | control_plane_routing | pass | [JSON](environment-audit-results/k8s_lab__frr_service_down__a7eaac1ed5.json) |
-| dev | host_incorrect_gateway | none | scenario default | none | host_name=client | path_ping | pass | [JSON](environment-audit-results/k8s_lab__host_incorrect_gateway__c2a5d1a3c3.json) |
-| dev | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | isolation_http | fail | [JSON](environment-audit-results/k8s_lab__k8s_coredns_isolated__1b6f4f5dd0.json) |
-| test | bgp_asn_misconfig | none | scenario default | none | host_name=leaf_1_1 | control_plane_bgp | pass | [JSON](environment-audit-results/k8s_lab__bgp_asn_misconfig__b1a2f00baa.json) |
-| test | host_incorrect_netmask | none | scenario default | none | host_name=client, netmask_prefix=8 | route_get_onlink | pass | [JSON](environment-audit-results/k8s_lab__host_incorrect_netmask__344c9ceef3.json) |
-| test | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass | [JSON](environment-audit-results/k8s_lab__k8s_clusterip_routing_broken__cd00b6f1e9.json) |
-| test | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://datacenter.com/weather?location=London, namespace=word-ns, pod_selector=app=word, symptom_host=client, symptom_url=http://datacenter.com/word | isolation_http | no_evidence | [JSON](environment-audit-results/k8s_lab__k8s_networkpolicy_deny__edf03db8b6.json) |
-| test | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass | [JSON](environment-audit-results/k8s_lab__k8s_worker_apiserver_partition__5d6bcdb454.json) |
-| test | healthy | none | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/k8s_lab__healthy__42a446b5f1.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | arp_cache_poisoning | none | scenario default | none | host_name=client | path_ping | pass |
+| dev | frr_service_down | none | scenario default | none | host_name=leaf_1_1 | control_plane_routing | pass |
+| dev | host_incorrect_gateway | none | scenario default | none | host_name=client | path_ping | pass |
+| dev | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | isolation_http | pass |
+| test | bgp_asn_misconfig | none | scenario default | none | host_name=leaf_1_1 | control_plane_bgp | pass |
+| test | host_incorrect_netmask | none | scenario default | none | host_name=client, netmask_prefix=8 | route_get_onlink | pass |
+| test | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass |
+| test | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://datacenter.com/weather?location=London, namespace=word-ns, pod_selector=app=word, symptom_host=client, symptom_url=http://datacenter.com/word | isolation_http | pass |
+| test | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass |
+| test | healthy | none | scenario default | none | none | healthy | pass |
 
 ### `isp_nobel-eu`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | control_plane_bgp | pass | [JSON](environment-audit-results/isp_nobel-eu__bgp_acl_block__e6bb4b394b.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | control_plane_bgp | pass |
 
 ### `isp_cost266`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_asn_misconfig | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | control_plane_bgp | pass | [JSON](environment-audit-results/isp_cost266__bgp_asn_misconfig__43012aca72.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_asn_misconfig | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | control_plane_bgp | pass |
 
 ### `isp_abilene_ebgp_rtbh`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | path_ping | pass | [JSON](environment-audit-results/isp_abilene_ebgp_rtbh__bgp_blackhole_community_leak__a52da37272.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=kscyng, peer_host=pc_kscyng, probe_dst_ip=198.51.100.1, symptom_host=iplsng | path_ping | pass |
 
 ### `isp_janos-us`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | bgp_hijack_route | pass | [JSON](environment-audit-results/isp_janos-us__bgp_hijacking__12bd283ad9.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | bgp_hijack_route | pass |
 
 ### `isp_geant`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_max_prefix_exceeded | m | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.35, peer_name=nl1_nl, receiver_name=de1_de | control_plane_bgp | pass | [JSON](environment-audit-results/isp_geant__bgp_max_prefix_exceeded__20268007d9.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_max_prefix_exceeded | m | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.35, peer_name=nl1_nl, receiver_name=de1_de | control_plane_bgp | pass |
 
 ### `isp_pioro40`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_missing_route_advertisement | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=n7, peer_host=pc_n7, prefix=203.0.113.0/24, probe_dst_ip=203.0.113.1, symptom_host=n0 | path_ping | pass | [JSON](environment-audit-results/isp_pioro40__bgp_missing_route_advertisement__c8b56c6667.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_missing_route_advertisement | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=n7, peer_host=pc_n7, prefix=203.0.113.0/24, probe_dst_ip=203.0.113.1, symptom_host=n0 | path_ping | pass |
 
 ### `isp_abilene_ebgp_rpki`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_rpki_invalid_route_leak | s | kathara | device_profile=frr | host_name=kscyng | path_ping | pass | [JSON](environment-audit-results/isp_abilene_ebgp_rpki__bgp_rpki_invalid_route_leak__8469e57289.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bgp_rpki_invalid_route_leak | s | kathara | device_profile=frr | host_name=kscyng | path_ping | pass |
 
 ### `p4_dc_fabric`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bmv2_switch_down | l | scenario default | none | host_name=leaf_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_fabric__bmv2_switch_down__671d3d2f98.json) |
-| dev | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | path_ping | pass | [JSON](environment-audit-results/p4_dc_fabric__host_missing_ip__37a68affed.json) |
-| dev | mac_address_conflict | m | scenario default | none | host_name=web_2, host_name_2=client_3_2 | artifact_only | pass | [JSON](environment-audit-results/p4_dc_fabric__mac_address_conflict__284e1b36b7.json) |
-| dev | p4_action_selector_member_misconfig | m | scenario default | none | host_name=leaf_1 | artifact_only | pass | [JSON](environment-audit-results/p4_dc_fabric__p4_action_selector_member_misconfig__da0527d4c0.json) |
-| dev | p4_ecmp_group_member_missing | l | scenario default | none | host_name=leaf_1 | artifact_only | pass | [JSON](environment-audit-results/p4_dc_fabric__p4_ecmp_group_member_missing__d86714cf7f.json) |
-| dev | p4_table_entry_misconfig | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | pass | [JSON](environment-audit-results/p4_dc_fabric__p4_table_entry_misconfig__a4d4c38e57.json) |
-| dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | artifact_only | pass | [JSON](environment-audit-results/p4_dc_fabric__p4_table_resource_exhaustion__24cdb2d577.json) |
-| dev | p4runtime_partial_write | l | scenario default | none | host_name=leaf_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_fabric__p4runtime_partial_write__f051f1cee7.json) |
-| dev | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | path_ping | pass | [JSON](environment-audit-results/p4_dc_fabric__p4runtime_pipeline_mismatch__010f5f8669.json) |
-| test | incast_traffic_network_limitation | l | scenario default | none | host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | custom | not_run | — |
-| test | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | pass | [JSON](environment-audit-results/p4_dc_fabric__p4_table_entry_missing__2a3a2b6af8.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | bmv2_switch_down | l | scenario default | none | host_name=leaf_1 | path_http | pass |
+| dev | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | path_ping | pass |
+| dev | mac_address_conflict | m | scenario default | none | host_name=web_2, host_name_2=client_3_2 | custom | pass |
+| dev | p4_action_selector_member_misconfig | m | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| dev | p4_ecmp_group_member_missing | l | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| dev | p4_table_entry_misconfig | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | pass |
+| dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| dev | p4runtime_partial_write | l | scenario default | none | host_name=leaf_1 | path_http | pass |
+| dev | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | path_ping | pass |
+| test | incast_traffic_network_limitation | l | scenario default | none | host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | custom | pass |
+| test | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | pass |
 
 ### `sdn_l3_clos`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__device_forwarding_packet_corruption__8c7e0b7c7b.json) |
-| dev | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__flow_rule_loop__7d152d3bb7.json) |
-| dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | artifact_only | fail | [JSON](environment-audit-results/sdn_l3_clos__flow_rule_shadowing__a2049d8831.json) |
-| dev | sdn_controller_crash | m | scenario default | none | host_name=onos | artifact_only | pass | [JSON](environment-audit-results/sdn_l3_clos__sdn_controller_crash__2119dc02a3.json) |
-| dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | custom | fail | [JSON](environment-audit-results/sdn_l3_clos__sender_resource_contention__0592d6c54b.json) |
-| dev | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | custom | fail | [JSON](environment-audit-results/sdn_l3_clos__southbound_port_block__f5b49e654a.json) |
-| dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__southbound_port_mismatch__550be4fffd.json) |
-| test | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | path_ping | not_run | — |
-| test | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__flow_rule_loop__2f73f7dfcc.json) |
-| test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | artifact_only | pass | [JSON](environment-audit-results/sdn_l3_clos__flow_rule_shadowing__7a8b6accd6.json) |
-| test | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__link_flap__79db9efc84.json) |
-| test | sdn_controller_crash | l | scenario default | none | host_name=onos | artifact_only | not_run | — |
-| test | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__southbound_port_block__8348dea918.json) |
-| test | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__southbound_port_mismatch__3343266c41.json) |
-| test | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | custom | pass | [JSON](environment-audit-results/sdn_l3_clos__web_dos_attack__bae8989820.json) |
-| test | healthy | m | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/sdn_l3_clos__healthy__04b64ec375.json) |
-| test | healthy | l | scenario default | none | none | healthy | not_run | — |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | custom | pass |
+| dev | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | custom | pass |
+| dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | custom | pass |
+| dev | sdn_controller_crash | m | scenario default | none | host_name=onos | artifact_only | pass |
+| dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | custom | pass |
+| dev | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | custom | pass |
+| dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass |
+| test | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | path_ping | pass |
+| test | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | custom | pass |
+| test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | custom | pass |
+| test | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | custom | pass |
+| test | sdn_controller_crash | l | scenario default | none | host_name=onos | artifact_only | pass |
+| test | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | custom | pass |
+| test | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass |
+| test | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | custom | pass |
+| test | healthy | m | scenario default | none | none | healthy | pass |
+| test | healthy | l | scenario default | none | none | healthy | pass |
 
 ### `campus_lan`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_missing_subnet__db8d51b3bc.json) |
-| dev | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_service_down__cf6e6b0a99.json) |
-| dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_spoofed_dns__cb40f78ddd.json) |
-| dev | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_spoofed_gateway__8145e550bd.json) |
-| dev | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_spoofed_subnet__988fe71dd8.json) |
-| dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass | [JSON](environment-audit-results/campus_lan__load_balancer_overload__ea4f2b24f6.json) |
-| test | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | custom | not_run | — |
-| test | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | not_run | — |
-| test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_service_down__adcd1ee848.json) |
-| test | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | not_run | — |
-| test | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_spoofed_gateway__bfe404b039.json) |
-| test | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass | [JSON](environment-audit-results/campus_lan__dhcp_spoofed_subnet__665fa004fb.json) |
-| test | dns_lookup_latency | m | scenario default | none | delay_ms=1000, host_name=dns_server, intf_name=eth0 | http_by_name | pass | [JSON](environment-audit-results/campus_lan__dns_lookup_latency__94b804327a.json) |
-| test | dns_port_blocked | l | scenario default | none | host_name=dns_server | path_http | not_run | — |
-| test | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | dns_answer | pass | [JSON](environment-audit-results/campus_lan__dns_record_error__908c04fef3.json) |
-| test | dns_service_down | m | scenario default | none | host_name=dns_server | path_http | pass | [JSON](environment-audit-results/campus_lan__dns_service_down__36974b2ce6.json) |
-| test | host_incorrect_dns | m | scenario default | none | host_name=pc_1_1_1_1 | http_by_name | pass | [JSON](environment-audit-results/campus_lan__host_incorrect_dns__3ad4f66ff3.json) |
-| test | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | not_run | — |
-| test | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass | [JSON](environment-audit-results/campus_lan__ospf_acl_block__b3637e2c1c.json) |
-| test | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass | [JSON](environment-audit-results/campus_lan__ospf_area_misconfiguration__693befa5b7.json) |
-| test | ospf_neighbor_missing | l | scenario default | none | host_name=router_core_1 | control_plane_ospf | not_run | — |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
+| dev | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
+| dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
+| dev | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
+| dev | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
+| dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
+| test | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | custom | pass |
+| test | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
+| test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
+| test | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
+| test | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
+| test | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
+| test | dns_lookup_latency | m | scenario default | none | delay_ms=1000, host_name=dns_server, intf_name=eth0 | http_by_name | pass |
+| test | dns_port_blocked | l | scenario default | none | host_name=dns_server | path_http | pass |
+| test | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | dns_answer | pass |
+| test | dns_service_down | m | scenario default | none | host_name=dns_server | path_http | pass |
+| test | host_incorrect_dns | m | scenario default | none | host_name=pc_1_1_1_1 | http_by_name | pass |
+| test | load_balancer_overload | l | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=160, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=2, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
+| test | ospf_acl_block | s | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass |
+| test | ospf_area_misconfiguration | m | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass |
+| test | ospf_neighbor_missing | l | scenario default | none | host_name=router_core_1 | control_plane_ospf | pass |
 
 ### `dc_clos`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | dns_lookup_latency | s | scenario default | none | delay_ms=1000, host_name=dns_pod0, intf_name=eth0 | http_by_name | pass | [JSON](environment-audit-results/dc_clos__dns_lookup_latency__599bf6c229.json) |
-| dev | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | path_http | pass | [JSON](environment-audit-results/dc_clos__dns_port_blocked__dbb5e94ab3.json) |
-| dev | dns_record_error | l | scenario default | none | host_name=dns_pod0, target_domain=pod0, target_website=web0 | dns_answer | pass | [JSON](environment-audit-results/dc_clos__dns_record_error__6af05026ed.json) |
-| dev | dns_service_down | s | scenario default | none | host_name=dns_pod0 | path_http | pass | [JSON](environment-audit-results/dc_clos__dns_service_down__0563081212.json) |
-| dev | host_incorrect_dns | s | scenario default | none | host_name=client_0 | http_by_name | pass | [JSON](environment-audit-results/dc_clos__host_incorrect_dns__4938f67326.json) |
-| dev | web_dos_attack | m | scenario default | none | attacker_device=client_0, host_name=webserver0_pod0, observer_device=dns_pod0, probe_url=http://10.0.1.2/small.bin | custom | pass | [JSON](environment-audit-results/dc_clos__web_dos_attack__9d22857357.json) |
-| test | arp_acl_block | m | scenario default | none | host_name=client_0 | path_ping | pass | [JSON](environment-audit-results/dc_clos__arp_acl_block__602f3ee520.json) |
-| test | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | path_ping | not_run | — |
-| test | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | path_ping | pass | [JSON](environment-audit-results/dc_clos__link_detach__a49d53a0c2.json) |
-| test | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | custom | fail | [JSON](environment-audit-results/dc_clos__receiver_resource_contention__eb9126a3c7.json) |
-| test | healthy | m | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/dc_clos__healthy__7f89fafb26.json) |
-| test | healthy | l | scenario default | none | none | healthy | not_run | — |
-| test | healthy | s | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/dc_clos__healthy__9c216e1ef4.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | dns_lookup_latency | s | scenario default | none | delay_ms=1000, host_name=dns_pod0, intf_name=eth0 | http_by_name | pass |
+| dev | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | path_http | pass |
+| dev | dns_record_error | l | scenario default | none | host_name=dns_pod0, target_domain=pod0, target_website=web0 | dns_answer | pass |
+| dev | dns_service_down | s | scenario default | none | host_name=dns_pod0 | path_http | pass |
+| dev | host_incorrect_dns | s | scenario default | none | host_name=client_0 | http_by_name | pass |
+| dev | web_dos_attack | m | scenario default | none | attacker_device=client_0, host_name=webserver0_pod0, observer_device=dns_pod0, probe_url=http://10.0.1.2/small.bin | custom | pass |
+| test | arp_acl_block | m | scenario default | none | host_name=client_0 | path_ping | pass |
+| test | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | path_ping | pass |
+| test | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | path_ping | pass |
+| test | receiver_resource_contention | s | scenario default | none | duration=600, host_name=client_0 | custom | pass |
+| test | healthy | m | scenario default | none | none | healthy | pass |
+| test | healthy | l | scenario default | none | none | healthy | pass |
+| test | healthy | s | scenario default | none | none | healthy | pass |
 
 ### `llmd_lab`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | host_incorrect_ip | none | scenario default | none | host_name=client | ping_old_ip | pass | [JSON](environment-audit-results/llmd_lab__host_incorrect_ip__0bc1d81cd1.json) |
-| dev | http_acl_block | none | scenario default | none | host_name=client | path_http | pass | [JSON](environment-audit-results/llmd_lab__http_acl_block__6838708e23.json) |
-| dev | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass | [JSON](environment-audit-results/llmd_lab__k8s_clusterip_routing_broken__eb9835108e.json) |
-| dev | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | isolation_http | pass | [JSON](environment-audit-results/llmd_lab__k8s_networkpolicy_deny__e080227a61.json) |
-| dev | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass | [JSON](environment-audit-results/llmd_lab__k8s_worker_apiserver_partition__8615227a7f.json) |
-| dev | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | custom | fail | [JSON](environment-audit-results/llmd_lab__receiver_resource_contention__666f43d0d3.json) |
-| test | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | artifact_only | fail | [JSON](environment-audit-results/llmd_lab__host_ip_conflict__0d31872f70.json) |
-| test | host_missing_ip | none | scenario default | none | host_name=client, intf_name=eth0 | path_ping | pass | [JSON](environment-audit-results/llmd_lab__host_missing_ip__124df2567f.json) |
-| test | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | isolation_http | no_evidence | [JSON](environment-audit-results/llmd_lab__k8s_coredns_isolated__48d69a400e.json) |
-| test | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | custom | fail | [JSON](environment-audit-results/llmd_lab__sender_resource_contention__a4c9b59f7f.json) |
-| test | healthy | none | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/llmd_lab__healthy__9db1538cad.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | host_incorrect_ip | none | scenario default | none | host_name=client | ping_old_ip | pass |
+| dev | http_acl_block | none | scenario default | none | host_name=client | path_http | pass |
+| dev | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass |
+| dev | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | isolation_http | pass |
+| dev | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass |
+| dev | receiver_resource_contention | none | scenario default | none | duration=600, host_name=client | custom | pass |
+| test | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | custom | pass |
+| test | host_missing_ip | none | scenario default | none | host_name=client, intf_name=eth0 | path_ping | pass |
+| test | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | isolation_http | pass |
+| test | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | custom | pass |
+| test | healthy | none | scenario default | none | none | healthy | pass |
 
 ### `p4_dc_gateway`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | host_ip_conflict | l | scenario default | none | host_name=service_4_2, host_name_2=service_2_1 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__host_ip_conflict__22ef5df03e.json) |
-| dev | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | custom | pass | [JSON](environment-audit-results/p4_dc_gateway__incast_traffic_network_limitation__9f0a971e63.json) |
-| dev | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__int_insufficient_mtu_headroom__08bdbf6b08.json) |
-| dev | lb_connection_state_exhaustion | l | scenario default | none | attacker_device=client_8, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | pass | [JSON](environment-audit-results/p4_dc_gateway__lb_connection_state_exhaustion__bfff3fbfdd.json) |
-| dev | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__lb_pending_connection_update_race__d2565240a4.json) |
-| dev | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__p4_ecn_threshold_misconfiguration__c506cb2369.json) |
-| dev | p4_table_entry_missing | l | scenario default | none | host_name=gateway_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_gateway__p4_table_entry_missing__ee1d7d2aa9.json) |
-| dev | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | path_ping | pass | [JSON](environment-audit-results/p4_dc_gateway__p4_tcam_entry_corruption__4314fce969.json) |
-| dev | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | custom | fail | [JSON](environment-audit-results/p4_dc_gateway__silent_egress_packet_loss__03f2b1b20e.json) |
-| dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__tcp_syn_flood_attack__a2ec05ea4c.json) |
-| test | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_gateway__bmv2_switch_down__f1e45fc256.json) |
-| test | host_incorrect_ip | s | scenario default | none | host_name=client_1 | ping_old_ip | pass | [JSON](environment-audit-results/p4_dc_gateway__host_incorrect_ip__b55c7104cc.json) |
-| test | http_acl_block | m | scenario default | none | host_name=client_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_gateway__http_acl_block__662042a25a.json) |
-| test | icmp_acl_block | s | scenario default | none | host_name=client_1 | path_ping | pass | [JSON](environment-audit-results/p4_dc_gateway__icmp_acl_block__3ca8b2f5a2.json) |
-| test | icmp_frag_needed_filter_misconfiguration | m | scenario default | none | host_name=gateway_1 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__icmp_frag_needed_filter_misconfiguration__e3e753dbd1.json) |
-| test | int_insufficient_mtu_headroom | m | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__int_insufficient_mtu_headroom__38467ea49a.json) |
-| test | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | pass | [JSON](environment-audit-results/p4_dc_gateway__lb_connection_state_exhaustion__cca0332721.json) |
-| test | lb_pending_connection_update_race | l | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | artifact_only | not_run | — |
-| test | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | artifact_only | fail | [JSON](environment-audit-results/p4_dc_gateway__mac_address_conflict__64bd92043f.json) |
-| test | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | artifact_only | pass | [JSON](environment-audit-results/p4_dc_gateway__p4_action_selector_member_misconfig__275fc527a2.json) |
-| test | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | artifact_only | pass | [JSON](environment-audit-results/p4_dc_gateway__p4_ecmp_group_member_missing__3420e9fb52.json) |
-| test | p4_ecn_threshold_misconfiguration | l | scenario default | none | bmv2_port=10, host_name=spine_1, intf_name=eth9, threshold=1024 | artifact_only | not_run | — |
-| test | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_gateway__p4_table_entry_misconfig__a988e2f406.json) |
-| test | p4_table_resource_exhaustion | l | scenario default | none | host_name=leaf_1 | artifact_only | not_run | — |
-| test | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | path_ping | pass | [JSON](environment-audit-results/p4_dc_gateway__p4_tcam_entry_corruption__77bcfeeb9f.json) |
-| test | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | path_http | pass | [JSON](environment-audit-results/p4_dc_gateway__p4runtime_partial_write__1416d76b36.json) |
-| test | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | path_ping | not_run | — |
-| test | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | custom | pass | [JSON](environment-audit-results/p4_dc_gateway__silent_egress_packet_loss__bf9dc59555.json) |
-| test | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.4.12, target_port=80 | artifact_only | not_run | — |
-| test | healthy | m | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/p4_dc_gateway__healthy__6d482b2cfe.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | host_ip_conflict | l | scenario default | none | host_name=service_4_2, host_name_2=service_2_1 | custom | pass |
+| dev | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | custom | pass |
+| dev | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | custom | pass |
+| dev | lb_connection_state_exhaustion | l | scenario default | none | attacker_device=client_8, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | pass |
+| dev | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | custom | pass |
+| dev | p4_ecn_threshold_misconfiguration | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, threshold=1024 | custom | pass |
+| dev | p4_table_entry_missing | l | scenario default | none | host_name=gateway_1 | path_http | pass |
+| dev | p4_tcam_entry_corruption | m | scenario default | none | control_source=client_2, host_name=gateway_3, target_ip=10.0.4.11 | custom | pass |
+| dev | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | custom | pass |
+| dev | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.1.12, target_port=80 | custom | pass |
+| test | bmv2_switch_down | s | scenario default | none | host_name=gateway_1 | path_http | pass |
+| test | host_incorrect_ip | s | scenario default | none | host_name=client_1 | ping_old_ip | pass |
+| test | http_acl_block | m | scenario default | none | host_name=client_1 | path_http | pass |
+| test | icmp_acl_block | s | scenario default | none | host_name=client_1 | path_ping | pass |
+| test | icmp_frag_needed_filter_misconfiguration | m | scenario default | none | host_name=gateway_1 | custom | pass |
+| test | int_insufficient_mtu_headroom | m | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | custom | pass |
+| test | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | pass |
+| test | lb_pending_connection_update_race | l | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | custom | pass |
+| test | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | custom | pass |
+| test | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| test | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| test | p4_ecn_threshold_misconfiguration | l | scenario default | none | bmv2_port=10, host_name=spine_1, intf_name=eth9, threshold=1024 | custom | pass |
+| test | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | path_http | pass |
+| test | p4_table_resource_exhaustion | l | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| test | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | custom | pass |
+| test | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | path_http | pass |
+| test | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | path_ping | pass |
+| test | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | custom | pass |
+| test | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=60, flows=40, rate_pps=100, seed=42, target_ip=10.0.4.12, target_port=80 | custom | pass |
+| test | healthy | m | scenario default | none | none | healthy | pass |
 
 ### `isp_geant_ebgp_rpki`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | path_ping | pass | [JSON](environment-audit-results/isp_geant_ebgp_rpki__host_static_blackhole__72a9f258ef.json) |
-| test | bgp_rpki_invalid_route_leak | m | kathara | device_profile=frr | host_name=es1_es | path_ping | pass | [JSON](environment-audit-results/isp_geant_ebgp_rpki__bgp_rpki_invalid_route_leak__3d64a16015.json) |
-| test | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | path_mtu_frag_needed | pass | [JSON](environment-audit-results/isp_geant_ebgp_rpki__mtu_mismatch__8bc33784bc.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | host_static_blackhole | m | kathara | device_profile=frr | host_name=at1_at | path_ping | pass |
+| test | bgp_rpki_invalid_route_leak | m | kathara | device_profile=frr | host_name=es1_es | path_ping | pass |
+| test | mtu_mismatch | m | kathara | device_profile=frr | host_name=at1_at, intf_name=eth0, mtu=500 | path_mtu_frag_needed | pass |
 
 ### `isp_janos-us-ca`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | icmp_acl_block | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=pc_atlanta | path_ping | pass | [JSON](environment-audit-results/isp_janos-us-ca__icmp_acl_block__17a8babe17.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | icmp_acl_block | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=pc_atlanta | path_ping | pass |
 
 ### `isp_abilene`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | artifact_only | fail | [JSON](environment-audit-results/isp_abilene__icmp_frag_needed_filter_misconfiguration__1c067a0819.json) |
-| test | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | control_plane_bgp | pass | [JSON](environment-audit-results/isp_abilene__bgp_max_prefix_exceeded__e26eeb9f98.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | custom | pass |
+| test | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | control_plane_bgp | pass |
 
 ### `min3clos`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | custom | pass | [JSON](environment-audit-results/min3clos__link_capacity_bottleneck__1c59a5ba8d.json) |
-| dev | healthy | none | scenario default | none | none | healthy | pass | [JSON](environment-audit-results/min3clos__healthy__c303852419.json) |
-| test | bgp_missing_route_advertisement | none | scenario default | none | host_name=leaf1 | path_ping | fail | [JSON](environment-audit-results/min3clos__bgp_missing_route_advertisement__771879f788.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | custom | pass |
+| dev | healthy | none | scenario default | none | none | healthy | pass |
+| test | bgp_missing_route_advertisement | none | scenario default | none | host_name=leaf1 | path_ping | fail |
 
 ### `isp_ta2`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_detach | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=n10, intf_name=eth0, peer_host=pc_n2, probe_dst_ip=10.254.0.46, symptom_host=pc_n10 | path_ping | pass | [JSON](environment-audit-results/isp_ta2__link_detach__16ff907597.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | link_detach | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=n10, intf_name=eth0, peer_host=pc_n2, probe_dst_ip=10.254.0.46, symptom_host=pc_n10 | path_ping | pass |
 
 ### `isp_dfn-bwin`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | path_ping | pass | [JSON](environment-audit-results/isp_dfn-bwin__link_down__a31b0cbad6.json) |
-| dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | fail | [JSON](environment-audit-results/isp_dfn-bwin__healthy__26340df0c5.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | link_down | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=berlin, intf_name=eth0, peer_host=pc_frankfurt, probe_dst_ip=10.254.0.6, symptom_host=pc_berlin | path_ping | pass |
+| dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
 
 ### `isp_nobel-germany`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_flap | m | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | down_time=1, host_name=berlin, intf_name=eth0, peer_host=pc_hamburg, probe_dst_ip=10.254.0.26, symptom_host=pc_berlin, up_time=1 | custom | pass | [JSON](environment-audit-results/isp_nobel-germany__link_flap__847491fb76.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | link_flap | m | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | down_time=1, host_name=berlin, intf_name=eth0, peer_host=pc_hamburg, probe_dst_ip=10.254.0.26, symptom_host=pc_berlin, up_time=1 | custom | pass |
 
 ### `isp_india35`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_packet_corruption | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | corruption_percentage=10, host_name=n_0, intf_name=eth0, peer_host=pc_n_24, probe_dst_ip=10.254.0.70, symptom_host=pc_n_0 | custom | pass | [JSON](environment-audit-results/isp_india35__link_packet_corruption__7dce6991da.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | link_packet_corruption | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | corruption_percentage=10, host_name=n_0, intf_name=eth0, peer_host=pc_n_24, probe_dst_ip=10.254.0.70, symptom_host=pc_n_0 | custom | pass |
 
 ### `isp_ta1`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | ospf_acl_block | m | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=n1 | control_plane_ospf | pass | [JSON](environment-audit-results/isp_ta1__ospf_acl_block__d3669c0c44.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | ospf_acl_block | m | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=n1 | control_plane_ospf | pass |
 
 ### `isp_germany50`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | ospf_area_misconfiguration | l | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_ospf | pass | [JSON](environment-audit-results/isp_germany50__ospf_area_misconfiguration__5d6be1bf2c.json) |
-| test | frr_service_down | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_routing | not_run | — |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | ospf_area_misconfiguration | l | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_ospf | pass |
+| test | frr_service_down | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=aachen | control_plane_routing | pass |
 
 ### `isp_dfn-bwin_ebgp_rtbh`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | ospf_neighbor_missing | s | kathara | device_profile=frr | host_name=berlin | control_plane_ospf | pass | [JSON](environment-audit-results/isp_dfn-bwin_ebgp_rtbh__ospf_neighbor_missing__3ff99a1925.json) |
-| test | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=frankfurt, peer_host=pc_frankfurt, probe_dst_ip=198.51.100.1, symptom_host=hamburg | path_ping | pass | [JSON](environment-audit-results/isp_dfn-bwin_ebgp_rtbh__bgp_blackhole_community_leak__74d62b53e9.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | ospf_neighbor_missing | s | kathara | device_profile=frr | host_name=berlin | control_plane_ospf | pass |
+| test | bgp_blackhole_community_leak | s | kathara | device_profile=frr | host_name=frankfurt, peer_host=pc_frankfurt, probe_dst_ip=198.51.100.1, symptom_host=hamburg | path_ping | pass |
 
 ### `isp_di-yuan`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | fail | [JSON](environment-audit-results/isp_di-yuan__healthy__32dcc865f0.json) |
-| dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | pass | [JSON](environment-audit-results/isp_di-yuan__healthy__bbe0d85d31.json) |
-| dev | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | healthy | fail | [JSON](environment-audit-results/isp_di-yuan__healthy__9cd21275f5.json) |
-| test | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | custom | pass | [JSON](environment-audit-results/isp_di-yuan__link_capacity_bottleneck__235e5ad105.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
+| dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
+| dev | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
+| test | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | custom | pass |
 
 ### `isp_pdh`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | healthy | pass | [JSON](environment-audit-results/isp_pdh__healthy__edb501038c.json) |
-| dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | pass | [JSON](environment-audit-results/isp_pdh__healthy__09b14c5dd3.json) |
-| dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | fail | [JSON](environment-audit-results/isp_pdh__healthy__08cb1ee8d5.json) |
-| test | bgp_acl_block | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | host_name=n1 | control_plane_bgp | fail | [JSON](environment-audit-results/isp_pdh__bgp_acl_block__73e4b89ba9.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
+| dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
+| dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
+| test | bgp_acl_block | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | host_name=n1 | control_plane_bgp | pass |
 
 ### `isp_dfn-gwin`
 
-| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | pass | [JSON](environment-audit-results/isp_dfn-gwin__healthy__8c48d78a20.json) |
+| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | healthy | pass |
 
 Rows with admission `not_run` are coverage gaps for the full audit.

@@ -12,6 +12,11 @@ NIKA_BGP_WITHDRAW = "nika_bgp_withdraw"
 NIKA_BGP_WITHDRAW_PFX = "nika_bgp_withdraw_pfx"
 NIKA_BGP_EXPORT_GROUP = "clos01"
 NIKA_BLACKHOLE_NHG = "nika_blackhole"
+# CPM filter entry sequence -> transport port field matched against TCP/179.
+_NIKA_BGP_ACL_ENTRIES: dict[int, str] = {
+    185: "destination-port",
+    186: "source-port",
+}
 
 # Containerlab maps SRL YANG interfaces to Linux veth names in the netns.
 _SRL_SUBIF_TO_LINUX: dict[str, str] = {
@@ -93,13 +98,55 @@ class SRLAPIMixin:
         )
 
     def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> None:
-        """Block BGP TCP/179 in the SRL Linux netns."""
-        self.exec_cmd(device_name, "iptables -A INPUT -p tcp --dport 179 -j DROP")
-        self.exec_cmd(device_name, "iptables -A INPUT -p tcp --sport 179 -j DROP")
+        """Drop BGP TCP/179 in the CPM filter, then reset established peers.
+
+        BGP runs in the ``srbase-default`` netns, so root-netns iptables rules
+        never see it. The drop entries sit ahead of the default CPM filter's
+        BGP accept entries (190/200).
+        """
+        commands: list[str] = []
+        for seq, port in _NIKA_BGP_ACL_ENTRIES.items():
+            entry = f"/acl acl-filter cpm type ipv4 entry {seq}"
+            commands += [
+                f"{entry} description {NIKA_BGP_ACL}",
+                f"{entry} match ipv4 protocol tcp",
+                f"{entry} match transport {port} operator eq",
+                f"{entry} match transport {port} value 179",
+                f"{entry} action drop",
+            ]
+        self._srl_candidate(device_name, *commands)
+        # Reset sessions so the drop takes effect now instead of at hold-timer
+        # expiry. ``tools`` rejects wildcards, so reset each configured peer.
+        neighbors = re.findall(
+            r"bgp neighbor (\S+) peer-group",
+            self.srl_exec_cli(
+                device_name,
+                "info flat from running network-instance default protocols bgp "
+                "neighbor * peer-group",
+            ),
+        )
+        if neighbors:
+            self._srl_run_script(
+                device_name,
+                [
+                    "tools network-instance default protocols bgp "
+                    f"neighbor {peer} reset-peer"
+                    for peer in neighbors
+                ],
+            )
 
     def srl_bgp_acl_drop_179_present(self: SupportsSRL, device_name: str) -> bool:
-        output = self.exec_cmd(device_name, "iptables -L INPUT -n 2>/dev/null || true")
-        return "dpt:179" in output and "DROP" in output
+        for seq, port in _NIKA_BGP_ACL_ENTRIES.items():
+            output = self.srl_exec_cli(
+                device_name,
+                f"info flat from running acl acl-filter cpm type ipv4 entry {seq}",
+            )
+            if not (
+                f"match transport {port} value 179" in output
+                and "action drop" in output
+            ):
+                return False
+        return True
 
     def srl_withdraw_client_prefix(
         self: SupportsSRL,

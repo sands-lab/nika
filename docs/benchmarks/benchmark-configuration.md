@@ -580,7 +580,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">●</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>

@@ -96,14 +96,6 @@ def evaluate_symptom(
         path = replace(path, old_ip=problem._original_ip)
     if failure == "mtu_mismatch" and problem is not None:
         path = _resolve_mtu_mismatch_path(problem, params, path)
-    if failure == "p4_tcam_entry_corruption" and problem is not None:
-        model = getattr(problem.net_env, "model", None)
-        if model is not None:
-            path = replace(
-                path,
-                src_host=model.client_on_gateway(params.host_name).name,
-                dst_ip=params.target_ip,
-            )
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
     before_snap = before if before is not None else ProbeSnapshot()
     if contract.probe == "dns_answer":
@@ -125,9 +117,14 @@ def evaluate_symptom(
             before_snap.extra.get("bgp_query_ok") is True
             and before_snap.extra.get("bgp_target_present") is False
         )
+        # Edge prefix filters can keep the hijack on the hijacking router; its
+        # own hosts are then the ones whose traffic it captures.
+        was_uncaptured = before_snap.extra.get("bgp_local_capture") is False
         deadline = time.monotonic() + _BGP_RIB_WITHDRAW_TIMEOUT_S
         while was_absent and time.monotonic() < deadline:
-            if after.extra.get("bgp_target_present") is True:
+            if after.extra.get("bgp_target_present") is True or (
+                was_uncaptured and after.extra.get("bgp_local_capture") is True
+            ):
                 break
             time.sleep(2.0)
             after = run_probe_snapshot(runtime, contract.probe, path, params=params)
@@ -135,13 +132,19 @@ def evaluate_symptom(
             after.extra.get("bgp_query_ok") is True
             and after.extra.get("bgp_target_present") is True
         )
-        ok = was_absent and propagated
+        captured = was_uncaptured and after.extra.get("bgp_local_capture") is True
+        ok = was_absent and (propagated or captured)
         return ok, {
             "failure": failure,
             "probe": contract.probe,
             "before": before_snap.as_dict(),
             "after": after.as_dict(),
-            "comparison": {"expect": "prefix_appears_on_remote_router", "observed": ok},
+            "comparison": {
+                "expect": "prefix_reaches_remote_router_or_local_hosts",
+                "propagated": propagated,
+                "captured_locally": captured,
+                "observed": ok,
+            },
         }
     if failure in {"bgp_acl_block", "bgp_asn_misconfig"}:
         baseline = set(before_snap.extra.get("bgp_established_peers") or [])

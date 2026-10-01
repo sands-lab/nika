@@ -358,6 +358,56 @@ def _cluster_dns_ok(
     return "name:" in lowered
 
 
+def _srl_bgp_established_peers(runtime: LabRuntime, host: str) -> set[str]:
+    """Established peers from the SR Linux neighbor table (no vtysh there)."""
+    output = exec_or_empty(
+        runtime,
+        host,
+        'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
+        timeout=30,
+    )
+    peers: set[str] = set()
+    for line in output.splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 6 and cells[6] == "established":
+            peers.add(cells[2])
+    return peers
+
+
+def _first_hop_answers(runtime: LabRuntime, router: str, target: str) -> bool | None:
+    """Whether a host routed through ``router`` gets a TTL=1 echo reply from ``target``.
+
+    A remote destination answers TTL=1 with time-exceeded from the first hop;
+    a reply means the first-hop router itself owns the prefix. Only nodes that
+    share the router's site prefix are tried, so large topologies stay cheap.
+    """
+    site = router.split("_", 1)[0]
+    if site == router:
+        return None
+    router_ips = set(
+        re.findall(
+            r"inet (\d+\.\d+\.\d+\.\d+)/",
+            exec_or_empty(runtime, router, "ip -4 -o addr show"),
+        )
+    )
+    probe_ip = next(ipaddress.ip_network(target, strict=False).hosts())
+    candidates = [
+        node
+        for node in sorted(runtime.list_nodes())
+        if node != router and node.startswith(f"{site}_")
+    ][:8]
+    for node in candidates:
+        route = exec_or_empty(runtime, node, "ip route show default")
+        gateway = re.search(r"via (\d+\.\d+\.\d+\.\d+)", route)
+        if gateway and gateway.group(1) in router_ips:
+            output = exec_or_empty(
+                runtime, node, f"ping -c 2 -W 2 -t 1 {probe_ip}", timeout=15
+            )
+            received = re.search(r"(\d+) (?:packets )?received", output)
+            return bool(received and int(received.group(1)) > 0)
+    return None
+
+
 def run_probe_snapshot(
     runtime: LabRuntime,
     probe_kind: ProbeKind,
@@ -612,7 +662,9 @@ def run_probe_snapshot(
                 "vtysh -c 'show bgp summary'",
                 timeout=20,
             )
-            peers = frr_bgp_established_peers(summary)
+            peers = frr_bgp_established_peers(summary) or _srl_bgp_established_peers(
+                runtime, path.control_plane_host
+            )
             snap.extra["bgp_established_peers"] = sorted(peers)
             snap.control_plane_ok = bool(peers)
         return snap
@@ -624,6 +676,11 @@ def run_probe_snapshot(
                 for node in sorted(runtime.list_nodes())
                 if node != path.control_plane_host
                 and not node.startswith(("pc", "client", "host", "br"))
+                and frr_bgp_established_peers(
+                    exec_or_empty(
+                        runtime, node, "vtysh -c 'show bgp summary' 2>/dev/null"
+                    )
+                )
             ),
             None,
         )
@@ -649,6 +706,10 @@ def run_probe_snapshot(
                 bgp_observer=observer,
                 bgp_target=target,
                 bgp_route_output=output[:800],
+            )
+        if target and path.control_plane_host:
+            snap.extra["bgp_local_capture"] = _first_hop_answers(
+                runtime, path.control_plane_host, target
             )
         return snap
     if probe_kind == "control_plane_routing" and path.control_plane_host:

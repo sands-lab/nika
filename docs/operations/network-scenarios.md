@@ -241,7 +241,7 @@ This benchmark scenario connects one external client to each gateway, fully mesh
 | `m` | 4 | 4 | 4 | 4 | 8 |
 | `l` | 8 | 8 | 8 | 8 | 16 |
 
-The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
+The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 sends packets as fast as its CPU allows, so its egress queue stays empty. Each egress port therefore keeps a virtual queue that drains one packet per 16384 µs (about 61 packets per second) and holds at most 64 packets. The `queue_occupancy` register reports that depth, and ECN marks ECT packets when the depth reaches the port threshold. The virtual queue never drops packets. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
 
 ```shell
 uv run nika env run p4_dc_gateway -s s

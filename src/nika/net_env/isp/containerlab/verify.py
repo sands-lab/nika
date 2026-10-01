@@ -280,12 +280,15 @@ def _bgp_prefixes_originated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     return True
 
 
-def _srl_ping_ok(runtime: LabRuntime, device: str, target: str) -> bool:
+def _srl_ping_ok(
+    runtime: LabRuntime, device: str, target: str, source: str | None = None
+) -> bool:
     """Ping from an SRL router via sr_cli (linux ping has no data-plane netns)."""
+    source_arg = f" -I {source}" if source else ""
     output = exec_or_empty(
         runtime,
         device,
-        f'sr_cli "ping {target} network-instance default -c 1"',
+        f'sr_cli "ping {target} network-instance default -c 1{source_arg}"',
         timeout=20,
     )
     return "1 received" in output or "1 packets received" in output
@@ -307,12 +310,29 @@ def _srl_bgp_prefix_ok(runtime: LabRuntime, device: str, prefix: str) -> bool:
 def _bgp_prefixes_propagated_ok(
     runtime: LabRuntime, bgp_plan: BgpPlan
 ) -> tuple[bool, list[dict[str, Any]]]:
-    ping_by_prefix = {o.prefix: o.ping_address for o in bgp_plan.originated}
+    origin_by_prefix = {o.prefix: o for o in bgp_plan.originated}
     probes: list[dict[str, Any]] = []
     for observer, prefix in bgp_plan.expect_reachable:
         route_present = _srl_bgp_prefix_ok(runtime, observer, prefix)
-        target = ping_by_prefix.get(prefix)
-        ping_reachable = _srl_ping_ok(runtime, observer, target) if target else None
+        origin = origin_by_prefix.get(prefix)
+        # SRL sources pings from system0, which eBGP export policy keeps out
+        # of the peer AS; the eBGP link address is reachable from the origin.
+        source = next(
+            (
+                session.local_ip
+                for session in bgp_plan.sessions
+                if origin is not None
+                and session.session_type == "ebgp"
+                and session.local_device == observer
+                and session.remote_device == origin.device
+            ),
+            None,
+        )
+        ping_reachable = (
+            _srl_ping_ok(runtime, observer, origin.ping_address, source)
+            if origin
+            else None
+        )
         probes.append(
             {
                 "observer": observer,

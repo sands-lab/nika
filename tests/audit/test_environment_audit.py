@@ -99,15 +99,17 @@ def test_changed_symptom_contract_requires_a_new_live_audit() -> None:
 
 
 def test_release_report_lists_every_case() -> None:
-    text = render_environment_audit_doc()
     rows = release_cases("0.2.0")
-    assert text == DOC_PATH.read_text(encoding="utf-8")
-    for row in rows:
-        assert (
-            f"| {row['problem']} |" in text
-            or f"| {row['split']} | {row['problem']} |" in text
-        )
-    assert "Admitted cases:" in text
+    for text in (
+        DOC_PATH.read_text(encoding="utf-8"),
+        render_environment_audit_doc(records=[]),
+    ):
+        for row in rows:
+            assert (
+                f"| {row['problem']} |" in text
+                or f"| {row['split']} | {row['problem']} |" in text
+            )
+        assert "Admitted cases:" in text
     assert admits("not_run") is False
     assert admits("no_evidence") is False
     assert admits("fail") is False

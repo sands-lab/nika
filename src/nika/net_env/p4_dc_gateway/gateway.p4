@@ -36,8 +36,6 @@ header int_mx_h {
 struct headers { ethernet_h ethernet; ipv4_h ipv4; tcp_h tcp; udp_h udp; icmp_h icmp; int_mx_h int_mx; }
 struct metadata {
     bit<16> srcPort; bit<16> dstPort; bit<8> role;
-    bit<16> tcpLen;
-    bit<8> tcpProtocol;
     bit<32> flowHash; bit<32> flowHash1; bit<32> flowHash2; bit<32> flowHash3;
     bit<32> packetHash; bit<1> watched; bit<16> intMtu;
     bit<16> faultLossThreshold; bit<32> ecnThreshold;
@@ -128,6 +126,17 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
         key = { meta.lbPoolVersion: exact; meta.lbBucket: exact; }
         actions = { setPoolDip; NoAction; } size = 256; default_action = NoAction();
     }
+    // RFC 1624 incremental update: short frames carry Ethernet padding that a
+    // full recomputation over the parsed payload would wrongly include.
+    action rewriteTcpAddr(inout ipv4_t field, ipv4_t value) {
+        bit<32> sum = (bit<32>)(~hdr.tcp.checksum)
+            + (bit<32>)(~field[31:16]) + (bit<32>)(~field[15:0])
+            + (bit<32>)value[31:16] + (bit<32>)value[15:0];
+        sum = (sum & 0xffff) + (sum >> 16);
+        sum = (sum & 0xffff) + (sum >> 16);
+        hdr.tcp.checksum = ~sum[15:0];
+        field = value;
+    }
     @name("icmp_frag_needed_drop") action icmpFragNeededDrop() { mark_to_drop(standard_metadata); }
     @name("icmp_frag_needed_acl") table icmpFragNeededAcl {
         key = { hdr.icmp.type: exact; hdr.icmp.code: exact; }
@@ -152,8 +161,6 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
         ingressCounter.count((bit<32>)standard_metadata.ingress_port);
         if (!hdr.ipv4.isValid() || hdr.ipv4.ttl <= 1) { drop(); return; }
         meta.srcPort = 0; meta.dstPort = 0;
-        meta.tcpLen = hdr.ipv4.totalLen - ((bit<16>)hdr.ipv4.ihl << 2);
-        meta.tcpProtocol = hdr.ipv4.protocol;
         meta.intMtu = 0; meta.faultLossThreshold = 0;
         meta.watched = 0;
         meta.lbVip = 0; meta.lbConnHit = 0; meta.lbTransitHit = 0;
@@ -182,9 +189,9 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
                          {hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, meta.srcPort, meta.dstPort}, (bit<8>)64);
                     lbPool.apply();
                 }
-                if (meta.lbDip != 0) { hdr.ipv4.dstAddr = meta.lbDip; }
+                if (meta.lbDip != 0) { rewriteTcpAddr(hdr.ipv4.dstAddr, meta.lbDip); }
             }
-            if (hdr.ipv4.srcAddr == 32w0x0a00010b || hdr.ipv4.srcAddr == 32w0x0a00010c) { hdr.ipv4.srcAddr = 32w0x14000001; }
+            if (hdr.ipv4.srcAddr == 32w0x0a00010b || hdr.ipv4.srcAddr == 32w0x0a00010c) { rewriteTcpAddr(hdr.ipv4.srcAddr, 32w0x14000001); }
         }
         if (meta.role == ROLE_LEAF && hdr.int_mx.isValid()) {
             hdr.ipv4.protocol = hdr.int_mx.originalProtocol;
@@ -236,7 +243,14 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
 control GatewayEgress(inout headers hdr, inout metadata meta,
                       inout standard_metadata_t standard_metadata) {
     @name("egress_port_counter") counter(64, CounterType.packets_and_bytes) egressCounter;
+    // BMv2 drains its egress queue as fast as the CPU allows, so enq_qdepth
+    // stays near zero. A per-port virtual queue drained at one packet per
+    // 16384 us (~61 pps, below the ~120 pps of INT traffic a logging BMv2
+    // forwards) and capped at BMv2's default 64-packet queue gives ECN a
+    // finite port rate.
+    // It only drives marking; nothing is dropped.
     @name("queue_occupancy") register<bit<32>>(64) queueOccupancy;
+    register<bit<48>>(64) queueDrainedAt;
     @name("set_ecn_threshold") action setEcnThreshold(bit<32> threshold) { meta.ecnThreshold = threshold; }
     @name("ecn_config") table ecnConfig {
         key = { standard_metadata.egress_port: exact; }
@@ -246,11 +260,20 @@ control GatewayEgress(inout headers hdr, inout metadata meta,
     }
     apply {
         egressCounter.count((bit<32>)standard_metadata.egress_port);
-        queueOccupancy.write((bit<32>)standard_metadata.egress_port,
-                             (bit<32>)standard_metadata.enq_qdepth);
+        bit<32> port = (bit<32>)standard_metadata.egress_port;
+        bit<48> now = standard_metadata.egress_global_timestamp;
+        bit<32> depth; bit<48> drainedAt;
+        queueOccupancy.read(depth, port);
+        queueDrainedAt.read(drainedAt, port);
+        bit<32> drained = (bit<32>)((now - drainedAt) >> 14);
+        if (drained >= depth) { depth = 0; drainedAt = now; }
+        else { depth = depth - drained; drainedAt = drainedAt + ((bit<48>)drained << 14); }
+        if (depth < 64) { depth = depth + 1; }
+        queueOccupancy.write(port, depth);
+        queueDrainedAt.write(port, drainedAt);
         meta.ecnThreshold = 0;
         ecnConfig.apply();
-        if (meta.ecnThreshold > 0 && (bit<32>)standard_metadata.enq_qdepth >= meta.ecnThreshold &&
+        if (meta.ecnThreshold > 0 && depth >= meta.ecnThreshold &&
             (hdr.ipv4.diffserv[1:0] == 1 || hdr.ipv4.diffserv[1:0] == 2)) {
             hdr.ipv4.diffserv[1:0] = 3;
         }
@@ -261,13 +284,7 @@ control Compute(inout headers hdr, inout metadata meta) {
         {hdr.ipv4.version, hdr.ipv4.ihl, hdr.ipv4.diffserv, hdr.ipv4.totalLen,
          hdr.ipv4.identification, hdr.ipv4.flags, hdr.ipv4.fragOffset,
          hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr},
-        hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
-        update_checksum_with_payload(hdr.ipv4.isValid() && hdr.tcp.isValid(),
-        {hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, 8w0, meta.tcpProtocol,
-         meta.tcpLen, hdr.tcp.srcPort, hdr.tcp.dstPort, hdr.tcp.seqNo,
-         hdr.tcp.ackNo, hdr.tcp.dataOffset, hdr.tcp.res, hdr.tcp.flags,
-         hdr.tcp.window, 16w0, hdr.tcp.urgentPtr},
-        hdr.tcp.checksum, HashAlgorithm.csum16); }
+        hdr.ipv4.hdrChecksum, HashAlgorithm.csum16); }
 }
 control GatewayDeparser(packet_out packet, in headers hdr) {
     apply { packet.emit(hdr.ethernet); packet.emit(hdr.ipv4); packet.emit(hdr.int_mx); packet.emit(hdr.tcp); packet.emit(hdr.udp); packet.emit(hdr.icmp); }

@@ -54,7 +54,14 @@ class SrlApiTest:
     def test_srl_bgp_acl_present(self) -> None:
         runtime = MagicMock()
         runtime.backend = "containerlab"
-        runtime.exec.return_value = "Chain INPUT (policy ACCEPT)\nDROP       tcp  --  0.0.0.0/0  0.0.0.0/0  tcp dpt:179"
+        runtime.exec.side_effect = [
+            "set / acl acl-filter cpm type ipv4 entry 185 match transport "
+            "destination-port value 179\n"
+            "set / acl acl-filter cpm type ipv4 entry 185 action drop",
+            "set / acl acl-filter cpm type ipv4 entry 186 match transport "
+            "source-port value 179\n"
+            "set / acl acl-filter cpm type ipv4 entry 186 action drop",
+        ]
         adapter = LabRuntimeContainerlabAPI(runtime)
 
         assert adapter.srl_bgp_acl_drop_179_present("leaf1")

@@ -90,10 +90,10 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "dns_port_blocked": _c("dns_port_blocked", "unreachable", "path_http"),
     "bmv2_switch_down": _c("bmv2_switch_down", "unreachable", "path_http"),
     "flow_rule_loop": _c("flow_rule_loop", "loss", "custom"),
-    "flow_rule_shadowing": _c("flow_rule_shadowing", "unreachable", "artifact_only"),
+    "flow_rule_shadowing": _c("flow_rule_shadowing", "unreachable", "custom"),
     "host_static_blackhole": _c("host_static_blackhole", "unreachable", "path_ping"),
     "icmp_frag_needed_filter_misconfiguration": _c(
-        "icmp_frag_needed_filter_misconfiguration", "unreachable", "artifact_only"
+        "icmp_frag_needed_filter_misconfiguration", "unreachable", "custom"
     ),
     "k8s_networkpolicy_deny": _c(
         "k8s_networkpolicy_deny", "isolation", "isolation_http"
@@ -119,11 +119,9 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     ),
     # The silent drop matches the destination address. Ping that address.
     # HTTP to a service DIP is not a healthy client path on the gateway fabric.
-    "p4_tcam_entry_corruption": _c(
-        "p4_tcam_entry_corruption", "unreachable", "path_ping"
-    ),
+    "p4_tcam_entry_corruption": _c("p4_tcam_entry_corruption", "unreachable", "custom"),
     "int_insufficient_mtu_headroom": _c(
-        "int_insufficient_mtu_headroom", "unreachable", "artifact_only"
+        "int_insufficient_mtu_headroom", "unreachable", "custom"
     ),
     "vrf_dscp_remarking": _c("vrf_dscp_remarking", "degradation", "custom"),
     "wireguard_allowed_ips_misconfiguration": _c(
@@ -142,13 +140,13 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     # Unsafe pool update is evidenced by P4Runtime VIP/pool state (verify_fault);
     # VIP HTTP remains reachable, so path_http+gray_loss is the wrong probe.
     "lb_pending_connection_update_race": _c(
-        "lb_pending_connection_update_race", "gray", "artifact_only"
+        "lb_pending_connection_update_race", "gray", "custom"
     ),
     "snat_port_pool_exhaustion": _c(
-        "snat_port_pool_exhaustion", "unreachable", "artifact_only"
+        "snat_port_pool_exhaustion", "unreachable", "custom"
     ),
     "nat_mapping_removed_without_drain": _c(
-        "nat_mapping_removed_without_drain", "unreachable", "artifact_only"
+        "nat_mapping_removed_without_drain", "unreachable", "custom"
     ),
     "k8s_worker_apiserver_partition": _c(
         "k8s_worker_apiserver_partition", "control_plane", "artifact_only"
@@ -160,7 +158,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "southbound_port_mismatch": _c(
         "southbound_port_mismatch", "control_plane", "custom"
     ),
-    "mac_address_conflict": _c("mac_address_conflict", "unreachable", "artifact_only"),
+    "mac_address_conflict": _c("mac_address_conflict", "unreachable", "custom"),
     "dhcp_missing_subnet": _c("dhcp_missing_subnet", "unreachable", "artifact_only"),
     "dhcp_service_down": _c("dhcp_service_down", "unreachable", "artifact_only"),
     "dns_record_error": _c("dns_record_error", "unreachable", "dns_answer"),
@@ -171,7 +169,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "host_incorrect_netmask": _c(
         "host_incorrect_netmask", "degradation", "route_get_onlink"
     ),
-    "host_ip_conflict": _c("host_ip_conflict", "unreachable", "artifact_only"),
+    "host_ip_conflict": _c("host_ip_conflict", "unreachable", "custom"),
     "host_missing_ip": _c("host_missing_ip", "unreachable", "path_ping"),
     "k8s_coredns_isolated": _c("k8s_coredns_isolated", "isolation", "isolation_http"),
     "dns_lookup_latency": _c("dns_lookup_latency", "latency", "http_by_name"),
@@ -189,13 +187,13 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "tcp_receive_window_limited", "degradation", "custom"
     ),
     "p4_ecn_threshold_misconfiguration": _c(
-        "p4_ecn_threshold_misconfiguration", "gray", "artifact_only"
+        "p4_ecn_threshold_misconfiguration", "gray", "custom"
     ),
     "bgp_hijacking": _c("bgp_hijacking", "control_plane", "bgp_hijack_route"),
     "dhcp_spoofed_dns": _c("dhcp_spoofed_dns", "unreachable", "artifact_only"),
     "dhcp_spoofed_gateway": _c("dhcp_spoofed_gateway", "unreachable", "artifact_only"),
     "dhcp_spoofed_subnet": _c("dhcp_spoofed_subnet", "unreachable", "artifact_only"),
-    "tcp_syn_flood_attack": _c("tcp_syn_flood_attack", "degradation", "artifact_only"),
+    "tcp_syn_flood_attack": _c("tcp_syn_flood_attack", "degradation", "custom"),
     "web_dos_attack": _c("web_dos_attack", "degradation", "custom"),
 }
 

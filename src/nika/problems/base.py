@@ -91,6 +91,9 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # Scenarios whose TAGS match but whose design hides the failure effect,
+    # mapped to the reason.
+    INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
     # Optional protocol whose adjacency effect this failure declares.
@@ -102,6 +105,8 @@ class ProblemBase:
         """Return whether this failure can inject usefully on ``column``."""
         allowed = cls.COMPATIBLE_COLUMNS
         if allowed is not None and column not in allowed:
+            return False
+        if column.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
         return frozenset(cls.TAGS).issubset(column_tags)
 

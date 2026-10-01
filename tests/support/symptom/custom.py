@@ -3,15 +3,49 @@
 from __future__ import annotations
 
 import re
-import json
-import shlex
 import time
 from typing import Any
 
-from nika.net_env.verify import http_download_stats, iperf_throughput_bps, ping_stats
+from nika.net_env.verify import (
+    http_download_stats,
+    iperf_throughput_bps,
+    median_float,
+    ping_stats,
+)
 from nika.problems.base import build_verify_result
 from nika.problems.support.ab_helpers import ab_summary_to_dict
+from tests.support.symptom.addressing_probes import (
+    ip_conflict,
+    ip_conflict_baseline,
+    mac_conflict,
+    mac_conflict_baseline,
+)
 from tests.support.symptom.flap_probes import evaluate_link_flap_symptom
+from tests.support.symptom.icmp_probes import (
+    frag_needed_baseline,
+    frag_needed_filtered,
+)
+from tests.support.symptom.p4_gateway_probes import (
+    ecn_marking,
+    ecn_marking_baseline,
+    int_headroom,
+    int_headroom_baseline,
+    lb_race,
+    lb_race_baseline,
+    silent_loss,
+    silent_loss_baseline,
+    syn_flood,
+    syn_flood_baseline,
+    tcam_drop,
+    tcam_drop_baseline,
+)
+from tests.support.symptom.sdn_probes import flow_shadow, flow_shadow_baseline
+from tests.support.symptom.nat_probes import (
+    nat_flow_baseline,
+    nat_mapping_removed,
+    snat_pool_baseline,
+    snat_pool_exhaustion,
+)
 from tests.support.symptom.corruption_probes import (
     evaluate_device_forwarding_corruption_symptom,
     evaluate_link_capacity_symptom,
@@ -358,11 +392,32 @@ def _receiver_resource_contention(
     url = getattr(problem, "_large_url", None) or getattr(params, "large_url", None)
     if not url:
         url = problem._resolve_large_url(params)
-    injected_bps, injected_time_s = problem._median_large_stats(
-        params, url, max_time_sec=300, trials=3
-    )
     baseline_bps = problem._baseline_throughput_bps
     baseline_time = problem._baseline_time_s
+    # A starved receiver can stall a download, or the exec that starts it, for
+    # minutes. Count a missed deadline as the measured time and stop at the
+    # first slow sample so all reads finish inside the stress duration.
+    max_time_sec = max(20, int((baseline_time or 5) * 4) + 1)
+    rates: list[float] = []
+    times: list[float] = []
+    for _ in range(3):
+        stats = http_download_stats(
+            problem.runtime, params.host_name, url, max_time_sec=max_time_sec
+        )
+        if stats.raw.startswith("[TIMEOUT]"):
+            rates.append(0.0)
+            times.append(float(max_time_sec))
+        elif stats.throughput_bps is not None:
+            rates.append(stats.throughput_bps)
+            times.append(stats.time_total_s)
+        elif (stats.time_total_s or 0) >= max_time_sec:
+            rates.append((stats.size_bytes or 0) * 8.0 / max_time_sec)
+            times.append(stats.time_total_s)
+        else:
+            continue
+        if baseline_time and times[-1] >= 2.0 * baseline_time:
+            break
+    injected_bps, injected_time_s = median_float(rates), median_float(times)
     throughput_ratio = None
     time_ratio = None
     perf_ok = False
@@ -506,118 +561,6 @@ def _clusterip_routing_broken(problem: Any, params: Any) -> tuple[bool, dict[str
     )
 
 
-def _silent_egress_packet_loss(
-    problem: Any, params: Any
-) -> tuple[bool, dict[str, Any]]:
-    """Send distinct UDP flows through the selected egress and count arrivals."""
-    model = problem.net_env.model
-    clients = [client.name for client in model.clients[:2]]
-    if len(clients) < 2:
-        return False, {"error": "missing_p4_loss_probe_endpoints"}
-
-    def egress_packets() -> int | None:
-        raw = problem.runtime.exec(
-            "fabric_mgr",
-            "python3 /opt/nika/p4rt_manager.py counters "
-            f"--switch {shlex.quote(params.host_name)}",
-            timeout=30,
-        )
-        counters = json.loads(raw).get("counters", {}).get(params.host_name, {})
-        port = counters.get("egress", {}).get(str(params.bmv2_port), {})
-        return port.get("packets")
-
-    service = getattr(problem, "_audit_loss_target", None)
-    if service is None:
-        selector_script = (
-            "import socket\n"
-            "for index in range(64):\n"
-            "  sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
-            "  sock.bind(('0.0.0.0',28000+index))\n"
-            "  sock.sendto(b'route-probe',(TARGET,19408))\n"
-            "  sock.close()\n"
-        )
-        for candidate in model.services:
-            before_select = egress_packets() or 0
-            problem.runtime.exec(
-                clients[0],
-                f"python3 -c {shlex.quote('TARGET=' + repr(candidate.ip) + '\n' + selector_script)}",
-                timeout=10,
-            )
-            if (egress_packets() or 0) > before_select:
-                service = candidate
-                break
-        if service is None:
-            return False, {"error": "no_traffic_selected_the_injected_egress"}
-        problem._audit_loss_target = service
-
-    # ICMP has zero selector ports and can hash every packet to another spine.
-    # Each datagram gets a distinct UDP source port, covering the configured
-    # ECMP member without changing the fault's 2% drop threshold.
-    log_path = "/tmp/nika-audit-udp-loss.log"
-    if not getattr(problem, "_audit_loss_server_started", False):
-        server_script = (
-            "import socket\n"
-            "sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
-            "sock.bind(('0.0.0.0',19407))\n"
-            f"log=open({log_path!r},'a',buffering=1)\n"
-            "while True:\n"
-            "  data,_=sock.recvfrom(2048)\n"
-            "  log.write(data.decode('ascii')+'\\n')\n"
-        )
-        problem.runtime.exec(
-            service.name,
-            f"nohup python3 -u -c {shlex.quote(server_script)} "
-            ">/tmp/nika-audit-udp-loss-server.log 2>&1 </dev/null &",
-            timeout=10,
-        )
-        problem._audit_loss_server_started = True
-        time.sleep(0.5)
-
-    def sample(source: str, label: str) -> dict[str, int]:
-        sender_script = (
-            "import socket,time\n"
-            "for index in range(2048):\n"
-            "  sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
-            "  sock.bind(('0.0.0.0',30000+index))\n"
-            f"  sock.sendto(f'{label}:{{index}}'.encode(),({service.ip!r},19407))\n"
-            "  sock.close()\n"
-            "  time.sleep(0.01)\n"
-        )
-        problem.runtime.exec(
-            source, f"python3 -c {shlex.quote(sender_script)}", timeout=20
-        )
-        time.sleep(1.0)
-        output = problem.runtime.exec(
-            service.name,
-            f"grep -c '^{label}:' {log_path} 2>/dev/null || true",
-            timeout=10,
-        ).strip()
-        return {"sent": 2048, "replies": int(output.splitlines()[-1])}
-
-    before = egress_packets()
-    label = str(time.monotonic_ns())
-    affected = sample(clients[0], f"a{label}")
-    after = egress_packets()
-    control = sample(clients[1], f"c{label}")
-    loss = 100 * (affected["sent"] - affected["replies"]) / affected["sent"]
-    control_loss = 100 * (control["sent"] - control["replies"]) / control["sent"]
-    port_used = before is not None and after is not None and after > before
-    verified = port_used and 0.2 <= loss <= 15.0 and control_loss <= 0.2
-    return verified, build_verify_result(
-        fault_type=problem.root_cause_name,
-        verified=verified,
-        details={
-            "affected": affected,
-            "control": control,
-            "target": service.name,
-            "affected_loss_percent": loss,
-            "control_loss_percent": control_loss,
-            "egress_packets_before": before,
-            "egress_packets_after": after,
-        },
-    )
-
-
 def _flow_rule_loop(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Exercise all remote racks and tie packet loss to the loop rule counters."""
     model = problem.net_env.model
@@ -688,11 +631,7 @@ def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> tuple[int | Non
 
 def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Synchronized bursts overflow the shallow egress queue: drops keep rising."""
-    observe = getattr(problem, "_incast_observe", None)
-    if observe:
-        device, intf = observe
-    else:
-        device, intf = problem._egress_port(params)
+    device, intf = problem._egress_port(params)
     before, before_stats = _egress_qdisc_drops(problem, device, intf)
     time.sleep(_INCAST_SAMPLE_SEC)
     after, after_stats = _egress_qdisc_drops(problem, device, intf)
@@ -756,10 +695,47 @@ _CUSTOM: dict[str, Any] = {
     "southbound_port_mismatch": _southbound_disconnected,
     "flow_rule_loop": _flow_rule_loop,
     "k8s_clusterip_routing_broken": _clusterip_routing_broken,
-    "silent_egress_packet_loss": _silent_egress_packet_loss,
+    "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": _load_balancer_overload,
     "lb_connection_state_exhaustion": _lb_connection_state_exhaustion,
+    "snat_port_pool_exhaustion": snat_pool_exhaustion,
+    "nat_mapping_removed_without_drain": nat_mapping_removed,
+    "mac_address_conflict": mac_conflict,
+    "host_ip_conflict": ip_conflict,
+    "icmp_frag_needed_filter_misconfiguration": frag_needed_filtered,
+    "int_insufficient_mtu_headroom": int_headroom,
+    "tcp_syn_flood_attack": syn_flood,
+    "lb_pending_connection_update_race": lb_race,
+    "flow_rule_shadowing": flow_shadow,
+    "p4_ecn_threshold_misconfiguration": ecn_marking,
+    "p4_tcam_entry_corruption": tcam_drop,
 }
+
+# Pre-inject measurements of the same signal a custom probe reads after inject.
+_CUSTOM_BASELINE: dict[str, Any] = {
+    "snat_port_pool_exhaustion": snat_pool_baseline,
+    "nat_mapping_removed_without_drain": nat_flow_baseline,
+    "mac_address_conflict": mac_conflict_baseline,
+    "host_ip_conflict": ip_conflict_baseline,
+    "icmp_frag_needed_filter_misconfiguration": frag_needed_baseline,
+    "int_insufficient_mtu_headroom": int_headroom_baseline,
+    "tcp_syn_flood_attack": syn_flood_baseline,
+    "lb_pending_connection_update_race": lb_race_baseline,
+    "flow_rule_shadowing": flow_shadow_baseline,
+    "p4_ecn_threshold_misconfiguration": ecn_marking_baseline,
+    "p4_tcam_entry_corruption": tcam_drop_baseline,
+    "silent_egress_packet_loss": silent_loss_baseline,
+}
+
+
+def evaluate_custom_baseline(
+    failure: str, problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]] | None:
+    """Return the healthy pre-inject reading, or ``None`` without a baseline."""
+    handler = _CUSTOM_BASELINE.get(failure)
+    if handler is None:
+        return None
+    return handler(problem, params)
 
 
 def evaluate_custom_symptom(

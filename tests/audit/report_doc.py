@@ -20,7 +20,7 @@ DOC_PATH = (
     / "development"
     / "environment-audit.md"
 )
-RESULTS_DIR = DOC_PATH.parent / "environment-audit-results"
+RESULTS_DIR = DOC_PATH.parents[2] / "runtime" / "environment-audit-results"
 
 
 def _design(identity) -> str:
@@ -102,6 +102,7 @@ def render_environment_audit_doc(
         "",
         "Run the full audit through `audit_case` in `tests/audit/live.py`.",
         "To audit all release cases, run `uv run python -m tests.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.",
+        "The matrix writes one JSON record per case to `runtime/environment-audit-results/`. Those records stay local; this page is the committed summary.",
         "Benchmark runs stay on `startup_verify_lab`, `verify_fault`, and `PresenceWatch`.",
         "For one selected case, `audit_case` deploys a lab and runs `verify_lab` plus a healthy probe of the fault path before inject.",
         "After inject it runs `verify_fault`, the symptom probe, and a control-path observation.",
@@ -160,6 +161,7 @@ def render_environment_audit_doc(
     for probe, count in sorted(probes.items()):
         label = probe or "healthy"
         lines.append(f"| `{label}` | {count} |")
+    lines.extend(_excluded_section(covered))
     lines.extend(
         _executed_section(
             [
@@ -189,8 +191,8 @@ def render_environment_audit_doc(
             [
                 f"### `{scenario}`",
                 "",
-                "| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in items:
@@ -198,13 +200,6 @@ def render_environment_audit_doc(
             backend = identity.backend or "scenario default"
             scale = identity.topo_size or "none"
             probe = item["symptom_probe"] or "healthy"
-            evidence = "—"
-            if item["admission"] != "not_run":
-                from tests.audit.matrix import result_path
-
-                path = result_path(identity.model_dump())
-                if path.is_file():
-                    evidence = f"[JSON](environment-audit-results/{path.name})"
             lines.append(
                 "| "
                 + " | ".join(
@@ -218,7 +213,6 @@ def render_environment_audit_doc(
                         _inject(identity),
                         probe,
                         str(item["admission"]),
-                        evidence,
                     )
                 )
                 + " |"
@@ -375,6 +369,48 @@ def _pending_section() -> list[str]:
         fault = _cell(str(row.get("problem") or ""))
         lines.append(f"| {resource} | {scenario} | {fault} |")
     lines.append("")
+    return lines
+
+
+def _excluded_section(covered: list[dict]) -> list[str]:
+    from nika.problems.registry import get_problem_class
+
+    rows = []
+    for item in covered:
+        identity = item["identity"]
+        problem_cls = get_problem_class(identity.fault)
+        reasons = getattr(problem_cls, "INCOMPATIBLE_SCENARIOS", {})
+        if identity.scenario in reasons:
+            rows.append((item, reasons[identity.scenario]))
+    if not rows:
+        return []
+    lines = [
+        "",
+        "### Release cases outside the current compatibility rules",
+        "",
+        "Published releases do not change, so these cases stay in the release.",
+        "The fault now lists the scenario in `INCOMPATIBLE_SCENARIOS`, and `nika benchmark generate` no longer creates the case.",
+        "Expect the audit of such a case to fail: the scenario hides the fault effect.",
+        "",
+        "| Split | Scenario | Fault | Admission | Reason |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for item, reason in rows:
+        identity = item["identity"]
+        lines.append(
+            "| "
+            + " | ".join(
+                _cell(part)
+                for part in (
+                    str(item["split"]),
+                    identity.scenario,
+                    identity.fault,
+                    str(item["admission"]),
+                    reason,
+                )
+            )
+            + " |"
+        )
     return lines
 
 

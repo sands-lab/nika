@@ -18,6 +18,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.cpu_quota_helpers import (
+    container_commands,
     cpu_quota_to_nano_cpus,
     read_nano_cpus,
     set_nano_cpus,
@@ -52,7 +53,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DOCROOT = "{_DOCROOT}"
 ROUNDS_PER_64K_SMALL = 2
@@ -97,7 +98,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    HTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
 '''
 
 
@@ -311,12 +312,16 @@ class SenderResourceContention(ProblemBase):
                 params.large_url,
                 max_time_sec=max_time_sec,
             )
-            if stats.throughput_bps is None or not stats.time_total_s:
+            # A starved server may not send headers before the deadline; that
+            # timeout is itself a measured slowdown.
+            timed_out = (stats.time_total_s or 0) >= max_time_sec
+            if stats.throughput_bps is None and not timed_out:
                 continue
-            throughputs.append(stats.throughput_bps)
+            bps = stats.throughput_bps or (stats.size_bytes or 0) * 8.0 / max_time_sec
+            throughputs.append(bps)
             times.append(stats.time_total_s)
             if (
-                stats.throughput_bps / baseline_bps <= _THROUGHPUT_MAX_RATIO
+                bps / baseline_bps <= _THROUGHPUT_MAX_RATIO
                 or stats.time_total_s / baseline_time >= _TIME_MIN_RATIO
             ):
                 break
@@ -387,13 +392,11 @@ class SenderResourceContention(ProblemBase):
 
     def verify_fault(self, params: SenderResourceContentionParams) -> dict:
         """Verify stress-ng and CPU quota are injected (artifact gate for inject)."""
-        stress_running = self.runtime.process_running(params.host_name, "stress-ng")
-        cpu_http_out = self.runtime.exec(
-            params.host_name,
-            f"pgrep -af '[p]ython3 {_CPU_HTTP_SERVER}' 2>/dev/null || true",
-            timeout=10,
-        ).strip()
-        cpu_http_running = bool(cpu_http_out)
+        commands = container_commands(self.runtime, params.host_name)
+        stress_running = any("stress-ng" in cmd for cmd in commands)
+        cpu_http_running = any(
+            cmd.startswith("python3") and _CPU_HTTP_SERVER in cmd for cmd in commands
+        )
         current_nano = read_nano_cpus(self.runtime, params.host_name)
         expected_nano = self._injected_nano_cpus or cpu_quota_to_nano_cpus(
             min(float(params.cpu_quota), 0.02)
@@ -630,7 +633,7 @@ class ReceiverResourceContention(ProblemBase):
             set_nano_cpus(
                 self.runtime,
                 params.host_name,
-                cpu_quota_to_nano_cpus(0.10),
+                cpu_quota_to_nano_cpus(0.02),
             )
             self._receiver_quota_applied = True
         except Exception:  # noqa: BLE001
@@ -660,18 +663,15 @@ class ReceiverResourceContention(ProblemBase):
 
     def verify_fault(self, params: ReceiverResourceContentionParams) -> dict:
         """Verify stress-ng is running on the receiver."""
-        pgrep_output = self.runtime.exec(
-            params.host_name, "pgrep -a stress-ng 2>/dev/null || echo NONE"
-        ).strip()
-        stress_running = self.runtime.process_running(params.host_name, "stress-ng")
+        if getattr(self, "_receiver_quota_applied", False):
+            commands = container_commands(self.runtime, params.host_name)
+            stress_running = any("stress-ng" in cmd for cmd in commands)
+        else:
+            stress_running = self.runtime.process_running(params.host_name, "stress-ng")
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=bool(stress_running),
-            details={
-                "host": params.host_name,
-                "pgrep_output": pgrep_output,
-                "stress_running": stress_running,
-            },
+            details={"host": params.host_name, "stress_running": stress_running},
         )
 
     def recover_fault(self, params: ReceiverResourceContentionParams) -> dict:

@@ -29,6 +29,7 @@ from nika.workflows.benchmark.healthy import is_healthy_case
 from tests.support.failure_e2e_hooks import HOOKS, FailureE2EContext
 from tests.support.scenario_evaluate import evaluate_scenario
 from tests.support.symptom.contracts import get_symptom_contract, list_symptom_contracts
+from tests.support.symptom.custom import evaluate_custom_baseline
 from tests.support.symptom.evaluate import evaluate_symptom
 from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
 
@@ -372,13 +373,27 @@ def audit_open_session(
             )
         )
     elif probe in {"custom", "undeclared"}:
-        healthy = _healthy_custom_baseline(
-            runtime,
-            identity.scenario,
-            parsed,
-            identity.topo_size or "s",
+        own = evaluate_custom_baseline(fault, problem, parsed)
+        healthy = (
+            _healthy_custom_baseline(
+                runtime,
+                identity.scenario,
+                parsed,
+                identity.topo_size or "s",
+            )
+            if own is None
+            else None
         )
-        if healthy is not None:
+        if own is not None:
+            stages.append(
+                _stage(
+                    "baseline_path",
+                    "pass" if own[0] else "fail",
+                    None if own[0] else "target path was not healthy before inject",
+                    own[1],
+                )
+            )
+        elif healthy is not None:
             stages.append(healthy)
         else:
             stages.append(
