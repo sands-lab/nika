@@ -432,6 +432,8 @@ If startup reports an exited k3s node, inspect the reported container state and 
 
 NIKA prepares every required in-cluster image on the host with `skopeo` before creating the lab, then imports the archives into all six k3s nodes. Image references are fixed by SHA256 digest, including the sample apps and inference simulator. Preparation fetches the original manifest/index and the Linux host platform's complete layers directly from the registry, validates their hashes, and caches them by digest and architecture under `.nika_cache/`. It does not depend on Docker's local image store or `docker save`. The installer installs `skopeo` on apt-based hosts; otherwise install it with your system package manager.
 
+When upgrading from tag-only caches such as `postgres__16.tar`, NIKA removes the old archives for a scenario after validating that scenario's replacement archives. If preparation fails, NIKA keeps the old archives. Other cache files remain available.
+
 A fresh host needs registry access for this preparation and must support the images' platform. A warm, intact cache can prepare workloads without registry access. Missing/corrupt images, unsupported platforms, and unavailable Helm charts fail deployment explicitly. Workloads use `imagePullPolicy: Never`; k3s nodes also disable upstream registry fallback so system pods use the pinned preloaded images. AgentGateway charts and the Helm download are checksum-verified. Locally built `nika/base` and `nika/frr` remain governed by their Dockerfiles and host build prerequisites.
 
 Controller bootstrap has bounded API/component waits. Failed manifest applies, Helm installs, exited k3s containers, and terminal Pod configuration/process errors report the failed stage and abort startup; the session lifecycle removes that deployment's resources. Ordinary Pending/ContainerCreating transitions are allowed until their stage deadline. Watch progress with:
@@ -447,6 +449,8 @@ During iterative work, `nika env run <scenario> --no-redeploy` skips tearing dow
 ![k8s_lab topology: two core routers connect the k3s worker pod and an exit pod that leads through two external autonomous systems to the client.](../../assets/images/kathara_k3s_lab_topo.png)
 
 NIKA defines a two-pod FRR fat-tree around the cluster. Pod 1 hosts the k3s nodes; pod 2 provides an exit path to external ASes and a client. BGP unnumbered connects the fabric. MetalLB advertises LoadBalancer addresses through BGP, NGINX provides ingress, and sample `word` and `weather` applications use PostgreSQL and persistent volumes.
+
+The k3s workers connect to `https://201.1.1.2:6443`, matching the controller's advertised API address. This avoids closing bootstrap connections when agents discover the server endpoint. The ingress service uses `externalTrafficPolicy: Local`; its controller pod must run on `worker1` through `worker5`, which have configured MetalLB BGP peers. Required node affinity enforces that placement so MetalLB can advertise the ingress VIP.
 
 Use this scenario for faults that combine Kubernetes state with routed underlay behavior. Verification checks the BGP fabric, six Ready nodes, cross-leaf reachability, ingress addressing, and both applications.
 

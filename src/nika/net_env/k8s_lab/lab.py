@@ -154,7 +154,8 @@ class K8sFatTreeBGP(NetworkEnvBase):
         _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
         _k3s_server = (
             "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
-            "--disable-default-registry-endpoint"
+            "--disable-default-registry-endpoint --node-ip 201.1.1.2 "
+            "--advertise-address 201.1.1.2 --tls-san 201.1.1.2"
         )
         for name, links in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
@@ -189,7 +190,9 @@ class K8sFatTreeBGP(NetworkEnvBase):
                     "args",
                     f'-c "{_k3s_wait}exec /bin/k3s agent --disable-default-registry-endpoint"',
                 )
-                m.add_meta("env", "K3S_URL=https://controller:6443")
+                # Match the server's advertised endpoint so agent load-balancer
+                # discovery does not close in-flight bootstrap connections.
+                m.add_meta("env", "K3S_URL=https://201.1.1.2:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
             if name in _bridged:
                 m.add_meta("bridged", True)

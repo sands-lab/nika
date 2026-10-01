@@ -504,6 +504,15 @@ spec:
       dnsPolicy: ClusterFirst
       nodeSelector:
         kubernetes.io/os: linux
+      # Local traffic requires an endpoint on a node with a configured BGP peer.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values: [worker1, worker2, worker3, worker4, worker5]
       serviceAccountName: ingress-nginx
       terminationGracePeriodSeconds: 300
       volumes:

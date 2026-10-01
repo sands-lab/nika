@@ -121,6 +121,38 @@ def test_ensure_cached_skips_network_when_valid_archive_exists(tmp_path: Path) -
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("replacement_valid", [False, True])
+def test_cache_upgrade_preserves_legacy_until_replacement_validates(
+    tmp_path: Path, replacement_valid: bool
+) -> None:
+    image, saved = _image_tar(tmp_path)
+    target = cache.cache_tar_path(image)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    legacy = target.parent / "postgres__16.tar"
+    legacy.write_bytes(b"legacy archive")
+    unrelated = target.parent / "unrelated.tar"
+    unrelated.write_bytes(b"unrelated archive")
+    if replacement_valid:
+        target.write_bytes(saved)
+    with (
+        patch.object(cache, "workload_images_for_scenario", return_value=(image,)),
+        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
+        patch.object(
+            cache.subprocess,
+            "run",
+            side_effect=subprocess.CalledProcessError(1, ["skopeo"], stderr="denied"),
+        ),
+    ):
+        if replacement_valid:
+            assert cache.ensure_workload_cache("k8s_lab") == [target]
+        else:
+            with pytest.raises(RuntimeError, match="denied"):
+                cache.ensure_workload_cache("k8s_lab")
+    assert legacy.exists() is not replacement_valid
+    assert unrelated.read_bytes() == b"unrelated archive"
+
+
+@pytest.mark.unit
 def test_ensure_cached_fetches_complete_graph_when_missing(tmp_path: Path) -> None:
     image, _ = _image_tar(tmp_path)
 

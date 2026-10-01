@@ -320,6 +320,10 @@ def ensure_workload_cache(scenario: str) -> list[Path]:
     for image in images:
         tar_path = ensure_cached(image)
         cached.append(tar_path)
+    # Retire only the known tag-only archives after their replacements validate.
+    for image in images:
+        legacy_name = re.sub(r"[^A-Za-z0-9._-]+", "__", image.split("@")[0])
+        (cache_root() / f"{legacy_name}.tar").unlink(missing_ok=True)
     built = len(cached) - already
     if images:
         _progress(
