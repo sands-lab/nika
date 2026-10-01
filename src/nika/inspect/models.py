@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 EventSource = Literal["agent", "nika"]
 EventKind = Literal[
@@ -53,6 +53,26 @@ class ArtifactFlags(BaseModel):
     submission: bool = False
     eval_metrics: bool = False
     llm_judge: bool = False
+    annotations: bool = False
+
+
+class AnnotationComment(BaseModel):
+    id: str
+    event_id: str
+    text: str
+    created_at: str | None = None
+
+
+class Annotations(BaseModel):
+    """Human review notes kept beside the session artifacts (``annotations.json``)."""
+
+    tags: list[str] = Field(default_factory=list)
+    comments: list[AnnotationComment] = Field(default_factory=list)
+
+    @field_validator("tags")
+    @classmethod
+    def _clean_tags(cls, tags: list[str]) -> list[str]:
+        return list(dict.fromkeys(t.strip() for t in tags if t.strip()))
 
 
 class SessionSummary(BaseModel):
@@ -84,6 +104,7 @@ class SessionSummary(BaseModel):
     out_tokens: int | None = None
     steps: int | None = None
     tool_calls: int | None = None
+    tags: list[str] = Field(default_factory=list)
     artifacts: ArtifactFlags = Field(default_factory=ArtifactFlags)
     # Present when this session is a benchmark trial (or stamped from a job).
     is_benchmark: bool = False
@@ -156,12 +177,15 @@ class SessionFacets(BaseModel):
     failure_domains: list[str] = Field(default_factory=list)
     topo_sizes: list[str] = Field(default_factory=list)
     trial_indices: list[int] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class SessionListResponse(BaseModel):
     sessions: list[SessionSummary]
     benchmarks: list[BenchmarkRunSummary] = Field(default_factory=list)
     facets: SessionFacets = Field(default_factory=SessionFacets)
+    # Trajectory search hit counts keyed by ``session_key`` (``content`` query).
+    content_hits: dict[str, int] = Field(default_factory=dict)
     results_root: str
     selected_root: str = "."
     total: int
@@ -197,6 +221,12 @@ class TimelineResponse(BaseModel):
     session_id: str
     events: list[CanonicalTraceEvent]
     total: int
+
+
+class ContentSearchResponse(BaseModel):
+    session_id: str
+    query: str
+    event_ids: list[str] = Field(default_factory=list)
 
 
 class ScoresResponse(BaseModel):

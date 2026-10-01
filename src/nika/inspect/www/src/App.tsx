@@ -2,20 +2,25 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
+  AnnotationComment,
+  Annotations,
   CanonicalTraceEvent,
   BrowseEntry,
   BenchmarkProgressDoc,
   deleteSession,
   formatScore,
   formatTs,
+  fetchAnnotations,
   fetchBenchmarkProgress,
   fetchBrowse,
   fetchRaw,
   fetchRoots,
   fetchScores,
   fetchSession,
+  fetchSessionSearch,
   fetchSessions,
   fetchTimeline,
+  saveAnnotations,
   ScoresResponse,
   SessionDetail,
   SessionFacets,
@@ -50,8 +55,25 @@ import {
   Role,
   isToolDisplay,
 } from "./roles";
+import {
+  buildUrlSearch,
+  matchesNumericFilter,
+  parseNumericFilter,
+  parseUrlState,
+  type SessionTab,
+  type UrlState,
+} from "./viewState";
 
-type Tab = "overview" | "timeline" | "agent" | "nika" | "scores" | "raw";
+type Tab = SessionTab;
+
+/** Per-session location mirrored into the URL (see ``viewState.ts``). */
+type SessionNav = { tab: Tab | null; event: string | null; find: string | null };
+
+const EMPTY_NAV: SessionNav = { tab: null, event: null, find: null };
+
+function navFromUrl(url: UrlState): SessionNav {
+  return { tab: url.tab, event: url.event, find: url.find };
+}
 
 const RAW_FILES = [
   "run.json",
@@ -61,7 +83,27 @@ const RAW_FILES = [
   "submission.json",
   "eval_metrics.json",
   "llm_judge.json",
+  "annotations.json",
 ];
+
+/** Single-key shortcuts must not fire while the user types in a field. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
+/** Timeline event ids folded into one ledger row (search hits map onto rows). */
+function rowEventIds(row: DisplayEvent): string[] {
+  const ids = [row.id, row.start.id];
+  if (row.end) ids.push(row.end.id);
+  for (const ev of row.interiors ?? []) ids.push(ev.id);
+  return ids;
+}
 
 const LANES: { id: OverviewLane; label: string }[] = [
   { id: "nika", label: "NIKA" },
@@ -252,8 +294,137 @@ type SessionSortKey =
   | "agent"
   | "model"
   | "rca_f1"
+  | "detection"
+  | "localization_f1"
+  | "steps"
+  | "tool_calls"
+  | "in_tokens"
+  | "out_tokens"
+  | "backend"
+  | "tags"
   | "time"
   | "duration";
+
+const DESC_FIRST_SORT_KEYS = new Set<SessionSortKey>([
+  "rca_f1",
+  "detection",
+  "localization_f1",
+  "steps",
+  "tool_calls",
+  "in_tokens",
+  "out_tokens",
+  "time",
+  "duration",
+]);
+
+function scoreChip(value: number | null | undefined): ReactNode {
+  return value != null ? <span className="chip score">{formatScore(value)}</span> : "—";
+}
+
+function countCell(value: number | null | undefined): ReactNode {
+  return value != null ? formatTokenCount(value) : "—";
+}
+
+type SessionColumn = {
+  id: SessionSortKey;
+  label: string;
+  /** Numeric columns get a ``<0.5`` / ``>=30`` filter box. */
+  numeric?: (s: SessionSummary) => number | null | undefined;
+};
+
+const SESSION_COLUMNS: SessionColumn[] = [
+  { id: "status", label: "Status" },
+  { id: "trial", label: "Trial" },
+  { id: "failure", label: "Failure" },
+  { id: "scenario", label: "Scenario" },
+  { id: "size", label: "Size" },
+  { id: "agent", label: "Agent" },
+  { id: "model", label: "Model" },
+  { id: "backend", label: "Backend" },
+  { id: "tags", label: "Tags" },
+  { id: "rca_f1", label: "RCA F1", numeric: (s) => s.rca_f1 },
+  { id: "detection", label: "Detection", numeric: (s) => s.detection_score },
+  { id: "localization_f1", label: "Loc F1", numeric: (s) => s.localization_f1 },
+  { id: "steps", label: "Steps", numeric: (s) => s.steps },
+  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls },
+  { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens },
+  { id: "out_tokens", label: "Out tok", numeric: (s) => s.out_tokens },
+  { id: "time", label: "Time" },
+  { id: "duration", label: "Duration" },
+];
+
+const DEFAULT_COLUMNS: SessionSortKey[] = [
+  "status",
+  "trial",
+  "failure",
+  "scenario",
+  "size",
+  "agent",
+  "model",
+  "rca_f1",
+  "time",
+  "duration",
+];
+
+const COLUMNS_KEY = "nika-inspect-columns";
+const SAVED_VIEWS_KEY = "nika-inspect-saved-views";
+
+function loadColumns(): SessionSortKey[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(COLUMNS_KEY) || "null");
+    if (Array.isArray(raw)) {
+      const known = new Set(SESSION_COLUMNS.map((c) => c.id));
+      const cols = raw.filter((c): c is SessionSortKey => known.has(c));
+      if (cols.length) return cols;
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_COLUMNS;
+}
+
+function saveColumns(columns: SessionSortKey[]) {
+  try {
+    localStorage.setItem(COLUMNS_KEY, JSON.stringify(columns));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+type SavedView = {
+  name: string;
+  status: string;
+  trial: string;
+  scenario: string;
+  problem: string;
+  topoSize: string;
+  agent: string;
+  model: string;
+  tag: string;
+  numeric: Record<string, string>;
+  columns: SessionSortKey[];
+  sortKey: SessionSortKey | null;
+  sortDir: "asc" | "desc";
+};
+
+function loadSavedViews(): SavedView[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVED_VIEWS_KEY) || "[]");
+    return Array.isArray(raw)
+      ? raw.filter((v): v is SavedView => typeof v?.name === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeSavedViews(views: SavedView[]) {
+  try {
+    localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | number | null {
   switch (key) {
@@ -273,6 +444,22 @@ function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | numb
       return (s.model || "").toLowerCase();
     case "rca_f1":
       return s.rca_f1 ?? null;
+    case "detection":
+      return s.detection_score ?? null;
+    case "localization_f1":
+      return s.localization_f1 ?? null;
+    case "steps":
+      return s.steps ?? null;
+    case "tool_calls":
+      return s.tool_calls ?? null;
+    case "in_tokens":
+      return s.in_tokens ?? null;
+    case "out_tokens":
+      return s.out_tokens ?? null;
+    case "backend":
+      return (s.backend || "").toLowerCase();
+    case "tags":
+      return (s.tags ?? []).join(" ").toLowerCase();
     case "time":
       return parseTs(s.start_time);
     case "duration": {
@@ -314,6 +501,8 @@ type SessionColumnFilters = {
   topoSize: string;
   agent: string;
   model: string;
+  tag: string;
+  numeric: Record<string, string>;
   onStatus: (v: string) => void;
   onTrial: (v: string) => void;
   onScenario: (v: string) => void;
@@ -321,26 +510,68 @@ type SessionColumnFilters = {
   onTopoSize: (v: string) => void;
   onAgent: (v: string) => void;
   onModel: (v: string) => void;
+  onTag: (v: string) => void;
+  onNumeric: (id: SessionSortKey, value: string) => void;
   facets: SessionFacets;
 };
 
+type EnumFilter = {
+  value: string;
+  allValue: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+};
+
+function enumFilters(cf: SessionColumnFilters): Partial<Record<SessionSortKey, EnumFilter>> {
+  const plain = (values: string[] | undefined) =>
+    (values ?? []).map((v) => ({ value: v, label: v }));
+  const statuses = cf.facets.statuses.length
+    ? cf.facets.statuses
+    : ["running", "finished", "aborted", "error"];
+  return {
+    status: { value: cf.status, allValue: "all", onChange: cf.onStatus, options: plain(statuses) },
+    trial: {
+      value: cf.trial,
+      allValue: "",
+      onChange: cf.onTrial,
+      options: (cf.facets.trial_indices || []).map((idx) => ({
+        value: String(idx),
+        label: `t${String(idx).padStart(2, "0")}`,
+      })),
+    },
+    failure: { value: cf.problem, allValue: "", onChange: cf.onProblem, options: plain(cf.facets.problems) },
+    scenario: { value: cf.scenario, allValue: "", onChange: cf.onScenario, options: plain(cf.facets.scenarios) },
+    size: { value: cf.topoSize, allValue: "", onChange: cf.onTopoSize, options: plain(cf.facets.topo_sizes) },
+    agent: { value: cf.agent, allValue: "", onChange: cf.onAgent, options: plain(cf.facets.agents) },
+    model: { value: cf.model, allValue: "", onChange: cf.onModel, options: plain(cf.facets.models) },
+    tags: { value: cf.tag, allValue: "", onChange: cf.onTag, options: plain(cf.facets.tags) },
+  };
+}
+
 function SessionsTable({
   sessions,
+  columns,
+  sortKey,
+  sortDir,
+  onSort,
+  contentHits,
   onOpen,
   onDelete,
   showTrial,
   columnFilters,
 }: {
   sessions: SessionSummary[];
+  columns: SessionSortKey[];
+  sortKey: SessionSortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SessionSortKey) => void;
+  /** Trajectory search hit counts by session key, while a search is active. */
+  contentHits?: Record<string, number>;
   onOpen: (id: string) => void;
   onDelete?: (session: SessionSummary) => void | Promise<void>;
   showTrial?: boolean;
   columnFilters?: SessionColumnFilters;
 }) {
-  const [sortKey, setSortKey] = useState<SessionSortKey>(
-    showTrial ? "trial" : "failure",
-  );
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const hasRunning = useMemo(
     () => sessions.some((s) => s.status === "running"),
@@ -358,25 +589,15 @@ function SessionsTable({
     return [...sessions].sort((a, b) => compareSessions(a, b, sortKey, sortDir));
   }, [sessions, sortKey, sortDir]);
 
-  const onSort = (key: SessionSortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortKey(key);
-    setSortDir(
-      key === "rca_f1" || key === "duration" || key === "time" ? "desc" : "asc",
-    );
-  };
-
-  const statusOptions = columnFilters?.facets.statuses.length
-    ? columnFilters.facets.statuses
-    : ["running", "finished", "aborted", "error"];
+  const shown = SESSION_COLUMNS.filter(
+    (c) => columns.includes(c.id) && (c.id !== "trial" || showTrial),
+  );
+  const filters = columnFilters ? enumFilters(columnFilters) : {};
 
   const sortTh = (key: SessionSortKey, label: string) => {
     const active = sortKey === key;
     return (
-      <th>
+      <th key={key}>
         <button
           type="button"
           className={`sort-btn${active ? " active" : ""}`}
@@ -395,8 +616,117 @@ function SessionsTable({
     );
   };
 
-  const filterCell = (node: ReactNode) => <th className="th-filter-cell">{node}</th>;
-  const filterEmpty = () => <th className="th-filter-cell" />;
+  const filterCell = (col: SessionColumn): ReactNode => {
+    if (!columnFilters) return null;
+    const ef = filters[col.id];
+    if (ef) {
+      return (
+        <th key={col.id} className="th-filter-cell">
+          <select
+            className="th-filter"
+            value={ef.value}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => ef.onChange(e.target.value)}
+          >
+            <option value={ef.allValue}>All</option>
+            {ef.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </th>
+      );
+    }
+    if (col.numeric) {
+      const text = columnFilters.numeric[col.id] ?? "";
+      const invalid = text.trim() !== "" && parseNumericFilter(text) == null;
+      return (
+        <th key={col.id} className="th-filter-cell">
+          <input
+            className={`th-filter th-filter-num${invalid ? " invalid" : ""}`}
+            placeholder="<0.5"
+            title="Numeric filter: <, <=, >, >=, =, != followed by a number"
+            value={text}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => columnFilters.onNumeric(col.id, e.target.value)}
+          />
+        </th>
+      );
+    }
+    return <th key={col.id} className="th-filter-cell" />;
+  };
+
+  const renderCell = (col: SessionColumn, s: SessionSummary): ReactNode => {
+    switch (col.id) {
+      case "status":
+        return <span className={`chip ${s.status}`}>{s.status}</span>;
+      case "trial":
+        return s.trial_index != null ? (
+          <span className="chip">t{String(s.trial_index).padStart(2, "0")}</span>
+        ) : (
+          "—"
+        );
+      case "failure": {
+        const hits = contentHits?.[sessionOpenId(s)];
+        return (
+          <>
+            <div className="session-title" title={s.session_id}>
+              {sessionTitle(s)}
+              {hits ? (
+                <span className="chip hit-chip" title="Trajectory search hits">
+                  {hits} {hits === 1 ? "hit" : "hits"}
+                </span>
+              ) : null}
+            </div>
+            {s.failure_domain ? (
+              <div className="session-sub">{s.failure_domain}</div>
+            ) : null}
+          </>
+        );
+      }
+      case "scenario":
+        return s.scenario_name || "—";
+      case "size":
+        return s.scenario_topo_size || "—";
+      case "agent":
+        return s.agent_type || "—";
+      case "model":
+        return (
+          <span className="session-model" title={s.model || undefined}>
+            {s.model || "—"}
+          </span>
+        );
+      case "backend":
+        return s.backend || "—";
+      case "tags":
+        return s.tags?.length
+          ? s.tags.map((t) => (
+              <span key={t} className="chip tag-chip">
+                {t}
+              </span>
+            ))
+          : "—";
+      case "rca_f1":
+        return scoreChip(s.rca_f1);
+      case "detection":
+        return scoreChip(s.detection_score);
+      case "localization_f1":
+        return scoreChip(s.localization_f1);
+      case "steps":
+        return s.steps ?? "—";
+      case "tool_calls":
+        return s.tool_calls ?? "—";
+      case "in_tokens":
+        return countCell(s.in_tokens);
+      case "out_tokens":
+        return countCell(s.out_tokens);
+      case "time":
+        return <span className="session-time">{sessionShortTime(s)}</span>;
+      case "duration":
+        return sessionDuration(s, nowMs);
+    }
+  };
 
   const requestDelete = async (s: SessionSummary) => {
     if (!onDelete || deletingId) return;
@@ -424,180 +754,37 @@ function SessionsTable({
       <table className="sessions">
         <thead>
           <tr className="th-sort-row">
-            {sortTh("status", "Status")}
-            {showTrial && sortTh("trial", "Trial")}
-            {sortTh("failure", "Failure")}
-            {sortTh("scenario", "Scenario")}
-            {sortTh("size", "Size")}
-            {sortTh("agent", "Agent")}
-            {sortTh("model", "Model")}
-            {sortTh("rca_f1", "RCA F1")}
-            {sortTh("time", "Time")}
-            {sortTh("duration", "Duration")}
+            {shown.map((col) => sortTh(col.id, col.label))}
             {onDelete ? <th className="th-actions">Actions</th> : null}
           </tr>
           {columnFilters ? (
             <tr className="th-filter-row">
-              {filterCell(
-                <select
-                  className="th-filter"
-                  value={columnFilters.status}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => columnFilters.onStatus(e.target.value)}
-                >
-                  <option value="all">All</option>
-                  {statusOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {showTrial &&
-                filterCell(
-                  <select
-                    className="th-filter"
-                    value={columnFilters.trial}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => columnFilters.onTrial(e.target.value)}
-                  >
-                    <option value="">All</option>
-                    {(columnFilters.facets.trial_indices || []).map((idx) => (
-                      <option key={idx} value={String(idx)}>
-                        t{String(idx).padStart(2, "0")}
-                      </option>
-                    ))}
-                  </select>,
-                )}
-              {filterCell(
-                <select
-                  className="th-filter"
-                  value={columnFilters.problem}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => columnFilters.onProblem(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {columnFilters.facets.problems.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {filterCell(
-                <select
-                  className="th-filter"
-                  value={columnFilters.scenario}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => columnFilters.onScenario(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {columnFilters.facets.scenarios.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {filterCell(
-                <select
-                  className="th-filter"
-                  value={columnFilters.topoSize}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => columnFilters.onTopoSize(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {columnFilters.facets.topo_sizes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {filterCell(
-                <select
-                  className="th-filter"
-                  value={columnFilters.agent}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => columnFilters.onAgent(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {columnFilters.facets.agents.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {filterCell(
-                <select
-                  className="th-filter"
-                  value={columnFilters.model}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => columnFilters.onModel(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {columnFilters.facets.models.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {filterEmpty()}
-              {filterEmpty()}
-              {filterEmpty()}
-              {onDelete ? filterEmpty() : null}
+              {shown.map(filterCell)}
+              {onDelete ? <th className="th-filter-cell" /> : null}
             </tr>
           ) : null}
         </thead>
         <tbody>
+          {sorted.length === 0 && (
+            <tr className="sessions-empty-row">
+              <td colSpan={shown.length + (onDelete ? 1 : 0)}>
+                No sessions match the column filters
+              </td>
+            </tr>
+          )}
           {sorted.map((s) => {
             const id = sessionOpenId(s);
             const busy = deletingId === id;
             return (
               <tr key={id} onClick={() => onOpen(id)}>
-                <td>
-                  <span className={`chip ${s.status}`}>{s.status}</span>
-                </td>
-                {showTrial && (
-                  <td>
-                    {s.trial_index != null ? (
-                      <span className="chip">
-                        t{String(s.trial_index).padStart(2, "0")}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
+                {shown.map((col) => (
+                  <td
+                    key={col.id}
+                    title={col.id === "time" ? s.start_time || undefined : undefined}
+                  >
+                    {renderCell(col, s)}
                   </td>
-                )}
-                <td>
-                  <div className="session-title" title={s.session_id}>
-                    {sessionTitle(s)}
-                  </div>
-                  {s.failure_domain ? (
-                    <div className="session-sub">{s.failure_domain}</div>
-                  ) : null}
-                </td>
-                <td>{s.scenario_name || "—"}</td>
-                <td>{s.scenario_topo_size || "—"}</td>
-                <td>{s.agent_type || "—"}</td>
-                <td>
-                  <span className="session-model" title={s.model || undefined}>
-                    {s.model || "—"}
-                  </span>
-                </td>
-                <td>
-                  {s.rca_f1 != null ? (
-                    <span className="chip score">{formatScore(s.rca_f1)}</span>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td title={s.start_time || undefined}>
-                  <span className="session-time">{sessionShortTime(s)}</span>
-                </td>
-                <td>{sessionDuration(s, nowMs)}</td>
+                ))}
                 {onDelete ? (
                   <td className="td-actions">
                     <button
@@ -1486,14 +1673,18 @@ function loadSidebarWidth(): number {
 
 function ViewShell({
   sessionId,
+  sessionNav,
   root,
   onOpenSession,
   onClearSession,
+  onSessionNavChange,
 }: {
   sessionId: string | null;
+  sessionNav: SessionNav;
   root: string;
-  onOpenSession: (id: string) => void;
+  onOpenSession: (id: string, find?: string) => void;
   onClearSession: () => void;
+  onSessionNavChange: (nav: SessionNav) => void;
 }) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [facets, setFacets] = useState<SessionFacets>({
@@ -1515,8 +1706,18 @@ function ViewShell({
   const [model, setModel] = useState("");
   const [problem, setProblem] = useState("");
   const [topoSize, setTopoSize] = useState("");
+  const [tag, setTag] = useState("");
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
+  const [content, setContent] = useState("");
+  const [debouncedContent, setDebouncedContent] = useState("");
+  const [contentHits, setContentHits] = useState<Record<string, number>>({});
+  const [numericFilters, setNumericFilters] = useState<Record<string, string>>({});
+  const [columns, setColumns] = useState<SessionSortKey[]>(loadColumns);
+  const [sortKey, setSortKey] = useState<SessionSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [savedViews, setSavedViews] = useState<SavedView[]>(loadSavedViews);
+  const [activeView, setActiveView] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   /** Bumped on delete so an in-flight poll cannot bring the row back. */
@@ -1568,6 +1769,11 @@ function ViewShell({
     return () => window.clearTimeout(id);
   }, [q]);
 
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedContent(content.trim()), 400);
+    return () => window.clearTimeout(id);
+  }, [content]);
+
   // A different results root is a different list: show loading once.
   useEffect(() => {
     setLoading(true);
@@ -1584,13 +1790,16 @@ function ViewShell({
     if (problem) params.set("problem", problem);
     if (topoSize) params.set("topo_size", topoSize);
     if (trial) params.set("trial_index", trial);
+    if (tag) params.set("tag", tag);
     if (debouncedQ.trim()) params.set("q", debouncedQ.trim());
+    if (debouncedContent) params.set("content", debouncedContent);
     const load = (background: boolean) => {
       const gen = listGenRef.current;
       fetchSessions(params, root)
         .then((data) => {
           if (cancelled || gen !== listGenRef.current) return;
           setSessions(data.sessions);
+          setContentHits(data.content_hits ?? {});
           if (data.facets) setFacets(data.facets);
           setResultsRoot(data.results_root);
           setError(null);
@@ -1603,9 +1812,11 @@ function ViewShell({
         });
     };
     load(false);
-    const poll = viewingSession
-      ? undefined
-      : window.setInterval(() => load(true), 3000);
+    // Trajectory search scans every log, so it runs once per query, not per poll.
+    const poll =
+      viewingSession || debouncedContent
+        ? undefined
+        : window.setInterval(() => load(true), 3000);
     return () => {
       cancelled = true;
       window.clearInterval(poll);
@@ -1619,7 +1830,9 @@ function ViewShell({
     model,
     problem,
     topoSize,
+    tag,
     debouncedQ,
+    debouncedContent,
     viewingSession,
   ]);
 
@@ -1708,11 +1921,19 @@ function ViewShell({
 
   // Monitor click-filters apply across the whole run, not just the selected trial folder.
   const tableSessions = useMemo(() => {
-    if (listFilter && monitorSessions.length) {
-      return applyMonitorListFilter(monitorSessions, listFilter);
-    }
-    return applyMonitorListFilter(visibleSessions, listFilter);
-  }, [listFilter, monitorSessions, visibleSessions]);
+    const base =
+      listFilter && monitorSessions.length
+        ? applyMonitorListFilter(monitorSessions, listFilter)
+        : applyMonitorListFilter(visibleSessions, listFilter);
+    const active = SESSION_COLUMNS.flatMap((col) => {
+      const parsed = col.numeric ? parseNumericFilter(numericFilters[col.id] ?? "") : null;
+      return parsed && col.numeric ? [{ get: col.numeric, filter: parsed }] : [];
+    });
+    if (!active.length) return base;
+    return base.filter((s) =>
+      active.every(({ get, filter }) => matchesNumericFilter(get(s), filter)),
+    );
+  }, [listFilter, monitorSessions, visibleSessions, numericFilters]);
 
   const onMonitorListFilter = useCallback((next: MonitorListFilter | null) => {
     setListFilter(next);
@@ -1743,6 +1964,8 @@ function ViewShell({
     topoSize,
     agent,
     model,
+    tag,
+    numeric: numericFilters,
     onStatus: setStatus,
     onTrial: setTrial,
     onScenario: setScenario,
@@ -1750,7 +1973,90 @@ function ViewShell({
     onTopoSize: setTopoSize,
     onAgent: setAgent,
     onModel: setModel,
+    onTag: setTag,
+    onNumeric: (id, value) =>
+      setNumericFilters((prev) => {
+        const next = { ...prev };
+        if (value.trim()) next[id] = value;
+        else delete next[id];
+        return next;
+      }),
     facets,
+  };
+
+  // Keep the table (and its filter row) on screen while column filters hide every row.
+  const columnFiltersActive =
+    status !== "all" ||
+    Boolean(trial || scenario || problem || topoSize || agent || model || tag) ||
+    Object.keys(numericFilters).length > 0;
+
+  const currentView = (name: string): SavedView => ({
+    name,
+    status,
+    trial,
+    scenario,
+    problem,
+    topoSize,
+    agent,
+    model,
+    tag,
+    numeric: numericFilters,
+    columns,
+    sortKey,
+    sortDir,
+  });
+
+  const applyView = (view: SavedView) => {
+    setStatus(view.status);
+    setTrial(view.trial);
+    setScenario(view.scenario);
+    setProblem(view.problem);
+    setTopoSize(view.topoSize);
+    setAgent(view.agent);
+    setModel(view.model);
+    setTag(view.tag);
+    setNumericFilters(view.numeric);
+    setColumns(view.columns);
+    saveColumns(view.columns);
+    setSortKey(view.sortKey);
+    setSortDir(view.sortDir);
+  };
+
+  const saveCurrentView = () => {
+    const name = window.prompt("Save the current filters, columns, and sort as:", activeView)?.trim();
+    if (!name) return;
+    const next = [...savedViews.filter((v) => v.name !== name), currentView(name)];
+    next.sort((a, b) => a.name.localeCompare(b.name));
+    setSavedViews(next);
+    storeSavedViews(next);
+    setActiveView(name);
+  };
+
+  const deleteActiveView = () => {
+    if (!activeView) return;
+    const next = savedViews.filter((v) => v.name !== activeView);
+    setSavedViews(next);
+    storeSavedViews(next);
+    setActiveView("");
+  };
+
+  const toggleColumn = (id: SessionSortKey) => {
+    setColumns((prev) => {
+      const next = prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id];
+      saveColumns(next);
+      return next;
+    });
+  };
+
+  const onSort = (key: SessionSortKey) => {
+    const current = sortKey ?? defaultSortKey;
+    if (current === key) {
+      setSortKey(key);
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(DESC_FIRST_SORT_KEYS.has(key) ? "desc" : "asc");
   };
 
   const toggleExpanded = (id: string, e: ReactMouseEvent) => {
@@ -1784,6 +2090,7 @@ function ViewShell({
   const showTrialCol =
     (facets.trial_indices?.length ?? 0) > 0 ||
     visibleSessions.some((s) => s.trial_index != null);
+  const defaultSortKey: SessionSortKey = showTrialCol ? "trial" : "failure";
 
   const renderNode = (node: PathTreeNode, depth: number): ReactNode => {
     const hasKids = node.children.length > 0;
@@ -1862,8 +2169,12 @@ function ViewShell({
       <div className="app-main">
         {sessionId ? (
           <SessionView
+            key={sessionId}
             sessionId={sessionId}
             root={root}
+            initialNav={sessionNav}
+            knownTags={facets.tags ?? []}
+            onNavChange={onSessionNavChange}
             onBack={onClearSession}
           />
         ) : (
@@ -1899,12 +2210,62 @@ function ViewShell({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
+              <input
+                className="home-search"
+                type="search"
+                placeholder="Search trajectories…"
+                title="Full-text search over agent messages, tool calls, and NIKA events"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+              />
+            </div>
+            <div className="home-view-bar">
+              <details className="col-picker">
+                <summary>Columns</summary>
+                <div className="col-picker-menu">
+                  {SESSION_COLUMNS.map((col) => (
+                    <label key={col.id}>
+                      <input
+                        type="checkbox"
+                        checked={columns.includes(col.id)}
+                        onChange={() => toggleColumn(col.id)}
+                      />
+                      {col.label}
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <select
+                className="view-select"
+                aria-label="Saved views"
+                value={activeView}
+                onChange={(e) => {
+                  const view = savedViews.find((v) => v.name === e.target.value);
+                  setActiveView(e.target.value);
+                  if (view) applyView(view);
+                }}
+              >
+                <option value="">Views…</option>
+                {savedViews.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="view-btn" onClick={saveCurrentView}>
+                Save view
+              </button>
+              {activeView && (
+                <button type="button" className="view-btn" onClick={deleteActiveView}>
+                  Delete view
+                </button>
+              )}
             </div>
             {loading ? (
               <div className="empty">Loading sessions…</div>
             ) : selectedPath == null ? (
               <div className="empty">Select a folder on the left</div>
-            ) : tableSessions.length === 0 ? (
+            ) : tableSessions.length === 0 && !columnFiltersActive ? (
               <div className="empty">
                 {listFilter
                   ? `No sessions match ${monitorFilterLabel(listFilter)}`
@@ -1913,7 +2274,12 @@ function ViewShell({
             ) : (
               <SessionsTable
                 sessions={tableSessions}
-                onOpen={onOpenSession}
+                columns={columns}
+                sortKey={sortKey ?? defaultSortKey}
+                sortDir={sortDir}
+                onSort={onSort}
+                contentHits={debouncedContent ? contentHits : undefined}
+                onOpen={(id) => onOpenSession(id, debouncedContent || undefined)}
                 onDelete={async (s) => {
                   const id = sessionOpenId(s);
                   try {
@@ -2814,13 +3180,19 @@ function LiveDuration({ row }: { row: DisplayEvent }) {
 function Ledger({
   rows,
   selectedId,
+  matchedIds,
+  commentCounts,
   onSelect,
 }: {
   rows: DisplayEvent[];
   selectedId: string | null;
+  /** Rows hit by the trajectory find box. */
+  matchedIds: Set<string>;
+  commentCounts: Map<string, number>;
   onSelect: (row: DisplayEvent) => void;
 }) {
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const hasRows = rows.length > 0;
 
   useEffect(() => {
     if (!selectedId) return;
@@ -2828,7 +3200,7 @@ function Ledger({
       block: "nearest",
       behavior: "smooth",
     });
-  }, [selectedId]);
+  }, [selectedId, hasRows]);
 
   if (rows.length === 0) {
     return <div className="empty">No events</div>;
@@ -2860,6 +3232,7 @@ function Ledger({
                   selected ? "selected" : "",
                   `role-${row.role}`,
                   row.error ? "error" : "",
+                  matchedIds.has(row.id) ? "find-hit" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -2877,6 +3250,14 @@ function Ledger({
                   <span className="name-label" title={nameBadgeLabel(row)}>
                     {nameBadgeLabel(row)}
                   </span>
+                  {commentCounts.has(row.id) && (
+                    <span
+                      className="comment-mark"
+                      title={`${commentCounts.get(row.id)} comment(s)`}
+                    >
+                      ✎{commentCounts.get(row.id)}
+                    </span>
+                  )}
                 </td>
                 <td className="time-cell">{formatTs(row.timestamp)}</td>
                 <td className="dur-cell">
@@ -3417,18 +3798,150 @@ function LlmTurnPreview({
   );
 }
 
+function TagEditor({
+  tags,
+  knownTags,
+  readOnly,
+  onChange,
+}: {
+  tags: string[];
+  knownTags: string[];
+  readOnly: boolean;
+  onChange: (tags: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const tag = draft.trim();
+    setDraft("");
+    if (tag && !tags.includes(tag)) onChange([...tags, tag]);
+  };
+  return (
+    <span className="tag-editor">
+      {tags.map((t) => (
+        <span key={t} className="chip tag-chip">
+          {t}
+          {!readOnly && (
+            <button
+              type="button"
+              className="tag-remove"
+              aria-label={`Remove tag ${t}`}
+              onClick={() => onChange(tags.filter((x) => x !== t))}
+            >
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+      {!readOnly && (
+        <>
+          <input
+            className="tag-input"
+            list="nika-inspect-known-tags"
+            placeholder="+ tag"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            onBlur={add}
+          />
+          <datalist id="nika-inspect-known-tags">
+            {knownTags
+              .filter((t) => !tags.includes(t))
+              .map((t) => (
+                <option key={t} value={t} />
+              ))}
+          </datalist>
+        </>
+      )}
+    </span>
+  );
+}
+
+function CommentsPanel({
+  comments,
+  readOnly,
+  onAdd,
+  onDelete,
+}: {
+  comments: AnnotationComment[];
+  readOnly: boolean;
+  onAdd: (text: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const submit = () => {
+    const text = draft.trim();
+    if (!text) return;
+    onAdd(text);
+    setDraft("");
+  };
+  return (
+    <section className="inspector-comments">
+      <div className="inspector-pane-label">Comments ({comments.length})</div>
+      {comments.map((c) => (
+        <div key={c.id} className="comment">
+          <div className="comment-text">{c.text}</div>
+          <div className="comment-meta">
+            {c.created_at ? formatTs(c.created_at) : ""}
+            {!readOnly && (
+              <button type="button" className="comment-delete" onClick={() => onDelete(c.id)}>
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      {readOnly ? (
+        comments.length === 0 && (
+          <div className="comment-meta">Comments are read-only while the session runs.</div>
+        )
+      ) : (
+        <div className="comment-form">
+          <textarea
+            rows={2}
+            placeholder="Add a review note for this event (Ctrl+Enter)"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <button type="button" disabled={!draft.trim()} onClick={submit}>
+            Add
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Inspector({
   row,
   rows,
   sessionModel,
   onClose,
   onOpenEvent,
+  comments,
+  commentsReadOnly,
+  onAddComment,
+  onDeleteComment,
 }: {
   row: DisplayEvent | null;
   rows: DisplayEvent[];
   sessionModel?: string | null;
   onClose: () => void;
   onOpenEvent: (id: string) => void;
+  comments: AnnotationComment[];
+  commentsReadOnly: boolean;
+  onAddComment: (text: string) => void;
+  onDeleteComment: (id: string) => void;
 }) {
   const role: Role | null = row?.role ?? null;
   const isTool = row ? isToolDisplay(row) : false;
@@ -3665,6 +4178,12 @@ function Inspector({
           />
         )}
       </div>
+      <CommentsPanel
+        comments={comments}
+        readOnly={commentsReadOnly}
+        onAdd={onAddComment}
+        onDelete={onDeleteComment}
+      />
     </div>
   );
 }
@@ -4165,26 +4684,95 @@ function RawPanel({
 function SessionView({
   sessionId,
   root,
+  initialNav,
+  knownTags,
+  onNavChange,
   onBack,
 }: {
   sessionId: string;
   root: string;
+  /** Read once on mount; the parent remounts this view per session. */
+  initialNav: SessionNav;
+  knownTags: string[];
+  onNavChange: (nav: SessionNav) => void;
   onBack: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("timeline");
+  const [tab, setTab] = useState<Tab>(initialNav.tab ?? "timeline");
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [events, setEvents] = useState<CanonicalTraceEvent[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialNav.event);
   const [brush, setBrush] = useState<TimeBrush | null>(null);
   const [scores, setScores] = useState<ScoresResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [find, setFind] = useState(initialNav.find ?? "");
+  const [debouncedFind, setDebouncedFind] = useState(find.trim());
+  const [findHits, setFindHits] = useState<Set<string> | null>(null);
+  const [annotations, setAnnotations] = useState<Annotations | null>(null);
+  const findInputRef = useRef<HTMLInputElement>(null);
+  /** Jump to the first hit once per query when nothing is selected yet. */
+  const autoJumpedForRef = useRef<string | null>(null);
   // A failed session load blocks every tab; tab fetch errors stay per tab.
   const shownError = detailError ?? error;
+  const isTraceTab = tab === "timeline" || tab === "agent" || tab === "nika";
 
   useEffect(() => {
-    setTab("timeline");
-  }, [sessionId]);
+    onNavChange({ tab, event: selectedId, find: find.trim() || null });
+  }, [tab, selectedId, find, onNavChange]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedFind(find.trim()), 250);
+    return () => window.clearTimeout(id);
+  }, [find]);
+
+  // Re-run when new log lines arrive so live sessions keep matching.
+  useEffect(() => {
+    if (!debouncedFind) {
+      setFindHits(null);
+      return;
+    }
+    let cancelled = false;
+    fetchSessionSearch(sessionId, debouncedFind, root)
+      .then((data) => {
+        if (!cancelled) setFindHits(new Set(data.event_ids));
+      })
+      .catch(() => {
+        if (!cancelled) setFindHits(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, root, debouncedFind, events.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAnnotations(sessionId, root)
+      .then((data) => {
+        if (!cancelled) setAnnotations(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAnnotations({ tags: [], comments: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, root]);
+
+  const annotationsReadOnly = detail?.status === "running";
+  const persistAnnotations = async (next: Annotations) => {
+    try {
+      setAnnotations(await saveAnnotations(sessionId, next, root));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+  const commentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of annotations?.comments ?? []) {
+      counts.set(c.event_id, (counts.get(c.event_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [annotations]);
 
   // Until the session detail loads, assume live so open spans keep ticking.
   const sessionLive = detail == null || detail.status === "running";
@@ -4230,11 +4818,76 @@ function SessionView({
   }, [sessionId, root]);
 
   useEffect(() => {
-    if (!selectedId) return;
+    // Rows not loaded yet: keep a deep-linked event until the timeline arrives.
+    if (!selectedId || rows.length === 0) return;
     if (visibleRows.some((r) => r.id === selectedId)) return;
     // A new brush wins over an older pick outside it (picking clears the brush).
     setSelectedId(null);
-  }, [visibleRows, selectedId]);
+  }, [rows.length, visibleRows, selectedId]);
+
+  const matchedRows = useMemo(
+    () =>
+      findHits
+        ? visibleRows.filter((r) => rowEventIds(r).some((id) => findHits.has(id)))
+        : [],
+    [visibleRows, findHits],
+  );
+  const matchedIds = useMemo(() => new Set(matchedRows.map((r) => r.id)), [matchedRows]);
+
+  const moveSelection = (delta: 1 | -1) => {
+    if (!visibleRows.length) return;
+    const idx = visibleRows.findIndex((r) => r.id === selectedId);
+    const next =
+      idx < 0
+        ? delta > 0
+          ? 0
+          : visibleRows.length - 1
+        : Math.min(visibleRows.length - 1, Math.max(0, idx + delta));
+    setSelectedId(visibleRows[next].id);
+  };
+
+  const stepMatch = (delta: 1 | -1) => {
+    if (!matchedRows.length) return;
+    const order = new Map(visibleRows.map((r, i) => [r.id, i]));
+    const cur = selectedId != null ? (order.get(selectedId) ?? -1) : -1;
+    const pos = (r: DisplayEvent) => order.get(r.id) ?? 0;
+    const target =
+      delta > 0
+        ? (matchedRows.find((r) => pos(r) > cur) ?? matchedRows[0])
+        : ([...matchedRows].reverse().find((r) => pos(r) < cur) ??
+          matchedRows[matchedRows.length - 1]);
+    setBrush(null);
+    setSelectedId(target.id);
+  };
+
+  useEffect(() => {
+    if (!debouncedFind || autoJumpedForRef.current === debouncedFind) return;
+    if (!matchedRows.length) return;
+    autoJumpedForRef.current = debouncedFind;
+    if (selectedId == null) setSelectedId(matchedRows[0].id);
+  }, [debouncedFind, matchedRows, selectedId]);
+
+  const keyActionsRef = useRef({ moveSelection, isTraceTab });
+  keyActionsRef.current = { moveSelection, isTraceTab };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const actions = keyActionsRef.current;
+      if (!actions.isTraceTab || e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
+      if (e.key === "j" || e.key === "k") {
+        e.preventDefault();
+        actions.moveSelection(e.key === "j" ? 1 : -1);
+      } else if (e.key === "/") {
+        e.preventDefault();
+        findInputRef.current?.focus();
+        findInputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const matchPos = selectedId != null ? matchedRows.findIndex((r) => r.id === selectedId) : -1;
 
   useEffect(() => {
     let cancelled = false;
@@ -4384,12 +5037,51 @@ function SessionView({
         {detail?.rca_f1 != null && (
           <span className="chip score">rca_f1 {formatScore(detail.rca_f1)}</span>
         )}
-        {(tab === "timeline" || tab === "agent" || tab === "nika") && (
+        {annotations && (
+          <TagEditor
+            tags={annotations.tags}
+            knownTags={knownTags}
+            readOnly={annotationsReadOnly}
+            onChange={(tags) => void persistAnnotations({ ...annotations, tags })}
+          />
+        )}
+        {isTraceTab && (
           <div className="stat-row">
             <span>{stats.total} events</span>
             <span className="role-nika">{stats.nika} nika</span>
             <span className="role-assistant">{stats.model} agent</span>
             <span className="role-tool">{stats.tools} tools</span>
+            <span className="event-nav">
+              <button type="button" title="Previous event (K)" onClick={() => moveSelection(-1)}>
+                ↑ K
+              </button>
+              <button type="button" title="Next event (J)" onClick={() => moveSelection(1)}>
+                ↓ J
+              </button>
+            </span>
+            <span className="find-box">
+              <input
+                ref={findInputRef}
+                type="search"
+                placeholder="Find in trajectory (/)"
+                value={find}
+                onChange={(e) => setFind(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    stepMatch(e.shiftKey ? -1 : 1);
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+              />
+              {findHits && (
+                <span className="find-count">
+                  {matchPos >= 0 ? matchPos + 1 : 0}/{matchedRows.length}
+                </span>
+              )}
+            </span>
           </div>
         )}
       </div>
@@ -4415,7 +5107,7 @@ function SessionView({
       </div>
       {shownError && <div className="empty">{shownError}</div>}
       {!shownError && tab === "overview" && <SessionOverviewPanel detail={detail} />}
-      {!shownError && (tab === "timeline" || tab === "agent" || tab === "nika") && (
+      {!shownError && isTraceTab && (
         <div className="trace-layout">
           {tab === "timeline" && (
             <OverviewTimeline
@@ -4434,6 +5126,8 @@ function SessionView({
               <Ledger
                 rows={visibleRows}
                 selectedId={selectedId}
+                matchedIds={matchedIds}
+                commentCounts={commentCounts}
                 onSelect={(row) =>
                   setSelectedId((prev) => (prev === row.id ? null : row.id))
                 }
@@ -4447,6 +5141,32 @@ function SessionView({
                   sessionModel={detail?.model}
                   onClose={() => setSelectedId(null)}
                   onOpenEvent={setSelectedId}
+                  comments={(annotations?.comments ?? []).filter(
+                    (c) => c.event_id === selected.id,
+                  )}
+                  commentsReadOnly={annotations == null || annotationsReadOnly}
+                  onAddComment={(text) =>
+                    annotations &&
+                    void persistAnnotations({
+                      ...annotations,
+                      comments: [
+                        ...annotations.comments,
+                        {
+                          id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+                          event_id: selected.id,
+                          text,
+                          created_at: new Date().toISOString(),
+                        },
+                      ],
+                    })
+                  }
+                  onDeleteComment={(id) =>
+                    annotations &&
+                    void persistAnnotations({
+                      ...annotations,
+                      comments: annotations.comments.filter((c) => c.id !== id),
+                    })
+                  }
                 />
               ) : null
             }
@@ -4506,7 +5226,12 @@ function selectionFromRoots(
 }
 
 export default function App() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [initialUrl] = useState(() => parseUrlState(window.location.search));
+  const [sessionId, setSessionId] = useState<string | null>(initialUrl.session);
+  const [sessionNav, setSessionNav] = useState<SessionNav>(() => navFromUrl(initialUrl));
+  const [booted, setBooted] = useState(false);
+  /** Next URL write adds a history entry (session open/close, folder change). */
+  const pushHistoryRef = useRef(false);
   const [selectedRoot, setSelectedRoot] = useState(".");
   const [baseRoot, setBaseRoot] = useState("");
   const [activePath, setActivePath] = useState("");
@@ -4524,28 +5249,30 @@ export default function App() {
   const selectedRootRef = useRef(selectedRoot);
   selectedRootRef.current = selectedRoot;
 
+  /** Validate ``raw`` with the server and make it the active results folder. */
+  const applyRoot = useCallback(async (raw: string) => {
+    const data = await fetchRoots(raw);
+    const { selectedRoot: next, activePath: path } = selectionFromRoots(raw, data);
+    setBaseRoot(data.base_root);
+    setSelectedRoot(next);
+    selectedRootRef.current = next;
+    setActivePath(path);
+    setDraftPath(path);
+    saveCachedResultsRoot(path);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const boot = async () => {
-      const cached = loadCachedResultsRoot();
+      // A deep link's folder wins over the folder remembered in this browser.
+      const cached = initialUrl.root ?? loadCachedResultsRoot();
       if (cached) {
         try {
-          const data = await fetchRoots(cached);
-          if (cancelled) return;
-          const { selectedRoot: next, activePath: path } = selectionFromRoots(
-            cached,
-            data,
-          );
-          setBaseRoot(data.base_root);
-          setSelectedRoot(next);
-          selectedRootRef.current = next;
-          setActivePath(path);
-          setDraftPath(path);
-          saveCachedResultsRoot(path);
+          await applyRoot(cached);
           return;
         } catch {
           // Cached folder gone or outside allowed roots — fall back.
-          clearCachedResultsRoot();
+          if (!initialUrl.root) clearCachedResultsRoot();
         }
       }
       try {
@@ -4558,10 +5285,51 @@ export default function App() {
         /* ignore boot failure; UI shows empty until user picks a path */
       }
     };
-    void boot();
+    void boot().finally(() => {
+      if (!cancelled) setBooted(true);
+    });
     return () => {
       cancelled = true;
     };
+  }, [applyRoot, initialUrl]);
+
+  useEffect(() => {
+    if (!booted) return;
+    const search = buildUrlSearch({
+      root: selectedRoot,
+      session: sessionId,
+      ...(sessionId ? sessionNav : EMPTY_NAV),
+    });
+    const push = pushHistoryRef.current;
+    pushHistoryRef.current = false;
+    if (search === window.location.search) return;
+    const url = `${window.location.pathname}${search}${window.location.hash}`;
+    if (push) window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+  }, [booted, selectedRoot, sessionId, sessionNav]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const next = parseUrlState(window.location.search);
+      setSessionId(next.session);
+      setSessionNav(navFromUrl(next));
+      const root = next.root ?? ".";
+      if (root !== selectedRootRef.current) void applyRoot(root).catch(() => undefined);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [applyRoot]);
+
+  const openSession = useCallback((id: string, find?: string) => {
+    pushHistoryRef.current = true;
+    setSessionNav({ ...EMPTY_NAV, find: find || null });
+    setSessionId(id);
+  }, []);
+
+  const clearSession = useCallback(() => {
+    pushHistoryRef.current = true;
+    setSessionNav(EMPTY_NAV);
+    setSessionId(null);
   }, []);
 
   useEffect(() => {
@@ -4620,19 +5388,9 @@ export default function App() {
     if (!trimmed || rootBusy) return;
     setRootBusy(true);
     try {
-      const data = await fetchRoots(trimmed);
-      const { selectedRoot: next, activePath: path } = selectionFromRoots(
-        trimmed,
-        data,
-      );
-      setBaseRoot(data.base_root);
-      setSelectedRoot(next);
-      selectedRootRef.current = next;
-      setSessionId(null);
+      await applyRoot(trimmed);
+      clearSession();
       setRootError(null);
-      setActivePath(path);
-      setDraftPath(path);
-      saveCachedResultsRoot(path);
       setBrowserOpen(false);
     } catch (err) {
       setRootError(err instanceof Error ? err.message : String(err));
@@ -4769,13 +5527,17 @@ export default function App() {
         </div>
       </header>
       <div className="app-body">
-        <ViewShell
-          key={selectedRoot}
-          root={selectedRoot}
-          sessionId={sessionId}
-          onOpenSession={setSessionId}
-          onClearSession={() => setSessionId(null)}
-        />
+        {booted && (
+          <ViewShell
+            key={selectedRoot}
+            root={selectedRoot}
+            sessionId={sessionId}
+            sessionNav={sessionNav}
+            onOpenSession={openSession}
+            onClearSession={clearSession}
+            onSessionNavChange={setSessionNav}
+          />
+        )}
       </div>
       <footer className="app-footer">
         <span>
