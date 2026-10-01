@@ -46,9 +46,21 @@
       },
       {
         "stage": "baseline_path",
-        "status": "no_evidence",
-        "reason": "artifact_only",
-        "evidence": {}
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 16.532999999999998,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
       },
       {
         "stage": "inject_artifact",
@@ -91,12 +103,29 @@
       },
       {
         "stage": "symptom",
-        "status": "unsupported",
-        "reason": "control_plane_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "control_plane_only",
-          "symptom_class": "none"
+          "verified": true,
+          "fault_type": "southbound_port_mismatch",
+          "details": {
+            "switch_connected": {
+              "leaf_1": false,
+              "leaf_2": false,
+              "leaf_3": false,
+              "leaf_4": false,
+              "spine_1": false,
+              "spine_2": false
+            },
+            "disconnected": [
+              "leaf_1",
+              "leaf_2",
+              "leaf_3",
+              "leaf_4",
+              "spine_1",
+              "spine_2"
+            ]
+          }
         }
       },
       {
@@ -149,12 +178,29 @@
       },
       {
         "stage": "persistence_symptom",
-        "status": "unsupported",
-        "reason": "control_plane_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "control_plane_only",
-          "symptom_class": "none"
+          "verified": true,
+          "fault_type": "southbound_port_mismatch",
+          "details": {
+            "switch_connected": {
+              "leaf_1": false,
+              "leaf_2": false,
+              "leaf_3": false,
+              "leaf_4": false,
+              "spine_1": false,
+              "spine_2": false
+            },
+            "disconnected": [
+              "leaf_1",
+              "leaf_2",
+              "leaf_3",
+              "leaf_4",
+              "spine_1",
+              "spine_2"
+            ]
+          }
         }
       },
       {
@@ -198,19 +244,37 @@
       },
       {
         "stage": "final_symptom",
-        "status": "unsupported",
-        "reason": "control_plane_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "control_plane_only",
-          "symptom_class": "none"
+          "verified": true,
+          "fault_type": "southbound_port_mismatch",
+          "details": {
+            "switch_connected": {
+              "leaf_1": false,
+              "leaf_2": false,
+              "leaf_3": false,
+              "leaf_4": false,
+              "spine_1": false,
+              "spine_2": false
+            },
+            "disconnected": [
+              "leaf_1",
+              "leaf_2",
+              "leaf_3",
+              "leaf_4",
+              "spine_1",
+              "spine_2"
+            ]
+          }
         }
       }
     ],
-    "symptom_probe": "artifact_only"
+    "symptom_probe": "custom",
+    "method_version": 2
   },
-  "diagnosis": "verify: the symptom contract is control_plane_only, so this run has no data-plane observation",
-  "elapsed_sec": 129.1,
+  "diagnosis": "pass",
+  "elapsed_sec": 136.7,
   "error": null,
   "resource_class": "light"
 }

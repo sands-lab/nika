@@ -62,8 +62,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "arp_cache_poisoning"
         }
@@ -111,8 +111,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 99.6,
+  "diagnosis": "pass",
+  "elapsed_sec": 104.8,
   "error": null,
   "resource_class": "light"
 }

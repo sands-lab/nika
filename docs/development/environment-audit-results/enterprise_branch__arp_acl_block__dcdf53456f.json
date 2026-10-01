@@ -62,8 +62,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "arp_acl_block"
         }
@@ -111,8 +111,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 37.1,
+  "diagnosis": "pass",
+  "elapsed_sec": 51.3,
   "error": null,
   "resource_class": "light"
 }

@@ -33,15 +33,54 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"campus_lan\", \"checks\": {\"ospf_process\": true, \"ospf_neighbors\": true, \"core_link_up\": true, \"dist_gateway_configured\": true, \"host_ipv4\": true, \"host_default_route\": true, \"gateway_reachable\": true, \"peer_host_reachable\": true, \"dns_server_reachable\": true, \"dns_service_active\": true, \"dns_resolution_web0\": true, \"web_http_web0\": true, \"cross_pod_web_http\": true, \"host_dhcp_ip\": true, \"dhcp_server_active\": true, \"dhcp_relay_active\": true, \"web_service_active\": true, \"load_balancer_nginx\": true, \"dns_resolution_web99\": true, \"load_balancer_http\": true}, \"det"
+          "verified": true,
+          "scenario_name": "campus_lan",
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          },
+          "details": {
+            "probe_host": "pc_1_1_1_1",
+            "peer_host": "pc_2_1_1_1",
+            "core_router": "router_core_1",
+            "dist_router": "router_dist_1_1"
+          }
         }
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "load_balancer_overload"
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 1156.914,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -57,28 +96,117 @@
           "load_running": true,
           "workers": 2,
           "ab_processes": 2,
-          "nano_cpus": 200000000,
-          "expected_nano_cpus": 200000000,
+          "nano_cpus": 50000000,
+          "expected_nano_cpus": 50000000,
           "capacity_ok": true,
           "nginx_running": true,
-          "active_connections": 277
+          "active_connections": 137
         }
       },
       {
         "stage": "symptom",
-        "status": "fail",
-        "reason": "observation failed",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "summary": "{\"verified\": false, \"fault_type\": \"load_balancer_overload\", \"details\": {\"host\": \"load_balancer\", \"client_host\": \"pc_1_1_1_1\", \"load_hosts\": [\"pc_2_1_1_1\"], \"nginx_running\": true, \"nginx_saturated\": false, \"lb_cpu_ratio\": 0.36867930250189535, \"backend_cpu_ratio\": 0.12717352097993223, \"active_connections\": 148, \"vip\": {\"requests_per_sec\": 7.11, \"complete_requests\": 60, \"failed_requests\": 0, \"non_2xx_responses\": 0, \"p50_ms\": 534.0, \"p95_ms\": 1238.0, \"p99_ms\": 1254.0, \"error_count\": 0, \"error_rate\": 0.0}, \"control\": {\"requests_per_sec\": 39.43, \"complete_requests\": 60, \"failed_requests\": 0, \"non_2x"
+          "verified": true,
+          "fault_type": "load_balancer_overload",
+          "details": {
+            "host": "load_balancer",
+            "client_host": "pc_1_1_1_1",
+            "load_hosts": [
+              "pc_2_1_1_1"
+            ],
+            "nginx_running": true,
+            "nginx_saturated": true,
+            "lb_cpu_ratio": 1.016708113804004,
+            "backend_cpu_ratio": 0.09510891401525112,
+            "active_connections": 293,
+            "vip": {
+              "requests_per_sec": 6.1,
+              "complete_requests": 60,
+              "failed_requests": 0,
+              "non_2xx_responses": 0,
+              "p50_ms": 514.0,
+              "p95_ms": 1328.0,
+              "p99_ms": 2114.0,
+              "error_count": 0,
+              "error_rate": 0.0
+            },
+            "control": {
+              "requests_per_sec": 15.4,
+              "complete_requests": 60,
+              "failed_requests": 0,
+              "non_2xx_responses": 0,
+              "p50_ms": 276.0,
+              "p95_ms": 361.0,
+              "p99_ms": 387.0,
+              "error_count": 0,
+              "error_rate": 0.0
+            },
+            "backend_from_lb_ok": true,
+            "backend_from_lb_time_s": 0.120606,
+            "backend_local_ok": true,
+            "backend_local_time_s": 0.00066,
+            "baseline_vip_p95_ms": 77.0,
+            "baseline_vip_p99_ms": 84.0,
+            "baseline_control_p95_ms": 69.0,
+            "p95_ratio": 17.246753246753247,
+            "p99_ratio": 25.166666666666668,
+            "control_p95_ratio": 5.231884057971015,
+            "backend_local_time_ratio": 0.6727828746177369,
+            "vip_tail_ok": true,
+            "vip_errors_ok": false,
+            "vip_degraded": true,
+            "control_ok": true,
+            "backend_ok_gate": true,
+            "path_ok": true,
+            "ping_rtt_ms": 43.671,
+            "ping_loss_percent": 0.0,
+            "baseline_rtt_ms": 3.424,
+            "baseline": {
+              "vip": {
+                "requests_per_sec": 101.26,
+                "complete_requests": 60,
+                "failed_requests": 0,
+                "non_2xx_responses": 0,
+                "p50_ms": 37.0,
+                "p95_ms": 77.0,
+                "p99_ms": 84.0,
+                "error_count": 0,
+                "error_rate": 0.0
+              },
+              "control": {
+                "requests_per_sec": 136.97,
+                "complete_requests": 60,
+                "failed_requests": 0,
+                "non_2xx_responses": 0,
+                "p50_ms": 27.0,
+                "p95_ms": 69.0,
+                "p99_ms": 79.0,
+                "error_count": 0,
+                "error_rate": 0.0
+              },
+              "backend_from_lb_ok": true,
+              "backend_from_lb_time_s": 0.01951,
+              "backend_local_ok": true,
+              "backend_local_time_s": 0.000981,
+              "ping_rtt_ms": 3.424,
+              "ping_loss_percent": 0.0,
+              "lb_cpu_ratio": 0.0,
+              "backend_cpu_ratio": 0.00034747061829330605,
+              "nginx_running": true,
+              "active_connections": 0
+            }
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "load_balancer_overload",
-          "scope": "load_balancer_overload"
+          "fault": "load_balancer_overload"
         }
       },
       {
@@ -94,19 +222,108 @@
           "load_running": true,
           "workers": 2,
           "ab_processes": 2,
-          "nano_cpus": 200000000,
-          "expected_nano_cpus": 200000000,
+          "nano_cpus": 50000000,
+          "expected_nano_cpus": 50000000,
           "capacity_ok": true,
           "nginx_running": true,
-          "active_connections": 89
+          "active_connections": 300
         }
       },
       {
         "stage": "persistence_symptom",
-        "status": "fail",
-        "reason": "observation failed",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "summary": "{\"verified\": false, \"fault_type\": \"load_balancer_overload\", \"details\": {\"host\": \"load_balancer\", \"client_host\": \"pc_1_1_1_1\", \"load_hosts\": [\"pc_2_1_1_1\"], \"nginx_running\": true, \"nginx_saturated\": false, \"lb_cpu_ratio\": 0.4217749295052551, \"backend_cpu_ratio\": 0.09704835820895523, \"active_connections\": 223, \"vip\": {\"requests_per_sec\": 17.25, \"complete_requests\": 60, \"failed_requests\": 0, \"non_2xx_responses\": 0, \"p50_ms\": 157.0, \"p95_ms\": 404.0, \"p99_ms\": 422.0, \"error_count\": 0, \"error_rate\": 0.0}, \"control\": {\"requests_per_sec\": 18.81, \"complete_requests\": 60, \"failed_requests\": 0, \"non_2xx_"
+          "verified": true,
+          "fault_type": "load_balancer_overload",
+          "details": {
+            "host": "load_balancer",
+            "client_host": "pc_1_1_1_1",
+            "load_hosts": [
+              "pc_2_1_1_1"
+            ],
+            "nginx_running": true,
+            "nginx_saturated": true,
+            "lb_cpu_ratio": 1.0568843131942562,
+            "backend_cpu_ratio": 0.09822689564068693,
+            "active_connections": 303,
+            "vip": {
+              "requests_per_sec": 2.67,
+              "complete_requests": 60,
+              "failed_requests": 0,
+              "non_2xx_responses": 0,
+              "p50_ms": 520.0,
+              "p95_ms": 3662.0,
+              "p99_ms": 21119.0,
+              "error_count": 0,
+              "error_rate": 0.0
+            },
+            "control": {
+              "requests_per_sec": 27.84,
+              "complete_requests": 60,
+              "failed_requests": 0,
+              "non_2xx_responses": 0,
+              "p50_ms": 83.0,
+              "p95_ms": 488.0,
+              "p99_ms": 523.0,
+              "error_count": 0,
+              "error_rate": 0.0
+            },
+            "backend_from_lb_ok": true,
+            "backend_from_lb_time_s": 0.118561,
+            "backend_local_ok": true,
+            "backend_local_time_s": 0.00091,
+            "baseline_vip_p95_ms": 77.0,
+            "baseline_vip_p99_ms": 84.0,
+            "baseline_control_p95_ms": 69.0,
+            "p95_ratio": 47.55844155844156,
+            "p99_ratio": 251.41666666666666,
+            "control_p95_ratio": 7.072463768115942,
+            "backend_local_time_ratio": 0.927624872579001,
+            "vip_tail_ok": true,
+            "vip_errors_ok": false,
+            "vip_degraded": true,
+            "control_ok": true,
+            "backend_ok_gate": true,
+            "path_ok": true,
+            "ping_rtt_ms": 174.502,
+            "ping_loss_percent": 0.0,
+            "baseline_rtt_ms": 3.424,
+            "baseline": {
+              "vip": {
+                "requests_per_sec": 101.26,
+                "complete_requests": 60,
+                "failed_requests": 0,
+                "non_2xx_responses": 0,
+                "p50_ms": 37.0,
+                "p95_ms": 77.0,
+                "p99_ms": 84.0,
+                "error_count": 0,
+                "error_rate": 0.0
+              },
+              "control": {
+                "requests_per_sec": 136.97,
+                "complete_requests": 60,
+                "failed_requests": 0,
+                "non_2xx_responses": 0,
+                "p50_ms": 27.0,
+                "p95_ms": 69.0,
+                "p99_ms": 79.0,
+                "error_count": 0,
+                "error_rate": 0.0
+              },
+              "backend_from_lb_ok": true,
+              "backend_from_lb_time_s": 0.01951,
+              "backend_local_ok": true,
+              "backend_local_time_s": 0.000981,
+              "ping_rtt_ms": 3.424,
+              "ping_loss_percent": 0.0,
+              "lb_cpu_ratio": 0.0,
+              "backend_cpu_ratio": 0.00034747061829330605,
+              "nginx_running": true,
+              "active_connections": 0
+            }
+          }
         }
       },
       {
@@ -122,26 +339,116 @@
           "load_running": true,
           "workers": 2,
           "ab_processes": 2,
-          "nano_cpus": 200000000,
-          "expected_nano_cpus": 200000000,
+          "nano_cpus": 50000000,
+          "expected_nano_cpus": 50000000,
           "capacity_ok": true,
           "nginx_running": true,
-          "active_connections": 250
+          "active_connections": 287
         }
       },
       {
         "stage": "final_symptom",
-        "status": "fail",
-        "reason": "observation failed",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "summary": "{\"verified\": false, \"fault_type\": \"load_balancer_overload\", \"details\": {\"host\": \"load_balancer\", \"client_host\": \"pc_1_1_1_1\", \"load_hosts\": [\"pc_2_1_1_1\"], \"nginx_running\": true, \"nginx_saturated\": false, \"lb_cpu_ratio\": 0.3614843669912865, \"backend_cpu_ratio\": 0.11741768213637542, \"active_connections\": 229, \"vip\": {\"requests_per_sec\": 11.48, \"complete_requests\": 60, \"failed_requests\": 0, \"non_2xx_responses\": 0, \"p50_ms\": 349.0, \"p95_ms\": 473.0, \"p99_ms\": 491.0, \"error_count\": 0, \"error_rate\": 0.0}, \"control\": {\"requests_per_sec\": 11.88, \"complete_requests\": 60, \"failed_requests\": 0, \"non_2xx_"
+          "verified": true,
+          "fault_type": "load_balancer_overload",
+          "details": {
+            "host": "load_balancer",
+            "client_host": "pc_1_1_1_1",
+            "load_hosts": [
+              "pc_2_1_1_1"
+            ],
+            "nginx_running": true,
+            "nginx_saturated": true,
+            "lb_cpu_ratio": 1.027352850539291,
+            "backend_cpu_ratio": 0.10075661881977671,
+            "active_connections": 308,
+            "vip": {
+              "requests_per_sec": 6.75,
+              "complete_requests": 60,
+              "failed_requests": 0,
+              "non_2xx_responses": 0,
+              "p50_ms": 417.0,
+              "p95_ms": 1594.0,
+              "p99_ms": 2725.0,
+              "error_count": 0,
+              "error_rate": 0.0
+            },
+            "control": {
+              "requests_per_sec": 12.63,
+              "complete_requests": 60,
+              "failed_requests": 0,
+              "non_2xx_responses": 0,
+              "p50_ms": 338.0,
+              "p95_ms": 478.0,
+              "p99_ms": 517.0,
+              "error_count": 0,
+              "error_rate": 0.0
+            },
+            "backend_from_lb_ok": true,
+            "backend_from_lb_time_s": 1.559785,
+            "backend_local_ok": true,
+            "backend_local_time_s": 2.108334,
+            "baseline_vip_p95_ms": 77.0,
+            "baseline_vip_p99_ms": 84.0,
+            "baseline_control_p95_ms": 69.0,
+            "p95_ratio": 20.7012987012987,
+            "p99_ratio": 32.44047619047619,
+            "control_p95_ratio": 6.927536231884058,
+            "backend_local_time_ratio": 2149.1681957186543,
+            "vip_tail_ok": true,
+            "vip_errors_ok": false,
+            "vip_degraded": true,
+            "control_ok": true,
+            "backend_ok_gate": true,
+            "path_ok": true,
+            "ping_rtt_ms": 94.967,
+            "ping_loss_percent": 0.0,
+            "baseline_rtt_ms": 3.424,
+            "baseline": {
+              "vip": {
+                "requests_per_sec": 101.26,
+                "complete_requests": 60,
+                "failed_requests": 0,
+                "non_2xx_responses": 0,
+                "p50_ms": 37.0,
+                "p95_ms": 77.0,
+                "p99_ms": 84.0,
+                "error_count": 0,
+                "error_rate": 0.0
+              },
+              "control": {
+                "requests_per_sec": 136.97,
+                "complete_requests": 60,
+                "failed_requests": 0,
+                "non_2xx_responses": 0,
+                "p50_ms": 27.0,
+                "p95_ms": 69.0,
+                "p99_ms": 79.0,
+                "error_count": 0,
+                "error_rate": 0.0
+              },
+              "backend_from_lb_ok": true,
+              "backend_from_lb_time_s": 0.01951,
+              "backend_local_ok": true,
+              "backend_local_time_s": 0.000981,
+              "ping_rtt_ms": 3.424,
+              "ping_loss_percent": 0.0,
+              "lb_cpu_ratio": 0.0,
+              "backend_cpu_ratio": 0.00034747061829330605,
+              "nginx_running": true,
+              "active_connections": 0
+            }
+          }
         }
       }
     ],
-    "symptom_probe": "custom"
+    "symptom_probe": "custom",
+    "method_version": 2
   },
-  "diagnosis": "case: nginx CPU stayed under the saturation ratio after inject",
-  "elapsed_sec": 190.6,
+  "diagnosis": "pass",
+  "elapsed_sec": 264.6,
   "error": null,
   "resource_class": "light"
 }

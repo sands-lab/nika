@@ -28,10 +28,20 @@
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "link_packet_corruption"
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 253.64999999999998,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -57,16 +67,15 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 10.0, \"ping_received\": 90, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 737943.15815999, \"injected_iperf_retrans\": 44, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.150837}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"partial"
+          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 13.0, \"ping_received\": 87, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 707273.6813812698, \"injected_iperf_retrans\": 49, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.134024}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"parti"
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "link_packet_corruption",
-          "scope": "link_packet_corruption"
+          "fault": "link_packet_corruption"
         }
       },
       {
@@ -92,7 +101,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 14.0, \"ping_received\": 86, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 735370.028401421, \"injected_iperf_retrans\": 31, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.184769}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"partia"
+          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 2.0, \"ping_received\": 98, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 1122812.406815985, \"injected_iperf_retrans\": 40, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.13464}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"partial"
         }
       },
       {
@@ -118,14 +127,14 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 12.0, \"ping_received\": 88, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 857866.3363218342, \"injected_iperf_retrans\": 36, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.133823}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"parti"
+          "summary": "{\"failure\": \"link_packet_corruption\", \"probe\": \"custom\", \"symptom_class\": \"degradation\", \"link_up\": true, \"host_operstate\": \"up\", \"peer_operstate\": \"up\", \"routing_ok\": null, \"ping_loss_percent\": 8.0, \"ping_received\": 92, \"partial_loss\": true, \"tcp_degraded\": true, \"baseline_iperf_bps\": null, \"baseline_iperf_retrans\": null, \"injected_iperf_bps\": 825118.1914902128, \"injected_iperf_retrans\": 36, \"peer_ip\": \"10.0.10.2\", \"tcp_degraded_via\": \"iperf_retransmits_absolute\", \"http\": {\"skipped\": false, \"http_ok\": true, \"http_time_s\": 0.134008}, \"no_shortcut\": true, \"comparison\": {\"link_up\": true, \"partia"
         }
       }
     ],
     "symptom_probe": "custom"
   },
-  "diagnosis": "verify: a recorded stage has no behavioral check",
-  "elapsed_sec": 99.7,
+  "diagnosis": "pass",
+  "elapsed_sec": 103.3,
   "error": null,
   "resource_class": "light"
 }

@@ -427,6 +427,12 @@ class HostIncorrectDNS(ProblemBase):
         self.runtime.exec(
             params.host_name,
             f"echo 'nameserver {params.fake_dns_ip}' > /etc/resolv.conf; "
+            # dhclient rewrites resolv.conf at lease renewal. Keep the same
+            # incorrect resolver in its renewal path on DHCP-backed hosts.
+            "if test -d /etc/dhcp/dhclient-enter-hooks.d; then "
+            "printf '%s\\n' 'new_domain_name_servers=\""
+            f"{params.fake_dns_ip}"
+            "\"' > /etc/dhcp/dhclient-enter-hooks.d/nika-incorrect-dns; fi; "
             # Drop static hosts overrides so name lookups must use DNS.
             "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
             "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",

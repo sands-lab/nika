@@ -1,0 +1,319 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "k8s_lab",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "host_incorrect_gateway",
+      "inject": {
+        "host_name": "client"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "k8s_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          },
+          "details": {
+            "ingress_ip": "101.0.0.1",
+            "ready_nodes": 6,
+            "word_url": "http://datacenter.com/word"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "client",
+          "route_line": "default via 3.0.0.254 dev eth0",
+          "expected_gateway": "3.0.0.254"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "host_incorrect_gateway",
+          "probe": "path_ping",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": false,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": false,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": true,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "host_incorrect_gateway"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "client",
+          "route_line": "default via 3.0.0.254 dev eth0",
+          "expected_gateway": "3.0.0.254"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "host_incorrect_gateway",
+          "probe": "path_ping",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": false,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": false,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": true,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "client",
+          "route_line": "default via 3.0.0.254 dev eth0",
+          "expected_gateway": "3.0.0.254"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "host_incorrect_gateway",
+          "probe": "path_ping",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": false,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": false,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": true,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          }
+        }
+      }
+    ],
+    "symptom_probe": "path_ping",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 354.9,
+  "error": null,
+  "resource_class": "k8s"
+}

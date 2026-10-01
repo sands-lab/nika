@@ -23,14 +23,31 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"janos-us\", \"igp\": \"isis\", \"node_count\": 26, \"link_count\": 84, \"inventory\": {\"topology_name\": \"janos-us\", \"igp\": \"isis\", \"metric_strategy\": \"consta"
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"janos-us\", \"igp\": \"isis\", \"node_count\": 26, \"link_count\": 84, \"inventory\": {\"topology_name\": \"janos-us\", \"igp\": \"isis\", \"metric_strategy\": \"constant\", \"constant_metric\": 10, \"node_count\": 26, \"link_count\": 84, \"nodes\": [{\"node_id\": \"Albany\", \"device\": \"albany\", \"loopback\": \"10.255.0.1/32\", \"router_id\": \"10.255.0.1\", \"interfaces\": [{\"name\": \"eth0\", \"link_id\": \"L59\", \"collision_domain\": \"cd_l59\", \"peer_device\": \"cleveland\", \"peer_address\": \"10.0.0.111\", \"address\": \"10.0.0.110/31\", \"subnet\": \"10.0.0.110/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth1\", \"link_id\": \"L61\", \"collision_domain\": \"cd_l61\", \"peer_device\": \"newyork\", \"peer_address\": \"10.0.0.117\", \"address\": \"10.0.0.116/31\", \"subnet\": \"10.0.0.116/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth2\", \"link_id\": \"L64\", \"collision_domain\": \"cd_l64\", \"peer_device\": \"cleveland\", \"peer_address\": \"10.0.0.123\", \"address\": \"10.0.0.122/31\", \"subnet\": \"10.0.0.122/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth3\", \"link_id\": \"L65\", \"collision_domain\": \"cd_l65\", \"peer_device\": \"newyork\", \"peer_address\": \"10.0.0.125\", \"address\": \"10.0.0.124/31\", \"subnet\": \"10.0.0.124/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth4\", \"link_id\": \"L66\", \"collision_domain\": \"cd_l66\", \"peer_device\": \"boston\", \"peer_address\": \"10.0.0.127\", \"address\": \"10.0.0.126/31\", \"subnet\": \"10.0.0.126/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth5\", \"link_id\": \"L74\", \"collision_domain\": \"cd_l74\", \"peer_device\": \"boston\", \"peer_address\": \"10.0.0.145\", \"address\": \"10.0.0.144/31\", \"subnet\": \"10.0.0.144/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth6\", \"link_id\": \"edge_albany\", \"collision_domain\": \"cd_edge_albany\", \"peer_device\": \"pc_albany\", \"peer_address\": \"10.254.0.2\", \"address\": \"10.254.0.1/30\", \"subnet\": \"10.254.0.0/30\", \"metric\": 1, \"passive\": true}]}, {\"node_id\": \"Atlanta\", \"device\": \"atlanta\", \"loopback\": \"10.255.0.2/32\", \"router_id\": \"10.255.0.2\", \"interfaces\": [{\"name\": \"eth0\", \"link_id\": \"L56\", \"collision_domain\": \"cd_l56\", \"peer_device\": \"nashville\", \"peer_address\": \"10.0.0.105\", \"address\": \"10.0.0.104/31\", \"subnet\": \"10.0.0.104/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth1\", \"link_id\": \"L68\", \"collision_domain\": \"cd_l68\", \"peer_device\": \"charlotte\", \"peer_address\": \"10.0.0.131\", \"address\": \"10.0.0.130/31\", \"subnet\": \"10.0.0.130/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth2\", \"link_id\": \"L71\", \"collision_domain\": \"cd_l71\", \"peer_device\": \"neworleans\", \"peer_address\": \"10.0.0.139\", \"address\": \"10.0.0.138/31\", \"subnet\": \"10.0.0.138/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth3\", \"link_id\": \"L75\", \"collision_domain\": \"cd_l75\", \"peer_device\": \"nashville\", \"peer_address\": \"10.0.0.147\", \"address\": \"10.0.0.146/31\", \"subnet\": \"10.0.0.146/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth4\", \"link_id\": \"L76\", \"collision_domain\": \"cd_l76\", \"peer_device\": \"charlotte\", \"peer_address\": \"10.0.0.149\", \"address\": \"10.0.0.148/31\", \"subnet\": \"10.0.0.148/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth5\", \"link_id\": \"L77\", \"collision_domain\": \"cd_l77\", \"peer_device\": \"neworleans\", \"peer_address\": \"10.0.0.151\", \"address\": \"10.0.0.150/31\", \"subnet\": \"10.0.0.150/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth6\", \"link_id\": \"L78\", \"collision_domain\": \"cd_l78\", \"peer_device\": \"miami\", \"peer_address\": \"10.0.0.153\", \"address\": \"10.0.0.152/31\", \"subnet\": \"10.0.0.152/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth7\", \"link_id\": \"L80\", \"collision_domain\": \"cd_l80\", \"peer_device\": \"miami\", \"peer_address\": \"10.0.0.159\", \"address\": \"10.0.0.15"
         }
       },
       {
         "stage": "baseline_path",
-        "status": "no_evidence",
-        "reason": "artifact_only",
-        "evidence": {}
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null,
+          "bgp_target_present": false,
+          "bgp_query_ok": true,
+          "bgp_observer": "atlanta",
+          "bgp_target": "198.18.0.0/24",
+          "bgp_route_output": "% Network not in table"
+        }
       },
       {
         "stage": "inject_artifact",
@@ -45,21 +62,60 @@
       },
       {
         "stage": "symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "control_plane"
+          "failure": "bgp_hijacking",
+          "probe": "bgp_hijack_route",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null,
+            "bgp_target_present": false,
+            "bgp_query_ok": true,
+            "bgp_observer": "atlanta",
+            "bgp_target": "198.18.0.0/24",
+            "bgp_route_output": "% Network not in table"
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null,
+            "bgp_target_present": true,
+            "bgp_query_ok": true,
+            "bgp_observer": "atlanta",
+            "bgp_target": "198.18.0.0/24",
+            "bgp_route_output": "BGP routing table entry for 198.18.0.0/24, version 6\nPaths: (1 available, best #1, table default)\n  Advertised to peers:\n  10.255.0.3 10.255.0.4 10.255.0.5 10.255.0.6 10.255.0.7 10.255.0.8 10.255.0.9 10.255.0.10 10.255.0.11 10.255.0.12 10.255.0.13 10.255.0.14 10.255.0.15 10.255.0.16 10.255.0.17 10.255.0.18 10.255.0.19 10.255.0.20 10.255.0.21 10.255.0.22 10.255.0.23 10.255.0.24 10.255.0.25 10.255.0.26\n  Local\n    10.255.0.1 (metric 50) from 10.255.0.1 (10.255.0.1)\n      Origin IGP, metric 0, localpref 100, valid, internal, best (First path received)\n      Last update: Wed Sep 30 08:20:44 2026"
+          },
+          "comparison": {
+            "expect": "prefix_appears_on_remote_router",
+            "observed": true
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "bgp_hijacking",
-          "scope": "bgp_hijacking"
+          "fault": "bgp_hijacking"
         }
       },
       {
@@ -75,12 +131,51 @@
       },
       {
         "stage": "persistence_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "control_plane"
+          "failure": "bgp_hijacking",
+          "probe": "bgp_hijack_route",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null,
+            "bgp_target_present": false,
+            "bgp_query_ok": true,
+            "bgp_observer": "atlanta",
+            "bgp_target": "198.18.0.0/24",
+            "bgp_route_output": "% Network not in table"
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null,
+            "bgp_target_present": true,
+            "bgp_query_ok": true,
+            "bgp_observer": "atlanta",
+            "bgp_target": "198.18.0.0/24",
+            "bgp_route_output": "BGP routing table entry for 198.18.0.0/24, version 6\nPaths: (1 available, best #1, table default)\n  Advertised to peers:\n  10.255.0.3 10.255.0.4 10.255.0.5 10.255.0.6 10.255.0.7 10.255.0.8 10.255.0.9 10.255.0.10 10.255.0.11 10.255.0.12 10.255.0.13 10.255.0.14 10.255.0.15 10.255.0.16 10.255.0.17 10.255.0.18 10.255.0.19 10.255.0.20 10.255.0.21 10.255.0.22 10.255.0.23 10.255.0.24 10.255.0.25 10.255.0.26\n  Local\n    10.255.0.1 (metric 50) from 10.255.0.1 (10.255.0.1)\n      Origin IGP, metric 0, localpref 100, valid, internal, best (First path received)\n      Last update: Wed Sep 30 08:20:44 2026"
+          },
+          "comparison": {
+            "expect": "prefix_appears_on_remote_router",
+            "observed": true
+          }
         }
       },
       {
@@ -96,19 +191,59 @@
       },
       {
         "stage": "final_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "control_plane"
+          "failure": "bgp_hijacking",
+          "probe": "bgp_hijack_route",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null,
+            "bgp_target_present": false,
+            "bgp_query_ok": true,
+            "bgp_observer": "atlanta",
+            "bgp_target": "198.18.0.0/24",
+            "bgp_route_output": "% Network not in table"
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null,
+            "bgp_target_present": true,
+            "bgp_query_ok": true,
+            "bgp_observer": "atlanta",
+            "bgp_target": "198.18.0.0/24",
+            "bgp_route_output": "BGP routing table entry for 198.18.0.0/24, version 6\nPaths: (1 available, best #1, table default)\n  Advertised to peers:\n  10.255.0.3 10.255.0.4 10.255.0.5 10.255.0.6 10.255.0.7 10.255.0.8 10.255.0.9 10.255.0.10 10.255.0.11 10.255.0.12 10.255.0.13 10.255.0.14 10.255.0.15 10.255.0.16 10.255.0.17 10.255.0.18 10.255.0.19 10.255.0.20 10.255.0.21 10.255.0.22 10.255.0.23 10.255.0.24 10.255.0.25 10.255.0.26\n  Local\n    10.255.0.1 (metric 50) from 10.255.0.1 (10.255.0.1)\n      Origin IGP, metric 0, localpref 100, valid, internal, best (First path received)\n      Last update: Wed Sep 30 08:20:43 2026"
+          },
+          "comparison": {
+            "expect": "prefix_appears_on_remote_router",
+            "observed": true
+          }
         }
       }
     ],
-    "symptom_probe": "artifact_only"
+    "symptom_probe": "bgp_hijack_route",
+    "method_version": 2
   },
-  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
-  "elapsed_sec": 106.9,
+  "diagnosis": "pass",
+  "elapsed_sec": 198.2,
   "error": null,
   "resource_class": "light"
 }

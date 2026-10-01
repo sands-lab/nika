@@ -69,8 +69,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "bgp_rpki_invalid_route_leak"
         }
@@ -132,8 +132,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 86.7,
+  "diagnosis": "pass",
+  "elapsed_sec": 85.9,
   "error": null,
   "resource_class": "light"
 }

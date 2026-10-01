@@ -1,0 +1,212 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "llmd_lab",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "k8s_clusterip_routing_broken",
+      "inject": {
+        "control_node": "controller",
+        "node_name": "controller"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "llmd_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "client_ipv4": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "metallb_ready": true,
+            "agentgateway_ready": true,
+            "gateway_addressed": true,
+            "models_http": true
+          },
+          "details": {
+            "ready_nodes": 6,
+            "gateway_addr": "200.0.0.240",
+            "models_url": "http://200.0.0.240/v1/models"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 8.498999999999999,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_device": "controller",
+          "blocked_target": "10.43.0.0/16",
+          "raw_prerouting_blocked": true,
+          "raw_output_blocked": true,
+          "clusterip_reachable": false,
+          "backend_reachable": true,
+          "service_object_intact": true,
+          "probe_service": "default/kubernetes",
+          "cluster_ip": "10.43.0.1",
+          "service_port": 443,
+          "backend_address": "10.210.0.9",
+          "backend_port": 6443,
+          "k8s_objects": [
+            "ServiceCIDR/10.43.0.0/16"
+          ],
+          "control_node": "controller",
+          "poll_attempts": 1,
+          "waited_sec": 3.5
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "fault_type": "k8s_clusterip_routing_broken",
+          "details": {
+            "target_device": "controller",
+            "blocked_target": "10.43.0.0/16",
+            "raw_prerouting_blocked": true,
+            "raw_output_blocked": true,
+            "clusterip_reachable": false,
+            "backend_reachable": true,
+            "service_object_intact": true,
+            "probe_service": "default/kubernetes",
+            "cluster_ip": "10.43.0.1",
+            "service_port": 443,
+            "backend_address": "10.210.0.9",
+            "backend_port": 6443,
+            "k8s_objects": [
+              "ServiceCIDR/10.43.0.0/16"
+            ],
+            "control_node": "controller",
+            "poll_attempts": 1,
+            "waited_sec": 3.9
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "k8s_clusterip_routing_broken"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_device": "controller",
+          "blocked_target": "10.43.0.0/16",
+          "raw_prerouting_blocked": true,
+          "raw_output_blocked": true
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "fault_type": "k8s_clusterip_routing_broken",
+          "details": {
+            "target_device": "controller",
+            "blocked_target": "10.43.0.0/16",
+            "raw_prerouting_blocked": true,
+            "raw_output_blocked": true,
+            "clusterip_reachable": false,
+            "backend_reachable": true,
+            "service_object_intact": true,
+            "probe_service": "default/kubernetes",
+            "cluster_ip": "10.43.0.1",
+            "service_port": 443,
+            "backend_address": "10.210.0.9",
+            "backend_port": 6443,
+            "k8s_objects": [
+              "ServiceCIDR/10.43.0.0/16"
+            ],
+            "control_node": "controller",
+            "poll_attempts": 1,
+            "waited_sec": 3.5
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_device": "controller",
+          "blocked_target": "10.43.0.0/16",
+          "raw_prerouting_blocked": true,
+          "raw_output_blocked": true
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "fault_type": "k8s_clusterip_routing_broken",
+          "details": {
+            "target_device": "controller",
+            "blocked_target": "10.43.0.0/16",
+            "raw_prerouting_blocked": true,
+            "raw_output_blocked": true,
+            "clusterip_reachable": false,
+            "backend_reachable": true,
+            "service_object_intact": true,
+            "probe_service": "default/kubernetes",
+            "cluster_ip": "10.43.0.1",
+            "service_port": 443,
+            "backend_address": "10.210.0.9",
+            "backend_port": 6443,
+            "k8s_objects": [
+              "ServiceCIDR/10.43.0.0/16"
+            ],
+            "control_node": "controller",
+            "poll_attempts": 1,
+            "waited_sec": 3.7
+          }
+        }
+      }
+    ],
+    "symptom_probe": "custom",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 251.9,
+  "error": null,
+  "resource_class": "k8s"
+}

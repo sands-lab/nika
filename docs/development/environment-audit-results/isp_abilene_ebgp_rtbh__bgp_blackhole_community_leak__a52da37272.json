@@ -75,7 +75,8 @@
         "status": "unsupported",
         "reason": "no_control_path",
         "evidence": {
-          "fault": "bgp_blackhole_community_leak"
+          "fault": "bgp_blackhole_community_leak",
+          "scope": "bgp_blackhole_community_leak"
         }
       },
       {
@@ -136,7 +137,7 @@
     "symptom_probe": "path_ping"
   },
   "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 89.5,
+  "elapsed_sec": 90.1,
   "error": null,
   "resource_class": "light"
 }

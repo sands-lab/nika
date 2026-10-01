@@ -117,6 +117,36 @@ def test_absent_artifact_is_environment_invalid(tmp_path: Path) -> None:
         assert classify_trial_failure(exc) == ENVIRONMENT_INVALID
 
 
+def test_remote_artifact_is_checked_during_and_before_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote.client import RemoteClient
+    from nika.validation import presence
+
+    (tmp_path / "ground_truth.json").write_text(
+        json.dumps({"is_anomaly": True}), encoding="utf-8"
+    )
+    monkeypatch.setattr(presence, "_remote_lab", lambda: True)
+    calls: list[str] = []
+
+    def remote_check(_self: RemoteClient, session_id: str) -> dict:
+        calls.append(session_id)
+        return {
+            "present": len(calls) == 1,
+            "fault": "bgp_asn_misconfig",
+            "evidence": {},
+            "error": None if len(calls) == 1 else "fault artifact absent",
+        }
+
+    monkeypatch.setattr(RemoteClient, "fault_artifact", remote_check)
+    watch = PresenceWatch("s-remote", tmp_path, delay_sec=30)
+    watch.start()
+    failure = watch.finish()
+    assert len(calls) == 3
+    assert failure is not None and "before_cleanup" in failure
+    assert _phases(tmp_path) == ["post_inject", "during_agent", "before_cleanup"]
+
+
 def test_timeout_and_keyboard_interrupt_paths() -> None:
     with pytest.raises(SystemExit):
         raise_if_presence_failed(None, SystemExit(143))
@@ -141,6 +171,33 @@ def test_recheck_uses_the_injected_instance() -> None:
     assert result["evidence"]["wrong_asn"] == 65000
     assert other.calls == [] or len(other.calls) == raw_calls_before
     assert injected.calls
+
+
+def test_recheck_retries_a_transient_runtime_timeout(monkeypatch) -> None:
+    from nika.validation import presence
+
+    monkeypatch.setattr(presence.time, "sleep", lambda _seconds: None)
+
+    class _IntermittentFault:
+        root_cause_name = "mac_address_conflict"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def recheck_artifact(self, _params=None) -> dict:
+            self.calls += 1
+            return {
+                "present": self.calls == 2,
+                "evidence": {"mac": "[TIMEOUT]" if self.calls == 1 else "aa:bb"},
+            }
+
+    fault = _IntermittentFault()
+    presence.bind_injected_problem("s-timeout", fault, None)
+    try:
+        assert presence.recheck_bound_artifact("s-timeout")["present"] is True
+        assert fault.calls == 2
+    finally:
+        presence.clear_injected_problem("s-timeout")
 
 
 def test_default_recheck_does_not_call_verify_lab() -> None:

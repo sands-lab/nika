@@ -64,8 +64,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "link_down"
         }
@@ -109,8 +109,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 72.4,
+  "diagnosis": "pass",
+  "elapsed_sec": 71.8,
   "error": null,
   "resource_class": "light"
 }

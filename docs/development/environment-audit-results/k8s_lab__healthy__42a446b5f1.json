@@ -61,10 +61,11 @@
         }
       }
     ],
-    "symptom_probe": ""
+    "symptom_probe": "",
+    "method_version": 2
   },
   "diagnosis": "pass",
-  "elapsed_sec": 308.4,
+  "elapsed_sec": 373.4,
   "error": null,
   "resource_class": "k8s"
 }

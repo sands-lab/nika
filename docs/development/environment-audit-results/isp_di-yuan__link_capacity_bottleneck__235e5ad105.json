@@ -31,10 +31,20 @@
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "link_capacity_bottleneck"
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -55,7 +65,7 @@
           "probe": "custom",
           "symptom_class": "degradation",
           "bits_per_second": null,
-          "tbf_overlimits": 134009,
+          "tbf_overlimits": 134186,
           "artifact_ok": true,
           "path_alive": true,
           "low_throughput": false,
@@ -64,21 +74,21 @@
           "comparison": {
             "expect": "capacity_bottleneck_live_path",
             "bps": null,
-            "tbf_overlimits": 134009,
+            "tbf_overlimits": 134186,
             "artifact_ok": true,
             "path_alive": true,
             "low_throughput": false,
             "shaped": true
-          }
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "link_capacity_bottleneck",
-          "scope": "link_capacity_bottleneck"
+          "fault": "link_capacity_bottleneck"
         }
       },
       {
@@ -99,7 +109,7 @@
           "probe": "custom",
           "symptom_class": "degradation",
           "bits_per_second": null,
-          "tbf_overlimits": 219446,
+          "tbf_overlimits": 220941,
           "artifact_ok": true,
           "path_alive": false,
           "low_throughput": false,
@@ -108,7 +118,7 @@
           "comparison": {
             "expect": "capacity_bottleneck_live_path",
             "bps": null,
-            "tbf_overlimits": 219446,
+            "tbf_overlimits": 220941,
             "artifact_ok": true,
             "path_alive": false,
             "low_throughput": false,
@@ -134,7 +144,7 @@
           "probe": "custom",
           "symptom_class": "degradation",
           "bits_per_second": null,
-          "tbf_overlimits": 298948,
+          "tbf_overlimits": 255495,
           "artifact_ok": true,
           "path_alive": false,
           "low_throughput": false,
@@ -143,7 +153,7 @@
           "comparison": {
             "expect": "capacity_bottleneck_live_path",
             "bps": null,
-            "tbf_overlimits": 298948,
+            "tbf_overlimits": 255495,
             "artifact_ok": true,
             "path_alive": false,
             "low_throughput": false,
@@ -154,8 +164,8 @@
     ],
     "symptom_probe": "custom"
   },
-  "diagnosis": "verify: a recorded stage has no behavioral check",
-  "elapsed_sec": 150.0,
+  "diagnosis": "pass",
+  "elapsed_sec": 134.9,
   "error": null,
   "resource_class": "light"
 }

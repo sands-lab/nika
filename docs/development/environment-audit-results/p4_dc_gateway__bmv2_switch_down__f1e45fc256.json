@@ -32,7 +32,7 @@
           "loss_percent": null,
           "rtt_avg_ms": null,
           "rtt_mdev_ms": null,
-          "http_time_ms": 31.503999999999998,
+          "http_time_ms": 39.510999999999996,
           "mtu_blackhole": null,
           "mtu_frag_needed": null,
           "control_plane_ok": null,
@@ -59,8 +59,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "bmv2_switch_down"
         }
@@ -102,8 +102,8 @@
     ],
     "symptom_probe": "path_http"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 85.9,
+  "diagnosis": "pass",
+  "elapsed_sec": 91.9,
   "error": null,
   "resource_class": "light"
 }

@@ -1,0 +1,286 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "campus_lan",
+      "topo_size": "l",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "dhcp_spoofed_gateway",
+      "inject": {
+        "host_name": "dhcp_server",
+        "host_name_2": "pc_1_1_1_1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "campus_lan",
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          },
+          "details": {
+            "probe_host": "pc_1_1_1_1",
+            "peer_host": "pc_2_1_1_1",
+            "core_router": "router_core_1",
+            "dist_router": "router_dist_1_1"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          }
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "dhcp_server": "dhcp_server",
+          "grep_result": "option routers 10.1.1.254;\nfound"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "persistent_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "expected_checks": null,
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": false,
+            "gateway_reachable": true,
+            "peer_host_reachable": false,
+            "dns_server_reachable": false,
+            "dns_service_active": true,
+            "dns_resolution_web0": false,
+            "web_http_web0": false,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": false
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "dhcp_spoofed_gateway"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "dhcp_server": "dhcp_server",
+          "grep_result": "option routers 10.1.1.254;\nfound"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "persistent_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "expected_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": false,
+            "gateway_reachable": true,
+            "peer_host_reachable": false,
+            "dns_server_reachable": false,
+            "dns_service_active": true,
+            "dns_resolution_web0": false,
+            "web_http_web0": false,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": false
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "dhcp_server": "dhcp_server",
+          "grep_result": "option routers 10.1.1.254;\nfound"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "persistent_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "expected_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": false,
+            "gateway_reachable": true,
+            "peer_host_reachable": false,
+            "dns_server_reachable": false,
+            "dns_service_active": true,
+            "dns_resolution_web0": false,
+            "web_http_web0": false,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": false
+          }
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 520.0,
+  "error": null,
+  "resource_class": "large"
+}

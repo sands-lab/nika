@@ -24,8 +24,8 @@
       },
       {
         "stage": "baseline_path",
-        "status": "fail",
-        "reason": "target path was not healthy before inject",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "ping_ok": null,
           "http_ok": null,
@@ -35,7 +35,7 @@
           "http_time_ms": null,
           "mtu_blackhole": null,
           "mtu_frag_needed": null,
-          "control_plane_ok": false,
+          "control_plane_ok": true,
           "symptom_ok": null,
           "control_ok": null
         }
@@ -57,13 +57,13 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"frr_service_down\", \"probe\": \"control_plane_bgp\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": "
+          "summary": "{\"failure\": \"frr_service_down\", \"probe\": \"control_plane_routing\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"compariso"
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "frr_service_down"
         }
@@ -85,7 +85,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"frr_service_down\", \"probe\": \"control_plane_bgp\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": "
+          "summary": "{\"failure\": \"frr_service_down\", \"probe\": \"control_plane_routing\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"compariso"
         }
       },
       {
@@ -105,14 +105,14 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"frr_service_down\", \"probe\": \"control_plane_bgp\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": "
+          "summary": "{\"failure\": \"frr_service_down\", \"probe\": \"control_plane_routing\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"compariso"
         }
       }
     ],
-    "symptom_probe": "control_plane_bgp"
+    "symptom_probe": "control_plane_routing"
   },
-  "diagnosis": "verify: control_plane_bgp was already down before inject",
-  "elapsed_sec": 83.6,
+  "diagnosis": "pass",
+  "elapsed_sec": 84.8,
   "error": null,
   "resource_class": "light"
 }

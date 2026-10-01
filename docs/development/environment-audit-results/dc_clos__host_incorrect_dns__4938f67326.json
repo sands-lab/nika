@@ -32,7 +32,7 @@
           "loss_percent": null,
           "rtt_avg_ms": null,
           "rtt_mdev_ms": null,
-          "http_time_ms": 10.016,
+          "http_time_ms": 10.052999999999999,
           "mtu_blackhole": null,
           "mtu_frag_needed": null,
           "control_plane_ok": null,
@@ -60,8 +60,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "host_incorrect_dns"
         }
@@ -105,8 +105,8 @@
     ],
     "symptom_probe": "http_by_name"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 50.7,
+  "diagnosis": "pass",
+  "elapsed_sec": 51.8,
   "error": null,
   "resource_class": "light"
 }

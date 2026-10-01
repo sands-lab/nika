@@ -56,8 +56,8 @@ def test_dc_clos_link_down_observes_path_and_cleans_up() -> None:
         assert admits(report.admission()) is True
     else:
         assert stages["control_path"] == "unsupported"
-        assert report.admission() == "unsupported"
-        assert admits(report.admission()) is False
+        assert report.admission() == "pass"
+        assert admits(report.admission()) is True
     assert after <= before
 
 

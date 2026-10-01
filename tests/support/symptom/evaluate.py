@@ -96,8 +96,93 @@ def evaluate_symptom(
         path = replace(path, old_ip=problem._original_ip)
     if failure == "mtu_mismatch" and problem is not None:
         path = _resolve_mtu_mismatch_path(problem, params, path)
+    if failure == "p4_tcam_entry_corruption" and problem is not None:
+        model = getattr(problem.net_env, "model", None)
+        if model is not None:
+            path = replace(
+                path,
+                src_host=model.client_on_gateway(params.host_name).name,
+                dst_ip=params.target_ip,
+            )
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
     before_snap = before if before is not None else ProbeSnapshot()
+    if contract.probe == "dns_answer":
+        before_answers = before_snap.extra.get("dns_answers")
+        after_answers = after.extra.get("dns_answers")
+        ok = bool(before_answers and after_answers and before_answers != after_answers)
+        return ok, {
+            "failure": failure,
+            "probe": contract.probe,
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+            "comparison": {
+                "expect": "client_dns_answer_changed",
+                "observed": ok,
+            },
+        }
+    if contract.probe == "bgp_hijack_route":
+        was_absent = (
+            before_snap.extra.get("bgp_query_ok") is True
+            and before_snap.extra.get("bgp_target_present") is False
+        )
+        deadline = time.monotonic() + _BGP_RIB_WITHDRAW_TIMEOUT_S
+        while was_absent and time.monotonic() < deadline:
+            if after.extra.get("bgp_target_present") is True:
+                break
+            time.sleep(2.0)
+            after = run_probe_snapshot(runtime, contract.probe, path, params=params)
+        propagated = (
+            after.extra.get("bgp_query_ok") is True
+            and after.extra.get("bgp_target_present") is True
+        )
+        ok = was_absent and propagated
+        return ok, {
+            "failure": failure,
+            "probe": contract.probe,
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+            "comparison": {"expect": "prefix_appears_on_remote_router", "observed": ok},
+        }
+    if failure in {"bgp_acl_block", "bgp_asn_misconfig"}:
+        baseline = set(before_snap.extra.get("bgp_established_peers") or [])
+        deadline = time.monotonic() + 35.0
+        while time.monotonic() < deadline:
+            current = set(after.extra.get("bgp_established_peers") or [])
+            if baseline and baseline - current:
+                break
+            time.sleep(2.0)
+            after = run_probe_snapshot(runtime, contract.probe, path, params=params)
+        current = set(after.extra.get("bgp_established_peers") or [])
+        ok = bool(baseline and baseline - current)
+        return ok, {
+            "failure": failure,
+            "probe": contract.probe,
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+            "comparison": {
+                "expect": "established_peers_decline",
+                "lost_peers": sorted(baseline - current),
+                "observed": ok,
+            },
+        }
+    if failure in {"ospf_acl_block", "ospf_area_misconfiguration"}:
+        baseline_neighbors = before_snap.extra.get("ospf_full_neighbors")
+        deadline = time.monotonic() + 50.0
+        while time.monotonic() < deadline:
+            current_neighbors = after.extra.get("ospf_full_neighbors")
+            expected_loss = (
+                isinstance(baseline_neighbors, int)
+                and isinstance(current_neighbors, int)
+                and (
+                    current_neighbors == 0
+                    if failure == "ospf_acl_block"
+                    else current_neighbors < baseline_neighbors
+                )
+            )
+            if expected_loss:
+                break
+            time.sleep(2.0)
+            after = run_probe_snapshot(runtime, contract.probe, path, params=params)
     expect = symptom_class_to_expect(contract.symptom_class)
     if contract.symptom_class == "gray":
         expect = "gray_loss"
@@ -168,6 +253,20 @@ def evaluate_symptom(
         loss_min_percent=contract.loss_min_percent,
         latency_factor=contract.latency_factor,
     )
+    if failure == "ospf_area_misconfiguration":
+        baseline_neighbors = before_snap.extra.get("ospf_full_neighbors")
+        current_neighbors = after.extra.get("ospf_full_neighbors")
+        ok = (
+            isinstance(baseline_neighbors, int)
+            and isinstance(current_neighbors, int)
+            and baseline_neighbors > 0
+            and current_neighbors < baseline_neighbors
+        )
+        cmp_details = {
+            **cmp_details,
+            "ospf_full_neighbors_before": baseline_neighbors,
+            "ospf_full_neighbors_after": current_neighbors,
+        }
     if failure == "link_down":
         intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
         host = getattr(params, "host_name", None)

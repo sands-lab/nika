@@ -14,6 +14,7 @@ from nika.remote.handlers import (
     handle_close_session,
     handle_env_start,
     handle_failure_inject,
+    handle_fault_artifact,
     handle_get_session,
     handle_list_sessions,
     handle_mcp_attach,
@@ -55,6 +56,18 @@ async def failure_inject(request: Request) -> JSONResponse:
         body = FailureInjectRequest.model_validate(await request.json())
         result = await run_in_threadpool(handle_failure_inject, body)
         return JSONResponse(result.model_dump())
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
+
+
+async def fault_artifact(request: Request) -> JSONResponse:
+    try:
+        result = await run_in_threadpool(
+            handle_fault_artifact, request.path_params["session_id"]
+        )
+        return JSONResponse(result)
+    except FileNotFoundError as exc:
+        return _error_response(exc, status=404)
     except Exception as exc:  # noqa: BLE001
         return _error_response(exc, status=400)
 
@@ -163,6 +176,11 @@ def create_remote_app() -> Starlette:
         Route("/health", health, methods=["GET"]),
         Route("/v1/env/start", env_start, methods=["POST"]),
         Route("/v1/failure/inject", failure_inject, methods=["POST"]),
+        Route(
+            "/v1/sessions/{session_id}/fault-artifact",
+            fault_artifact,
+            methods=["GET"],
+        ),
         Route("/v1/sessions", sessions_list, methods=["GET"]),
         Route("/v1/sessions/wipe", sessions_wipe, methods=["POST"]),
         Route("/v1/sessions/{session_id}", session_get, methods=["GET"]),

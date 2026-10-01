@@ -1,0 +1,186 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "min3clos",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "link_capacity_bottleneck",
+      "inject": {
+        "burst": "64kb",
+        "host_name": "client1",
+        "intf_name": "eth1",
+        "limit": "500kb",
+        "rate": "30kbit"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "min3clos",
+          "checks": {
+            "nodes_deployed": true,
+            "client1_link_up": true,
+            "client1_ipv4": true,
+            "leaf1_bgp_neighbors": true,
+            "client_gateway_reachable": true,
+            "cross_leaf_client_reachable": true
+          },
+          "details": {
+            "probe_client": "client1",
+            "peer_client": "client2",
+            "probe_leaf": "leaf1"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "client1",
+          "intf": "eth1",
+          "mode": "node_intf"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "link_capacity_bottleneck",
+          "probe": "custom",
+          "symptom_class": "degradation",
+          "bits_per_second": 698743.9180866267,
+          "tbf_overlimits": 116044,
+          "artifact_ok": true,
+          "path_alive": true,
+          "low_throughput": false,
+          "shaped": true,
+          "peer_ip": "10.0.0.27",
+          "comparison": {
+            "expect": "capacity_bottleneck_live_path",
+            "bps": 698743.9180866267,
+            "tbf_overlimits": 116044,
+            "artifact_ok": true,
+            "path_alive": true,
+            "low_throughput": false,
+            "shaped": true
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "link_capacity_bottleneck"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "client1",
+          "intf": "eth1",
+          "mode": "node_intf"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "link_capacity_bottleneck",
+          "probe": "custom",
+          "symptom_class": "degradation",
+          "bits_per_second": null,
+          "tbf_overlimits": 194414,
+          "artifact_ok": true,
+          "path_alive": false,
+          "low_throughput": false,
+          "shaped": true,
+          "peer_ip": "10.0.0.27",
+          "comparison": {
+            "expect": "capacity_bottleneck_live_path",
+            "bps": null,
+            "tbf_overlimits": 194414,
+            "artifact_ok": true,
+            "path_alive": false,
+            "low_throughput": false,
+            "shaped": true
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "client1",
+          "intf": "eth1",
+          "mode": "node_intf"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "link_capacity_bottleneck",
+          "probe": "custom",
+          "symptom_class": "degradation",
+          "bits_per_second": null,
+          "tbf_overlimits": 273243,
+          "artifact_ok": true,
+          "path_alive": false,
+          "low_throughput": false,
+          "shaped": true,
+          "peer_ip": "10.0.0.27",
+          "comparison": {
+            "expect": "capacity_bottleneck_live_path",
+            "bps": null,
+            "tbf_overlimits": 273243,
+            "artifact_ok": true,
+            "path_alive": false,
+            "low_throughput": false,
+            "shaped": true
+          }
+        }
+      }
+    ],
+    "symptom_probe": "custom",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 193.8,
+  "error": null,
+  "resource_class": "clab"
+}

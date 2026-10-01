@@ -87,9 +87,41 @@ class CaseAudit(BaseModel):
     identity: CaseIdentity
     stages: list[StageResult] = Field(default_factory=list)
     symptom_probe: str = ""
+    method_version: int = 1
 
     def admission(self) -> AuditStatus:
-        return admission_status([stage.status for stage in self.stages])
+        required_stages = (
+            {"baseline_lab", "final_lab"}
+            if self.identity.fault == "healthy"
+            else {
+                "baseline_lab",
+                "baseline_path",
+                "inject_artifact",
+                "symptom",
+                "persistence_artifact",
+                "persistence_symptom",
+                "final_artifact",
+                "final_symptom",
+            }
+        )
+        # A separate sibling path is useful evidence when available. Some
+        # faults have no independent sibling; their healthy baseline and
+        # repeated symptom observations still establish the network effect.
+        required = [
+            stage.status
+            for stage in self.stages
+            if not (
+                stage.stage == "control_path"
+                and stage.status == "unsupported"
+                and stage.reason == "no_control_path"
+            )
+        ]
+        if (
+            required_stages - {stage.stage for stage in self.stages}
+            and admission_status(required) == "pass"
+        ):
+            required.append("no_evidence")
+        return admission_status(required)
 
 
 def admits(status: str) -> bool:

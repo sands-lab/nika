@@ -24,14 +24,14 @@
       {
         "stage": "audit",
         "status": "fail",
-        "reason": "RuntimeError: CPU-sensitive HTTP server failed to serve on web_server_0: http_code=\"[TIMEOUT] Command '/bin/bash -c 'curl -s -o /dev/null -w '\\\\''%{http_code}'\\\\'' --max-time 10 http://127.0.0.1/small.bin || true'' on 'web_server_0' exceeded 20s.\" start_out='START:168' diag=\"[TIMEOUT] Command '/bin/bash -c 'echo LOG; cat /var/log/static-httpd.log 2>/dev/null || true; echo PS; ps aux 2>/dev/null | head -n 30 || true; python3 -m py_compile /usr/local/bin/static-httpd.py; echo COMPILE:$?'' on 'web_",
+        "reason": "RuntimeError: CPU-sensitive HTTP server failed to serve on web_server_0: http_code='000' start_out='START:168' diag='LOG\\nTraceback (most recent call last):\\n  File \"/usr/local/bin/static-httpd.py\", line 52, in <module>\\n    HTTPServer((\"0.0.0.0\", 80), Handler).serve_forever()\\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \"/usr/lib/python3.11/socketserver.py\", line 456, in __init__\\n    self.server_bind()\\n  File \"/usr/lib/python3.11/http/server.py\", line 136, in server_bind\\n    socketserve",
         "evidence": {}
       }
     ],
     "symptom_probe": "custom"
   },
   "diagnosis": "verify: the HTTP readiness command timed out before a status code returned",
-  "elapsed_sec": 193.8,
-  "error": "RuntimeError: CPU-sensitive HTTP server failed to serve on web_server_0: http_code=\"[TIMEOUT] Command '/bin/bash -c 'curl -s -o /dev/null -w '\\\\''%{http_code}'\\\\'' --max-time 10 http://127.0.0.1/small.bin || true'' on 'web_server_0' exceeded 20s.\" start_out='START:168' diag=\"[TIMEOUT] Command '/bin/bash -c 'echo LOG; cat /var/log/static-httpd.log 2>/dev/null || true; echo PS; ps aux 2>/dev/null | head -n 30 || true; python3 -m py_compile /usr/local/bin/static-httpd.py; echo COMPILE:$?'' on 'web_",
+  "elapsed_sec": 253.9,
+  "error": "RuntimeError: CPU-sensitive HTTP server failed to serve on web_server_0: http_code='000' start_out='START:168' diag='LOG\\nTraceback (most recent call last):\\n  File \"/usr/local/bin/static-httpd.py\", line 52, in <module>\\n    HTTPServer((\"0.0.0.0\", 80), Handler).serve_forever()\\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \"/usr/lib/python3.11/socketserver.py\", line 456, in __init__\\n    self.server_bind()\\n  File \"/usr/lib/python3.11/http/server.py\", line 136, in server_bind\\n    socketserve",
   "resource_class": "light"
 }

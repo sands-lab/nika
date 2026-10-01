@@ -1,0 +1,616 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "p4_dc_gateway",
+      "topo_size": "l",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "p4_table_entry_missing",
+      "inject": {
+        "host_name": "gateway_1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "p4_dc_gateway",
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          },
+          "details": {
+            "dimensions": {
+              "gateways": 8,
+              "spines": 8,
+              "leaves": 8,
+              "clients": 8,
+              "services": 16
+            },
+            "gateway_spine_links": 64,
+            "spine_leaf_links": 64,
+            "p4runtime": {
+              "gateway_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_5": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_6": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_7": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "gateway_8": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 9,
+                "groups": 9,
+                "members": 65
+              },
+              "spine_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_5": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_6": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_7": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "spine_8": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 16,
+                "groups": 16,
+                "members": 16
+              },
+              "leaf_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_5": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_6": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_7": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              },
+              "leaf_8": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 10,
+                "groups": 10,
+                "members": 66
+              }
+            },
+            "int_telemetry": {
+              "source": "192.0.2.11",
+              "destination": "10.0.1.11",
+              "candidate_records": 3,
+              "hop_count": 3,
+              "switch_ids": [
+                1,
+                101,
+                201
+              ],
+              "roles_seen": {
+                "gateway": true,
+                "spine": true,
+                "leaf": true
+              },
+              "sink_seen": true,
+              "trace_complete": true
+            }
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 80.982,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "params.host_name": "gateway_1",
+          "prefix": "10.0.1.0/24",
+          "present": false,
+          "readable": true,
+          "ipv4_lpm": [
+            {
+              "prefix": "10.0.2.0/24",
+              "group_id": 102
+            },
+            {
+              "prefix": "10.0.3.0/24",
+              "group_id": 103
+            },
+            {
+              "prefix": "10.0.4.0/24",
+              "group_id": 104
+            },
+            {
+              "prefix": "10.0.5.0/24",
+              "group_id": 105
+            },
+            {
+              "prefix": "10.0.6.0/24",
+              "group_id": 106
+            },
+            {
+              "prefix": "10.0.7.0/24",
+              "group_id": 107
+            },
+            {
+              "prefix": "10.0.8.0/24",
+              "group_id": 108
+            },
+            {
+              "prefix": "192.0.2.11/32",
+              "group_id": 1
+            }
+          ]
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "p4_table_entry_missing",
+          "probe": "path_http",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 80.982,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": false,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 80.982,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": false,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": null,
+              "http_broke": true,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "p4_table_entry_missing"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "params.host_name": "gateway_1",
+          "prefix": "10.0.1.0/24",
+          "present": false,
+          "readable": true,
+          "ipv4_lpm": [
+            {
+              "prefix": "10.0.2.0/24",
+              "group_id": 102
+            },
+            {
+              "prefix": "10.0.3.0/24",
+              "group_id": 103
+            },
+            {
+              "prefix": "10.0.4.0/24",
+              "group_id": 104
+            },
+            {
+              "prefix": "10.0.5.0/24",
+              "group_id": 105
+            },
+            {
+              "prefix": "10.0.6.0/24",
+              "group_id": 106
+            },
+            {
+              "prefix": "10.0.7.0/24",
+              "group_id": 107
+            },
+            {
+              "prefix": "10.0.8.0/24",
+              "group_id": 108
+            },
+            {
+              "prefix": "192.0.2.11/32",
+              "group_id": 1
+            }
+          ]
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "p4_table_entry_missing",
+          "probe": "path_http",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 80.982,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": false,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 80.982,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": false,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": null,
+              "http_broke": true,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "params.host_name": "gateway_1",
+          "prefix": "10.0.1.0/24",
+          "present": false,
+          "readable": true,
+          "ipv4_lpm": [
+            {
+              "prefix": "10.0.2.0/24",
+              "group_id": 102
+            },
+            {
+              "prefix": "10.0.3.0/24",
+              "group_id": 103
+            },
+            {
+              "prefix": "10.0.4.0/24",
+              "group_id": 104
+            },
+            {
+              "prefix": "10.0.5.0/24",
+              "group_id": 105
+            },
+            {
+              "prefix": "10.0.6.0/24",
+              "group_id": 106
+            },
+            {
+              "prefix": "10.0.7.0/24",
+              "group_id": 107
+            },
+            {
+              "prefix": "10.0.8.0/24",
+              "group_id": 108
+            },
+            {
+              "prefix": "192.0.2.11/32",
+              "group_id": 1
+            }
+          ]
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "p4_table_entry_missing",
+          "probe": "path_http",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 80.982,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": false,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 80.982,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": false,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": null,
+              "http_broke": true,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          }
+        }
+      }
+    ],
+    "symptom_probe": "path_http",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 215.5,
+  "error": null,
+  "resource_class": "large"
+}

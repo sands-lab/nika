@@ -61,8 +61,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "host_missing_ip"
         }
@@ -106,8 +106,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 75.4,
+  "diagnosis": "pass",
+  "elapsed_sec": 77.5,
   "error": null,
   "resource_class": "light"
 }

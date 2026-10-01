@@ -20,14 +20,66 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"campus_lan\", \"checks\": {\"ospf_process\": true, \"ospf_neighbors\": true, \"core_link_up\": true, \"dist_gateway_configured\": true, \"host_ipv4\": true, \"host_default_route\": true, \"gateway_reachable\": true, \"peer_host_reachable\": true, \"dns_server_reachable\": true, \"dns_service_active\": true, \"dns_resolution_web0\": true, \"web_http_web0\": true, \"cross_pod_web_http\": true, \"host_dhcp_ip\": true, \"dhcp_server_active\": true, \"dhcp_relay_active\": true, \"web_service_active\": true, \"load_balancer_nginx\": true, \"dns_resolution_web99\": true, \"load_balancer_http\": true}, \"det"
+          "verified": true,
+          "scenario_name": "campus_lan",
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          },
+          "details": {
+            "probe_host": "pc_1_1_1_1",
+            "peer_host": "pc_2_1_1_1",
+            "core_router": "router_core_1",
+            "dist_router": "router_dist_1_1"
+          }
         }
       },
       {
         "stage": "baseline_path",
-        "status": "no_evidence",
-        "reason": "artifact_only",
-        "evidence": {}
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          }
+        }
       },
       {
         "stage": "inject_artifact",
@@ -40,21 +92,59 @@
       },
       {
         "stage": "symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "persistent_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "expected_checks": null,
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": false,
+            "gateway_reachable": true,
+            "peer_host_reachable": false,
+            "dns_server_reachable": false,
+            "dns_service_active": true,
+            "dns_resolution_web0": false,
+            "web_http_web0": false,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": false
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "dhcp_spoofed_gateway",
-          "scope": "dhcp_spoofed_gateway"
+          "fault": "dhcp_spoofed_gateway"
         }
       },
       {
@@ -68,12 +158,57 @@
       },
       {
         "stage": "persistence_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "persistent_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "expected_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": false,
+            "gateway_reachable": true,
+            "peer_host_reachable": false,
+            "dns_server_reachable": false,
+            "dns_service_active": true,
+            "dns_resolution_web0": false,
+            "web_http_web0": false,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": false
+          }
         }
       },
       {
@@ -87,19 +222,68 @@
       },
       {
         "stage": "final_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "cross_pod_web_http",
+            "dhcp_server_active",
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "host_dhcp_ip",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "persistent_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "expected_checks": [
+            "dns_resolution_web0",
+            "dns_server_reachable",
+            "host_default_route",
+            "load_balancer_http",
+            "peer_host_reachable",
+            "web_http_web0"
+          ],
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": false,
+            "gateway_reachable": true,
+            "peer_host_reachable": false,
+            "dns_server_reachable": false,
+            "dns_service_active": true,
+            "dns_resolution_web0": false,
+            "web_http_web0": false,
+            "cross_pod_web_http": false,
+            "host_dhcp_ip": false,
+            "dhcp_server_active": false,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": false
+          }
         }
       }
     ],
-    "symptom_probe": "artifact_only"
+    "symptom_probe": "artifact_only",
+    "method_version": 2
   },
-  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
-  "elapsed_sec": 91.1,
+  "diagnosis": "pass",
+  "elapsed_sec": 618.2,
   "error": null,
   "resource_class": "light"
 }

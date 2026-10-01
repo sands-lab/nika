@@ -1,0 +1,268 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "p4_dc_gateway",
+      "topo_size": "m",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "icmp_frag_needed_filter_misconfiguration",
+      "inject": {
+        "host_name": "gateway_1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "p4_dc_gateway",
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          },
+          "details": {
+            "dimensions": {
+              "gateways": 4,
+              "spines": 4,
+              "leaves": 4,
+              "clients": 4,
+              "services": 8
+            },
+            "gateway_spine_links": 16,
+            "spine_leaf_links": 16,
+            "p4runtime": {
+              "gateway_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 17
+              },
+              "gateway_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 17
+              },
+              "gateway_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 17
+              },
+              "gateway_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 17
+              },
+              "spine_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 8,
+                "groups": 8,
+                "members": 8
+              },
+              "spine_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 8,
+                "groups": 8,
+                "members": 8
+              },
+              "spine_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 8,
+                "groups": 8,
+                "members": 8
+              },
+              "spine_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 8,
+                "groups": 8,
+                "members": 8
+              },
+              "leaf_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 6,
+                "groups": 6,
+                "members": 18
+              },
+              "leaf_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 6,
+                "groups": 6,
+                "members": 18
+              },
+              "leaf_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 6,
+                "groups": 6,
+                "members": 18
+              },
+              "leaf_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 6,
+                "groups": 6,
+                "members": 18
+              }
+            },
+            "int_telemetry": {
+              "source": "192.0.2.11",
+              "destination": "10.0.1.11",
+              "candidate_records": 3,
+              "hop_count": 3,
+              "switch_ids": [
+                1,
+                102,
+                201
+              ],
+              "roles_seen": {
+                "gateway": true,
+                "spine": true,
+                "leaf": true
+              },
+              "sink_seen": true,
+              "trace_complete": true
+            }
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          }
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "gateway": "gateway_1",
+          "output": "{\"ok\": true, \"switch\": \"gateway_1\", \"kind\": \"icmp-frag-needed\", \"port\": null, \"value\": null, \"address\": null}"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "fail",
+        "reason": "observation failed",
+        "evidence": {
+          "verified": false,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [],
+          "persistent_checks": [],
+          "expected_checks": null,
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "icmp_frag_needed_filter_misconfiguration"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "gateway": "gateway_1",
+          "output": "{\"ok\": true, \"switch\": \"gateway_1\", \"kind\": \"icmp-frag-needed\", \"port\": null, \"value\": null, \"address\": null}"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "fail",
+        "reason": "observation failed",
+        "evidence": {
+          "verified": false,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [],
+          "persistent_checks": [],
+          "expected_checks": [],
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "gateway": "gateway_1",
+          "output": "{\"ok\": true, \"switch\": \"gateway_1\", \"kind\": \"icmp-frag-needed\", \"port\": null, \"value\": null, \"address\": null}"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "fail",
+        "reason": "observation failed",
+        "evidence": {
+          "verified": false,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [],
+          "persistent_checks": [],
+          "expected_checks": [],
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          }
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only",
+    "method_version": 2
+  },
+  "diagnosis": "verify: scenario health checks did not expose the fault effect",
+  "elapsed_sec": 88.5,
+  "error": null,
+  "resource_class": "light"
+}

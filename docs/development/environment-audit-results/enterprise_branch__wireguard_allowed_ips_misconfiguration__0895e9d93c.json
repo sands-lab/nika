@@ -47,7 +47,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"target_prefix\": \"10.0.20.0/24\", \"hub_tunnel_ip\": \"172.30.0.9\", \"allowed_ips_line\": \"AllowedIPs = 172.30.0.9/32, 10.0.10.0/24, 10.10.10.0/24, 10.10.20.0/24, 10.2.10.0/24\", \"conf_omits_target\": true, \"conf_keeps_tunnel\": true, \"latest_handshakes\": \"09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=\\t1790716685\", \"handshake_ok\": true, \"bgp_established\": true, \"rib\": \"Routing entry for 10.0.20.0/24\\n  Known via \\\"bgp\\\", distance 20, metric 0, best\\n  Last update 00:00:49 ago\\n  Flags: Selected \\n  Status: Installed \\n  * 172.30.0.9, via wg_hq, weight 1\", "
+          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"target_prefix\": \"10.0.20.0/24\", \"hub_tunnel_ip\": \"172.30.0.9\", \"allowed_ips_line\": \"AllowedIPs = 172.30.0.9/32, 10.0.10.0/24, 10.10.10.0/24, 10.10.20.0/24, 10.2.10.0/24\", \"conf_omits_target\": true, \"conf_keeps_tunnel\": true, \"latest_handshakes\": \"09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=\\t1790749831\", \"handshake_ok\": true, \"bgp_established\": true, \"rib\": \"Routing entry for 10.0.20.0/24\\n  Known via \\\"bgp\\\", distance 20, metric 0, best\\n  Last update 00:00:31 ago\\n  Flags: Selected \\n  Status: Installed \\n  * 172.30.0.9, via wg_hq, weight 1\", "
         }
       },
       {
@@ -60,11 +60,10 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "wireguard_allowed_ips_misconfiguration",
-          "scope": "wireguard_allowed_ips_misconfiguration"
+          "fault": "wireguard_allowed_ips_misconfiguration"
         }
       },
       {
@@ -72,7 +71,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"target_prefix\": \"10.0.20.0/24\", \"hub_tunnel_ip\": \"172.30.0.9\", \"allowed_ips_line\": \"AllowedIPs = 172.30.0.9/32, 10.0.10.0/24, 10.10.10.0/24, 10.10.20.0/24, 10.2.10.0/24\", \"conf_omits_target\": true, \"conf_keeps_tunnel\": true, \"latest_handshakes\": \"09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=\\t1790716685\", \"handshake_ok\": true, \"bgp_established\": true, \"rib\": \"Routing entry for 10.0.20.0/24\\n  Known via \\\"bgp\\\", distance 20, metric 0, best\\n  Last update 00:00:52 ago\\n  Flags: Selected \\n  Status: Installed \\n  * 172.30.0.9, via wg_hq, weight 1\", "
+          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"target_prefix\": \"10.0.20.0/24\", \"hub_tunnel_ip\": \"172.30.0.9\", \"allowed_ips_line\": \"AllowedIPs = 172.30.0.9/32, 10.0.10.0/24, 10.10.10.0/24, 10.10.20.0/24, 10.2.10.0/24\", \"conf_omits_target\": true, \"conf_keeps_tunnel\": true, \"latest_handshakes\": \"09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=\\t1790749831\", \"handshake_ok\": true, \"bgp_established\": true, \"rib\": \"Routing entry for 10.0.20.0/24\\n  Known via \\\"bgp\\\", distance 20, metric 0, best\\n  Last update 00:00:34 ago\\n  Flags: Selected \\n  Status: Installed \\n  * 172.30.0.9, via wg_hq, weight 1\", "
         }
       },
       {
@@ -88,7 +87,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"target_prefix\": \"10.0.20.0/24\", \"hub_tunnel_ip\": \"172.30.0.9\", \"allowed_ips_line\": \"AllowedIPs = 172.30.0.9/32, 10.0.10.0/24, 10.10.10.0/24, 10.10.20.0/24, 10.2.10.0/24\", \"conf_omits_target\": true, \"conf_keeps_tunnel\": true, \"latest_handshakes\": \"09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=\\t1790716685\", \"handshake_ok\": true, \"bgp_established\": true, \"rib\": \"Routing entry for 10.0.20.0/24\\n  Known via \\\"bgp\\\", distance 20, metric 0, best\\n  Last update 00:00:53 ago\\n  Flags: Selected \\n  Status: Installed \\n  * 172.30.0.9, via wg_hq, weight 1\", "
+          "summary": "{\"host_name\": \"br1_edge\", \"intf_name\": \"wg_hq\", \"target_prefix\": \"10.0.20.0/24\", \"hub_tunnel_ip\": \"172.30.0.9\", \"allowed_ips_line\": \"AllowedIPs = 172.30.0.9/32, 10.0.10.0/24, 10.10.10.0/24, 10.10.20.0/24, 10.2.10.0/24\", \"conf_omits_target\": true, \"conf_keeps_tunnel\": true, \"latest_handshakes\": \"09xC+mCmgSyePJItfxFJadW+CYzIrQZA/aNelCil3lA=\\t1790749831\", \"handshake_ok\": true, \"bgp_established\": true, \"rib\": \"Routing entry for 10.0.20.0/24\\n  Known via \\\"bgp\\\", distance 20, metric 0, best\\n  Last update 00:00:35 ago\\n  Flags: Selected \\n  Status: Installed \\n  * 172.30.0.9, via wg_hq, weight 1\", "
         }
       },
       {
@@ -102,8 +101,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 70.8,
+  "diagnosis": "pass",
+  "elapsed_sec": 57.9,
   "error": null,
   "resource_class": "light"
 }

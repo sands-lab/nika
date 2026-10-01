@@ -49,7 +49,7 @@
         "reason": null,
         "evidence": {
           "host": "br1_corp_pc",
-          "ip_line": "79737: eth0    inet 10.1.10.2/8 scope global eth0\\       valid_lft forever preferred_lft forever",
+          "ip_line": "91594: eth0    inet 10.1.10.2/8 scope global eth0\\       valid_lft forever preferred_lft forever",
           "expected_prefix": 8,
           "actual_prefix": 8
         }
@@ -64,8 +64,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "host_incorrect_netmask"
         }
@@ -76,7 +76,7 @@
         "reason": null,
         "evidence": {
           "host": "br1_corp_pc",
-          "ip_line": "79737: eth0    inet 10.1.10.2/8 scope global eth0\\       valid_lft forever preferred_lft forever",
+          "ip_line": "91594: eth0    inet 10.1.10.2/8 scope global eth0\\       valid_lft forever preferred_lft forever",
           "expected_prefix": 8,
           "actual_prefix": 8
         }
@@ -95,7 +95,7 @@
         "reason": null,
         "evidence": {
           "host": "br1_corp_pc",
-          "ip_line": "79737: eth0    inet 10.1.10.2/8 scope global eth0\\       valid_lft forever preferred_lft forever",
+          "ip_line": "91594: eth0    inet 10.1.10.2/8 scope global eth0\\       valid_lft forever preferred_lft forever",
           "expected_prefix": 8,
           "actual_prefix": 8
         }
@@ -111,8 +111,8 @@
     ],
     "symptom_probe": "route_get_onlink"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 58.8,
+  "diagnosis": "pass",
+  "elapsed_sec": 58.4,
   "error": null,
   "resource_class": "light"
 }

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from nika.audit.coverage import release_cases
+from nika.audit.coverage import cover_release, release_cases
 from nika.audit.environment import (
     CaseAudit,
     StageResult,
@@ -64,6 +64,38 @@ def test_admission_rejects_gaps() -> None:
     )
     assert audit.admission() == "no_evidence"
     assert admits(audit.admission()) is False
+    audit.stages = [
+        StageResult(stage="baseline_lab", status="pass"),
+        StageResult(stage="baseline_path", status="pass"),
+        StageResult(stage="inject_artifact", status="pass"),
+        StageResult(stage="symptom", status="pass"),
+        StageResult(stage="persistence_artifact", status="pass"),
+        StageResult(stage="persistence_symptom", status="pass"),
+        StageResult(stage="final_artifact", status="pass"),
+        StageResult(stage="final_symptom", status="pass"),
+        StageResult(
+            stage="control_path", status="unsupported", reason="no_control_path"
+        ),
+    ]
+    assert audit.admission() == "pass"
+    audit.stages.pop(0)
+    assert audit.admission() == "no_evidence"
+
+
+def test_changed_symptom_contract_requires_a_new_live_audit() -> None:
+    row = {
+        "scenario": "campus_lan",
+        "problem": "dns_record_error",
+        "symptom_probe": "dns_answer",
+    }
+    old = CaseAudit(
+        identity=identity_from_row(row),
+        symptom_probe="artifact_only",
+        stages=[StageResult(stage="symptom", status="no_evidence")],
+    )
+    assert cover_release([row], [old])[0]["admission"] == "not_run"
+    row["symptom_probe"] = "artifact_only"
+    assert cover_release([row], [old])[0]["admission"] == "not_run"
 
 
 def test_release_report_lists_every_case() -> None:
@@ -81,20 +113,13 @@ def test_release_report_lists_every_case() -> None:
     assert admits("fail") is False
 
 
-def test_audit_plan_covers_every_scenario_and_failure() -> None:
-    from nika.net_env.net_env_pool import list_all_net_envs
-    from nika.problems.registry import list_avail_problem_names
-    from nika.workflows.benchmark.admit import resource_class_for_row
-
+def test_audit_plan_covers_every_release_case() -> None:
     plan = audit_plan()
-    healthy = [row for row in plan if row["problem"] == "healthy"]
-    faults = [row for row in plan if row["problem"] != "healthy"]
-    assert {row["scenario"] for row in healthy} == set(list_all_net_envs())
-    assert {row["problem"] for row in faults} == set(list_avail_problem_names())
-    link_down = next(row for row in faults if row["problem"] == "link_down")
-    assert resource_class_for_row(link_down) == "light"
-    arp = next(row for row in faults if row["problem"] == "arp_cache_poisoning")
-    assert resource_class_for_row(arp) == "light"
+    release = release_cases("0.2.0")
+    assert {identity_from_row(row).key() for row in plan} == {
+        identity_from_row(row).key() for row in release
+    }
+    assert len(plan) == len(release)
 
 
 def test_diagnose_separates_check_from_fault() -> None:
@@ -120,6 +145,7 @@ def test_diagnose_separates_check_from_fault() -> None:
         ),
         stages=[StageResult(stage="audit", status="unsupported", reason="missing")],
     )
+    assert image.admission() == "unsupported"
     assert (
         diagnose(image, "RuntimeError: image not found locally")
         == "verify: the scenario image is not installed on this host"
@@ -130,13 +156,19 @@ def test_diagnose_separates_check_from_fault() -> None:
         ),
         stages=[
             StageResult(stage="baseline_lab", status="pass"),
+            StageResult(stage="baseline_path", status="pass"),
+            StageResult(stage="inject_artifact", status="pass"),
             StageResult(stage="symptom", status="pass"),
+            StageResult(stage="persistence_artifact", status="pass"),
+            StageResult(stage="persistence_symptom", status="pass"),
+            StageResult(stage="final_artifact", status="pass"),
+            StageResult(stage="final_symptom", status="pass"),
             StageResult(
                 stage="control_path", status="unsupported", reason="no_control_path"
             ),
         ],
     )
-    assert "no separate control path" in diagnose(behavioral)
+    assert diagnose(behavioral) == "pass"
 
 
 def test_control_and_baseline_helpers() -> None:

@@ -44,11 +44,12 @@ _INCAST_COLUMNS = frozenset(
 # software at roughly 10 Mbit/s, so a 100mbit egress never queues behind it; the
 # emulated port must drain slower than the switch forwards for bursts to pile up.
 _KERNEL_RATES = ("100mbit", "20M/64")
-# Four senders at 3 Mbit/s exceed the 4 Mbit/s port even when the bursts
-# do not overlap. simple_switch transmits with PACKET_QDISC_BYPASS, so the
+# Python UDP senders sustain about 3–4 Mbit/s through BMv2 on the audit host;
+# a 1 Mbit/s receiver policer therefore keeps dropping throughout the window.
+# simple_switch transmits with PACKET_QDISC_BYPASS, so the
 # switch root qdisc never counts those packets; the receiver ingress police
 # is the queue the symptom reads.
-_BMV2_RATES = ("4mbit", "3M/64")
+_BMV2_RATES = ("1mbit", "3M/64")
 
 
 def tc_size_bytes(value: str) -> int | None:
@@ -83,7 +84,7 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
         default=None,
         description=(
             "Egress port line rate the queue drains at; defaults to 100mbit, or "
-            "4mbit when the forwarding device is a BMv2 switch."
+            "1mbit when the forwarding device is a BMv2 switch."
         ),
     )
     port_burst: str = Field(
@@ -130,6 +131,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         self.scenario_name = scenario_name
         self._senders: list[str] = []
         self._receiver_ip: str | None = None
+        self._burst_pids: dict[str, int] = {}
 
     def root_cause_resources(self, params: IncastTrafficNetworkLimitationParams):
         device, intf = self._egress_port(params)
@@ -211,7 +213,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
                 params.host_name, port_rate, params.port_burst
             )
             self._incast_observe = (params.host_name, "eth0")
-        BurstTrafficGenerator(self.runtime).run(
+        burst = BurstTrafficGenerator(self.runtime).run(
             sources=self._senders,
             destination=params.host_name,
             protocol="udp",
@@ -220,7 +222,9 @@ class IncastTrafficNetworkLimitation(ProblemBase):
             duration=params.duration,
             synchronized_start=time.time() + 2.0,
             seed=params.seed,
+            raw_udp=device in (self.net_env.bmv2_switches or []),
         )
+        self._burst_pids = burst["sender_pids"]
         system_logger.info(
             f"Injected incast: egress {device}:{intf} queue limit "
             f"{params.queue_limit} at {port_rate}; senders {self._senders} "
@@ -254,6 +258,15 @@ class IncastTrafficNetworkLimitation(ProblemBase):
     def _fan_in_senders(
         self, params: IncastTrafficNetworkLimitationParams
     ) -> list[str]:
+        if self._burst_pids:
+            return [
+                host
+                for host, pid in self._burst_pids.items()
+                if self.runtime.exec(
+                    host, f"kill -0 {pid} 2>/dev/null && echo yes || true", timeout=10
+                ).strip()
+                == "yes"
+            ]
         receiver_ip = self._receiver_ip or self._host_ip(params.host_name)
         senders = self._senders or self._sender_pool(params.host_name)
         # ``-[c]`` keeps pgrep from matching the wrapper shell's own command line.
@@ -293,6 +306,11 @@ class IncastTrafficNetworkLimitation(ProblemBase):
     def recover_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:
         """Remove the shallow egress queue and stop the burst senders."""
         device, intf = self._egress_port(params)
+        for host, pid in self._burst_pids.items():
+            try:
+                self.runtime.exec(host, f"kill {pid} 2>/dev/null || true", timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
         senders = self._senders or self._sender_pool(params.host_name)
         for host in [*senders, params.host_name]:
             try:

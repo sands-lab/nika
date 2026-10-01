@@ -53,9 +53,9 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "link_flap": _c("link_flap", "loss", "custom"),
     "link_packet_corruption": _c("link_packet_corruption", "degradation", "custom"),
     "silent_egress_packet_loss": _c(
-        "silent_egress_packet_loss", "gray", "artifact_only"
+        "silent_egress_packet_loss", "gray", "custom", loss_min=1.0
     ),
-    "bgp_asn_misconfig": _c("bgp_asn_misconfig", "control_plane", "artifact_only"),
+    "bgp_asn_misconfig": _c("bgp_asn_misconfig", "control_plane", "control_plane_bgp"),
     "bgp_max_prefix_exceeded": _c(
         "bgp_max_prefix_exceeded", "control_plane", "control_plane_bgp"
     ),
@@ -83,13 +83,13 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "mtu_mismatch": _c("mtu_mismatch", "unreachable", "path_mtu_frag_needed"),
     "arp_acl_block": _c("arp_acl_block", "unreachable", "path_ping"),
     "arp_cache_poisoning": _c("arp_cache_poisoning", "unreachable", "path_ping"),
-    "bgp_acl_block": _c("bgp_acl_block", "control_plane", "artifact_only"),
-    "ospf_acl_block": _c("ospf_acl_block", "control_plane", "artifact_only"),
+    "bgp_acl_block": _c("bgp_acl_block", "control_plane", "control_plane_bgp"),
+    "ospf_acl_block": _c("ospf_acl_block", "control_plane", "control_plane_ospf"),
     "icmp_acl_block": _c("icmp_acl_block", "unreachable", "path_ping"),
     "http_acl_block": _c("http_acl_block", "unreachable", "path_http"),
     "dns_port_blocked": _c("dns_port_blocked", "unreachable", "path_http"),
     "bmv2_switch_down": _c("bmv2_switch_down", "unreachable", "path_http"),
-    "flow_rule_loop": _c("flow_rule_loop", "unreachable", "artifact_only"),
+    "flow_rule_loop": _c("flow_rule_loop", "loss", "custom"),
     "flow_rule_shadowing": _c("flow_rule_shadowing", "unreachable", "artifact_only"),
     "host_static_blackhole": _c("host_static_blackhole", "unreachable", "path_ping"),
     "icmp_frag_needed_filter_misconfiguration": _c(
@@ -125,7 +125,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "int_insufficient_mtu_headroom": _c(
         "int_insufficient_mtu_headroom", "unreachable", "artifact_only"
     ),
-    "vrf_dscp_remarking": _c("vrf_dscp_remarking", "degradation", "artifact_only"),
+    "vrf_dscp_remarking": _c("vrf_dscp_remarking", "degradation", "custom"),
     "wireguard_allowed_ips_misconfiguration": _c(
         "wireguard_allowed_ips_misconfiguration", "unreachable", "path_ping"
     ),
@@ -133,7 +133,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "wireguard_peer_key_misconfiguration", "unreachable", "path_ping"
     ),
     "k8s_clusterip_routing_broken": _c(
-        "k8s_clusterip_routing_broken", "unreachable", "artifact_only"
+        "k8s_clusterip_routing_broken", "unreachable", "custom"
     ),
     "load_balancer_overload": _c("load_balancer_overload", "degradation", "custom"),
     "lb_connection_state_exhaustion": _c(
@@ -156,16 +156,14 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     "sdn_controller_crash": _c(
         "sdn_controller_crash", "none", "artifact_only", control_plane_only=True
     ),
-    "southbound_port_block": _c(
-        "southbound_port_block", "none", "artifact_only", control_plane_only=True
-    ),
+    "southbound_port_block": _c("southbound_port_block", "control_plane", "custom"),
     "southbound_port_mismatch": _c(
-        "southbound_port_mismatch", "none", "artifact_only", control_plane_only=True
+        "southbound_port_mismatch", "control_plane", "custom"
     ),
     "mac_address_conflict": _c("mac_address_conflict", "unreachable", "artifact_only"),
     "dhcp_missing_subnet": _c("dhcp_missing_subnet", "unreachable", "artifact_only"),
     "dhcp_service_down": _c("dhcp_service_down", "unreachable", "artifact_only"),
-    "dns_record_error": _c("dns_record_error", "unreachable", "artifact_only"),
+    "dns_record_error": _c("dns_record_error", "unreachable", "dns_answer"),
     "dns_service_down": _c("dns_service_down", "unreachable", "path_http"),
     "host_incorrect_dns": _c("host_incorrect_dns", "unreachable", "http_by_name"),
     "host_incorrect_gateway": _c("host_incorrect_gateway", "unreachable", "path_ping"),
@@ -188,12 +186,12 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
     ),
     "link_capacity_bottleneck": _c("link_capacity_bottleneck", "degradation", "custom"),
     "tcp_receive_window_limited": _c(
-        "tcp_receive_window_limited", "degradation", "artifact_only"
+        "tcp_receive_window_limited", "degradation", "custom"
     ),
     "p4_ecn_threshold_misconfiguration": _c(
         "p4_ecn_threshold_misconfiguration", "gray", "artifact_only"
     ),
-    "bgp_hijacking": _c("bgp_hijacking", "control_plane", "artifact_only"),
+    "bgp_hijacking": _c("bgp_hijacking", "control_plane", "bgp_hijack_route"),
     "dhcp_spoofed_dns": _c("dhcp_spoofed_dns", "unreachable", "artifact_only"),
     "dhcp_spoofed_gateway": _c("dhcp_spoofed_gateway", "unreachable", "artifact_only"),
     "dhcp_spoofed_subnet": _c("dhcp_spoofed_subnet", "unreachable", "artifact_only"),

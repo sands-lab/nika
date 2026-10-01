@@ -49,10 +49,20 @@
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "link_flap"
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 6.167,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -69,16 +79,15 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"link_flap\", \"probe\": \"link_flap_periodic\", \"symptom_class\": \"loss\", \"path\": {\"src_host\": \"client_1_1\", \"dst_ip\": \"10.0.2.11\"}, \"fault\": {\"host\": \"client_1_1\", \"intf\": \"eth0\"}, \"samples\": [{\"t\": 1790714723.0033073, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790714723.747836, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790714724.4532752, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790714725.2138245, \"ping_ok\": false, \"operstate\": \"up\", \"routi"
+          "summary": "{\"failure\": \"link_flap\", \"probe\": \"link_flap_periodic\", \"symptom_class\": \"loss\", \"path\": {\"src_host\": \"client_1_1\", \"dst_ip\": \"10.0.2.11\"}, \"fault\": {\"host\": \"client_1_1\", \"intf\": \"eth0\"}, \"samples\": [{\"t\": 1790747819.4965274, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790747820.8636723, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790747821.684264, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790747822.5374243, \"ping_ok\": false, \"operstate\": \"up\", \"routing"
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "link_flap",
-          "scope": "link_flap"
+          "fault": "link_flap"
         }
       },
       {
@@ -95,7 +104,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"link_flap\", \"probe\": \"link_flap_periodic\", \"symptom_class\": \"loss\", \"path\": {\"src_host\": \"client_1_1\", \"dst_ip\": \"10.0.2.11\"}, \"fault\": {\"host\": \"client_1_1\", \"intf\": \"eth0\"}, \"samples\": [{\"t\": 1790714740.8923557, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790714741.9102917, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790714742.7477136, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790714743.5342138, \"ping_ok\": false, \"operstate\": \"up\", \"rout"
+          "summary": "{\"failure\": \"link_flap\", \"probe\": \"link_flap_periodic\", \"symptom_class\": \"loss\", \"path\": {\"src_host\": \"client_1_1\", \"dst_ip\": \"10.0.2.11\"}, \"fault\": {\"host\": \"client_1_1\", \"intf\": \"eth0\"}, \"samples\": [{\"t\": 1790747837.2071257, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790747838.0825202, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790747838.8654804, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790747839.6691883, \"ping_ok\": false, \"operstate\": \"up\", \"rout"
         }
       },
       {
@@ -112,14 +121,14 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"link_flap\", \"probe\": \"link_flap_periodic\", \"symptom_class\": \"loss\", \"path\": {\"src_host\": \"client_1_1\", \"dst_ip\": \"10.0.2.11\"}, \"fault\": {\"host\": \"client_1_1\", \"intf\": \"eth0\"}, \"samples\": [{\"t\": 1790714753.3873644, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790714754.2364614, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790714755.0320287, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790714755.831637, \"ping_ok\": false, \"operstate\": \"up\", \"routi"
+          "summary": "{\"failure\": \"link_flap\", \"probe\": \"link_flap_periodic\", \"symptom_class\": \"loss\", \"path\": {\"src_host\": \"client_1_1\", \"dst_ip\": \"10.0.2.11\"}, \"fault\": {\"host\": \"client_1_1\", \"intf\": \"eth0\"}, \"samples\": [{\"t\": 1790747850.1055183, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790747850.9593163, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"up\"}, {\"t\": 1790747851.77152, \"ping_ok\": false, \"operstate\": \"up\", \"routing_ok\": null, \"proxy_operstate\": \"down\"}, {\"t\": 1790747852.572164, \"ping_ok\": false, \"operstate\": \"up\", \"routing_o"
         }
       }
     ],
     "symptom_probe": "custom"
   },
-  "diagnosis": "verify: a recorded stage has no behavioral check",
-  "elapsed_sec": 143.1,
+  "diagnosis": "pass",
+  "elapsed_sec": 157.9,
   "error": null,
   "resource_class": "light"
 }

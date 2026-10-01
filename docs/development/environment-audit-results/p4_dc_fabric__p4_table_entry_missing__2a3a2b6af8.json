@@ -34,7 +34,7 @@
           "loss_percent": null,
           "rtt_avg_ms": null,
           "rtt_mdev_ms": null,
-          "http_time_ms": 18.738999999999997,
+          "http_time_ms": 24.961000000000002,
           "mtu_blackhole": null,
           "mtu_frag_needed": null,
           "control_plane_ok": null,
@@ -108,7 +108,8 @@
         "status": "unsupported",
         "reason": "no_control_path",
         "evidence": {
-          "fault": "p4_table_entry_missing"
+          "fault": "p4_table_entry_missing",
+          "scope": "p4_table_entry_missing"
         }
       },
       {
@@ -237,7 +238,7 @@
     "symptom_probe": "path_http"
   },
   "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 125.9,
+  "elapsed_sec": 126.8,
   "error": null,
   "resource_class": "light"
 }

@@ -47,10 +47,20 @@
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "web_dos_attack"
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 4.644,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -62,7 +72,7 @@
           "target_ip": "10.0.2.11",
           "workers": 12,
           "ab_processes": 12,
-          "target_connections": 836,
+          "target_connections": 886,
           "slow_client_running": true,
           "process_state": "workers='12' ab='12'",
           "attack_ready": true
@@ -73,16 +83,15 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 6.446000000000001, \"p95_ms\": 53.597, \"samples_ms\": [4.77, 7.182, 6.446000000000001, 53.597, 5.621], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 2403.279, \"p95_ms\": 3603.5409999999997, \"samples_ms\": [2403.279, 1412.885, 2466.275, 1443.9470000000001, 3603.5409999999997], \"h"
+          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 4.226, \"p95_ms\": 5.168, \"samples_ms\": [5.168, 4.226, 3.7889999999999997, 4.655, 3.291], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 1043.8149999999998, \"p95_ms\": 3452.543, \"samples_ms\": [3452.543, 1043.8149999999998, 2333.032, 1001.607, 960.615], \"http_codes\": [\"200\", \"20"
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "web_dos_attack",
-          "scope": "web_dos_attack"
+          "fault": "web_dos_attack"
         }
       },
       {
@@ -94,7 +103,7 @@
           "target_ip": "10.0.2.11",
           "workers": 12,
           "ab_processes": 12,
-          "target_connections": 1544,
+          "target_connections": 1423,
           "slow_client_running": true,
           "process_state": "workers='12' ab='12'",
           "attack_ready": true
@@ -105,7 +114,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 6.446000000000001, \"p95_ms\": 53.597, \"samples_ms\": [4.77, 7.182, 6.446000000000001, 53.597, 5.621], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 871.529, \"p95_ms\": 2096.484, \"samples_ms\": [1405.023, 2096.484, 871.529, 732.5, 699.7560000000001], \"http_codes\": [\"200\", \"200\","
+          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 4.226, \"p95_ms\": 5.168, \"samples_ms\": [5.168, 4.226, 3.7889999999999997, 4.655, 3.291], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 737.0649999999999, \"p95_ms\": 745.177, \"samples_ms\": [727.924, 740.9780000000001, 737.0649999999999, 736.03, 745.177], \"http_codes\": [\"200\", "
         }
       },
       {
@@ -117,7 +126,7 @@
           "target_ip": "10.0.2.11",
           "workers": 12,
           "ab_processes": 12,
-          "target_connections": 1552,
+          "target_connections": 1430,
           "slow_client_running": true,
           "process_state": "workers='12' ab='12'",
           "attack_ready": true
@@ -128,14 +137,14 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 6.446000000000001, \"p95_ms\": 53.597, \"samples_ms\": [4.77, 7.182, 6.446000000000001, 53.597, 5.621], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 1725.19, \"p95_ms\": 2750.646, \"samples_ms\": [716.97, 2750.646, 1766.6360000000002, 764.1139999999999, 1725.19], \"http_codes\": [\"2"
+          "summary": "{\"verified\": true, \"fault_type\": \"web_dos_attack\", \"details\": {\"baseline\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 5, \"error_rate\": 0.0, \"median_ms\": 4.226, \"p95_ms\": 5.168, \"samples_ms\": [5.168, 4.226, 3.7889999999999997, 4.655, 3.291], \"http_codes\": [\"200\", \"200\", \"200\", \"200\", \"200\"]}, \"after\": {\"observer\": \"client_1_1\", \"url\": \"http://10.0.2.11/\", \"attempts\": 5, \"successes\": 4, \"error_rate\": 0.19999999999999996, \"median_ms\": 721.9915000000001, \"p95_ms\": 750.285, \"samples_ms\": [750.285, 731.912, 712.071, 706.073], \"http_codes\": [\"000\", \"200\", \"200\""
         }
       }
     ],
     "symptom_probe": "custom"
   },
-  "diagnosis": "verify: a recorded stage has no behavioral check",
-  "elapsed_sec": 120.8,
+  "diagnosis": "pass",
+  "elapsed_sec": 110.9,
   "error": null,
   "resource_class": "light"
 }

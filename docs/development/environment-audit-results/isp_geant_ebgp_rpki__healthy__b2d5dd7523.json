@@ -32,7 +32,7 @@
     "symptom_probe": ""
   },
   "diagnosis": "verify: verify_lab failed on rpki_rtr_connected; the other lab checks passed",
-  "elapsed_sec": 179.3,
+  "elapsed_sec": 177.1,
   "error": null,
   "resource_class": "light"
 }

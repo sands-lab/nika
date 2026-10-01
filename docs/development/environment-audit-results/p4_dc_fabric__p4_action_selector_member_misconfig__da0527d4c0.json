@@ -1,0 +1,347 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "p4_dc_fabric",
+      "topo_size": "m",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "p4_action_selector_member_misconfig",
+      "inject": {
+        "host_name": "leaf_1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "p4_dc_fabric",
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          },
+          "details": {
+            "p4runtime": {
+              "leaf_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 11,
+                "groups": 11,
+                "members": 32
+              },
+              "leaf_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 11,
+                "groups": 11,
+                "members": 32
+              },
+              "spine_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 8,
+                "groups": 8,
+                "members": 8
+              }
+            },
+            "ecmp": {
+              "before": {
+                "spine_1": 0,
+                "spine_2": 0,
+                "spine_3": 0,
+                "spine_4": 0
+              },
+              "after": {
+                "spine_1": 24,
+                "spine_2": 24,
+                "spine_3": 0,
+                "spine_4": 0
+              },
+              "deltas": {
+                "spine_1": 24,
+                "spine_2": 24,
+                "spine_3": 0,
+                "spine_4": 0
+              },
+              "used": [
+                "spine_1",
+                "spine_2"
+              ]
+            },
+            "intent_pipeline": {
+              "name": "fabric",
+              "ipv4_lpm_size": 256,
+              "ecmp_fanout": 4
+            }
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "leaf_1",
+          "member": {
+            "member_id": 5,
+            "src_mac": "02:00:b0:01:04:01",
+            "dst_mac": "02:00:a0:01:00:01",
+            "port": 31
+          },
+          "target": {
+            "prefix": "10.0.2.0/24",
+            "group_id": 102,
+            "member_id": 5,
+            "peer": "spine_1",
+            "port": 31,
+            "result": {
+              "ok": true,
+              "member": {
+                "member_id": 5,
+                "src_mac": "02:00:b0:01:04:01",
+                "dst_mac": "02:00:a0:01:00:01",
+                "port": 31
+              },
+              "expected_port": 31,
+              "expected_dst_mac": "02:00:a0:01:00:01"
+            }
+          }
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "persistent_checks": [
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "expected_checks": null,
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": false,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": false,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "p4_action_selector_member_misconfig"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "leaf_1",
+          "member": {
+            "member_id": 5,
+            "src_mac": "02:00:b0:01:04:01",
+            "dst_mac": "02:00:a0:01:00:01",
+            "port": 31
+          },
+          "target": {
+            "prefix": "10.0.2.0/24",
+            "group_id": 102,
+            "member_id": 5,
+            "peer": "spine_1",
+            "port": 31,
+            "result": {
+              "ok": true,
+              "member": {
+                "member_id": 5,
+                "src_mac": "02:00:b0:01:04:01",
+                "dst_mac": "02:00:a0:01:00:01",
+                "port": 31
+              },
+              "expected_port": 31,
+              "expected_dst_mac": "02:00:a0:01:00:01"
+            }
+          }
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "cross_rack_http",
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "persistent_checks": [
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "expected_checks": [
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": false,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": false,
+            "ecmp_multi_path": false,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "leaf_1",
+          "member": {
+            "member_id": 5,
+            "src_mac": "02:00:b0:01:04:01",
+            "dst_mac": "02:00:a0:01:00:01",
+            "port": 31
+          },
+          "target": {
+            "prefix": "10.0.2.0/24",
+            "group_id": 102,
+            "member_id": 5,
+            "peer": "spine_1",
+            "port": 31,
+            "result": {
+              "ok": true,
+              "member": {
+                "member_id": 5,
+                "src_mac": "02:00:b0:01:04:01",
+                "dst_mac": "02:00:a0:01:00:01",
+                "port": 31
+              },
+              "expected_port": 31,
+              "expected_dst_mac": "02:00:a0:01:00:01"
+            }
+          }
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "cross_rack_http",
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "persistent_checks": [
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "expected_checks": [
+            "ecmp_multi_path",
+            "p4runtime_consistent"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": false,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": false,
+            "ecmp_multi_path": false,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 277.1,
+  "error": null,
+  "resource_class": "light"
+}

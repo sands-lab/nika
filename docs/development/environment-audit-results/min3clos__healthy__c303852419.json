@@ -1,0 +1,66 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "min3clos",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "healthy",
+      "inject": {}
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "min3clos",
+          "checks": {
+            "nodes_deployed": true,
+            "client1_link_up": true,
+            "client1_ipv4": true,
+            "leaf1_bgp_neighbors": true,
+            "client_gateway_reachable": true,
+            "cross_leaf_client_reachable": true
+          },
+          "details": {
+            "probe_client": "client1",
+            "peer_client": "client2",
+            "probe_leaf": "leaf1"
+          }
+        }
+      },
+      {
+        "stage": "final_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "min3clos",
+          "checks": {
+            "nodes_deployed": true,
+            "client1_link_up": true,
+            "client1_ipv4": true,
+            "leaf1_bgp_neighbors": true,
+            "client_gateway_reachable": true,
+            "cross_leaf_client_reachable": true
+          },
+          "details": {
+            "probe_client": "client1",
+            "peer_client": "client2",
+            "probe_leaf": "leaf1"
+          }
+        }
+      }
+    ],
+    "symptom_probe": ""
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 90.4,
+  "error": null,
+  "resource_class": "clab"
+}

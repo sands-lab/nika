@@ -1,17 +1,16 @@
-"""Run one full Docker audit for every scenario and every failure.
+"""Run one full Docker audit for every release case.
 
-Light labs may run while other light labs are up. Exclusive labs
-(Containerlab, Kubernetes, XRd, topo size ``l``) wait until this host has
-no containers. Each audit closes only the session it started.
+Light labs may run concurrently. Containerlab, Kubernetes, XRd, and topo
+size ``l`` audits run one at a time within this matrix. Each audit closes
+only the session it started.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import multiprocessing
-import os
-import subprocess
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -20,14 +19,11 @@ from typing import Any
 
 from nika.audit.environment import CaseAudit, StageResult, identity_from_row
 from nika.net_env.net_env_pool import (
-    list_all_net_envs,
-    parse_column,
     scenario_fixed_topo_size,
-    scenario_requires_topo_size,
 )
-from nika.problems.registry import compatible_columns, list_avail_problem_names
 from nika.workflows.benchmark.admit import resource_class_for_row
 from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.utils.session_artifacts import write_json_atomic
 
 from tests.audit.live import audit_case, declared_probe
 from tests.audit.report_doc import RESULTS_DIR
@@ -62,15 +58,6 @@ def effective_class(row: dict[str, Any]) -> str:
     return resource_class_for_row(enriched)
 
 
-def _rank(row: dict[str, Any]) -> tuple:
-    cls = effective_class(row)
-    exclusive = 0 if cls == "light" else 1
-    backend = 0 if str(row.get("backend") or "kathara") == "kathara" else 1
-    size = str(row.get("topo_size") or "")
-    size_rank = {"s": 0, "": 1, "m": 2, "l": 3}.get(size, 4)
-    return (exclusive, backend, size_rank, str(row.get("scenario") or ""))
-
-
 def _copy_row(row: dict[str, Any]) -> dict[str, Any]:
     copied = {key: row[key] for key in _ROW_KEYS if key in row and row[key] is not None}
     copied["scenario"] = str(row["scenario"])
@@ -80,88 +67,17 @@ def _copy_row(row: dict[str, Any]) -> dict[str, Any]:
     return copied
 
 
-def _light_column_row(problem: str) -> dict[str, Any] | None:
-    from nika.workflows.benchmark.inject_resolve import resolve_inject_params
-
-    for column in compatible_columns(problem):
-        scenario, config = parse_column(column)
-        row: dict[str, Any] = {"scenario": scenario, "problem": problem}
-        if scenario_requires_topo_size(scenario):
-            row["topo_size"] = "s"
-        spec = list_all_net_envs().get(scenario)
-        if spec is not None and "kathara" in spec.supported_backends:
-            row["backend"] = "kathara"
-        elif spec is not None and spec.supported_backends:
-            row["backend"] = spec.supported_backends[0]
-        if config == "isis":
-            row["igp"] = "isis"
-        elif config == "ospf":
-            row["igp"] = "ospf"
-        elif config == "ibgp_rr":
-            row["bgp_mode"] = "ibgp_rr"
-        elif config == "ebgp":
-            row["bgp_mode"] = "ebgp"
-        if effective_class(row) != "light":
-            continue
-        isp = {
-            key: row[key]
-            for key in ("igp", "bgp_mode", "rpki", "backend", "device_profile")
-            if key in row
-        }
-        row["inject"] = resolve_inject_params(
-            problem,
-            scenario,
-            str(row.get("topo_size") or ""),
-            seed=1,
-            isp_options=isp or None,
-        )
-        return row
-    return None
-
-
-def _healthy_row(scenario: str) -> dict[str, Any]:
-    matches = [
-        row
-        for row in _release_rows()
-        if row.get("scenario") == scenario and row.get("problem") == "healthy"
-    ]
-    spec = list_all_net_envs()[scenario]
-    if matches:
-        row = _copy_row(sorted(matches, key=_rank)[0])
-    else:
-        row = {"scenario": scenario, "problem": "healthy"}
-        if scenario_requires_topo_size(scenario):
-            row["topo_size"] = "s"
-        if "kathara" in spec.supported_backends:
-            row["backend"] = "kathara"
-        elif spec.supported_backends:
-            row["backend"] = spec.supported_backends[0]
-    if row.get("backend") == "containerlab" and "kathara" in spec.supported_backends:
-        row["backend"] = "kathara"
-        row.pop("device_profile", None)
-    return row
-
-
-def _failure_row(problem: str) -> dict[str, Any]:
-    matches = [row for row in _release_rows() if row.get("problem") == problem]
-    light = [row for row in matches if effective_class(row) == "light"]
-    if light:
-        return _copy_row(sorted(light, key=_rank)[0])
-    synthetic = _light_column_row(problem)
-    if synthetic is not None:
-        return synthetic
-    if matches:
-        return _copy_row(sorted(matches, key=_rank)[0])
-    cols = compatible_columns(problem)
-    scenario = parse_column(cols[0])[0] if cols else ""
-    return {"scenario": scenario, "problem": problem}
-
-
 def audit_plan() -> list[dict[str, Any]]:
-    """One healthy row per scenario, then one row per failure."""
-    scenarios = [_healthy_row(name) for name in sorted(list_all_net_envs())]
-    failures = [_failure_row(name) for name in sorted(list_avail_problem_names())]
-    return scenarios + failures
+    """Return each concrete case from the frozen release exactly once."""
+    rows = [_copy_row(row) for row in _release_rows()]
+    seen: set[tuple[str, ...]] = set()
+    plan: list[dict[str, Any]] = []
+    for row in rows:
+        key = identity_from_row(row).key()
+        if key not in seen:
+            seen.add(key)
+            plan.append(row)
+    return plan
 
 
 def result_path(row: dict[str, Any]) -> Path:
@@ -171,9 +87,21 @@ def result_path(row: dict[str, Any]) -> Path:
     return RESULTS_DIR / f"{identity.scenario}__{identity.fault}__{digest}.json"
 
 
-def _container_count() -> int:
-    output = subprocess.check_output(["docker", "ps", "-q"], text=True)
-    return len([line for line in output.splitlines() if line.strip()])
+def result_current(row: dict[str, Any]) -> bool:
+    """True when a stored run used the currently declared symptom probe."""
+    path = result_path(row)
+    if not path.is_file():
+        return False
+    record = json.loads(path.read_text(encoding="utf-8"))
+    audit = CaseAudit.model_validate(record["audit"])
+    probe = (
+        ""
+        if is_healthy_case(str(row["problem"]))
+        else declared_probe(str(row["problem"]))
+    )
+    return audit.symptom_probe == probe and (
+        probe != "artifact_only" or audit.method_version >= 2
+    )
 
 
 def _available_gib() -> float:
@@ -183,66 +111,14 @@ def _available_gib() -> float:
     return 0.0
 
 
-_EXTRA_LOCK = Path("/tmp/nika-env-audit-extra.lock")
-
-
-def _lock_holder_alive(path: Path) -> bool:
-    try:
-        pid = int(path.read_text(encoding="utf-8").strip() or "0")
-    except (OSError, ValueError):
-        return False
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
-
-
-def _try_extra_lock() -> bool:
-    """Allow one light lab beside an existing benchmark lab."""
-    try:
-        fd = os.open(_EXTRA_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError:
-        if _lock_holder_alive(_EXTRA_LOCK):
-            return False
-        _EXTRA_LOCK.unlink(missing_ok=True)
-        return _try_extra_lock()
-    os.write(fd, str(os.getpid()).encode())
-    os.close(fd)
-    return True
-
-
-def _release_extra_lock() -> None:
-    if not _EXTRA_LOCK.is_file():
-        return
-    try:
-        holder = int(_EXTRA_LOCK.read_text(encoding="utf-8").strip() or "0")
-    except (OSError, ValueError):
-        return
-    if holder == os.getpid():
-        _EXTRA_LOCK.unlink(missing_ok=True)
-
-
 def wait_for_slot(row: dict[str, Any]) -> None:
-    """Wait until this host can take ``row`` without stacking an exclusive lab."""
-    exclusive = effective_class(row) != "light"
+    """Keep a memory floor while allowing other NIKA workloads to run."""
     while True:
-        count = _container_count()
         memory = _available_gib()
-        if exclusive:
-            if count == 0 and memory >= 8:
-                return
-            # One exclusive lab can share the host with a running benchmark
-            # when memory still covers it. The extra lock keeps a second
-            # exclusive lab from starting.
-            if memory >= 12 and count < 80 and _try_extra_lock():
-                return
-        elif memory >= 8 and count < 40:
-            return
-        elif memory >= 8 and count < 160 and _try_extra_lock():
+        if memory >= 8:
             return
         print(
-            f"waiting containers={count} memory={memory:.1f}GiB exclusive={exclusive}",
+            f"waiting memory={memory:.1f}GiB scenario={row['scenario']}",
             flush=True,
         )
         time.sleep(20)
@@ -253,8 +129,13 @@ def _shrink(audit: CaseAudit) -> dict[str, Any]:
     for stage in data.get("stages") or []:
         evidence = stage.get("evidence") or {}
         blob = json.dumps(evidence, default=str)
-        if len(blob) > 600:
-            stage["evidence"] = {"summary": blob[:600]}
+        if len(blob) > 4000:
+            details = evidence.get("details") or {}
+            stage["evidence"] = {
+                "checks": evidence.get("checks"),
+                "bgp_prefix_probes": details.get("bgp_prefix_probes"),
+                "summary": blob[:4000],
+            }
     return data
 
 
@@ -327,18 +208,37 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
     if symptom_failed:
         blob = " ".join(_evidence_text(stage) for stage in symptom_failed)
         passed = any(stage.status == "pass" for stage in symptom_stages)
+        if audit.symptom_probe == "artifact_only":
+            if by_stage.get("symptom") and by_stage["symptom"].status == "fail":
+                return "verify: scenario health checks did not expose the fault effect"
+            return "case: the observed scenario health regression did not persist"
         if '"drops_delta": 0' in blob:
             return "case: the incast probe saw no queue-drop increase on the recorded egress"
         if '"nginx_saturated": false' in blob:
             return "case: nginx CPU stayed under the saturation ratio after inject"
         if "throughput_ratio" in blob:
             return "case: receiver throughput stayed near the healthy rate after inject"
-        if '"ping_loss_percent": 0' in blob and passed:
+        if (
+            audit.identity.fault
+            in {
+                "link_packet_corruption",
+                "device_forwarding_packet_corruption",
+            }
+            and '"ping_loss_percent": 0' in blob
+            and passed
+        ):
             return (
                 "case: the corruption artifact stayed attached; "
                 "some samples saw no ping loss"
             )
-        if '"ping_loss_percent": 0' in blob:
+        if (
+            audit.identity.fault
+            in {
+                "link_packet_corruption",
+                "device_forwarding_packet_corruption",
+            }
+            and '"ping_loss_percent": 0' in blob
+        ):
             return "case: the corruption artifact stayed attached and the samples saw no ping loss"
         return "case: the symptom probe did not observe the network effect"
     if artifact_only:
@@ -370,6 +270,7 @@ def _failed_audit(row: dict[str, Any], message: str) -> CaseAudit:
             StageResult(stage="audit", status=status, reason=message[:500]),
         ],
         symptom_probe=probe,
+        method_version=2,
     )
 
 
@@ -386,8 +287,6 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 - one case must not stop the matrix
         error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
         audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
-    finally:
-        _release_extra_lock()
     return {
         "audit": _shrink(audit),
         "diagnosis": diagnose(audit, None if error is None else error),
@@ -400,7 +299,7 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
 def _store(row: dict[str, Any], record: dict[str, Any]) -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     path = result_path(row)
-    path.write_text(json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8")
+    write_json_atomic(path, record)
     audit = CaseAudit.model_validate(record["audit"])
     print(
         f"{audit.identity.scenario} {audit.identity.fault} "
@@ -409,9 +308,30 @@ def _store(row: dict[str, Any], record: dict[str, Any]) -> None:
     )
 
 
-def run_matrix(*, jobs: int = 2) -> None:
-    """Audit every planned row. Finished result files are left in place."""
-    pending = [row for row in audit_plan() if not result_path(row).is_file()]
+def run_matrix(
+    *,
+    jobs: int = 2,
+    retry_failed: bool = False,
+    scenario: str | None = None,
+    fault: str | None = None,
+    resource_class: str | None = None,
+) -> None:
+    """Audit missing cases, or also rerun recorded non-passing cases."""
+    pending: list[dict[str, Any]] = []
+    for row in audit_plan():
+        if scenario and row["scenario"] != scenario:
+            continue
+        if fault and row["problem"] != fault:
+            continue
+        if resource_class and effective_class(row) != resource_class:
+            continue
+        path = result_path(row)
+        if not result_current(row):
+            pending.append(row)
+        elif retry_failed:
+            record = json.loads(path.read_text(encoding="utf-8"))
+            if CaseAudit.model_validate(record["audit"]).admission() != "pass":
+                pending.append(row)
     light = [row for row in pending if effective_class(row) == "light"]
     heavy = [row for row in pending if effective_class(row) != "light"]
     _run_group(light, jobs=max(1, jobs))
@@ -444,3 +364,20 @@ def _run_group(rows: list[dict[str, Any]], *, jobs: int) -> None:
                     "resource_class": effective_class(row),
                 }
             _store(row, record)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Audit every benchmark release case")
+    parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--retry-failed", action="store_true")
+    parser.add_argument("--scenario")
+    parser.add_argument("--fault")
+    parser.add_argument("--resource-class", choices=("light", "large", "k8s", "clab"))
+    args = parser.parse_args()
+    run_matrix(
+        jobs=args.jobs,
+        retry_failed=args.retry_failed,
+        scenario=args.scenario,
+        fault=args.fault,
+        resource_class=args.resource_class,
+    )

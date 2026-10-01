@@ -34,7 +34,7 @@
           "loss_percent": null,
           "rtt_avg_ms": null,
           "rtt_mdev_ms": null,
-          "http_time_ms": 9.914,
+          "http_time_ms": 9.359,
           "mtu_blackhole": null,
           "mtu_frag_needed": null,
           "control_plane_ok": null,
@@ -49,7 +49,7 @@
         "evidence": {
           "host": "dns_pod0",
           "intf": "eth0",
-          "tc_output": "qdisc netem 833a: root refcnt 2 limit 1000 delay 1s seed 4098695677654566365"
+          "tc_output": "qdisc netem 8489: root refcnt 2 limit 1000 delay 1s seed 18142717667941838036"
         }
       },
       {
@@ -57,13 +57,13 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"dns_lookup_latency\", \"probe\": \"http_by_name\", \"symptom_class\": \"latency\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": true, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": 1009.8180000000001, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"compariso"
+          "summary": "{\"failure\": \"dns_lookup_latency\", \"probe\": \"http_by_name\", \"symptom_class\": \"latency\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": true, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": 1010.667, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expe"
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "dns_lookup_latency"
         }
@@ -75,7 +75,7 @@
         "evidence": {
           "host": "dns_pod0",
           "intf": "eth0",
-          "tc_output": "qdisc netem 833a: root refcnt 2 limit 1000 delay 1s seed 4098695677654566365"
+          "tc_output": "qdisc netem 8489: root refcnt 2 limit 1000 delay 1s seed 18142717667941838036"
         }
       },
       {
@@ -83,7 +83,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"dns_lookup_latency\", \"probe\": \"http_by_name\", \"symptom_class\": \"latency\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": true, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": 1011.261, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expe"
+          "summary": "{\"failure\": \"dns_lookup_latency\", \"probe\": \"http_by_name\", \"symptom_class\": \"latency\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": true, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": 1010.842, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expe"
         }
       },
       {
@@ -93,7 +93,7 @@
         "evidence": {
           "host": "dns_pod0",
           "intf": "eth0",
-          "tc_output": "qdisc netem 833a: root refcnt 2 limit 1000 delay 1s seed 4098695677654566365"
+          "tc_output": "qdisc netem 8489: root refcnt 2 limit 1000 delay 1s seed 18142717667941838036"
         }
       },
       {
@@ -101,14 +101,14 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"dns_lookup_latency\", \"probe\": \"http_by_name\", \"symptom_class\": \"latency\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": true, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": 1011.034, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expe"
+          "summary": "{\"failure\": \"dns_lookup_latency\", \"probe\": \"http_by_name\", \"symptom_class\": \"latency\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": true, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": 1010.839, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"expe"
         }
       }
     ],
     "symptom_probe": "http_by_name"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 26.8,
+  "diagnosis": "pass",
+  "elapsed_sec": 27.4,
   "error": null,
   "resource_class": "light"
 }

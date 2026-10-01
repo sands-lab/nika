@@ -88,10 +88,10 @@ def verify_isp_srl_lab(
         checks["bgp_prefixes_originated"] = _bgp_prefixes_originated_ok(
             runtime, bgp_plan
         )
-        checks["bgp_prefixes_propagated"] = _bgp_prefixes_propagated_ok(
-            runtime, bgp_plan
-        )
+        propagated, prefix_probes = _bgp_prefixes_propagated_ok(runtime, bgp_plan)
+        checks["bgp_prefixes_propagated"] = propagated
         details["bgp"] = bgp_plan.inventory
+        details["bgp_prefix_probes"] = prefix_probes
     return build_lab_verify_result(
         scenario_name=scenario_name,
         verified=all(checks.values()),
@@ -304,12 +304,24 @@ def _srl_bgp_prefix_ok(runtime: LabRuntime, device: str, prefix: str) -> bool:
     return network in output or prefix in output
 
 
-def _bgp_prefixes_propagated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
+def _bgp_prefixes_propagated_ok(
+    runtime: LabRuntime, bgp_plan: BgpPlan
+) -> tuple[bool, list[dict[str, Any]]]:
     ping_by_prefix = {o.prefix: o.ping_address for o in bgp_plan.originated}
+    probes: list[dict[str, Any]] = []
     for observer, prefix in bgp_plan.expect_reachable:
-        if not _srl_bgp_prefix_ok(runtime, observer, prefix):
-            return False
+        route_present = _srl_bgp_prefix_ok(runtime, observer, prefix)
         target = ping_by_prefix.get(prefix)
-        if target and not _srl_ping_ok(runtime, observer, target):
-            return False
-    return True
+        ping_reachable = _srl_ping_ok(runtime, observer, target) if target else None
+        probes.append(
+            {
+                "observer": observer,
+                "prefix": prefix,
+                "route_present": route_present,
+                "ping_reachable": ping_reachable,
+            }
+        )
+    return all(
+        probe["route_present"] and probe["ping_reachable"] is not False
+        for probe in probes
+    ), probes

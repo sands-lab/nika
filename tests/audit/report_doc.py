@@ -69,6 +69,7 @@ def render_environment_audit_doc(
     if audits is None:
         audits = [CaseAudit.model_validate(item["audit"]) for item in (stored or [])]
     rows = release_cases(version)
+    release_keys = {identity_from_row(row).key() for row in rows}
     for row in rows:
         row["symptom_probe"] = (
             ""
@@ -100,6 +101,7 @@ def render_environment_audit_doc(
         "The recheck reads that worker, queue, or quota on the injected instance.",
         "",
         "Run the full audit through `audit_case` in `tests/audit/live.py`.",
+        "To audit all release cases, run `uv run python -m tests.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.",
         "Benchmark runs stay on `startup_verify_lab`, `verify_fault`, and `PresenceWatch`.",
         "For one selected case, `audit_case` deploys a lab and runs `verify_lab` plus a healthy probe of the fault path before inject.",
         "After inject it runs `verify_fault`, the symptom probe, and a control-path observation.",
@@ -107,14 +109,17 @@ def render_environment_audit_doc(
         "After that wait, `audit_case` reads the artifact and the symptom probe again.",
         "Those two reads run once more before `audit_case` undeploys the session it created.",
         "A case with fault `healthy` runs `verify_lab` before the window and again before cleanup.",
+        "For faults without a targeted symptom probe, the full audit compares the scenario's health checks before and after injection and requires the same regression to persist.",
+        "When a symptom probe changes, its older result is treated as `not_run` until the case is audited again.",
         "",
         "## Admission",
         "",
         "A case is admitted only when `admission` is `pass`.",
+        "A separate control path is recorded when one exists. `no_control_path` is advisory; a failed control path still fails admission.",
         "",
         "| Status | Meaning |",
         "| --- | --- |",
-        "| `pass` | Every recorded stage observed the expected condition. |",
+        "| `pass` | Every required stage observed the expected condition. An unavailable sibling control path is advisory. |",
         "| `fail` | A stage ran and the observation failed. |",
         "| `skipped` | The audit ran and skipped the stage. |",
         "| `unsupported` | This fault has no behavioral check for the stage. `reason` names the scope. |",
@@ -136,7 +141,7 @@ def render_environment_audit_doc(
         f"Release {version} has {counts['cases']} cases ({_split_counts(covered)}).",
         f"Admitted cases: {counts['admitted']}.",
         f"{probes.get('artifact_only', 0)} cases declare an `artifact_only` symptom probe.",
-        "A full audit records `no_evidence` for that symptom stage.",
+        "Their full audit uses a scenario health-check delta; a check that stays healthy does not prove fault effect.",
         "",
         "| Status | Cases |",
         "| --- | --- |",
@@ -155,7 +160,25 @@ def render_environment_audit_doc(
     for probe, count in sorted(probes.items()):
         label = probe or "healthy"
         lines.append(f"| `{label}` | {count} |")
-    lines.extend(_executed_section(stored or []))
+    lines.extend(
+        _executed_section(
+            [
+                item
+                for item in (stored or [])
+                if identity_from_row(item["audit"]["identity"]).key() in release_keys
+                and (item["audit"].get("symptom_probe") or "")
+                == (
+                    ""
+                    if item["audit"]["identity"].get("fault") == "healthy"
+                    else declared_probe(item["audit"]["identity"]["fault"])
+                )
+                and (
+                    item["audit"].get("symptom_probe") != "artifact_only"
+                    or item["audit"].get("method_version", 1) >= 2
+                )
+            ]
+        )
+    )
     lines.extend(["", "## Cases", ""])
     by_scenario: dict[str, list[dict]] = {}
     for item in covered:
@@ -166,8 +189,8 @@ def render_environment_audit_doc(
             [
                 f"### `{scenario}`",
                 "",
-                "| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission | Evidence |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in items:
@@ -175,6 +198,13 @@ def render_environment_audit_doc(
             backend = identity.backend or "scenario default"
             scale = identity.topo_size or "none"
             probe = item["symptom_probe"] or "healthy"
+            evidence = "—"
+            if item["admission"] != "not_run":
+                from tests.audit.matrix import result_path
+
+                path = result_path(identity.model_dump())
+                if path.is_file():
+                    evidence = f"[JSON](environment-audit-results/{path.name})"
             lines.append(
                 "| "
                 + " | ".join(
@@ -188,6 +218,7 @@ def render_environment_audit_doc(
                         _inject(identity),
                         probe,
                         str(item["admission"]),
+                        evidence,
                     )
                 )
                 + " |"
@@ -200,11 +231,11 @@ def render_environment_audit_doc(
 
 def _pending_rows() -> list[dict]:
     from nika.net_env.net_env_pool import _NET_ENV_SPECS
-    from tests.audit.matrix import audit_plan, result_path
+    from tests.audit.matrix import audit_plan, result_current
 
     pending: list[dict] = []
     for row in audit_plan():
-        if result_path(row).is_file():
+        if result_current(row):
             continue
         spec = _NET_ENV_SPECS.get(str(row.get("scenario") or ""))
         module = getattr(spec, "module", "")
@@ -217,11 +248,13 @@ def _pending_rows() -> list[dict]:
 
 
 def _executed_section(records: list[dict]) -> list[str]:
+    from tests.audit.matrix import diagnose
+
     lines = [
         "",
         "## Executed audits",
         "",
-        "Each row is one live `audit_case` run: one healthy lab per scenario, and one fault case per failure.",
+        "Each row is one live `audit_case` run for a concrete case identity.",
         "The release table below changes only when that run has the same scenario, scale, backend, design, fault, and inject parameters.",
         "",
         "A diagnosis that starts with `verify` names the check or the host prerequisite.",
@@ -238,13 +271,12 @@ def _executed_section(records: list[dict]) -> list[str]:
             "| --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
     )
-    parsed = [
-        (
-            CaseAudit.model_validate(item["audit"]),
-            str(item.get("diagnosis") or ""),
+    parsed = []
+    for item in records:
+        audit = CaseAudit.model_validate(item["audit"])
+        parsed.append(
+            (audit, diagnose(audit, str(item["error"]) if item.get("error") else None))
         )
-        for item in records
-    ]
     parsed.sort(key=lambda item: (item[0].identity.scenario, item[0].identity.fault))
     for audit, diagnosis in parsed:
         identity = audit.identity
@@ -326,7 +358,7 @@ def _pending_section() -> list[str]:
         lines.append("")
         return lines
     lines.append(
-        "These rows are exclusive labs. The runner starts one when the host has no other containers."
+        "The runner schedules these cases by resource class and host capacity."
     )
     lines.append("")
     lines.extend(

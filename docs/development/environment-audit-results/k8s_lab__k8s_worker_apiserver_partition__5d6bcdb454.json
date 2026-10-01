@@ -1,0 +1,216 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "k8s_lab",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "k8s_worker_apiserver_partition",
+      "inject": {
+        "control_node": "controller",
+        "node_name": "worker1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "k8s_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          },
+          "details": {
+            "ingress_ip": "101.0.0.1",
+            "ready_nodes": 6,
+            "word_url": "http://datacenter.com/word"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          }
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_device": "worker1",
+          "k8s_node": "worker1",
+          "apiserver_address": "201.1.1.2",
+          "apiserver_addresses": [
+            "201.1.1.2"
+          ],
+          "apiserver_port": 6443,
+          "blocked_specs": [
+            "201.1.1.2 tcp:6443"
+          ],
+          "unfiltered": [],
+          "node_ready": false,
+          "node_condition_source": {
+            "name": "worker1",
+            "ready": false,
+            "schedulable": true,
+            "internal_ip": "201.1.2.2"
+          },
+          "pods_on_node": 5,
+          "pods_running_on_node": 4,
+          "logs_probe_pod": "ingress-nginx/ingress-nginx-controller-65cbb84994-cx8lv",
+          "kubectl_logs_blocked": true,
+          "apiserver_port_reachable": false,
+          "apiserver_port_reachable_by_address": {
+            "201.1.1.2": false
+          },
+          "node_still_pingable": true,
+          "k8s_objects": [
+            "Node/worker1"
+          ],
+          "control_node": "controller",
+          "poll_attempts": 4,
+          "waited_sec": 66.4
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "k3s_nodes_ready"
+          ],
+          "persistent_checks": [
+            "k3s_nodes_ready"
+          ],
+          "expected_checks": null,
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": false,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "k8s_worker_apiserver_partition"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_device": "worker1",
+          "unfiltered": []
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "k3s_nodes_ready"
+          ],
+          "persistent_checks": [
+            "k3s_nodes_ready"
+          ],
+          "expected_checks": [
+            "k3s_nodes_ready"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": false,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_device": "worker1",
+          "unfiltered": []
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "k3s_nodes_ready"
+          ],
+          "persistent_checks": [
+            "k3s_nodes_ready"
+          ],
+          "expected_checks": [
+            "k3s_nodes_ready"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "worker3_reachable": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": false,
+            "ingress_vip_allocated": true,
+            "leaf_bgp_established": true,
+            "word_app_http": true
+          }
+        }
+      }
+    ],
+    "symptom_probe": "artifact_only",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 441.0,
+  "error": null,
+  "resource_class": "k8s"
+}

@@ -60,8 +60,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "ospf_neighbor_missing"
         }
@@ -105,8 +105,8 @@
     ],
     "symptom_probe": "control_plane_ospf"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 90.0,
+  "diagnosis": "pass",
+  "elapsed_sec": 93.3,
   "error": null,
   "resource_class": "light"
 }

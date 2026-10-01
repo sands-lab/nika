@@ -39,6 +39,19 @@ def cover_release(
     for row in rows:
         identity = identity_from_row(row)
         audit = by_key.get(identity.key())
+        declared_probe = str(row.get("symptom_probe") or "")
+        if (
+            audit is not None
+            and declared_probe
+            and audit.symptom_probe != declared_probe
+        ):
+            audit = None
+        if (
+            audit is not None
+            and declared_probe == "artifact_only"
+            and audit.method_version < 2
+        ):
+            audit = None
         if audit is None:
             status = "not_run"
             stages: list[dict[str, Any]] = []

@@ -235,7 +235,16 @@ class SemanticOpsMixin:
         output = self.exec_cmd(
             node, f"pgrep -a {quoted} 2>/dev/null || echo NONE"
         ).strip()
-        return output != "NONE" and process_name in output
+        # Some runtimes return a timeout message containing the command text.
+        # Require a pgrep PID line rather than matching the process name in
+        # that diagnostic string.
+        return any(
+            (parts := line.split(maxsplit=1))[0].isdigit()
+            and len(parts) == 2
+            and process_name in parts[1]
+            for line in output.splitlines()
+            if line.split()
+        )
 
     def process_not_running(self: SupportsExec, node: str, process_name: str) -> bool:
         return not self.process_running(node, process_name)

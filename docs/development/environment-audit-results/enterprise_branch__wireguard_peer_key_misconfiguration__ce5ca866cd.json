@@ -59,11 +59,10 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "wireguard_peer_key_misconfiguration",
-          "scope": "wireguard_peer_key_misconfiguration"
+          "fault": "wireguard_peer_key_misconfiguration"
         }
       },
       {
@@ -101,8 +100,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 51.7,
+  "diagnosis": "pass",
+  "elapsed_sec": 39.0,
   "error": null,
   "resource_class": "light"
 }

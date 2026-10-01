@@ -20,14 +20,105 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"p4_dc_gateway\", \"checks\": {\"nodes\": true, \"bmv2\": true, \"p4runtime\": true, \"client_to_service_http\": true, \"collector_process\": true, \"int_telemetry\": true}, \"details\": {\"dimensions\": {\"gateways\": 2, \"spines\": 2, \"leaves\": 2, \"clients\": 2, \"services\": 4}, \"gateway_spine_links\": 4, \"spine_leaf_links\": 4, \"p4runtime\": {\"gateway_1\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 3, \"groups\": 3, \"members\": 5}, \"gateway_2\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 3, \"groups\": 3, \"members\": 5}, \"spine_1\": {\"pipeline_ok\": true, \"mismatches\": [], \""
+          "verified": true,
+          "scenario_name": "p4_dc_gateway",
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          },
+          "details": {
+            "dimensions": {
+              "gateways": 2,
+              "spines": 2,
+              "leaves": 2,
+              "clients": 2,
+              "services": 4
+            },
+            "gateway_spine_links": 4,
+            "spine_leaf_links": 4,
+            "p4runtime": {
+              "gateway_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 3,
+                "groups": 3,
+                "members": 5
+              },
+              "gateway_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 3,
+                "groups": 3,
+                "members": 5
+              },
+              "spine_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 4,
+                "groups": 4,
+                "members": 4
+              },
+              "spine_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 4,
+                "groups": 4,
+                "members": 4
+              },
+              "leaf_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 4,
+                "groups": 4,
+                "members": 6
+              },
+              "leaf_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 4,
+                "groups": 4,
+                "members": 6
+              }
+            },
+            "int_telemetry": {
+              "source": "192.0.2.11",
+              "destination": "10.0.1.11",
+              "candidate_records": 3,
+              "hop_count": 3,
+              "switch_ids": [
+                1,
+                102,
+                201
+              ],
+              "roles_seen": {
+                "gateway": true,
+                "spine": true,
+                "leaf": true
+              },
+              "sink_seen": true,
+              "trace_complete": true
+            }
+          }
         }
       },
       {
         "stage": "baseline_path",
-        "status": "no_evidence",
-        "reason": "artifact_only",
-        "evidence": {}
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          }
+        }
       },
       {
         "stage": "inject_artifact",
@@ -42,21 +133,31 @@
       },
       {
         "stage": "symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "fail",
+        "reason": "observation failed",
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": false,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [],
+          "persistent_checks": [],
+          "expected_checks": null,
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "mac_address_conflict",
-          "scope": "mac_address_conflict"
+          "fault": "mac_address_conflict"
         }
       },
       {
@@ -72,12 +173,22 @@
       },
       {
         "stage": "persistence_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "fail",
+        "reason": "observation failed",
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": false,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [],
+          "persistent_checks": [],
+          "expected_checks": [],
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          }
         }
       },
       {
@@ -93,19 +204,30 @@
       },
       {
         "stage": "final_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "fail",
+        "reason": "observation failed",
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": false,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [],
+          "persistent_checks": [],
+          "expected_checks": [],
+          "checks": {
+            "nodes": true,
+            "bmv2": true,
+            "p4runtime": true,
+            "client_to_service_http": true,
+            "collector_process": true,
+            "int_telemetry": true
+          }
         }
       }
     ],
-    "symptom_probe": "artifact_only"
+    "symptom_probe": "artifact_only",
+    "method_version": 2
   },
-  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
-  "elapsed_sec": 55.8,
+  "diagnosis": "verify: scenario health checks did not expose the fault effect",
+  "elapsed_sec": 98.7,
   "error": null,
   "resource_class": "light"
 }

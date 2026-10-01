@@ -65,8 +65,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "p4runtime_pipeline_mismatch"
         }
@@ -120,8 +120,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 97.2,
+  "diagnosis": "pass",
+  "elapsed_sec": 99.0,
   "error": null,
   "resource_class": "light"
 }

@@ -20,15 +20,70 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"dc_clos\", \"checks\": {\"nodes_deployed\": true, \"super_spine_bgp_established\": true, \"client_ipv4\": true, \"dns_reachable\": true, \"web_reachable\": true, \"dns_service_active\": true, \"web_http\": true}, \"details\": {\"nodes\": [\"super_spine_router_0\", \"spine_router_0_0\", \"leaf_router_0_0\", \"dns_pod0\", \"webserver0_pod0\", \"client_0\"], \"bgp_router\": \"super_spine_router_0\", \"client_ipv4\": {\"host\": \"client_0\", \"address\": \"192.168.0.2\"}, \"ping\": [{\"host\": \"client_0\", \"target\": \"10.0.0.2\", \"role\": \"dns\"}, {\"host\": \"client_0\", \"target\": \"10.0.1.2\", \"role\": \"web\"}], \"http\": {"
+          "verified": true,
+          "scenario_name": "dc_clos",
+          "checks": {
+            "nodes_deployed": true,
+            "super_spine_bgp_established": true,
+            "client_ipv4": true,
+            "dns_reachable": true,
+            "web_reachable": true,
+            "dns_service_active": true,
+            "web_http": true
+          },
+          "details": {
+            "nodes": [
+              "super_spine_router_0",
+              "spine_router_0_0",
+              "leaf_router_0_0",
+              "dns_pod0",
+              "webserver0_pod0",
+              "client_0"
+            ],
+            "bgp_router": "super_spine_router_0",
+            "client_ipv4": {
+              "host": "client_0",
+              "address": "192.168.0.2"
+            },
+            "ping": [
+              {
+                "host": "client_0",
+                "target": "10.0.0.2",
+                "role": "dns"
+              },
+              {
+                "host": "client_0",
+                "target": "10.0.1.2",
+                "role": "web"
+              }
+            ],
+            "http": {
+              "host": "client_0",
+              "url": "http://web0.pod0/"
+            },
+            "service": {
+              "host": "dns_pod0",
+              "unit": "named"
+            }
+          }
         }
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "receiver_resource_contention"
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 9.657,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -37,7 +92,7 @@
         "reason": null,
         "evidence": {
           "host": "client_0",
-          "pgrep_output": "[TIMEOUT] Command '/bin/bash -c 'pgrep -a stress-ng 2>/dev/null || echo NONE'' on 'client_0' exceeded 10.0s.",
+          "pgrep_output": "132 stress-ng --cpu 8 --cpu-load 100 --timeout 600\n139 stress-ng-cpu [run]\n140 stress-ng-cpu [run]\n141 stress-ng-cpu [run]\n142 stress-ng-cpu [run]\n143 stress-ng-cpu [run]\n144 stress-ng-cpu [run]\n145 stress-ng-cpu [run]\n146 stress-ng-cpu [run]",
           "stress_running": true
         }
       },
@@ -52,22 +107,22 @@
             "host": "client_0",
             "large_url": "http://web0.pod0/large.bin",
             "perf_ok": false,
-            "baseline_throughput_bps": 38567780.67428955,
-            "baseline_time_s": 3.480048,
-            "injected_throughput_bps": 41962277.28172763,
-            "injected_time_s": 3.1985330000000003,
-            "throughput_ratio": 1.0880137915143495,
-            "time_ratio": 0.9191060008367702
-          }
+            "baseline_throughput_bps": 31030288.682283957,
+            "baseline_time_s": 4.325378,
+            "injected_throughput_bps": 18391220.29771754,
+            "injected_time_s": 7.297924,
+            "throughput_ratio": 0.5926860844262011,
+            "time_ratio": 1.6872338093919192
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "receiver_resource_contention",
-          "scope": "receiver_resource_contention"
+          "fault": "receiver_resource_contention"
         }
       },
       {
@@ -76,7 +131,7 @@
         "reason": null,
         "evidence": {
           "host": "client_0",
-          "pgrep_output": "118 stress-ng --cpu 8 --cpu-load 100 --timeout 600\n120 stress-ng-cpu [run]\n121 stress-ng-cpu [run]\n122 stress-ng-cpu [run]\n123 stress-ng-cpu [run]\n124 stress-ng-cpu [run]\n125 stress-ng-cpu [run]\n126 stress-ng-cpu [run]\n128 stress-ng-cpu [run]",
+          "pgrep_output": "132 stress-ng --cpu 8 --cpu-load 100 --timeout 600\n139 stress-ng-cpu [run]\n140 stress-ng-cpu [run]\n141 stress-ng-cpu [run]\n142 stress-ng-cpu [run]\n143 stress-ng-cpu [run]\n144 stress-ng-cpu [run]\n145 stress-ng-cpu [run]\n146 stress-ng-cpu [run]",
           "stress_running": true
         }
       },
@@ -91,12 +146,12 @@
             "host": "client_0",
             "large_url": "http://web0.pod0/large.bin",
             "perf_ok": false,
-            "baseline_throughput_bps": 38567780.67428955,
-            "baseline_time_s": 3.480048,
-            "injected_throughput_bps": 41950577.99448338,
-            "injected_time_s": 3.199425,
-            "throughput_ratio": 1.08771044797112,
-            "time_ratio": 0.9193623191404257
+            "baseline_throughput_bps": 31030288.682283957,
+            "baseline_time_s": 4.325378,
+            "injected_throughput_bps": 23143569.291264042,
+            "injected_time_s": 5.799353,
+            "throughput_ratio": 0.7458380271040579,
+            "time_ratio": 1.3407736849819831
           }
         }
       },
@@ -106,7 +161,7 @@
         "reason": null,
         "evidence": {
           "host": "client_0",
-          "pgrep_output": "118 stress-ng --cpu 8 --cpu-load 100 --timeout 600\n120 stress-ng-cpu [run]\n121 stress-ng-cpu [run]\n122 stress-ng-cpu [run]\n123 stress-ng-cpu [run]\n124 stress-ng-cpu [run]\n125 stress-ng-cpu [run]\n126 stress-ng-cpu [run]\n128 stress-ng-cpu [run]",
+          "pgrep_output": "132 stress-ng --cpu 8 --cpu-load 100 --timeout 600\n139 stress-ng-cpu [run]\n140 stress-ng-cpu [run]\n141 stress-ng-cpu [run]\n142 stress-ng-cpu [run]\n143 stress-ng-cpu [run]\n144 stress-ng-cpu [run]\n145 stress-ng-cpu [run]\n146 stress-ng-cpu [run]",
           "stress_running": true
         }
       },
@@ -121,20 +176,21 @@
             "host": "client_0",
             "large_url": "http://web0.pod0/large.bin",
             "perf_ok": false,
-            "baseline_throughput_bps": 38567780.67428955,
-            "baseline_time_s": 3.480048,
-            "injected_throughput_bps": 40747087.51451917,
-            "injected_time_s": 3.293922,
-            "throughput_ratio": 1.056505891760643,
-            "time_ratio": 0.9465162549482076
+            "baseline_throughput_bps": 31030288.682283957,
+            "baseline_time_s": 4.325378,
+            "injected_throughput_bps": 15610646.07791289,
+            "injected_time_s": 8.597833,
+            "throughput_ratio": 0.5030776941119931,
+            "time_ratio": 1.9877645375733635
           }
         }
       }
     ],
-    "symptom_probe": "custom"
+    "symptom_probe": "custom",
+    "method_version": 2
   },
   "diagnosis": "case: receiver throughput stayed near the healthy rate after inject",
-  "elapsed_sec": 137.2,
+  "elapsed_sec": 210.1,
   "error": null,
   "resource_class": "light"
 }

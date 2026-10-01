@@ -19,14 +19,119 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"p4_dc_fabric\", \"checks\": {\"nodes_deployed\": true, \"bmv2_grpc_ready\": true, \"control_network\": true, \"interfaces_up\": true, \"intent_present\": true, \"p4runtime_consistent\": true, \"same_rack_ping\": true, \"cross_rack_ping\": true, \"multi_rack_ping\": true, \"cross_rack_http\": true, \"ecmp_multi_path\": true, \"web_1_ipv4\": true, \"web_1_gateway_neigh\": true, \"client_1_1_ipv4\": true, \"client_1_1_gateway_neigh\": true}, \"details\": {\"p4runtime\": {\"spine_1\": {\"pipeline_ok\": true, \"mismatches\": [], \"ipv4_lpm\": 4, \"groups\": 4, \"members\": 4}, \"spine_2\": {\"pipeline_ok\": true, "
+          "verified": true,
+          "scenario_name": "p4_dc_fabric",
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          },
+          "details": {
+            "p4runtime": {
+              "spine_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 4,
+                "groups": 4,
+                "members": 4
+              },
+              "spine_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 4,
+                "groups": 4,
+                "members": 4
+              },
+              "leaf_1": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 8
+              },
+              "leaf_2": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 8
+              },
+              "leaf_3": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 8
+              },
+              "leaf_4": {
+                "pipeline_ok": true,
+                "mismatches": [],
+                "ipv4_lpm": 5,
+                "groups": 5,
+                "members": 8
+              }
+            },
+            "ecmp": {
+              "before": {
+                "spine_1": 0,
+                "spine_2": 0
+              },
+              "after": {
+                "spine_1": 24,
+                "spine_2": 24
+              },
+              "deltas": {
+                "spine_1": 24,
+                "spine_2": 24
+              },
+              "used": [
+                "spine_1",
+                "spine_2"
+              ]
+            },
+            "intent_pipeline": {
+              "name": "fabric",
+              "ipv4_lpm_size": 256,
+              "ecmp_fanout": 2
+            }
+          }
         }
       },
       {
         "stage": "baseline_path",
-        "status": "no_evidence",
-        "reason": "artifact_only",
-        "evidence": {}
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
+        }
       },
       {
         "stage": "inject_artifact",
@@ -46,21 +151,44 @@
       },
       {
         "stage": "symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "p4runtime_consistent"
+          ],
+          "persistent_checks": [
+            "p4runtime_consistent"
+          ],
+          "expected_checks": null,
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": false,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "p4_table_resource_exhaustion",
-          "scope": "p4_table_resource_exhaustion"
+          "fault": "p4_table_resource_exhaustion"
         }
       },
       {
@@ -81,12 +209,37 @@
       },
       {
         "stage": "persistence_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "p4runtime_consistent"
+          ],
+          "persistent_checks": [
+            "p4runtime_consistent"
+          ],
+          "expected_checks": [
+            "p4runtime_consistent"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": false,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
         }
       },
       {
@@ -107,19 +260,45 @@
       },
       {
         "stage": "final_symptom",
-        "status": "no_evidence",
-        "reason": "artifact_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "artifact_only",
-          "symptom_class": "unreachable"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "p4runtime_consistent"
+          ],
+          "persistent_checks": [
+            "p4runtime_consistent"
+          ],
+          "expected_checks": [
+            "p4runtime_consistent"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "bmv2_grpc_ready": true,
+            "control_network": true,
+            "interfaces_up": true,
+            "intent_present": true,
+            "p4runtime_consistent": false,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "multi_rack_ping": true,
+            "cross_rack_http": true,
+            "ecmp_multi_path": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
         }
       }
     ],
-    "symptom_probe": "artifact_only"
+    "symptom_probe": "artifact_only",
+    "method_version": 2
   },
-  "diagnosis": "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
-  "elapsed_sec": 84.4,
+  "diagnosis": "pass",
+  "elapsed_sec": 302.9,
   "error": null,
   "resource_class": "light"
 }

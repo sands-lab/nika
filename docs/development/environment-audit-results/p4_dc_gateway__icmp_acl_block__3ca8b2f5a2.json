@@ -24,10 +24,10 @@
       },
       {
         "stage": "baseline_path",
-        "status": "fail",
-        "reason": "target path was not healthy before inject",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "ping_ok": false,
+          "ping_ok": true,
           "http_ok": null,
           "loss_percent": null,
           "rtt_avg_ms": null,
@@ -62,8 +62,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "icmp_acl_block"
         }
@@ -111,8 +111,8 @@
     ],
     "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: path_ping was already down before inject",
-  "elapsed_sec": 65.9,
+  "diagnosis": "pass",
+  "elapsed_sec": 68.0,
   "error": null,
   "resource_class": "light"
 }

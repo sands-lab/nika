@@ -44,9 +44,28 @@
       },
       {
         "stage": "baseline_path",
-        "status": "no_evidence",
-        "reason": "artifact_only",
-        "evidence": {}
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "checks": {
+            "nodes_deployed": true,
+            "onos_link_up": true,
+            "onos_process": true,
+            "ovs_switches_ready": true,
+            "of_sessions": true,
+            "virtual_gateway_mac": true,
+            "no_stp_or_normal": true,
+            "ecmp_groups": true,
+            "controller_dataplane_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "cross_rack_http": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
+        }
       },
       {
         "stage": "inject_artifact",
@@ -59,21 +78,45 @@
       },
       {
         "stage": "symptom",
-        "status": "unsupported",
-        "reason": "control_plane_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "control_plane_only",
-          "symptom_class": "none"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "of_sessions"
+          ],
+          "persistent_checks": [
+            "of_sessions"
+          ],
+          "expected_checks": null,
+          "checks": {
+            "nodes_deployed": true,
+            "onos_link_up": true,
+            "onos_process": true,
+            "ovs_switches_ready": true,
+            "of_sessions": false,
+            "virtual_gateway_mac": true,
+            "no_stp_or_normal": true,
+            "ecmp_groups": true,
+            "controller_dataplane_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "cross_rack_http": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "sdn_controller_crash",
-          "scope": "sdn_controller_crash"
+          "fault": "sdn_controller_crash"
         }
       },
       {
@@ -87,12 +130,38 @@
       },
       {
         "stage": "persistence_symptom",
-        "status": "unsupported",
-        "reason": "control_plane_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "control_plane_only",
-          "symptom_class": "none"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "of_sessions"
+          ],
+          "persistent_checks": [
+            "of_sessions"
+          ],
+          "expected_checks": [
+            "of_sessions"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "onos_link_up": true,
+            "onos_process": true,
+            "ovs_switches_ready": true,
+            "of_sessions": false,
+            "virtual_gateway_mac": true,
+            "no_stp_or_normal": true,
+            "ecmp_groups": true,
+            "controller_dataplane_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "cross_rack_http": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
         }
       },
       {
@@ -106,19 +175,46 @@
       },
       {
         "stage": "final_symptom",
-        "status": "unsupported",
-        "reason": "control_plane_only",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "skipped": true,
-          "reason": "control_plane_only",
-          "symptom_class": "none"
+          "verified": true,
+          "probe": "scenario_health_delta",
+          "regressed_checks": [
+            "of_sessions"
+          ],
+          "persistent_checks": [
+            "of_sessions"
+          ],
+          "expected_checks": [
+            "of_sessions"
+          ],
+          "checks": {
+            "nodes_deployed": true,
+            "onos_link_up": true,
+            "onos_process": true,
+            "ovs_switches_ready": true,
+            "of_sessions": false,
+            "virtual_gateway_mac": true,
+            "no_stp_or_normal": true,
+            "ecmp_groups": true,
+            "controller_dataplane_consistent": true,
+            "same_rack_ping": true,
+            "cross_rack_ping": true,
+            "cross_rack_http": true,
+            "web_1_ipv4": true,
+            "web_1_gateway_neigh": true,
+            "client_1_1_ipv4": true,
+            "client_1_1_gateway_neigh": true
+          }
         }
       }
     ],
-    "symptom_probe": "artifact_only"
+    "symptom_probe": "artifact_only",
+    "method_version": 2
   },
-  "diagnosis": "verify: the symptom contract is control_plane_only, so this run has no data-plane observation",
-  "elapsed_sec": 119.4,
+  "diagnosis": "pass",
+  "elapsed_sec": 186.5,
   "error": null,
   "resource_class": "light"
 }

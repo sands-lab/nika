@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
+import json
+import shlex
 import time
 from typing import Any
 
-from nika.net_env.verify import http_download_stats, ping_stats
+from nika.net_env.verify import http_download_stats, iperf_throughput_bps, ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.support.ab_helpers import ab_summary_to_dict
 from tests.support.symptom.flap_probes import evaluate_link_flap_symptom
@@ -18,14 +20,10 @@ from tests.support.symptom.corruption_probes import (
 from nika.problems.service_networking.load_balancer import (
     _BACKEND_CPU_MAX_RATIO,
     _BACKEND_LOCAL_URL,
-    _CONTROL_ABS_P95_MAX_MS,
-    _CONTROL_P95_BASELINE_MAX_RATIO,
     _CONTROL_VS_VIP_MAX_RATIO,
     _MAX_LOSS_PERCENT as _LB_MAX_LOSS_PERCENT,
     _MIN_ERROR_COUNT_FOR_DEGRADATION,
     _NGINX_CPU_MIN_RATIO,
-    _RTT_ABS_MAX_MS,
-    _RTT_MAX_RATIO as _LB_RTT_MAX_RATIO,
     _VIP_PING_HOST,
     _VIP_TAIL_MIN_RATIO,
 )
@@ -231,17 +229,8 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
     control_ok = (
         control.p95_ms is not None
         and control.error_count == 0
-        and (
-            (
-                control_p95_ratio is not None
-                and control_p95_ratio <= _CONTROL_P95_BASELINE_MAX_RATIO
-            )
-            or (
-                control.p95_ms <= _CONTROL_ABS_P95_MAX_MS
-                and vip.p95_ms is not None
-                and control.p95_ms <= vip.p95_ms * _CONTROL_VS_VIP_MAX_RATIO
-            )
-        )
+        and vip.p95_ms is not None
+        and control.p95_ms <= vip.p95_ms * _CONTROL_VS_VIP_MAX_RATIO
     )
     base_backend_local_time = baseline.get("backend_local_time_s")
     backend_local_time_ratio = None
@@ -264,11 +253,8 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
         and ping.loss_percent <= _LB_MAX_LOSS_PERCENT
         and nginx_running
     )
-    if ping.rtt_avg_ms is not None:
-        rtt_ok = ping.rtt_avg_ms <= _RTT_ABS_MAX_MS
-        if base_rtt is not None and base_rtt > 0:
-            rtt_ok = rtt_ok or ping.rtt_avg_ms <= base_rtt * _LB_RTT_MAX_RATIO
-        path_ok = path_ok and rtt_ok
+    # ICMP replies come from the CPU-limited VIP host itself. Its RTT is an
+    # endpoint load signal, not an independent fabric-path health gate.
 
     verified = bool(
         nginx_saturated and vip_degraded and control_ok and backend_ok and path_ok
@@ -412,11 +398,284 @@ def _receiver_resource_contention(
     return verified, result
 
 
+def _tcp_receive_window_limited(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import primary_ipv4
+
+    receiver_ip = primary_ipv4(problem.runtime, params.host_name)
+    baseline_bps = getattr(problem, "_healthy_throughput_bps", None)
+    current_bps = (
+        iperf_throughput_bps(
+            problem.runtime,
+            params.sender_host,
+            params.host_name,
+            receiver_ip,
+            duration_sec=3,
+        )
+        if receiver_ip
+        else None
+    )
+    small = http_download_stats(
+        problem.runtime, params.host_name, params.small_url, max_time_sec=30
+    )
+    ping = ping_stats(
+        problem.runtime, params.host_name, params.sender_ip, count=5, interval_sec=0.2
+    )
+    ratio = (
+        current_bps / baseline_bps if current_bps is not None and baseline_bps else None
+    )
+    path_ok = small.ok and ping.loss_percent < 5.0
+    verified = bool(path_ok and ratio is not None and ratio < 0.5)
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "receiver": params.host_name,
+            "receiver_ip": receiver_ip,
+            "small_http_ok": small.ok,
+            "ping_loss_percent": ping.loss_percent,
+            "healthy_throughput_bps": baseline_bps,
+            "current_throughput_bps": current_bps,
+            "throughput_ratio": ratio,
+            "path_ok": path_ok,
+        },
+    )
+
+
+def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    observed = problem.verify_fault(params)
+    details = observed.get("details") if isinstance(observed, dict) else {}
+    details = details if isinstance(details, dict) else {}
+    smoke = details.get("smoke") if isinstance(details.get("smoke"), dict) else {}
+    verified = bool(
+        details.get("samples_confirm")
+        and details.get("perf_degraded")
+        and smoke
+        and all(smoke.values())
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details=details,
+    )
+
+
+def _southbound_disconnected(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    model = getattr(problem.net_env, "model", None)
+    switches = list(getattr(model, "leaves", []) or []) + list(
+        getattr(model, "spines", []) or []
+    )
+    states: dict[str, bool] = {}
+    deadline = time.monotonic() + 90.0
+    while time.monotonic() < deadline:
+        states = {}
+        for switch in switches:
+            output = problem.runtime.exec(
+                switch,
+                "ovs-vsctl --format=csv --no-headings --columns=is_connected "
+                "list Controller 2>/dev/null || true",
+                timeout=10,
+            ).strip()
+            states[switch] = "true" in output.lower()
+        if states and not any(states.values()):
+            break
+        time.sleep(2.0)
+    disconnected = sorted(name for name, connected in states.items() if not connected)
+    verified = bool(states) and len(disconnected) == len(states)
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={"switch_connected": states, "disconnected": disconnected},
+    )
+
+
+def _clusterip_routing_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    result = problem.verify_fault(params)
+    details = result.get("details") or {}
+    verified = (
+        bool(result.get("verified"))
+        and details.get("clusterip_reachable") is False
+        and details.get("backend_reachable") is True
+        and details.get("service_object_intact") is True
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details=details,
+    )
+
+
+def _silent_egress_packet_loss(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    """Send distinct UDP flows through the selected egress and count arrivals."""
+    model = problem.net_env.model
+    clients = [client.name for client in model.clients[:2]]
+    if len(clients) < 2:
+        return False, {"error": "missing_p4_loss_probe_endpoints"}
+
+    def egress_packets() -> int | None:
+        raw = problem.runtime.exec(
+            "fabric_mgr",
+            "python3 /opt/nika/p4rt_manager.py counters "
+            f"--switch {shlex.quote(params.host_name)}",
+            timeout=30,
+        )
+        counters = json.loads(raw).get("counters", {}).get(params.host_name, {})
+        port = counters.get("egress", {}).get(str(params.bmv2_port), {})
+        return port.get("packets")
+
+    service = getattr(problem, "_audit_loss_target", None)
+    if service is None:
+        selector_script = (
+            "import socket\n"
+            "for index in range(64):\n"
+            "  sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
+            "  sock.bind(('0.0.0.0',28000+index))\n"
+            "  sock.sendto(b'route-probe',(TARGET,19408))\n"
+            "  sock.close()\n"
+        )
+        for candidate in model.services:
+            before_select = egress_packets() or 0
+            problem.runtime.exec(
+                clients[0],
+                f"python3 -c {shlex.quote('TARGET=' + repr(candidate.ip) + '\n' + selector_script)}",
+                timeout=10,
+            )
+            if (egress_packets() or 0) > before_select:
+                service = candidate
+                break
+        if service is None:
+            return False, {"error": "no_traffic_selected_the_injected_egress"}
+        problem._audit_loss_target = service
+
+    # ICMP has zero selector ports and can hash every packet to another spine.
+    # Each datagram gets a distinct UDP source port, covering the configured
+    # ECMP member without changing the fault's 2% drop threshold.
+    log_path = "/tmp/nika-audit-udp-loss.log"
+    if not getattr(problem, "_audit_loss_server_started", False):
+        server_script = (
+            "import socket\n"
+            "sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
+            "sock.bind(('0.0.0.0',19407))\n"
+            f"log=open({log_path!r},'a',buffering=1)\n"
+            "while True:\n"
+            "  data,_=sock.recvfrom(2048)\n"
+            "  log.write(data.decode('ascii')+'\\n')\n"
+        )
+        problem.runtime.exec(
+            service.name,
+            f"nohup python3 -u -c {shlex.quote(server_script)} "
+            ">/tmp/nika-audit-udp-loss-server.log 2>&1 </dev/null &",
+            timeout=10,
+        )
+        problem._audit_loss_server_started = True
+        time.sleep(0.5)
+
+    def sample(source: str, label: str) -> dict[str, int]:
+        sender_script = (
+            "import socket,time\n"
+            "for index in range(2048):\n"
+            "  sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
+            "  sock.bind(('0.0.0.0',30000+index))\n"
+            f"  sock.sendto(f'{label}:{{index}}'.encode(),({service.ip!r},19407))\n"
+            "  sock.close()\n"
+            "  time.sleep(0.01)\n"
+        )
+        problem.runtime.exec(
+            source, f"python3 -c {shlex.quote(sender_script)}", timeout=20
+        )
+        time.sleep(1.0)
+        output = problem.runtime.exec(
+            service.name,
+            f"grep -c '^{label}:' {log_path} 2>/dev/null || true",
+            timeout=10,
+        ).strip()
+        return {"sent": 2048, "replies": int(output.splitlines()[-1])}
+
+    before = egress_packets()
+    label = str(time.monotonic_ns())
+    affected = sample(clients[0], f"a{label}")
+    after = egress_packets()
+    control = sample(clients[1], f"c{label}")
+    loss = 100 * (affected["sent"] - affected["replies"]) / affected["sent"]
+    control_loss = 100 * (control["sent"] - control["replies"]) / control["sent"]
+    port_used = before is not None and after is not None and after > before
+    verified = port_used and 0.2 <= loss <= 15.0 and control_loss <= 0.2
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "affected": affected,
+            "control": control,
+            "target": service.name,
+            "affected_loss_percent": loss,
+            "control_loss_percent": control_loss,
+            "egress_packets_before": before,
+            "egress_packets_after": after,
+        },
+    )
+
+
+def _flow_rule_loop(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Exercise all remote racks and tie packet loss to the loop rule counters."""
+    model = problem.net_env.model
+    source_leaf = model.leaf_id(params.host_name)
+    sources = [e for e in model.client_endpoints() if e.leaf_id == source_leaf]
+    targets = [e for e in model.web_endpoints() if e.leaf_id != source_leaf]
+    if not sources or not targets:
+        return False, {"error": "no_cross_leaf_probe_path"}
+
+    port0, port1 = problem._resolve_ports(params)
+    switches = ((params.host_name, port0), (params.host_name_2, port1))
+
+    def loop_packets(switch: str, port: str) -> int | None:
+        ofport = problem.runtime.exec(
+            switch, f"ovs-vsctl get Interface {port} ofport 2>/dev/null"
+        ).strip()
+        flows = problem.runtime.exec(
+            switch, f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null"
+        )
+        for line in flows.splitlines():
+            if f"priority={problem._LOOP_PRIORITY},in_port={ofport}" in line:
+                match = re.search(r"\bn_packets=(\d+)", line)
+                if match:
+                    return int(match.group(1))
+        return None
+
+    before = {switch: loop_packets(switch, port) for switch, port in switches}
+    losses: dict[str, float] = {}
+    for target in targets:
+        sample = ping_stats(
+            problem.runtime, sources[0].name, target.ip, count=3, interval_sec=0.2
+        )
+        losses[target.name] = sample.loss_percent
+    after = {switch: loop_packets(switch, port) for switch, port in switches}
+    counter_rise = any(
+        before[switch] is not None
+        and after[switch] is not None
+        and after[switch] > before[switch]
+        for switch, _ in switches
+    )
+    verified = counter_rise and any(loss > 0 for loss in losses.values())
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "source": sources[0].name,
+            "loss_percent_by_target": losses,
+            "loop_packets_before": before,
+            "loop_packets_after": after,
+        },
+    )
+
+
 _QDISC_DROPPED_RE = re.compile(r"\bdropped (\d+)")
 _INCAST_SAMPLE_SEC = 5.0
 
 
-def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> int | None:
+def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> tuple[int | None, str]:
     output = problem.runtime.exec(
         device,
         f"tc -s qdisc show dev {intf} 2>/dev/null || true; "
@@ -424,7 +683,7 @@ def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> int | None:
         timeout=10,
     )
     counts = [int(m) for m in _QDISC_DROPPED_RE.findall(output or "")]
-    return sum(counts) if counts else None
+    return (sum(counts) if counts else None), output
 
 
 def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -434,11 +693,38 @@ def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
         device, intf = observe
     else:
         device, intf = problem._egress_port(params)
-    before = _egress_qdisc_drops(problem, device, intf)
+    before, before_stats = _egress_qdisc_drops(problem, device, intf)
     time.sleep(_INCAST_SAMPLE_SEC)
-    after = _egress_qdisc_drops(problem, device, intf)
+    after, after_stats = _egress_qdisc_drops(problem, device, intf)
     delta = after - before if before is not None and after is not None else None
     verified = delta is not None and delta > 0
+    diagnostics: dict[str, str] = {}
+    if not verified:
+        senders = list(getattr(problem, "_senders", []) or [])
+        if senders:
+            diagnostics["sender_log"] = problem.runtime.exec(
+                senders[0],
+                'for f in /tmp/burst-*.log; do tail -n 8 "$f"; done',
+                timeout=10,
+            )[:1200]
+            diagnostics["sender_process"] = problem.runtime.exec(
+                senders[0], "pgrep -af iperf3 2>/dev/null || true", timeout=10
+            )[:800]
+            destination_ip = str(getattr(problem, "_receiver_ip", ""))
+            diagnostics["sender_route"] = problem.runtime.exec(
+                senders[0],
+                f"ip route get {destination_ip} 2>/dev/null || true",
+                timeout=10,
+            )[:500]
+        diagnostics["receiver_log"] = problem.runtime.exec(
+            params.host_name,
+            'for f in /tmp/burst-server-*.log; do tail -n 8 "$f"; done',
+            timeout=10,
+        )[:1200]
+        diagnostics["receiver_process"] = problem.runtime.exec(
+            params.host_name, "pgrep -af iperf3 2>/dev/null || true", timeout=10
+        )[:800]
+        diagnostics["receiver_ip"] = str(getattr(problem, "_receiver_ip", ""))
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
@@ -448,6 +734,9 @@ def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "drops_after": after,
             "drops_delta": delta,
             "window_sec": _INCAST_SAMPLE_SEC,
+            "tc_stats_before": before_stats[:1200],
+            "tc_stats_after": after_stats[:1200],
+            **diagnostics,
         },
     )
 
@@ -461,6 +750,13 @@ _CUSTOM: dict[str, Any] = {
     "web_dos_attack": _web_dos,
     "sender_resource_contention": _sender_resource_contention,
     "receiver_resource_contention": _receiver_resource_contention,
+    "tcp_receive_window_limited": _tcp_receive_window_limited,
+    "vrf_dscp_remarking": _vrf_dscp_remarking,
+    "southbound_port_block": _southbound_disconnected,
+    "southbound_port_mismatch": _southbound_disconnected,
+    "flow_rule_loop": _flow_rule_loop,
+    "k8s_clusterip_routing_broken": _clusterip_routing_broken,
+    "silent_egress_packet_loss": _silent_egress_packet_loss,
     "load_balancer_overload": _load_balancer_overload,
     "lb_connection_state_exhaustion": _lb_connection_state_exhaustion,
 }

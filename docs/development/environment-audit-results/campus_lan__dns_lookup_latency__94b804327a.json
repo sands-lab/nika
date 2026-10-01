@@ -1,0 +1,328 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "campus_lan",
+      "topo_size": "m",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "dns_lookup_latency",
+      "inject": {
+        "delay_ms": "1000",
+        "host_name": "dns_server",
+        "intf_name": "eth0"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "campus_lan",
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          },
+          "details": {
+            "probe_host": "pc_1_1_1_1",
+            "peer_host": "pc_2_1_1_1",
+            "core_router": "router_core_1",
+            "dist_router": "router_dist_1_1"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 1018.0849999999999,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "dns_server",
+          "intf": "eth0",
+          "tc_output": "qdisc netem 8527: root refcnt 2 limit 1000 delay 1s seed 10620141198176034309"
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "dns_lookup_latency",
+          "probe": "http_by_name",
+          "symptom_class": "latency",
+          "before": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 1018.0849999999999,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 2083.957,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "latency_increased",
+            "before": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 1018.0849999999999,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 2083.957,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "before_ms": 1018.0849999999999,
+              "after_ms": 2083.957
+            }
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "dns_lookup_latency"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "dns_server",
+          "intf": "eth0",
+          "tc_output": "qdisc netem 8527: root refcnt 2 limit 1000 delay 1s seed 10620141198176034309"
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "dns_lookup_latency",
+          "probe": "http_by_name",
+          "symptom_class": "latency",
+          "before": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 1018.0849999999999,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 2151.253,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "latency_increased",
+            "before": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 1018.0849999999999,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 2151.253,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "before_ms": 1018.0849999999999,
+              "after_ms": 2151.253
+            }
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "dns_server",
+          "intf": "eth0",
+          "tc_output": "qdisc netem 8527: root refcnt 2 limit 1000 delay 1s seed 10620141198176034309"
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "dns_lookup_latency",
+          "probe": "http_by_name",
+          "symptom_class": "latency",
+          "before": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 1018.0849999999999,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": true,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": 2090.868,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "latency_increased",
+            "before": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 1018.0849999999999,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": true,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": 2090.868,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "before_ms": 1018.0849999999999,
+              "after_ms": 2090.868
+            }
+          }
+        }
+      }
+    ],
+    "symptom_probe": "http_by_name",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 101.2,
+  "error": null,
+  "resource_class": "light"
+}

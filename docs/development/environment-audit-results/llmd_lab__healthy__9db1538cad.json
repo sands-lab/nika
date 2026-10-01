@@ -1,0 +1,72 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "llmd_lab",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "healthy",
+      "inject": {}
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "llmd_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "client_ipv4": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "metallb_ready": true,
+            "agentgateway_ready": true,
+            "gateway_addressed": true,
+            "models_http": true
+          },
+          "details": {
+            "ready_nodes": 6,
+            "gateway_addr": "200.0.0.240",
+            "models_url": "http://200.0.0.240/v1/models"
+          }
+        }
+      },
+      {
+        "stage": "final_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "llmd_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "client_ipv4": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "metallb_ready": true,
+            "agentgateway_ready": true,
+            "gateway_addressed": true,
+            "models_http": true
+          },
+          "details": {
+            "ready_nodes": 6,
+            "gateway_addr": "200.0.0.240",
+            "models_url": "http://200.0.0.240/v1/models"
+          }
+        }
+      }
+    ],
+    "symptom_probe": ""
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 198.9,
+  "error": null,
+  "resource_class": "k8s"
+}

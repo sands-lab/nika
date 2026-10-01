@@ -1,0 +1,346 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "llmd_lab",
+      "topo_size": "",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "k8s_coredns_isolated",
+      "inject": {
+        "control_node": "controller",
+        "symptom_host": "worker1"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "verified": true,
+          "scenario_name": "llmd_lab",
+          "checks": {
+            "nodes_deployed": true,
+            "controller_ipv4": true,
+            "client_ipv4": true,
+            "client_reaches_controller": true,
+            "k3s_nodes_ready": true,
+            "metallb_ready": true,
+            "agentgateway_ready": true,
+            "gateway_addressed": true,
+            "models_http": true
+          },
+          "details": {
+            "ready_nodes": 6,
+            "gateway_addr": "200.0.0.240",
+            "models_url": "http://200.0.0.240/v1/models"
+          }
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "no_evidence",
+        "reason": "missing observation",
+        "evidence": {
+          "ping_ok": null,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": true,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_devices": [
+            "controller"
+          ],
+          "probe_device": "worker1",
+          "dns_service": "kube-system/kube-dns",
+          "dns_cluster_ip": "10.43.0.10",
+          "dns_pod_ips": [
+            "10.42.0.4"
+          ],
+          "dns_port": 53,
+          "blocked_specs": [
+            "10.43.0.10 udp:53",
+            "10.43.0.10 tcp:53",
+            "10.42.0.4 udp:53",
+            "10.42.0.4 tcp:53"
+          ],
+          "devices": {
+            "controller": {
+              "unfiltered": []
+            }
+          },
+          "dns_port_reachable": false,
+          "coredns_metrics_reachable": false,
+          "coredns_pods_ready": true,
+          "coredns_pod_count": 1,
+          "workload_dns_ok": false,
+          "k8s_objects": [
+            "kube-system/Service/kube-dns"
+          ],
+          "control_node": "controller",
+          "poll_attempts": 1,
+          "waited_sec": 8.1
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "k8s_coredns_isolated",
+          "probe": "isolation_http",
+          "symptom_class": "isolation",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": true,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": false,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "isolation",
+            "before": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": true,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": false,
+              "control_ok": null
+            },
+            "observed": {
+              "symptom_broken": true,
+              "control_intact": true
+            }
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "k8s_coredns_isolated"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_devices": [
+            "controller"
+          ],
+          "unfiltered": []
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "k8s_coredns_isolated",
+          "probe": "isolation_http",
+          "symptom_class": "isolation",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": true,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": false,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "isolation",
+            "before": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": true,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": false,
+              "control_ok": null
+            },
+            "observed": {
+              "symptom_broken": true,
+              "control_intact": true
+            }
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "target_devices": [
+            "controller"
+          ],
+          "unfiltered": []
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "k8s_coredns_isolated",
+          "probe": "isolation_http",
+          "symptom_class": "isolation",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": true,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": false,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "isolation",
+            "before": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": true,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": false,
+              "control_ok": null
+            },
+            "observed": {
+              "symptom_broken": true,
+              "control_intact": true
+            }
+          }
+        }
+      }
+    ],
+    "symptom_probe": "isolation_http",
+    "method_version": 2
+  },
+  "diagnosis": "no_evidence",
+  "elapsed_sec": 208.4,
+  "error": null,
+  "resource_class": "k8s"
+}

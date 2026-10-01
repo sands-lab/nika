@@ -16,10 +16,10 @@
     "stages": [
       {
         "stage": "baseline_lab",
-        "status": "fail",
-        "reason": "observation failed",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "summary": "{\"verified\": false, \"scenario_name\": \"isp_geant_ebgp_rpki\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"rpki_rtr_connected\": false, \"rpki_leak_absent\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"geant\", \"igp\": \"ospf\", \"node_count\": 22, \"link_count\": 36, \"inventory\": {\""
+          "summary": "{\"verified\": true, \"scenario_name\": \"isp_geant_ebgp_rpki\", \"checks\": {\"nodes_deployed\": true, \"frr_active\": true, \"igp_adjacencies\": true, \"loopbacks_reachable\": true, \"inventory_addresses\": true, \"stub_hosts_addressed\": true, \"stub_gateway_reachable\": true, \"stub_remote_reachable\": true, \"bgp_sessions\": true, \"bgp_prefixes_originated\": true, \"bgp_prefixes_propagated\": true, \"bgp_infra_denied\": true, \"rpki_rtr_connected\": true, \"rpki_leak_absent\": true, \"contract_required_intents\": true}, \"details\": {\"topology_name\": \"geant\", \"igp\": \"ospf\", \"node_count\": 22, \"link_count\": 36, \"inventory\": {\"topology_name\": \"geant\", \"igp\": \"ospf\", \"metric_strategy\": \"constant\", \"constant_metric\": 10, \"node_count\": 22, \"link_count\": 36, \"nodes\": [{\"node_id\": \"at1.at\", \"device\": \"at1_at\", \"loopback\": \"10.255.0.1/32\", \"router_id\": \"10.255.0.1\", \"interfaces\": [{\"name\": \"eth0\", \"link_id\": \"at1.at_ch1.ch\", \"collision_domain\": \"cd_at1_at_ch1_ch\", \"peer_device\": \"ch1_ch\", \"peer_address\": \"10.0.0.1\", \"address\": \"10.0.0.0/31\", \"subnet\": \"10.0.0.0/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth1\", \"link_id\": \"at1.at_de1.de\", \"collision_domain\": \"cd_at1_at_de1_de\", \"peer_device\": \"de1_de\", \"peer_address\": \"10.0.0.3\", \"address\": \"10.0.0.2/31\", \"subnet\": \"10.0.0.2/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth2\", \"link_id\": \"at1.at_hu1.hu\", \"collision_domain\": \"cd_at1_at_hu1_hu\", \"peer_device\": \"hu1_hu\", \"peer_address\": \"10.0.0.5\", \"address\": \"10.0.0.4/31\", \"subnet\": \"10.0.0.4/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth3\", \"link_id\": \"at1.at_ny1.ny\", \"collision_domain\": \"cd_at1_at_ny1_ny\", \"peer_device\": \"ny1_ny\", \"peer_address\": \"10.0.0.7\", \"address\": \"10.0.0.6/31\", \"subnet\": \"10.0.0.6/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth4\", \"link_id\": \"at1.at_si1.si\", \"collision_domain\": \"cd_at1_at_si1_si\", \"peer_device\": \"si1_si\", \"peer_address\": \"10.0.0.9\", \"address\": \"10.0.0.8/31\", \"subnet\": \"10.0.0.8/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth5\", \"link_id\": \"edge_at1_at\", \"collision_domain\": \"cd_edge_at1_at\", \"peer_device\": \"pc_at1_at\", \"peer_address\": \"10.254.0.2\", \"address\": \"10.254.0.1/30\", \"subnet\": \"10.254.0.0/30\", \"metric\": 1, \"passive\": true}]}, {\"node_id\": \"be1.be\", \"device\": \"be1_be\", \"loopback\": \"10.255.0.2/32\", \"router_id\": \"10.255.0.2\", \"interfaces\": [{\"name\": \"eth0\", \"link_id\": \"be1.be_fr1.fr\", \"collision_domain\": \"cd_be1_be_fr1_fr\", \"peer_device\": \"fr1_fr\", \"peer_address\": \"10.0.0.11\", \"address\": \"10.0.0.10/31\", \"subnet\": \"10.0.0.10/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth1\", \"link_id\": \"be1.be_lu1.lu\", \"collision_domain\": \"cd_be1_be_lu1_lu\", \"peer_device\": \"lu1_lu\", \"peer_address\": \"10.0.0.13\", \"address\": \"10.0.0.12/31\", \"subnet\": \"10.0.0.12/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth2\", \"link_id\": \"be1.be_nl1.nl\", \"collision_domain\": \"cd_be1_be_nl1_nl\", \"peer_device\": \"nl1_nl\", \"peer_address\": \"10.0.0.15\", \"address\": \"10.0.0.14/31\", \"subnet\": \"10.0.0.14/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth3\", \"link_id\": \"edge_be1_be\", \"collision_domain\": \"cd_edge_be1_be\", \"peer_device\": \"pc_be1_be\", \"peer_address\": \"10.254.0.6\", \"address\": \"10.254.0.5/30\", \"subnet\": \"10.254.0.4/30\", \"metric\": 1, \"passive\": true}]}, {\"node_id\": \"ch1.ch\", \"device\": \"ch1_ch\", \"loopback\": \"10.255.0.3/32\", \"router_id\": \"10.255.0.3\", \"interfaces\": [{\"name\": \"eth0\", \"link_id\": \"at1.at_ch1.ch\", \"collision_domain\": \"cd_at1_at_ch1_ch\", \"peer_device\": \"at1_at\", \"peer_address\": \"10.0.0.0\", \"address\": \"10.0.0.1/31\", \"subnet\": \"10.0.0.0/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth1\", \"link_id\": \"ch1.ch_fr1.fr\", \"collision_domain\": \"cd_ch1_ch_fr1_fr\", \"peer_device\": \"fr1_fr\", \"peer_address\": \"10.0.0.17\", \"address\": \"10.0.0.16/31\", \"subnet\": \"10.0.0.16/31\", \"metric\": 10, \"passive\": true}, {\"name\": \"eth2\", \"link_id\": \"ch1.ch_it1.it\", \"collision_domain\": \"cd_ch1_ch_it1_it\", \"peer_device\": \"it1_it\", \"peer_address\": \"10.0.0.19\", \"address\": \"10.0.0.18/31\", \"subnet\": \"10.0.0.18/31\", \"metric\": 10, \"passive\": false}, {\"name\": \"eth"
         }
       },
       {
@@ -45,7 +45,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"host\": \"at1_at\", \"network\": \"198.51.100.0/24\", \"route_output\": \"10.0.0.0/31 dev eth0 proto kernel scope link src 10.0.0.0 \\n10.0.0.2/31 dev eth1 proto kernel scope link src 10.0.0.2 \\n10.0.0.4/31 dev eth2 proto kernel scope link src 10.0.0.4 \\n10.0.0.6/31 dev eth3 proto kernel scope link src 10.0.0.6 \\n10.0.0.8/31 dev eth4 proto kernel scope link src 10.0.0.8 \\n10.0.0.16/31 nhid 40 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.18/31 nhid 40 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.20/31 nhid 26 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.24/31 nhid 29 via 10.0.0.5 de"
+          "summary": "{\"host\": \"at1_at\", \"network\": \"198.51.100.0/24\", \"route_output\": \"10.0.0.0/31 dev eth0 proto kernel scope link src 10.0.0.0 \\n10.0.0.2/31 dev eth1 proto kernel scope link src 10.0.0.2 \\n10.0.0.4/31 dev eth2 proto kernel scope link src 10.0.0.4 \\n10.0.0.6/31 dev eth3 proto kernel scope link src 10.0.0.6 \\n10.0.0.8/31 dev eth4 proto kernel scope link src 10.0.0.8 \\n10.0.0.16/31 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.18/31 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.20/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.24/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.26/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.28/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.30/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.32/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.34/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.36/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.40/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.42/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.46/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.48/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.50/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.52/31 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.0.0.54/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.56/31 nhid 63 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.7 dev eth3 weight 1 \\n10.0.0.58/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.62/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.64/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.68/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.70/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.0/30 dev eth5 proto kernel scope link src 10.254.0.1 \\n10.254.0.8/30 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.254.0.16/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.28/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.32/30 nhid 43 proto ospf metric 20 \\n\\tnexthop via 10.0.0.9 dev eth4 weight 1 \\n\\tnexthop via 10.0.0.5 dev eth2 weight 1 \\n10.254.0.36/30 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.254.0.40/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.48/30 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.254.0.60/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.68/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.76/30 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.254.0.80/30 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.254.0.84/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.3 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.255.0.5 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.8 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.9 nhid 43 proto ospf metric 20 \\n\\tnexthop via 10.0.0.9 dev eth4 weight 1 \\n\\tnexthop via 10.0.0.5 dev eth2 weight 1 \\n10.255.0.10 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.255.0.11 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.13 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.255.0.16 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.18 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.20 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.255.0.21 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.255.0.22 nh"
         }
       },
       {
@@ -53,13 +53,77 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"host_static_blackhole\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"exp"
+          "failure": "host_static_blackhole",
+          "probe": "path_ping",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": false,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": false,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": true,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "host_static_blackhole"
         }
@@ -69,7 +133,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"host\": \"at1_at\", \"network\": \"198.51.100.0/24\", \"route_output\": \"10.0.0.0/31 dev eth0 proto kernel scope link src 10.0.0.0 \\n10.0.0.2/31 dev eth1 proto kernel scope link src 10.0.0.2 \\n10.0.0.4/31 dev eth2 proto kernel scope link src 10.0.0.4 \\n10.0.0.6/31 dev eth3 proto kernel scope link src 10.0.0.6 \\n10.0.0.8/31 dev eth4 proto kernel scope link src 10.0.0.8 \\n10.0.0.16/31 nhid 40 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.18/31 nhid 40 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.20/31 nhid 26 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.24/31 nhid 29 via 10.0.0.5 de"
+          "summary": "{\"host\": \"at1_at\", \"network\": \"198.51.100.0/24\", \"route_output\": \"10.0.0.0/31 dev eth0 proto kernel scope link src 10.0.0.0 \\n10.0.0.2/31 dev eth1 proto kernel scope link src 10.0.0.2 \\n10.0.0.4/31 dev eth2 proto kernel scope link src 10.0.0.4 \\n10.0.0.6/31 dev eth3 proto kernel scope link src 10.0.0.6 \\n10.0.0.8/31 dev eth4 proto kernel scope link src 10.0.0.8 \\n10.0.0.16/31 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.18/31 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.20/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.24/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.26/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.28/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.30/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.32/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.34/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.36/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.40/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.42/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.46/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.48/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.50/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.52/31 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.0.0.54/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.56/31 nhid 63 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.7 dev eth3 weight 1 \\n10.0.0.58/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.62/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.64/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.68/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.70/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.0/30 dev eth5 proto kernel scope link src 10.254.0.1 \\n10.254.0.8/30 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.254.0.16/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.28/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.32/30 nhid 43 proto ospf metric 20 \\n\\tnexthop via 10.0.0.9 dev eth4 weight 1 \\n\\tnexthop via 10.0.0.5 dev eth2 weight 1 \\n10.254.0.36/30 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.254.0.40/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.48/30 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.254.0.60/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.68/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.76/30 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.254.0.80/30 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.254.0.84/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.3 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.255.0.5 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.8 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.9 nhid 43 proto ospf metric 20 \\n\\tnexthop via 10.0.0.9 dev eth4 weight 1 \\n\\tnexthop via 10.0.0.5 dev eth2 weight 1 \\n10.255.0.10 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.255.0.11 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.13 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.255.0.16 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.18 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.20 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.255.0.21 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.255.0.22 nh"
         }
       },
       {
@@ -77,7 +141,70 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"host_static_blackhole\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"exp"
+          "failure": "host_static_blackhole",
+          "probe": "path_ping",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": false,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": false,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": true,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          }
         }
       },
       {
@@ -85,7 +212,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"host\": \"at1_at\", \"network\": \"198.51.100.0/24\", \"route_output\": \"10.0.0.0/31 dev eth0 proto kernel scope link src 10.0.0.0 \\n10.0.0.2/31 dev eth1 proto kernel scope link src 10.0.0.2 \\n10.0.0.4/31 dev eth2 proto kernel scope link src 10.0.0.4 \\n10.0.0.6/31 dev eth3 proto kernel scope link src 10.0.0.6 \\n10.0.0.8/31 dev eth4 proto kernel scope link src 10.0.0.8 \\n10.0.0.16/31 nhid 40 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.18/31 nhid 40 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.20/31 nhid 26 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.24/31 nhid 29 via 10.0.0.5 de"
+          "summary": "{\"host\": \"at1_at\", \"network\": \"198.51.100.0/24\", \"route_output\": \"10.0.0.0/31 dev eth0 proto kernel scope link src 10.0.0.0 \\n10.0.0.2/31 dev eth1 proto kernel scope link src 10.0.0.2 \\n10.0.0.4/31 dev eth2 proto kernel scope link src 10.0.0.4 \\n10.0.0.6/31 dev eth3 proto kernel scope link src 10.0.0.6 \\n10.0.0.8/31 dev eth4 proto kernel scope link src 10.0.0.8 \\n10.0.0.16/31 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.18/31 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.0.0.20/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.24/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.26/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.28/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.30/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.32/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.34/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.36/31 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.0.0.40/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.42/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.46/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.48/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.50/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.52/31 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.0.0.54/31 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.0.0.56/31 nhid 63 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.7 dev eth3 weight 1 \\n10.0.0.58/31 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.0.0.62/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.64/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.68/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.0.0.70/31 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.0/30 dev eth5 proto kernel scope link src 10.254.0.1 \\n10.254.0.8/30 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.254.0.16/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.28/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.32/30 nhid 43 proto ospf metric 20 \\n\\tnexthop via 10.0.0.9 dev eth4 weight 1 \\n\\tnexthop via 10.0.0.5 dev eth2 weight 1 \\n10.254.0.36/30 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.254.0.40/30 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.254.0.48/30 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.254.0.60/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.68/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.254.0.76/30 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.254.0.80/30 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.254.0.84/30 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.3 nhid 34 via 10.0.0.1 dev eth0 proto ospf metric 20 \\n10.255.0.5 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.8 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.9 nhid 43 proto ospf metric 20 \\n\\tnexthop via 10.0.0.9 dev eth4 weight 1 \\n\\tnexthop via 10.0.0.5 dev eth2 weight 1 \\n10.255.0.10 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.255.0.11 nhid 25 via 10.0.0.3 dev eth1 proto ospf metric 20 \\n10.255.0.13 nhid 35 proto ospf metric 20 \\n\\tnexthop via 10.0.0.3 dev eth1 weight 1 \\n\\tnexthop via 10.0.0.1 dev eth0 weight 1 \\n10.255.0.16 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.18 nhid 38 via 10.0.0.7 dev eth3 proto ospf metric 20 \\n10.255.0.20 nhid 27 via 10.0.0.9 dev eth4 proto ospf metric 20 \\n10.255.0.21 nhid 42 via 10.0.0.5 dev eth2 proto ospf metric 20 \\n10.255.0.22 nh"
         }
       },
       {
@@ -93,14 +220,78 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"host_static_blackhole\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\"exp"
+          "failure": "host_static_blackhole",
+          "probe": "path_ping",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": false,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": false,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": true,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null
+            }
+          }
         }
       }
     ],
-    "symptom_probe": "path_ping"
+    "symptom_probe": "path_ping",
+    "method_version": 2
   },
-  "diagnosis": "verify: verify_lab failed on rpki_rtr_connected; the fault artifact and symptom passed",
-  "elapsed_sec": 138.7,
+  "diagnosis": "pass",
+  "elapsed_sec": 651.2,
   "error": null,
   "resource_class": "light"
 }

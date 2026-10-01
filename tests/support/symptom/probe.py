@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import shlex
 from dataclasses import replace
 from typing import Any
 
@@ -11,7 +12,7 @@ from pydantic import BaseModel
 
 from nika.net_env.verify import (
     exec_or_empty,
-    frr_bgp_has_established_session,
+    frr_bgp_established_peers,
     http_body_time_ms,
     http_download_stats,
     http_ok,
@@ -366,7 +367,33 @@ def run_probe_snapshot(
 ) -> ProbeSnapshot:
     snap = ProbeSnapshot()
     src = path.src_host
+    if probe_kind == "dns_answer":
+        website = _params_get(params, "target_website")
+        domain = _params_get(params, "target_domain")
+        if not website or not domain:
+            snap.extra["error"] = "missing_dns_name"
+            return snap
+        name = f"{website}.{domain}"
+        output = exec_or_empty(
+            runtime, src, f"dig +short A {shlex.quote(name)} 2>/dev/null", timeout=12
+        )
+        answers: list[str] = []
+        for line in output.splitlines():
+            value = line.strip()
+            try:
+                if ipaddress.ip_address(value).version == 4:
+                    answers.append(value)
+            except ValueError:
+                continue
+        snap.extra.update({"dns_name": name, "dns_answers": sorted(set(answers))})
+        return snap
     if probe_kind == "gray_ping_loss" and path.dst_ip:
+        # The gateway VIP accepts TCP but does not answer ICMP. Probe a real
+        # service behind the gateway to sample packets on its fabric egress.
+        if path.dst_ip == "20.0.0.1":
+            from nika.net_env.p4_dc_gateway.topology_model import service_ip
+
+            path = replace(path, dst_ip=service_ip(1, 1))
         ok, details = probe_gray_packet_loss(runtime, path)
         snap = ProbeSnapshot(
             ping_ok=details.get("received", 0) > 0,
@@ -579,8 +606,49 @@ def run_probe_snapshot(
                 for line in neighbor_out.splitlines()
             )
         else:
-            snap.control_plane_ok = frr_bgp_has_established_session(
-                runtime, path.control_plane_host
+            summary = exec_or_empty(
+                runtime,
+                path.control_plane_host,
+                "vtysh -c 'show bgp summary'",
+                timeout=20,
+            )
+            peers = frr_bgp_established_peers(summary)
+            snap.extra["bgp_established_peers"] = sorted(peers)
+            snap.control_plane_ok = bool(peers)
+        return snap
+    if probe_kind == "bgp_hijack_route":
+        target = _params_get(params, "target_network")
+        observer = next(
+            (
+                node
+                for node in sorted(runtime.list_nodes())
+                if node != path.control_plane_host
+                and not node.startswith(("pc", "client", "host", "br"))
+            ),
+            None,
+        )
+        if target and observer:
+            output = exec_or_empty(
+                runtime,
+                observer,
+                f"vtysh -c 'show bgp ipv4 unicast {target}' 2>/dev/null",
+                timeout=20,
+            )
+            query_ok = bool(output.strip()) and not any(
+                marker in output.lower()
+                for marker in (
+                    "command not found",
+                    "failed to connect",
+                    "unknown command",
+                )
+            )
+            snap.extra.update(
+                bgp_target_present=query_ok
+                and (target in output or target.split("/")[0] in output),
+                bgp_query_ok=query_ok,
+                bgp_observer=observer,
+                bgp_target=target,
+                bgp_route_output=output[:800],
             )
         return snap
     if probe_kind == "control_plane_routing" and path.control_plane_host:
@@ -605,7 +673,9 @@ def run_probe_snapshot(
             "vtysh -c 'show ip ospf neighbor' 2>/dev/null || true",
             timeout=15,
         )
-        snap.control_plane_ok = "Full" in output or "full" in output.lower()
+        full_neighbors = sum("full" in line.lower() for line in output.splitlines())
+        snap.extra["ospf_full_neighbors"] = full_neighbors
+        snap.control_plane_ok = full_neighbors > 0
         return snap
     if path.dst_ip:
         snap.ping_ok = ping_ok(runtime, src, path.dst_ip)

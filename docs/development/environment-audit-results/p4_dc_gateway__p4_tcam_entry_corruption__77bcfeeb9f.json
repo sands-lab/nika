@@ -26,11 +26,11 @@
       },
       {
         "stage": "baseline_path",
-        "status": "fail",
-        "reason": "target path was not healthy before inject",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "ping_ok": null,
-          "http_ok": false,
+          "ping_ok": true,
+          "http_ok": null,
           "loss_percent": null,
           "rtt_avg_ms": null,
           "rtt_mdev_ms": null,
@@ -57,7 +57,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"p4_tcam_entry_corruption\", \"probe\": \"path_http\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": false, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\""
+          "summary": "{\"failure\": \"p4_tcam_entry_corruption\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\""
         }
       },
       {
@@ -65,7 +65,8 @@
         "status": "unsupported",
         "reason": "no_control_path",
         "evidence": {
-          "fault": "p4_tcam_entry_corruption"
+          "fault": "p4_tcam_entry_corruption",
+          "scope": "p4_tcam_entry_corruption"
         }
       },
       {
@@ -83,7 +84,7 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"p4_tcam_entry_corruption\", \"probe\": \"path_http\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": false, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\""
+          "summary": "{\"failure\": \"p4_tcam_entry_corruption\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\""
         }
       },
       {
@@ -101,14 +102,14 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"p4_tcam_entry_corruption\", \"probe\": \"path_http\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": false, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\""
+          "summary": "{\"failure\": \"p4_tcam_entry_corruption\", \"probe\": \"path_ping\", \"symptom_class\": \"unreachable\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": false, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"comparison\": {\""
         }
       }
     ],
-    "symptom_probe": "path_http"
+    "symptom_probe": "path_ping"
   },
-  "diagnosis": "verify: path_http was already down before inject",
-  "elapsed_sec": 95.0,
+  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
+  "elapsed_sec": 61.9,
   "error": null,
   "resource_class": "light"
 }

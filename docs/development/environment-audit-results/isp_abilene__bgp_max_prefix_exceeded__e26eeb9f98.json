@@ -68,8 +68,8 @@
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "bgp_max_prefix_exceeded"
         }
@@ -123,8 +123,8 @@
     ],
     "symptom_probe": "control_plane_bgp"
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 86.5,
+  "diagnosis": "pass",
+  "elapsed_sec": 84.4,
   "error": null,
   "resource_class": "light"
 }

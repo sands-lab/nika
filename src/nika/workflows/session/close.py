@@ -535,6 +535,9 @@ def _clear_session_record(
         )
 
     session.clear_session(status=status)
+    from nika.validation.presence import clear_injected_problem
+
+    clear_injected_problem(session_id)
     log_event(
         "session_cleared",
         f"Cleared session {session_id}",

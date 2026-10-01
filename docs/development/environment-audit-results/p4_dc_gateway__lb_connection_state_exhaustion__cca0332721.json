@@ -31,10 +31,20 @@
       },
       {
         "stage": "baseline_path",
-        "status": "unsupported",
-        "reason": "custom probe has no shared healthy baseline",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "scope": "lb_connection_state_exhaustion"
+          "ping_ok": null,
+          "http_ok": true,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": 56.282,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": null,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
         }
       },
       {
@@ -64,16 +74,16 @@
             "vip_ok": true,
             "backend_dip": "10.0.1.11",
             "vip_url": "http://20.0.0.1:80/"
-          }
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
-          "fault": "lb_connection_state_exhaustion",
-          "scope": "lb_connection_state_exhaustion"
+          "fault": "lb_connection_state_exhaustion"
         }
       },
       {
@@ -139,8 +149,8 @@
     ],
     "symptom_probe": "custom"
   },
-  "diagnosis": "verify: a recorded stage has no behavioral check",
-  "elapsed_sec": 66.8,
+  "diagnosis": "pass",
+  "elapsed_sec": 71.4,
   "error": null,
   "resource_class": "light"
 }

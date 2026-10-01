@@ -1,0 +1,308 @@
+{
+  "audit": {
+    "identity": {
+      "scenario": "enterprise_branch",
+      "topo_size": "l",
+      "backend": "",
+      "igp": "",
+      "bgp_mode": "",
+      "rpki": "",
+      "device_profile": "",
+      "fault": "mtu_mismatch",
+      "inject": {
+        "host_name": "br1_edge",
+        "intf_name": "eth2",
+        "mtu": "500"
+      }
+    },
+    "stages": [
+      {
+        "stage": "baseline_lab",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "summary": "{\"verified\": true, \"scenario_name\": \"enterprise_branch\", \"checks\": {\"nodes_deployed\": true, \"host_ipv4_hq_corp_pc\": true, \"host_ipv4_hq_corp_pc2\": true, \"host_ipv4_hq_corp_pc3\": true, \"host_ipv4_hq_corp_pc4\": true, \"host_ipv4_hq_srv\": true, \"host_ipv4_hq_iot_pc\": true, \"host_ipv4_hq_iot_pc2\": true, \"host_ipv4_hq_iot_pc3\": true, \"host_ipv4_hq_iot_pc4\": true, \"host_ipv4_hq_guest_pc\": true, \"host_ipv4_hq_guest_pc2\": true, \"host_ipv4_hq_guest_pc3\": true, \"host_ipv4_hq_guest_pc4\": true, \"host_ipv4_dc2_corp_pc\": true, \"host_ipv4_dc2_corp_pc2\": true, \"host_ipv4_dc2_corp_pc3\": true, \"host_ipv4_dc2_corp_pc4\": true, \"host_ipv4_dc2_srv\": true, \"host_ipv4_dc2_iot_pc\": true, \"host_ipv4_dc2_iot_pc2\": true, \"host_ipv4_dc2_iot_pc3\": true, \"host_ipv4_dc2_iot_pc4\": true, \"host_ipv4_dc2_guest_pc\": true, \"host_ipv4_dc2_guest_pc2\": true, \"host_ipv4_dc2_guest_pc3\": true, \"host_ipv4_dc2_guest_pc4\": true, \"host_ipv4_br1_corp_pc\": true, \"host_ipv4_br1_corp_pc2\": true, \"host_ipv4_br1_corp_pc3\": true, \"host_ipv4_br1_corp_pc4\": true, \"host_ipv4_br1_iot_pc\": true, \"host_ipv4_br1_iot_pc2\": true, \"host_ipv4_br1_iot_pc3\": true, \"host_ipv4_br1_iot_pc4\": true, \"host_ipv4_br1_guest_pc\": true, \"host_ipv4_br1_guest_pc2\": true, \"host_ipv4_br1_guest_pc3\": true, \"host_ipv4_br1_guest_pc4\": true, \"host_ipv4_br2_corp_pc\": true, \"host_ipv4_br2_corp_pc2\": true, \"host_ipv4_br2_corp_pc3\": true, \"host_ipv4_br2_corp_pc4\": true, \"host_ipv4_br2_iot_pc\": true, \"host_ipv4_br2_iot_pc2\": true, \"host_ipv4_br2_iot_pc3\": true, \"host_ipv4_br2_iot_pc4\": true, \"host_ipv4_br2_guest_pc\": true, \"host_ipv4_br2_guest_pc2\": true, \"host_ipv4_br2_guest_pc3\": true, \"host_ipv4_br2_guest_pc4\": true, \"host_ipv4_br3_corp_pc\": true, \"host_ipv4_br3_corp_pc2\": true, \"host_ipv4_br3_corp_pc3\": true, \"host_ipv4_br3_corp_pc4\": true, \"host_ipv4_br3_iot_pc\": true, \"host_ipv4_br3_iot_pc2\": true, \"host_ipv4_br3_iot_pc3\": true, \"host_ipv4_br3_iot_pc4\": true, \"host_ipv4_br3_guest_pc\": true, \"host_ipv4_br3_guest_pc2\": true, \"host_ipv4_br3_guest_pc3\": true, \"host_ipv4_br3_guest_pc4\": true, \"host_ipv4_br4_corp_pc\": true, \"host_ipv4_br4_corp_pc2\": true, \"host_ipv4_br4_corp_pc3\": true, \"host_ipv4_br4_corp_pc4\": true, \"host_ipv4_br4_iot_pc\": true, \"host_ipv4_br4_iot_pc2\": true, \"host_ipv4_br4_iot_pc3\": true, \"host_ipv4_br4_iot_pc4\": true, \"host_ipv4_br4_guest_pc\": true, \"host_ipv4_br4_guest_pc2\": true, \"host_ipv4_br4_guest_pc3\": true, \"host_ipv4_br4_guest_pc4\": true, \"host_ipv4_br5_corp_pc\": true, \"host_ipv4_br5_corp_pc2\": true, \"host_ipv4_br5_corp_pc3\": true, \"host_ipv4_br5_corp_pc4\": true, \"host_ipv4_br5_iot_pc\": true, \"host_ipv4_br5_iot_pc2\": true, \"host_ipv4_br5_iot_pc3\": true, \"host_ipv4_br5_iot_pc4\": true, \"host_ipv4_br5_guest_pc\": true, \"host_ipv4_br5_guest_pc2\": true, \"host_ipv4_br5_guest_pc3\": true, \"host_ipv4_br5_guest_pc4\": true, \"host_ipv4_br6_corp_pc\": true, \"host_ipv4_br6_corp_pc2\": true, \"host_ipv4_br6_corp_pc3\": true, \"host_ipv4_br6_corp_pc4\": true, \"host_ipv4_br6_iot_pc\": true, \"host_ipv4_br6_iot_pc2\": true, \"host_ipv4_br6_iot_pc3\": true, \"host_ipv4_br6_iot_pc4\": true, \"host_ipv4_br6_guest_pc\": true, \"host_ipv4_br6_guest_pc2\": true, \"host_ipv4_br6_guest_pc3\": true, \"host_ipv4_br6_guest_pc4\": true, \"host_ipv4_br7_corp_pc\": true, \"host_ipv4_br7_corp_pc2\": true, \"host_ipv4_br7_corp_pc3\": true, \"host_ipv4_br7_corp_pc4\": true, \"host_ipv4_br7_iot_pc\": true, \"host_ipv4_br7_iot_pc2\": true, \"host_ipv4_br7_iot_pc3\": true, \"host_ipv4_br7_iot_pc4\": true, \"host_ipv4_br7_guest_pc\": true, \"host_ipv4_br7_guest_pc2\": true, \"host_ipv4_br7_guest_pc3\": true, \"host_ipv4_br7_guest_pc4\": true, \"host_ipv4_br8_corp_pc\": true, \"host_ipv4_br8_corp_pc2\": true, \"host_ipv4_br8_corp_pc3\": true, \"host_ipv4_br8_corp_pc4\": true, \"host_ipv4_br8_iot_pc\": true, \"host_ipv4_br8_iot_pc2\": true, \"host_ipv4_br8_iot_pc3\": true, \"host_ipv4_br8_iot_pc4\": true, \"host_ipv4_br8_guest_pc\": true, \"host_ipv4_br8_guest_pc2\": true, \"host_ipv4_br8_guest_pc3\": true, \"host_ipv4_br8_guest_pc4\": true, \"vrf_hq_corp\": true, \"vrf_hq_server\": true, \"vrf_hq_iot\":"
+        }
+      },
+      {
+        "stage": "baseline_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "ping_ok": true,
+          "http_ok": null,
+          "loss_percent": null,
+          "rtt_avg_ms": null,
+          "rtt_mdev_ms": null,
+          "http_time_ms": null,
+          "mtu_blackhole": null,
+          "mtu_frag_needed": true,
+          "control_plane_ok": null,
+          "symptom_ok": null,
+          "control_ok": null
+        }
+      },
+      {
+        "stage": "inject_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "br1_edge",
+          "intf": "eth2",
+          "mtu": 500,
+          "observed_mtu": 500
+        }
+      },
+      {
+        "stage": "symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "mtu_mismatch",
+          "probe": "path_mtu_frag_needed",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": true,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": true,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": false,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true
+            }
+          },
+          "control_ok": true
+        }
+      },
+      {
+        "stage": "control_path",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "fault": "mtu_mismatch"
+        }
+      },
+      {
+        "stage": "persistence_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "br1_edge",
+          "intf": "eth2",
+          "mtu": 500,
+          "observed_mtu": 500
+        }
+      },
+      {
+        "stage": "persistence_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "mtu_mismatch",
+          "probe": "path_mtu_frag_needed",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": true,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": true,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": false,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true
+            }
+          }
+        }
+      },
+      {
+        "stage": "final_artifact",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "host": "br1_edge",
+          "intf": "eth2",
+          "mtu": 500,
+          "observed_mtu": 500
+        }
+      },
+      {
+        "stage": "final_symptom",
+        "status": "pass",
+        "reason": null,
+        "evidence": {
+          "failure": "mtu_mismatch",
+          "probe": "path_mtu_frag_needed",
+          "symptom_class": "unreachable",
+          "before": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": true,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "after": {
+            "ping_ok": true,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": true,
+            "control_plane_ok": null,
+            "symptom_ok": null,
+            "control_ok": null
+          },
+          "comparison": {
+            "expect": "unreachable",
+            "before": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "after": {
+              "ping_ok": true,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true,
+              "control_plane_ok": null,
+              "symptom_ok": null,
+              "control_ok": null
+            },
+            "observed": {
+              "ping_broke": false,
+              "http_broke": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": true
+            }
+          }
+        }
+      }
+    ],
+    "symptom_probe": "path_mtu_frag_needed",
+    "method_version": 2
+  },
+  "diagnosis": "pass",
+  "elapsed_sec": 118.1,
+  "error": null,
+  "resource_class": "large"
+}

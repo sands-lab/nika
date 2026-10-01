@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -216,10 +217,7 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
     problem, params = bound
     fault = fault_label(problem)
     try:
-        if params is not None:
-            raw = problem.recheck_artifact(params)
-        else:
-            raw = problem.recheck_artifact()
+        raw = recheck_artifact_with_retry(problem, params)
     except Exception as exc:  # noqa: BLE001 - the trial records the read error
         return {
             "present": False,
@@ -255,6 +253,19 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
     }
 
 
+def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
+    """Retry one transient runtime command timeout; never replay injection."""
+    for attempt in range(2):
+        raw = problem.recheck_artifact(params)
+        if not isinstance(raw, dict):
+            return raw
+        if raw.get("present") or "[TIMEOUT]" not in str(raw.get("evidence")):
+            return raw
+        if attempt == 0:
+            time.sleep(1.0)
+    return raw
+
+
 def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, Any]:
     anomaly = _anomaly_expected(session_dir)
     bound = bound_injected_problem(session_id)
@@ -271,17 +282,19 @@ def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, A
             "error": None,
         }
     if bound is None and anomaly and _remote_lab():
-        return {
-            "phase": phase,
-            "timestamp": timestamp,
-            "fault": None,
-            "result": "error",
-            "scope": "artifact",
-            "check": "recheck_artifact",
-            "evidence": {},
-            "error": "injected problem instance is not bound in this process",
-        }
-    raw = recheck_bound_artifact(session_id)
+        try:
+            from nika.remote.client import RemoteClient
+
+            raw = RemoteClient().fault_artifact(session_id)
+        except Exception as exc:  # noqa: BLE001 - record a failed bounded read
+            raw = {
+                "present": False,
+                "fault": None,
+                "evidence": {},
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+    else:
+        raw = recheck_bound_artifact(session_id)
     error = str(raw.get("error") or "")
     if raw.get("present"):
         result = "present"
@@ -353,9 +366,6 @@ class PresenceWatch:
         if record.get("result") in {"absent", "error"} and record.get("fault") != (
             "healthy"
         ):
-            # Remote labs record the unbound error and keep the trial running.
-            if record.get("result") == "error" and _remote_lab():
-                return
             self.failure = (
                 f"{phase}: fault={record.get('fault')}: {record.get('error')}"
             )

@@ -24,11 +24,6 @@ from nika.problems.support.cpu_quota_helpers import (
 )
 from nika.utils.logger import system_logger
 
-_STRESS_CMD = (
-    "nohup stress-ng --cpu 0 --cpu-load 100 --iomix 0 --sock 0 --hdd 2 "
-    "--vm 0 --vm-bytes 75% --timeout {duration} </dev/null >/dev/null 2>&1 &"
-)
-
 _CPU_STRESS_CMD = (
     "nohup stress-ng --cpu {stress_cpus} --cpu-load 100 "
     "--timeout {duration} </dev/null >/dev/null 2>&1 &"
@@ -648,11 +643,6 @@ class ReceiverResourceContention(ProblemBase):
             ),
             timeout=15,
         )
-        self.runtime.exec(
-            params.host_name,
-            _STRESS_CMD.format(duration=params.duration),
-            timeout=15,
-        )
         deadline = time.time() + 15.0
         while time.time() < deadline:
             if self.runtime.process_running(params.host_name, "stress-ng"):
@@ -673,7 +663,7 @@ class ReceiverResourceContention(ProblemBase):
         pgrep_output = self.runtime.exec(
             params.host_name, "pgrep -a stress-ng 2>/dev/null || echo NONE"
         ).strip()
-        stress_running = "stress-ng" in pgrep_output and pgrep_output != "NONE"
+        stress_running = self.runtime.process_running(params.host_name, "stress-ng")
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=bool(stress_running),

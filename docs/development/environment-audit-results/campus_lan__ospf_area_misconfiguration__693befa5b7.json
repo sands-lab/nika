@@ -19,7 +19,36 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"verified\": true, \"scenario_name\": \"campus_lan\", \"checks\": {\"ospf_process\": true, \"ospf_neighbors\": true, \"core_link_up\": true, \"dist_gateway_configured\": true, \"host_ipv4\": true, \"host_default_route\": true, \"gateway_reachable\": true, \"peer_host_reachable\": true, \"dns_server_reachable\": true, \"dns_service_active\": true, \"dns_resolution_web0\": true, \"web_http_web0\": true, \"cross_pod_web_http\": true, \"host_dhcp_ip\": true, \"dhcp_server_active\": true, \"dhcp_relay_active\": true, \"web_service_active\": true, \"load_balancer_nginx\": true, \"dns_resolution_web99\": true, \"load_balancer_http\": true}, \"det"
+          "verified": true,
+          "scenario_name": "campus_lan",
+          "checks": {
+            "ospf_process": true,
+            "ospf_neighbors": true,
+            "core_link_up": true,
+            "dist_gateway_configured": true,
+            "host_ipv4": true,
+            "host_default_route": true,
+            "gateway_reachable": true,
+            "peer_host_reachable": true,
+            "dns_server_reachable": true,
+            "dns_service_active": true,
+            "dns_resolution_web0": true,
+            "web_http_web0": true,
+            "cross_pod_web_http": true,
+            "host_dhcp_ip": true,
+            "dhcp_server_active": true,
+            "dhcp_relay_active": true,
+            "web_service_active": true,
+            "load_balancer_nginx": true,
+            "dns_resolution_web99": true,
+            "load_balancer_http": true
+          },
+          "details": {
+            "probe_host": "pc_1_1_1_1",
+            "peer_host": "pc_2_1_1_1",
+            "core_router": "router_core_1",
+            "dist_router": "router_dist_1_1"
+          }
         }
       },
       {
@@ -37,7 +66,8 @@
           "mtu_frag_needed": null,
           "control_plane_ok": true,
           "symptom_ok": null,
-          "control_ok": null
+          "control_ok": null,
+          "ospf_full_neighbors": 4
         }
       },
       {
@@ -51,8 +81,8 @@
             "66"
           ],
           "orig_areas": [
-            "1",
-            "0"
+            "0",
+            "1"
           ],
           "running_areas": [
             "1",
@@ -65,13 +95,78 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"ospf_area_misconfiguration\", \"probe\": \"control_plane_ospf\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"co"
+          "failure": "ospf_area_misconfiguration",
+          "probe": "control_plane_ospf",
+          "symptom_class": "control_plane",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": true,
+            "symptom_ok": null,
+            "control_ok": null,
+            "ospf_full_neighbors": 4
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": false,
+            "symptom_ok": null,
+            "control_ok": null,
+            "ospf_full_neighbors": 0
+          },
+          "comparison": {
+            "expect": "control_plane_down",
+            "before": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": true,
+              "symptom_ok": null,
+              "control_ok": null,
+              "ospf_full_neighbors": 4
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": false,
+              "symptom_ok": null,
+              "control_ok": null,
+              "ospf_full_neighbors": 0
+            },
+            "observed": false,
+            "ospf_full_neighbors_before": 4,
+            "ospf_full_neighbors_after": 0
+          },
+          "control_ok": true
         }
       },
       {
         "stage": "control_path",
-        "status": "unsupported",
-        "reason": "no_control_path",
+        "status": "pass",
+        "reason": null,
         "evidence": {
           "fault": "ospf_area_misconfiguration"
         }
@@ -87,8 +182,8 @@
             "66"
           ],
           "orig_areas": [
-            "1",
-            "0"
+            "0",
+            "1"
           ],
           "running_areas": [
             "1",
@@ -101,7 +196,71 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"ospf_area_misconfiguration\", \"probe\": \"control_plane_ospf\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"co"
+          "failure": "ospf_area_misconfiguration",
+          "probe": "control_plane_ospf",
+          "symptom_class": "control_plane",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": true,
+            "symptom_ok": null,
+            "control_ok": null,
+            "ospf_full_neighbors": 4
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": false,
+            "symptom_ok": null,
+            "control_ok": null,
+            "ospf_full_neighbors": 0
+          },
+          "comparison": {
+            "expect": "control_plane_down",
+            "before": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": true,
+              "symptom_ok": null,
+              "control_ok": null,
+              "ospf_full_neighbors": 4
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": false,
+              "symptom_ok": null,
+              "control_ok": null,
+              "ospf_full_neighbors": 0
+            },
+            "observed": false,
+            "ospf_full_neighbors_before": 4,
+            "ospf_full_neighbors_after": 0
+          }
         }
       },
       {
@@ -115,8 +274,8 @@
             "66"
           ],
           "orig_areas": [
-            "1",
-            "0"
+            "0",
+            "1"
           ],
           "running_areas": [
             "1",
@@ -129,14 +288,79 @@
         "status": "pass",
         "reason": null,
         "evidence": {
-          "summary": "{\"failure\": \"ospf_area_misconfiguration\", \"probe\": \"control_plane_ospf\", \"symptom_class\": \"control_plane\", \"before\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": null, \"symptom_ok\": null, \"control_ok\": null}, \"after\": {\"ping_ok\": null, \"http_ok\": null, \"loss_percent\": null, \"rtt_avg_ms\": null, \"rtt_mdev_ms\": null, \"http_time_ms\": null, \"mtu_blackhole\": null, \"mtu_frag_needed\": null, \"control_plane_ok\": false, \"symptom_ok\": null, \"control_ok\": null}, \"co"
+          "failure": "ospf_area_misconfiguration",
+          "probe": "control_plane_ospf",
+          "symptom_class": "control_plane",
+          "before": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": true,
+            "symptom_ok": null,
+            "control_ok": null,
+            "ospf_full_neighbors": 4
+          },
+          "after": {
+            "ping_ok": null,
+            "http_ok": null,
+            "loss_percent": null,
+            "rtt_avg_ms": null,
+            "rtt_mdev_ms": null,
+            "http_time_ms": null,
+            "mtu_blackhole": null,
+            "mtu_frag_needed": null,
+            "control_plane_ok": false,
+            "symptom_ok": null,
+            "control_ok": null,
+            "ospf_full_neighbors": 0
+          },
+          "comparison": {
+            "expect": "control_plane_down",
+            "before": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": true,
+              "symptom_ok": null,
+              "control_ok": null,
+              "ospf_full_neighbors": 4
+            },
+            "after": {
+              "ping_ok": null,
+              "http_ok": null,
+              "loss_percent": null,
+              "rtt_avg_ms": null,
+              "rtt_mdev_ms": null,
+              "http_time_ms": null,
+              "mtu_blackhole": null,
+              "mtu_frag_needed": null,
+              "control_plane_ok": false,
+              "symptom_ok": null,
+              "control_ok": null,
+              "ospf_full_neighbors": 0
+            },
+            "observed": false,
+            "ospf_full_neighbors_before": 4,
+            "ospf_full_neighbors_after": 0
+          }
         }
       }
     ],
-    "symptom_probe": "control_plane_ospf"
+    "symptom_probe": "control_plane_ospf",
+    "method_version": 2
   },
-  "diagnosis": "verify: the behavioral stages passed and this fault has no separate control path",
-  "elapsed_sec": 83.6,
+  "diagnosis": "pass",
+  "elapsed_sec": 89.5,
   "error": null,
   "resource_class": "light"
 }
