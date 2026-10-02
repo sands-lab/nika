@@ -30,6 +30,8 @@ _NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
 _SETTLE_SEC = 4
 _PROBE_PORT = 5198
+# The remark only degrades EF under contention, so bulk must outlive a trial.
+_WORKLOAD_SEC = 3600
 
 
 class VrfDscpRemarkingParams(BaseModel):
@@ -145,7 +147,9 @@ class VrfDscpRemarking(ProblemBase):
             src_host=params.src_host,
             dst_host=params.dst_host,
         )
-        self._workload = qos_traffic.start(self.runtime, matrix, duration_sec=600)
+        self._workload = qos_traffic.start(
+            self.runtime, matrix, duration_sec=_WORKLOAD_SEC
+        )
         time.sleep(_SETTLE_SEC)
         self._baseline = qos_traffic.measure(self._workload)
         self.logger.info(
@@ -277,7 +281,7 @@ class VrfDscpRemarking(ProblemBase):
         )
 
         if self._workload is not None:
-            qos_traffic.resume_bulk(self._workload)
+            qos_traffic.resume_bulk(self._workload, duration_sec=_WORKLOAD_SEC)
             time.sleep(2.0)
 
         details: dict[str, Any] = {
