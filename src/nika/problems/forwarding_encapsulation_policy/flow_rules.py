@@ -20,6 +20,11 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import (
+    choice,
+    choice_distinct,
+    require_distinct_hosts,
+)
 
 
 def _device_id_for_switch(switch: str) -> str:
@@ -51,6 +56,20 @@ def _onos_post_flow(runtime, device: str, body: dict) -> None:
     )
 
 
+def _flow_rule_loop_pair(net_env, rng) -> tuple[str, str, str, str]:
+    """Return (switch_a, switch_b, port_a, port_b) preferring an adjacent fabric link."""
+    model = getattr(net_env, "model", None)
+    if model is not None and model.leaf_spine_links:
+        leaf, spine = rng.choice(model.leaf_spine_links)
+        p0 = model.port_to_peer(leaf, spine)
+        p1 = model.port_to_peer(spine, leaf)
+        if p0 is not None and p1 is not None:
+            return leaf, spine, p0.name, p1.name
+    switches = net_env.ovs_switches or []
+    pair = choice_distinct(rng, switches, "leaf_1")
+    return pair[0], pair[1], "eth0", "eth0"
+
+
 class FlowRuleShadowingParams(BaseModel):
     """Parameters for injecting a flow rule shadowing fault."""
 
@@ -64,6 +83,10 @@ class FlowRuleShadowing(ProblemBase):
     TAGS: str = ["sdn"]
 
     Params = FlowRuleShadowingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, ctx.net_env.ovs_switches, ctx.host0)}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -125,6 +148,20 @@ class FlowRuleLoop(ProblemBase):
     TAGS: str = ["sdn"]
 
     Params = FlowRuleLoopParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        a, b, port_a, port_b = _flow_rule_loop_pair(ctx.net_env, ctx.rng)
+        return {
+            "host_name": a,
+            "host_name_2": b,
+            "port_name": port_a,
+            "port_name_2": port_b,
+        }
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_distinct_hosts(ctx, cls.root_cause_name, inject, switches=True)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

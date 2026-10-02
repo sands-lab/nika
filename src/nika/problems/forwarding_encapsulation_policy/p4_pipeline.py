@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import choice
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     fabric_misconfig_group_id,
     fabric_table_entry_prefix,
@@ -11,6 +12,22 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
 from nika.utils.logger import system_logger
 
 logger = system_logger
+
+
+def _fabric_table_entry_target(ctx) -> dict[str, str]:
+    """Observer leaf plus an off-leaf web probe on p4_dc_fabric, else any BMv2."""
+    if ctx.scenario != "p4_dc_fabric":
+        return {"host_name": choice(ctx.rng, ctx.bmv2, ctx.host0)}
+    model = ctx.net_env.model
+    observer = model.client_endpoints()[0]
+    victim = next(
+        web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
+    )
+    return {
+        "host_name": f"leaf_{observer.leaf_id}",
+        "observer_device": observer.name,
+        "probe_dst_ip": victim.ip,
+    }
 
 
 class P4TableEntryMissingParams(BaseModel):
@@ -25,6 +42,17 @@ class P4TableEntryMissing(ProblemBase):
     description = "A required P4 forwarding table entry is missing."
     TAGS: str = ["p4", "p4_runtime"]
     Params = P4TableEntryMissingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return _fabric_table_entry_target(ctx)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        if ctx.scenario == "p4_dc_fabric":
+            # Off-path leaves do not forward the default client_1_1 HTTP probe.
+            return [base]
+        return super().benchmark_inject_options(ctx, base)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -102,6 +130,17 @@ class P4TableEntryMisconfig(ProblemBase):
     description = "A P4 forwarding table entry is misconfigured."
     TAGS: str = ["p4", "p4_runtime"]
     Params = P4TableEntryMisconfigParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return _fabric_table_entry_target(ctx)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        if ctx.scenario == "p4_dc_fabric":
+            # Off-path leaves do not forward the default client_1_1 HTTP probe.
+            return [base]
+        return super().benchmark_inject_options(ctx, base)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
