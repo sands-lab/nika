@@ -111,7 +111,7 @@ def result_current(row: dict[str, Any]) -> bool:
     )
 
 
-_MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 32, "k8s": 24}
+_MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 32, "k8s": 16}
 # SR Linux nodes keep claiming memory for minutes after a clab lab deploys.
 _ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 180, "k8s": 90}
 # Labs keep growing after admission, so heavy classes also hold a slot for the whole case.
@@ -151,20 +151,22 @@ def wait_for_slot(row: dict[str, Any]) -> None:
     resource_class = effective_class(row)
     floor = _MEMORY_FLOOR_GIB[resource_class]
     _ADMISSION_LOCK.parent.mkdir(parents=True, exist_ok=True)
-    with _ADMISSION_LOCK.open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        while True:
+    while True:
+        # Release the lock between checks so a waiting heavy lab does not block
+        # smaller cases that still fit.
+        with _ADMISSION_LOCK.open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
             memory = _available_gib()
             load = os.getloadavg()[0]
             if memory >= floor and load < _LOAD_CEILING:
-                break
-            print(
-                f"waiting memory={memory:.1f}GiB floor={floor}GiB "
-                f"load={load:.0f} ceiling={_LOAD_CEILING} scenario={row['scenario']}",
-                flush=True,
-            )
-            time.sleep(20)
-        time.sleep(_ADMISSION_SPACING_SEC[resource_class])
+                time.sleep(_ADMISSION_SPACING_SEC[resource_class])
+                return
+        print(
+            f"waiting memory={memory:.1f}GiB floor={floor}GiB "
+            f"load={load:.0f} ceiling={_LOAD_CEILING} scenario={row['scenario']}",
+            flush=True,
+        )
+        time.sleep(20)
 
 
 def _evidence_text(stage: StageResult | None) -> str:
