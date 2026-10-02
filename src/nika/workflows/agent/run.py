@@ -32,6 +32,7 @@ def start_agent(
     session_id: str | None = None,
     reasoning_effort: str | None = None,
     stream_output: bool = True,
+    check_fault_presence: bool = False,
     sandbox_keep_container: bool | None = None,
     sandbox_cpus: str | None = None,
     sandbox_memory: str | None = None,
@@ -104,8 +105,15 @@ def start_agent(
     )
     from nika.validation.presence import PresenceWatch, raise_if_presence_failed
 
-    presence = PresenceWatch(session.session_id, session.session_dir)
-    presence.start()
+    # Benchmark inject and agent execution share the injecting instance. Standalone
+    # session commands run in separate processes and cannot use that instance.
+    presence = (
+        PresenceWatch(session.session_id, session.session_dir)
+        if check_fault_presence
+        else None
+    )
+    if presence is not None:
+        presence.start()
     agent_started = time.perf_counter()
     agent_exc: BaseException | None = None
     if agent_type == "cli.codex" and stream_output:
@@ -234,7 +242,7 @@ def start_agent(
                 error_type=type(exc).__name__,
                 duration_ms=elapsed_ms(agent_started),
             )
-    presence_failure = presence.finish()
+    presence_failure = presence.finish() if presence is not None else None
     raise_if_presence_failed(presence_failure, agent_exc)
 
     session.end_session()

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.audit.environment import CaseAudit, StageResult, identity_from_row
+from nika.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
@@ -99,8 +100,11 @@ def result_current(row: dict[str, Any]) -> bool:
         if is_healthy_case(str(row["problem"]))
         else declared_probe(str(row["problem"]))
     )
-    return audit.symptom_probe == probe and (
-        probe != "artifact_only" or audit.method_version >= 2
+    return (
+        audit.identity.key() == identity_from_row(row).key()
+        and audit.symptom_probe == probe
+        and audit.method_version == AUDIT_METHOD_VERSION
+        and provenance_current(audit.provenance)
     )
 
 
@@ -122,21 +126,6 @@ def wait_for_slot(row: dict[str, Any]) -> None:
             flush=True,
         )
         time.sleep(20)
-
-
-def _shrink(audit: CaseAudit) -> dict[str, Any]:
-    data = audit.model_dump(mode="json")
-    for stage in data.get("stages") or []:
-        evidence = stage.get("evidence") or {}
-        blob = json.dumps(evidence, default=str)
-        if len(blob) > 4000:
-            details = evidence.get("details") or {}
-            stage["evidence"] = {
-                "checks": evidence.get("checks"),
-                "bgp_prefix_probes": details.get("bgp_prefix_probes"),
-                "summary": blob[:4000],
-            }
-    return data
 
 
 def _evidence_text(stage: StageResult | None) -> str:
@@ -270,7 +259,7 @@ def _failed_audit(row: dict[str, Any], message: str) -> CaseAudit:
             StageResult(stage="audit", status=status, reason=message[:500]),
         ],
         symptom_probe=probe,
-        method_version=2,
+        method_version=AUDIT_METHOD_VERSION,
     )
 
 
@@ -288,7 +277,7 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
         error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
         audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
     return {
-        "audit": _shrink(audit),
+        "audit": audit.model_dump(mode="json"),
         "diagnosis": diagnose(audit, None if error is None else error),
         "elapsed_sec": round(time.monotonic() - started, 1),
         "error": None if error is None else error.splitlines()[0][:500],
@@ -315,9 +304,11 @@ def run_matrix(
     scenario: str | None = None,
     fault: str | None = None,
     resource_class: str | None = None,
-) -> None:
+    force: bool = False,
+) -> bool:
     """Audit missing cases, or also rerun recorded non-passing cases."""
     pending: list[dict[str, Any]] = []
+    selected: list[dict[str, Any]] = []
     for row in audit_plan():
         if scenario and row["scenario"] != scenario:
             continue
@@ -325,8 +316,9 @@ def run_matrix(
             continue
         if resource_class and effective_class(row) != resource_class:
             continue
+        selected.append(row)
         path = result_path(row)
-        if not result_current(row):
+        if force or not result_current(row):
             pending.append(row)
         elif retry_failed:
             record = json.loads(path.read_text(encoding="utf-8"))
@@ -336,6 +328,13 @@ def run_matrix(
     heavy = [row for row in pending if effective_class(row) != "light"]
     _run_group(light, jobs=max(1, jobs))
     _run_group(heavy, jobs=1)
+    passed = 0
+    for row in selected:
+        if result_current(row):
+            record = json.loads(result_path(row).read_text(encoding="utf-8"))
+            passed += CaseAudit.model_validate(record["audit"]).admission() == "pass"
+    print(f"Current passing audits: {passed}/{len(selected)}", flush=True)
+    return bool(selected) and passed == len(selected)
 
 
 def _run_group(rows: list[dict[str, Any]], *, jobs: int) -> None:
@@ -355,9 +354,9 @@ def _run_group(rows: list[dict[str, Any]], *, jobs: int) -> None:
                 record = future.result()
             except Exception as exc:  # noqa: BLE001 - persist the worker failure
                 record = {
-                    "audit": _shrink(
-                        _failed_audit(row, f"{type(exc).__name__}: {exc}")
-                    ),
+                    "audit": _failed_audit(
+                        row, f"{type(exc).__name__}: {exc}"
+                    ).model_dump(mode="json"),
                     "diagnosis": f"runner: {exc}",
                     "elapsed_sec": 0,
                     "error": f"{type(exc).__name__}: {exc}",
@@ -370,14 +369,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Audit every benchmark release case")
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--retry-failed", action="store_true")
+    parser.add_argument(
+        "--force", action="store_true", help="Rerun every selected case"
+    )
     parser.add_argument("--scenario")
     parser.add_argument("--fault")
     parser.add_argument("--resource-class", choices=("light", "large", "k8s", "clab"))
     args = parser.parse_args()
-    run_matrix(
+    ok = run_matrix(
         jobs=args.jobs,
         retry_failed=args.retry_failed,
         scenario=args.scenario,
         fault=args.fault,
         resource_class=args.resource_class,
+        force=args.force,
     )
+    raise SystemExit(0 if ok else 1)

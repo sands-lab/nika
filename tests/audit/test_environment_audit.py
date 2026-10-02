@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,12 @@ from nika.audit.environment import (
     classify_observation,
     identity_from_row,
 )
-from tests.audit.live import _artifact_stage, _baseline_path, _control_stage
+from tests.audit.live import (
+    _artifact_stage,
+    _baseline_path,
+    _control_stage,
+    _note_sibling_control,
+)
 from tests.audit.matrix import audit_plan, diagnose
 from tests.audit.report_doc import DOC_PATH, render_environment_audit_doc
 
@@ -189,9 +195,130 @@ def test_control_and_baseline_helpers() -> None:
         "unsupported"
     )
     assert _control_stage("link_down", {"control_ok": False}).status == "fail"
+    assert (
+        _control_stage("link_down", {"details": {"control_ok": False}}).status == "fail"
+    )
+    assert (
+        _control_stage(
+            "link_down", {"control_ok": True, "details": {"control_ok": False}}
+        ).status
+        == "fail"
+    )
     assert _artifact_stage(
         "final_artifact", {"present": False, "error": "gone"}
     ).status == ("fail")
+
+
+def test_failed_sibling_control_is_not_a_missing_control(monkeypatch) -> None:
+    from tests.audit import live
+
+    monkeypatch.setattr(
+        live,
+        "_resolve_path",
+        lambda *a, **k: SimpleNamespace(
+            peer_host="peer", src_host="client", dst_ip="10.0.0.1", http_url=None
+        ),
+    )
+    monkeypatch.setattr(live, "ping_ok", lambda *a, **k: False)
+    payload = _note_sibling_control(None, "dc_clos", None, "s", {"verified": True})
+    assert _control_stage("link_down", payload).status == "fail"
+    assert _control_stage("link_down", payload).evidence["path"] == {
+        "source": "peer",
+        "destination_ip": "10.0.0.1",
+        "http_url": None,
+    }
+    # A different passing ping must not replace the probe's failed control.
+    monkeypatch.setattr(live, "ping_ok", lambda *a, **k: True)
+    payload = _note_sibling_control(
+        None, "dc_clos", None, "s", {"details": {"control_ok": False}}
+    )
+    assert _control_stage("link_down", payload).status == "fail"
+
+
+@pytest.mark.parametrize(
+    "output", ["", "[TIMEOUT]", "ovs-vsctl: database connection failed"]
+)
+def test_southbound_read_errors_do_not_prove_disconnection(output) -> None:
+    from tests.support.symptom.custom import _southbound_disconnected
+
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(model=SimpleNamespace(leaves=["leaf_1"], spines=[])),
+        runtime=SimpleNamespace(exec=lambda *a, **k: output),
+        root_cause_name="southbound_port_block",
+    )
+    ok, result = _southbound_disconnected(problem, None)
+    assert ok is False
+    assert result["error"] == "southbound_query_failed"
+
+
+@pytest.mark.parametrize("probe", ["control_plane_bgp", "control_plane_ospf"])
+def test_protocol_read_errors_are_not_observed_peer_losses(probe) -> None:
+    from nika.problems.support.probe_paths import ProbePath
+    from tests.support.symptom.probe import run_probe_snapshot
+
+    runtime = SimpleNamespace(exec=lambda *a, **k: "[TIMEOUT]")
+    snapshot = run_probe_snapshot(
+        runtime, probe, ProbePath(src_host="client", control_plane_host="router")
+    )
+    assert snapshot.control_plane_ok is None
+    assert snapshot.extra["error"] in {"bgp_query_failed", "ospf_query_failed"}
+
+
+def test_native_bgp_daemon_outage_is_an_observation() -> None:
+    from nika.problems.support.probe_paths import ProbePath
+    from tests.support.symptom.probe import run_probe_snapshot
+
+    runtime = SimpleNamespace(exec=lambda *a, **k: "bgpd is not running\n")
+    snapshot = run_probe_snapshot(
+        runtime,
+        "control_plane_bgp",
+        ProbePath(src_host="client", control_plane_host="router"),
+    )
+    assert snapshot.control_plane_ok is False
+    assert snapshot.extra["bgp_query_ok"] is True
+    assert snapshot.extra["bgp_established_peers"] == []
+
+
+def test_audit_provenance_rejects_changed_source_config_and_images(monkeypatch) -> None:
+    from nika.audit import provenance
+    from nika.audit.provenance import AuditProvenance, provenance_current
+
+    record = AuditProvenance(
+        git_commit="a" * 40,
+        git_dirty=False,
+        source_sha256="source",
+        configuration_sha256="config",
+        started_at="2026-10-01T00:00:00+00:00",
+        completed_at="2026-10-01T00:01:00+00:00",
+        session_id="audit",
+        images={"router": {"reference": "nika/frr:latest", "image_id": "sha256:old"}},
+    )
+    monkeypatch.setattr(provenance, "source_fingerprint", lambda: "source")
+    monkeypatch.setattr(provenance, "configuration_fingerprint", lambda: "config")
+    assert provenance_current(record, check_images=False)
+    assert not provenance_current(None, check_images=False)
+    assert not provenance_current(
+        record.model_copy(update={"completed_at": None}), check_images=False
+    )
+    assert not provenance_current(
+        record.model_copy(update={"source_sha256": "old"}), check_images=False
+    )
+    assert not provenance_current(
+        record.model_copy(update={"configuration_sha256": "old"}), check_images=False
+    )
+    import docker
+
+    monkeypatch.setattr(
+        docker,
+        "from_env",
+        lambda: SimpleNamespace(
+            images=SimpleNamespace(
+                get=lambda reference: SimpleNamespace(id="sha256:new")
+            ),
+            close=lambda: None,
+        ),
+    )
+    assert not provenance_current(record)
 
 
 def test_production_audit_modules_do_not_import_tests() -> None:

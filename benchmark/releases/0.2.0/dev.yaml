@@ -427,12 +427,15 @@ cases:
       node: atlam5
     fault_type: icmp_frag_needed_filter_misconfiguration
 - scenario: p4_dc_gateway
+  topo_size: m
   problem: incast_traffic_network_limitation
+  problems:
+  - incast_traffic_network_limitation
   inject:
     host_name: service_1_1
     observer_device: client_1
     probe_dst_ip: 10.0.1.11
-  topo_size: m
+    duration: '3600'
   root_causes:
   - resource:
       kind: interface

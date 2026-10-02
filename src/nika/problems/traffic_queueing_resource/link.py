@@ -99,7 +99,7 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
         ),
     )
     packet_size: int = Field(default=1400, description="UDP payload bytes.")
-    duration: int = Field(default=300, description="Burst traffic seconds.")
+    duration: int = Field(default=3600, gt=0, description="Burst traffic seconds.")
     seed: int = Field(default=7, description="Deterministic flow-port seed.")
     probe_dst_ip: str | None = Field(
         default=None,

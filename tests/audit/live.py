@@ -8,6 +8,7 @@ short window. It closes only the session it started.
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from nika.audit.environment import (
@@ -16,6 +17,7 @@ from nika.audit.environment import (
     classify_observation,
     identity_from_row,
 )
+from nika.audit.provenance import AUDIT_METHOD_VERSION, capture_provenance
 from nika.net_env.verify import (
     http_download_stats,
     http_ok,
@@ -136,16 +138,17 @@ def _note_sibling_control(
     topo_size: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Record a sibling path when that path still works.
-
-    A failed sibling is not stored. The fault may share that path, and a
-    missing control stays unsupported instead of becoming a failed stage.
-    """
+    """Record a declared control's outcome, including a failed observation."""
     after = payload.get("after") if isinstance(payload.get("after"), dict) else {}
-    if payload.get("control_ok") is True or after.get("control_ok") is True:
-        return payload
     details = payload.get("details")
-    if isinstance(details, dict) and details.get("control_ok") is True:
+    controls = (
+        payload.get("control_ok"),
+        after.get("control_ok"),
+        details.get("control_ok") if isinstance(details, dict) else None,
+    )
+    if any(value is False for value in controls):
+        return {**payload, "control_ok": False}
+    if any(value is True for value in controls):
         return {**payload, "control_ok": True}
     path = _resolve_path(scenario, parsed, topo_size=topo_size)
     if path is None or not path.peer_host or path.peer_host == path.src_host:
@@ -159,10 +162,15 @@ def _note_sibling_control(
         ok = ping_ok(runtime, path.peer_host, dst_ip)
     elif path.http_url:
         ok = http_ok(runtime, path.peer_host, path.http_url)
-    if ok is not True:
+    if ok is None:
         return payload
     noted = dict(payload)
-    noted["control_ok"] = True
+    noted["control_ok"] = ok
+    noted["control_path"] = {
+        "source": path.peer_host,
+        "destination_ip": dst_ip,
+        "http_url": path.http_url,
+    }
     return noted
 
 
@@ -242,16 +250,21 @@ def _corruption_baseline(
 def _control_stage(fault: str, payload: dict[str, Any] | None) -> StageResult:
     body = payload if isinstance(payload, dict) else {}
     after = body.get("after") if isinstance(body.get("after"), dict) else {}
-    if "control_ok" in body or "control_ok" in after:
-        value = body.get("control_ok", after.get("control_ok"))
-        if value is True:
-            return _stage("control_path", "pass", evidence={"fault": fault})
-        if value is False:
-            return _stage(
-                "control_path", "fail", "control path failed", {"fault": fault}
-            )
-        # Probe snapshots always include the key. None means this fault has
-        # no separate control path, which is different from a failed probe.
+    details = body.get("details") if isinstance(body.get("details"), dict) else {}
+    controls = (
+        body.get("control_ok"),
+        after.get("control_ok"),
+        details.get("control_ok"),
+    )
+    evidence = {"fault": fault}
+    if isinstance(body.get("control_path"), dict):
+        evidence["path"] = body["control_path"]
+    if any(value is False for value in controls):
+        return _stage("control_path", "fail", "control path failed", evidence)
+    if any(value is True for value in controls):
+        return _stage("control_path", "pass", evidence=evidence)
+    # Probe snapshots always include the key. None means this fault has
+    # no separate control path, which is different from a failed probe.
     return _stage(
         "control_path",
         "unsupported",
@@ -326,6 +339,7 @@ def audit_open_session(
         kwargs.pop("topo_size", None)
         kwargs.pop("topo", None)
     net_env = get_net_env_instance(session.scenario_name, **kwargs)
+    provenance = capture_provenance(session_id, net_env._build_runtime())
     stages: list[StageResult] = []
     pause = window_for(fault) if window_sec is None else window_sec
 
@@ -337,14 +351,22 @@ def audit_open_session(
         ok, lab = _lab(net_env)
         stages.append(_from_observation("final_lab", lab, ok=ok))
         return CaseAudit(
-            identity=identity, stages=stages, symptom_probe=probe, method_version=2
+            identity=identity,
+            stages=stages,
+            symptom_probe=probe,
+            method_version=AUDIT_METHOD_VERSION,
+            provenance=provenance,
         )
 
     cls = get_problem_class(fault)
     if cls is None:
         stages.append(_stage("inject_artifact", "fail", f"unknown fault {fault}"))
         return CaseAudit(
-            identity=identity, stages=stages, symptom_probe=probe, method_version=2
+            identity=identity,
+            stages=stages,
+            symptom_probe=probe,
+            method_version=AUDIT_METHOD_VERSION,
+            provenance=provenance,
         )
 
     problem = cls(scenario_name=session.scenario_name, **kwargs)
@@ -516,7 +538,11 @@ def audit_open_session(
         )
     )
     return CaseAudit(
-        identity=identity, stages=stages, symptom_probe=probe, method_version=2
+        identity=identity,
+        stages=stages,
+        symptom_probe=probe,
+        method_version=AUDIT_METHOD_VERSION,
+        provenance=provenance,
     )
 
 
@@ -542,6 +568,9 @@ def audit_case(row: dict[str, Any], *, window_sec: float | None = None) -> CaseA
         **kwargs,
     )
     try:
-        return audit_open_session(session_id, row, window_sec=window_sec)
+        audit = audit_open_session(session_id, row, window_sec=window_sec)
+        if audit.provenance is not None:
+            audit.provenance.completed_at = datetime.now(UTC).isoformat()
+        return audit
     finally:
         close_session(session_id, undeploy=True, status="finished")

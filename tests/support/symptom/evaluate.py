@@ -98,6 +98,12 @@ def evaluate_symptom(
         path = _resolve_mtu_mismatch_path(problem, params, path)
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
     before_snap = before if before is not None else ProbeSnapshot()
+    if after.extra.get("error") or before_snap.extra.get("error"):
+        return False, {
+            "error": after.extra.get("error") or before_snap.extra.get("error"),
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+        }
     if contract.probe == "dns_answer":
         before_answers = before_snap.extra.get("dns_answers")
         after_answers = after.extra.get("dns_answers")
@@ -149,14 +155,19 @@ def evaluate_symptom(
     if failure in {"bgp_acl_block", "bgp_asn_misconfig"}:
         baseline = set(before_snap.extra.get("bgp_established_peers") or [])
         deadline = time.monotonic() + 35.0
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and after.extra.get("bgp_query_ok") is True:
             current = set(after.extra.get("bgp_established_peers") or [])
             if baseline and baseline - current:
                 break
             time.sleep(2.0)
             after = run_probe_snapshot(runtime, contract.probe, path, params=params)
         current = set(after.extra.get("bgp_established_peers") or [])
-        ok = bool(baseline and baseline - current)
+        ok = bool(
+            before_snap.extra.get("bgp_query_ok") is True
+            and after.extra.get("bgp_query_ok") is True
+            and baseline
+            and baseline - current
+        )
         return ok, {
             "failure": failure,
             "probe": contract.probe,
@@ -171,7 +182,7 @@ def evaluate_symptom(
     if failure in {"ospf_acl_block", "ospf_area_misconfiguration"}:
         baseline_neighbors = before_snap.extra.get("ospf_full_neighbors")
         deadline = time.monotonic() + 50.0
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and after.extra.get("ospf_query_ok") is True:
             current_neighbors = after.extra.get("ospf_full_neighbors")
             expected_loss = (
                 isinstance(baseline_neighbors, int)
@@ -186,6 +197,8 @@ def evaluate_symptom(
                 break
             time.sleep(2.0)
             after = run_probe_snapshot(runtime, contract.probe, path, params=params)
+    if after.extra.get("error"):
+        return False, {"error": after.extra["error"], "after": after.as_dict()}
     expect = symptom_class_to_expect(contract.symptom_class)
     if contract.symptom_class == "gray":
         expect = "gray_loss"

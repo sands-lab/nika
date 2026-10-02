@@ -960,6 +960,7 @@ def run_single_case(
             max_steps=max_steps,
             session_id=session_id,
             stream_output=False,
+            check_fault_presence=True,
         )
         _require_submission(session_dir)
 

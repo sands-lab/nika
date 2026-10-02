@@ -359,16 +359,16 @@ def _cluster_dns_ok(
     return "name:" in lowered
 
 
-def _srl_bgp_established_peers(runtime: LabRuntime, host: str) -> set[str]:
+def _srl_bgp_established_peers(runtime: LabRuntime, host: str) -> tuple[bool, set[str]]:
     """Established peers from the SR Linux neighbor table (no vtysh there)."""
-    return srl_bgp_established_peers(
-        exec_or_empty(
-            runtime,
-            host,
-            'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
-            timeout=30,
-        )
+    output = exec_or_empty(
+        runtime,
+        host,
+        'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
+        timeout=30,
     )
+    query_ok = bool(re.search(r"\d+ configured sessions", output, re.IGNORECASE))
+    return query_ok, srl_bgp_established_peers(output) if query_ok else set()
 
 
 def _first_hop_answers(runtime: LabRuntime, router: str, target: str) -> bool | None:
@@ -652,6 +652,7 @@ def run_probe_snapshot(
                 "bgp state" in line.lower() and "established" in line.lower()
                 for line in neighbor_out.splitlines()
             )
+            query_ok = "bgp state" in neighbor_out.lower()
         else:
             summary = exec_or_empty(
                 runtime,
@@ -659,11 +660,26 @@ def run_probe_snapshot(
                 "vtysh -c 'show bgp summary'",
                 timeout=20,
             )
-            peers = frr_bgp_established_peers(summary) or _srl_bgp_established_peers(
-                runtime, path.control_plane_host
+            # A native vtysh response that bgpd is stopped is an observed
+            # protocol outage. Empty output, exec errors, and timeouts are not.
+            query_ok = "[TIMEOUT]" not in summary and (
+                "State/PfxRcd" in summary
+                or "No BGP neighbors found" in summary
+                or summary.strip() == "bgpd is not running"
             )
+            if query_ok:
+                peers = frr_bgp_established_peers(summary)
+            else:
+                query_ok, peers = _srl_bgp_established_peers(
+                    runtime, path.control_plane_host
+                )
             snap.extra["bgp_established_peers"] = sorted(peers)
+            snap.extra["bgp_query_output"] = summary
             snap.control_plane_ok = bool(peers)
+        snap.extra["bgp_query_ok"] = query_ok
+        if not query_ok:
+            snap.control_plane_ok = None
+            snap.extra["error"] = "bgp_query_failed"
         return snap
     if probe_kind == "bgp_hijack_route":
         target = _params_get(params, "target_network")
@@ -731,6 +747,11 @@ def run_probe_snapshot(
             "vtysh -c 'show ip ospf neighbor' 2>/dev/null || true",
             timeout=15,
         )
+        query_ok = "Neighbor ID" in output and "State" in output
+        snap.extra["ospf_query_ok"] = query_ok
+        if not query_ok:
+            snap.extra["error"] = "ospf_query_failed"
+            return snap
         full_neighbors = sum("full" in line.lower() for line in output.splitlines())
         snap.extra["ospf_full_neighbors"] = full_neighbors
         snap.control_plane_ok = full_neighbors > 0

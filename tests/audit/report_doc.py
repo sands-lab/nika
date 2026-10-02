@@ -12,6 +12,7 @@ from pathlib import Path
 
 from nika.audit.coverage import cover_release, gap_count, release_cases
 from nika.audit.environment import CaseAudit, identity_from_row
+from nika.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
 from tests.audit.live import declared_probe
 
 DOC_PATH = (
@@ -66,6 +67,12 @@ def render_environment_audit_doc(
 ) -> str:
     """Return the reference page for release ``version``."""
     stored = load_stored_records() if records is None and audits is None else records
+    stored = [
+        item
+        for item in (stored or [])
+        if item["audit"].get("method_version") == AUDIT_METHOD_VERSION
+        and provenance_current(CaseAudit.model_validate(item["audit"]).provenance)
+    ]
     if audits is None:
         audits = [CaseAudit.model_validate(item["audit"]) for item in (stored or [])]
     rows = release_cases(version)
@@ -111,7 +118,11 @@ def render_environment_audit_doc(
         "Those two reads run once more before `audit_case` undeploys the session it created.",
         "A case with fault `healthy` runs `verify_lab` before the window and again before cleanup.",
         "For faults without a targeted symptom probe, the full audit compares the scenario's health checks before and after injection and requires the same regression to persist.",
-        "When a symptom probe changes, its older result is treated as `not_run` until the case is audited again.",
+        "Each record includes the audit method version, Git commit and dirty state, source and effective configuration hashes, observation timestamps, session id, and the image id and repository digests for each lab node.",
+        "The matrix and report reject records with missing provenance, changed source or configuration, changed installed images, or an older audit method. These cases stay `not_run` until audited again.",
+        "Use `--force` to rerun every selected case even when its stored result is current. The matrix exits nonzero if any selected case lacks a current passing result.",
+        "The persistence window is a short repeated observation, not a measurement across the full 2400-second trial budget. Dynamic injectors must keep their workers alive through that budget; `PresenceWatch` checks artifacts during the actual benchmark trial.",
+        "The P4 gateway ECN probe measures packet marks from a virtual queue with a drain rate of about 61 packets per second. It does not measure physical egress queue congestion. The `queue_occupancy` register in that scenario reports the modeled depth.",
         "",
         "## Admission",
         "",
@@ -125,7 +136,7 @@ def render_environment_audit_doc(
         "| `skipped` | The audit ran and skipped the stage. |",
         "| `unsupported` | This fault has no behavioral check for the stage. `reason` names the scope. |",
         "| `no_evidence` | The stage produced no observation. An `artifact_only` symptom result is `no_evidence`. |",
-        "| `not_run` | The full audit did not execute this case. |",
+        "| `not_run` | No current full-audit result is available for this case. |",
         "",
         "`fail`, `skipped`, `unsupported`, `no_evidence`, and `not_run` do not admit a case.",
         "",
@@ -255,7 +266,7 @@ def _executed_section(records: list[dict]) -> list[str]:
         "",
     ]
     if not records:
-        lines.append("No live audit result is stored yet.")
+        lines.append("No current live audit result is stored yet.")
         lines.append("")
         return lines
     lines.extend(

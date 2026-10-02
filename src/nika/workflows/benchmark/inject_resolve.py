@@ -1828,6 +1828,7 @@ def resolve_inject_params(
         params["delay_ms"] = "1000"
 
     elif problem == "incast_traffic_network_limitation":
+        params["duration"] = "3600"
         # Pin inject host + probe_dst_ip to one ICMP-reachable HTTP server on
         # the default probe path (same alignment pattern as web_dos_attack).
         real_web = list(servers.get("web") or [])

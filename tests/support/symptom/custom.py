@@ -522,23 +522,41 @@ def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
     )
 
 
-def _southbound_disconnected(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+def _southbound_connections(problem: Any) -> tuple[dict[str, bool], dict[str, str]]:
     model = getattr(problem.net_env, "model", None)
     switches = list(getattr(model, "leaves", []) or []) + list(
         getattr(model, "spines", []) or []
     )
     states: dict[str, bool] = {}
+    errors: dict[str, str] = {}
+    for switch in switches:
+        output = problem.runtime.exec(
+            switch,
+            "ovs-vsctl --format=csv --no-headings --columns=is_connected "
+            "list Controller 2>&1",
+            timeout=10,
+        ).strip()
+        values = [line.strip().strip('"').lower() for line in output.splitlines()]
+        if not values or any(value not in {"true", "false"} for value in values):
+            errors[switch] = output or "empty controller observation"
+        else:
+            states[switch] = any(value == "true" for value in values)
+    return states, errors
+
+
+def _southbound_connected(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    states, errors = _southbound_connections(problem)
+    ok = bool(states) and not errors and all(states.values())
+    return ok, {"switch_connected": states, "query_errors": errors}
+
+
+def _southbound_disconnected(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    states: dict[str, bool] = {}
     deadline = time.monotonic() + 90.0
     while time.monotonic() < deadline:
-        states = {}
-        for switch in switches:
-            output = problem.runtime.exec(
-                switch,
-                "ovs-vsctl --format=csv --no-headings --columns=is_connected "
-                "list Controller 2>/dev/null || true",
-                timeout=10,
-            ).strip()
-            states[switch] = "true" in output.lower()
+        states, errors = _southbound_connections(problem)
+        if errors:
+            return False, {"error": "southbound_query_failed", "details": errors}
         if states and not any(states.values()):
             break
         time.sleep(2.0)
@@ -719,6 +737,8 @@ _CUSTOM: dict[str, Any] = {
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
+    "southbound_port_block": _southbound_connected,
+    "southbound_port_mismatch": _southbound_connected,
     "snat_port_pool_exhaustion": snat_pool_baseline,
     "nat_mapping_removed_without_drain": nat_flow_baseline,
     "mac_address_conflict": mac_conflict_baseline,

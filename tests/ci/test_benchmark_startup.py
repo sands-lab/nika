@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,76 @@ pytestmark = [
 ]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_injected_session_runs_agent_in_a_separate_process(tmp_path: Path) -> None:
+    """The documented session workflow must survive separate CLI processes."""
+    from nika.utils.session import Session
+    from nika.utils.session_id import resolve_session_tag
+    from nika.workflows.env.start import start_net_env
+
+    session_id = start_net_env(
+        "dc_clos",
+        "s",
+        session_tag=resolve_session_tag(context="test"),
+        result_dir=tmp_path,
+    )
+    session_dir = Path(
+        Session().load_running_session(session_id=session_id).session_dir
+    )
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join((str(_REPO_ROOT / "src"), str(_REPO_ROOT))),
+    }
+    try:
+        for args in (
+            [
+                "failure",
+                "inject",
+                "link_down",
+                "--session_id",
+                session_id,
+                "--set",
+                "host_name=client_0",
+                "--set",
+                "intf_name=eth0",
+            ],
+            ["agent", "run", "--session_id", session_id, "-a", "mock", "-m", "mock-v1"],
+        ):
+            proc = subprocess.run(
+                [sys.executable, "-m", "nika.cli.main", *args],
+                cwd=_REPO_ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            assert proc.returncode == 0, proc.stdout + proc.stderr
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "nika.cli.main",
+                "exec",
+                "--session_id",
+                session_id,
+                "client_0",
+                "ip",
+                "link",
+                "show",
+                "eth0",
+            ],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert "state DOWN" in proc.stdout
+        assert (session_dir / "submission.json").is_file()
+    finally:
+        close_session(session_id=session_id, undeploy=True)
 
 
 def test_mini_benchmark_startup_smoke(tmp_path: Path) -> None:
