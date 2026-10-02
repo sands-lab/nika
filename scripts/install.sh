@@ -286,9 +286,12 @@ install_fault_injection_tools() {
     return
   fi
   need_cmd sudo
+  local pkgs=(clang iproute2 skopeo)
+  # make and unzip build the RouterOS image from the CHR download.
+  [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]] && pkgs+=(make unzip)
   log "Installing host tools (skopeo for Kubernetes images, clang for eBPF, iproute2 for tc)"
   sudo apt-get update
-  sudo apt-get install -y clang iproute2 skopeo
+  sudo apt-get install -y "${pkgs[@]}"
 }
 
 checkout_track() {
@@ -498,10 +501,19 @@ ensure_xrd_image() {
   fi
 
   need_cmd docker
+  local load_out loaded inner unpack_dir=""
+  # Cisco's CCO download wraps the loadable image with signing files.
+  inner="$(tar -tf "${tarball}" 2>/dev/null | grep -m1 -E '\.dockerv1\.(tgz|tar)$' || true)"
+  if [[ -n "${inner}" ]]; then
+    unpack_dir="$(mktemp -d "${VENDOR_CACHE}/xrd-unpack.XXXXXX")"
+    log "Extracting ${inner} from ${tarball}"
+    tar -xf "${tarball}" -C "${unpack_dir}" "${inner}"
+    tarball="${unpack_dir}/${inner}"
+  fi
   log "Loading XRd tarball: ${tarball}"
-  local load_out loaded
   load_out="$(docker load -i "${tarball}")"
   printf '%s\n' "${load_out}"
+  [[ -z "${unpack_dir}" ]] || rm -rf "${unpack_dir}"
 
   loaded="$(printf '%s\n' "${load_out}" | sed -n 's/^Loaded image: //p' | tail -n1)"
   if [[ -z "${loaded}" ]]; then

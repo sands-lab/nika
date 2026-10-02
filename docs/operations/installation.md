@@ -72,7 +72,7 @@ Pass `--with-vendor-images` so the installer builds or loads those Docker images
 | Scenario | Docker image | What you provide |
 | --- | --- | --- |
 | RouterOS | `vrnetlab/mikrotik_routeros:7.21.5` | Nothing. The script downloads CHR from MikroTik and builds the image. Needs `/dev/kvm`. |
-| IOS-XR (XRd) | `ios-xr/xrd-control-plane:26.2.1` | A local Cisco `.tgz` (CCO / Modeling Labs). There is no public download URL. |
+| IOS-XR (XRd) | `ios-xr/xrd-control-plane:26.2.1` | A local Cisco `.tgz` (CCO / Modeling Labs). There is no public download URL. The installer accepts the CCO bundle as downloaded and loads the `*.dockerv1.tgz` image inside it. |
 
 ```shell
 ./scripts/install.sh --with-vendor-images

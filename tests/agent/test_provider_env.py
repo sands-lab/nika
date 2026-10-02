@@ -122,10 +122,10 @@ def test_custom_without_api_key_maps_for_codex() -> None:
     mapped = map_provider_credentials(
         agent_type="cli.codex",
         provider="custom",
-        sources={"NIKA_CUSTOM_BASE_URL": "http://mcnode32:8000/v1"},
+        sources={"NIKA_CUSTOM_BASE_URL": "http://gateway.example:8000/v1"},
     )
     assert mapped["OPENAI_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
-    assert mapped["OPENAI_BASE_URL"] == "http://mcnode32:8000/v1"
+    assert mapped["OPENAI_BASE_URL"] == "http://gateway.example:8000/v1"
 
 
 def test_custom_without_api_key_maps_for_claude() -> None:
@@ -143,9 +143,9 @@ def test_custom_openai_compat_strips_v1_for_claude() -> None:
     mapped = map_provider_credentials(
         agent_type="cli.claude",
         provider="custom",
-        sources={"NIKA_CUSTOM_BASE_URL": "http://mcnode33:8000/v1"},
+        sources={"NIKA_CUSTOM_BASE_URL": "http://gateway.example:8000/v1"},
     )
-    assert mapped["ANTHROPIC_BASE_URL"] == "http://mcnode33:8000"
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example:8000"
 
 
 def test_anthropic_provider_adapts_custom_openai_compat_url() -> None:
@@ -154,10 +154,10 @@ def test_anthropic_provider_adapts_custom_openai_compat_url() -> None:
         provider="anthropic",
         sources={
             "ANTHROPIC_API_KEY": "sk-ant",
-            "NIKA_CUSTOM_BASE_URL": "http://mcnode33:8000/v1",
+            "NIKA_CUSTOM_BASE_URL": "http://gateway.example:8000/v1",
         },
     )
-    assert mapped["ANTHROPIC_BASE_URL"] == "http://mcnode33:8000"
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example:8000"
 
 
 def test_custom_openai_compat_maps_key() -> None:

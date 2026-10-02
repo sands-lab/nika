@@ -71,6 +71,7 @@ def verify_routeros_simple_bgp_lab_startup(
         "nodes_deployed": nodes_deployed(runtime, expected),
         "router1_bgp_established": _routeros_bgp_established(runtime, "router1"),
         "pc1_gateway_reachable": ping_ok(runtime, "pc1", "195.11.14.1"),
+        "pc1_to_pc2_reachable": ping_ok(runtime, "pc1", "200.1.1.2"),
     }
     return build_lab_verify_result(
         scenario_name=scenario_name,

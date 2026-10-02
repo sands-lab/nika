@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import pytest
 
+from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
 from nika.runtime.factory import resolve_backend
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
     docker_available,
+    docker_image_available,
     linux_vrf_available,
     privileged_lab_supported,
 )
@@ -16,12 +19,10 @@ from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
 
 pytestmark = [pytest.mark.e2e, pytest.mark.nightly]
 
-
-def _iosxr_image_available() -> bool:
-    from nika.net_env.iosxr_simple_bgp.lab import IMAGE
-    from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
-
-    return image_exists(IMAGE)
+_VENDOR_IMAGES = {
+    "iosxr_simple_bgp": XRD_IMAGE,
+    "routeros_simple_bgp": ROUTEROS_IMAGE,
+}
 
 
 _KATHARA_CASES = tuple(
@@ -37,6 +38,11 @@ _KATHARA_CASES = tuple(
 ) + (
     ScenarioE2ECase(
         "iosxr_simple_bgp",
+        env_run_args=(),
+        topo_size=None,
+    ),
+    ScenarioE2ECase(
+        "routeros_simple_bgp",
         env_run_args=(),
         topo_size=None,
     ),
@@ -66,8 +72,9 @@ _ISP_CASES = (
 class KatharaScenarioE2ETest(IntegrationTestCase):
     @pytest.mark.parametrize("case", _KATHARA_CASES, ids=lambda c: c.scenario)
     def test_evaluate_scenario(self, case: ScenarioE2ECase) -> None:
-        if case.scenario == "iosxr_simple_bgp" and not _iosxr_image_available():
-            pytest.skip("XRd Control Plane image not installed locally")
+        image = _VENDOR_IMAGES.get(case.scenario)
+        if image and not docker_image_available(image):
+            pytest.skip(f"Vendor image {image} not installed locally")
         if case.scenario == "enterprise_branch" and not linux_vrf_available():
             pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
         session_id = self._start_env(case.scenario, list(case.env_run_args))
