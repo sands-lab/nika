@@ -26,7 +26,7 @@ from nika.net_env.isp.kathara.lab import _stub_series_all_routers
 from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
 from nika.net_env.verify import ping_ok
 from nika.problems.registry import get_problem_class, list_avail_problem_names
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.symptom import evaluate_symptom, get_symptom_contract
@@ -49,7 +49,7 @@ class CompatCase:
     # path_ping: dataplane unreachable (eBGP / Clos / enterprise).
     # bgp_rib: prefix absent from observer BGP RIB (iBGP+IGP still reaches lo).
     symptom_mode: str = "path_ping"
-    # Optional explicit probe override (scenario probe_paths may be stale).
+    # Optional explicit probe override (scenario default probe paths may be stale).
     probe_src: str | None = None
     probe_dst: str | None = None
 
@@ -87,7 +87,7 @@ COMPAT_CASES: tuple[CompatCase, ...] = (
         isp_options=None,
         expect_verify_mode="srl_prefix",
         require_clab=True,
-        # Actual min3clos names/IPs (probe_paths previously used fabric placeholders).
+        # Actual min3clos names/IPs (default probe paths previously used fabric placeholders).
         probe_src="client2",
         probe_dst="10.0.0.25",
         # Export-policy artifact verifies, but client2→client1 can stay up in this

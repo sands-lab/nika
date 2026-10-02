@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from nika.workflows.benchmark.inject_resolve import resolve_multi_inject_params
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from nika.problems.registry import get_problem_class
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available

@@ -27,7 +27,8 @@ from nika.net_env.verify import (
     srl_bgp_established_peers,
     tbf_overlimits,
 )
-from nika.problems.support.probe_paths import ProbePath, get_probe_path
+from nika.net_env.base import ProbePath
+from nika.net_env.net_env_pool import get_probe_path
 from nika.runtime.base import LabRuntime
 from tests.support.symptom.gray_probes import probe_gray_packet_loss
 from tests.support.symptom.types import (

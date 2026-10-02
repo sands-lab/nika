@@ -11,8 +11,12 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
-from nika.net_env.base import NetworkEnvBase
-from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE, mount_workload_cache
+from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.utils.k8s_workload_cache import (
+    K3S_IMAGE,
+    K3S_SYSTEM_IMAGES,
+    mount_workload_cache,
+)
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
@@ -29,30 +33,21 @@ _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 
 class K8sFatTreeBGP(NetworkEnvBase):
     LAB_NAME = "k8s_lab"
+    K8S_HOST_IMAGES = (_FRR_IMAGE, _K3S_IMAGE, _BASE_IMAGE)
+    K8S_WORKLOAD_IMAGES = (
+        *K3S_SYSTEM_IMAGES,
+        "quay.io/metallb/controller:v0.14.9@sha256:86261567e5ff03978893bf03ea865275283ad1e3f0f20dd342ed501b651fdf78",
+        "quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993",
+        "quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4",
+        "registry.k8s.io/ingress-nginx/controller:v1.12.0@sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa",
+        "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0@sha256:aaafd456bda110628b2d4ca6296f38731a3aaf0bf7581efae824a41c770a8fc4",
+        "postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54",
+        "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d",
+        "ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e",
+    )
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 15
     TOPO_LEVEL = "hard"
-    TOPO_SIZE = None
-    TAGS = [
-        "kubernetes",
-        "k3s",
-        "k8s_control_plane",
-        "k8s_workload",
-        "ingress",
-        "metallb",
-        "coredns",
-        "kube_proxy",
-        "k8s_storage",
-        "network_policy",
-        "fat-tree",
-        "bgp",
-        "frr",
-        "link",
-        "pc",
-        "icmp",
-        "arp",
-        "mac",
-    ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -242,6 +237,29 @@ class K8sFatTreeBGP(NetworkEnvBase):
     def load_machines(self):
         super().load_machines()
         self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "routers": [r for r in roles["routers"] if "leaf" in r] or roles["routers"],
+            "web": clients,
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client",
+            dst_ip="201.1.1.2",
+            http_url="http://datacenter.com/word",
+            control_plane_host="controller",
+            peer_host="as2r1",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.k8s_lab.verify import verify_k8s_lab_startup

@@ -9,6 +9,7 @@ from nika.net_env.sdn_l3_clos.fabric_manager import (
     set_openflow_listen_ports,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import choice
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -27,6 +28,12 @@ ONOS_OF_PORT_DEFAULT = 6653
 ONOS_OF_PORT_MISMATCH = 6633
 _DROP_TABLE = "filter"
 _DISCONNECT_WAIT_SEC = 30.0
+
+
+def _benchmark_controller(ctx) -> dict[str, str]:
+    """Benchmark target: one SDN controller (falls back to ``host0``)."""
+    controller_pool = ctx.roles.get("controllers") or ctx.controllers
+    return {"host_name": choice(ctx.rng, controller_pool, ctx.host0)}
 
 
 def _southbound_drop_rule(port: int) -> str:
@@ -91,6 +98,10 @@ class SDNControllerCrash(ProblemBase):
     TAGS: str = ["sdn"]
 
     Params = SDNControllerCrashParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return _benchmark_controller(ctx)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -169,6 +180,12 @@ class SouthboundPortBlock(ProblemBase):
 
     Params = SouthboundPortBlockParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = _benchmark_controller(ctx)
+        params["southbound_port"] = "6653"
+        return params
+
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
@@ -228,6 +245,13 @@ class SouthboundPortMismatch(ProblemBase):
     TAGS: str = ["sdn"]
 
     Params = SouthboundPortMismatchParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = _benchmark_controller(ctx)
+        params["mismatched_port"] = "6633"
+        params["original_port"] = "6653"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

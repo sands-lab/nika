@@ -14,6 +14,8 @@ from nika.problems.rca.inventory import (
     iter_link_termination_points,
     parse_endpoint,
 )
+from nika.problems.support.benchmark_targets import resolve_path_mtu_target
+from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -27,22 +29,6 @@ from nika.utils.logger import system_logger
 
 
 _MTU_RE = re.compile(r"\bmtu\s+(\d+)\b")
-
-# Columns where Linux IP forwarding can emit ICMP Frag Needed.
-_MTU_MISMATCH_COLUMNS = frozenset(
-    {
-        "dc_clos",
-        "campus_lan",
-        "enterprise_branch",
-        "k8s_lab",
-        "isp_abilene/isis",
-        "isp_abilene/ospf",
-        "isp_abilene/ibgp_rr",
-        "isp_abilene_ebgp_rpki",
-        "isp_geant_ebgp_rpki",
-        "isp_abilene_ebgp_rtbh",
-    }
-)
 
 
 class MtuMismatchParams(BaseModel):
@@ -64,9 +50,17 @@ class MtuMismatch(ProblemBase):
     root_cause_owner = "interface"
     description = "Path MTU is misconfigured on an intermediate hop."
     TAGS: list[str] = ["link", "icmp"]
-    COMPATIBLE_COLUMNS = _MTU_MISMATCH_COLUMNS
+    COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS
 
     Params = MtuMismatchParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return resolve_path_mtu_target(
+            ctx.scenario, ctx.net_env, ctx.rng, list(ctx.router_pool), ctx.backend
+        )
 
     symptom_desc = (
         "Users report size-dependent connectivity: small packets succeed while "

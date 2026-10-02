@@ -13,6 +13,10 @@ from nika.problems.base import (
     ProblemBase,
 )
 
+from nika.problems.support.benchmark_targets import (
+    isp_link_target,
+    resolve_link_corruption_params,
+)
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
 
@@ -46,6 +50,26 @@ class LinkPacketCorruption(ProblemBase):
     supported_backends = ("kathara",)
 
     Params = LinkPacketCorruptionParams
+
+    BENCHMARK_TARGETS = "link"
+    BENCHMARK_POINT_TO_POINT = True
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            params = isp_link_target(ctx)
+            params["corruption_percentage"] = "10"
+            return params
+        return resolve_link_corruption_params(
+            ctx.scenario,
+            ctx.net_env,
+            ctx.rng,
+            ctx.backend,
+            host_pool=ctx.host_pool,
+            host0=ctx.host0,
+        )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

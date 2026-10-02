@@ -5,7 +5,12 @@ from typing import Any, ClassVar
 from pydantic import Field
 
 from nika.problems.rca import UnresolvedRootCauseError, node_resource
-from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
+from nika.problems.support.benchmark_targets import k8s_control_node
+from nika.problems.support.kubernetes.base import (
+    K8sParams,
+    K8sProblemBase,
+    control_node_from_net_env,
+)
 from nika.problems.support.kubernetes.node_filter import (
     DropSpec,
     NodeFilter,
@@ -67,6 +72,39 @@ class WorkerApiServerPartition(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "k8s_control_plane"]
 
     Params = WorkerApiServerPartitionParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        k8s_nodes = ctx.roles.get("k8s_nodes") or []
+        control = k8s_control_node(ctx)
+        workers = sorted(node for node in k8s_nodes if node != control)
+        # Never fall back to the control plane: that inject is rejected at runtime.
+        if not workers:
+            raise ValueError(
+                "k8s_worker_apiserver_partition requires a worker node; "
+                f"{ctx.scenario} has only control-plane device {control!r}"
+            )
+        return {"control_node": control, "node_name": ctx.rng.choice(workers)}
+
+    @classmethod
+    def benchmark_node_targets(cls, ctx, targets):
+        # Partitioning the control plane from itself is unverifiable.
+        control = control_node_from_net_env(ctx.net_env)
+        if control:
+            targets = [target for target in targets if target != control]
+        return targets
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        node_name = inject.get("node_name") or ""
+        control = (
+            inject.get("control_node") or control_node_from_net_env(ctx.net_env) or ""
+        )
+        if node_name and control and node_name == control:
+            raise ValueError(
+                "k8s_worker_apiserver_partition node_name must be a worker device, "
+                f"not the control-plane device {control!r}"
+            )
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)

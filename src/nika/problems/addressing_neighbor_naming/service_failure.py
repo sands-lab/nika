@@ -6,6 +6,9 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import (
+    dhcp_server_client,
+)
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -28,8 +31,13 @@ class DNSServiceDown(ProblemBase):
     description = "DNS server process is down."
     symptom_desc = "Some hosts cannot access external websites."
     TAGS: str = ["dns"]
+    RECORDED_ATTRS = ("service_name",)
 
     Params = DNSServiceDownParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.dns0}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -69,8 +77,13 @@ class DHCPServiceDown(ProblemBase):
 
     description = "DHCP server process is down."
     TAGS: str = ["dhcp"]
+    RECORDED_ATTRS = ("service_name",)
 
     Params = DHCPServiceDownParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return dhcp_server_client(ctx)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

@@ -61,27 +61,23 @@ def _image_tar(tmp_path: Path, *, complete: bool = True) -> tuple[str, bytes]:
 
 @pytest.mark.unit
 def test_workload_images_for_supported_scenarios() -> None:
-    assert cache.K8S_LAB_WORKLOAD_IMAGES
-    assert cache.LLMD_LAB_WORKLOAD_IMAGES
+    from nika.net_env.k8s_lab.lab import K8sFatTreeBGP
+    from nika.net_env.llmd_lab.lab import LLMDInferenceCluster
+
+    k8s_images = K8sFatTreeBGP.K8S_WORKLOAD_IMAGES
+    llmd_images = LLMDInferenceCluster.K8S_WORKLOAD_IMAGES
+    assert k8s_images
+    assert llmd_images
     assert cache.K3S_SYSTEM_IMAGES
-    assert (
-        cache.workload_images_for_scenario("k8s_lab") == cache.K8S_LAB_WORKLOAD_IMAGES
-    )
-    assert (
-        cache.workload_images_for_scenario("llmd_lab") == cache.LLMD_LAB_WORKLOAD_IMAGES
-    )
+    assert cache.workload_images_for_scenario("k8s_lab") == k8s_images
+    assert cache.workload_images_for_scenario("llmd_lab") == llmd_images
     assert cache.workload_images_for_scenario("dc_clos") == ()
     assert all(
-        "@sha256:" in image
-        for image in (
-            *cache.K8S_LAB_WORKLOAD_IMAGES,
-            *cache.LLMD_LAB_WORKLOAD_IMAGES,
-            cache.K3S_IMAGE,
-        )
+        "@sha256:" in image for image in (*k8s_images, *llmd_images, cache.K3S_IMAGE)
     )
     for image in cache.K3S_SYSTEM_IMAGES:
-        assert image in cache.K8S_LAB_WORKLOAD_IMAGES
-        assert image in cache.LLMD_LAB_WORKLOAD_IMAGES
+        assert image in k8s_images
+        assert image in llmd_images
 
 
 @pytest.mark.unit

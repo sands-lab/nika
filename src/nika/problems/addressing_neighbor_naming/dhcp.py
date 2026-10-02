@@ -9,6 +9,9 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.support.dhcp import client_subnet, subnet_declared
+from nika.problems.support.benchmark_targets import (
+    dhcp_server_client,
+)
 from nika.utils.logger import system_logger
 
 
@@ -36,6 +39,13 @@ class DHCPMissingSubnet(ProblemBase):
     TAGS: str = ["dhcp"]
 
     Params = DHCPMissingSubnetParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = dhcp_server_client(ctx)
+        if ctx.scenario == "campus_lan":
+            params["subnet"] = "10.1.1.0"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

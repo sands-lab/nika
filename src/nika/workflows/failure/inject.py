@@ -53,24 +53,7 @@ def _json_safe(value: Any) -> Any:
 
 def _extract_injection_params(problem: Any) -> dict[str, Any]:
     params: dict[str, Any] = {"problem_class": problem.__class__.__name__}
-    for attr in (
-        "faulty_intf",
-        "intf_name",
-        "service_name",
-        "attacker_device",
-        "target_host",
-        "target_website",
-        "target_domain",
-        "p4_name",
-        "southbound_port",
-        "original_port",
-        "mismatched_port",
-        "deleted_subnet",
-        "k8s_control_node",
-        "k8s_objects",
-        "k8s_namespace",
-        "k8s_workload",
-    ):
+    for attr in problem.RECORDED_ATTRS:
         if hasattr(problem, attr):
             params[attr] = _json_safe(getattr(problem, attr))
     return params

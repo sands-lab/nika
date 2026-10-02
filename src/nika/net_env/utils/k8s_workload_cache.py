@@ -20,26 +20,13 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
     host_machine_arch,
 )
+from nika.net_env.net_env_pool import list_all_net_envs
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-K8S_LAB = "k8s_lab"
-LLMD_LAB = "llmd_lab"
-
 K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c"
-
-K8S_LAB_HOST_IMAGES = (
-    "nika/frr",
-    K3S_IMAGE,
-    "nika/base",
-)
-
-LLMD_LAB_HOST_IMAGES = (
-    K3S_IMAGE,
-    "nika/base",
-)
 
 # System images used by rancher/k3s:v1.34.1-k3s1.
 K3S_SYSTEM_IMAGES = (
@@ -49,33 +36,9 @@ K3S_SYSTEM_IMAGES = (
     "rancher/local-path-provisioner:v0.0.32@sha256:9289da488b07912cb4128eb96928a331a5f3e60c28c5cfc5790f354a4ad0cc68",
 )
 
-K8S_LAB_WORKLOAD_IMAGES = (
-    *K3S_SYSTEM_IMAGES,
-    "quay.io/metallb/controller:v0.14.9@sha256:86261567e5ff03978893bf03ea865275283ad1e3f0f20dd342ed501b651fdf78",
-    "quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993",
-    "quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4",
-    "registry.k8s.io/ingress-nginx/controller:v1.12.0@sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa",
-    "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0@sha256:aaafd456bda110628b2d4ca6296f38731a3aaf0bf7581efae824a41c770a8fc4",
-    "postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54",
-    "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d",
-    "ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e",
+K8S_SCENARIOS = frozenset(
+    name for name, spec in list_all_net_envs().items() if spec.k8s_image_cache
 )
-
-LLMD_LAB_WORKLOAD_IMAGES = (
-    *K3S_SYSTEM_IMAGES,
-    "quay.io/metallb/controller:v0.16.1@sha256:f51ab515de9ccd20dc3dccb093e48df8adddac019326c456f449e55ba91b6420",
-    "quay.io/metallb/speaker:v0.16.1@sha256:16561e96531e1852d5c229ad7fae6e994dcfa983ff7f4de6b6208b34a4e2ddbc",
-    "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0@sha256:873179822ab0895a37ea09f2112ca39a6ae50a26612561c8bfad7f9a8c5af6f5",
-    "ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0@sha256:4cc3f15f254c26df7611e3b92ff7c82f83ad4ecb325de639c9dfb32873c6ce90",
-    "ghcr.io/llm-d/llm-d-inference-sim:latest@sha256:32144df791330a0006b747edfdf2b114a0fe728e023a9d1b3463eeb48d32abb9",
-    # agentgateway Helm chart v1.1.0 (llmd_lab/lab.py _AGENTGATEWAY_VERSION):
-    # the controller defaults to the chart appVersion and deploys proxies
-    # with the same release tag.
-    "cr.agentgateway.dev/controller:v1.1.0@sha256:0c4179780a3353a20f403ed51c764127f2806b6aa1a5ecb6da7655b5b27d7926",
-    "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
-)
-
-K8S_SCENARIOS = frozenset({K8S_LAB, LLMD_LAB})
 
 _PRELOAD_SIGNAL_PATH = "/var/run/nika-images-preloaded"
 _MOUNT_CACHE_DIR = "/nika-image-cache"
@@ -88,20 +51,22 @@ def cache_root() -> Path:
     return REPO_ROOT / ".nika_cache" / "k8s-images"
 
 
+def _k8s_scenario_class(scenario: str) -> type["NetworkEnvBase"] | None:
+    if scenario not in K8S_SCENARIOS:
+        return None
+    from nika.net_env.net_env_pool import _load_net_env_class
+
+    return _load_net_env_class(scenario, backend="kathara")
+
+
 def workload_images_for_scenario(scenario: str) -> tuple[str, ...]:
-    if scenario == K8S_LAB:
-        return K8S_LAB_WORKLOAD_IMAGES
-    if scenario == LLMD_LAB:
-        return LLMD_LAB_WORKLOAD_IMAGES
-    return ()
+    cls = _k8s_scenario_class(scenario)
+    return tuple(cls.K8S_WORKLOAD_IMAGES) if cls is not None else ()
 
 
 def host_images_for_scenario(scenario: str) -> tuple[str, ...]:
-    if scenario == K8S_LAB:
-        return K8S_LAB_HOST_IMAGES
-    if scenario == LLMD_LAB:
-        return LLMD_LAB_HOST_IMAGES
-    return ()
+    cls = _k8s_scenario_class(scenario)
+    return tuple(cls.K8S_HOST_IMAGES) if cls is not None else ()
 
 
 def cache_tar_path(image: str) -> Path:
@@ -341,10 +306,9 @@ def cache_scenario(scenario: str) -> None:
     workload = workload_images_for_scenario(scenario)
     if workload:
         ensure_workload_cache(scenario)
-    if scenario == LLMD_LAB:
-        from nika.net_env.llmd_lab.lab import ensure_helm_charts
-
-        ensure_helm_charts()
+    cls = _k8s_scenario_class(scenario)
+    if cls is not None:
+        cls.prepare_k8s_image_cache()
 
 
 def cached_tar_paths(scenario: str) -> list[Path]:

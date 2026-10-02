@@ -13,6 +13,7 @@ from nika.problems.rca.materialize import (
 )
 from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
 from nika.problems.rca.inventory import load_offline_net_env
 
@@ -34,7 +35,7 @@ def _topo_size(row: dict[str, Any]) -> str:
 def materialize_case(
     row: dict[str, Any],
     *,
-    env_cache: dict[tuple[str, ...], Any] | None = None,
+    env_cache: dict[tuple[Any, ...], Any] | None = None,
 ) -> dict[str, Any]:
     """Copy identity fields and attach ``root_causes`` from the failure class."""
     if not isinstance(row, dict):
@@ -50,34 +51,24 @@ def materialize_case(
             "inject": {},
             "root_causes": [],
         }
-        for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
+        for key in ISP_DEPLOY_KEYS:
             if row.get(key) not in (None, "", "-"):
                 out[key] = row[key]
         return out
     topo = _topo_size(row)
-    isp_topo = row.get("topo")
-    isp_igp = row.get("igp")
-    isp_bgp = row.get("bgp_mode")
-    isp_rpki = row.get("rpki")
-    isp_backend = row.get("backend")
-    isp_device_profile = row.get("device_profile")
     isp_kwargs: dict[str, Any] = {}
-    if isp_topo not in (None, "", "-"):
-        isp_kwargs["topo"] = str(isp_topo)
-    if isp_igp not in (None, "", "-"):
-        isp_kwargs["igp"] = str(isp_igp)
-    if isp_bgp not in (None, "", "-"):
-        isp_kwargs["bgp_mode"] = str(isp_bgp)
-    if isp_rpki not in (None, "", "-"):
-        isp_kwargs["rpki"] = (
-            bool(isp_rpki)
-            if isinstance(isp_rpki, bool)
-            else str(isp_rpki).lower() in {"1", "true", "yes", "on"}
-        )
-    if isp_backend not in (None, "", "-"):
-        isp_kwargs["backend"] = str(isp_backend)
-    if isp_device_profile not in (None, "", "-"):
-        isp_kwargs["device_profile"] = str(isp_device_profile)
+    for key in ISP_DEPLOY_KEYS:
+        value = row.get(key)
+        if value in (None, "", "-"):
+            continue
+        if key == "rpki":
+            isp_kwargs[key] = (
+                value
+                if isinstance(value, bool)
+                else str(value).lower() in {"1", "true", "yes", "on"}
+            )
+        else:
+            isp_kwargs[key] = str(value)
     inject_raw = dict(row.get("inject") or {})
     if len(problems) > 1:
         inject_map = {
@@ -87,16 +78,7 @@ def materialize_case(
     else:
         inject_map = {problems[0]: {str(k): str(v) for k, v in inject_raw.items()}}
     cache = env_cache if env_cache is not None else {}
-    cache_key = (
-        scenario,
-        topo,
-        isp_kwargs.get("topo", ""),
-        isp_kwargs.get("igp", ""),
-        isp_kwargs.get("bgp_mode", ""),
-        str(isp_kwargs.get("rpki", False)),
-        isp_kwargs.get("backend", ""),
-        isp_kwargs.get("device_profile", ""),
-    )
+    cache_key = (scenario, topo, *isp_kwargs.items())
     if cache_key not in cache:
         cache[cache_key] = load_offline_net_env(scenario, topo, **isp_kwargs)
     if len(problems) > 1:
@@ -132,7 +114,7 @@ def materialize_case(
 
 
 def materialize_cases(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    env_cache: dict[tuple[str, ...], Any] = {}
+    env_cache: dict[tuple[Any, ...], Any] = {}
     return [materialize_case(row, env_cache=env_cache) for row in rows]
 
 

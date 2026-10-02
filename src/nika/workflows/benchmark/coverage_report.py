@@ -12,6 +12,7 @@ from nika.workflows.benchmark.candidate_context import (
     normalize_topo_scale,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.workflows.benchmark.isp_options import ISP_OPTION_KEYS
 from nika.workflows.benchmark.selection import baseline_one_per_failure
 
 
@@ -181,13 +182,7 @@ def build_coverage_report(
             ),
         },
         "cross_environment_repetition": {
-            "environment_key": [
-                "scenario",
-                "topo_scale",
-                "igp",
-                "bgp_mode",
-                "rpki",
-            ],
+            "environment_key": ["scenario", "topo_scale", *ISP_OPTION_KEYS],
             "repeatable_failures": len(repeatable_failures),
             "satisfied_failures": len(repeatable_failures) - len(repetition_violations),
             "single_environment_failures": single_environment_failures,

@@ -423,7 +423,7 @@ def test_southbound_read_errors_do_not_prove_disconnection(output) -> None:
 
 @pytest.mark.parametrize("probe", ["control_plane_bgp", "control_plane_ospf"])
 def test_protocol_read_errors_are_not_observed_peer_losses(probe) -> None:
-    from nika.problems.support.probe_paths import ProbePath
+    from nika.net_env.base import ProbePath
     from tests.support.symptom.probe import run_probe_snapshot
 
     runtime = SimpleNamespace(exec=lambda *a, **k: "[TIMEOUT]")
@@ -435,7 +435,7 @@ def test_protocol_read_errors_are_not_observed_peer_losses(probe) -> None:
 
 
 def test_native_bgp_daemon_outage_is_an_observation() -> None:
-    from nika.problems.support.probe_paths import ProbePath
+    from nika.net_env.base import ProbePath
     from tests.support.symptom.probe import run_probe_snapshot
 
     runtime = SimpleNamespace(exec=lambda *a, **k: "bgpd is not running\n")

@@ -1,14 +1,14 @@
 """Per-failure symptom contracts for the test-path evaluate_symptom API.
 
 Production inject uses only artifact ``verify_fault``. Scenario probe paths used
-by inject (host pools) live in ``nika.problems.support.probe_paths``.
+by inject (host pools) are declared by each scenario (``nika.net_env.net_env_pool.get_probe_path``).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from tests.support.symptom.types import ProbeKind, SymptomClass
 
 # Re-export for tests that need scenario paths via the same package.

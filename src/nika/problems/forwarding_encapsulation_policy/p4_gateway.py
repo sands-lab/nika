@@ -9,6 +9,12 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import interface_resource, node_resource
+from nika.problems.support.benchmark_targets import (
+    p4_gateway_port_target,
+    p4_port_options,
+    resolve_path_mtu_target,
+)
+from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
 from nika.problems.support.p4_gateway import (
     set_icmp_frag_needed_filter,
     set_int_mtu,
@@ -44,22 +50,6 @@ def read_runtime_config_value(
 # ``ip protocol icmp`` dependency), so verify_fault can match it exactly.
 _FRAG_NEEDED_NFT_RULE = "icmp type destination-unreachable icmp code frag-needed drop"
 
-_FRAG_NEEDED_COLUMNS = frozenset(
-    {
-        "p4_dc_gateway",
-        "dc_clos",
-        "campus_lan",
-        "enterprise_branch",
-        "k8s_lab",
-        "isp_abilene/isis",
-        "isp_abilene/ospf",
-        "isp_abilene/ibgp_rr",
-        "isp_abilene_ebgp_rpki",
-        "isp_geant_ebgp_rpki",
-        "isp_abilene_ebgp_rtbh",
-    }
-)
-
 
 class IcmpFragNeededFilterMisconfigurationParams(BaseModel):
     host_name: str = Field(
@@ -77,8 +67,29 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         "MTU and large transfers stall while small packets still work."
     )
     TAGS = ["icmp"]
-    COMPATIBLE_COLUMNS = _FRAG_NEEDED_COLUMNS
+    COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
     Params = IcmpFragNeededFilterMisconfigurationParams
+    BENCHMARK_TARGETS = "canonical"
+    BENCHMARK_COORDINATES = frozenset({"mtu_mismatch"})
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario == "p4_dc_gateway":
+            return {"host_name": "gateway_1"}
+        # Linux / FRR path: drop Frag Needed on an intermediate router.
+        mtu_target = resolve_path_mtu_target(
+            ctx.scenario, ctx.net_env, ctx.rng, list(ctx.router_pool), ctx.backend
+        )
+        return {"host_name": mtu_target["host_name"]}
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # PMTUD black hole: filter Frag Needed on the router that lowered the MTU.
+        mtu = dict(params_by_problem["mtu_mismatch"])
+        frag = dict(params_by_problem["icmp_frag_needed_filter_misconfiguration"])
+        frag["host_name"] = mtu["host_name"]
+        params_by_problem["icmp_frag_needed_filter_misconfiguration"] = frag
+        return params_by_problem
 
     def root_cause_resources(self, params: IcmpFragNeededFilterMisconfigurationParams):
         return [node_resource(params.host_name)]
@@ -136,6 +147,26 @@ class P4TcamEntryCorruption(ProblemBase):
     TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = P4TcamEntryCorruptionParams
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        rng = ctx.rng
+        model = ctx.net_env.model
+        service = rng.choice(model.services)
+        target = rng.choice(model.gateways + model.spines)
+        control = (
+            next(
+                client.name
+                for client in model.clients
+                if client.name != model.clients[0].name
+            )
+            if len(model.clients) > 1
+            else model.clients[0].name
+        )
+        return {"host_name": target, "target_ip": service.ip, "control_source": control}
 
     def root_cause_resources(self, params: P4TcamEntryCorruptionParams):
         return [node_resource(params.host_name)]
@@ -174,6 +205,19 @@ class IntInsufficientMtuHeadroom(ProblemBase):
     TAGS = ["p4_runtime", "int", "telemetry", "http"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = IntInsufficientMtuHeadroomParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        ctx.rng.choice(ctx.net_env.model.services)  # keep the shared service draw
+        params = p4_gateway_port_target(ctx, gateways_only=True)
+        params["int_mtu"] = "1480"
+        return params
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return p4_port_options(ctx, base, gateways_only=True)
 
     def root_cause_resources(self, params: IntInsufficientMtuHeadroomParams):
         return [interface_resource(params.host_name, params.intf_name)]

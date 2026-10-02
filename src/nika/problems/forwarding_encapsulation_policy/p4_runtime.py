@@ -12,16 +12,22 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import (
+    bmv2_leaves,
+    choice,
+    prefer_prefixed_node,
+)
 from nika.net_env.verify import http_ok
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     ecmp_target as _ecmp_target,
+    gateway_backend_leaf,
     load_blackhole_pipeline,
     remove_staged_pipeline,
     load_intent,
     lpm_capacity,
     run_manager,
 )
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -40,6 +46,10 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
     description = "A P4 ActionSelector member is misconfigured."
     TAGS = ["p4", "p4_runtime"]
     Params = P4ActionSelectorMemberMisconfigParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, bmv2_leaves(ctx.bmv2), "leaf_1")}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -123,6 +133,10 @@ class P4EcmpGroupMemberMissing(ProblemBase):
     TAGS = ["p4", "p4_runtime"]
     Params = P4EcmpGroupMemberMissingParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, bmv2_leaves(ctx.bmv2), "leaf_1")}
+
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self._target: dict | None = None
@@ -200,6 +214,22 @@ class P4RuntimePipelineMismatch(ProblemBase):
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePipelineMismatchParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario == "p4_dc_fabric":
+            observer = ctx.net_env.model.client_endpoints()[0]
+            return {"host_name": f"leaf_{observer.leaf_id}"}
+        if ctx.scenario == "p4_dc_gateway":
+            return {
+                "host_name": prefer_prefixed_node(
+                    ctx.bmv2,
+                    prefix="gateway_",
+                    preferred="gateway_1",
+                    fallback="gateway_1",
+                )
+            }
+        return {"host_name": choice(ctx.rng, bmv2_leaves(ctx.bmv2), "leaf_1")}
+
     def _expected_pipeline_name(self) -> str:
         if self.scenario_name == "p4_dc_gateway":
             from nika.net_env.p4_dc_gateway.topology_model import PIPELINE_NAME
@@ -267,6 +297,18 @@ class P4RuntimePartialWrite(ProblemBase):
     description = "A P4Runtime update was only partially applied."
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePartialWriteParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario == "p4_dc_gateway":
+            return {"host_name": gateway_backend_leaf(ctx.net_env.model)}
+        if ctx.scenario == "p4_dc_fabric":
+            return {
+                "host_name": prefer_prefixed_node(
+                    ctx.bmv2, prefix="leaf_", preferred="leaf_1", fallback="leaf_1"
+                )
+            }
+        return {"host_name": choice(ctx.rng, ctx.bmv2, ctx.host0)}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -369,6 +411,10 @@ class P4TableResourceExhaustion(ProblemBase):
     description = "A P4 table has exhausted its capacity."
     TAGS = ["p4", "p4_runtime"]
     Params = P4TableResourceExhaustionParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, bmv2_leaves(ctx.bmv2), "leaf_1")}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

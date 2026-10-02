@@ -12,20 +12,21 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from nika.net_env.net_env_pool import list_all_net_envs
 from nika.workflows.benchmark.trials import Trial
 
 ResourceClass = str  # "clab" | "k8s" | "large" | "light"
 
 # Scenarios that always use Containerlab even when ``backend`` is omitted.
-CONTAINERLAB_ONLY_SCENARIOS = frozenset({"min3clos"})
+CONTAINERLAB_ONLY_SCENARIOS = frozenset(
+    name
+    for name, spec in list_all_net_envs().items()
+    if spec.supported_backends == ("containerlab",)
+)
 
 # Host-shared heavy labs that must not run two-at-a-time on one machine.
 K8S_CLASS_SCENARIOS = frozenset(
-    {
-        "k8s_lab",
-        "llmd_lab",
-        "iosxr_simple_bgp",
-    }
+    name for name, spec in list_all_net_envs().items() if spec.heavy_lab
 )
 
 CLASS_CLAB = "clab"

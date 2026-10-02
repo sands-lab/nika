@@ -14,6 +14,7 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.rca import interface_resource
+from nika.problems.support.benchmark_targets import replace
 from nika.problems.support.polling import wait_until
 from nika.utils.logger import system_logger
 
@@ -74,6 +75,49 @@ def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
     return False
 
 
+def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
+    """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
+    targets = getattr(net_env, "wireguard_hq_peer_targets", None)
+    if targets is None:
+        raise ValueError(f"Scenario {scenario!r} has no Site Edge WireGuard peers")
+    return targets()
+
+
+def _prefer_hq_server_prefix(prefixes: list[str]) -> str | None:
+    """Prefer HQ SERVER (10.0.20.0/24), then HQ CORP, else first remote prefix."""
+    if not prefixes:
+        return None
+    for preferred in ("10.0.20.0/24", "10.0.10.0/24"):
+        if preferred in prefixes:
+            return preferred
+    return prefixes[0]
+
+
+def _draw_hq_peer_target(ctx) -> tuple[str, str]:
+    targets = _hq_peer_targets(ctx.net_env, ctx.scenario)
+    if not targets:
+        raise ValueError(
+            f"No primary HQ WireGuard peers for enterprise_branch topo_size={ctx.topo_size!r}"
+        )
+    return ctx.rng.choice(targets)
+
+
+def _validate_hq_peer_target(ctx, problem: str, inject: dict[str, str]) -> None:
+    from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+    scenario, topo_size = ctx.scenario, ctx.topo_size
+    if not is_enterprise_branch_scenario(scenario):
+        raise ValueError(f"{problem} requires enterprise_branch (got {scenario!r})")
+    eligible = _hq_peer_targets(ctx.net_env, ctx.scenario)
+    pair = (inject.get("host_name") or "", inject.get("intf_name") or "")
+    if pair not in eligible:
+        raise ValueError(
+            f"{problem} target {pair!r} is not a "
+            f"primary HQ tunnel on {scenario} (topo_size={topo_size!r}); "
+            f"eligible: {eligible}"
+        )
+
+
 class WireGuardPeerKeyMisconfigParams(BaseModel):
     """Parameters for a wrong Hub peer PublicKey on a Branch Site Edge."""
 
@@ -100,6 +144,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     description = "WireGuard peer public key is incorrect."
     TAGS: str = ["vpn"]
     Params = WireGuardPeerKeyMisconfigParams
+    BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "A Branch Site Edge has incorrect Hub WireGuard peer public keys on all "
         "of its overlay tunnels. Provider underlay and Hub WAN endpoints remain "
@@ -113,6 +158,22 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
         self._hub_tunnel_ips: list[str] = []
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        edge, iface = _draw_hq_peer_target(ctx)
+        return {"host_name": edge, "intf_name": iface}
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return [
+            replace(base, host_name=node, intf_name=intf)
+            for node, intf in _hq_peer_targets(ctx.net_env, ctx.scenario)
+        ]
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
 
     def root_cause_resources(self, params: WireGuardPeerKeyMisconfigParams):
         tunnels = self._spoke_tunnels(params.host_name)
@@ -296,6 +357,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     description = "WireGuard AllowedIPs omits a required remote prefix."
     TAGS: str = ["vpn"]
     Params = WireGuardAllowedIpsMisconfigParams
+    BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "A Branch Site Edge omits one remote enterprise business prefix from its "
         "Hub WireGuard peer AllowedIPs while keeping the Hub tunnel address. "
@@ -310,6 +372,47 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
         self._hub_tunnel_ip: str | None = None
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        edge, iface = _draw_hq_peer_target(ctx)
+        spoke = _spoke_site_from_edge(edge)
+        target_prefix = _prefer_hq_server_prefix(
+            ctx.net_env.remote_prefixes_for_spoke(spoke)
+        )
+        if not target_prefix:
+            raise ValueError(
+                f"No remote advertised prefixes for spoke {spoke!r} "
+                f"(topo_size={ctx.topo_size!r})"
+            )
+        return {"host_name": edge, "intf_name": iface, "target_prefix": target_prefix}
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        rows = []
+        for node, intf in _hq_peer_targets(ctx.net_env, ctx.scenario):
+            prefix = _prefer_hq_server_prefix(
+                ctx.net_env.remote_prefixes_for_spoke(_spoke_site_from_edge(node))
+            )
+            if prefix:
+                rows.append(
+                    replace(base, host_name=node, intf_name=intf, target_prefix=prefix)
+                )
+        return rows
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
+        target_prefix = inject.get("target_prefix")
+        if target_prefix:
+            spoke = _spoke_site_from_edge(inject.get("host_name") or "")
+            remotes = ctx.net_env.remote_prefixes_for_spoke(spoke)
+            if target_prefix not in remotes:
+                raise ValueError(
+                    f"{cls.root_cause_name} target_prefix="
+                    f"{target_prefix!r} is not a remote advertised prefix for "
+                    f"{spoke!r} (topo_size={ctx.topo_size!r}); remotes: {remotes}"
+                )
 
     def root_cause_resources(self, params: WireGuardAllowedIpsMisconfigParams):
         return [interface_resource(params.host_name, params.intf_name)]

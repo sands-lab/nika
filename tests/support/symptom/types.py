@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from nika.problems.support.probe_paths import ProbePath
+from nika.net_env.base import ProbePath
 
 ProbeKind = Literal[
     "path_ping",

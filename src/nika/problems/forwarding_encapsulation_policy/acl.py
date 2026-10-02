@@ -7,6 +7,12 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    arp_l2_endpoint_host,
+    first,
+    prefer_named,
+)
+from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.support.polling import wait_until
 from nika.runtime.base import RuntimeCapabilityError
 
@@ -24,6 +30,19 @@ def _verify_nft_drop(
         verified=all(present.values()),
         details={"host": host_name, "family": family, "rules_present": present},
     )
+
+
+def _host_acl_target(ctx) -> str:
+    """Probe-source host whose own ICMP / HTTP traffic the ACL drops."""
+    if ctx.scenario == "enterprise_branch":
+        return prefer_named(
+            ctx.host_pool, "br1_corp_pc", first(ctx.host_pool) or ctx.host0
+        )
+    if ctx.scenario == "k8s_lab":
+        return prefer_named(ctx.host_pool, "client", ctx.host0)
+    if ctx.scenario in {"p4_dc_fabric", "sdn_l3_clos"}:
+        return prefer_named(ctx.host_pool, "client_1_1", ctx.host0)
+    return ctx.host0
 
 
 # ==================================================================
@@ -45,6 +64,10 @@ class BGPAclBlock(ProblemBase):
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
 
     def root_cause_resources(self, params: BGPAclBlockParams):
         return [node_resource(params.host_name)]
@@ -127,6 +150,10 @@ class OSPFAclBlock(ProblemBase):
 
     Params = OSPFAclBlockParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
     def root_cause_resources(self, params: OSPFAclBlockParams):
         return [node_resource(params.host_name)]
 
@@ -157,19 +184,13 @@ class ARPAclBlock(ProblemBase):
     description = "ARP is blocked by an ACL."
     TAGS: str = ["arp"]
     # k8s_lab / llmd_lab client images lack nftables and cannot apt-install offline.
-    COMPATIBLE_COLUMNS = frozenset(
-        {
-            "campus_lan",
-            "dc_clos",
-            "enterprise_branch",
-            "sdn_l3_clos",
-            "p4_dc_fabric",
-            "p4_dc_gateway",
-            "iosxr_simple_bgp",
-        }
-    )
+    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS | {"iosxr_simple_bgp"}
 
     Params = ARPAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": arp_l2_endpoint_host(ctx.roles, fallback=ctx.host0)}
 
     def root_cause_resources(self, params: ARPAclBlockParams):
         return [node_resource(params.host_name)]
@@ -203,6 +224,10 @@ class IcmpAclBlock(ProblemBase):
     TAGS: str = ["icmp"]
 
     Params = IcmpAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": _host_acl_target(ctx)}
 
     def root_cause_resources(self, params: IcmpAclBlockParams):
         return [node_resource(params.host_name)]
@@ -238,6 +263,10 @@ class HttpAclBlock(ProblemBase):
 
     Params = HttpAclBlockParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": _host_acl_target(ctx)}
+
     def root_cause_resources(self, params: HttpAclBlockParams):
         return [node_resource(params.host_name)]
 
@@ -270,6 +299,10 @@ class DNSPortBlocked(ProblemBase):
     TAGS: str = ["dns", "http"]
 
     Params = DNSPortBlockedParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.dns0}
 
     def root_cause_resources(self, params: DNSPortBlockedParams):
         return [node_resource(params.host_name)]

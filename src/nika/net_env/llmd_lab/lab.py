@@ -19,10 +19,10 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import REPO_ROOT, RUNTIME_DIR
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.k8s_workload_cache import (
     K3S_IMAGE,
-    LLMD_LAB_WORKLOAD_IMAGES,
+    K3S_SYSTEM_IMAGES,
     mount_workload_cache,
 )
 from nika.runtime.spec import NodeRole
@@ -141,27 +141,27 @@ def ensure_helm_charts() -> list[Path]:
 
 class LLMDInferenceCluster(NetworkEnvBase):
     LAB_NAME = "llmd_lab"
+    K8S_HOST_IMAGES = (_K3S_IMAGE, _BASE_IMAGE)
+    K8S_WORKLOAD_IMAGES = (
+        *K3S_SYSTEM_IMAGES,
+        "quay.io/metallb/controller:v0.16.1@sha256:f51ab515de9ccd20dc3dccb093e48df8adddac019326c456f449e55ba91b6420",
+        "quay.io/metallb/speaker:v0.16.1@sha256:16561e96531e1852d5c229ad7fae6e994dcfa983ff7f4de6b6208b34a4e2ddbc",
+        "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0@sha256:873179822ab0895a37ea09f2112ca39a6ae50a26612561c8bfad7f9a8c5af6f5",
+        "ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0@sha256:4cc3f15f254c26df7611e3b92ff7c82f83ad4ecb325de639c9dfb32873c6ce90",
+        "ghcr.io/llm-d/llm-d-inference-sim:latest@sha256:32144df791330a0006b747edfdf2b114a0fe728e023a9d1b3463eeb48d32abb9",
+        # agentgateway Helm chart v1.1.0 (_AGENTGATEWAY_VERSION):
+        # the controller defaults to the chart appVersion and deploys proxies
+        # with the same release tag.
+        "cr.agentgateway.dev/controller:v1.1.0@sha256:0c4179780a3353a20f403ed51c764127f2806b6aa1a5ecb6da7655b5b27d7926",
+        "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
+    )
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 2
     TOPO_LEVEL = "hard"
-    TOPO_SIZE = None
-    TAGS = [
-        "kubernetes",
-        "k3s",
-        "k8s_control_plane",
-        "metallb",
-        "coredns",
-        "kube_proxy",
-        "network_policy",
-        "llm",
-        "inference",
-        "link",
-        "pc",
-        "http",
-        "icmp",
-        "arp",
-        "mac",
-    ]
+
+    @classmethod
+    def prepare_k8s_image_cache(cls) -> None:
+        ensure_helm_charts()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -273,7 +273,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
             image.split("@")[0].split("/")[-1].split(":")[0]: image.split("/")[
                 -1
             ].split(":", 1)[1]
-            for image in LLMD_LAB_WORKLOAD_IMAGES
+            for image in self.K8S_WORKLOAD_IMAGES
             if image.startswith("cr.agentgateway.dev/")
         }
         all_machines["controller"].create_file_from_string(
@@ -318,6 +318,30 @@ class LLMDInferenceCluster(NetworkEnvBase):
     def load_machines(self):
         super().load_machines()
         self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "routers": roles["k8s_controllers"] or clients,
+            "web": roles["web"] or clients,
+            "controllers": roles["k8s_controllers"],
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client",
+            dst_ip="200.0.0.8",
+            http_url="http://200.0.0.8/",
+            control_plane_host="controller",
+            peer_host="web",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.llmd_lab.verify import verify_llmd_lab_startup

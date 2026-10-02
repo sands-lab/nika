@@ -1,3 +1,5 @@
+import random
+
 from pydantic import BaseModel, Field
 
 from nika.problems.rca.inventory import interface_on
@@ -6,7 +8,33 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    choice_distinct,
+    require_distinct_hosts,
+)
 from nika.utils.logger import system_logger
+
+
+def _mac_conflict_pair(net_env, rng: random.Random) -> tuple[str, str]:
+    """Prefer two distinct endpoint hosts so L2 MAC conflict is observable."""
+    hosts = list(net_env.hosts or [])
+    servers = net_env.servers or {}
+    for bucket in servers.values():
+        for name in bucket or []:
+            if name not in hosts:
+                hosts.append(name)
+    if len(hosts) >= 2:
+        pair = choice_distinct(rng, hosts, hosts[0])
+        return pair[0], pair[1]
+    topo = net_env.get_topology()
+    if topo:
+        link = rng.choice(topo)
+        device_a = link[0].split(":")[0]
+        device_b = link[1].split(":")[0]
+        return device_a, device_b
+    pair = choice_distinct(rng, hosts, "pc1")
+    return pair[0], pair[1]
+
 
 # ==================================================================
 # Problem: MAC address conflict
@@ -28,6 +56,15 @@ class MacAddressConflict(ProblemBase):
     TAGS: str = ["mac"]
 
     Params = MacAddressConflictParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        a, b = _mac_conflict_pair(ctx.net_env, ctx.rng)
+        return {"host_name": a, "host_name_2": b}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_distinct_hosts(ctx, cls.root_cause_name, inject)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

@@ -48,6 +48,7 @@ from nika.workflows.benchmark.healthy import (
     is_healthy_case,
     write_healthy_session_artifacts,
 )
+from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
 from nika.workflows.benchmark.outcomes import (
@@ -128,6 +129,15 @@ def _maybe_start_inspect(
 
 
 _BENCHMARK_DONE_PREFIX = "benchmark_done "
+
+_ISP_BANNER_LABELS = {
+    "topo": "Topo",
+    "igp": "IGP",
+    "bgp_mode": "BGP",
+    "rpki": "RPKI",
+    "backend": "Backend",
+    "device_profile": "Device",
+}
 
 # Worker processes for timed/isolated trials. Ctrl+C reaches only the main
 # thread, so ThreadPoolExecutor workers blocked in ``Process.join`` never see
@@ -809,19 +819,23 @@ def run_single_case(
         if progress is not None and progress_label:
             progress.set_phase(progress_label, name)
 
-    isp_bits = []
-    if topo:
-        isp_bits.append(f"Topo: {topo}")
-    if igp:
-        isp_bits.append(f"IGP: {igp}")
-    if bgp_mode:
-        isp_bits.append(f"BGP: {bgp_mode}")
-    if rpki:
-        isp_bits.append("RPKI: on")
-    if backend:
-        isp_bits.append(f"Backend: {backend}")
-    if device_profile:
-        isp_bits.append(f"Device: {device_profile}")
+    row = benchmark_row_from_case(
+        scenario=scenario,
+        problem=problem,
+        topo_size=topo_size,
+        inject_params=inject_params,
+        topo=topo,
+        igp=igp,
+        bgp_mode=bgp_mode,
+        rpki=rpki,
+        backend=backend,
+        device_profile=device_profile,
+    )
+    isp_bits = [
+        f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
+        for key in ISP_DEPLOY_KEYS
+        if row.get(key)
+    ]
     # Batch trials stay quiet unless -v; bare single-case CLI keeps the banner.
     if verbose or not trial_id:
         print(
@@ -864,7 +878,6 @@ def run_single_case(
         inject_params,
         problems=resolved_problems,
     )
-    params = dict(inject_params)
 
     predetermined_dir: str | None = None
     if trial_id:
@@ -925,18 +938,6 @@ def run_single_case(
             )
         gt_written = (session_dir / "ground_truth.json").is_file()
 
-        row = benchmark_row_from_case(
-            scenario=scenario,
-            problem=problem,
-            topo_size=topo_size,
-            inject_params=params,
-            topo=topo,
-            igp=igp,
-            bgp_mode=bgp_mode,
-            rpki=rpki,
-            backend=backend,
-            device_profile=device_profile,
-        )
         session = Session().load_running_session(session_id=session_id)
         session.update_session(
             "benchmark_fingerprint",
@@ -1139,12 +1140,7 @@ def _run_trial(
         trial_id=trial.trial_id,
         trial_index=trial.trial_index,
         case_key=trial.case_key,
-        topo=row.get("topo"),
-        igp=row.get("igp"),
-        bgp_mode=row.get("bgp_mode"),
-        rpki=row.get("rpki"),
-        backend=row.get("backend"),
-        device_profile=row.get("device_profile"),
+        **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
         verbose=verbose,
         progress=progress,
         progress_label=trial.label if progress is not None else None,

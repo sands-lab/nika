@@ -86,6 +86,24 @@ class LbConnectionStateExhaustion(ProblemBase):
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbConnectionStateExhaustionParams
 
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        model = ctx.net_env.model
+        return {
+            "host_name": "gateway_1",
+            "capacity": "256",
+            "syn_timeout_sec": "10",
+            "seed": str(ctx.seed),
+            "client_host": model.clients[0].name,
+            "vip_url": model.vip_url,
+            "backend_dip": model.backend_pool[0].ip,
+            "attacker_device": model.clients[-1].name,
+        }
+
     def root_cause_resources(self, params: LbConnectionStateExhaustionParams):
         return [node_resource(params.host_name)]
 
@@ -197,6 +215,18 @@ class LbPendingConnectionUpdateRace(ProblemBase):
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbPendingConnectionUpdateRaceParams
 
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        return {
+            "host_name": "gateway_1",
+            "learning_delay_ms": "5",
+            "seed": str(ctx.seed),
+        }
+
     def root_cause_resources(self, params: LbPendingConnectionUpdateRaceParams):
         return [node_resource(params.host_name)]
 
@@ -228,6 +258,20 @@ class SnatPortPoolExhaustion(ProblemBase):
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
     Params = SnatPortPoolExhaustionParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "enterprise_branch":
+            return {"host_name": ctx.host0}
+        return {
+            "host_name": "br1_edge",
+            "source_prefix": "10.1.40.0/24",
+            "public_ip": "198.18.1.10",
+            "port_start": "40000",
+            "port_end": "40063",
+        }
 
     def root_cause_resources(self, params: SnatPortPoolExhaustionParams):
         return [node_resource(params.host_name)]
@@ -277,6 +321,20 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     )
     TAGS = ["vpn", "http", "nat"]
     Params = NatMappingRemovedWithoutDrainParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "enterprise_branch":
+            return {"host_name": ctx.host0}
+        return {
+            "host_name": "br1_edge",
+            "source_prefix": "10.1.40.0/24",
+            "nat_ip_a": "198.18.1.10",
+            "nat_ip_b": "198.18.1.11",
+            "wan_interface": ctx.net_env.primary_wan_interface(),
+        }
 
     def root_cause_resources(self, params: NatMappingRemovedWithoutDrainParams):
         return [node_resource(params.host_name)]

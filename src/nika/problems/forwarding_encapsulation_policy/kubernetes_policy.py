@@ -7,6 +7,7 @@ from pydantic import Field
 
 from nika.problems.rca import k8s_resource
 from nika.net_env.verify import http_ok
+from nika.problems.support.benchmark_targets import first, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.base import (
     FailureDomain,
@@ -82,6 +83,28 @@ class NetworkPolicyDeny(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "network_policy"]
 
     Params = NetworkPolicyDenyParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = {
+            "control_node": k8s_control_node(ctx),
+            "symptom_host": first(ctx.roles.get("hosts")) or ctx.host0,
+        }
+        if ctx.scenario == "llmd_lab":
+            params["namespace"] = "llm-d"
+            params["pod_selector"] = (
+                "gateway.networking.k8s.io/gateway-name=llm-d-gateway"
+            )
+            params["symptom_url"] = "http://llmd/v1/models"
+            params["control_url"] = "http://200.0.0.8/"
+        else:
+            params["namespace"] = "word-ns"
+            params["pod_selector"] = "app=word"
+            params["symptom_url"] = "http://datacenter.com/word"
+            params["control_url"] = "http://datacenter.com/weather?location=London"
+        return params
 
     def root_cause_resources(self, params: NetworkPolicyDenyParams):
         name = params.policy_name or DEFAULT_POLICY_NAME

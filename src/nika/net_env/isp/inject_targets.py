@@ -97,7 +97,7 @@ def isp_link_symptom_targets(
 
 def isp_default_probe_path(isp_inventory: Mapping[str, Any]):
     """Default inter-PoP probe path from the first backbone link."""
-    from nika.problems.support.probe_paths import ProbePath
+    from nika.net_env.base import ProbePath
 
     device, iface = first_link_endpoint(isp_inventory)
     targets = isp_link_symptom_targets(isp_inventory, device, iface)
@@ -107,6 +107,31 @@ def isp_default_probe_path(isp_inventory: Mapping[str, Any]):
         control_plane_host=device,
         peer_host=targets["peer_host"],
     )
+
+
+def isp_topology_probe_path(topo: str):
+    """Default probe path for an SNDlib topology, compiled offline (OSPF layout)."""
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+    from nika.net_env.isp.traffic.models import TrafficInterval, TrafficMatrixSeries
+    from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
+
+    plan = compile_isp_plan(IspConfig(topology=topo, igp="ospf"))
+    # Stub hosts are required for isp_default_probe_path (inventory hosts).
+    stub_series = TrafficMatrixSeries(
+        topology=plan.topology_name,
+        source="demands",
+        intervals=(TrafficInterval(index=0, duration_sec=5, flows=()),),
+        sample_period_sec=5,
+        unit_note="stub-layout only",
+        path=None,
+    )
+    attachment = attach_traffic_stubs(
+        plan,
+        stub_series,
+        pop_node_ids=tuple(n.node_id for n in plan.nodes),
+        render_frr=False,
+    )
+    return isp_default_probe_path(attachment.plan.inventory)
 
 
 def first_link_endpoint(isp_inventory: Mapping[str, Any]) -> tuple[str, str]:

@@ -70,21 +70,6 @@ class HostMeta:
 class CampusLanDhcp(NetworkEnvBase):
     LAB_NAME = "campus_lan"
     TOPO_LEVEL = "hard"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "web",
-        "icmp",
-        "frr",
-        "dns",
-        "ospf",
-        "dhcp",
-        "pc",
-        "mac",
-        "http",
-        "load_balancer",
-    ]
 
     def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):
         super().__init__(**kwargs)

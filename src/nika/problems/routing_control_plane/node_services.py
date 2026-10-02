@@ -32,6 +32,10 @@ class FrrDown(ProblemBase):
 
     Params = FrrDownParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
     symptom_desc = "Users report connectivity issues to other hosts in the network."
 
     def __init__(self, scenario_name: str | None, **kwargs):

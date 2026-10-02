@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from nika.net_env.verify import ping_stats
-from nika.problems.support.probe_paths import ProbePath
+from nika.net_env.base import ProbePath
 from nika.runtime.base import LabRuntime
 
 

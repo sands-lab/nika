@@ -5,6 +5,10 @@ import re
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.benchmark_targets import (
+    access_router_victim,
+    require_role_member,
+)
 from nika.problems.support.inject_resolve import (
     resolve_victim_host,
     resolve_victim_host_ip,
@@ -50,6 +54,22 @@ class StaticBlackHole(ProblemBase):
     supported_backends = ("kathara", "containerlab")
 
     Params = StaticBlackHoleParams
+
+    BENCHMARK_TARGET_ROLE = "access_routers"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return access_router_victim(ctx, prefer_site_edge=True)
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_role_member(
+            ctx,
+            cls.root_cause_name,
+            inject.get("host_name"),
+            "access_routers",
+            reason="has no attached end host",
+        )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

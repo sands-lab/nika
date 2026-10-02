@@ -85,8 +85,6 @@ class IosXrSimpleBGP(NetworkEnvBase):
     VERIFY_MAX_WAIT_SEC = 480
     VERIFY_RETRY_DELAY_SEC = 10
     TOPO_LEVEL = "easy"
-    TOPO_SIZE = None
-    TAGS = ["arp", "link", "bgp", "icmp", "iosxr", "pc"]
 
     def __init__(self, **kwargs):
         super().__init__()
