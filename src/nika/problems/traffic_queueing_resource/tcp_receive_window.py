@@ -10,6 +10,7 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import first
 from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     DEFAULT_BDP_DIVISOR,
     DEFAULT_BUFFER_CEIL_BYTES,
@@ -80,6 +81,25 @@ class TcpReceiveWindowLimited(ProblemBase):
     # Temporary: needs privileged hosts + enough path BDP (WAN RTT).
     COMPATIBLE_COLUMNS = frozenset({"enterprise_branch"})
     Params = TcpReceiveWindowLimitedParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        # Fault the HTTP client (TCP receiver of server->client bulk download).
+        if ctx.scenario != "enterprise_branch":
+            return {"host_name": ctx.host0}
+        host_pool = ctx.host_pool
+        return {
+            "host_name": (
+                "br1_corp_pc"
+                if "br1_corp_pc" in host_pool
+                else (first(host_pool) or ctx.host0)
+            ),
+            "sender_host": "hq_srv",
+            "sender_ip": "10.0.20.2",
+            "small_url": "http://10.0.20.2/small.bin",
+            "large_url": "http://10.0.20.2/large.bin",
+        }
+
     symptom_desc = (
         "Receiver TCP receive-buffer configuration is undersized relative to "
         "path BDP, so advertised RWND limits sustained bulk TCP throughput. "

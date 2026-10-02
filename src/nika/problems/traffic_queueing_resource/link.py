@@ -15,6 +15,7 @@ from nika.problems.rca.inventory import (
     resolve_default_intf,
 )
 from nika.problems.rca.models import UnresolvedRootCauseError
+from nika.problems.support.benchmark_targets import first, prefer_named
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.utils.logger import system_logger
 from nika.traffic.burst import BurstTrafficGenerator
@@ -111,6 +112,73 @@ class IncastTrafficNetworkLimitation(ProblemBase):
     COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS
 
     Params = IncastTrafficNetworkLimitationParams
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        # Pin inject host + probe_dst_ip to one ICMP-reachable HTTP server on
+        # the default probe path (same alignment pattern as web_dos_attack).
+        # Scenarios not listed below get no targets (legacy behaviour).
+        scenario, net_env = ctx.scenario, ctx.net_env
+        web0, host0 = ctx.web0, ctx.host0
+        params: dict[str, str] = {}
+        real_web = list(ctx.servers.get("web") or [])
+        if scenario == "enterprise_branch":
+            server_pool = [
+                h for h in (ctx.roles.get("hosts") or []) if h.endswith("_srv")
+            ]
+            target = prefer_named(
+                server_pool,
+                "hq_srv",
+                first(real_web) or web0 or host0,
+            )
+            params.update(
+                host_name=target,
+                probe_dst_ip="10.0.20.2",
+                observer_device="br1_corp_pc",
+            )
+        elif scenario == "dc_clos":
+            params.update(
+                host_name=prefer_named(
+                    real_web,
+                    "webserver0_pod0",
+                    first(real_web) or web0 or host0,
+                ),
+                probe_dst_ip="10.0.1.2",
+                observer_device="client_0",
+            )
+        elif scenario == "campus_lan":
+            target = prefer_named(
+                real_web,
+                "web_server_0",
+                first(real_web) or web0 or host0,
+            )
+            params.update(
+                host_name=target,
+                probe_dst_ip="10.200.0.3",
+                observer_device="pc_1_1_1_1",
+            )
+        elif scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
+            model = net_env.model
+            observer = model.client_endpoints()[0]
+            victim = next(
+                web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
+            )
+            params.update(
+                host_name=victim.name,
+                probe_dst_ip=victim.ip,
+                observer_device=observer.name,
+            )
+        elif scenario == "p4_dc_gateway":
+            model = net_env.model
+            victim = model.backend_pool[0]
+            observer = model.clients[0]
+            params.update(
+                host_name=victim.name,
+                probe_dst_ip=victim.ip,
+                observer_device=observer.name,
+            )
+        return params
 
     def __init__(self, scenario_name: str = "dc_clos", **kwargs):
         super().__init__(scenario_name, **kwargs)
