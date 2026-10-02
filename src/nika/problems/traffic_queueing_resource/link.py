@@ -44,9 +44,10 @@ _INCAST_COLUMNS = frozenset(
 # software at roughly 10 Mbit/s, so a 100mbit egress never queues behind it; the
 # emulated port must drain slower than the switch forwards for bursts to pile up.
 _KERNEL_RATES = ("100mbit", "20M/64")
-# Python UDP senders sustain about 3–4 Mbit/s through BMv2 on the audit host;
-# a 1 Mbit/s port therefore keeps dropping throughout the window.
-_BMV2_RATES = ("1mbit", "3M/64")
+# A BMv2 leaf saturates near 4 Mbit/s of 1400-byte UDP on the audit host and
+# then drops on every port. Four 500 kbit/s senders offer 2 Mbit/s: the 1 Mbit/s
+# port keeps dropping while the rest of the fabric stays within capacity.
+_BMV2_RATES = ("1mbit", "500K")
 
 
 def tc_size_bytes(value: str) -> int | None:
@@ -95,7 +96,7 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
         default=None,
         description=(
             "Per-sender iperf3 bitrate with burst packet count. Defaults to "
-            "20M/64, or 3M/64 when the forwarding device is a BMv2 switch."
+            "20M/64, or 500K when the forwarding device is a BMv2 switch."
         ),
     )
     packet_size: int = Field(default=1400, description="UDP payload bytes.")
@@ -129,6 +130,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         self._senders: list[str] = []
         self._receiver_ip: str | None = None
         self._burst_pids: dict[str, int] = {}
+        self._sink_pids: list[int] = []
 
     def root_cause_resources(self, params: IncastTrafficNetworkLimitationParams):
         device, intf = self._egress_port(params)
@@ -216,6 +218,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
             raw_udp=device in (self.net_env.bmv2_switches or []),
         )
         self._burst_pids = burst["sender_pids"]
+        self._sink_pids = burst["sink_pids"]
         system_logger.info(
             f"Injected incast: egress {device}:{intf} queue limit "
             f"{params.queue_limit} at {port_rate}; senders {self._senders} "
@@ -281,6 +284,13 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         for host, pid in self._burst_pids.items():
             try:
                 self.runtime.exec(host, f"kill {pid} 2>/dev/null || true", timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+        for pid in self._sink_pids:
+            try:
+                self.runtime.exec(
+                    params.host_name, f"kill {pid} 2>/dev/null || true", timeout=10
+                )
             except Exception:  # noqa: BLE001
                 pass
         senders = self._senders or self._sender_pool(params.host_name)

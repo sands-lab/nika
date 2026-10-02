@@ -40,6 +40,18 @@ while time.monotonic()<end:
     delay=next_send-time.monotonic()
     if delay>0: time.sleep(delay)
 """
+# Without a bound socket the receiver answers every datagram with ICMP port
+# unreachable, which doubles the load on the fabric toward the senders.
+_RAW_UDP_SINK = """import socket,sys,time
+port,duration=int(sys.argv[1]),float(sys.argv[2])
+s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+s.bind(('',port))
+s.settimeout(1.0)
+end=time.monotonic()+duration
+while time.monotonic()<end:
+    try: s.recv(65535)
+    except OSError: pass
+"""
 
 
 @dataclass(frozen=True)
@@ -164,7 +176,20 @@ class BurstTrafficGenerator:
                 )
             )
         flows = resolved_flows
-        if not raw_udp:
+        sink_pids: list[int] = []
+        if raw_udp:
+            sink_seconds = max(0.0, start_time - time.time()) + duration + 5
+            for flow in flows:
+                output = self.runtime.exec(
+                    destination,
+                    f"python3 -c {shlex.quote(_RAW_UDP_SINK)} "
+                    f"{flow.destination_port} {sink_seconds:.0f} "
+                    f">/tmp/burst-server-{flow.flow_id}.log 2>&1 & echo $!",
+                    timeout=10,
+                ).strip()
+                if output.isdigit():
+                    sink_pids.append(int(output))
+        else:
             for flow in flows:
                 self.runtime.exec(
                     destination,
@@ -214,4 +239,5 @@ class BurstTrafficGenerator:
             "flows_per_source": flows_per_source,
             "flows": [flow.__dict__ for flow in flows],
             "sender_pids": sender_pids,
+            "sink_pids": sink_pids,
         }
