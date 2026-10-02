@@ -462,8 +462,8 @@ def evaluate_link_capacity_symptom(
     """Custom evaluate_symptom for link_capacity_bottleneck.
 
     Kathara applies TBF on a hidden VDE proxy, so host ``tc`` overlimits and
-    stub iperf are unreliable. Prefer measured low throughput when available;
-    otherwise require the proxy/host TBF artifact plus a live path.
+    stub iperf are unreliable. Require the proxy/host TBF artifact plus either
+    measured low throughput or overlimits from live traffic.
     """
     from nika.net_env.verify import iperf_throughput_bps, ping_ok, tbf_overlimits
     from nika.runtime.kathara.runtime import KatharaRuntime
@@ -536,9 +536,9 @@ def evaluate_link_capacity_symptom(
 
     low_throughput = bps is not None and float(bps) < 100_000.0
     shaped = overlimits is not None and int(overlimits) > 0
-    # Prefer a live path under TBF. Extreme rates (e.g. 30kbit on clab node-ns)
-    # may drop ICMP while still proving shaping via overlimits.
-    ok = bool(artifact_ok and (path_alive or shaped))
+    # Extreme rates (e.g. 30kbit on clab node-ns) may drop ICMP and stall iperf
+    # while overlimits still prove that live traffic hit the shaper.
+    ok = bool(artifact_ok and (shaped or low_throughput))
 
     return ok, {
         "failure": "link_capacity_bottleneck",

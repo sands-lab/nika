@@ -7,6 +7,7 @@ short window. It closes only the session it started.
 
 from __future__ import annotations
 
+import ipaddress
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -25,7 +26,11 @@ from nika.net_env.verify import (
     ping_ok,
     ping_stats,
 )
-from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+from nika.problems.rca.inventory import (
+    canonical_link_name,
+    iter_link_termination_points,
+    parse_endpoint,
+)
 from nika.problems.registry import get_problem_class
 from nika.validation.presence import recheck_artifact_with_retry
 from nika.workflows.benchmark.healthy import is_healthy_case
@@ -162,6 +167,13 @@ def _independent_control_ip(
     ]
     faulted = {f"{n}:{name}" for kind, n, name in kinds if kind == "interface"}
     faulted |= {ep for eps in links for ep in eps if _node(ep) in dead_nodes}
+    dead_links = {name for kind, _, name in kinds if kind == "link"}
+    faulted |= {
+        ep
+        for eps in links
+        if canonical_link_name(tuple(eps)) in dead_links
+        for ep in eps
+    }
     link_count: dict[str, int] = {}
     for eps in links:
         for ep in eps:
@@ -179,7 +191,9 @@ def _independent_control_ip(
             continue
         if len(eps) == 2:
             behind |= {ep for ep in eps if ep not in hit and _node(ep) in endpoints}
-            device = _node(hit[0])
+            device = next(
+                (_node(ep) for ep in hit if _node(ep) not in endpoints), _node(hit[0])
+            )
             ports = [
                 ep
                 for other in links
@@ -187,19 +201,38 @@ def _independent_control_ip(
                 for ep in other
                 if _node(ep) != device and _node(ep) in endpoints
             ]
-            siblings.append((set(map(_node, eps)), ports))
+            siblings.append((False, set(map(_node, eps)), ports))
         else:
-            siblings.append((set(), list(eps)))
+            siblings.append((True, set(map(_node, eps)), list(eps)))
     behind_nodes = {_node(ep) for ep in behind}
+    peers = {ep: far for eps in links if len(eps) == 2 for ep, far in (eps, eps[::-1])}
     addresses: dict[str, str | None] = {}
 
+    def lookup(endpoint: str, with_prefix: bool = False) -> str | None:
+        try:
+            node, intf = parse_endpoint(endpoint)
+            return runtime.get_host_ip(node, intf, with_prefix=with_prefix)
+        except RuntimeError:
+            return None
+
     def address(endpoint: str) -> str | None:
-        # A root-cause host may be too starved or broken to answer `ip addr`.
+        # A root-cause host may be too starved or broken to answer `ip addr`, and
+        # router OSes may keep addresses outside the kernel. On a /30 or /31 the
+        # far side's prefix still names this end.
         if endpoint not in addresses:
-            try:
-                addresses[endpoint] = runtime.get_host_ip(*parse_endpoint(endpoint))
-            except RuntimeError:
-                addresses[endpoint] = None
+            found = lookup(endpoint)
+            far = (
+                None
+                if found or endpoint not in peers
+                else lookup(peers[endpoint], True)
+            )
+            if far and "/" in far:
+                iface = ipaddress.ip_interface(far)
+                net = iface.network
+                pair = list(net) if net.prefixlen == 31 else list(net.hosts())
+                if net.prefixlen >= 30:
+                    found = next((str(ip) for ip in pair if ip != iface.ip), None)
+            addresses[endpoint] = found
         return addresses[endpoint]
 
     unaffected = sorted(
@@ -223,11 +256,11 @@ def _independent_control_ip(
             return None
     attached = {_node(ep) for eps in links if source in map(_node, eps) for ep in eps}
     # From the far end of a faulted link, the device's other ports are normally
-    # reached across that same link.
+    # reached across that same link. Segment members only count from inside it.
     neighbors = [
         ep
-        for link_nodes, ports in siblings
-        if not attached & link_nodes
+        for segment, link_nodes, ports in siblings
+        if (source in link_nodes if segment else not attached & link_nodes)
         for ep in ports
     ]
     own = [ep for eps in links for ep in eps if _node(ep) == source]

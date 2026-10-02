@@ -249,7 +249,8 @@ def test_control_avoids_destination_behind_root_cause_interface(monkeypatch) -> 
     monkeypatch.setattr(live, "iter_link_termination_points", lambda net_env: links)
     ips = {"rcv": "10.0.1.11", "sib": "10.0.1.12", "other": "10.0.2.11"}
     runtime = SimpleNamespace(
-        get_data_plane_host_ip=ips.get, get_host_ip=lambda n, i: ips.get(n)
+        get_data_plane_host_ip=ips.get,
+        get_host_ip=lambda n, i, **k: ips.get(n),
     )
     problem = SimpleNamespace(
         net_env=SimpleNamespace(hosts=["rcv", "sib", "other"], servers={}),
@@ -277,7 +278,7 @@ def test_control_from_far_end_avoids_the_faulted_device(monkeypatch) -> None:
         ("pc_n2", "eth0"): "10.254.0.46",
         ("n2", "eth3"): "10.254.0.45",
     }
-    runtime = SimpleNamespace(get_host_ip=lambda n, i: ips.get((n, i)))
+    runtime = SimpleNamespace(get_host_ip=lambda n, i, **k: ips.get((n, i)))
     problem = SimpleNamespace(
         net_env=SimpleNamespace(hosts=[], servers={}),
         root_cause_resources=lambda parsed: [interface_resource("n10", "eth0")],
@@ -286,6 +287,34 @@ def test_control_from_far_end_avoids_the_faulted_device(monkeypatch) -> None:
     assert pick(problem, None, runtime, "pc_n2", "10.254.0.46") == (
         "pc_n2",
         "10.254.0.45",
+    )
+
+
+def test_control_avoids_a_faulted_link_and_uses_the_p2p_peer(monkeypatch) -> None:
+    from nika.problems.rca.models import link_resource
+    from tests.audit import live
+
+    links = [
+        ("a", ("client1:eth1", "leaf1:e1-2")),
+        ("b", ("client2:eth1", "leaf2:e1-2")),
+        ("c", ("leaf1:e1-1", "spine1:e1-1")),
+        ("d", ("leaf2:e1-1", "spine1:e1-2")),
+    ]
+    monkeypatch.setattr(live, "iter_link_termination_points", lambda net_env: links)
+    ips = {"client1": "10.0.0.25", "client2": "10.0.0.27"}
+    runtime = SimpleNamespace(
+        get_host_ip=lambda n, i, with_prefix=False: (
+            f"{ips[n]}/31" if with_prefix and n in ips else ips.get(n)
+        ),
+    )
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(hosts=["client1", "client2"], servers={}),
+        root_cause_resources=lambda parsed: [link_resource("client1:eth1--leaf1:e1-2")],
+    )
+    pick = live._independent_control_ip
+    assert pick(problem, None, runtime, "client2", "10.0.0.27") == (
+        "client2",
+        "10.0.0.26",
     )
 
 
@@ -300,6 +329,8 @@ def test_control_avoids_endpoints_behind_a_down_node(monkeypatch) -> None:
         ("d", ("leaf_2:eth0", "spine:eth1")),
         ("e", ("leaf_2:eth3", "worker3:eth0")),
         ("f", ("leaf_2:eth4", "worker4:eth0")),
+        # A management segment the probe hosts are not on.
+        ("oob", ("leaf_1:eth9", "leaf_2:eth9", "onos:eth0")),
     ]
     monkeypatch.setattr(live, "iter_link_termination_points", lambda net_env: links)
     ips = {
@@ -307,8 +338,9 @@ def test_control_avoids_endpoints_behind_a_down_node(monkeypatch) -> None:
         "worker1": "201.1.1.3",
         "worker3": "201.2.1.3",
         "worker4": "201.2.1.4",
+        "onos": "172.31.0.100",
     }
-    runtime = SimpleNamespace(get_host_ip=lambda n, i: ips.get(n))
+    runtime = SimpleNamespace(get_host_ip=lambda n, i, **k: ips.get(n))
     problem = SimpleNamespace(
         net_env=SimpleNamespace(hosts=["client"], servers={}),
         root_cause_resources=lambda parsed: [
@@ -336,7 +368,7 @@ def test_control_avoids_faulted_host_and_self_ping(monkeypatch) -> None:
     ips = {"ctl": "200.0.0.2", "client": "200.0.0.7", "web": "200.0.0.8"}
     runtime = SimpleNamespace(
         get_data_plane_host_ip=lambda n: "10.210.0.7" if n == "ctl" else ips[n],
-        get_host_ip=lambda n, i: ips.get(n),
+        get_host_ip=lambda n, i, **k: ips.get(n),
     )
     problem = SimpleNamespace(
         net_env=SimpleNamespace(hosts=["client"], servers={"web": ["web"]}),
