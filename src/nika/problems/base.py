@@ -18,6 +18,11 @@ from nika.runtime.base import RuntimeCapabilityError
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
+    from nika.problems.support.benchmark_targets import (
+        InjectTargetContext,
+        InjectValidationContext,
+        MultiInjectContext,
+    )
     from nika.runtime.base import LabRuntime
 
 
@@ -103,6 +108,18 @@ class ProblemBase:
     effect_property: ClassVar[str | None] = None
     # Instance attributes recorded in session injection metadata when present.
     RECORDED_ATTRS: ClassVar[tuple[str, ...]] = ()
+    # Benchmark target enumeration: swap the root-cause node within its role
+    # ("node"), one row per topology link ("link"), or the canonical row only.
+    BENCHMARK_TARGETS: ClassVar[Literal["node", "link", "canonical"]] = "node"
+    # Target role ("bgp_originators" / "access_routers") narrowing node targets.
+    BENCHMARK_TARGET_ROLE: ClassVar[str | None] = None
+    # Inject needs a 2-endpoint link (Kathara VDE proxy faults).
+    BENCHMARK_POINT_TO_POINT: ClassVar[bool] = False
+    # ``intf_name`` is a tunnel iface, not a topology link endpoint.
+    BENCHMARK_TUNNEL_IFACE: ClassVar[bool] = False
+    # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
+    # when a multi-fault case is exactly this failure plus these.
+    BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
     def is_compatible(cls, target: str) -> bool:
@@ -124,6 +141,65 @@ class ProblemBase:
         ):
             return False
         return frozenset(cls.TAGS).issubset(effective_tags(target))
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx: InjectTargetContext) -> dict[str, str]:
+        """Return the canonical benchmark inject params on ``ctx.scenario``.
+
+        Draw only from ``ctx.rng``, in a fixed order, so cases stay reproducible.
+        """
+        return {"host_name": ctx.host0}
+
+    @classmethod
+    def benchmark_inject_options(
+        cls, ctx: InjectTargetContext, base: dict[str, str]
+    ) -> list[dict[str, str]]:
+        """Return legal target variants of the canonical row ``base``."""
+        from nika.problems.support.benchmark_targets import (
+            link_target_options,
+            node_target_options,
+        )
+
+        if cls.BENCHMARK_TARGETS == "canonical":
+            return [base]
+        if cls.BENCHMARK_TARGETS == "link":
+            return link_target_options(
+                ctx, base, point_to_point=cls.BENCHMARK_POINT_TO_POINT
+            )
+        return node_target_options(cls, ctx, base)
+
+    @classmethod
+    def benchmark_node_targets(
+        cls, ctx: InjectTargetContext, targets: list[str]
+    ) -> list[str]:
+        """Narrow same-role node targets (default: ``BENCHMARK_TARGET_ROLE``)."""
+        if cls.BENCHMARK_TARGET_ROLE is None:
+            return targets
+        from nika.problems.support.benchmark_targets import role_subset
+
+        return role_subset(
+            targets, ctx.net_env.target_roles(), cls.BENCHMARK_TARGET_ROLE
+        )
+
+    @classmethod
+    def benchmark_align_option(
+        cls, ctx: InjectTargetContext, row: dict[str, str], field: str
+    ) -> dict[str, str]:
+        """Adjust a node-target row after ``field`` was swapped."""
+        return row
+
+    @classmethod
+    def validate_benchmark_inject(
+        cls, ctx: InjectValidationContext, inject: dict[str, str]
+    ) -> None:
+        """Raise ``ValueError`` when ``inject`` is not a legal target."""
+
+    @classmethod
+    def coordinate_benchmark_inject(
+        cls, ctx: MultiInjectContext, params_by_problem: dict[str, dict[str, str]]
+    ) -> dict[str, dict[str, str]]:
+        """Adjust co-injected params (keyed by failure) so the faults compose."""
+        return params_by_problem
 
     net_env: NetworkEnvBase
     runtime: LabRuntime

@@ -13,8 +13,56 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    choice,
+    first,
+    isp_protocol_for,
+    loaded_inventory,
+    replace,
+    require_role_member,
+    role_subset,
+)
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
+
+
+def _compile_isp_bgp_inventory(
+    scenario: str, *, igp: str, bgp_mode: str, rpki: bool = False, rtbh: bool = False
+):
+    """Compile the ISP plan for ``scenario`` and return it with its BGP inventory."""
+    from nika.net_env.isp.bgp import compile_bgp_plan
+    from nika.net_env.isp.identity import isp_topo_from_scenario
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+
+    isp_plan = compile_isp_plan(
+        IspConfig(topology=isp_topo_from_scenario(scenario), igp=igp)  # type: ignore[arg-type]
+    )
+    bgp = compile_bgp_plan(isp_plan, bgp_mode, rpki=rpki, rtbh=rtbh)
+    assert bgp is not None
+    return isp_plan, bgp.inventory
+
+
+def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
+    """Return ``(inventory, bgp_inventory)`` with BGP originators for an ISP scenario.
+
+    Uses the loaded scenario inventory when it has originated prefixes, else
+    compiles the ISP plan from ``ctx.isp_options`` (or the failure's protocol needs).
+    """
+    inventory = loaded_inventory(ctx.net_env)
+    bgp_inv = inventory.get("bgp")
+    if not isinstance(bgp_inv, dict) or not bgp_inv.get("originated"):
+        isp_opts = ctx.isp_options or isp_protocol_for(problem_cls, {"bgp"})
+        rtbh = ctx.scenario.endswith("_ebgp_rtbh") or bool(isp_opts.get("rtbh"))
+        isp_plan, bgp_inv = _compile_isp_bgp_inventory(
+            ctx.scenario,
+            igp=str(isp_opts.get("igp") or "ospf"),
+            bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
+            rpki=bool(isp_opts.get("rpki")),
+            rtbh=rtbh,
+        )
+        inventory = dict(isp_plan.inventory)
+        inventory["bgp"] = bgp_inv
+    return inventory, bgp_inv
 
 
 # ==================================================================
@@ -37,6 +85,24 @@ class BGPAsnMisconfig(ProblemBase):
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAsnMisconfigParams
+    BENCHMARK_COORDINATES = frozenset({"bgp_acl_block"})
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Misconfigure a router other than the ACL-blocked one.
+        acl = dict(params_by_problem["bgp_acl_block"])
+        asn = dict(params_by_problem["bgp_asn_misconfig"])
+        routers = list(ctx.net_env.routers or [])
+        if acl.get("host_name") == asn.get("host_name") and len(routers) >= 2:
+            asn["host_name"] = (
+                routers[1] if routers[0] == acl.get("host_name") else routers[0]
+            )
+        params_by_problem["bgp_asn_misconfig"] = asn
+        return params_by_problem
 
     symptom_desc = "Some hosts are experiencing connectivity issues."
 
@@ -280,6 +346,85 @@ class BGPMissingAdvertise(ProblemBase):
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPMissingAdvertiseParams
+
+    BENCHMARK_TARGET_ROLE = "bgp_originators"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            from nika.net_env.isp.inject_targets import isp_inject_params
+
+            inventory, bgp_inv = _ensure_bgp_inventory(cls, ctx)
+            return dict(isp_inject_params(ctx.problem, inventory, bgp_inv))
+        advertise_pool = role_subset(ctx.router_pool, ctx.roles, "bgp_originators")
+        return {
+            "host_name": choice(
+                ctx.rng, advertise_pool, first(advertise_pool) or ctx.router0
+            )
+        }
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if not is_isp_scenario(ctx.scenario):
+            return super().benchmark_inject_options(ctx, base)
+        from nika.net_env.isp.inject_targets import enrich_isp_symptom_params
+
+        inventory, bgp = _ensure_bgp_inventory(cls, ctx)
+        rows = []
+        for item in sorted(
+            bgp.get("originated") or [],
+            key=lambda row: (
+                str(row.get("device") or ""),
+                str(row.get("prefix") or ""),
+            ),
+        ):
+            host = str(item.get("device") or "")
+            prefix = str(item.get("prefix") or "")
+            if not host:
+                continue
+            row = replace(base, host_name=host)
+            if prefix:
+                row["prefix"] = prefix
+            for key in ("symptom_host", "probe_dst_ip", "peer_host"):
+                row.pop(key, None)
+            enrich_isp_symptom_params(row, ctx.problem, inventory, bgp)
+            rows.append(row)
+        return rows
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        host_name = inject.get("host_name")
+        if not host_name:
+            return
+        if not is_isp_scenario(ctx.scenario):
+            require_role_member(
+                ctx,
+                cls.root_cause_name,
+                host_name,
+                "bgp_originators",
+                reason="has no BGP network statement",
+            )
+            return
+        bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
+        if isinstance(bgp_inv, dict) and bgp_inv.get("originated"):
+            originators = sorted(
+                {
+                    str(item["device"])
+                    for item in bgp_inv["originated"]
+                    if item.get("device")
+                }
+            )
+            if originators and host_name not in originators:
+                raise ValueError(
+                    f"{cls.root_cause_name} host_name={host_name!r} is "
+                    f"not a BGP originator on {ctx.scenario}; use one of: {originators}"
+                )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -694,6 +839,20 @@ class BGPBlackholeCommunityLeak(ProblemBase):
 
     Params = BGPBlackholeCommunityLeakParams
 
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.inject_targets import isp_inject_params
+
+        inventory = loaded_inventory(ctx.net_env)
+        bgp_inv = inventory.get("bgp")
+        if not isinstance(bgp_inv, dict) or not bgp_inv.get("rtbh"):
+            _plan, bgp_inv = _compile_isp_bgp_inventory(
+                ctx.scenario, igp="ospf", bgp_mode="ebgp", rtbh=True
+            )
+        return dict(isp_inject_params(ctx.problem, inventory, bgp_inv))
+
     symptom_desc = (
         "Reachability to a legitimately originated business prefix is lost while "
         "BGP sessions remain up."
@@ -969,6 +1128,24 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
 
     Params = BGPRPKIInvalidRouteLeakParams
 
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.inject_targets import isp_inject_params
+
+        inventory = loaded_inventory(ctx.net_env)
+        bgp_inv = inventory.get("bgp")
+        if not isinstance(bgp_inv, dict) or not bgp_inv.get("rpki"):
+            isp_opts = ctx.isp_options or isp_protocol_for(cls, {"rpki"})
+            _plan, bgp_inv = _compile_isp_bgp_inventory(
+                ctx.scenario,
+                igp=str(isp_opts.get("igp") or "ospf"),
+                bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
+                rpki=True,
+            )
+        return dict(isp_inject_params(ctx.problem, inventory, bgp_inv))
+
     symptom_desc = (
         "Some BGP speakers learn RPKI-invalid routes from a leaked origin while "
         "ROV-enabled peers reject them."
@@ -1236,6 +1413,24 @@ class BGPMaxPrefixExceeded(ProblemBase):
     isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
 
     Params = BGPMaxPrefixExceededParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.inject_targets import first_ebgp_session
+
+        bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
+        if not isinstance(bgp_inv, dict):
+            isp_opts = ctx.isp_options or isp_protocol_for(cls, {"bgp"})
+            _plan, bgp_inv = _compile_isp_bgp_inventory(
+                ctx.scenario,
+                igp=str(isp_opts.get("igp") or "ospf"),
+                bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
+            )
+        params = dict(first_ebgp_session(bgp_inv))
+        params["flood_count"] = "120"
+        return params
 
     symptom_desc = (
         "An eBGP peer advertises more prefixes than the receiver's configured "

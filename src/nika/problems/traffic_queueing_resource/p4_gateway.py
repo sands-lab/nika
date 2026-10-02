@@ -9,6 +9,10 @@ from nika.problems.forwarding_encapsulation_policy.p4_gateway import (
     read_runtime_config_value,
 )
 from nika.problems.rca import interface_resource
+from nika.problems.support.benchmark_targets import (
+    p4_gateway_port_target,
+    p4_port_options,
+)
 from nika.problems.support.p4_gateway import set_ecn_threshold
 
 
@@ -29,6 +33,19 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
     TAGS = ["p4_runtime", "ecn", "queue", "http"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = P4EcnThresholdMisconfigurationParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        ctx.rng.choice(ctx.net_env.model.services)  # keep the shared service draw
+        params = p4_gateway_port_target(ctx, gateways_only=False)
+        params["threshold"] = "1024"
+        return params
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return p4_port_options(ctx, base, gateways_only=False)
 
     def root_cause_resources(self, params: P4EcnThresholdMisconfigurationParams):
         return [interface_resource(params.host_name, params.intf_name)]

@@ -14,6 +14,7 @@ from nika.problems.rca.inventory import (
     iter_link_termination_points,
     parse_endpoint,
 )
+from nika.problems.support.benchmark_targets import resolve_path_mtu_target
 from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
@@ -52,6 +53,14 @@ class MtuMismatch(ProblemBase):
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS
 
     Params = MtuMismatchParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return resolve_path_mtu_target(
+            ctx.scenario, ctx.net_env, ctx.rng, list(ctx.router_pool), ctx.backend
+        )
 
     symptom_desc = (
         "Users report size-dependent connectivity: small packets succeed while "

@@ -23,15 +23,20 @@ from nika.net_env.enterprise_branch.topology import (
     HTTP_SMALL_OBJECT_KB,
     LOCAL_ONLY_ROLES,
     OVERLAY_ROLES,
+    SCALE,
     UNDERLAY_ONE_WAY_DELAY_MS,
     BuiltTunnel,
+    DscpRemarkTarget,
     TunnelSpec,
     TopoSpec,
     TopoSize,
     build_topo_spec,
+    dscp_remark_inject_targets,
     hub_iface_for,
     overlay_qos_for,
     overlay_qos_startup_cmds,
+    primary_hq_peer_targets,
+    remote_advertised_prefixes_for_spoke,
 )
 from nika.net_env.enterprise_branch.wireguard import (
     load_key_pairs,
@@ -646,6 +651,26 @@ class EnterpriseBranch(NetworkEnvBase):
             "bgp_originators": edges,
             "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
         }
+
+    def _target_size(self) -> TopoSize:
+        return self.topo_size if self.topo_size in SCALE else "s"
+
+    def wireguard_hq_peer_targets(self) -> list[tuple[str, str]]:
+        """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
+        return primary_hq_peer_targets(self._target_size())
+
+    def remote_prefixes_for_spoke(self, spoke: str) -> list[str]:
+        """Advertised CORP/SERVER prefixes not owned by ``spoke``."""
+        return remote_advertised_prefixes_for_spoke(self._target_size(), spoke)
+
+    def dscp_remark_targets(self) -> list[DscpRemarkTarget]:
+        """Eligible LAN→overlay DSCP remark targets with EF path endpoints."""
+        return dscp_remark_inject_targets(self._target_size())
+
+    def primary_wan_interface(self) -> str:
+        """Primary ISP WAN on ``br1_edge`` (hosts GUEST NAT /32 aliases)."""
+        # LANs occupy eth0..ethN-1; first WAN is ethN.
+        return f"eth{len(SCALE[self._target_size()].branch_roles)}"
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:

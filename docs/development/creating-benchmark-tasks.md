@@ -177,6 +177,7 @@ Notes:
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
 - Declare compatibility on the class: `TAGS` (subset of the scenario tags), optional `COMPATIBLE_COLUMNS` (shared sets live in `problems/support/compatible_columns.py`), `supported_backends`, and `isp_protocol` when the failure needs a specific ISP protocol stack. `ProblemBase.is_compatible()` is the single predicate used by the registry and benchmark generation.
 - List instance attributes that should be recorded in session injection metadata in `RECORDED_ATTRS`.
+- Declare benchmark targets on the class; `nika benchmark generate` has no per-failure code. Override `benchmark_inject_params(ctx)` to return the canonical inject params for `ctx.scenario` (the default targets `ctx.host0`), drawing only from `ctx.rng` so cases stay reproducible. Set `BENCHMARK_TARGETS` (`"node"`, `"link"`, or `"canonical"`) to choose how variants are enumerated, plus `BENCHMARK_TARGET_ROLE`, `BENCHMARK_POINT_TO_POINT`, or `BENCHMARK_TUNNEL_IFACE` when they apply. Override `benchmark_inject_options`, `validate_benchmark_inject`, or `coordinate_benchmark_inject` (with `BENCHMARK_COORDINATES`) only for failure-specific enumeration, validation, or multi-fault pairing. Shared target helpers live in `problems/support/benchmark_targets.py`.
 
 Verify the problem:
 
