@@ -29,6 +29,22 @@ class TcpSynFloodAttack(ProblemBase):
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = TcpSynFloodAttackParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        model = ctx.net_env.model
+        service = ctx.rng.choice(model.services)
+        return {
+            "attacker_device": ctx.rng.choice(model.clients).name,
+            "target_ip": service.ip,
+            "target_port": "80",
+            "rate_pps": "100",
+            "duration": "60",
+            "flows": "40",
+            "seed": str(ctx.seed),
+        }
+
     def root_cause_resources(self, params: TcpSynFloodAttackParams):
         return [node_resource(params.attacker_device)]
 

@@ -9,6 +9,10 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    access_router_victim,
+    require_role_member,
+)
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -33,8 +37,23 @@ class BGPHijacking(ProblemBase):
     description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
     supported_backends = ("kathara",)
+    BENCHMARK_TARGET_ROLE = "access_routers"
 
     Params = BGPHijackingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return access_router_victim(ctx, prefer_site_edge=False)
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_role_member(
+            ctx,
+            cls.root_cause_name,
+            inject.get("host_name"),
+            "access_routers",
+            reason="has no attached end host",
+        )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

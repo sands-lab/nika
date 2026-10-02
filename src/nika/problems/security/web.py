@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -20,6 +21,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import choice
 from nika.utils.logger import system_logger
 
 # ==================================================================
@@ -90,6 +92,22 @@ class WebDoSParams(BaseModel):
     attack_object_mb: int = Field(default=4, ge=1, le=64)
 
 
+def _pick_attacker(
+    rng: random.Random,
+    hosts: list[str],
+    victim: str,
+    fallback: str,
+    *,
+    pool: list[str] | None = None,
+) -> str:
+    candidates = [h for h in (pool or hosts) if h != victim]
+    if not candidates:
+        candidates = [h for h in hosts if h != victim]
+    if not candidates:
+        return fallback
+    return rng.choice(candidates)
+
+
 class WebDoS(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     root_cause_name: str = "web_dos_attack"
@@ -97,8 +115,86 @@ class WebDoS(ProblemBase):
     symptom_desc: str = "Users reports high latency when accessing some web services."
     TAGS: list[str] = ["http"]
     COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS
+    BENCHMARK_TARGETS = "canonical"
 
     Params = WebDoSParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        rng, scenario, pools = ctx.rng, ctx.scenario, ctx.roles
+        params: dict[str, str] = {}
+        if scenario == "llmd_lab":
+            controller_pool = pools.get("controllers") or []
+            params["host_name"] = choice(rng, controller_pool, ctx.host0)
+            params["attacker_device"] = _pick_attacker(
+                rng,
+                ctx.hosts,
+                params["host_name"],
+                ctx.host0,
+                pool=pools.get("attacker_pool"),
+            )
+        elif scenario == "dc_clos":
+            # Keep victim, observer, and URL on one deterministic HTTP path.
+            params.update(
+                host_name="webserver0_pod0",
+                attacker_device="client_0",
+                observer_device="dns_pod0",
+                probe_url="http://10.0.1.2/small.bin",
+            )
+        elif scenario == "campus_lan":
+            params.update(
+                host_name="web_server_0",
+                attacker_device="pc_1_1_1_1",
+                observer_device="pc_2_1_1_1",
+                probe_url="http://10.200.0.3/",
+            )
+        elif scenario == "enterprise_branch":
+            params.update(
+                host_name="hq_srv",
+                attacker_device="br1_corp_pc",
+                observer_device="hq_corp_pc",
+                probe_url="http://10.0.20.2/small.bin",
+                attack_url="http://10.0.20.2/archive/",
+            )
+        elif scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
+            model = ctx.net_env.model
+            observer = model.client_endpoints()[0]
+            victim = next(
+                web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
+            )
+            attacker = next(
+                client
+                for client in reversed(model.client_endpoints())
+                if client.name != observer.name
+            )
+            params.update(
+                host_name=victim.name,
+                attacker_device=attacker.name,
+                observer_device=observer.name,
+                probe_url=f"http://{victim.ip}/",
+            )
+        elif scenario == "p4_dc_gateway":
+            model = ctx.net_env.model
+            victim = model.backend_pool[0]
+            observer = model.clients[0]
+            attacker = model.clients[-1]
+            params.update(
+                host_name=victim.name,
+                attacker_device=attacker.name,
+                observer_device=observer.name,
+                probe_url=model.vip_url,
+                attack_url=model.vip_url,
+            )
+        else:
+            params["host_name"] = ctx.web0
+            params["attacker_device"] = _pick_attacker(
+                rng,
+                ctx.hosts,
+                ctx.web0,
+                ctx.host0,
+                pool=pools.get("attacker_pool"),
+            )
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
