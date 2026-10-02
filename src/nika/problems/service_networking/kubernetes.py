@@ -11,6 +11,7 @@ from nika.problems.rca import (
     node_resource,
 )
 
+from nika.problems.support.benchmark_targets import choice, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 
 from nika.problems.support.kubernetes.node_filter import NodeFilter, NodeFilterError
@@ -76,6 +77,13 @@ class ClusterIPRoutingBroken(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "kube_proxy"]
 
     Params = ClusterIPRoutingBrokenParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        k8s_nodes = ctx.roles.get("k8s_nodes") or []
+        control = k8s_control_node(ctx)
+        workers = sorted(node for node in k8s_nodes if node != control)
+        return {"control_node": control, "node_name": choice(ctx.rng, workers, control)}
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)

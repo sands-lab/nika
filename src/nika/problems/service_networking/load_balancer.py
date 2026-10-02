@@ -15,6 +15,7 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import choice, prefer_named
 from nika.problems.support.ab_helpers import (
     AbSummary,
     ab_summary_to_dict,
@@ -135,6 +136,49 @@ class LoadBalancerOverload(ProblemBase):
         "errors while NGINX CPU saturates; direct backend and parallel web paths, "
         "and the underlying network, remain healthy."
     )
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        # Fixed capacity + HTTP surge on campus_lan NGINX VIP (web99.local).
+        # Workload knobs are fixed for reproducibility (not searched at runtime).
+        pc_pool = [h for h in ctx.host_pool if h.startswith("pc_")] or list(
+            ctx.host_pool
+        )
+        probe_client = prefer_named(
+            pc_pool, "pc_1_1_1_1", choice(ctx.rng, pc_pool, ctx.host0)
+        )
+        load_candidates = [h for h in pc_pool if h != probe_client]
+        if not load_candidates:
+            load_candidates = [probe_client]
+        # One load client, distinct from the probe PC when possible.
+        load_hosts = []
+        for preferred in ("pc_2_1_1_1", "pc_3_1_1_1", "pc_1_2_1_1"):
+            if preferred in load_candidates:
+                load_hosts.append(preferred)
+                break
+        if not load_hosts and load_candidates:
+            load_hosts = [load_candidates[0]]
+        if not load_hosts:
+            load_hosts = [probe_client]
+        return {
+            "host_name": ctx.lb0 if ctx.lb0 else "load_balancer",
+            "client_host": probe_client,
+            "load_client_hosts": ",".join(load_hosts),
+            "vip_url": "http://web99.local/small",
+            "control_url": "http://web0.local/small",
+            "backend_url": "http://20.200.0.2/small",
+            "backend_probe_host": "load_balancer",
+            "backend_cpu_host": "backend_web_0",
+            "cpu_quota": "0.2",
+            "concurrency": "160",
+            "load_workers": "2",
+            "warmup_sec": "5",
+            "probe_requests": "60",
+            "probe_concurrency": "4",
+            "duration_sec": "300",
+        }
 
     def __init__(self, scenario_name: str | None = None, **kwargs):
         super().__init__(scenario_name, **kwargs)
