@@ -13,7 +13,7 @@ from nika.net_env.p4_dc_gateway.apply import reconcile_gateway
 from nika.net_env.p4_dc_gateway.topology_model import build_gateway_fabric_model
 from nika.net_env.verify import http_ok
 from nika.problems.registry import get_problem_class, list_avail_problem_names
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.symptom import evaluate_symptom, get_symptom_contract

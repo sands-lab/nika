@@ -14,6 +14,7 @@ from nika.topology.sndlib.catalog import (
     topology_size_for_name,
 )
 from nika.utils.dependencies import raise_missing_extra, require_backend_extra
+from nika.utils.logger import system_logger
 
 
 @dataclass(frozen=True)
@@ -463,8 +464,14 @@ def scenario_tags(scenario_name: str) -> list[str]:
 
 
 def scenario_family(scenario_name: str) -> str:
-    """Return the release split-coverage family of ``scenario_name``."""
-    spec = _require_scenario(scenario_name)
+    """Return the release split-coverage family of ``scenario_name``.
+
+    Unregistered scenario IDs (e.g. rows of an older release) are their own family.
+    """
+    try:
+        spec = _require_scenario(scenario_name)
+    except (KeyError, ValueError):
+        return scenario_name
     return spec.family or spec.lab_name
 
 
@@ -630,11 +637,20 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
     return None
 
 
-def scenario_probe_path(
-    scenario_name: str, *, topo_size: str = "s"
-) -> ProbePath | None:
-    """Return the default probe path declared by the scenario's lab class."""
-    spec = _require_scenario(scenario_name)
-    backend = resolve_scenario_backend(scenario_name, default_when_ambiguous="kathara")
-    cls = _load_net_env_class(scenario_name, backend=backend)
-    return cls.default_probe_path(topo_size=topo_size, **(spec.deploy_defaults or {}))
+def get_probe_path(scenario_name: str, *, topo_size: str = "s") -> ProbePath | None:
+    """Default probe path declared by the scenario's lab class, if any."""
+    try:
+        spec = _require_scenario(scenario_name)
+    except (KeyError, ValueError):
+        return None
+    try:
+        backend = resolve_scenario_backend(
+            scenario_name, default_when_ambiguous="kathara"
+        )
+        cls = _load_net_env_class(scenario_name, backend=backend)
+        return cls.default_probe_path(
+            topo_size=topo_size, **(spec.deploy_defaults or {})
+        )
+    except Exception as exc:  # noqa: BLE001
+        system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")
+        return None

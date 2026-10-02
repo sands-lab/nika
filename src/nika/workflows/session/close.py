@@ -374,7 +374,7 @@ def _stop_session_record(
 
     net_env_kwargs: dict = {"backend": backend}
     from nika.net_env.isp.identity import is_isp_named_special, is_isp_scenario
-    from nika.workflows.benchmark.isp_options import ISP_NET_ENV_PARAM_KEYS
+    from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
 
     # ISP scenarios bake topology into the scenario ID and reject topo_size.
     if getattr(session, "scenario_topo_size", None) is not None and not is_isp_scenario(

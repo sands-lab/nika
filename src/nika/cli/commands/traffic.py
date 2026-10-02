@@ -15,7 +15,7 @@ from nika.net_env.net_env_pool import get_net_env_instance, scenario_requires_to
 from nika.runtime.factory import runtime_for_net_env
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_store import SessionStore
-from nika.workflows.benchmark.isp_options import ISP_NET_ENV_PARAM_KEYS
+from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
 
 traffic_app = typer.Typer(help="Generate traffic in the Kathará lab.")
 

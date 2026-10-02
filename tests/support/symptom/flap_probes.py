@@ -12,7 +12,7 @@ from nika.net_env.verify import (
     ping_stats,
 )
 from nika.problems.rca.inventory import resolve_default_intf
-from nika.problems.support.probe_paths import ProbePath
+from nika.net_env.base import ProbePath
 from nika.runtime.base import LabRuntime
 from nika.runtime.kathara.runtime import KatharaRuntime
 from tests.support.symptom.probe import _resolve_path

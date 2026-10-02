@@ -538,7 +538,7 @@ class ReceiverResourceContention(ProblemBase):
         peer = params.peer_host
         if self._device_in_lab(peer):
             return peer
-        from nika.problems.support.probe_paths import get_probe_path
+        from nika.net_env.net_env_pool import get_probe_path
 
         path = get_probe_path(self.scenario_name or "")
         if path is not None and path.peer_host and self._device_in_lab(path.peer_host):
@@ -552,7 +552,7 @@ class ReceiverResourceContention(ProblemBase):
     def _resolve_large_url(self, params: ReceiverResourceContentionParams) -> str:
         if params.large_url:
             return params.large_url
-        from nika.problems.support.probe_paths import get_probe_path
+        from nika.net_env.net_env_pool import get_probe_path
 
         path = get_probe_path(self.scenario_name or "")
         if path is not None and path.http_url:

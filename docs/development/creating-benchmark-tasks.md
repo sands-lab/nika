@@ -48,7 +48,6 @@ from nika.net_env.base import NetworkEnvBase
 
 class MyScenario(NetworkEnvBase):
     LAB_NAME = "my_scenario"
-    TOPO_SIZE = ["s", "m", "l"]  # omit for fixed-size labs
 
     def __init__(self, topo_size: str = "s"):
         super().__init__()
@@ -79,6 +78,20 @@ Register metadata without importing the backend package:
 ```
 
 For a scenario with more than one backend, set `backend_bindings` to one `BackendEnvBinding` per backend. Keep the scenario ID and backend-neutral semantics the same across bindings.
+
+`NetEnvSpec` is the only place for scenario metadata; do not repeat `TAGS` or `TOPO_SIZE` on the class or add the scenario name to framework lists. Optional spec fields:
+
+- `family`: release split-coverage family (defaults to the scenario ID).
+- `heavy_lab`: host-shared heavy lab that the benchmark runner schedules exclusively.
+- `benchmark_excluded`: keep the scenario out of the generated candidate pool.
+- `coverage_major`: list the scenario as major in pool audits and coverage reports.
+- `licensed_images`: images need a licensed vendor download (`install.sh --with-vendor-images`).
+- `k8s_image_cache`: cache workload images on the host and load them into k3s.
+
+Scenario-specific target knowledge stays on the lab class:
+
+- `target_roles()` returns role → node lists (`hosts`, `routers`, `web`, `attacker_pool`, `access_routers`, `bgp_originators`, and the optional `edges` / `l2_endpoints`). Override it when the generic inventory is too broad, for example to exclude guest hosts or spine routers.
+- `default_probe_path()` returns the scenario's default `ProbePath` (probe source host, destination, URLs) used by injection helpers and symptom tests.
 
 Verify discovery and deployment:
 
@@ -162,6 +175,8 @@ Notes:
 - `verify_fault()` must prove the injection artifacts are present (nft/tc/config/process/quota). Failed verification marks the injection as failed and stops the run. Do not put slow network-impact probes in `verify_fault`; put those in the test-path API `tests.support.symptom.evaluate_symptom` (contracts under `tests/support/symptom/`).
 - Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`); use `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
+- Declare compatibility on the class: `TAGS` (subset of the scenario tags), optional `COMPATIBLE_COLUMNS` (shared sets live in `problems/support/compatible_columns.py`), `supported_backends`, and `isp_protocol` when the failure needs a specific ISP protocol stack. `ProblemBase.is_compatible()` is the single predicate used by the registry and benchmark generation.
+- List instance attributes that should be recorded in session injection metadata in `RECORDED_ATTRS`.
 
 Verify the problem:
 

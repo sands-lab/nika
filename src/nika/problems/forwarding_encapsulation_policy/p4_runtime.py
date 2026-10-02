@@ -21,7 +21,7 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     lpm_capacity,
     run_manager,
 )
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from nika.utils.logger import system_logger
 
 logger = system_logger
