@@ -67,6 +67,17 @@ class InjectValidationContext:
     ifaces_by_device: dict[str, list[str]]
 
 
+@dataclass(frozen=True)
+class MultiInjectContext:
+    """Inputs for coordinating the per-failure params of one multi-fault case."""
+
+    scenario: str
+    topo_size: str
+    net_env: NetworkEnvBase
+    rng: random.Random
+    backend: str
+
+
 # ----------------------------------------------------------------------
 # Node selection
 # ----------------------------------------------------------------------

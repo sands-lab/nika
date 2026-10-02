@@ -12,6 +12,7 @@ from nika.problems.registry import list_avail_problem_instances
 from nika.problems.support.benchmark_targets import (
     InjectTargetContext,
     InjectValidationContext,
+    MultiInjectContext,
     all_device_names as _all_device_names,
     choice as _choice,
     device_interfaces as _device_interfaces,
@@ -371,82 +372,18 @@ def validate_benchmark_case(
     problem_cls.validate_benchmark_inject(ctx, inject)
 
 
-_MULTI_FAULT_COORDINATORS: dict[frozenset[str], str] = {
-    frozenset(
-        {"mtu_mismatch", "icmp_frag_needed_filter_misconfiguration"}
-    ): "pmtud_blackhole",
-    frozenset({"link_down", "host_missing_ip"}): "stacked_link_host",
-    frozenset({"bgp_acl_block", "bgp_asn_misconfig"}): "bgp_acl_asn",
-    frozenset({"dns_record_error", "host_incorrect_gateway"}): "dns_gateway",
-}
-
-
 def _coordinate_multi_inject_params(
     problems: list[str],
     params_by_problem: dict[str, dict[str, str]],
-    *,
-    scenario: str,
-    net_env,
-    rng: random.Random,
-    backend: str,
+    ctx: MultiInjectContext,
 ) -> dict[str, dict[str, str]]:
-    key = frozenset(problems)
-    combo = _MULTI_FAULT_COORDINATORS.get(key)
-    if combo == "pmtud_blackhole":
-        mtu = dict(params_by_problem["mtu_mismatch"])
-        frag = dict(params_by_problem["icmp_frag_needed_filter_misconfiguration"])
-        frag["host_name"] = mtu["host_name"]
-        params_by_problem["icmp_frag_needed_filter_misconfiguration"] = frag
-        return params_by_problem
-
-    if combo == "stacked_link_host":
-        link = dict(params_by_problem["link_down"])
-        host = dict(params_by_problem["host_missing_ip"])
-        if link.get("host_name") == host.get("host_name"):
-            web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
-            if web_hosts:
-                host["host_name"] = web_hosts[0]
-                ifaces = _device_interfaces(net_env).get(web_hosts[0]) or ["eth0"]
-                host["intf_name"] = ifaces[0]
-            else:
-                hosts = list(net_env.hosts or [])
-                alt = next((h for h in hosts if h != link.get("host_name")), None)
-                if alt is not None:
-                    host["host_name"] = alt
-                    ifaces = _device_interfaces(net_env).get(alt) or ["eth0"]
-                    host["intf_name"] = ifaces[0]
-        params_by_problem["host_missing_ip"] = host
-        return params_by_problem
-
-    if combo == "bgp_acl_asn":
-        acl = dict(params_by_problem["bgp_acl_block"])
-        asn = dict(params_by_problem["bgp_asn_misconfig"])
-        routers = list(net_env.routers or [])
-        if acl.get("host_name") == asn.get("host_name") and len(routers) >= 2:
-            asn["host_name"] = (
-                routers[1] if routers[0] == acl.get("host_name") else routers[0]
-            )
-        params_by_problem["bgp_asn_misconfig"] = asn
-        return params_by_problem
-
-    if combo == "dns_gateway":
-        dns = dict(params_by_problem["dns_record_error"])
-        gw = dict(params_by_problem["host_incorrect_gateway"])
-        if scenario == "campus_lan":
-            dns["host_name"] = "dns_server"
-            gw["host_name"] = "pc_1_1_1_1"
-        elif dns.get("host_name") == gw.get("host_name"):
-            hosts = list(net_env.hosts or [])
-            corp = [h for h in hosts if h.endswith("_corp_pc")]
-            alt = next((h for h in corp if h != dns.get("host_name")), None)
-            if alt is None:
-                alt = next((h for h in hosts if h != dns.get("host_name")), None)
-            if alt is not None:
-                gw["host_name"] = alt
-        params_by_problem["dns_record_error"] = dns
-        params_by_problem["host_incorrect_gateway"] = gw
-        return params_by_problem
-
+    """Let the failure that declares the other co-injected ones adjust params."""
+    names = set(problems)
+    for problem in problems:
+        problem_cls = _benchmark_problem_class(problem)
+        coordinates = problem_cls.BENCHMARK_COORDINATES
+        if coordinates and coordinates == names - {problem}:
+            return problem_cls.coordinate_benchmark_inject(ctx, params_by_problem)
     return params_by_problem
 
 
@@ -471,8 +408,7 @@ def resolve_multi_inject_params(
             isp_options=isp_options,
         )
     net_env = _get_net_env_for_benchmark(scenario, topo_size, isp_options=isp_options)
-    if hasattr(net_env, "load_machines") and not getattr(net_env, "hosts", None):
-        net_env.load_machines()
+    _load_inventory(net_env)
     rng = _case_rng(
         seed,
         scenario,
@@ -480,12 +416,11 @@ def resolve_multi_inject_params(
         topo_size,
         _isp_rng_key(isp_options),
     )
-    backend = _resolve_benchmark_backend(scenario, isp_options)
-    return _coordinate_multi_inject_params(
-        problems,
-        resolved,
+    ctx = MultiInjectContext(
         scenario=scenario,
+        topo_size=topo_size,
         net_env=net_env,
         rng=rng,
-        backend=backend,
+        backend=_resolve_benchmark_backend(scenario, isp_options),
     )
+    return _coordinate_multi_inject_params(problems, resolved, ctx)

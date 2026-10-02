@@ -70,6 +70,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
     Params = IcmpFragNeededFilterMisconfigurationParams
     BENCHMARK_TARGETS = "canonical"
+    BENCHMARK_COORDINATES = frozenset({"mtu_mismatch"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -80,6 +81,15 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             ctx.scenario, ctx.net_env, ctx.rng, list(ctx.router_pool), ctx.backend
         )
         return {"host_name": mtu_target["host_name"]}
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # PMTUD black hole: filter Frag Needed on the router that lowered the MTU.
+        mtu = dict(params_by_problem["mtu_mismatch"])
+        frag = dict(params_by_problem["icmp_frag_needed_filter_misconfiguration"])
+        frag["host_name"] = mtu["host_name"]
+        params_by_problem["icmp_frag_needed_filter_misconfiguration"] = frag
+        return params_by_problem
 
     def root_cause_resources(self, params: IcmpFragNeededFilterMisconfigurationParams):
         return [node_resource(params.host_name)]

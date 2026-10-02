@@ -91,10 +91,24 @@ class BGPAsnMisconfig(ProblemBase):
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAsnMisconfigParams
+    BENCHMARK_COORDINATES = frozenset({"bgp_acl_block"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.router0}
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Misconfigure a router other than the ACL-blocked one.
+        acl = dict(params_by_problem["bgp_acl_block"])
+        asn = dict(params_by_problem["bgp_asn_misconfig"])
+        routers = list(ctx.net_env.routers or [])
+        if acl.get("host_name") == asn.get("host_name") and len(routers) >= 2:
+            asn["host_name"] = (
+                routers[1] if routers[0] == acl.get("host_name") else routers[0]
+            )
+        params_by_problem["bgp_asn_misconfig"] = asn
+        return params_by_problem
 
     symptom_desc = "Some hosts are experiencing connectivity issues."
 

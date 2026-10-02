@@ -16,6 +16,7 @@ from nika.problems.base import (
 )
 from nika.problems.support.benchmark_targets import (
     choice_distinct,
+    device_interfaces,
     endpoint_target,
     require_distinct_hosts,
 )
@@ -75,10 +76,33 @@ class HostMissingIP(ProblemBase):
     RECORDED_ATTRS = ("intf_name",)
 
     Params = HostMissingIPParams
+    BENCHMARK_COORDINATES = frozenset({"link_down"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return endpoint_target(ctx, with_intf=True)
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Keep the host fault off the downed link's endpoint so both are visible.
+        net_env = ctx.net_env
+        link = dict(params_by_problem["link_down"])
+        host = dict(params_by_problem["host_missing_ip"])
+        if link.get("host_name") == host.get("host_name"):
+            web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
+            if web_hosts:
+                host["host_name"] = web_hosts[0]
+                ifaces = device_interfaces(net_env).get(web_hosts[0]) or ["eth0"]
+                host["intf_name"] = ifaces[0]
+            else:
+                hosts = list(net_env.hosts or [])
+                alt = next((h for h in hosts if h != link.get("host_name")), None)
+                if alt is not None:
+                    host["host_name"] = alt
+                    ifaces = device_interfaces(net_env).get(alt) or ["eth0"]
+                    host["intf_name"] = ifaces[0]
+        params_by_problem["host_missing_ip"] = host
+        return params_by_problem
 
     symptom_desc = (
         "Some hosts are unable to communicate with other devices in the network."
@@ -316,10 +340,32 @@ class HostIncorrectGateway(ProblemBase):
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectGatewayParams
+    BENCHMARK_COORDINATES = frozenset({"dns_record_error"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return endpoint_target(ctx)
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Misroute a client other than the DNS server so both faults are visible.
+        net_env = ctx.net_env
+        dns = dict(params_by_problem["dns_record_error"])
+        gw = dict(params_by_problem["host_incorrect_gateway"])
+        if ctx.scenario == "campus_lan":
+            dns["host_name"] = "dns_server"
+            gw["host_name"] = "pc_1_1_1_1"
+        elif dns.get("host_name") == gw.get("host_name"):
+            hosts = list(net_env.hosts or [])
+            corp = [h for h in hosts if h.endswith("_corp_pc")]
+            alt = next((h for h in corp if h != dns.get("host_name")), None)
+            if alt is None:
+                alt = next((h for h in hosts if h != dns.get("host_name")), None)
+            if alt is not None:
+                gw["host_name"] = alt
+        params_by_problem["dns_record_error"] = dns
+        params_by_problem["host_incorrect_gateway"] = gw
+        return params_by_problem
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 

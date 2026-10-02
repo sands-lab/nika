@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from nika.problems.support.benchmark_targets import (
         InjectTargetContext,
         InjectValidationContext,
+        MultiInjectContext,
     )
     from nika.runtime.base import LabRuntime
 
@@ -116,6 +117,9 @@ class ProblemBase:
     BENCHMARK_POINT_TO_POINT: ClassVar[bool] = False
     # ``intf_name`` is a tunnel iface, not a topology link endpoint.
     BENCHMARK_TUNNEL_IFACE: ClassVar[bool] = False
+    # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
+    # when a multi-fault case is exactly this failure plus these.
+    BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
     def is_compatible(cls, target: str) -> bool:
@@ -189,6 +193,13 @@ class ProblemBase:
         cls, ctx: InjectValidationContext, inject: dict[str, str]
     ) -> None:
         """Raise ``ValueError`` when ``inject`` is not a legal target."""
+
+    @classmethod
+    def coordinate_benchmark_inject(
+        cls, ctx: MultiInjectContext, params_by_problem: dict[str, dict[str, str]]
+    ) -> dict[str, dict[str, str]]:
+        """Adjust co-injected params (keyed by failure) so the faults compose."""
+        return params_by_problem
 
     net_env: NetworkEnvBase
     runtime: LabRuntime
