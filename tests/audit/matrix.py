@@ -1,13 +1,14 @@
 """Run one full Docker audit for every release case.
 
-Light labs may run concurrently. Containerlab, Kubernetes, XRd, and topo
-size ``l`` audits run one at a time within this matrix. Each audit closes
-only the session it started.
+Labs of every resource class run concurrently, admitted one at a time while
+free memory stays above a per-class floor. Heavy labs start first. Each audit
+closes only the session it started.
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import multiprocessing
@@ -108,6 +109,11 @@ def result_current(row: dict[str, Any]) -> bool:
     )
 
 
+_MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 16, "k8s": 24}
+_ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 45, "k8s": 90}
+_ADMISSION_LOCK = RESULTS_DIR.parent / ".environment-audit-admission.lock"
+
+
 def _available_gib() -> float:
     for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
         if line.startswith("MemAvailable:"):
@@ -116,16 +122,27 @@ def _available_gib() -> float:
 
 
 def wait_for_slot(row: dict[str, Any]) -> None:
-    """Keep a memory floor while allowing other NIKA workloads to run."""
-    while True:
-        memory = _available_gib()
-        if memory >= 8:
-            return
-        print(
-            f"waiting memory={memory:.1f}GiB scenario={row['scenario']}",
-            flush=True,
-        )
-        time.sleep(20)
+    """Keep a per-class memory floor while allowing other NIKA workloads to run.
+
+    Admissions are serialized and spaced so the next check sees the memory the
+    previous lab claimed while deploying.
+    """
+    resource_class = effective_class(row)
+    floor = _MEMORY_FLOOR_GIB[resource_class]
+    _ADMISSION_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with _ADMISSION_LOCK.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        while True:
+            memory = _available_gib()
+            if memory >= floor:
+                break
+            print(
+                f"waiting memory={memory:.1f}GiB floor={floor}GiB "
+                f"scenario={row['scenario']}",
+                flush=True,
+            )
+            time.sleep(20)
+        time.sleep(_ADMISSION_SPACING_SEC[resource_class])
 
 
 def _evidence_text(stage: StageResult | None) -> str:
@@ -326,8 +343,7 @@ def run_matrix(
                 pending.append(row)
     light = [row for row in pending if effective_class(row) == "light"]
     heavy = [row for row in pending if effective_class(row) != "light"]
-    _run_group(light, jobs=max(1, jobs))
-    _run_group(heavy, jobs=1)
+    _run_group(heavy + light, jobs=max(1, jobs))
     passed = 0
     for row in selected:
         if result_current(row):
