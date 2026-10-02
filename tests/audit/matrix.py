@@ -1,7 +1,8 @@
 """Run one full Docker audit for every release case.
 
 Labs of every resource class run concurrently, admitted one at a time while
-free memory stays above a per-class floor. Heavy labs start first. Each audit
+free memory stays above a per-class floor and load stays under a ceiling.
+Each class has a fixed number of concurrent slots. Heavy labs start first. Each audit
 closes only the session it started.
 """
 
@@ -12,11 +13,12 @@ import fcntl
 import hashlib
 import json
 import multiprocessing
+import os
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from nika.audit.environment import CaseAudit, StageResult, identity_from_row
 from nika.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
@@ -111,6 +113,9 @@ def result_current(row: dict[str, Any]) -> bool:
 
 _MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 16, "k8s": 24}
 _ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 45, "k8s": 90}
+# Labs keep growing after admission, so heavy classes also hold a slot for the whole case.
+_CLASS_SLOTS = {"light": 8, "large": 3, "clab": 2, "k8s": 2}
+_LOAD_CEILING = 2 * (os.cpu_count() or 1)
 _ADMISSION_LOCK = RESULTS_DIR.parent / ".environment-audit-admission.lock"
 
 
@@ -121,8 +126,23 @@ def _available_gib() -> float:
     return 0.0
 
 
+def _hold_class_slot(resource_class: str) -> IO[str]:
+    """Block until one of the class's slots is free; the slot lasts until the file closes."""
+    _ADMISSION_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    while True:
+        for index in range(_CLASS_SLOTS[resource_class]):
+            handle = Path(f"{_ADMISSION_LOCK}.{resource_class}.{index}").open("w")
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                handle.close()
+                continue
+            return handle
+        time.sleep(20)
+
+
 def wait_for_slot(row: dict[str, Any]) -> None:
-    """Keep a per-class memory floor while allowing other NIKA workloads to run.
+    """Keep a per-class memory floor and a load ceiling while other NIKA workloads run.
 
     Admissions are serialized and spaced so the next check sees the memory the
     previous lab claimed while deploying.
@@ -134,11 +154,12 @@ def wait_for_slot(row: dict[str, Any]) -> None:
         fcntl.flock(lock, fcntl.LOCK_EX)
         while True:
             memory = _available_gib()
-            if memory >= floor:
+            load = os.getloadavg()[0]
+            if memory >= floor and load < _LOAD_CEILING:
                 break
             print(
                 f"waiting memory={memory:.1f}GiB floor={floor}GiB "
-                f"scenario={row['scenario']}",
+                f"load={load:.0f} ceiling={_LOAD_CEILING} scenario={row['scenario']}",
                 flush=True,
             )
             time.sleep(20)
@@ -282,17 +303,18 @@ def _failed_audit(row: dict[str, Any], message: str) -> CaseAudit:
 
 def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
     """Deploy, audit, and undeploy one case. The caller stores the record."""
-    wait_for_slot(row)
-    started = time.monotonic()
-    error: str | None = None
-    try:
-        if is_healthy_case(str(row.get("problem") or "")):
-            audit = audit_case(row, window_sec=2)
-        else:
-            audit = audit_case(row)
-    except Exception as exc:  # noqa: BLE001 - one case must not stop the matrix
-        error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
-        audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
+    with _hold_class_slot(effective_class(row)):
+        wait_for_slot(row)
+        started = time.monotonic()
+        error: str | None = None
+        try:
+            if is_healthy_case(str(row.get("problem") or "")):
+                audit = audit_case(row, window_sec=2)
+            else:
+                audit = audit_case(row)
+        except Exception as exc:  # noqa: BLE001 - one case must not stop the matrix
+            error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
+            audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
     return {
         "audit": audit.model_dump(mode="json"),
         "diagnosis": diagnose(audit, None if error is None else error),
