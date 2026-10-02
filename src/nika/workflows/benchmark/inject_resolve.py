@@ -145,80 +145,27 @@ def _bmv2_leaves(bmv2: list[str]) -> list[str]:
     return [n for n in bmv2 if str(n).startswith("leaf_")]
 
 
-def _client_hosts(hosts: list[str]) -> list[str]:
-    return [h for h in hosts if "client" in h] or hosts
+def _arp_l2_endpoint_host(roles: dict[str, list[str]], *, fallback: str) -> str:
+    """Pin ARP L2 faults onto the scenario's probe-aligned ``l2_endpoints``."""
+    if "l2_endpoints" not in roles:
+        return fallback
+    endpoints = roles["l2_endpoints"]
+    if not endpoints:
+        raise ValueError("scenario declares no l2_endpoints hosts for ARP L2 faults")
+    return endpoints[0]
 
 
-def _enterprise_branch_corp_hosts(hosts: list[str]) -> list[str]:
-    """CORP/SERVER hosts on the overlay business path (exclude guest/iot)."""
-    corp = [
-        h for h in hosts if "_corp_pc" in h or h.endswith("_srv") or h.endswith("_srv2")
-    ]
-    if corp:
-        return corp
-    return [h for h in hosts if "_guest_pc" not in h and "_iot_pc" not in h]
+def _role_subset(
+    candidates: list[str], roles: dict[str, list[str]], role: str
+) -> list[str]:
+    """Candidates holding ``role``; every candidate when none does.
 
-
-def _arp_l2_endpoint_host(
-    scenario: str,
-    host_pool: list[str],
-    hosts: list[str],
-    *,
-    fallback: str,
-) -> str:
-    """Pin ARP L2 faults onto a probe-aligned endpoint (never enterprise guest/iot)."""
-    pool = list(host_pool) or list(hosts)
-    if scenario == "enterprise_branch":
-        corp = _enterprise_branch_corp_hosts(pool or list(hosts))
-        if "br1_corp_pc" in corp:
-            return "br1_corp_pc"
-        if corp:
-            return corp[0]
-        raise ValueError("enterprise_branch has no CORP/SERVER hosts for ARP L2 faults")
-    if scenario == "k8s_lab":
-        if "client" in pool or "client" in hosts:
-            return "client"
-        return _first(pool) or fallback
-    if scenario == "llmd_lab":
-        if "client" in pool or "client" in hosts:
-            return "client"
-        return _first(pool) or fallback
-    if scenario in {"p4_dc_fabric", "sdn_l3_clos", "min3clos"}:
-        if "client_1_1" in pool or "client_1_1" in hosts:
-            return "client_1_1"
-        return _first(pool) or fallback
-    if scenario == "p4_dc_gateway":
-        if "client_1" in pool or "client_1" in hosts:
-            return "client_1"
-        return _first(pool) or fallback
-    return fallback
-
-
-def _enterprise_branch_edge_routers(routers: list[str]) -> list[str]:
-    return [r for r in routers if r.endswith("_edge")] or list(routers)
-
-
-def _routers_with_bgp_network(routers: list[str], *, scenario: str = "") -> list[str]:
-    """Routers that originate BGP ``network`` statements in Clos-style labs.
-
-    Spines (and ``dc_clos`` super-spines without a client subnet) only peer and
-    have no ``network`` lines, so commenting those out is a no-op. Prefer leaves;
-    fall back to the full pool when the topology does not use leaf role names.
+    Used for ``bgp_originators`` (routers with BGP ``network`` statements) and
+    ``access_routers`` (routers with end hosts, as ``resolve_victim_host()``
+    needs): when the topology does not distinguish the role, keep the pool.
     """
-    if scenario == "enterprise_branch":
-        return _enterprise_branch_edge_routers(routers)
-    advertisers = [r for r in routers if "leaf" in r]
-    return advertisers or list(routers)
-
-
-def _routers_with_victim_hosts(routers: list[str], *, scenario: str = "") -> list[str]:
-    """Routers that have end hosts for ``resolve_victim_host()``.
-
-    Clos spines / super-spines only connect to other routers, so blackhole /
-    hijack / leak injectors that call ``resolve_victim_host`` fail on them.
-    Prefer leaf routers when the topology uses that naming.
-    """
-    return _routers_with_bgp_network(routers, scenario=scenario)
+    members = set(roles.get(role) or ())
+    return [node for node in candidates if node in members] or list(candidates)
 
 
 # Legacy host-level WireGuard peer names are unused; Site Edge VPN uses
@@ -436,10 +383,6 @@ def _resolve_link_flap_params(
             probe_dst_ip="10.200.0.3",
             observer_device="pc_1_1_1_1",
         )
-        return params
-
-    if scenario == "simple_bgp":
-        params.update(host_name="pc1", intf_name="eth0")
         return params
 
     params.update(
@@ -935,93 +878,6 @@ def _load_inventory(net_env) -> None:
     net_env.switches = sorted(net_env.switches)
 
 
-def _scenario_device_pools(scenario: str, net_env) -> dict[str, list[str]]:
-    """Role-constrained device pools for scenario-specific labs."""
-    hosts = net_env.hosts or []
-    routers = net_env.routers or []
-    k8s_nodes = getattr(net_env, "kubernetes_nodes", []) or []
-
-    if scenario == "k8s_lab":
-        client_pool = _client_hosts(hosts)
-        router_pool = [r for r in routers if "leaf" in r] or routers
-        controller_pool = [n for n in k8s_nodes if "controller" in n] or k8s_nodes
-        return {
-            "hosts": client_pool,
-            "host1_pool": client_pool,
-            "routers": router_pool,
-            "web": client_pool,
-            "attacker_pool": client_pool,
-            "k8s_nodes": k8s_nodes,
-            "k8s_controllers": controller_pool,
-        }
-    if scenario == "llmd_lab":
-        client_pool = _client_hosts(hosts)
-        controller_pool = [n for n in k8s_nodes if "controller" in n] or k8s_nodes
-        web_pool = list((net_env.servers or {}).get("web") or [])
-        return {
-            "hosts": client_pool,
-            "host1_pool": client_pool,
-            "routers": controller_pool or client_pool,
-            "web": web_pool or client_pool,
-            "attacker_pool": client_pool,
-            "controllers": controller_pool,
-            "k8s_nodes": k8s_nodes,
-            "k8s_controllers": controller_pool,
-        }
-    if scenario == "min3clos":
-        client_pool = _client_hosts(hosts)
-        router_pool = [r for r in routers if "leaf" in r] or routers
-        return {
-            "hosts": client_pool,
-            "host1_pool": client_pool,
-            "routers": router_pool,
-            "web": client_pool,
-            "attacker_pool": client_pool,
-        }
-    if scenario == "sdn_l3_clos":
-        client_pool = _client_hosts(hosts)
-        web_pool = list((net_env.servers or {}).get("web") or [])
-        controllers = net_env.sdn_controllers or ["onos"]
-        return {
-            "hosts": client_pool,
-            "host1_pool": client_pool,
-            "web": web_pool or client_pool,
-            "attacker_pool": client_pool,
-            "controllers": controllers,
-        }
-    if scenario in {"p4_dc_fabric", "p4_dc_gateway"}:
-        client_pool = _client_hosts(hosts)
-        web_pool = list((net_env.servers or {}).get("web") or [])
-        return {
-            "hosts": client_pool,
-            "host1_pool": client_pool,
-            "web": web_pool or client_pool,
-            "attacker_pool": client_pool,
-        }
-    if scenario == "enterprise_branch":
-        corp_pool = _enterprise_branch_corp_hosts(hosts)
-        edge_pool = _enterprise_branch_edge_routers(routers)
-        hq_web = [h for h in corp_pool if h.startswith("hq_")] or corp_pool
-        br_attacker = [h for h in corp_pool if h.startswith("br1_")] or corp_pool
-        return {
-            "hosts": corp_pool,
-            "host1_pool": corp_pool,
-            "routers": edge_pool,
-            "edges": edge_pool,
-            "web": hq_web,
-            "attacker_pool": br_attacker,
-        }
-    if scenario == "campus_lan":
-        pc_pool = [h for h in hosts if h.startswith("pc_")] or hosts
-        return {
-            "hosts": pc_pool,
-            "host1_pool": pc_pool,
-            "web": pc_pool,
-            "attacker_pool": pc_pool,
-        }
-    return {}
-
-
 def _pick_attacker(
     rng: random.Random,
     hosts: list[str],
@@ -1068,7 +924,7 @@ def resolve_inject_params(
     bmv2 = net_env.bmv2_switches or []
     controllers = net_env.sdn_controllers or []
 
-    pools = _scenario_device_pools(scenario, net_env)
+    pools = net_env.target_roles()
     host_pool = pools.get("hosts") or hosts
     router_pool = pools.get("routers") or routers
 
@@ -1293,9 +1149,7 @@ def resolve_inject_params(
             params["intf_name"] = _choice_interface(rng, net_env, router0, backend)
         elif scenario == "enterprise_branch":
             if problem == "arp_cache_poisoning":
-                corp_src = _arp_l2_endpoint_host(
-                    scenario, host_pool, hosts, fallback=host0
-                )
+                corp_src = _arp_l2_endpoint_host(pools, fallback=host0)
             else:
                 corp_src = (
                     "br1_corp_pc"
@@ -1313,9 +1167,7 @@ def resolve_inject_params(
                     )
         else:
             if problem == "arp_cache_poisoning":
-                params["host_name"] = _arp_l2_endpoint_host(
-                    scenario, host_pool, hosts, fallback=host0
-                )
+                params["host_name"] = _arp_l2_endpoint_host(pools, fallback=host0)
                 if scenario == "llmd_lab":
                     # Star L2 lab has no default route; poison the HTTP peer.
                     params["target_ip"] = "200.0.0.8"
@@ -1497,7 +1349,7 @@ def resolve_inject_params(
                 inventory["bgp"] = bgp_inv
             params.update(isp_inject_params(problem, inventory, bgp_inv))
         else:
-            advertise_pool = _routers_with_bgp_network(router_pool, scenario=scenario)
+            advertise_pool = _role_subset(router_pool, pools, "bgp_originators")
             params["host_name"] = _choice(
                 rng, advertise_pool, _first(advertise_pool) or router0
             )
@@ -1518,7 +1370,7 @@ def resolve_inject_params(
                 )
             )
         elif scenario == "enterprise_branch" and problem == "host_static_blackhole":
-            victim_pool = _routers_with_victim_hosts(router_pool, scenario=scenario)
+            victim_pool = _role_subset(router_pool, pools, "access_routers")
             params["host_name"] = (
                 "hq_edge"
                 if "hq_edge" in victim_pool
@@ -1529,7 +1381,7 @@ def resolve_inject_params(
                 )
             )
         else:
-            victim_pool = _routers_with_victim_hosts(router_pool, scenario=scenario)
+            victim_pool = _role_subset(router_pool, pools, "access_routers")
             params["host_name"] = _choice(
                 rng, victim_pool, _first(victim_pool) or router0
             )
@@ -1632,17 +1484,14 @@ def resolve_inject_params(
 
     elif problem in {"arp_acl_block", "icmp_acl_block", "http_acl_block"}:
         if problem == "arp_acl_block":
-            params["host_name"] = _arp_l2_endpoint_host(
-                scenario, host_pool, hosts, fallback=host0
-            )
+            params["host_name"] = _arp_l2_endpoint_host(pools, fallback=host0)
         elif scenario == "enterprise_branch":
-            corp = _enterprise_branch_corp_hosts(host_pool or hosts)
             params["host_name"] = _prefer_named(
-                corp, "br1_corp_pc", _first(corp) or host0
+                host_pool, "br1_corp_pc", _first(host_pool) or host0
             )
         elif scenario == "k8s_lab":
             params["host_name"] = _prefer_named(host_pool, "client", host0)
-        elif scenario in {"p4_dc_fabric", "sdn_l3_clos", "min3clos"}:
+        elif scenario in {"p4_dc_fabric", "sdn_l3_clos"}:
             params["host_name"] = _prefer_named(host_pool, "client_1_1", host0)
         else:
             params["host_name"] = host0
@@ -2107,12 +1956,14 @@ def validate_benchmark_case(
     if problem not in problems:
         raise ValueError(f"Unknown problem {problem!r}")
 
-    problem_tags = set(problems[problem].TAGS)
-    available_tags = set(registered_tags)
-    if not problem_tags.issubset(available_tags):
+    problem_cls = problems[problem]
+    if not problem_cls.is_compatible(canonical):
+        compatible_columns = problem_cls.COMPATIBLE_COLUMNS
         raise ValueError(
-            f"Tag mismatch for {problem} on {scenario}: "
-            f"problem tags {sorted(problem_tags)} not subset of scenario tags {sorted(available_tags)}"
+            f"Incompatible {problem} on {scenario}: problem tags "
+            f"{sorted(problem_cls.TAGS)}, scenario tags {sorted(registered_tags)}, "
+            f"compatible columns "
+            f"{sorted(compatible_columns) if compatible_columns is not None else 'any'}"
         )
 
     if net_env is None:
@@ -2274,7 +2125,9 @@ def validate_benchmark_case(
                     )
         else:
             routers = net_env.routers or []
-            advertisers = _routers_with_bgp_network(routers, scenario=scenario)
+            advertisers = _role_subset(
+                routers, net_env.target_roles(), "bgp_originators"
+            )
             # Enforce only when the topology distinguishes advertiser roles.
             if advertisers != list(routers) and host_name not in advertisers:
                 raise ValueError(
@@ -2285,7 +2138,7 @@ def validate_benchmark_case(
 
     if problem in _VICTIM_HOST_PROBLEMS and host_name:
         routers = net_env.routers or []
-        eligible = _routers_with_victim_hosts(routers, scenario=scenario)
+        eligible = _role_subset(routers, net_env.target_roles(), "access_routers")
         # Enforce only when the topology distinguishes leaf vs spine roles.
         if eligible != list(routers) and host_name not in eligible:
             raise ValueError(

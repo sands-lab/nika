@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import interfaces_for_node
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
 from nika.traffic.burst import BurstTrafficGenerator

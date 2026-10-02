@@ -8,18 +8,6 @@ from nika.net_env.isp.kathara.lab import Isp
 class _IspEbgpRtbh(Isp):
     TOPOLOGY: str
     DESCRIPTION_NAME: str
-    TAGS = [
-        "isp",
-        "sndlib",
-        "frr",
-        "ospf",
-        "bgp",
-        "ebgp",
-        "rtbh",
-        "igp",
-        "link",
-        "icmp",
-    ]
 
     def __init__(self, **kwargs) -> None:
         for key in (
@@ -53,7 +41,6 @@ class IspAbileneEbgpRtbh(_IspEbgpRtbh):
     """Abilene eBGP lab with an RTBH community blackhole profile."""
 
     LAB_NAME = "isp_abilene_ebgp_rtbh"
-    TOPO_SIZE = "s"
     TOPOLOGY = "abilene"
     DESCRIPTION_NAME = "Abilene"
 
@@ -62,6 +49,5 @@ class IspDfnBwinEbgpRtbh(_IspEbgpRtbh):
     """DFN-BWIN eBGP lab with an RTBH community blackhole profile."""
 
     LAB_NAME = "isp_dfn-bwin_ebgp_rtbh"
-    TOPO_SIZE = "s"
     TOPOLOGY = "dfn-bwin"
     DESCRIPTION_NAME = "DFN-BWIN"

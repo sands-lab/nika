@@ -15,6 +15,7 @@ from nika.net_env.net_env_pool import get_net_env_instance, scenario_requires_to
 from nika.runtime.factory import runtime_for_net_env
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_store import SessionStore
+from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
 
 traffic_app = typer.Typer(help="Generate traffic in the Kathará lab.")
 
@@ -440,14 +441,7 @@ def _run_sndlib(
     lab_name = meta.get("lab_name") or params.get("lab_name")
     kwargs = {
         k: params[k]
-        for k in (
-            "topo",
-            "igp",
-            "metric_strategy",
-            "constant_metric",
-            "bgp_mode",
-            "device_profile",
-        )
+        for k in ISP_NET_ENV_PARAM_KEYS
         if k in params and params[k] is not None
     }
     backend = meta.get("backend") or params.get("backend")

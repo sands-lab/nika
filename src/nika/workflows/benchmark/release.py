@@ -22,6 +22,7 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     list_all_net_envs,
     resolve_scenario_backend,
+    scenario_family,
     scenario_requires_topo_size,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
@@ -410,33 +411,13 @@ def verify_dev_test_isolation(
         )
 
 
-def _scenario_family(scenario: str) -> str:
-    if scenario == "campus_lan":
-        return "campus"
-    if scenario in {"dc_clos", "enterprise_branch"}:
-        return scenario
-    if scenario.startswith("isp_"):
-        return "isp"
-    if scenario == "sdn_l3_clos":
-        return "sdn"
-    if scenario.startswith("p4_"):
-        return "p4"
-    if scenario == "k8s_lab":
-        return "kubernetes"
-    if scenario == "llmd_lab":
-        return "llm_serving"
-    if scenario == "min3clos":
-        return "srl_clos"
-    return scenario
-
-
 def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set[str]]:
     families: set[str] = set()
     scales: set[str] = set()
     backends: set[str] = set()
     for row in rows:
         scenario = str(row["scenario"])
-        families.add(_scenario_family(scenario))
+        families.add(scenario_family(scenario))
         scales.add(normalize_topo_scale(row))
         backends.add(str(row.get("backend") or resolve_scenario_backend(scenario)))
     return families, scales, backends
@@ -520,6 +501,14 @@ def preflight_release(
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
     if missing_problems:
         raise ReleaseError(f"Missing problems: {missing_problems}")
+    licensed = sorted(
+        name for name in scenarios if list_all_net_envs()[name].licensed_images
+    )
+    if licensed:
+        raise ReleaseError(
+            f"Release cases use scenarios that need licensed vendor images: "
+            f"{licensed}; releases must only depend on openly available images"
+        )
 
     # Isolation requires both splits on disk (always true for 0.1.0).
     if "dev" in release.splits and "test" in release.splits:

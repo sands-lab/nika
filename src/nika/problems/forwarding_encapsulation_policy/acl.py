@@ -7,6 +7,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.support.polling import wait_until
 from nika.runtime.base import RuntimeCapabilityError
 
@@ -148,17 +149,7 @@ class ARPAclBlock(ProblemBase):
     description = "ARP is blocked by an ACL."
     TAGS: str = ["arp"]
     # k8s_lab / llmd_lab client images lack nftables and cannot apt-install offline.
-    COMPATIBLE_COLUMNS = frozenset(
-        {
-            "campus_lan",
-            "dc_clos",
-            "enterprise_branch",
-            "sdn_l3_clos",
-            "p4_dc_fabric",
-            "p4_dc_gateway",
-            "iosxr_simple_bgp",
-        }
-    )
+    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS | {"iosxr_simple_bgp"}
 
     Params = ARPAclBlockParams
 

@@ -28,6 +28,7 @@ class DNSServiceDown(ProblemBase):
     description = "DNS server process is down."
     symptom_desc = "Some hosts cannot access external websites."
     TAGS: str = ["dns"]
+    RECORDED_ATTRS = ("service_name",)
 
     Params = DNSServiceDownParams
 
@@ -69,6 +70,7 @@ class DHCPServiceDown(ProblemBase):
 
     description = "DHCP server process is down."
     TAGS: str = ["dhcp"]
+    RECORDED_ATTRS = ("service_name",)
 
     Params = DHCPServiceDownParams
 

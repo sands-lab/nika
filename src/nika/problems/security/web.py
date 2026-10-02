@@ -14,6 +14,7 @@ from nika.problems.support.ab_helpers import (
     start_ab_workers,
     stop_ab_workers,
 )
+from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -95,16 +96,7 @@ class WebDoS(ProblemBase):
     description = "Web service is under a denial-of-service attack."
     symptom_desc: str = "Users reports high latency when accessing some web services."
     TAGS: list[str] = ["http"]
-    COMPATIBLE_COLUMNS = frozenset(
-        {
-            "campus_lan",
-            "dc_clos",
-            "enterprise_branch",
-            "p4_dc_fabric",
-            "p4_dc_gateway",
-            "sdn_l3_clos",
-        }
-    )
+    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS
 
     Params = WebDoSParams
 

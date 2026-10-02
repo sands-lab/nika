@@ -734,7 +734,7 @@ def test_link_detach_inject_params_pin_probe_path(
     ],
 )
 def test_incast_inject_params_align_probe_with_host(scenario: str, seed: int) -> None:
-    from nika.problems.support.probe_paths import get_probe_path
+    from nika.net_env.net_env_pool import get_probe_path
 
     params = resolve_inject_params(
         "incast_traffic_network_limitation", scenario, TOPO_SIZE, seed=seed

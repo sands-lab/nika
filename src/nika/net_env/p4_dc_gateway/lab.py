@@ -10,7 +10,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.base import LabRuntime
 from nika.net_env.p4_dc_fabric.lab import _switch_startup
 from nika.net_env.p4_dc_gateway.topology_model import (
@@ -36,23 +36,6 @@ _MANAGER = Path(__file__).resolve().parents[1] / "utils" / "kathara" / "p4rt_man
 class P4DcGateway(NetworkEnvBase):
     LAB_NAME = "p4_dc_gateway"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "link",
-        "pc",
-        "p4",
-        "p4_runtime",
-        "mac",
-        "arp",
-        "icmp",
-        "http",
-        "int",
-        "telemetry",
-        "flow_tracking",
-        "ecn",
-        "queue",
-        "l4_load_balancer",
-    ]
     VERIFY_MAX_WAIT_SEC = 600
 
     def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):
@@ -209,6 +192,28 @@ class P4DcGateway(NetworkEnvBase):
         from .apply import reconcile_gateway
 
         reconcile_gateway(self._build_runtime(), self.model)
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "web": roles["web"] or clients,
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client_1"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client_1",
+            dst_ip="20.0.0.1",
+            http_url="http://20.0.0.1/",
+            control_plane_host="gateway_1",
+            peer_host="client_2",
+        )
 
     def startup_verify_lab(self) -> dict:
         from .verify import verify_p4_dc_gateway_lab_startup

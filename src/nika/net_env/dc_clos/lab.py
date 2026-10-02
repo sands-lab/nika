@@ -10,7 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
 
 # P2P links use 172.16.0.0/16 with /31 per link.
@@ -83,20 +83,6 @@ class HostMeta:
 class DCClos(NetworkEnvBase):
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "mac",
-        "bgp",
-        "icmp",
-        "frr",
-        "pc",
-        "dns",
-        "http",
-        "dc_clos",
-        "forwarding_device",
-    ]
 
     def __init__(
         self,
@@ -535,6 +521,17 @@ class DCClos(NetworkEnvBase):
                 web.cmd_list,
                 f"{web.machine.name}.startup",
             )
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client_0",
+            dst_ip="10.0.1.2",
+            http_url="http://web0.pod0/",
+            http_name_url="http://web0.pod0/",
+            control_plane_host="leaf_router_0_0",
+            peer_host="webserver0_pod0",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.dc_clos.verify import verify_dc_clos_lab_startup

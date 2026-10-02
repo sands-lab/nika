@@ -965,6 +965,7 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
     root_cause_name: str = "bgp_rpki_invalid_route_leak"
     description = "RPKI-invalid prefixes are leaked into BGP."
     TAGS: str = ["rpki"]
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": True}
 
     Params = BGPRPKIInvalidRouteLeakParams
 
@@ -1232,6 +1233,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
     description = "BGP maximum-prefix limit is exceeded on a session."
     TAGS: str = ["bgp", "isp"]
     COMPATIBLE_COLUMNS = frozenset({"isp_abilene/ebgp", "isp_geant/ebgp"})
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
 
     Params = BGPMaxPrefixExceededParams
 

@@ -95,8 +95,6 @@ class RouterOsSimpleBGP(NetworkEnvBase):
     VERIFY_MAX_WAIT_SEC = 600
     VERIFY_RETRY_DELAY_SEC = 10
     TOPO_LEVEL = "easy"
-    TOPO_SIZE = None
-    TAGS = ["arp", "link", "bgp", "icmp", "routeros", "pc"]
 
     def __init__(self, **kwargs):
         super().__init__()

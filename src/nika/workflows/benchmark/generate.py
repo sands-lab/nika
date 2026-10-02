@@ -34,9 +34,6 @@ from nika.workflows.benchmark.isp_options import (
 )
 from nika.workflows.benchmark.resume import benchmark_option_id
 
-# Tiny fixed labs (e.g. iosxr_simple_bgp) stay in E2E/unit tests only —
-# not part of the executable benchmark candidate pool.
-EXCLUDED_SCENARIOS = frozenset({"iosxr_simple_bgp"})
 WORKING_DIRNAME = "working"
 POOL_DIRNAME = "pool"
 
@@ -184,12 +181,9 @@ def _failure_group_specs() -> Iterable[tuple[str, str, str, dict[str, Any] | Non
     for problem, problem_cls in sorted(list_avail_problem_instances().items()):
         problem_tags = set(problem_cls.TAGS)
         for scenario, scenario_spec in sorted(net_envs.items()):
-            if scenario in EXCLUDED_SCENARIOS:
+            if scenario_spec.benchmark_excluded:
                 continue
-            if not problem_tags.issubset(set(scenario_spec.TAGS)):
-                continue
-            allowed = problem_cls.compatible_scenarios()
-            if allowed is not None and scenario not in allowed:
+            if not problem_cls.is_compatible(scenario):
                 continue
             if is_isp_named_special(scenario):
                 for stack in _isp_stack_variants(scenario, problem_cls):
@@ -201,10 +195,10 @@ def _failure_group_specs() -> Iterable[tuple[str, str, str, dict[str, Any] | Non
                     )
                 continue
             if is_isp_base_topology(scenario):
-                # RPKI only on named RPKI scenarios (handled above via tags).
-                if problem == "bgp_rpki_invalid_route_leak":
-                    continue
                 protocol = isp_config_for_problem(problem, problem_tags)
+                # RPKI profiles deploy only on named RPKI scenarios (above).
+                if protocol["rpki"]:
+                    continue
                 for stack in _isp_stack_variants(scenario, problem_cls):
                     yield (
                         problem,
@@ -404,8 +398,8 @@ def _healthy_specs(
         seen.add(key)
         return scenario, topo_size, isp_options
 
-    for scenario in sorted(list_all_net_envs()):
-        if scenario in EXCLUDED_SCENARIOS:
+    for scenario, scenario_spec in sorted(list_all_net_envs().items()):
+        if scenario_spec.benchmark_excluded:
             continue
         if is_isp_base_topology(scenario):
             protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}

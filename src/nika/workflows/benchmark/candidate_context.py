@@ -4,37 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from nika.net_env.net_env_pool import list_all_net_envs
 from nika.problems.registry import list_avail_problem_instances
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.isp_options import is_isp_base_topology
 from nika.workflows.benchmark.resume import benchmark_option_id
 
-MAJOR_SCENARIOS: tuple[str, ...] = (
-    "dc_clos",
-    "campus_lan",
-    "enterprise_branch",
-    "isp_abilene",
-    "isp_france",
-    "isp_pioro40",
-    "isp_abilene_ebgp_rtbh",
-    "isp_abilene_ebgp_rpki",
-    "sdn_l3_clos",
-    "p4_dc_fabric",
-    "p4_dc_gateway",
-    "k8s_lab",
-    "llmd_lab",
-    "min3clos",
-)
-
-SCALABLE_SCENARIOS: frozenset[str] = frozenset(
-    {
-        "dc_clos",
-        "campus_lan",
-        "enterprise_branch",
-        "sdn_l3_clos",
-        "p4_dc_fabric",
-        "p4_dc_gateway",
-    }
+MAJOR_SCENARIOS: tuple[str, ...] = tuple(
+    name for name, spec in list_all_net_envs().items() if spec.coverage_major
 )
 
 
@@ -95,7 +72,12 @@ def pool_context_key(row: dict[str, Any]) -> tuple[Any, ...]:
             *isp_profile_key(row),
             *stack_profile_key(row),
         )
-    return (row["problem"], scenario, normalize_topo_scale(row), *stack_profile_key(row))
+    return (
+        row["problem"],
+        scenario,
+        normalize_topo_scale(row),
+        *stack_profile_key(row),
+    )
 
 
 def selection_context_key(row: dict[str, Any]) -> tuple[Any, ...]:

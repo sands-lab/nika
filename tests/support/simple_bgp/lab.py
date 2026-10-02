@@ -4,7 +4,7 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +15,19 @@ class SimpleBGP(NetworkEnvBase):
     TOPO_LEVEL = "easy"
     TOPO_SIZE = None
     TAGS = ["arp", "link", "mac", "bgp", "icmp", "frr", "pc"]
+
+    def target_roles(self) -> dict[str, list[str]]:
+        # Link faults target the probe source host (see default_probe_path).
+        return {**super().target_roles(), "hosts": ["pc1"], "host1_pool": ["pc1"]}
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="pc1",
+            dst_ip="200.1.1.2",
+            control_plane_host="router1",
+            peer_host="pc2",
+        )
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

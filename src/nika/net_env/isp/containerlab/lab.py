@@ -76,22 +76,8 @@ class Isp(ContainerlabNetworkEnv):
 
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = None
-    TAGS = [
-        "isp",
-        "sndlib",
-        "srl",
-        "isis",
-        "ospf",
-        "bgp",
-        "igp",
-        "link",
-        "icmp",
-        "containerlab",
-    ]
     DESC = "ISP from SNDlib on Containerlab (Nokia SR Linux)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 600
-    SUPPORTED_BACKENDS: ClassVar[list[str]] = ["containerlab"]
 
     def __init__(
         self,
@@ -429,6 +415,14 @@ exit "$FAILED"
         setup = self.runtime_workdir / "setup.sh"
         setup.write_text(script, encoding="utf-8")
         setup.chmod(0o755)
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", topo=None, **deploy_kwargs):
+        if not isinstance(topo, str):
+            return None
+        from nika.net_env.isp.inject_targets import isp_topology_probe_path
+
+        return isp_topology_probe_path(topo)
 
     def deploy(self) -> None:
         require_gnmic()

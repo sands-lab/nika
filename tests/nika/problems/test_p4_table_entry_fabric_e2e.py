@@ -9,7 +9,7 @@ import pytest
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.net_env.verify import http_ok
 from nika.problems.registry import get_problem_class, list_avail_problem_names
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.symptom import evaluate_symptom, get_symptom_contract

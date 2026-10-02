@@ -19,9 +19,6 @@ class ContainerlabNetworkEnv(NetworkEnvBase):
     LAB_NAME: ClassVar[str]
     DESC: ClassVar[str]
     TOPO_LEVEL: ClassVar[str] = "easy"
-    TOPO_SIZE: ClassVar[int | None] = None
-    TAGS: ClassVar[list[str]] = []
-    SUPPORTED_BACKENDS: ClassVar[list[str]] = ["containerlab"]
 
     def __init__(self, *, backend: str = "containerlab", **kwargs):
         super().__init__(backend=backend, **kwargs)

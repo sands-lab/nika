@@ -9,7 +9,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.base import LabRuntime
 from nika.net_env.p4_dc_fabric.topology_model import (
     BASE_IMAGE,
@@ -80,8 +80,6 @@ def _switch_startup(
 class P4DcFabric(NetworkEnvBase):
     LAB_NAME = "p4_dc_fabric"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = ["link", "pc", "p4", "p4_runtime", "mac", "arp", "icmp", "http"]
     VERIFY_MAX_WAIT_SEC = 420
 
     def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):
@@ -242,6 +240,36 @@ class P4DcFabric(NetworkEnvBase):
         from nika.net_env.p4_dc_fabric.fabric_manager import reconcile_fabric
 
         reconcile_fabric(self._build_runtime(), self.model)
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "web": roles["web"] or clients,
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client_1_1"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        # Unknown sizes fall back to the small fabric's path.
+        model = build_clos_fabric_model(
+            topo_size if topo_size in {"s", "m", "l"} else "s"
+        )
+        clients = model.client_endpoints()
+        src = clients[0]
+        dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
+        peer = next((c for c in clients if c.name != src.name), None)
+        return ProbePath(
+            src_host=src.name,
+            dst_ip=dst.ip,
+            http_url=f"http://{dst.ip}/",
+            control_plane_host="leaf_1",
+            peer_host=peer.name if peer else None,
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab_startup

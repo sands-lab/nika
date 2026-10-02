@@ -25,6 +25,7 @@ from nika.utils.agent_config import (
     resolve_llm_provider,
     resolve_max_steps,
 )
+from nika.workflows.benchmark.isp_options import ISP_PROTOCOL_KEYS
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     ReleaseError,
@@ -89,12 +90,9 @@ def _deploy_label(entry: dict[str, Any]) -> str:
         extra.append(f"{backend}/{profile}")
     elif backend:
         extra.append(str(backend))
-    if entry.get("igp"):
-        extra.append(str(entry["igp"]))
-    if entry.get("bgp_mode"):
-        extra.append(str(entry["bgp_mode"]))
-    if entry.get("rpki"):
-        extra.append("rpki")
+    for key in ISP_PROTOCOL_KEYS:
+        if entry.get(key):
+            extra.append("rpki" if key == "rpki" else str(entry[key]))
     if extra:
         return f"{size}; " + "; ".join(extra)
     return size
