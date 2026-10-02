@@ -832,7 +832,8 @@ def raise_for_k8s_startup_failure(
     failure = exec_or_empty(
         runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
     ).strip()
-    if failure:
+    # A busy controller can time out the read; only the marker itself is a failure.
+    if failure and not failure.startswith("[TIMEOUT]"):
         log = exec_or_empty(runtime, "controller", "tail -60 /var/log/startup.log")
         raise RuntimeError(f"k3s controller bootstrap failed: {failure}\n{log}")
 
