@@ -69,7 +69,6 @@ class LinkPacketCorruption(ProblemBase):
             ctx.backend,
             host_pool=ctx.host_pool,
             host0=ctx.host0,
-            router0=ctx.router0,
         )
 
     def __init__(self, scenario_name: str | None, **kwargs):

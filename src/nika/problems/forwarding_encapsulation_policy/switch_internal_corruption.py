@@ -93,7 +93,6 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
         "kathara",
         host_pool=[],
         host0="",
-        router0="",
     )
     params: dict[str, str] = {"seed": str(ctx.seed)}
     if flap.get("probe_dst_ip"):

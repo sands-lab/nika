@@ -273,7 +273,6 @@ class LinkFlap(ProblemBase):
             ctx.backend,
             host_pool=ctx.host_pool,
             host0=ctx.host0,
-            router0=ctx.router0,
         )
 
     symptom_desc = "Users report connectivity issues to other hosts."

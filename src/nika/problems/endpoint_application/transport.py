@@ -223,11 +223,7 @@ class SenderResourceContention(ProblemBase):
             clients = (
                 list(getattr(model, "client_endpoints", lambda: [])()) if model else []
             )
-            # params is still empty here, so this picks the first web endpoint.
-            web = next(
-                (w for w in webs if w.name == (params.get("host_name") or "")),
-                webs[0] if webs else None,
-            )
+            web = webs[0] if webs else None
             if web is None:
                 params["host_name"] = (
                     web0 if web0 in web_pool else (first(web_pool) or host0)

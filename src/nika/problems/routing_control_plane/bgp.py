@@ -17,6 +17,7 @@ from nika.problems.support.benchmark_targets import (
     choice,
     first,
     isp_protocol_for,
+    loaded_inventory,
     replace,
     require_role_member,
     role_subset,
@@ -47,9 +48,7 @@ def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
     Uses the loaded scenario inventory when it has originated prefixes, else
     compiles the ISP plan from ``ctx.isp_options`` (or the failure's protocol needs).
     """
-    inventory = getattr(ctx.net_env, "inventory", None)
-    if not isinstance(inventory, dict):
-        inventory = {}
+    inventory = loaded_inventory(ctx.net_env)
     bgp_inv = inventory.get("bgp")
     if not isinstance(bgp_inv, dict) or not bgp_inv.get("originated"):
         isp_opts = ctx.isp_options or isp_protocol_for(problem_cls, {"bgp"})
@@ -64,11 +63,6 @@ def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
         inventory = dict(isp_plan.inventory)
         inventory["bgp"] = bgp_inv
     return inventory, bgp_inv
-
-
-def _loaded_inventory(net_env) -> dict:
-    inventory = getattr(net_env, "inventory", None)
-    return inventory if isinstance(inventory, dict) else {}
 
 
 # ==================================================================
@@ -379,8 +373,7 @@ class BGPMissingAdvertise(ProblemBase):
             return super().benchmark_inject_options(ctx, base)
         from nika.net_env.isp.inject_targets import enrich_isp_symptom_params
 
-        inventory = getattr(ctx.net_env, "inventory", None) or {}
-        bgp = inventory.get("bgp") or {}
+        inventory, bgp = _ensure_bgp_inventory(cls, ctx)
         rows = []
         for item in sorted(
             bgp.get("originated") or [],
@@ -418,8 +411,7 @@ class BGPMissingAdvertise(ProblemBase):
                 reason="has no BGP network statement",
             )
             return
-        inventory = getattr(ctx.net_env, "inventory", None)
-        bgp_inv = inventory.get("bgp") if isinstance(inventory, dict) else None
+        bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
         if isinstance(bgp_inv, dict) and bgp_inv.get("originated"):
             originators = sorted(
                 {
@@ -853,7 +845,7 @@ class BGPBlackholeCommunityLeak(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         from nika.net_env.isp.inject_targets import isp_inject_params
 
-        inventory = _loaded_inventory(ctx.net_env)
+        inventory = loaded_inventory(ctx.net_env)
         bgp_inv = inventory.get("bgp")
         if not isinstance(bgp_inv, dict) or not bgp_inv.get("rtbh"):
             _plan, bgp_inv = _compile_isp_bgp_inventory(
@@ -1142,7 +1134,7 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         from nika.net_env.isp.inject_targets import isp_inject_params
 
-        inventory = _loaded_inventory(ctx.net_env)
+        inventory = loaded_inventory(ctx.net_env)
         bgp_inv = inventory.get("bgp")
         if not isinstance(bgp_inv, dict) or not bgp_inv.get("rpki"):
             isp_opts = ctx.isp_options or isp_protocol_for(cls, {"rpki"})
@@ -1428,7 +1420,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         from nika.net_env.isp.inject_targets import first_ebgp_session
 
-        bgp_inv = _loaded_inventory(ctx.net_env).get("bgp")
+        bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
         if not isinstance(bgp_inv, dict):
             isp_opts = ctx.isp_options or isp_protocol_for(cls, {"bgp"})
             _plan, bgp_inv = _compile_isp_bgp_inventory(

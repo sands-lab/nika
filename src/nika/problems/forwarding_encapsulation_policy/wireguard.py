@@ -75,13 +75,11 @@ def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
     return False
 
 
-def _hq_peer_targets(net_env: Any, topo_size: str) -> list[tuple[str, str]]:
+def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
     """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
     targets = getattr(net_env, "wireguard_hq_peer_targets", None)
     if targets is None:
-        raise ValueError(
-            f"No primary HQ WireGuard peers for enterprise_branch topo_size={topo_size!r}"
-        )
+        raise ValueError(f"Scenario {scenario!r} has no Site Edge WireGuard peers")
     return targets()
 
 
@@ -96,7 +94,7 @@ def _prefer_hq_server_prefix(prefixes: list[str]) -> str | None:
 
 
 def _draw_hq_peer_target(ctx) -> tuple[str, str]:
-    targets = _hq_peer_targets(ctx.net_env, ctx.topo_size)
+    targets = _hq_peer_targets(ctx.net_env, ctx.scenario)
     if not targets:
         raise ValueError(
             f"No primary HQ WireGuard peers for enterprise_branch topo_size={ctx.topo_size!r}"
@@ -110,7 +108,7 @@ def _validate_hq_peer_target(ctx, problem: str, inject: dict[str, str]) -> None:
     scenario, topo_size = ctx.scenario, ctx.topo_size
     if not is_enterprise_branch_scenario(scenario):
         raise ValueError(f"{problem} requires enterprise_branch (got {scenario!r})")
-    eligible = _hq_peer_targets(ctx.net_env, topo_size)
+    eligible = _hq_peer_targets(ctx.net_env, ctx.scenario)
     pair = (inject.get("host_name") or "", inject.get("intf_name") or "")
     if pair not in eligible:
         raise ValueError(
@@ -170,7 +168,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     def benchmark_inject_options(cls, ctx, base):
         return [
             replace(base, host_name=node, intf_name=intf)
-            for node, intf in _hq_peer_targets(ctx.net_env, ctx.topo_size)
+            for node, intf in _hq_peer_targets(ctx.net_env, ctx.scenario)
         ]
 
     @classmethod
@@ -392,7 +390,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     @classmethod
     def benchmark_inject_options(cls, ctx, base):
         rows = []
-        for node, intf in _hq_peer_targets(ctx.net_env, ctx.topo_size):
+        for node, intf in _hq_peer_targets(ctx.net_env, ctx.scenario):
             prefix = _prefer_hq_server_prefix(
                 ctx.net_env.remote_prefixes_for_spoke(_spoke_site_from_edge(node))
             )

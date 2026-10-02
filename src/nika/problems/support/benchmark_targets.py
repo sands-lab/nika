@@ -175,12 +175,15 @@ def all_device_names(net_env) -> set[str]:
 # ----------------------------------------------------------------------
 
 
-def parse_endpoint(endpoint: str) -> tuple[str, str]:
-    device, _, intf = endpoint.partition(":")
-    return device, intf or ""
+def loaded_inventory(net_env: Any) -> dict[str, Any]:
+    """The net_env's loaded scenario inventory (``{}`` when absent)."""
+    inventory = getattr(net_env, "inventory", None)
+    return inventory if isinstance(inventory, dict) else {}
 
 
 def device_interfaces(net_env) -> dict[str, list[str]]:
+    from nika.problems.rca.inventory import parse_endpoint
+
     mapping: dict[str, set[str]] = defaultdict(set)
 
     topo = net_env.get_topology()
@@ -237,7 +240,6 @@ def resolve_link_flap_params(
     *,
     host_pool: list[str],
     host0: str,
-    router0: str,
 ) -> dict[str, str]:
     """Pin link_flap inject target and probe path so baseline is healthy and on-path."""
     params: dict[str, str] = {"down_time": "1", "up_time": "1"}
@@ -324,7 +326,6 @@ def resolve_link_corruption_params(
     *,
     host_pool: list[str],
     host0: str,
-    router0: str,
 ) -> dict[str, str]:
     """Pin link_packet_corruption on the probe path with a low corrupt rate."""
     if scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
@@ -352,7 +353,6 @@ def resolve_link_corruption_params(
         backend,
         host_pool=host_pool,
         host0=host0,
-        router0=router0,
     )
     params.pop("down_time", None)
     params.pop("up_time", None)
@@ -380,7 +380,7 @@ def resolve_path_mtu_target(
         # webserver probe target (unique hop; avoids SS ECMP bypass).
         from nika.problems.rca.inventory import (
             iter_link_termination_points,
-            parse_endpoint as parse_rca_endpoint,
+            parse_endpoint,
         )
 
         web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
@@ -396,7 +396,7 @@ def resolve_path_mtu_target(
                 if web_ep is None or len(endpoints) != 2:
                     continue
                 other = endpoints[0] if endpoints[1] == web_ep else endpoints[1]
-                peer_host, peer_intf = parse_rca_endpoint(other)
+                peer_host, peer_intf = parse_endpoint(other)
                 if peer_host.startswith("leaf_router_"):
                     host = peer_host
                     intf = peer_intf
@@ -462,9 +462,7 @@ def resolve_path_mtu_target(
     if is_isp_scenario(scenario):
         from nika.net_env.isp.inject_targets import isp_inject_params
 
-        inventory = getattr(net_env, "inventory", None)
-        if not isinstance(inventory, dict):
-            inventory = {}
+        inventory = loaded_inventory(net_env)
         link_params = isp_inject_params(
             "link_capacity_bottleneck", inventory, inventory.get("bgp")
         )
@@ -588,9 +586,7 @@ def isp_link_target(ctx: InjectTargetContext) -> dict[str, str]:
         isp_link_symptom_targets,
     )
 
-    inventory = getattr(ctx.net_env, "inventory", None)
-    if not isinstance(inventory, dict):
-        inventory = {}
+    inventory = loaded_inventory(ctx.net_env)
     params: dict[str, str] = {}
     params.update(isp_inject_params(ctx.problem, inventory, inventory.get("bgp")))
     device = params.get("host_name")
@@ -642,9 +638,7 @@ def access_router_victim(
     if is_isp_scenario(ctx.scenario):
         from nika.net_env.isp.inject_targets import isp_inject_params
 
-        inventory = getattr(ctx.net_env, "inventory", None)
-        if not isinstance(inventory, dict):
-            inventory = {}
+        inventory = loaded_inventory(ctx.net_env)
         bgp_inv = inventory.get("bgp")
         params.update(
             isp_inject_params(
@@ -854,7 +848,7 @@ def link_target_options(
     from nika.net_env.isp.identity import is_isp_scenario
     from nika.problems.rca.inventory import (
         iter_link_termination_points,
-        parse_endpoint as parse_rca_endpoint,
+        parse_endpoint,
     )
 
     net_env = ctx.net_env
@@ -868,7 +862,7 @@ def link_target_options(
     interfaces = device_interfaces(net_env)
     options: list[dict[str, str]] = []
     for _key, raw_endpoints in iter_link_termination_points(net_env):
-        parsed = sorted(parse_rca_endpoint(str(item)) for item in raw_endpoints)
+        parsed = sorted(parse_endpoint(str(item)) for item in raw_endpoints)
         if len(parsed) < 2:
             continue
         if point_to_point and len(parsed) != 2:
@@ -880,7 +874,7 @@ def link_target_options(
     if isp:
         from nika.net_env.isp.inject_targets import isp_link_symptom_targets
 
-        inventory = getattr(net_env, "inventory", None) or {}
+        inventory = loaded_inventory(net_env)
         enriched: list[dict[str, str]] = []
         for row in rows:
             try:

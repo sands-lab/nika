@@ -33,12 +33,10 @@ _SETTLE_SEC = 4
 _PROBE_PORT = 5198
 
 
-def _remark_targets(net_env: Any, topo_size: str) -> list[Any]:
+def _remark_targets(net_env: Any, scenario: str) -> list[Any]:
     targets = getattr(net_env, "dscp_remark_targets", None)
     if targets is None:
-        raise ValueError(
-            f"No DSCP remark inject targets for enterprise_branch topo_size={topo_size!r}"
-        )
+        raise ValueError(f"Scenario {scenario!r} has no Site Edge DSCP remark targets")
     return targets()
 
 
@@ -94,7 +92,7 @@ class VrfDscpRemarking(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
-        targets = _remark_targets(ctx.net_env, ctx.topo_size)
+        targets = _remark_targets(ctx.net_env, ctx.scenario)
         if not targets:
             raise ValueError(
                 "No DSCP remark inject targets for enterprise_branch "
@@ -121,7 +119,7 @@ class VrfDscpRemarking(ProblemBase):
                 dst_host=target.dst_host,
                 corp_prefix=target.corp_prefix,
             )
-            for target in _remark_targets(ctx.net_env, ctx.topo_size)
+            for target in _remark_targets(ctx.net_env, ctx.scenario)
         ]
 
     @classmethod
@@ -135,7 +133,7 @@ class VrfDscpRemarking(ProblemBase):
             )
         eligible_keys = {
             (t.edge, t.intf_name, t.src_host, t.dst_host)
-            for t in _remark_targets(ctx.net_env, topo_size)
+            for t in _remark_targets(ctx.net_env, ctx.scenario)
         }
         key = (
             inject.get("host_name") or "",
