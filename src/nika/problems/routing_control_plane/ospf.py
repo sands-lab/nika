@@ -31,6 +31,10 @@ class OSPFAreaMisconfig(ProblemBase):
 
     Params = OSPFAreaMisconfigParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
@@ -115,6 +119,10 @@ class OSPFNeighborMissing(ProblemBase):
     TAGS: str = ["ospf"]
 
     Params = OSPFNeighborMissingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
