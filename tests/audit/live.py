@@ -25,6 +25,7 @@ from nika.net_env.verify import (
     ping_ok,
     ping_stats,
 )
+from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.problems.registry import get_problem_class
 from nika.validation.presence import recheck_artifact_with_retry
 from nika.workflows.benchmark.healthy import is_healthy_case
@@ -131,12 +132,97 @@ def _baseline_path(probe: str, snapshot: Any) -> StageResult:
     )
 
 
+def _endpoint_hosts(net_env: Any) -> set[str]:
+    servers = getattr(net_env, "servers", None) or {}
+    hosts = set(getattr(net_env, "hosts", None) or [])
+    for members in servers.values():
+        hosts.update(members or [])
+    return hosts
+
+
+def _independent_control_ip(
+    problem: Any, parsed: Any, runtime: Any, source: str, dst_ip: str
+) -> str | None:
+    """Return a control destination that does not depend on the root cause.
+
+    The probe destination is kept unless it is the control source itself or a
+    host reached only through a root-cause interface. It is then replaced by a
+    neighbor on the same device or segment. ``None`` means no independent
+    destination exists.
+    """
+    if getattr(problem, "net_env", None) is None:
+        return dst_ip
+    try:
+        resources = problem.root_cause_resources(parsed)
+    except Exception:  # noqa: BLE001 - faults without resolvable resources
+        resources = []
+    faulted = {
+        f"{r.node}:{r.name}"
+        for r in resources
+        if str(getattr(r.kind, "value", r.kind)) == "interface" and r.node and r.name
+    }
+    hosts = _endpoint_hosts(problem.net_env)
+    links = [
+        [str(ep) for ep in tps]
+        for _key, tps in iter_link_termination_points(problem.net_env)
+    ]
+
+    def node(endpoint: str) -> str:
+        return parse_endpoint(endpoint)[0] or ""
+
+    behind = {node(ep) for ep in faulted if node(ep) in hosts}
+    neighbors: list[str] = []
+    for endpoints in links:
+        hit = [ep for ep in endpoints if ep in faulted]
+        if not hit:
+            continue
+        if len(endpoints) == 2:
+            far = node(endpoints[1] if endpoints[0] == hit[0] else endpoints[0])
+            if far in hosts:
+                behind.add(far)
+            device = node(hit[0])
+            for other in links:
+                if len(other) == 2 and device in {node(ep) for ep in other}:
+                    neighbors.extend(
+                        ep for ep in other if node(ep) != device and node(ep) in hosts
+                    )
+        else:
+            neighbors.extend(endpoints)
+    target = next(
+        (
+            n
+            for n in sorted(behind | {source})
+            if runtime.get_data_plane_host_ip(n) == dst_ip
+        ),
+        None,
+    )
+    if target is None:
+        return dst_ip
+    if target == source:
+        neighbors.extend(
+            ep
+            for endpoints in links
+            if any(node(ep) == source for ep in endpoints)
+            for ep in endpoints
+        )
+    # Address the neighbor on the interface that shares the device or segment.
+    for endpoint in dict.fromkeys(neighbors):
+        candidate, intf = parse_endpoint(endpoint)
+        if not candidate or not intf or candidate in behind or candidate == source:
+            continue
+        candidate_ip = runtime.get_host_ip(candidate, intf)
+        if candidate_ip and candidate_ip != dst_ip:
+            return candidate_ip
+    return None
+
+
 def _note_sibling_control(
     runtime: Any,
     scenario: str,
     parsed: Any,
     topo_size: str,
     payload: dict[str, Any],
+    problem: Any,
 ) -> dict[str, Any]:
     """Record a declared control's outcome, including a failed observation."""
     after = payload.get("after") if isinstance(payload.get("after"), dict) else {}
@@ -155,6 +241,12 @@ def _note_sibling_control(
         return payload
     ok: bool | None = None
     dst_ip = path.dst_ip
+    if dst_ip:
+        dst_ip = _independent_control_ip(
+            problem, parsed, runtime, path.peer_host, dst_ip
+        )
+        if dst_ip is None:
+            return payload
     # The gateway VIP answers TCP/80 and does not answer ICMP.
     if dst_ip == "20.0.0.1" and path.http_url:
         ok = http_ok(runtime, path.peer_host, path.http_url)
@@ -485,6 +577,7 @@ def audit_open_session(
         parsed,
         identity.topo_size or "s",
         symptom_payload,
+        problem,
     )
     stages.append(_from_observation("symptom", symptom_payload, ok=symptom_ok))
     stages.append(_control_stage(fault, symptom_payload))

@@ -587,6 +587,9 @@ def run_probe_snapshot(
     if probe_kind == "ping_old_ip":
         inject_host = _params_get(params, "host_name") or src
         old_ip = path.old_ip
+        if not old_ip and inject_host:
+            # Only the healthy baseline lacks old_ip; the host still holds it.
+            old_ip = runtime.get_data_plane_host_ip(inject_host)
         peer = path.peer_host
         if not peer or peer == inject_host:
             peer = None
@@ -603,7 +606,6 @@ def run_probe_snapshot(
             snap.extra["old_ip"] = old_ip
             snap.extra["peer_host"] = peer
         else:
-            snap.ping_ok = True  # fail closed: cannot verify without peer/old_ip
             snap.extra["error"] = "missing_peer_or_old_ip"
         return snap
     if probe_kind == "isolation_http":

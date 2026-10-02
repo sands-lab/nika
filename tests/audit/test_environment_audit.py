@@ -220,7 +220,9 @@ def test_failed_sibling_control_is_not_a_missing_control(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(live, "ping_ok", lambda *a, **k: False)
-    payload = _note_sibling_control(None, "dc_clos", None, "s", {"verified": True})
+    payload = _note_sibling_control(
+        None, "dc_clos", None, "s", {"verified": True}, None
+    )
     assert _control_stage("link_down", payload).status == "fail"
     assert _control_stage("link_down", payload).evidence["path"] == {
         "source": "peer",
@@ -230,9 +232,54 @@ def test_failed_sibling_control_is_not_a_missing_control(monkeypatch) -> None:
     # A different passing ping must not replace the probe's failed control.
     monkeypatch.setattr(live, "ping_ok", lambda *a, **k: True)
     payload = _note_sibling_control(
-        None, "dc_clos", None, "s", {"details": {"control_ok": False}}
+        None, "dc_clos", None, "s", {"details": {"control_ok": False}}, None
     )
     assert _control_stage("link_down", payload).status == "fail"
+
+
+def test_control_avoids_destination_behind_root_cause_interface(monkeypatch) -> None:
+    from nika.problems.rca.models import interface_resource
+    from tests.audit import live
+
+    links = [
+        ("a", ("leaf_1:eth4", "rcv:eth0")),
+        ("b", ("leaf_1:eth5", "sib:eth0")),
+        ("c", ("leaf_2:eth4", "other:eth0")),
+    ]
+    monkeypatch.setattr(live, "iter_link_termination_points", lambda net_env: links)
+    ips = {"rcv": "10.0.1.11", "sib": "10.0.1.12", "other": "10.0.2.11"}
+    runtime = SimpleNamespace(
+        get_data_plane_host_ip=ips.get, get_host_ip=lambda n, i: ips.get(n)
+    )
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(hosts=["rcv", "sib", "other"], servers={}),
+        root_cause_resources=lambda parsed: [interface_resource("leaf_1", "eth4")],
+    )
+    pick = live._independent_control_ip
+    assert pick(problem, None, runtime, "peer", "10.0.1.11") == "10.0.1.12"
+    assert pick(problem, None, runtime, "peer", "10.0.2.11") == "10.0.2.11"
+    problem.net_env.hosts = ["rcv", "other"]
+    assert pick(problem, None, runtime, "peer", "10.0.1.11") is None
+
+
+def test_control_avoids_faulted_host_and_self_ping(monkeypatch) -> None:
+    from nika.problems.rca.models import interface_resource
+    from tests.audit import live
+
+    lan = ("ctl:eth0", "client:eth0", "web:eth0")
+    monkeypatch.setattr(live, "iter_link_termination_points", lambda e: [("l", lan)])
+    ips = {"ctl": "200.0.0.2", "client": "200.0.0.7", "web": "200.0.0.8"}
+    runtime = SimpleNamespace(
+        get_data_plane_host_ip=lambda n: "10.210.0.7" if n == "ctl" else ips[n],
+        get_host_ip=lambda n, i: ips.get(n),
+    )
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(hosts=["client"], servers={"web": ["web"]}),
+        root_cause_resources=lambda parsed: [interface_resource("client", "eth0")],
+    )
+    pick = live._independent_control_ip
+    assert pick(problem, None, runtime, "web", "200.0.0.7") == "200.0.0.2"
+    assert pick(problem, None, runtime, "web", "200.0.0.8") == "200.0.0.2"
 
 
 @pytest.mark.parametrize(
