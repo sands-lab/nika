@@ -284,6 +284,8 @@ If the tag is missing, `nika env run iosxr_simple_bgp` raises a `RuntimeError` w
 uv run nika env run iosxr_simple_bgp
 ```
 
+Give the host at least 8 vCPUs and 16 GB of RAM. On a 4 vCPU / 8 GB host, one of the two routers crashes during boot (`Bus error` in `/var/log/startup.log` inside the container) and the lab never passes startup verification.
+
 Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.py`). XRd ZTP can briefly race the container network namespace at first boot; the router startup scripts retry config apply until that clears, so a slow first boot is expected.
 
 ## RouterOS simple BGP scenario
