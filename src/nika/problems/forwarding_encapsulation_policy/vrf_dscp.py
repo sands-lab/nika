@@ -15,7 +15,7 @@ from nika.net_env.enterprise_branch.topology import (
     TopoSize,
     dscp_remark_inject_targets,
 )
-from nika.net_env.verify import http_ok, ping_ok
+from nika.net_env.verify import http_ok, ping_stats
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -204,10 +204,15 @@ class VrfDscpRemarking(ProblemBase):
             params.host_name, f"ip -o link show {params.intf_name}"
         ).strip()
         checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
-        checks["ef_path_ping"] = ping_ok(
-            self.runtime,
-            params.src_host,
-            qos_traffic.host_ip(self.runtime, params.dst_host),
+        # The fault itself drops much of the EF traffic; any reply shows the path is up.
+        checks["ef_path_ping"] = (
+            ping_stats(
+                self.runtime,
+                params.src_host,
+                qos_traffic.host_ip(self.runtime, params.dst_host),
+                count=5,
+            ).received
+            > 0
         )
         checks["hq_server_http"] = http_ok(
             self.runtime, params.src_host, "http://10.0.20.2/"
