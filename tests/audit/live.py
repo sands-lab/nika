@@ -132,87 +132,120 @@ def _baseline_path(probe: str, snapshot: Any) -> StageResult:
     )
 
 
-def _endpoint_hosts(net_env: Any) -> set[str]:
-    servers = getattr(net_env, "servers", None) or {}
-    hosts = set(getattr(net_env, "hosts", None) or [])
-    for members in servers.values():
-        hosts.update(members or [])
-    return hosts
+def _node(endpoint: str) -> str:
+    return parse_endpoint(endpoint)[0] or ""
 
 
 def _independent_control_ip(
     problem: Any, parsed: Any, runtime: Any, source: str, dst_ip: str
-) -> str | None:
-    """Return a control destination that does not depend on the root cause.
+) -> tuple[str, str] | None:
+    """Return a control ``(source, destination)`` that does not depend on the root cause.
 
-    The probe destination is kept unless it is the control source itself or a
-    host reached only through a root-cause interface. It is then replaced by a
-    neighbor on the same device or segment. ``None`` means no independent
-    destination exists.
+    A source attached only to a root-cause node is replaced by an endpoint on an
+    unaffected device. The probe destination is kept unless it is the control
+    source itself or an endpoint reached only through a root-cause interface or
+    node. It is then replaced by a neighbor on the same device or segment, else
+    by an endpoint on an unaffected device. ``None`` means no independent
+    control exists.
     """
     if getattr(problem, "net_env", None) is None:
-        return dst_ip
+        return source, dst_ip
     try:
         resources = problem.root_cause_resources(parsed)
     except Exception:  # noqa: BLE001 - faults without resolvable resources
         resources = []
-    faulted = {
-        f"{r.node}:{r.name}"
-        for r in resources
-        if str(getattr(r.kind, "value", r.kind)) == "interface" and r.node and r.name
-    }
-    hosts = _endpoint_hosts(problem.net_env)
+    kinds = [(str(getattr(r.kind, "value", r.kind)), r.node, r.name) for r in resources]
+    dead_nodes = {n for kind, n, _ in kinds if kind == "node" and n}
     links = [
         [str(ep) for ep in tps]
         for _key, tps in iter_link_termination_points(problem.net_env)
     ]
+    faulted = {f"{n}:{name}" for kind, n, name in kinds if kind == "interface"}
+    faulted |= {ep for eps in links for ep in eps if _node(ep) in dead_nodes}
+    link_count: dict[str, int] = {}
+    for eps in links:
+        for ep in eps:
+            link_count[_node(ep)] = link_count.get(_node(ep), 0) + 1
+    endpoints = {n for n, count in link_count.items() if count == 1}
+    endpoints |= set(getattr(problem.net_env, "hosts", None) or [])
+    for members in (getattr(problem.net_env, "servers", None) or {}).values():
+        endpoints |= set(members or [])
 
-    def node(endpoint: str) -> str:
-        return parse_endpoint(endpoint)[0] or ""
-
-    behind = {node(ep) for ep in faulted if node(ep) in hosts}
-    neighbors: list[str] = []
-    for endpoints in links:
-        hit = [ep for ep in endpoints if ep in faulted]
+    behind = {ep for ep in faulted if _node(ep) in endpoints}
+    siblings: list[tuple[set[str], list[str]]] = []
+    for eps in links:
+        hit = [ep for ep in eps if ep in faulted]
         if not hit:
             continue
-        if len(endpoints) == 2:
-            far = node(endpoints[1] if endpoints[0] == hit[0] else endpoints[0])
-            if far in hosts:
-                behind.add(far)
-            device = node(hit[0])
-            for other in links:
-                if len(other) == 2 and device in {node(ep) for ep in other}:
-                    neighbors.extend(
-                        ep for ep in other if node(ep) != device and node(ep) in hosts
-                    )
+        if len(eps) == 2:
+            behind |= {ep for ep in eps if ep not in hit and _node(ep) in endpoints}
+            device = _node(hit[0])
+            ports = [
+                ep
+                for other in links
+                if len(other) == 2 and device in map(_node, other)
+                for ep in other
+                if _node(ep) != device and _node(ep) in endpoints
+            ]
+            siblings.append((set(map(_node, eps)), ports))
         else:
-            neighbors.extend(endpoints)
-    target = next(
-        (
-            n
-            for n in sorted(behind | {source})
-            if runtime.get_data_plane_host_ip(n) == dst_ip
-        ),
-        None,
+            siblings.append((set(), list(eps)))
+    behind_nodes = {_node(ep) for ep in behind}
+    addresses: dict[str, str | None] = {}
+
+    def address(endpoint: str) -> str | None:
+        # A root-cause host may be too starved or broken to answer `ip addr`.
+        if endpoint not in addresses:
+            try:
+                addresses[endpoint] = runtime.get_host_ip(*parse_endpoint(endpoint))
+            except RuntimeError:
+                addresses[endpoint] = None
+        return addresses[endpoint]
+
+    unaffected = sorted(
+        ep
+        for eps in links
+        if len(eps) == 2 and not set(eps) & faulted
+        for ep in eps
+        if _node(ep) in endpoints
     )
-    if target is None:
-        return dst_ip
-    if target == source:
-        neighbors.extend(
-            ep
-            for endpoints in links
-            if any(node(ep) == source for ep in endpoints)
-            for ep in endpoints
+    if source in behind_nodes or source in dead_nodes:
+        source = next(
+            (
+                _node(ep)
+                for ep in unaffected
+                if _node(ep) not in behind_nodes | dead_nodes
+                and address(ep) not in (None, dst_ip)
+            ),
+            "",
         )
+        if not source:
+            return None
+    attached = {_node(ep) for eps in links if source in map(_node, eps) for ep in eps}
+    # From the far end of a faulted link, the device's other ports are normally
+    # reached across that same link.
+    neighbors = [
+        ep
+        for link_nodes, ports in siblings
+        if not attached & link_nodes
+        for ep in ports
+    ]
+    own = [ep for eps in links for ep in eps if _node(ep) == source]
+    if not any(address(ep) in (None, dst_ip) for ep in behind):
+        if not any(address(ep) == dst_ip for ep in own):
+            return source, dst_ip
+        neighbors += [ep for eps in links if set(own) & set(eps) for ep in eps]
+    neighbors += unaffected
     # Address the neighbor on the interface that shares the device or segment.
     for endpoint in dict.fromkeys(neighbors):
         candidate, intf = parse_endpoint(endpoint)
-        if not candidate or not intf or candidate in behind or candidate == source:
+        if not candidate or not intf or candidate in behind_nodes:
             continue
-        candidate_ip = runtime.get_host_ip(candidate, intf)
+        if candidate == source or candidate in dead_nodes:
+            continue
+        candidate_ip = address(endpoint)
         if candidate_ip and candidate_ip != dst_ip:
-            return candidate_ip
+            return source, candidate_ip
     return None
 
 
@@ -240,26 +273,26 @@ def _note_sibling_control(
     if path is None or not path.peer_host or path.peer_host == path.src_host:
         return payload
     ok: bool | None = None
+    source = path.peer_host
     dst_ip = path.dst_ip
     if dst_ip:
-        dst_ip = _independent_control_ip(
-            problem, parsed, runtime, path.peer_host, dst_ip
-        )
-        if dst_ip is None:
+        control = _independent_control_ip(problem, parsed, runtime, source, dst_ip)
+        if control is None:
             return payload
+        source, dst_ip = control
     # The gateway VIP answers TCP/80 and does not answer ICMP.
     if dst_ip == "20.0.0.1" and path.http_url:
-        ok = http_ok(runtime, path.peer_host, path.http_url)
+        ok = http_ok(runtime, source, path.http_url)
     elif dst_ip:
-        ok = ping_ok(runtime, path.peer_host, dst_ip)
+        ok = ping_ok(runtime, source, dst_ip)
     elif path.http_url:
-        ok = http_ok(runtime, path.peer_host, path.http_url)
+        ok = http_ok(runtime, source, path.http_url)
     if ok is None:
         return payload
     noted = dict(payload)
     noted["control_ok"] = ok
     noted["control_path"] = {
-        "source": path.peer_host,
+        "source": source,
         "destination_ip": dst_ip,
         "http_url": path.http_url,
     }

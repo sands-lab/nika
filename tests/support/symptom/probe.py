@@ -460,7 +460,11 @@ def run_probe_snapshot(
         if probe_kind == "path_ping_loss":
             stats = ping_stats(runtime, src, dst_ip, count=path.ping_count)
         else:
-            snap.ping_ok = ping_ok(runtime, src, dst_ip)
+            output = exec_or_empty(runtime, src, f"ping -c 1 -W 2 {dst_ip}", timeout=15)
+            snap.ping_ok = "1 received" in output or "1 packets received" in output
+            ttl = re.search(r"ttl=(\d+)", output)
+            if snap.ping_ok and ttl:
+                snap.extra["reply_ttl"] = int(ttl.group(1))
             return snap
         snap.ping_ok = stats.received > 0
         snap.loss_percent = stats.loss_percent

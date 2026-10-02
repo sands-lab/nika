@@ -321,11 +321,23 @@ def evaluate_symptom(
         intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
         host = getattr(params, "host_name", None)
         interface_gone = not runtime.interface_exists(host, intf) if host else False
-        ok = ok and interface_gone
+        # With an alternate path the IGP reroutes instead of blackholing; the
+        # echo reply then crosses more routers and arrives with a lower TTL.
+        ttl_before = before_snap.extra.get("reply_ttl")
+        ttl_after = after.extra.get("reply_ttl")
+        rerouted = (
+            isinstance(ttl_before, int)
+            and isinstance(ttl_after, int)
+            and ttl_after < ttl_before
+        )
+        ok = (ok or rerouted) and interface_gone
         cmp_details = {
             **cmp_details,
             "interface_exists": not interface_gone,
             "interface_gone": interface_gone,
+            "reply_ttl_before": ttl_before,
+            "reply_ttl_after": ttl_after,
+            "rerouted": rerouted,
         }
     if not ok and contract.symptom_class in {"degradation", "latency"}:
         after_ms = after.http_time_ms
