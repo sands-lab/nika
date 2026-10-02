@@ -6,6 +6,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import dhcp_server_client
 from nika.problems.support.dhcp import (
     client_subnet,
     set_subnet_option,
@@ -34,6 +35,10 @@ class DHCPSpoofedGateway(ProblemBase):
     TAGS: str = ["dhcp"]
 
     Params = DHCPSpoofedGatewayParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return dhcp_server_client(ctx)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -89,6 +94,10 @@ class DHCPSpoofedDNS(ProblemBase):
     TAGS: str = ["dhcp"]
 
     Params = DHCPSpoofedDNSParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return dhcp_server_client(ctx)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -156,6 +165,13 @@ class DHCPSpoofedSubnet(ProblemBase):
     TAGS: str = ["dhcp"]
 
     Params = DHCPSpoofedSubnetParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = dhcp_server_client(ctx)
+        if ctx.scenario == "campus_lan":
+            params["subnet"] = "10.1.1.0"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

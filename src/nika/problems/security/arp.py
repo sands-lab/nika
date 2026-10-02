@@ -8,6 +8,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import endpoint_target
 from nika.utils.logger import system_logger
 
 # ==================================================================
@@ -38,6 +39,14 @@ class ArpCachePoisoning(ProblemBase):
     TAGS: str = ["arp"]
 
     Params = ArpCachePoisoningParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = endpoint_target(ctx, l2_endpoint=True)
+        if ctx.scenario == "llmd_lab":
+            # Star L2 lab has no default route; poison the HTTP peer.
+            params["target_ip"] = "200.0.0.8"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
