@@ -339,7 +339,8 @@ download_file() {
   need_cmd curl
   mkdir -p "$(dirname "${dest}")"
   log "Downloading ${url}"
-  curl -fL --retry 3 --retry-delay 2 -o "${dest}.partial" "${url}"
+  # download.mikrotik.com often resets mid-transfer; resume the partial file.
+  curl -fL -C - --retry 5 --retry-delay 2 --retry-all-errors -o "${dest}.partial" "${url}"
   mv "${dest}.partial" "${dest}"
 }
 
