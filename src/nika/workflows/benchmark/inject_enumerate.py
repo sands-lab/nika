@@ -2,44 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from nika.problems.rca.inventory import (
-    iter_link_termination_points,
-    parse_endpoint,
+from nika.problems.registry import list_avail_problem_instances
+from nika.problems.support.benchmark_targets import (
+    InjectTargetContext,
+    p4_port_options as _p4_port_options,
+    replace as _replace,
+    resource as _resource,
+    role_nodes as _role_nodes,
+    unique as _unique,
 )
-from nika.problems.rca.materialize import ground_truth_for_case
 from nika.workflows.benchmark.inject_resolve import (
     DEFAULT_SEED,
-    _device_interfaces,
     _align_dns_record_inject,
     _dscp_remark_targets,
     _get_net_env_for_benchmark,
     _load_inventory,
+    _owns_benchmark_targets,
     _prefer_hq_server_prefix,
     _primary_hq_wg_targets,
     _remote_prefixes_for_spoke,
+    _resolve,
     _role_subset,
-    resolve_inject_params,
-)
-
-_LINK_TARGET_PROBLEMS = frozenset(
-    {
-        "link_down",
-        "link_detach",
-        "link_capacity_bottleneck",
-        "link_flap",
-        "link_packet_corruption",
-    }
-)
-
-# Kathara dynamic VDE proxy (TBF / netem / flap) only works on 2-endpoint LANs.
-_VDE_POINT_TO_POINT_PROBLEMS = frozenset(
-    {
-        "link_capacity_bottleneck",
-        "link_flap",
-        "link_packet_corruption",
-    }
 )
 
 _CANONICAL_ONLY = frozenset(
@@ -69,56 +52,8 @@ _P4_PORT_TARGETS = frozenset(
     {
         "int_insufficient_mtu_headroom",
         "p4_ecn_threshold_misconfiguration",
-        "silent_egress_packet_loss",
     }
 )
-
-
-def _unique(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    by_key = {tuple(sorted(row.items())): row for row in rows}
-    return [by_key[key] for key in sorted(by_key)]
-
-
-def _replace(base: dict[str, str], **values: str) -> dict[str, str]:
-    return {**base, **{key: str(value) for key, value in values.items()}}
-
-
-def _role_nodes(net_env: Any, base_node: str) -> list[str]:
-    servers = getattr(net_env, "servers", None) or {}
-    for nodes in servers.values():
-        if base_node in (nodes or []):
-            return sorted(nodes)
-    pools = (
-        getattr(net_env, "kubernetes_nodes", None) or [],
-        getattr(net_env, "sdn_controllers", None) or [],
-        getattr(net_env, "bmv2_switches", None) or [],
-        getattr(net_env, "ovs_switches", None) or [],
-        getattr(net_env, "routers", None) or [],
-        getattr(net_env, "hosts", None) or [],
-    )
-    for nodes in pools:
-        if base_node not in nodes:
-            continue
-        if base_node.startswith(("leaf_", "gateway_", "spine_")):
-            prefix = base_node.partition("_")[0] + "_"
-            return sorted(node for node in nodes if node.startswith(prefix))
-        return sorted(nodes)
-    return [base_node]
-
-
-def _resource(
-    base: dict[str, str], problem: str, scenario: str, topo_size: str, net_env
-):
-    truth = ground_truth_for_case(
-        problem=problem,
-        params=base,
-        scenario=scenario,
-        topo_size=topo_size,
-        net_env=net_env,
-    )
-    if len(truth.root_causes) != 1:
-        return None
-    return truth.root_causes[0].resource
 
 
 def _node_options(
@@ -170,53 +105,11 @@ def _node_options(
     return rows
 
 
-def _link_options(
-    base: dict[str, str],
-    net_env,
-    *,
-    point_to_point_only: bool = False,
-) -> list[dict[str, str]]:
-    interfaces = _device_interfaces(net_env)
-    rows: list[dict[str, str]] = []
-    for _key, raw_endpoints in iter_link_termination_points(net_env):
-        parsed = sorted(parse_endpoint(str(item)) for item in raw_endpoints)
-        if len(parsed) < 2:
-            continue
-        if point_to_point_only and len(parsed) != 2:
-            continue
-        eligible = [item for item in parsed if item[1] in interfaces.get(item[0], ())]
-        node, intf = (eligible or parsed)[0]
-        rows.append(_replace(base, host_name=node, intf_name=intf))
-    return rows
-
-
-def _p4_port_options(
-    base: dict[str, str], problem: str, net_env
-) -> list[dict[str, str]]:
-    model = getattr(net_env, "model", None)
-    nodes = list(getattr(model, "gateways", None) or [])
-    if problem != "int_insufficient_mtu_headroom":
-        nodes += list(getattr(model, "spines", None) or [])
-    rows: list[dict[str, str]] = []
-    for node in sorted(nodes):
-        for port in sorted(
-            getattr(model, "ports", {}).get(node, []), key=lambda item: item.name
-        ):
-            if port.role in {"spine", "leaf"}:
-                rows.append(
-                    _replace(
-                        base,
-                        host_name=node,
-                        intf_name=port.name,
-                        bmv2_port=str(port.bmv2_port),
-                    )
-                )
-    return rows
-
-
 def _compound_options(
-    base: dict[str, str], problem: str, scenario: str, topo_size: str, net_env
+    base: dict[str, str], ctx: InjectTargetContext
 ) -> list[dict[str, str]] | None:
+    problem, scenario = ctx.problem, ctx.scenario
+    topo_size, net_env = ctx.topo_size, ctx.net_env
     from nika.workflows.benchmark.isp_options import is_isp_scenario
 
     if problem == "bgp_missing_route_advertisement" and is_isp_scenario(scenario):
@@ -273,7 +166,9 @@ def _compound_options(
             for target in _dscp_remark_targets(topo_size)
         ]
     if problem in _P4_PORT_TARGETS:
-        return _p4_port_options(base, problem, net_env)
+        return _p4_port_options(
+            ctx, base, gateways_only=problem == "int_insufficient_mtu_headroom"
+        )
     return None
 
 
@@ -291,7 +186,7 @@ def enumerate_inject_params(
             scenario, topo_size, isp_options=isp_options
         )
     _load_inventory(net_env)
-    base = resolve_inject_params(
+    base, ctx = _resolve(
         problem,
         scenario,
         topo_size,
@@ -299,7 +194,19 @@ def enumerate_inject_params(
         isp_options=isp_options,
         net_env=net_env,
     )
-    compound = _compound_options(base, problem, scenario, topo_size, net_env)
+    problem_cls = list_avail_problem_instances().get(problem)
+    if _owns_benchmark_targets(problem_cls):
+        return _unique(problem_cls.benchmark_inject_options(ctx, base))
+    return _legacy_inject_options(base, ctx)
+
+
+def _legacy_inject_options(
+    base: dict[str, str], ctx: InjectTargetContext
+) -> list[dict[str, str]]:
+    """Name-dispatched variants for failures without ``benchmark_inject_params``."""
+    problem, scenario = ctx.problem, ctx.scenario
+    net_env = ctx.net_env
+    compound = _compound_options(base, ctx)
     if compound is not None:
         return _unique(compound)
     if problem in _CANONICAL_ONLY:
@@ -310,48 +217,7 @@ def enumerate_inject_params(
     ):
         # Off-path leaves do not forward the default client_1_1 HTTP probe.
         return [base]
-    if problem in _LINK_TARGET_PROBLEMS:
-        from nika.workflows.benchmark.isp_options import is_isp_scenario
-
-        drop = {"host_name", "intf_name"}
-        if is_isp_scenario(scenario):
-            # Per-link observers; do not freeze canonical first-link probes.
-            drop |= {"symptom_host", "probe_dst_ip", "peer_host"}
-        aux = {key: value for key, value in base.items() if key not in drop}
-        link_base = {
-            "host_name": base["host_name"],
-            "intf_name": base["intf_name"],
-        }
-        options = _link_options(
-            link_base,
-            net_env,
-            point_to_point_only=problem in _VDE_POINT_TO_POINT_PROBLEMS,
-        )
-        # campus_lan LB backends are off the default pc→web0 ICMP probe path.
-        if problem == "link_detach" and scenario == "campus_lan":
-            options = [
-                row
-                for row in options
-                if not str(row.get("host_name", "")).startswith("backend_web_")
-            ]
-        rows = [{**aux, **row} for row in options]
-        if is_isp_scenario(scenario):
-            from nika.net_env.isp.inject_targets import isp_link_symptom_targets
-
-            inventory = getattr(net_env, "inventory", None) or {}
-            enriched: list[dict[str, str]] = []
-            for row in rows:
-                try:
-                    targets = isp_link_symptom_targets(
-                        inventory, row["host_name"], row["intf_name"]
-                    )
-                except ValueError:
-                    # Stub/edge attachments are outside inventory backbone links.
-                    continue
-                enriched.append({**row, **targets})
-            rows = enriched
-        return _unique(rows)
-    resource = _resource(base, problem, scenario, topo_size, net_env)
+    resource = _resource(ctx, base)
     if resource is None:
         return [base]
     if str(resource.kind) == "node":

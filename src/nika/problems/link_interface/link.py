@@ -15,6 +15,11 @@ from nika.problems.rca.inventory import (
     parse_endpoint,
     resolve_default_intf,
 )
+from nika.problems.support.benchmark_targets import (
+    endpoint_target,
+    isp_link_target,
+    resolve_link_flap_params,
+)
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 from nika.service.containerlab.host_tc import HostTcController
@@ -45,6 +50,16 @@ class LinkFailure(ProblemBase):
     RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFailureParams
+
+    BENCHMARK_TARGETS = "link"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            return isp_link_target(ctx)
+        return endpoint_target(ctx, link=True)
 
     symptom_desc = "Users report connectivity issues to other hosts."
 
@@ -239,6 +254,28 @@ class LinkFlap(ProblemBase):
 
     Params = LinkFlapParams
 
+    BENCHMARK_TARGETS = "link"
+    BENCHMARK_POINT_TO_POINT = True
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            params = isp_link_target(ctx)
+            params["down_time"] = "1"
+            params["up_time"] = "1"
+            return params
+        return resolve_link_flap_params(
+            ctx.scenario,
+            ctx.net_env,
+            ctx.rng,
+            ctx.backend,
+            host_pool=ctx.host_pool,
+            host0=ctx.host0,
+            router0=ctx.router0,
+        )
+
     symptom_desc = "Users report connectivity issues to other hosts."
 
     def __init__(self, scenario_name: str | None, **kwargs):
@@ -397,6 +434,28 @@ class LinkCapacityBottleneck(ProblemBase):
     RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkCapacityBottleneckParams
+
+    BENCHMARK_TARGETS = "link"
+    BENCHMARK_POINT_TO_POINT = True
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            params = isp_link_target(ctx)
+            rate = "30kbit"
+        else:
+            params = endpoint_target(ctx, link=True)
+            rate = (
+                "10kbit"
+                if ctx.scenario in {"enterprise_branch", "sdn_l3_clos", "p4_dc_fabric"}
+                else "30kbit"
+            )
+        params["rate"] = rate
+        params["burst"] = "64kb"
+        params["limit"] = "500kb"
+        return params
 
     symptom_desc = "Users report slow throughput across a link."
 
@@ -592,6 +651,28 @@ class LinkDetach(ProblemBase):
     RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkDetachParams
+
+    BENCHMARK_TARGETS = "link"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            return isp_link_target(ctx)
+        return endpoint_target(ctx, link=True, detach=True)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        rows = super().benchmark_inject_options(ctx, base)
+        if ctx.scenario == "campus_lan":
+            # LB backends are off the default pc→web0 ICMP probe path.
+            rows = [
+                row
+                for row in rows
+                if not str(row.get("host_name", "")).startswith("backend_web_")
+            ]
+        return rows
 
     symptom_desc = "Users report connectivity issues to other hosts."
 

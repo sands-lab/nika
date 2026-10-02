@@ -8,6 +8,30 @@ from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.problems.registry import list_avail_problem_instances
+from nika.problems.support.benchmark_targets import (
+    InjectTargetContext,
+    InjectValidationContext,
+    access_router_victim as _access_router_victim,
+    all_device_names as _all_device_names,
+    arp_l2_endpoint_host as _arp_l2_endpoint_host,
+    bmv2_leaves as _bmv2_leaves,
+    choice as _choice,
+    choice_distinct as _choice_distinct,
+    choice_interface as _choice_interface,
+    device_interfaces as _device_interfaces,
+    dhcp_server_client as _dhcp_server_client,
+    endpoint_target as _endpoint_target,
+    first as _first,
+    k8s_control_node as _k8s_control_node,
+    p4_gateway_port_target as _p4_gateway_port_target,
+    prefer_named as _prefer_named,
+    prefer_prefixed_node as _prefer_prefixed_node,
+    require_distinct_hosts as _require_distinct_hosts,
+    require_role_member as _require_role_member,
+    resolve_link_flap_params as _resolve_link_flap_params,
+    resolve_path_mtu_target as _resolve_path_mtu_target,
+    role_subset as _role_subset,
+)
 from nika.workflows.benchmark.isp_options import (
     is_isp_base_topology,
     is_isp_scenario,
@@ -100,74 +124,6 @@ def _isp_stack_kwargs(
     return kwargs
 
 
-def _choice(rng: random.Random, pool: list[str] | None, fallback: str) -> str:
-    items = pool or []
-    if not items:
-        return fallback
-    return rng.choice(items)
-
-
-def _choice_distinct(
-    rng: random.Random, pool: list[str] | None, fallback: str, *, n: int = 2
-) -> list[str]:
-    items = list(pool or [])
-    if len(items) >= n:
-        return rng.sample(items, n)
-    if not items:
-        return [fallback] * n
-    if len(items) == 1:
-        return [items[0], items[0]]
-    return items[:n]
-
-
-def _first(items: list[str] | None) -> str | None:
-    return items[0] if items else None
-
-
-def _prefer_named(items: list[str], preferred: str, fallback: str) -> str:
-    if preferred in items:
-        return preferred
-    return _first(items) or fallback
-
-
-def _prefer_prefixed_node(
-    nodes: list[str],
-    *,
-    prefix: str,
-    preferred: str,
-    fallback: str,
-) -> str:
-    filtered = [n for n in nodes if str(n).startswith(prefix)]
-    return _prefer_named(filtered, preferred, fallback)
-
-
-def _bmv2_leaves(bmv2: list[str]) -> list[str]:
-    return [n for n in bmv2 if str(n).startswith("leaf_")]
-
-
-def _arp_l2_endpoint_host(roles: dict[str, list[str]], *, fallback: str) -> str:
-    """Pin ARP L2 faults onto the scenario's probe-aligned ``l2_endpoints``."""
-    if "l2_endpoints" not in roles:
-        return fallback
-    endpoints = roles["l2_endpoints"]
-    if not endpoints:
-        raise ValueError("scenario declares no l2_endpoints hosts for ARP L2 faults")
-    return endpoints[0]
-
-
-def _role_subset(
-    candidates: list[str], roles: dict[str, list[str]], role: str
-) -> list[str]:
-    """Candidates holding ``role``; every candidate when none does.
-
-    Used for ``bgp_originators`` (routers with BGP ``network`` statements) and
-    ``access_routers`` (routers with end hosts, as ``resolve_victim_host()``
-    needs): when the topology does not distinguish the role, keep the pool.
-    """
-    members = set(roles.get(role) or ())
-    return [node for node in candidates if node in members] or list(candidates)
-
-
 # Legacy host-level WireGuard peer names are unused; Site Edge VPN uses
 # wireguard_peer_key_misconfiguration / wireguard_allowed_ips_misconfiguration.
 
@@ -236,206 +192,12 @@ _WG_TUNNEL_IFACE_PROBLEMS = frozenset(
     }
 )
 
-# Kathara dynamic VDE proxy (TBF / netem / flap) only works on 2-endpoint LANs.
-_VDE_POINT_TO_POINT_PROBLEMS = frozenset(
-    {
-        "link_capacity_bottleneck",
-        "link_flap",
-        "link_packet_corruption",
-    }
-)
-
-
 _VICTIM_HOST_PROBLEMS = frozenset(
     {
         "host_static_blackhole",
         "bgp_hijacking",
     }
 )
-
-
-def _parse_endpoint(endpoint: str) -> tuple[str, str]:
-    device, _, intf = endpoint.partition(":")
-    return device, intf or ""
-
-
-def _device_interfaces(net_env) -> dict[str, list[str]]:
-    mapping: dict[str, set[str]] = defaultdict(set)
-
-    topo = net_env.get_topology()
-    if topo:
-        for link in topo:
-            for endpoint in link:
-                device, intf = _parse_endpoint(endpoint)
-                if device and intf:
-                    mapping[device].add(intf)
-    else:
-        spec = net_env.get_lab_spec()
-        if spec is not None:
-            for link in spec.links:
-                for endpoint in link.endpoints:
-                    device, intf = _parse_endpoint(endpoint)
-                    if device and intf:
-                        mapping[device].add(intf)
-
-    return {device: sorted(intfs) for device, intfs in mapping.items()}
-
-
-def _default_interface(backend: str) -> str:
-    return "e1-1" if backend == "containerlab" else "eth0"
-
-
-def _choice_interface(
-    rng: random.Random,
-    net_env,
-    device: str,
-    backend: str,
-) -> str:
-    ifaces = _device_interfaces(net_env).get(device) or []
-    if ifaces:
-        return rng.choice(ifaces)
-    return _default_interface(backend)
-
-
-def _first_iface(ifaces: list[str], fallback: str = "eth0") -> str:
-    if not ifaces:
-        return fallback
-    return sorted(ifaces, key=lambda name: (len(name), name))[0]
-
-
-def _resolve_link_flap_params(
-    scenario: str,
-    net_env,
-    rng: random.Random,
-    backend: str,
-    *,
-    host_pool: list[str],
-    host0: str,
-    router0: str,
-) -> dict[str, str]:
-    """Pin link_flap inject target and probe path so baseline is healthy and on-path."""
-    params: dict[str, str] = {"down_time": "1", "up_time": "1"}
-
-    if scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
-        model = getattr(net_env, "model", None)
-        if model is not None and getattr(model, "client_endpoints", None):
-            observer = model.client_endpoints()[0]
-            victim = next(
-                web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
-            )
-            params.update(
-                host_name=observer.name,
-                intf_name="eth0",
-                probe_dst_ip=victim.ip,
-                observer_device=observer.name,
-            )
-            return params
-
-    if scenario == "p4_dc_gateway":
-        model = getattr(net_env, "model", None)
-        if model is not None:
-            observer = model.clients[0]
-            victim = model.backend_pool[0]
-            params.update(
-                host_name=observer.name,
-                intf_name="eth0",
-                probe_dst_ip=victim.ip,
-                observer_device=observer.name,
-            )
-            return params
-
-    if scenario == "min3clos":
-        params.update(
-            host_name="leaf1",
-            intf_name="e1-1",
-            probe_dst_ip="10.0.0.27",
-            observer_device="client1",
-        )
-        return params
-
-    if scenario == "enterprise_branch":
-        corp_src = (
-            "br1_corp_pc"
-            if "br1_corp_pc" in host_pool
-            else (_first(host_pool) or host0)
-        )
-        params.update(
-            host_name=corp_src,
-            intf_name="eth0",
-            probe_dst_ip="10.0.20.2",
-            observer_device=corp_src,
-        )
-        return params
-
-    if scenario == "dc_clos":
-        params.update(
-            host_name="client_0",
-            intf_name="eth0",
-            probe_dst_ip="10.0.1.2",
-            observer_device="client_0",
-        )
-        return params
-
-    if scenario == "campus_lan":
-        params.update(
-            host_name="pc_1_1_1_1",
-            intf_name="eth0",
-            probe_dst_ip="10.200.0.3",
-            observer_device="pc_1_1_1_1",
-        )
-        return params
-
-    params.update(
-        host_name=host0,
-        intf_name=_choice_interface(rng, net_env, host0, backend),
-    )
-    return params
-
-
-def _resolve_link_corruption_params(
-    scenario: str,
-    net_env,
-    rng: random.Random,
-    backend: str,
-    *,
-    host_pool: list[str],
-    host0: str,
-    router0: str,
-) -> dict[str, str]:
-    """Pin link_packet_corruption on the probe path with a low corrupt rate."""
-    if scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
-        model = getattr(net_env, "model", None)
-        if model is not None and getattr(model, "leaf_spine_links", None):
-            observer = model.client_endpoints()[0]
-            victim = next(
-                web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
-            )
-            leaf = f"leaf_{observer.leaf_id}"
-            spine = next(sp for lf, sp in model.leaf_spine_links if lf == leaf)
-            port = model.port_to_peer(leaf, spine)
-            return {
-                "host_name": leaf,
-                "intf_name": port.name if port is not None else "eth2",
-                "probe_dst_ip": victim.ip,
-                "observer_device": observer.name,
-                "corruption_percentage": "12",
-            }
-
-    params = _resolve_link_flap_params(
-        scenario,
-        net_env,
-        rng,
-        backend,
-        host_pool=host_pool,
-        host0=host0,
-        router0=router0,
-    )
-    params.pop("down_time", None)
-    params.pop("up_time", None)
-    params["corruption_percentage"] = (
-        "10" if scenario in {"enterprise_branch", "p4_dc_gateway"} else "8"
-    )
-    return params
 
 
 def _peer_of_host(net_env, host_name: str) -> tuple[str, str] | None:
@@ -602,126 +364,6 @@ def _resolve_device_forwarding_corruption_params(
     return params
 
 
-def _resolve_path_mtu_target(
-    scenario: str,
-    net_env,
-    rng: random.Random,
-    routers: list[str],
-    backend: str,
-) -> dict[str, str]:
-    """Pick an intermediate L3 egress for real path-MTU reduction."""
-    ifaces_by_device = _device_interfaces(net_env)
-    params: dict[str, str] = {"mtu": "500"}
-
-    if scenario == "dc_clos":
-        # Lower MTU on the leaf host-facing egress that serves the default
-        # webserver probe target (unique hop; avoids SS ECMP bypass).
-        from nika.problems.rca.inventory import (
-            iter_link_termination_points,
-            parse_endpoint,
-        )
-
-        web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
-        host = None
-        intf = None
-        for web in web_hosts:
-            needle_prefix = f"{web}:"
-            for _key, tps in iter_link_termination_points(net_env):
-                endpoints = [str(ep) for ep in tps]
-                web_ep = next(
-                    (ep for ep in endpoints if ep.startswith(needle_prefix)), None
-                )
-                if web_ep is None or len(endpoints) != 2:
-                    continue
-                other = endpoints[0] if endpoints[1] == web_ep else endpoints[1]
-                peer_host, peer_intf = parse_endpoint(other)
-                if peer_host.startswith("leaf_router_"):
-                    host = peer_host
-                    intf = peer_intf
-                    break
-            if host is not None:
-                break
-        if host is None:
-            candidates = [n for n in routers if str(n).startswith("leaf_router_")]
-            host = (
-                "leaf_router_0_1"
-                if "leaf_router_0_1" in candidates
-                else _choice(rng, candidates, "leaf_router_0_0")
-            )
-            host_ifaces = ifaces_by_device.get(host) or ["eth0"]
-            ordered = sorted(host_ifaces, key=lambda name: (len(name), name))
-            intf = ordered[-1] if ordered else "eth0"
-        params.update(host_name=host, intf_name=intf or "eth0")
-        return params
-
-    if scenario == "campus_lan":
-        candidates = [
-            n for n in routers if "router_core" in n or "router_dist" in n
-        ] or list(routers)
-        host = _choice(
-            rng, candidates, candidates[0] if candidates else "router_core_1"
-        )
-        params.update(
-            host_name=host,
-            intf_name=_first_iface(ifaces_by_device.get(host) or [], "eth0"),
-        )
-        return params
-
-    if scenario == "enterprise_branch":
-        host = (
-            "br1_edge"
-            if "br1_edge" in routers
-            else _choice(rng, list(routers), "br1_edge")
-        )
-        host_ifaces = ifaces_by_device.get(host) or []
-        if "eth2" in host_ifaces:
-            intf = "eth2"
-        elif host_ifaces:
-            intf = host_ifaces[-1]
-        else:
-            intf = "eth2"
-        params.update(host_name=host, intf_name=intf)
-        return params
-
-    if scenario == "k8s_lab":
-        # Unique hop on client → controller (201.1.1.2): leaf_1_1 host-facing
-        # eth2. Spine-facing eth0/eth1 are BGP unnumbered; shrinking those
-        # MTUs drops the fabric session and even small pings fail.
-        if "leaf_1_1" in routers:
-            host = "leaf_1_1"
-        else:
-            host = _choice(rng, list(routers), "leaf_1_1")
-        host_ifaces = ifaces_by_device.get(host) or []
-        if "eth2" in host_ifaces:
-            intf = "eth2"
-        else:
-            intf = _first_iface(host_ifaces, "eth2")
-        params.update(host_name=host, intf_name=intf)
-        return params
-
-    if is_isp_scenario(scenario):
-        from nika.net_env.isp.inject_targets import isp_inject_params
-
-        inventory = getattr(net_env, "inventory", None)
-        if not isinstance(inventory, dict):
-            inventory = {}
-        link_params = isp_inject_params(
-            "link_capacity_bottleneck", inventory, inventory.get("bgp")
-        )
-        params.update(
-            host_name=str(link_params["host_name"]),
-            intf_name=str(link_params["intf_name"]),
-        )
-        return params
-
-    host = _choice(rng, list(routers), "router1")
-    params.update(
-        host_name=host,
-        intf_name=_choice_interface(rng, net_env, host, backend),
-    )
-    return params
-
-
 def _parse_web_url(url: str) -> tuple[str, str]:
     website = url.split(".")[0]
     if website.startswith("http://"):
@@ -810,25 +452,6 @@ def _flow_rule_loop_pair(net_env, rng: random.Random) -> tuple[str, str, str, st
     return pair[0], pair[1], "eth0", "eth0"
 
 
-def _all_device_names(net_env) -> set[str]:
-    names: set[str] = (
-        set(net_env.lab.machines.keys()) if net_env.lab is not None else set()
-    )
-    names.update(net_env.hosts or [])
-    names.update(net_env.routers or [])
-    names.update(net_env.bmv2_switches or [])
-    names.update(net_env.ovs_switches or [])
-    names.update(net_env.sdn_controllers or [])
-    for bucket in (net_env.servers or {}).values():
-        names.update(bucket)
-    names.update(getattr(net_env, "kubernetes_nodes", []) or [])
-    if net_env.lab is None:
-        spec = net_env.get_lab_spec()
-        if spec is not None:
-            names.update(node.name for node in spec.nodes)
-    return names
-
-
 def _get_net_env_for_benchmark(
     scenario: str,
     topo_size: str = "",
@@ -894,16 +517,20 @@ def _pick_attacker(
     return rng.choice(candidates)
 
 
-def resolve_inject_params(
+def _owns_benchmark_targets(problem_cls) -> bool:
+    """Whether a failure declares its own benchmark targets (else legacy)."""
+    return problem_cls is not None and "benchmark_inject_params" in vars(problem_cls)
+
+
+def _resolve(
     problem: str,
     scenario: str,
-    topo_size: str = "",
+    topo_size: str,
     *,
-    seed: int = DEFAULT_SEED,
-    isp_options: dict[str, str] | None = None,
-    net_env=None,
-) -> dict[str, str]:
-    """Return inject params for one benchmark row."""
+    seed: int,
+    isp_options: dict[str, str] | None,
+    net_env,
+) -> tuple[dict[str, str], InjectTargetContext]:
     rng = _case_rng(
         seed,
         scenario,
@@ -934,6 +561,98 @@ def resolve_inject_params(
     dhcp0 = _choice(rng, servers.get("dhcp"), dns0)
     web0 = _choice(rng, pools.get("web") or servers.get("web"), host0)
     lb0 = _choice(rng, servers.get("load_balancer"), web0)
+
+    ctx = InjectTargetContext(
+        problem=problem,
+        scenario=scenario,
+        topo_size=topo_size,
+        seed=seed,
+        isp_options=isp_options,
+        net_env=net_env,
+        rng=rng,
+        backend=backend,
+        roles=pools,
+        hosts=hosts,
+        routers=routers,
+        switches=net_env.switches or [],
+        servers=servers,
+        bmv2=bmv2,
+        controllers=controllers,
+        host_pool=host_pool,
+        router_pool=router_pool,
+        host0=host0,
+        router0=router0,
+        dns0=dns0,
+        dhcp0=dhcp0,
+        web0=web0,
+        lb0=lb0,
+    )
+    problem_cls = list_avail_problem_instances().get(problem)
+    if _owns_benchmark_targets(problem_cls):
+        params = problem_cls.benchmark_inject_params(ctx)
+    else:
+        params = _legacy_inject_params(problem, ctx)
+
+    if is_isp_scenario(scenario):
+        from nika.net_env.isp.inject_targets import enrich_isp_symptom_params
+
+        inventory = getattr(net_env, "inventory", None)
+        if not isinstance(inventory, dict):
+            inventory = {}
+        bgp_inv = inventory.get("bgp")
+        enrich_isp_symptom_params(
+            params,
+            problem,
+            inventory,
+            bgp_inv if isinstance(bgp_inv, dict) else None,
+        )
+
+    return params, ctx
+
+
+def resolve_inject_params(
+    problem: str,
+    scenario: str,
+    topo_size: str = "",
+    *,
+    seed: int = DEFAULT_SEED,
+    isp_options: dict[str, str] | None = None,
+    net_env=None,
+) -> dict[str, str]:
+    """Return inject params for one benchmark row."""
+    params, _ctx = _resolve(
+        problem,
+        scenario,
+        topo_size,
+        seed=seed,
+        isp_options=isp_options,
+        net_env=net_env,
+    )
+    return params
+
+
+def _legacy_inject_params(problem: str, ctx: InjectTargetContext) -> dict[str, str]:
+    """Name-dispatched targets for failures without ``benchmark_inject_params``."""
+    rng = ctx.rng
+    scenario = ctx.scenario
+    topo_size = ctx.topo_size
+    seed = ctx.seed
+    isp_options = ctx.isp_options
+    net_env = ctx.net_env
+    backend = ctx.backend
+    hosts = ctx.hosts
+    routers = ctx.routers
+    servers = ctx.servers
+    bmv2 = ctx.bmv2
+    controllers = ctx.controllers
+    pools = ctx.roles
+    host_pool = ctx.host_pool
+    router_pool = ctx.router_pool
+    host0 = ctx.host0
+    router0 = ctx.router0
+    dns0 = ctx.dns0
+    web0 = ctx.web0
+    lb0 = ctx.lb0
 
     params: dict[str, str] = {}
 
@@ -986,7 +705,6 @@ def resolve_inject_params(
 
     elif scenario == "p4_dc_gateway" and problem in {
         "p4_tcam_entry_corruption",
-        "silent_egress_packet_loss",
         "p4_ecn_threshold_misconfiguration",
         "tcp_syn_flood_attack",
         "int_insufficient_mtu_headroom",
@@ -1018,92 +736,17 @@ def resolve_inject_params(
                 host_name=target, target_ip=service.ip, control_source=control
             )
         else:
-            if problem == "int_insufficient_mtu_headroom":
-                target = rng.choice(model.gateways)
-                peer = rng.choice(model.spines)
-            else:
-                target = rng.choice(model.gateways + model.spines)
-                candidates = [
-                    port
-                    for port in model.ports[target]
-                    if port.role in {"spine", "leaf"}
-                ]
-                peer = rng.choice(candidates).peer
-            port = model.port_to_peer(target, peer)
-            assert port is not None
             params.update(
-                host_name=target,
-                intf_name=port.name,
-                bmv2_port=str(port.bmv2_port),
+                _p4_gateway_port_target(
+                    ctx, gateways_only=problem == "int_insufficient_mtu_headroom"
+                )
             )
-            if problem == "silent_egress_packet_loss":
-                params.update(loss_basis_points="200", seed=str(seed))
-            elif problem == "p4_ecn_threshold_misconfiguration":
+            if problem == "p4_ecn_threshold_misconfiguration":
                 params["threshold"] = "1024"
             else:
                 params["int_mtu"] = "1480"
 
-    elif is_isp_scenario(scenario) and problem in {
-        "link_down",
-        "link_flap",
-        "link_detach",
-        "link_capacity_bottleneck",
-        "link_packet_corruption",
-    }:
-        from nika.net_env.isp.inject_targets import (
-            isp_inject_params,
-            isp_link_symptom_targets,
-        )
-
-        inventory = getattr(net_env, "inventory", None)
-        if not isinstance(inventory, dict):
-            inventory = {}
-        bgp_inv = inventory.get("bgp")
-        params.update(isp_inject_params(problem, inventory, bgp_inv))
-        device = params.get("host_name")
-        iface = params.get("intf_name")
-        if device and iface:
-            params.update(isp_link_symptom_targets(inventory, device, iface))
-        if problem == "link_flap":
-            params["down_time"] = "1"
-            params["up_time"] = "1"
-        elif problem == "link_capacity_bottleneck":
-            params["rate"] = "30kbit"
-            params["burst"] = "64kb"
-            params["limit"] = "500kb"
-        elif problem == "link_packet_corruption":
-            params["corruption_percentage"] = "10"
-
-    elif problem == "link_flap":
-        params.update(
-            _resolve_link_flap_params(
-                scenario,
-                net_env,
-                rng,
-                backend,
-                host_pool=host_pool,
-                host0=host0,
-                router0=router0,
-            )
-        )
-
-    elif problem == "link_packet_corruption":
-        params.update(
-            _resolve_link_corruption_params(
-                scenario,
-                net_env,
-                rng,
-                backend,
-                host_pool=host_pool,
-                host0=host0,
-                router0=router0,
-            )
-        )
-
     elif problem in {
-        "link_down",
-        "link_detach",
-        "link_capacity_bottleneck",
         "host_missing_ip",
         "host_incorrect_ip",
         "host_incorrect_gateway",
@@ -1112,81 +755,18 @@ def resolve_inject_params(
         "arp_cache_poisoning",
         "receiver_resource_contention",
     }:
-        if problem == "link_detach" and scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
-            # Detach a client access link; removing fabric switch ports breaks controllers.
-            params["host_name"] = _prefer_named(host_pool, "client_1_1", host0)
-            params["intf_name"] = "eth0"
-        elif problem == "link_detach" and scenario == "min3clos":
-            client = _prefer_named(host_pool, "client2", host0)
-            params["host_name"] = client
-            params["intf_name"] = _choice_interface(rng, net_env, client, backend)
-        elif problem == "link_detach" and scenario == "campus_lan":
-            # Detach web0.local (10.200.0.3); LB backends are off the default probe path.
-            web_pool = list(servers.get("web") or []) or list(pools.get("web") or [])
-            params["host_name"] = _prefer_named(web_pool, "web_server_0", web0 or host0)
-            params["intf_name"] = "eth0"
-        elif scenario in {"sdn_l3_clos", "p4_dc_fabric"} and (
-            problem.startswith("link_")
-        ):
-            # Prefer a leaf–spine fabric link so Clos path/ECMP failures are exercised.
-            model = getattr(net_env, "model", None)
-            if model is not None and getattr(model, "leaf_spine_links", None):
-                leaf, spine = rng.choice(model.leaf_spine_links)
-                port = model.port_to_peer(leaf, spine)
-                params["host_name"] = leaf
-                params["intf_name"] = port.name if port is not None else "eth2"
-            else:
-                switches = net_env.ovs_switches or net_env.bmv2_switches or []
-                leaf = _choice(
-                    rng,
-                    _bmv2_leaves(switches) or switches,
-                    "leaf_1",
-                )
-                params["host_name"] = leaf
-                params["intf_name"] = _choice_interface(rng, net_env, leaf, backend)
-        elif scenario == "min3clos" and (problem.startswith("link_")):
-            params["host_name"] = router0
-            params["intf_name"] = _choice_interface(rng, net_env, router0, backend)
-        elif scenario == "enterprise_branch":
-            if problem == "arp_cache_poisoning":
-                corp_src = _arp_l2_endpoint_host(pools, fallback=host0)
-            else:
-                corp_src = (
-                    "br1_corp_pc"
-                    if "br1_corp_pc" in host_pool
-                    else _first(host_pool) or host0
-                )
-            if problem.startswith("link_"):
-                params["host_name"] = corp_src
-                params["intf_name"] = "eth0"
-            else:
-                params["host_name"] = corp_src
-                if problem == "host_missing_ip":
-                    params["intf_name"] = _choice_interface(
-                        rng, net_env, corp_src, backend
-                    )
-        else:
-            if problem == "arp_cache_poisoning":
-                params["host_name"] = _arp_l2_endpoint_host(pools, fallback=host0)
-                if scenario == "llmd_lab":
-                    # Star L2 lab has no default route; poison the HTTP peer.
-                    params["target_ip"] = "200.0.0.8"
-            else:
-                params["host_name"] = host0
-            if problem.startswith("link_"):
-                params["intf_name"] = _choice_interface(rng, net_env, host0, backend)
-            elif problem == "host_missing_ip":
-                params["intf_name"] = _choice_interface(rng, net_env, host0, backend)
+        params.update(
+            _endpoint_target(
+                ctx,
+                l2_endpoint=problem == "arp_cache_poisoning",
+                with_intf=problem == "host_missing_ip",
+            )
+        )
+        if problem == "arp_cache_poisoning" and scenario == "llmd_lab":
+            # Star L2 lab has no default route; poison the HTTP peer.
+            params["target_ip"] = "200.0.0.8"
         if problem == "host_incorrect_netmask":
             params["netmask_prefix"] = "8"
-        if problem == "link_capacity_bottleneck":
-            params["rate"] = (
-                "10kbit"
-                if scenario in {"enterprise_branch", "sdn_l3_clos", "p4_dc_fabric"}
-                else "30kbit"
-            )
-            params["burst"] = "64kb"
-            params["limit"] = "500kb"
         if problem == "receiver_resource_contention":
             params["duration"] = "600"
             if scenario == "dc_clos":
@@ -1249,28 +829,12 @@ def resolve_inject_params(
         params["host_name"] = dns0
 
     elif problem in {"dhcp_service_down", "dhcp_missing_subnet"}:
-        client = _choice(
-            rng,
-            [h for h in host_pool if h != dhcp0] or host_pool,
-            host0,
-        )
-        if scenario == "campus_lan" and "pc_1_1_1_1" in host_pool:
-            client = "pc_1_1_1_1"
-        params["host_name"] = dhcp0
-        params["host_name_2"] = client
+        params.update(_dhcp_server_client(ctx))
         if scenario == "campus_lan" and problem == "dhcp_missing_subnet":
             params["subnet"] = "10.1.1.0"
 
     elif problem in {"dhcp_spoofed_gateway", "dhcp_spoofed_dns", "dhcp_spoofed_subnet"}:
-        client = _choice(
-            rng,
-            [h for h in host_pool if h != dhcp0] or host_pool,
-            host0,
-        )
-        if scenario == "campus_lan" and "pc_1_1_1_1" in host_pool:
-            client = "pc_1_1_1_1"
-        params["host_name"] = dhcp0
-        params["host_name_2"] = client
+        params.update(_dhcp_server_client(ctx))
         if scenario == "campus_lan" and problem == "dhcp_spoofed_subnet":
             params["subnet"] = "10.1.1.0"
 
@@ -1355,36 +919,11 @@ def resolve_inject_params(
             )
 
     elif problem in _VICTIM_HOST_PROBLEMS:
-        if is_isp_scenario(scenario):
-            from nika.net_env.isp.inject_targets import isp_inject_params
-
-            inventory = getattr(net_env, "inventory", None)
-            if not isinstance(inventory, dict):
-                inventory = {}
-            bgp_inv = inventory.get("bgp")
-            params.update(
-                isp_inject_params(
-                    problem,
-                    inventory,
-                    bgp_inv if isinstance(bgp_inv, dict) else None,
-                )
+        params.update(
+            _access_router_victim(
+                ctx, prefer_site_edge=problem == "host_static_blackhole"
             )
-        elif scenario == "enterprise_branch" and problem == "host_static_blackhole":
-            victim_pool = _role_subset(router_pool, pools, "access_routers")
-            params["host_name"] = (
-                "hq_edge"
-                if "hq_edge" in victim_pool
-                else (
-                    "br1_edge"
-                    if "br1_edge" in victim_pool
-                    else _first(victim_pool) or router0
-                )
-            )
-        else:
-            victim_pool = _role_subset(router_pool, pools, "access_routers")
-            params["host_name"] = _choice(
-                rng, victim_pool, _first(victim_pool) or router0
-            )
+        )
 
     elif problem in {
         "bgp_acl_block",
@@ -1835,7 +1374,7 @@ def resolve_inject_params(
 
     elif problem in {"k8s_clusterip_routing_broken", "k8s_worker_apiserver_partition"}:
         k8s_nodes = pools.get("k8s_nodes") or []
-        control = _first(pools.get("k8s_controllers")) or _first(k8s_nodes) or host0
+        control = _k8s_control_node(ctx)
         workers = sorted(node for node in k8s_nodes if node != control)
         params["control_node"] = control
         if problem == "k8s_worker_apiserver_partition":
@@ -1851,7 +1390,7 @@ def resolve_inject_params(
 
     elif problem == "k8s_coredns_isolated":
         k8s_nodes = pools.get("k8s_nodes") or []
-        control = _first(pools.get("k8s_controllers")) or _first(k8s_nodes) or host0
+        control = _k8s_control_node(ctx)
         # node_name is intentionally left unset: the fault resolves the nodes
         # actually hosting CoreDNS at inject time, which is where isolating it
         # takes the whole cluster's name resolution down.
@@ -1860,9 +1399,7 @@ def resolve_inject_params(
         params["symptom_host"] = workers[0] if workers else control
 
     elif problem == "k8s_networkpolicy_deny":
-        k8s_nodes = pools.get("k8s_nodes") or []
-        control = _first(pools.get("k8s_controllers")) or _first(k8s_nodes) or host0
-        params["control_node"] = control
+        params["control_node"] = _k8s_control_node(ctx)
         params["symptom_host"] = _first(pools.get("hosts")) or host0
         if scenario == "llmd_lab":
             params["namespace"] = "llm-d"
@@ -1918,20 +1455,6 @@ def resolve_inject_params(
     else:
         params["host_name"] = host0
 
-    if is_isp_scenario(scenario):
-        from nika.net_env.isp.inject_targets import enrich_isp_symptom_params
-
-        inventory = getattr(net_env, "inventory", None)
-        if not isinstance(inventory, dict):
-            inventory = {}
-        bgp_inv = inventory.get("bgp")
-        enrich_isp_symptom_params(
-            params,
-            problem,
-            inventory,
-            bgp_inv if isinstance(bgp_inv, dict) else None,
-        )
-
     return params
 
 
@@ -1986,8 +1509,11 @@ def validate_benchmark_case(
 
     host_name = inject.get("host_name")
     intf_name = inject.get("intf_name")
-    # WireGuard tunnel ifaces are not Kathara L2 link endpoints; validate below.
-    if host_name and intf_name and problem not in _WG_TUNNEL_IFACE_PROBLEMS:
+    tunnel_iface = (
+        problem_cls.BENCHMARK_TUNNEL_IFACE or problem in _WG_TUNNEL_IFACE_PROBLEMS
+    )
+    # Tunnel ifaces are not Kathara L2 link endpoints; failures validate them.
+    if host_name and intf_name and not tunnel_iface:
         device_ifaces = ifaces_by_device.get(host_name) or []
         if device_ifaces and intf_name not in device_ifaces:
             raise ValueError(
@@ -1996,10 +1522,10 @@ def validate_benchmark_case(
             )
 
     if (
-        problem in _VDE_POINT_TO_POINT_PROBLEMS
+        problem_cls.BENCHMARK_POINT_TO_POINT
         and host_name
         and intf_name
-        and problem not in _WG_TUNNEL_IFACE_PROBLEMS
+        and not tunnel_iface
     ):
         from nika.problems.rca.inventory import iter_link_termination_points
 
@@ -2022,6 +1548,32 @@ def validate_benchmark_case(
                 f"{problem} inject {needle} is not a link endpoint on {scenario} "
                 f"(topo_size={topo_size!r})"
             )
+
+    ctx = InjectValidationContext(
+        scenario=scenario,
+        canonical=canonical,
+        topo_size=topo_size,
+        isp_options=isp_options,
+        net_env=net_env,
+        devices=devices,
+        ifaces_by_device=ifaces_by_device,
+    )
+    if _owns_benchmark_targets(problem_cls):
+        problem_cls.validate_benchmark_inject(ctx, inject)
+    else:
+        _legacy_validate(problem, ctx, inject)
+
+
+def _legacy_validate(
+    problem: str, ctx: InjectValidationContext, inject: dict[str, str]
+) -> None:
+    """Name-dispatched checks for failures without ``benchmark_inject_params``."""
+    scenario = ctx.scenario
+    topo_size = ctx.topo_size
+    net_env = ctx.net_env
+    ifaces_by_device = ctx.ifaces_by_device
+    host_name = inject.get("host_name")
+    intf_name = inject.get("intf_name")
 
     if problem == "device_forwarding_packet_corruption":
         target = inject.get("forwarding_device", "")
@@ -2124,51 +1676,23 @@ def validate_benchmark_case(
                         f"not a BGP originator on {scenario}; use one of: {originators}"
                     )
         else:
-            routers = net_env.routers or []
-            advertisers = _role_subset(
-                routers, net_env.target_roles(), "bgp_originators"
-            )
-            # Enforce only when the topology distinguishes advertiser roles.
-            if advertisers != list(routers) and host_name not in advertisers:
-                raise ValueError(
-                    f"bgp_missing_route_advertisement host_name={host_name!r} has no BGP "
-                    f"network statement on {scenario} (topo_size={topo_size!r}); "
-                    f"use a leaf router: {advertisers}"
-                )
-
-    if problem in _VICTIM_HOST_PROBLEMS and host_name:
-        routers = net_env.routers or []
-        eligible = _role_subset(routers, net_env.target_roles(), "access_routers")
-        # Enforce only when the topology distinguishes leaf vs spine roles.
-        if eligible != list(routers) and host_name not in eligible:
-            raise ValueError(
-                f"{problem} host_name={host_name!r} has no attached end host on "
-                f"{scenario} (topo_size={topo_size!r}); use a leaf router: {eligible}"
+            _require_role_member(
+                ctx,
+                problem,
+                host_name,
+                "bgp_originators",
+                reason="has no BGP network statement",
             )
 
-    host_a = inject.get("host_name")
-    host_b = inject.get("host_name_2")
-    if host_a and host_b and host_a == host_b:
-        hosts = net_env.hosts or []
-        server_hosts = []
-        for bucket in (net_env.servers or {}).values():
-            server_hosts.extend(bucket or [])
-        conflict_pool = list(dict.fromkeys(list(hosts) + server_hosts))
-        if problem == "host_ip_conflict" and len(conflict_pool) >= 2:
-            raise ValueError(
-                f"Inject devices host_name and host_name_2 must differ for {problem} "
-                f"on {scenario} when multiple hosts exist"
-            )
-        if problem == "mac_address_conflict" and len(conflict_pool) >= 2:
-            raise ValueError(
-                f"Inject devices host_name and host_name_2 must differ for {problem} "
-                f"on {scenario} when multiple hosts exist"
-            )
-        if problem == "flow_rule_loop" and len(net_env.ovs_switches or []) >= 2:
-            raise ValueError(
-                f"Inject devices host_name and host_name_2 must differ for {problem} "
-                f"on {scenario} when multiple OVS switches exist"
-            )
+    if problem in _VICTIM_HOST_PROBLEMS:
+        _require_role_member(
+            ctx, problem, host_name, "access_routers", reason="has no attached end host"
+        )
+
+    if problem in {"host_ip_conflict", "mac_address_conflict"}:
+        _require_distinct_hosts(ctx, problem, inject)
+    if problem == "flow_rule_loop":
+        _require_distinct_hosts(ctx, problem, inject, switches=True)
 
     if problem == "dns_record_error":
         website = inject.get("target_website", "")

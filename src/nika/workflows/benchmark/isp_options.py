@@ -78,23 +78,11 @@ def isp_stack_for_backend(backend: str) -> dict[str, str]:
 
 
 def isp_config_for_problem(problem: str, problem_tags: set[str]) -> dict[str, Any]:
-    """Pick ISP protocol options from failure needs (topology comes from scenario).
-
-    A failure's declared ``isp_protocol`` wins; otherwise the stack follows
-    ``problem_tags`` plus the failure's own TAGS.
-    """
+    """Pick ISP protocol options for ``problem`` (see ``isp_protocol_for``)."""
     from nika.problems.registry import get_problem_class
+    from nika.problems.support.benchmark_targets import isp_protocol_for
 
-    problem_cls = get_problem_class(problem)
-    if problem_cls is not None:
-        if problem_cls.isp_protocol is not None:
-            return dict(problem_cls.isp_protocol)
-        problem_tags = set(problem_tags) | set(problem_cls.TAGS)
-    if "ospf" in problem_tags:
-        return {"igp": "ospf", "bgp_mode": "none", "rpki": False}
-    if "bgp" in problem_tags:
-        return {"igp": DEFAULT_IGP, "bgp_mode": "ibgp_rr", "rpki": False}
-    return {"igp": DEFAULT_IGP, "bgp_mode": DEFAULT_BGP_MODE, "rpki": False}
+    return isp_protocol_for(get_problem_class(problem), problem_tags)
 
 
 def isp_column_suffix(
