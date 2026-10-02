@@ -10,16 +10,13 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from nika.audit.coverage import cover_release, gap_count, release_cases
-from nika.audit.environment import CaseAudit, identity_from_row
-from nika.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
-from tests.audit.live import declared_probe
+from experiment.audit.coverage import cover_release, gap_count, release_cases
+from experiment.audit.environment import CaseAudit, identity_from_row
+from experiment.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
+from experiment.audit.live import declared_probe
 
 DOC_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "docs"
-    / "development"
-    / "environment-audit.md"
+    Path(__file__).resolve().parents[2] / "docs" / "benchmarks" / "environment-audit.md"
 )
 RESULTS_DIR = DOC_PATH.parents[2] / "runtime" / "environment-audit-results"
 
@@ -107,8 +104,8 @@ def render_environment_audit_doc(
         "Faults whose effect is a live worker, flap, queue, or quota are listed in `DYNAMIC_ARTIFACT_FAULTS`.",
         "The recheck reads that worker, queue, or quota on the injected instance.",
         "",
-        "Run the full audit through `audit_case` in `tests/audit/live.py`.",
-        "To audit all release cases, run `uv run python -m tests.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.",
+        "Run the full audit through `audit_case` in `experiment/audit/live.py`.",
+        "To audit all release cases, run `uv run python -m experiment.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.",
         "The matrix writes one JSON record per case to `runtime/environment-audit-results/`. Those records stay local; this page is the committed summary.",
         "Benchmark runs stay on `startup_verify_lab`, `verify_fault`, and `PresenceWatch`.",
         "For one selected case, `audit_case` deploys a lab and runs `verify_lab` plus a healthy probe of the fault path before inject.",
@@ -145,7 +142,7 @@ def render_environment_audit_doc(
         "From the repository root:",
         "",
         "```shell",
-        'uv run python -c "from tests.audit.report_doc import write_environment_audit_doc; write_environment_audit_doc()"',
+        'uv run python -c "from experiment.audit.report_doc import write_environment_audit_doc; write_environment_audit_doc()"',
         "```",
         "",
         "## Coverage",
@@ -235,7 +232,7 @@ def render_environment_audit_doc(
 
 def _pending_rows() -> list[dict]:
     from nika.net_env.net_env_pool import _NET_ENV_SPECS
-    from tests.audit.matrix import audit_plan, result_current
+    from experiment.audit.matrix import audit_plan, result_current
 
     pending: list[dict] = []
     for row in audit_plan():
@@ -252,7 +249,7 @@ def _pending_rows() -> list[dict]:
 
 
 def _executed_section(records: list[dict]) -> list[str]:
-    from tests.audit.matrix import diagnose
+    from experiment.audit.matrix import diagnose
 
     lines = [
         "",
@@ -371,7 +368,7 @@ def _pending_section() -> list[str]:
             "| --- | --- | --- |",
         ]
     )
-    from tests.audit.matrix import effective_class
+    from experiment.audit.matrix import effective_class
 
     for row in pending:
         resource = _cell(effective_class(row))

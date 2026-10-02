@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from nika.audit.coverage import cover_release, release_cases
-from nika.audit.environment import (
+from experiment.audit.coverage import cover_release, release_cases
+from experiment.audit.environment import (
     CaseAudit,
     StageResult,
     admission_status,
@@ -17,14 +17,14 @@ from nika.audit.environment import (
     classify_observation,
     identity_from_row,
 )
-from tests.audit.live import (
+from experiment.audit.live import (
     _artifact_stage,
     _baseline_path,
     _control_stage,
     _note_sibling_control,
 )
-from tests.audit.matrix import audit_plan, diagnose
-from tests.audit.report_doc import DOC_PATH, render_environment_audit_doc
+from experiment.audit.matrix import audit_plan, diagnose
+from experiment.audit.report_doc import DOC_PATH, render_environment_audit_doc
 
 pytestmark = pytest.mark.unit
 
@@ -210,7 +210,7 @@ def test_control_and_baseline_helpers() -> None:
 
 
 def test_failed_sibling_control_is_not_a_missing_control(monkeypatch) -> None:
-    from tests.audit import live
+    from experiment.audit import live
 
     monkeypatch.setattr(
         live,
@@ -239,7 +239,7 @@ def test_failed_sibling_control_is_not_a_missing_control(monkeypatch) -> None:
 
 def test_control_avoids_destination_behind_root_cause_interface(monkeypatch) -> None:
     from nika.problems.rca.models import interface_resource
-    from tests.audit import live
+    from experiment.audit import live
 
     links = [
         ("a", ("leaf_1:eth4", "rcv:eth0")),
@@ -265,7 +265,7 @@ def test_control_avoids_destination_behind_root_cause_interface(monkeypatch) -> 
 
 def test_control_from_far_end_avoids_the_faulted_device(monkeypatch) -> None:
     from nika.problems.rca.models import interface_resource
-    from tests.audit import live
+    from experiment.audit import live
 
     links = [
         ("core", ("n10:eth0", "n2:eth0")),
@@ -292,7 +292,7 @@ def test_control_from_far_end_avoids_the_faulted_device(monkeypatch) -> None:
 
 def test_control_avoids_a_faulted_link_and_uses_the_p2p_peer(monkeypatch) -> None:
     from nika.problems.rca.models import link_resource
-    from tests.audit import live
+    from experiment.audit import live
 
     links = [
         ("a", ("client1:eth1", "leaf1:e1-2")),
@@ -320,7 +320,7 @@ def test_control_avoids_a_faulted_link_and_uses_the_p2p_peer(monkeypatch) -> Non
 
 def test_control_avoids_endpoints_behind_a_down_node(monkeypatch) -> None:
     from nika.problems.rca.models import FaultResource, ResourceKind
-    from tests.audit import live
+    from experiment.audit import live
 
     links = [
         ("a", ("leaf_1:eth2", "controller:eth0")),
@@ -361,7 +361,7 @@ def test_control_avoids_endpoints_behind_a_down_node(monkeypatch) -> None:
 
 def test_control_avoids_faulted_host_and_self_ping(monkeypatch) -> None:
     from nika.problems.rca.models import interface_resource
-    from tests.audit import live
+    from experiment.audit import live
 
     lan = ("ctl:eth0", "client:eth0", "web:eth0")
     monkeypatch.setattr(live, "iter_link_termination_points", lambda e: [("l", lan)])
@@ -424,8 +424,8 @@ def test_native_bgp_daemon_outage_is_an_observation() -> None:
 
 
 def test_audit_provenance_rejects_changed_source_config_and_images(monkeypatch) -> None:
-    from nika.audit import provenance
-    from nika.audit.provenance import AuditProvenance, provenance_current
+    from experiment.audit import provenance
+    from experiment.audit.provenance import AuditProvenance, provenance_current
 
     record = AuditProvenance(
         git_commit="a" * 40,
@@ -467,8 +467,8 @@ def test_audit_provenance_rejects_changed_source_config_and_images(monkeypatch) 
 
 def test_production_audit_modules_do_not_import_tests() -> None:
     for relative in (
-        "src/nika/audit/environment.py",
-        "src/nika/audit/coverage.py",
+        "experiment/audit/environment.py",
+        "experiment/audit/coverage.py",
         "src/nika/validation/presence.py",
         "src/nika/workflows/benchmark/run.py",
         "src/nika/workflows/agent/run.py",

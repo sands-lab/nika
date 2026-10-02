@@ -12,13 +12,13 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from nika.audit.environment import (
+from experiment.audit.environment import (
     CaseAudit,
     StageResult,
     classify_observation,
     identity_from_row,
 )
-from nika.audit.provenance import AUDIT_METHOD_VERSION, capture_provenance
+from experiment.audit.provenance import AUDIT_METHOD_VERSION, capture_provenance
 from nika.net_env.verify import (
     http_download_stats,
     http_ok,

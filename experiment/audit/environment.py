@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from nika.audit.provenance import AuditProvenance
+from experiment.audit.provenance import AuditProvenance
 
 AuditStatus = Literal[
     "pass",

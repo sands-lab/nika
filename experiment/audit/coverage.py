@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from nika.audit.environment import (
+from experiment.audit.environment import (
     CaseAudit,
     identity_from_row,
 )
 from nika.workflows.benchmark.release import load_release
-from nika.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
+from experiment.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
 
 
 def release_cases(version: str = "0.2.0") -> list[dict[str, Any]]:

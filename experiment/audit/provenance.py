@@ -47,7 +47,7 @@ def source_fingerprint() -> str:
                 "--",
                 "src",
                 "tests/support",
-                "tests/audit",
+                "experiment",
                 "pyproject.toml",
                 "uv.lock",
                 "config",

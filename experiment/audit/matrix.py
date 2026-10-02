@@ -22,8 +22,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import IO, Any
 
-from nika.audit.environment import CaseAudit, StageResult, identity_from_row
-from nika.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
+from experiment.audit.environment import CaseAudit, StageResult, identity_from_row
+from experiment.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
@@ -31,8 +31,8 @@ from nika.workflows.benchmark.admit import resource_class_for_row
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.utils.session_artifacts import write_json_atomic
 
-from tests.audit.live import audit_case, declared_probe
-from tests.audit.report_doc import RESULTS_DIR
+from experiment.audit.live import audit_case, declared_probe
+from experiment.audit.report_doc import RESULTS_DIR
 
 _ROW_KEYS = (
     "scenario",
@@ -49,7 +49,7 @@ _ROW_KEYS = (
 
 
 def _release_rows() -> list[dict[str, Any]]:
-    from nika.audit.coverage import release_cases
+    from experiment.audit.coverage import release_cases
 
     return release_cases()
 

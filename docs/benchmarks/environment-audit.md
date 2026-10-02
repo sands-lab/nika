@@ -17,8 +17,8 @@ Leaderboard averages omit that outcome.
 Faults whose effect is a live worker, flap, queue, or quota are listed in `DYNAMIC_ARTIFACT_FAULTS`.
 The recheck reads that worker, queue, or quota on the injected instance.
 
-Run the full audit through `audit_case` in `tests/audit/live.py`.
-To audit all release cases, run `uv run python -m tests.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.
+Run the full audit through `audit_case` in `experiment/audit/live.py`.
+To audit all release cases, run `uv run python -m experiment.audit.matrix --jobs 2`. Add `--retry-failed` after fixing a failed check or fault.
 The matrix writes one JSON record per case to `runtime/environment-audit-results/`. Those records stay local; this page is the committed summary.
 Benchmark runs stay on `startup_verify_lab`, `verify_fault`, and `PresenceWatch`.
 For one selected case, `audit_case` deploys a lab and runs `verify_lab` plus a healthy probe of the fault path before inject.
@@ -55,7 +55,7 @@ A separate control path is recorded when one exists. `no_control_path` is adviso
 From the repository root:
 
 ```shell
-uv run python -c "from tests.audit.report_doc import write_environment_audit_doc; write_environment_audit_doc()"
+uv run python -c "from experiment.audit.report_doc import write_environment_audit_doc; write_environment_audit_doc()"
 ```
 
 ## Coverage

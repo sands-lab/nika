@@ -10,9 +10,9 @@ import subprocess
 
 import pytest
 
-from nika.audit.environment import admits
+from experiment.audit.environment import admits
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
-from tests.audit.live import audit_case
+from experiment.audit.live import audit_case
 from tests.support.prerequisites import docker_available
 
 pytestmark = pytest.mark.e2e
