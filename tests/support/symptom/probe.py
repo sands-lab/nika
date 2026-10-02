@@ -614,6 +614,13 @@ def run_probe_snapshot(
                 nodes = runtime.list_nodes() or []
                 if edge in nodes:
                     peer = edge
+        if peer and old_ip and not path.old_ip:
+            # Some designs route clients only to services, not to each other.
+            others = sorted(set(runtime.list_nodes() or []) - {peer, inject_host})
+            for candidate in [peer, *others]:
+                if ping_ok(runtime, candidate, old_ip.split("/")[0]):
+                    peer = candidate
+                    break
         if peer and old_ip:
             snap.ping_ok = ping_ok(runtime, peer, old_ip.split("/")[0])
             snap.symptom_ok = snap.ping_ok

@@ -94,6 +94,8 @@ def evaluate_symptom(
         path = _resolve_blackhole_path(runtime, params, path, problem)
     if failure == "host_incorrect_ip" and getattr(problem, "_original_ip", None):
         path = replace(path, old_ip=problem._original_ip)
+        if before is not None and before.extra.get("peer_host"):
+            path = replace(path, peer_host=before.extra["peer_host"])
     if failure == "mtu_mismatch" and problem is not None:
         path = _resolve_mtu_mismatch_path(problem, params, path)
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
