@@ -101,6 +101,8 @@ class ProblemBase:
     # Optional protocol whose adjacency effect this failure declares.
     effect_protocol: ClassVar[str | None] = None
     effect_property: ClassVar[str | None] = None
+    # Instance attributes recorded in session injection metadata when present.
+    RECORDED_ATTRS: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
     def is_compatible(cls, target: str) -> bool:

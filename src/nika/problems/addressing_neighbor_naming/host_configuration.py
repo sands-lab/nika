@@ -67,6 +67,7 @@ class HostMissingIP(ProblemBase):
     root_cause_owner = "interface"
     description = "Host interface has no IP address."
     TAGS: str = ["pc"]
+    RECORDED_ATTRS = ("intf_name",)
 
     Params = HostMissingIPParams
 

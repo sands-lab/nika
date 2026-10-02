@@ -16,6 +16,7 @@ from nika.utils.session_artifacts import (
     update_run_json,
     write_json_atomic,
 )
+from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     KNOWN_OUTCOMES,
@@ -126,7 +127,7 @@ def case_key_for_row(row: dict[str, Any]) -> str:
         sanitize_token(str(identity["scenario"])),
         sanitize_token(str(identity["problem"])),
     ]
-    for key in ("topo_size", "topo", "igp", "bgp_mode", "backend", "device_profile"):
+    for key in _CATALOG_DEPLOY_KEYS:
         value = identity.get(key) or ""
         if value != "":
             parts.append(sanitize_token(str(value)))
@@ -152,13 +153,10 @@ def trial_dirname(case_key: str, trial_index: int) -> str:
 
 
 _TRIAL_SUFFIX_RE = re.compile(r"^(.*)__t(\d+)$")
+# rpki is a flag handled separately by case keys and catalog entries.
 _CATALOG_DEPLOY_KEYS = (
     "topo_size",
-    "topo",
-    "igp",
-    "bgp_mode",
-    "backend",
-    "device_profile",
+    *(key for key in ISP_DEPLOY_KEYS if key != "rpki"),
 )
 
 

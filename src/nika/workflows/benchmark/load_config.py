@@ -11,6 +11,7 @@ from nika.net_env.net_env_pool import resolve_scenario_id, scenario_fixed_topo_s
 from nika.problems.registry import list_avail_problem_instances, resolve_problem_name
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import (
+    ISP_OPTION_KEYS,
     is_isp_base_topology,
     is_isp_scenario,
     validate_and_resolve_isp_options,
@@ -68,15 +69,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
             )
         if is_isp_base_topology(canonical):
             missing = [
-                key
-                for key, value in (
-                    ("igp", isp_igp),
-                    ("bgp_mode", isp_bgp),
-                    ("rpki", isp_rpki),
-                    ("backend", isp_backend),
-                    ("device_profile", isp_device_profile),
-                )
-                if value in (None, "", "-")
+                key for key in ISP_OPTION_KEYS if row.get(key) in (None, "", "-")
             ]
             if missing:
                 raise ValueError(
@@ -154,9 +147,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         for item in problems:
             piece = inject.get(item)
             if not isinstance(piece, dict) or not piece:
-                raise ValueError(
-                    f"Multi-fault case must provide inject.{item} mapping"
-                )
+                raise ValueError(f"Multi-fault case must provide inject.{item} mapping")
             nested[item] = {str(k): str(v) for k, v in piece.items()}
         inject = nested
     else:
@@ -232,14 +223,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     return normalized
 
 
-_DEPLOY_FIELDS = _PROFILE_FIELDS = (
-    "topo_size",
-    "igp",
-    "bgp_mode",
-    "rpki",
-    "backend",
-    "device_profile",
-)
+_DEPLOY_FIELDS = _PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS)
 _VARIANT_META = frozenset(_PROFILE_FIELDS)
 _CASE_META = frozenset(_PROFILE_FIELDS) | {"inject", "root_causes"}
 
@@ -354,9 +338,7 @@ def load_candidate_catalog(path: str | Path) -> list[dict[str, Any]]:
     for candidate_path in files:
         resolved = candidate_path.resolve()
         if not resolved.is_relative_to(root):
-            raise ValueError(
-                f"Candidate file escapes pool directory: {candidate_path}"
-            )
+            raise ValueError(f"Candidate file escapes pool directory: {candidate_path}")
         candidate_data = yaml.safe_load(resolved.read_text(encoding="utf-8"))
         for row in _load_candidate_file(candidate_data, resolved):
             option_id = row["candidate_option_id"]

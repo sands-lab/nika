@@ -28,11 +28,27 @@ from nika.net_env.isp.profiles import (
 )
 from nika.topology.sndlib.catalog import topology_size_for_name
 
-ISP_OPTION_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
+ISP_PROTOCOL_KEYS = ("igp", "bgp_mode", "rpki")
+ISP_STACK_KEYS = ("backend", "device_profile")
+ISP_OPTION_KEYS = (*ISP_PROTOCOL_KEYS, *ISP_STACK_KEYS)
+# Deploy option fields carried on benchmark rows and session scenario params.
+ISP_DEPLOY_KEYS = ("topo", *ISP_OPTION_KEYS)
+ISP_METRIC_KEYS = ("metric_strategy", "constant_metric")
+# Net-env constructor kwargs restored from session scenario params; rpki is
+# baked into the scenario and backend is resolved separately.
+ISP_NET_ENV_PARAM_KEYS = (
+    *(key for key in ISP_DEPLOY_KEYS if key not in ("rpki", "backend")),
+    *ISP_METRIC_KEYS,
+)
 
 __all__ = [
+    "ISP_DEPLOY_KEYS",
+    "ISP_METRIC_KEYS",
     "ISP_NAMED_SPECIALS",
+    "ISP_NET_ENV_PARAM_KEYS",
     "ISP_OPTION_KEYS",
+    "ISP_PROTOCOL_KEYS",
+    "ISP_STACK_KEYS",
     "is_isp_base_topology",
     "is_isp_named_special",
     "is_isp_scenario",
@@ -68,21 +84,14 @@ def isp_stack_for_backend(backend: str) -> dict[str, str]:
 
 
 def isp_config_for_problem(problem: str, problem_tags: set[str]) -> dict[str, Any]:
-    """Pick ISP protocol options from failure needs (topology comes from scenario).
-
-    A failure's declared ``isp_protocol`` wins; otherwise the stack follows
-    ``problem_tags`` plus the failure's own TAGS.
-    """
-    from nika.problems.registry import get_problem_class
-
-    problem_cls = get_problem_class(problem)
-    if problem_cls is not None:
-        if problem_cls.isp_protocol is not None:
-            return dict(problem_cls.isp_protocol)
-        problem_tags = set(problem_tags) | set(problem_cls.TAGS)
-    if "ospf" in problem_tags:
+    """Pick ISP protocol options from failure needs (topology comes from scenario)."""
+    if problem == "bgp_rpki_invalid_route_leak":
+        return {"igp": "ospf", "bgp_mode": "ebgp", "rpki": True}
+    if problem == "bgp_max_prefix_exceeded":
+        return {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
+    if "ospf" in problem_tags or problem.startswith("ospf_"):
         return {"igp": "ospf", "bgp_mode": "none", "rpki": False}
-    if "bgp" in problem_tags:
+    if "bgp" in problem_tags or problem.startswith("bgp_"):
         return {"igp": DEFAULT_IGP, "bgp_mode": "ibgp_rr", "rpki": False}
     return {"igp": DEFAULT_IGP, "bgp_mode": DEFAULT_BGP_MODE, "rpki": False}
 
@@ -188,8 +197,8 @@ def validate_and_resolve_isp_options(
             None if device_profile in (None, "", "-") else str(device_profile)
         ),
     }
-    any_protocol = any(provided[key] is not None for key in ("igp", "bgp_mode", "rpki"))
-    any_stack = any(provided[key] is not None for key in ("backend", "device_profile"))
+    any_protocol = any(provided[key] is not None for key in ISP_PROTOCOL_KEYS)
+    any_stack = any(provided[key] is not None for key in ISP_STACK_KEYS)
     topo_provided = provided["topo"] is not None
 
     if not is_isp_scenario(scenario):

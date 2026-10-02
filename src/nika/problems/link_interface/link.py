@@ -42,6 +42,7 @@ class LinkFailure(ProblemBase):
     description = "Carrier or operational link is down on the selected attachment."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFailureParams
 
@@ -234,6 +235,7 @@ class LinkFlap(ProblemBase):
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFlapParams
 
@@ -392,6 +394,7 @@ class LinkCapacityBottleneck(ProblemBase):
     description = "Logical link capacity is bottlenecked below demand."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkCapacityBottleneckParams
 
@@ -586,6 +589,7 @@ class LinkDetach(ProblemBase):
     description = "Network attachment is detached; the interface is gone from the node."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkDetachParams
 
