@@ -146,8 +146,8 @@ def _independent_control_ip(
 ) -> tuple[str, str] | None:
     """Return a control ``(source, destination)`` that does not depend on the root cause.
 
-    A source attached only to a root-cause node is replaced by an endpoint on an
-    unaffected device. The probe destination is kept unless it is the control
+    A source attached only to a root-cause node, or a host the inject
+    parameters name, is replaced by an endpoint on an unaffected device. The probe destination is kept unless it is the control
     source itself or an endpoint reached only through a root-cause interface or
     node. It is then replaced by a neighbor on the same device or segment, else
     by an endpoint on an unaffected device. ``None`` means no independent
@@ -184,6 +184,15 @@ def _independent_control_ip(
         endpoints |= set(members or [])
 
     behind = {ep for ep in faulted if _node(ep) in endpoints}
+    # Hosts the inject parameters name (attackers, load generators) carry the fault.
+    values = parsed.model_dump() if hasattr(parsed, "model_dump") else parsed
+    actors = {
+        item
+        for value in (values.values() if isinstance(values, dict) else [])
+        for item in (value if isinstance(value, list) else [value])
+        if isinstance(item, str) and item in endpoints
+    }
+    behind |= {ep for eps in links for ep in eps if _node(ep) in actors}
     siblings: list[tuple[set[str], list[str]]] = []
     for eps in links:
         hit = [ep for ep in eps if ep in faulted]
@@ -313,13 +322,16 @@ def _note_sibling_control(
         if control is None:
             return payload
         source, dst_ip = control
+    url = None
     # The gateway VIP answers TCP/80 and does not answer ICMP.
     if dst_ip == "20.0.0.1" and path.http_url:
-        ok = http_ok(runtime, source, path.http_url)
+        url = path.http_url
+        ok = http_ok(runtime, source, url)
     elif dst_ip:
         ok = ping_ok(runtime, source, dst_ip)
     elif path.http_url:
-        ok = http_ok(runtime, source, path.http_url)
+        url = path.http_url
+        ok = http_ok(runtime, source, url)
     if ok is None:
         return payload
     noted = dict(payload)
@@ -327,7 +339,7 @@ def _note_sibling_control(
     noted["control_path"] = {
         "source": source,
         "destination_ip": dst_ip,
-        "http_url": path.http_url,
+        "http_url": url,
     }
     return noted
 

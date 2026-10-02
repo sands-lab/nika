@@ -290,6 +290,32 @@ def test_control_from_far_end_avoids_the_faulted_device(monkeypatch) -> None:
     )
 
 
+def test_control_avoids_the_attacking_host(monkeypatch) -> None:
+    from nika.problems.rca.models import node_resource
+    from experiment.audit import live
+
+    links = [
+        ("a", ("client_0:eth0", "leaf_0:eth1")),
+        ("b", ("client_1:eth0", "leaf_0:eth2")),
+        ("c", ("web:eth0", "leaf_1:eth1")),
+        ("d", ("dns:eth0", "leaf_1:eth2")),
+    ]
+    monkeypatch.setattr(live, "iter_link_termination_points", lambda net_env: links)
+    ips = {"client_0": "10.0.0.2", "client_1": "10.0.0.3", "web": "10.0.1.2"}
+    ips["dns"] = "10.0.1.3"
+    runtime = SimpleNamespace(get_host_ip=lambda n, i, **k: ips.get(n))
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(hosts=[], servers={}),
+        root_cause_resources=lambda parsed: [node_resource("web")],
+    )
+    params = {"attacker_device": "client_0", "host_name": "web"}
+    source, dst = live._independent_control_ip(
+        problem, params, runtime, "client_0", "10.0.1.2"
+    )
+    assert source not in {"client_0", "web"}
+    assert dst not in {"10.0.0.2", "10.0.1.2"}
+
+
 def test_control_avoids_a_faulted_link_and_uses_the_p2p_peer(monkeypatch) -> None:
     from nika.problems.rca.models import link_resource
     from experiment.audit import live

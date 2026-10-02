@@ -350,6 +350,21 @@ def evaluate_symptom(
         ):
             ok = True
             cmp_details["absolute_latency_pass"] = after_ms
+    if failure == "dns_lookup_latency":
+        # Total HTTP time includes the transfer, which can hide the lookup delay.
+        lookup_before = before_snap.extra.get("name_lookup_ms")
+        lookup_after = after.extra.get("name_lookup_ms")
+        ok = (
+            isinstance(lookup_before, float)
+            and isinstance(lookup_after, float)
+            and lookup_after >= 500.0
+            and lookup_after >= lookup_before * contract.latency_factor
+        )
+        cmp_details = {
+            **cmp_details,
+            "name_lookup_ms_before": lookup_before,
+            "name_lookup_ms_after": lookup_after,
+        }
     return ok, {
         "failure": failure,
         "probe": contract.probe,

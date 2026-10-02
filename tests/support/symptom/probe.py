@@ -524,6 +524,16 @@ def run_probe_snapshot(
     if probe_kind == "http_by_name" and path.http_name_url:
         snap.http_ok = http_ok(runtime, src, path.http_name_url)
         snap.http_time_ms = http_time_ms(runtime, src, path.http_name_url)
+        lookup = exec_or_empty(
+            runtime,
+            src,
+            f"curl -s -o /dev/null -w '%{{http_code}} %{{time_namelookup}}' "
+            f"--connect-timeout 5 --max-time 20 {path.http_name_url}",
+            timeout=25,
+        ).strip()
+        matched = re.fullmatch(r"20[06] (\d+(?:\.\d+)?)", lookup)
+        if matched:
+            snap.extra["name_lookup_ms"] = float(matched.group(1)) * 1000.0
         return snap
     if probe_kind == "http_body_time" and (path.http_url or path.http_name_url):
         url = path.http_url or path.http_name_url or ""
