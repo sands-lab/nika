@@ -34,9 +34,6 @@ from nika.workflows.benchmark.isp_options import (
 )
 from nika.workflows.benchmark.resume import benchmark_option_id
 
-# Tiny fixed labs (e.g. iosxr_simple_bgp) stay in E2E/unit tests only —
-# not part of the executable benchmark candidate pool.
-EXCLUDED_SCENARIOS = frozenset({"iosxr_simple_bgp"})
 WORKING_DIRNAME = "working"
 POOL_DIRNAME = "pool"
 
@@ -184,7 +181,7 @@ def _failure_group_specs() -> Iterable[tuple[str, str, str, dict[str, Any] | Non
     for problem, problem_cls in sorted(list_avail_problem_instances().items()):
         problem_tags = set(problem_cls.TAGS)
         for scenario, scenario_spec in sorted(net_envs.items()):
-            if scenario in EXCLUDED_SCENARIOS:
+            if scenario_spec.benchmark_excluded:
                 continue
             if not problem_tags.issubset(set(scenario_spec.TAGS)):
                 continue
@@ -404,8 +401,8 @@ def _healthy_specs(
         seen.add(key)
         return scenario, topo_size, isp_options
 
-    for scenario in sorted(list_all_net_envs()):
-        if scenario in EXCLUDED_SCENARIOS:
+    for scenario, scenario_spec in sorted(list_all_net_envs().items()):
+        if scenario_spec.benchmark_excluded:
             continue
         if is_isp_base_topology(scenario):
             protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}

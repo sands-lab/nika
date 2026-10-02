@@ -80,8 +80,6 @@ def _switch_startup(
 class P4DcFabric(NetworkEnvBase):
     LAB_NAME = "p4_dc_fabric"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = ["link", "pc", "p4", "p4_runtime", "mac", "arp", "icmp", "http"]
     VERIFY_MAX_WAIT_SEC = 420
 
     def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):

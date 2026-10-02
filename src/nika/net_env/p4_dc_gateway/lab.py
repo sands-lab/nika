@@ -36,23 +36,6 @@ _MANAGER = Path(__file__).resolve().parents[1] / "utils" / "kathara" / "p4rt_man
 class P4DcGateway(NetworkEnvBase):
     LAB_NAME = "p4_dc_gateway"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "link",
-        "pc",
-        "p4",
-        "p4_runtime",
-        "mac",
-        "arp",
-        "icmp",
-        "http",
-        "int",
-        "telemetry",
-        "flow_tracking",
-        "ecn",
-        "queue",
-        "l4_load_balancer",
-    ]
     VERIFY_MAX_WAIT_SEC = 600
 
     def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):

@@ -76,22 +76,8 @@ class Isp(ContainerlabNetworkEnv):
 
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = None
-    TAGS = [
-        "isp",
-        "sndlib",
-        "srl",
-        "isis",
-        "ospf",
-        "bgp",
-        "igp",
-        "link",
-        "icmp",
-        "containerlab",
-    ]
     DESC = "ISP from SNDlib on Containerlab (Nokia SR Linux)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 600
-    SUPPORTED_BACKENDS: ClassVar[list[str]] = ["containerlab"]
 
     def __init__(
         self,

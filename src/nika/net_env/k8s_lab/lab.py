@@ -32,27 +32,6 @@ class K8sFatTreeBGP(NetworkEnvBase):
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 15
     TOPO_LEVEL = "hard"
-    TOPO_SIZE = None
-    TAGS = [
-        "kubernetes",
-        "k3s",
-        "k8s_control_plane",
-        "k8s_workload",
-        "ingress",
-        "metallb",
-        "coredns",
-        "kube_proxy",
-        "k8s_storage",
-        "network_policy",
-        "fat-tree",
-        "bgp",
-        "frr",
-        "link",
-        "pc",
-        "icmp",
-        "arp",
-        "mac",
-    ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

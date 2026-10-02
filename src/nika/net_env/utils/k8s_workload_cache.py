@@ -20,6 +20,7 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
     host_machine_arch,
 )
+from nika.net_env.net_env_pool import list_all_net_envs
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
@@ -75,7 +76,9 @@ LLMD_LAB_WORKLOAD_IMAGES = (
     "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
 )
 
-K8S_SCENARIOS = frozenset({K8S_LAB, LLMD_LAB})
+K8S_SCENARIOS = frozenset(
+    name for name, spec in list_all_net_envs().items() if spec.k8s_image_cache
+)
 
 _PRELOAD_SIGNAL_PATH = "/var/run/nika-images-preloaded"
 _MOUNT_CACHE_DIR = "/nika-image-cache"

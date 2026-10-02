@@ -144,24 +144,6 @@ class LLMDInferenceCluster(NetworkEnvBase):
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 2
     TOPO_LEVEL = "hard"
-    TOPO_SIZE = None
-    TAGS = [
-        "kubernetes",
-        "k3s",
-        "k8s_control_plane",
-        "metallb",
-        "coredns",
-        "kube_proxy",
-        "network_policy",
-        "llm",
-        "inference",
-        "link",
-        "pc",
-        "http",
-        "icmp",
-        "arp",
-        "mac",
-    ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

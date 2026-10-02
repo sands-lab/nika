@@ -83,20 +83,6 @@ class HostMeta:
 class DCClos(NetworkEnvBase):
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "mac",
-        "bgp",
-        "icmp",
-        "frr",
-        "pc",
-        "dns",
-        "http",
-        "dc_clos",
-        "forwarding_device",
-    ]
 
     def __init__(
         self,

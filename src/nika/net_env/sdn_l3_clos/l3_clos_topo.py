@@ -75,8 +75,6 @@ class HostMeta:
 class SDNL3Clos(NetworkEnvBase):
     LAB_NAME = "sdn_l3_clos"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = ["link", "sdn", "pc", "mac", "arp", "icmp", "http", "forwarding_device"]
     # ONOS JVM + OF sessions + proactive reconcile need more than the default 180s.
     VERIFY_MAX_WAIT_SEC = 420
 

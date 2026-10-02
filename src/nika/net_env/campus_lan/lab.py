@@ -10,22 +10,6 @@ from nika.net_env.base import NetworkEnvBase
 class CampusLan(NetworkEnvBase):
     LAB_NAME = "campus_lan"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "mac",
-        "icmp",
-        "frr",
-        "ospf",
-        "pc",
-        "http",
-        "dns",
-        "dhcp",
-        "load_balancer",
-        "forwarding_device",
-        "web",
-    ]
 
     def __init__(
         self,

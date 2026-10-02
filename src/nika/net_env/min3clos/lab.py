@@ -17,8 +17,6 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     # ref: https://containerlab.dev/lab-examples/min-clos/
     LAB_NAME = "min3clos"
     TOPO_LEVEL = "easy"
-    TOPO_SIZE = 5
-    TAGS = ["clos", "srl", "bgp", "link", "containerlab", "fabric"]
     DESC = "3-node CLOS fabric with Nokia SR Linux (Containerlab min-clos / clos01)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 300
 

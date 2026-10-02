@@ -19,9 +19,6 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     host_machine_arch,
 )
 
-# Their images need a licensed download; scripts/install.sh --with-vendor-images
-# prepares them.
-VENDOR_SCENARIOS = frozenset({"iosxr_simple_bgp", "routeros_simple_bgp"})
 VRNETLAB_BASE_IMAGE = "ghcr.io/srl-labs/vrnetlab-base:0.3.0"
 
 # Repositories only NIKA uses: install prunes their local tags that the
@@ -96,9 +93,15 @@ def runtime_images() -> list[str]:
 
     images = set(NIKA_IMAGE_DOCKERFILES)
     # k8s lab constructors stage Helm charts; their host images are static.
-    scenarios = set(list_all_net_envs(backend="kathara"))
+    # Licensed vendor images are prepared by install.sh --with-vendor-images.
     images.update(
-        collect_images_for_scenarios(scenarios - VENDOR_SCENARIOS - K8S_SCENARIOS)
+        collect_images_for_scenarios(
+            {
+                name
+                for name, spec in list_all_net_envs(backend="kathara").items()
+                if not spec.licensed_images and name not in K8S_SCENARIOS
+            }
+        )
     )
     for scenario in K8S_SCENARIOS:
         images.update(host_images_for_scenario(scenario))

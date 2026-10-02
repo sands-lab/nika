@@ -226,20 +226,6 @@ def _render_edge_frr(
 class EnterpriseBranch(NetworkEnvBase):
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "mac",
-        "icmp",
-        "frr",
-        "bgp",
-        "pc",
-        "http",
-        "vpn",
-        "nat",
-        "forwarding_device",
-    ]
     VERIFY_MAX_WAIT_SEC = 240
 
     def __init__(self, topo_size: TopoSize = "s", **kwargs):

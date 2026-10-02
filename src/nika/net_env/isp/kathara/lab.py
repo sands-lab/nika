@@ -60,18 +60,6 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
 class Isp(NetworkEnvBase):
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = None
-    TAGS = [
-        "isp",
-        "sndlib",
-        "frr",
-        "isis",
-        "ospf",
-        "bgp",
-        "igp",
-        "link",
-        "icmp",
-    ]
 
     def __init__(
         self,

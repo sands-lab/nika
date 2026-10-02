@@ -11,7 +11,6 @@ from nika.net_env.contract import ValidationContract
 
 class NetworkEnvBase:
     LAB_NAME: ClassVar[str | None] = None
-    SUPPORTED_BACKENDS: ClassVar[list[str]] = ["kathara"]
     """
     Base class for network environments."""
 
