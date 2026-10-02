@@ -2,8 +2,9 @@
 
 Labs of every resource class run concurrently, admitted one at a time while
 free memory stays above a per-class floor and load stays under a ceiling.
-Each class has a fixed number of concurrent slots. Heavy labs start first. Each audit
-closes only the session it started.
+Each class has a fixed number of concurrent slots, and the queue interleaves
+classes with heavy labs first in each round. Each audit closes only the session
+it started.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+from itertools import zip_longest
 import multiprocessing
 import os
 import time
@@ -366,9 +368,13 @@ def run_matrix(
             record = json.loads(path.read_text(encoding="utf-8"))
             if CaseAudit.model_validate(record["audit"]).admission() != "pass":
                 pending.append(row)
-    light = [row for row in pending if effective_class(row) == "light"]
-    heavy = [row for row in pending if effective_class(row) != "light"]
-    _run_group(heavy + light, jobs=max(1, jobs))
+    by_class: dict[str, list[dict[str, Any]]] = {}
+    for row in pending:
+        by_class.setdefault(effective_class(row), []).append(row)
+    # Interleave classes so workers waiting for a heavy slot do not idle the pool.
+    groups = [by_class.get(name, []) for name in ("k8s", "clab", "large", "light")]
+    queue = [row for batch in zip_longest(*groups) for row in batch if row is not None]
+    _run_group(queue, jobs=max(1, jobs))
     passed = 0
     for row in selected:
         if result_current(row):
