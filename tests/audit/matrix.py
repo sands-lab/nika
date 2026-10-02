@@ -111,10 +111,11 @@ def result_current(row: dict[str, Any]) -> bool:
     )
 
 
-_MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 16, "k8s": 24}
-_ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 45, "k8s": 90}
+_MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 32, "k8s": 24}
+# SR Linux nodes keep claiming memory for minutes after a clab lab deploys.
+_ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 180, "k8s": 90}
 # Labs keep growing after admission, so heavy classes also hold a slot for the whole case.
-_CLASS_SLOTS = {"light": 8, "large": 3, "clab": 2, "k8s": 2}
+_CLASS_SLOTS = {"light": 8, "large": 3, "clab": 1, "k8s": 2}
 _LOAD_CEILING = 2 * (os.cpu_count() or 1)
 _ADMISSION_LOCK = RESULTS_DIR.parent / ".environment-audit-admission.lock"
 
