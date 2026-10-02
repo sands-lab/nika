@@ -340,7 +340,12 @@ download_file() {
   mkdir -p "$(dirname "${dest}")"
   log "Downloading ${url}"
   # download.mikrotik.com often resets mid-transfer; resume the partial file.
-  curl -fL -C - --retry 5 --retry-delay 2 --retry-all-errors -o "${dest}.partial" "${url}"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    curl -fL -C - -o "${dest}.partial" "${url}" && break
+    [[ "${attempt}" -lt 5 ]] || die "download failed after 5 attempts: ${url}"
+    sleep 2
+  done
   mv "${dest}.partial" "${dest}"
 }
 
@@ -512,9 +517,9 @@ ensure_xrd_image() {
     tarball="${unpack_dir}/${inner}"
   fi
   log "Loading XRd tarball: ${tarball}"
-  load_out="$(docker load -i "${tarball}")"
-  printf '%s\n' "${load_out}"
+  load_out="$(docker load -i "${tarball}")" || load_out=""
   [[ -z "${unpack_dir}" ]] || rm -rf "${unpack_dir}"
+  printf '%s\n' "${load_out}"
 
   loaded="$(printf '%s\n' "${load_out}" | sed -n 's/^Loaded image: //p' | tail -n1)"
   if [[ -z "${loaded}" ]]; then
