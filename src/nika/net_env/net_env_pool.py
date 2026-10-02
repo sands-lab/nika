@@ -8,7 +8,7 @@ import inspect
 from pathlib import Path
 from typing import Any, Mapping
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.topology.sndlib.catalog import (
     SNDLIB_TOPOLOGY_NAMES,
     topology_size_for_name,
@@ -628,3 +628,13 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
     if isinstance(topo_size, str) and topo_size in {"s", "m", "l"}:
         return topo_size
     return None
+
+
+def scenario_probe_path(
+    scenario_name: str, *, topo_size: str = "s"
+) -> ProbePath | None:
+    """Return the default probe path declared by the scenario's lab class."""
+    spec = _require_scenario(scenario_name)
+    backend = resolve_scenario_backend(scenario_name, default_when_ambiguous="kathara")
+    cls = _load_net_env_class(scenario_name, backend=backend)
+    return cls.default_probe_path(topo_size=topo_size, **(spec.deploy_defaults or {}))

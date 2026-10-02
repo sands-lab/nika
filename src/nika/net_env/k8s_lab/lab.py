@@ -11,7 +11,7 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE, mount_workload_cache
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
@@ -221,6 +221,29 @@ class K8sFatTreeBGP(NetworkEnvBase):
     def load_machines(self):
         super().load_machines()
         self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "routers": [r for r in roles["routers"] if "leaf" in r] or roles["routers"],
+            "web": clients,
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client",
+            dst_ip="201.1.1.2",
+            http_url="http://datacenter.com/word",
+            control_plane_host="controller",
+            peer_host="as2r1",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.k8s_lab.verify import verify_k8s_lab_startup

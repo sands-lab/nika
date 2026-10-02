@@ -416,6 +416,14 @@ exit "$FAILED"
         setup.write_text(script, encoding="utf-8")
         setup.chmod(0o755)
 
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", topo=None, **deploy_kwargs):
+        if not isinstance(topo, str):
+            return None
+        from nika.net_env.isp.inject_targets import isp_topology_probe_path
+
+        return isp_topology_probe_path(topo)
+
     def deploy(self) -> None:
         require_gnmic()
         already_existed = self.lab_exists()

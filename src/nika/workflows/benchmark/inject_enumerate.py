@@ -18,9 +18,8 @@ from nika.workflows.benchmark.inject_resolve import (
     _load_inventory,
     _prefer_hq_server_prefix,
     _primary_hq_wg_targets,
-    _routers_with_bgp_network,
-    _routers_with_victim_hosts,
     _remote_prefixes_for_spoke,
+    _role_subset,
     resolve_inject_params,
 )
 
@@ -144,9 +143,9 @@ def _node_options(
         return [base]
     targets = _role_nodes(net_env, node)
     if problem == "bgp_missing_route_advertisement":
-        targets = _routers_with_bgp_network(targets, scenario=scenario)
+        targets = _role_subset(targets, net_env.target_roles(), "bgp_originators")
     elif problem in {"bgp_hijacking", "host_static_blackhole"}:
-        targets = _routers_with_victim_hosts(targets, scenario=scenario)
+        targets = _role_subset(targets, net_env.target_roles(), "access_routers")
     elif problem == "k8s_worker_apiserver_partition":
         # Partitioning the control plane from itself is unverifiable.
         from nika.problems.support.kubernetes.base import control_node_from_net_env

@@ -9,7 +9,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
 from nika.net_env.sdn_l3_clos.topology_model import (
     BASE_IMAGE,
@@ -326,6 +326,37 @@ class SDNL3Clos(NetworkEnvBase):
         from nika.net_env.sdn_l3_clos.fabric_manager import reconcile_fabric
 
         reconcile_fabric(self._build_runtime(), self.model, wait_onos=True)
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "web": roles["web"] or clients,
+            "controllers": list(self.sdn_controllers or []) or ["onos"],
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client_1_1"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        # Unknown sizes fall back to the small fabric's path.
+        model = build_clos_fabric_model(
+            topo_size if topo_size in {"s", "m", "l"} else "s"
+        )
+        clients = model.client_endpoints()
+        src = clients[0]
+        dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
+        peer = next((c for c in clients if c.name != src.name), None)
+        return ProbePath(
+            src_host=src.name,
+            dst_ip=dst.ip,
+            http_url=f"http://{dst.ip}/",
+            control_plane_host="onos",
+            peer_host=peer.name if peer else None,
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab_startup

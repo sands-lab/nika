@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Set
 
@@ -7,6 +8,23 @@ from nika.runtime.factory import runtime_for_net_env
 from nika.runtime.spec import LabSpec, MachineInventory, NodeIdentity, NodeRole
 
 from nika.net_env.contract import ValidationContract
+
+
+@dataclass(frozen=True)
+class ProbePath:
+    """Default traffic endpoints for a scenario (inject host pools / probes)."""
+
+    src_host: str
+    dst_ip: str | None = None
+    http_url: str | None = None
+    symptom_url: str | None = None
+    control_url: str | None = None
+    control_plane_host: str | None = None
+    ping_count: int = 20
+    gray_ping_count: int = 100
+    http_name_url: str | None = None
+    peer_host: str | None = None
+    old_ip: str | None = None
 
 
 class NetworkEnvBase:
@@ -69,6 +87,61 @@ class NetworkEnvBase:
         list them alongside link termination points.
         """
         return []
+
+    def target_roles(self) -> dict[str, list[str]]:
+        """Scenario node pools keyed by stable target-role name.
+
+        Fault-target resolution reads these instead of matching scenario names.
+        Requires a loaded inventory (``load_machines`` on a live or offline
+        lab); the default derives every role from that generic inventory and
+        scenarios override roles whose members their topology constrains.
+
+        Role keys (each value is a list of node names):
+
+        - ``hosts`` / ``host1_pool``: end hosts eligible as fault targets.
+        - ``routers``: routers eligible as router-level fault targets.
+        - ``web``: HTTP servers (or the hosts standing in for them).
+        - ``attacker_pool``: hosts eligible to source attack traffic.
+        - ``controllers``: SDN / control-plane nodes.
+        - ``k8s_nodes`` / ``k8s_controllers``: Kubernetes nodes / control plane.
+        - ``access_routers``: routers with attached end hosts.
+        - ``bgp_originators``: routers that originate BGP ``network`` prefixes.
+
+        Optional roles, absent unless the scenario declares them:
+
+        - ``edges``: site edge routers.
+        - ``l2_endpoints``: probe-path hosts that anchor L2 (ARP) endpoint
+          faults, preferred first. When absent, any host may be used.
+        """
+        hosts = list(self.hosts or [])
+        routers = list(self.routers or [])
+        k8s_nodes = list(getattr(self, "kubernetes_nodes", None) or [])
+        # Clos-style naming: spines only peer and carry no end hosts or
+        # ``network`` statements, so prefer leaves when the lab names them.
+        access_routers = [r for r in routers if "leaf" in r] or routers
+        return {
+            "hosts": hosts,
+            "host1_pool": hosts,
+            "routers": routers,
+            "web": list((self.servers or {}).get("web") or []),
+            "attacker_pool": hosts,
+            "controllers": list(self.sdn_controllers or []),
+            "k8s_nodes": k8s_nodes,
+            "k8s_controllers": [n for n in k8s_nodes if "controller" in n] or k8s_nodes,
+            "access_routers": access_routers,
+            "bgp_originators": access_routers,
+        }
+
+    @classmethod
+    def default_probe_path(
+        cls, *, topo_size: str = "s", **deploy_kwargs
+    ) -> ProbePath | None:
+        """Default traffic endpoints probed by injects and symptom checks.
+
+        ``deploy_kwargs`` are the scenario's deploy defaults (e.g. ISP ``topo``).
+        Returns ``None`` when the scenario declares no default path.
+        """
+        return None
 
     def _build_runtime(self) -> LabRuntime:
         if self.runtime is None:

@@ -407,6 +407,14 @@ class Isp(NetworkEnvBase):
             device_profile=self.device_profile,
         )
 
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", topo=None, **deploy_kwargs):
+        if not isinstance(topo, str):
+            return None
+        from nika.net_env.isp.inject_targets import isp_topology_probe_path
+
+        return isp_topology_probe_path(topo)
+
     def startup_verify_lab(self) -> dict:
         from nika.net_env.isp.kathara.verify import verify_isp_lab_startup
 

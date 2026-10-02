@@ -8,6 +8,7 @@ import time
 from typing import ClassVar
 
 from nika.config import RUNTIME_DIR
+from nika.net_env.base import ProbePath
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
 from nika.utils.dependencies import require_gnmic
@@ -172,6 +173,29 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             raise RuntimeError(
                 f"min3clos setup.sh failed: {result.stderr or result.stdout}"
             )
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "routers": [r for r in roles["routers"] if "leaf" in r] or roles["routers"],
+            "web": clients,
+            "l2_endpoints": clients,
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client1",
+            dst_ip="10.0.0.27",
+            http_url=None,
+            control_plane_host="leaf1",
+            peer_host="client2",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.min3clos.verify import verify_min3clos_lab_startup

@@ -9,7 +9,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
     edge_name_for,
@@ -623,6 +623,39 @@ class EnterpriseBranch(NetworkEnvBase):
     def _write_host_configs(self) -> None:
         for host in self._hosts.values():
             self.lab.create_file_from_list(host.cmd_list, f"{host.name}.startup")
+
+    def target_roles(self) -> dict[str, list[str]]:
+        """CORP/SERVER hosts on the overlay business path; edges as routers."""
+        hosts = list(self.hosts or [])
+        routers = list(self.routers or [])
+        corp = [
+            h
+            for h in hosts
+            if "_corp_pc" in h or h.endswith("_srv") or h.endswith("_srv2")
+        ] or [h for h in hosts if "_guest_pc" not in h and "_iot_pc" not in h]
+        edges = [r for r in routers if r.endswith("_edge")] or routers
+        return {
+            **super().target_roles(),
+            "hosts": corp,
+            "host1_pool": corp,
+            "routers": edges,
+            "edges": edges,
+            "web": [h for h in corp if h.startswith("hq_")] or corp,
+            "attacker_pool": [h for h in corp if h.startswith("br1_")] or corp,
+            "access_routers": edges,
+            "bgp_originators": edges,
+            "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="br1_corp_pc",
+            dst_ip="10.0.20.2",
+            http_url="http://10.0.20.2/small.bin",
+            control_plane_host="br1_edge",
+            peer_host="hq_corp_pc",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.enterprise_branch.verify import (

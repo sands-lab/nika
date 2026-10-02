@@ -19,7 +19,7 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import REPO_ROOT, RUNTIME_DIR
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.k8s_workload_cache import (
     K3S_IMAGE,
     LLMD_LAB_WORKLOAD_IMAGES,
@@ -300,6 +300,30 @@ class LLMDInferenceCluster(NetworkEnvBase):
     def load_machines(self):
         super().load_machines()
         self.kubernetes_nodes = self.machine_inventory.names_for_capability("k3s")
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "routers": roles["k8s_controllers"] or clients,
+            "web": roles["web"] or clients,
+            "controllers": roles["k8s_controllers"],
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client",
+            dst_ip="200.0.0.8",
+            http_url="http://200.0.0.8/",
+            control_plane_host="controller",
+            peer_host="web",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.llmd_lab.verify import verify_llmd_lab_startup
