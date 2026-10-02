@@ -15,6 +15,7 @@ from nika.problems.rca.inventory import (
     resolve_default_intf,
 )
 from nika.problems.rca.models import UnresolvedRootCauseError
+from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.utils.logger import system_logger
 from nika.traffic.burst import BurstTrafficGenerator
 
@@ -29,17 +30,6 @@ from nika.traffic.burst import BurstTrafficGenerator
 
 _TC_SIZE_RE = re.compile(r"^(\d+(?:\.\d+)?)([kmg]?)b?$", re.IGNORECASE)
 _TBF_LIMIT_RE = re.compile(r"\btbf\b.*?\blimit\s+(\S+)", re.IGNORECASE)
-# Columns where the receiver hangs off a point-to-point forwarding hop.
-_INCAST_COLUMNS = frozenset(
-    {
-        "campus_lan",
-        "dc_clos",
-        "enterprise_branch",
-        "p4_dc_fabric",
-        "p4_dc_gateway",
-        "sdn_l3_clos",
-    }
-)
 # (port_rate, sender_rate) defaults per forwarding plane. BMv2 forwards in
 # software at roughly 10 Mbit/s, so a 100mbit egress never queues behind it; the
 # emulated port must drain slower than the switch forwards for bursts to pile up.
@@ -118,7 +108,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
         "bursts toward one receiver."
     )
     TAGS: str = ["http"]
-    COMPATIBLE_COLUMNS = _INCAST_COLUMNS
+    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS
 
     Params = IncastTrafficNetworkLimitationParams
 

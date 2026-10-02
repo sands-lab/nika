@@ -183,10 +183,7 @@ def _failure_group_specs() -> Iterable[tuple[str, str, str, dict[str, Any] | Non
         for scenario, scenario_spec in sorted(net_envs.items()):
             if scenario_spec.benchmark_excluded:
                 continue
-            if not problem_tags.issubset(set(scenario_spec.TAGS)):
-                continue
-            allowed = problem_cls.compatible_scenarios()
-            if allowed is not None and scenario not in allowed:
+            if not problem_cls.is_compatible(scenario):
                 continue
             if is_isp_named_special(scenario):
                 for stack in _isp_stack_variants(scenario, problem_cls):
@@ -198,10 +195,10 @@ def _failure_group_specs() -> Iterable[tuple[str, str, str, dict[str, Any] | Non
                     )
                 continue
             if is_isp_base_topology(scenario):
-                # RPKI only on named RPKI scenarios (handled above via tags).
-                if problem == "bgp_rpki_invalid_route_leak":
-                    continue
                 protocol = isp_config_for_problem(problem, problem_tags)
+                # RPKI profiles deploy only on named RPKI scenarios (above).
+                if protocol["rpki"]:
+                    continue
                 for stack in _isp_stack_variants(scenario, problem_cls):
                     yield (
                         problem,

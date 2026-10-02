@@ -94,12 +94,10 @@ def get_problem_class(problem_name: str) -> type[ProblemBase] | None:
 
 def compatible(problem: str, column: str) -> bool:
     """Return whether ``problem`` can inject usefully on coverage ``column``."""
-    from nika.net_env.net_env_pool import effective_tags
-
     cls = get_problem_class(problem)
     if cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
-    return cls.matches_column(column, effective_tags(column))
+    return cls.is_compatible(column)
 
 
 def compatible_columns(problem: str) -> list[str]:

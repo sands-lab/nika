@@ -68,14 +68,21 @@ def isp_stack_for_backend(backend: str) -> dict[str, str]:
 
 
 def isp_config_for_problem(problem: str, problem_tags: set[str]) -> dict[str, Any]:
-    """Pick ISP protocol options from failure needs (topology comes from scenario)."""
-    if problem == "bgp_rpki_invalid_route_leak":
-        return {"igp": "ospf", "bgp_mode": "ebgp", "rpki": True}
-    if problem == "bgp_max_prefix_exceeded":
-        return {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
-    if "ospf" in problem_tags or problem.startswith("ospf_"):
+    """Pick ISP protocol options from failure needs (topology comes from scenario).
+
+    A failure's declared ``isp_protocol`` wins; otherwise the stack follows
+    ``problem_tags`` plus the failure's own TAGS.
+    """
+    from nika.problems.registry import get_problem_class
+
+    problem_cls = get_problem_class(problem)
+    if problem_cls is not None:
+        if problem_cls.isp_protocol is not None:
+            return dict(problem_cls.isp_protocol)
+        problem_tags = set(problem_tags) | set(problem_cls.TAGS)
+    if "ospf" in problem_tags:
         return {"igp": "ospf", "bgp_mode": "none", "rpki": False}
-    if "bgp" in problem_tags or problem.startswith("bgp_"):
+    if "bgp" in problem_tags:
         return {"igp": DEFAULT_IGP, "bgp_mode": "ibgp_rr", "rpki": False}
     return {"igp": DEFAULT_IGP, "bgp_mode": DEFAULT_BGP_MODE, "rpki": False}
 
@@ -181,12 +188,8 @@ def validate_and_resolve_isp_options(
             None if device_profile in (None, "", "-") else str(device_profile)
         ),
     }
-    any_protocol = any(
-        provided[key] is not None for key in ("igp", "bgp_mode", "rpki")
-    )
-    any_stack = any(
-        provided[key] is not None for key in ("backend", "device_profile")
-    )
+    any_protocol = any(provided[key] is not None for key in ("igp", "bgp_mode", "rpki"))
+    any_stack = any(provided[key] is not None for key in ("backend", "device_profile"))
     topo_provided = provided["topo"] is not None
 
     if not is_isp_scenario(scenario):

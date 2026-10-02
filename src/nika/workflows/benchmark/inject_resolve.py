@@ -2107,12 +2107,14 @@ def validate_benchmark_case(
     if problem not in problems:
         raise ValueError(f"Unknown problem {problem!r}")
 
-    problem_tags = set(problems[problem].TAGS)
-    available_tags = set(registered_tags)
-    if not problem_tags.issubset(available_tags):
+    problem_cls = problems[problem]
+    if not problem_cls.is_compatible(canonical):
+        compatible_columns = problem_cls.COMPATIBLE_COLUMNS
         raise ValueError(
-            f"Tag mismatch for {problem} on {scenario}: "
-            f"problem tags {sorted(problem_tags)} not subset of scenario tags {sorted(available_tags)}"
+            f"Incompatible {problem} on {scenario}: problem tags "
+            f"{sorted(problem_cls.TAGS)}, scenario tags {sorted(registered_tags)}, "
+            f"compatible columns "
+            f"{sorted(compatible_columns) if compatible_columns is not None else 'any'}"
         )
 
     if net_env is None:

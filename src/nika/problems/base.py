@@ -91,6 +91,11 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # ISP protocol stack (``igp`` / ``bgp_mode`` / ``rpki``) this failure needs on
+    # a base ``isp_<topo>`` scenario. ``None`` derives it from TAGS (``ospf`` ->
+    # OSPF only, ``bgp`` -> iBGP route reflection, else the default stack). An
+    # ``rpki`` profile is only deployable on named RPKI scenarios.
+    isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
     # Optional protocol whose adjacency effect this failure declares.
@@ -98,19 +103,25 @@ class ProblemBase:
     effect_property: ClassVar[str | None] = None
 
     @classmethod
-    def matches_column(cls, column: str, column_tags: frozenset[str]) -> bool:
-        """Return whether this failure can inject usefully on ``column``."""
-        allowed = cls.COMPATIBLE_COLUMNS
-        if allowed is not None and column not in allowed:
-            return False
-        return frozenset(cls.TAGS).issubset(column_tags)
+    def is_compatible(cls, target: str) -> bool:
+        """Return whether this failure can inject usefully on ``target``.
 
-    @classmethod
-    def compatible_scenarios(cls) -> frozenset[str] | None:
-        """Scenario names implied by ``COMPATIBLE_COLUMNS``, or ``None`` if open."""
-        if cls.COMPATIBLE_COLUMNS is None:
-            return None
-        return frozenset(column.partition("/")[0] for column in cls.COMPATIBLE_COLUMNS)
+        Single failure/scenario compatibility predicate. ``target`` is a scenario
+        id or a coverage column id (``isp_<topo>/<config>``). TAGS must be a
+        subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
+        set the target must be listed; a bare scenario id matches when any of
+        its columns is listed.
+        """
+        from nika.net_env.net_env_pool import effective_tags, parse_column
+
+        allowed = cls.COMPATIBLE_COLUMNS
+        if (
+            allowed is not None
+            and target not in allowed
+            and target not in {parse_column(column)[0] for column in allowed}
+        ):
+            return False
+        return frozenset(cls.TAGS).issubset(effective_tags(target))
 
     net_env: NetworkEnvBase
     runtime: LabRuntime

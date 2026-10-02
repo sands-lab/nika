@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import interface_resource, node_resource
+from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
 from nika.problems.support.p4_gateway import (
     set_icmp_frag_needed_filter,
     set_int_mtu,
@@ -44,22 +45,6 @@ def read_runtime_config_value(
 # ``ip protocol icmp`` dependency), so verify_fault can match it exactly.
 _FRAG_NEEDED_NFT_RULE = "icmp type destination-unreachable icmp code frag-needed drop"
 
-_FRAG_NEEDED_COLUMNS = frozenset(
-    {
-        "p4_dc_gateway",
-        "dc_clos",
-        "campus_lan",
-        "enterprise_branch",
-        "k8s_lab",
-        "isp_abilene/isis",
-        "isp_abilene/ospf",
-        "isp_abilene/ibgp_rr",
-        "isp_abilene_ebgp_rpki",
-        "isp_geant_ebgp_rpki",
-        "isp_abilene_ebgp_rtbh",
-    }
-)
-
 
 class IcmpFragNeededFilterMisconfigurationParams(BaseModel):
     host_name: str = Field(
@@ -77,7 +62,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         "MTU and large transfers stall while small packets still work."
     )
     TAGS = ["icmp"]
-    COMPATIBLE_COLUMNS = _FRAG_NEEDED_COLUMNS
+    COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
     Params = IcmpFragNeededFilterMisconfigurationParams
 
     def root_cause_resources(self, params: IcmpFragNeededFilterMisconfigurationParams):
