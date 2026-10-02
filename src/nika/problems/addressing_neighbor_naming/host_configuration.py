@@ -14,6 +14,11 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    choice_distinct,
+    endpoint_target,
+    require_distinct_hosts,
+)
 from nika.utils.logger import system_logger
 
 
@@ -70,6 +75,10 @@ class HostMissingIP(ProblemBase):
     RECORDED_ATTRS = ("intf_name",)
 
     Params = HostMissingIPParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx, with_intf=True)
 
     symptom_desc = (
         "Some hosts are unable to communicate with other devices in the network."
@@ -132,6 +141,32 @@ class HostIPConflict(ProblemBase):
 
     Params = HostIPConflictParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        servers = ctx.servers
+        conflict_pool = list(ctx.host_pool)
+        for bucket in (servers.get("web") or [], servers.get("dns") or []):
+            for name in bucket:
+                if name not in conflict_pool:
+                    conflict_pool.append(name)
+        if len(conflict_pool) < 2:
+            # Fall back to all declared hosts + web servers from inventory.
+            conflict_pool = list(
+                dict.fromkeys(
+                    list(ctx.hosts)
+                    + list(servers.get("web") or [])
+                    + list(servers.get("dns") or [])
+                )
+            )
+        pair = choice_distinct(ctx.rng, conflict_pool, ctx.host0)
+        if pair[0] == pair[1] and len(conflict_pool) >= 2:
+            pair = [conflict_pool[0], conflict_pool[1]]
+        return {"host_name": pair[0], "host_name_2": pair[1]}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_distinct_hosts(ctx, cls.root_cause_name, inject)
+
     symptom_desc = "Some hosts experience intermittent connectivity issues."
 
     def __init__(self, scenario_name: str | None, **kwargs):
@@ -192,6 +227,10 @@ class HostIncorrectIP(ProblemBase):
     TAGS: str = ["pc"]
 
     Params = HostIncorrectIPParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx)
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
@@ -278,6 +317,10 @@ class HostIncorrectGateway(ProblemBase):
 
     Params = HostIncorrectGatewayParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx)
+
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
     def __init__(self, scenario_name: str | None, **kwargs):
@@ -346,6 +389,12 @@ class HostIncorrectNetmask(ProblemBase):
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectNetmaskParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = endpoint_target(ctx)
+        params["netmask_prefix"] = "8"
+        return params
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
@@ -418,6 +467,10 @@ class HostIncorrectDNS(ProblemBase):
     TAGS: str = ["dns"]
 
     Params = HostIncorrectDNSParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx)
 
     symptom_desc = "Some hosts are unable to access web services."
 

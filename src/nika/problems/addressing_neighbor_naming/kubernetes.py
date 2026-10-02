@@ -18,6 +18,9 @@ from nika.problems.support.kubernetes.node_filter import (
 from nika.problems.base import (
     FailureDomain,
 )
+from nika.problems.support.benchmark_targets import (
+    k8s_control_node,
+)
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -88,6 +91,21 @@ class CoreDNSIsolation(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "coredns"]
 
     Params = CoreDNSIsolationParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        k8s_nodes = ctx.roles.get("k8s_nodes") or []
+        control = k8s_control_node(ctx)
+        # node_name is intentionally left unset: the fault resolves the nodes
+        # actually hosting CoreDNS at inject time, which is where isolating it
+        # takes the whole cluster's name resolution down.
+        workers = sorted(node for node in k8s_nodes if node != control)
+        return {
+            "control_node": control,
+            "symptom_host": workers[0] if workers else control,
+        }
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)

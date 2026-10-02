@@ -5,6 +5,11 @@ from nika.problems.base import (
     ProblemBase,
     build_verify_result,
 )
+from nika.problems.support.benchmark_targets import (
+    all_device_names,
+    choice_interface,
+    prefer_named,
+)
 from nika.problems.rca.inventory import interface_on
 
 
@@ -25,6 +30,27 @@ class DNSLookupLatency(ProblemBase):
     TAGS: str = ["dns", "http"]
 
     Params = DNSLookupLatencyParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        dns_list = list(ctx.servers.get("dns") or [])
+        if ctx.scenario == "dc_clos":
+            dns_target = prefer_named(dns_list, "dns_pod0", ctx.dns0)
+        elif ctx.scenario == "campus_lan":
+            dns_target = prefer_named(dns_list, "dns_server", ctx.dns0)
+        else:
+            dns_target = (
+                ctx.dns0 if ctx.dns0 in all_device_names(ctx.net_env) else ctx.host0
+            )
+        return {
+            "host_name": dns_target,
+            "intf_name": choice_interface(
+                ctx.rng, ctx.net_env, dns_target, ctx.backend
+            ),
+            "delay_ms": "1000",
+        }
 
     def __init__(self, scenario_name: str = "dc_clos", **kwargs):
         super().__init__(scenario_name, **kwargs)
