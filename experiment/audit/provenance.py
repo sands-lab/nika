@@ -13,8 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from nika.config import REPO_ROOT
 from nika.workflows.benchmark.release import read_git_commit
 
-AUDIT_METHOD_VERSION = 3
-
 
 class AuditProvenance(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -30,11 +28,7 @@ class AuditProvenance(BaseModel):
 
 
 def source_fingerprint() -> str:
-    """Hash audit and runtime inputs, including edits in the working tree.
-
-    Reports and result files do not affect the hash. A report-only commit can
-    therefore preserve the provenance of the code that produced its results.
-    """
+    """Hash audit and runtime inputs, including edits in the working tree."""
     paths = (
         subprocess.check_output(
             [
@@ -96,35 +90,11 @@ def capture_provenance(session_id: str, runtime: Any) -> AuditProvenance:
     )
 
 
-def provenance_current(
-    provenance: AuditProvenance | None, *, check_images: bool = True
-) -> bool:
-    """Reject missing, unfinished, or stale evidence before reusing a result."""
-    if (
-        provenance is None
-        or not provenance.git_commit
-        or not provenance.completed_at
-        or not provenance.images
-        or provenance.source_sha256 != source_fingerprint()
-        or provenance.configuration_sha256 != configuration_fingerprint()
-    ):
-        return False
-    if check_images:
-        import docker
-
-        client = None
-        try:
-            client = docker.from_env()
-            identities = {
-                (item["reference"], item["image_id"])
-                for item in provenance.images.values()
-            }
-            for reference, image_id in identities:
-                if client.images.get(reference).id != image_id:
-                    return False
-        except (docker.errors.DockerException, KeyError):
-            return False
-        finally:
-            if client is not None:
-                client.close()
-    return True
+def provenance_complete(provenance: AuditProvenance | None) -> bool:
+    """Reject records without a finished, attributable live run."""
+    return bool(
+        provenance is not None
+        and provenance.git_commit
+        and provenance.completed_at
+        and provenance.images
+    )

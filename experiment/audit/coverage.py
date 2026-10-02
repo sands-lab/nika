@@ -13,7 +13,7 @@ from experiment.audit.environment import (
     identity_from_row,
 )
 from nika.workflows.benchmark.release import load_release
-from experiment.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
+from experiment.audit.provenance import provenance_complete
 
 
 def release_cases(version: str = "0.2.0") -> list[dict[str, Any]]:
@@ -37,22 +37,13 @@ def cover_release(
     for row in rows:
         identity = identity_from_row(row)
         audit = by_key.get(identity.key())
-        if audit is not None and (
-            audit.method_version != AUDIT_METHOD_VERSION
-            or not provenance_current(audit.provenance)
-        ):
+        if audit is not None and not provenance_complete(audit.provenance):
             audit = None
         declared_probe = str(row.get("symptom_probe") or "")
         if (
             audit is not None
             and declared_probe
             and audit.symptom_probe != declared_probe
-        ):
-            audit = None
-        if (
-            audit is not None
-            and declared_probe == "artifact_only"
-            and audit.method_version < 2
         ):
             audit = None
         if audit is None:

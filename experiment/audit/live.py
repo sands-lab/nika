@@ -18,7 +18,7 @@ from experiment.audit.environment import (
     classify_observation,
     identity_from_row,
 )
-from experiment.audit.provenance import AUDIT_METHOD_VERSION, capture_provenance
+from experiment.audit.provenance import capture_provenance
 from nika.net_env.verify import (
     http_download_stats,
     http_ok,
@@ -512,7 +512,6 @@ def audit_open_session(
             identity=identity,
             stages=stages,
             symptom_probe=probe,
-            method_version=AUDIT_METHOD_VERSION,
             provenance=provenance,
         )
 
@@ -523,7 +522,6 @@ def audit_open_session(
             identity=identity,
             stages=stages,
             symptom_probe=probe,
-            method_version=AUDIT_METHOD_VERSION,
             provenance=provenance,
         )
 
@@ -700,7 +698,6 @@ def audit_open_session(
         identity=identity,
         stages=stages,
         symptom_probe=probe,
-        method_version=AUDIT_METHOD_VERSION,
         provenance=provenance,
     )
 

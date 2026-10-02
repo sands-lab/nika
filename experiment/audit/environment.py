@@ -89,7 +89,6 @@ class CaseAudit(BaseModel):
     identity: CaseIdentity
     stages: list[StageResult] = Field(default_factory=list)
     symptom_probe: str = ""
-    method_version: int = 1
     provenance: AuditProvenance | None = None
 
     def admission(self) -> AuditStatus:

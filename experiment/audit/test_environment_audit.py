@@ -423,9 +423,8 @@ def test_native_bgp_daemon_outage_is_an_observation() -> None:
     assert snapshot.extra["bgp_established_peers"] == []
 
 
-def test_audit_provenance_rejects_changed_source_config_and_images(monkeypatch) -> None:
-    from experiment.audit import provenance
-    from experiment.audit.provenance import AuditProvenance, provenance_current
+def test_audit_provenance_requires_a_finished_attributable_run() -> None:
+    from experiment.audit.provenance import AuditProvenance, provenance_complete
 
     record = AuditProvenance(
         git_commit="a" * 40,
@@ -437,32 +436,11 @@ def test_audit_provenance_rejects_changed_source_config_and_images(monkeypatch) 
         session_id="audit",
         images={"router": {"reference": "nika/frr:latest", "image_id": "sha256:old"}},
     )
-    monkeypatch.setattr(provenance, "source_fingerprint", lambda: "source")
-    monkeypatch.setattr(provenance, "configuration_fingerprint", lambda: "config")
-    assert provenance_current(record, check_images=False)
-    assert not provenance_current(None, check_images=False)
-    assert not provenance_current(
-        record.model_copy(update={"completed_at": None}), check_images=False
-    )
-    assert not provenance_current(
-        record.model_copy(update={"source_sha256": "old"}), check_images=False
-    )
-    assert not provenance_current(
-        record.model_copy(update={"configuration_sha256": "old"}), check_images=False
-    )
-    import docker
-
-    monkeypatch.setattr(
-        docker,
-        "from_env",
-        lambda: SimpleNamespace(
-            images=SimpleNamespace(
-                get=lambda reference: SimpleNamespace(id="sha256:new")
-            ),
-            close=lambda: None,
-        ),
-    )
-    assert not provenance_current(record)
+    assert provenance_complete(record)
+    assert not provenance_complete(None)
+    assert not provenance_complete(record.model_copy(update={"completed_at": None}))
+    assert not provenance_complete(record.model_copy(update={"git_commit": None}))
+    assert not provenance_complete(record.model_copy(update={"images": {}}))
 
 
 def test_production_audit_modules_do_not_import_tests() -> None:

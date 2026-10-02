@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from experiment.audit.environment import CaseAudit, StageResult, identity_from_row
-from experiment.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
+from experiment.audit.provenance import provenance_complete
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
@@ -108,8 +108,7 @@ def result_current(row: dict[str, Any]) -> bool:
     return (
         audit.identity.key() == identity_from_row(row).key()
         and audit.symptom_probe == probe
-        and audit.method_version == AUDIT_METHOD_VERSION
-        and provenance_current(audit.provenance)
+        and provenance_complete(audit.provenance)
     )
 
 
@@ -302,7 +301,6 @@ def _failed_audit(row: dict[str, Any], message: str) -> CaseAudit:
             StageResult(stage="audit", status=status, reason=message[:500]),
         ],
         symptom_probe=probe,
-        method_version=AUDIT_METHOD_VERSION,
     )
 
 

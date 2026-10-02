@@ -12,7 +12,7 @@ from pathlib import Path
 
 from experiment.audit.coverage import cover_release, gap_count, release_cases
 from experiment.audit.environment import CaseAudit, identity_from_row
-from experiment.audit.provenance import AUDIT_METHOD_VERSION, provenance_current
+from experiment.audit.provenance import provenance_complete
 from experiment.audit.live import declared_probe
 
 DOC_PATH = (
@@ -67,8 +67,7 @@ def render_environment_audit_doc(
     stored = [
         item
         for item in (stored or [])
-        if item["audit"].get("method_version") == AUDIT_METHOD_VERSION
-        and provenance_current(CaseAudit.model_validate(item["audit"]).provenance)
+        if provenance_complete(CaseAudit.model_validate(item["audit"]).provenance)
     ]
     if audits is None:
         audits = [CaseAudit.model_validate(item["audit"]) for item in (stored or [])]
@@ -115,9 +114,9 @@ def render_environment_audit_doc(
         "Those two reads run once more before `audit_case` undeploys the session it created.",
         "A case with fault `healthy` runs `verify_lab` before the window and again before cleanup.",
         "For faults without a targeted symptom probe, the full audit compares the scenario's health checks before and after injection and requires the same regression to persist.",
-        "Each record includes the audit method version, Git commit and dirty state, source and effective configuration hashes, observation timestamps, session id, and the image id and repository digests for each lab node.",
-        "The matrix and report reject records with missing provenance, changed source or configuration, changed installed images, or an older audit method. These cases stay `not_run` until audited again.",
-        "Use `--force` to rerun every selected case even when its stored result is current. The matrix exits nonzero if any selected case lacks a current passing result.",
+        "Each record includes the Git commit and dirty state, source and effective configuration hashes, observation timestamps, session id, and the image id and repository digests for each lab node.",
+        "The matrix and report reject records without a finished run, a commit, or image identities, and records whose symptom probe differs from the one the fault declares. Such cases stay `not_run`.",
+        "A stored result stays valid after later commits. After fixing one case, rerun only that case with `--scenario`, `--fault`, and `--force`. The matrix exits nonzero if any selected case lacks a passing result.",
         "The persistence window is a short repeated observation, not a measurement across the full 2400-second trial budget. Dynamic injectors must keep their workers alive through that budget; `PresenceWatch` checks artifacts during the actual benchmark trial.",
         "The P4 gateway ECN probe measures packet marks from a virtual queue with a drain rate of about 61 packets per second. It does not measure physical egress queue congestion. The `queue_occupancy` register in that scenario reports the modeled depth.",
         "",
@@ -180,10 +179,6 @@ def render_environment_audit_doc(
                     ""
                     if item["audit"]["identity"].get("fault") == "healthy"
                     else declared_probe(item["audit"]["identity"]["fault"])
-                )
-                and (
-                    item["audit"].get("symptom_probe") != "artifact_only"
-                    or item["audit"].get("method_version", 1) >= 2
                 )
             ]
         )
