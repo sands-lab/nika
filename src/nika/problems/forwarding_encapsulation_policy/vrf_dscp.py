@@ -22,6 +22,7 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.rca import interface_resource
+from nika.problems.support.benchmark_targets import replace
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -30,6 +31,15 @@ _NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
 _SETTLE_SEC = 4
 _PROBE_PORT = 5198
+
+
+def _remark_targets(net_env: Any, topo_size: str) -> list[Any]:
+    targets = getattr(net_env, "dscp_remark_targets", None)
+    if targets is None:
+        raise ValueError(
+            f"No DSCP remark inject targets for enterprise_branch topo_size={topo_size!r}"
+        )
+    return targets()
 
 
 class VrfDscpRemarkingParams(BaseModel):
@@ -65,6 +75,7 @@ class VrfDscpRemarking(ProblemBase):
     description = "VRF edge incorrectly remarks high-priority DSCP."
     TAGS: list[str] = ["vpn"]
     Params = VrfDscpRemarkingParams
+    BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "High-priority CORP realtime traffic that should keep DSCP EF is "
         "incorrectly remarked to CS0/BE at a Site Edge LAN→overlay boundary. "
@@ -80,6 +91,64 @@ class VrfDscpRemarking(ProblemBase):
         self._workload: qos_traffic.CompeteHandle | None = None
         self._baseline: qos_traffic.FlowMetrics | None = None
         self._corp_prefix: str | None = None
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        targets = _remark_targets(ctx.net_env, ctx.topo_size)
+        if not targets:
+            raise ValueError(
+                "No DSCP remark inject targets for enterprise_branch "
+                f"topo_size={ctx.topo_size!r}"
+            )
+        target = ctx.rng.choice(targets)
+        return {
+            "host_name": target.edge,
+            "intf_name": target.intf_name,
+            "src_host": target.src_host,
+            "dst_host": target.dst_host,
+            "direction": "lan_to_overlay",
+            "corp_prefix": target.corp_prefix,
+        }
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return [
+            replace(
+                base,
+                host_name=target.edge,
+                intf_name=target.intf_name,
+                src_host=target.src_host,
+                dst_host=target.dst_host,
+                corp_prefix=target.corp_prefix,
+            )
+            for target in _remark_targets(ctx.net_env, ctx.topo_size)
+        ]
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+        scenario, topo_size = ctx.scenario, ctx.topo_size
+        if not is_enterprise_branch_scenario(scenario):
+            raise ValueError(
+                f"vrf_dscp_remarking requires enterprise_branch (got {scenario!r})"
+            )
+        eligible_keys = {
+            (t.edge, t.intf_name, t.src_host, t.dst_host)
+            for t in _remark_targets(ctx.net_env, topo_size)
+        }
+        key = (
+            inject.get("host_name") or "",
+            inject.get("intf_name") or "",
+            inject.get("src_host") or "",
+            inject.get("dst_host") or "",
+        )
+        if key not in eligible_keys:
+            raise ValueError(
+                f"vrf_dscp_remarking target {key!r} is not an eligible "
+                f"LAN→overlay CORP path on {scenario} (topo_size={topo_size!r}); "
+                f"eligible count={len(eligible_keys)}"
+            )
 
     def root_cause_resources(self, params: VrfDscpRemarkingParams):
         return [interface_resource(params.host_name, params.intf_name)]
