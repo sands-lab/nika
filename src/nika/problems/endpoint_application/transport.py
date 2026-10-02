@@ -17,6 +17,7 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import endpoint_target, first
 from nika.problems.support.cpu_quota_helpers import (
     cpu_quota_to_nano_cpus,
     read_nano_cpus,
@@ -157,6 +158,99 @@ class SenderResourceContention(ProblemBase):
         "Large or sustained HTTP transfers become slower while the network path, "
         "routing, packet loss, and basic TCP connectivity remain healthy."
     )
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        # Prefer real HTTP servers over client pools that some scenarios label "web".
+        scenario, net_env = ctx.scenario, ctx.net_env
+        host_pool, host0, web0 = ctx.host_pool, ctx.host0, ctx.web0
+        params: dict[str, str] = {}
+        web_pool = list(ctx.servers.get("web") or []) or list(
+            ctx.roles.get("web") or []
+        )
+        if scenario == "enterprise_branch":
+            params["host_name"] = (
+                "hq_srv"
+                if "hq_srv" in web_pool
+                else (web0 if web0 in web_pool else (first(web_pool) or host0))
+            )
+            params["client_host"] = (
+                "br1_corp_pc" if "br1_corp_pc" in host_pool else host0
+            )
+            params["dst_ip"] = "10.0.20.2"
+            params["small_url"] = "http://10.0.20.2/small.bin"
+            params["large_url"] = "http://10.0.20.2/large.bin"
+            params["cpu_quota"] = "0.05"
+            params["stress_cpus"] = "16"
+        elif scenario == "dc_clos":
+            params["host_name"] = (
+                "webserver0_pod0"
+                if "webserver0_pod0" in web_pool
+                else (first(web_pool) or web0 or host0)
+            )
+            params["client_host"] = "client_0"
+            params["dst_ip"] = "10.0.1.2"
+            params["small_url"] = "http://web0.pod0/small.bin"
+            params["large_url"] = "http://web0.pod0/large.bin"
+            params["cpu_quota"] = "0.05"
+            params["stress_cpus"] = "16"
+        elif scenario == "campus_lan":
+            params["host_name"] = (
+                "web_server_0"
+                if "web_server_0" in web_pool
+                else (web0 if web0 in web_pool else (first(web_pool) or host0))
+            )
+            params["client_host"] = "pc_1_1_1_1" if "pc_1_1_1_1" in host_pool else host0
+            params["dst_ip"] = "10.200.0.3"
+            params["small_url"] = "http://10.200.0.3/small.bin"
+            params["large_url"] = "http://10.200.0.3/large.bin"
+            params["cpu_quota"] = "0.05"
+            params["stress_cpus"] = "16"
+        elif scenario == "llmd_lab":
+            params["host_name"] = (
+                "web" if "web" in web_pool else (first(web_pool) or host0)
+            )
+            params["client_host"] = "client" if "client" in host_pool else host0
+            params["dst_ip"] = "200.0.0.8"
+            params["small_url"] = "http://200.0.0.8/small.bin"
+            params["large_url"] = "http://200.0.0.8/large.bin"
+            params["cpu_quota"] = "0.05"
+            params["stress_cpus"] = "16"
+        elif scenario in {"p4_dc_fabric", "sdn_l3_clos"}:
+            model = getattr(net_env, "model", None)
+            webs = list(getattr(model, "web_endpoints", lambda: [])()) if model else []
+            clients = (
+                list(getattr(model, "client_endpoints", lambda: [])()) if model else []
+            )
+            # params is still empty here, so this picks the first web endpoint.
+            web = next(
+                (w for w in webs if w.name == (params.get("host_name") or "")),
+                webs[0] if webs else None,
+            )
+            if web is None:
+                params["host_name"] = (
+                    web0 if web0 in web_pool else (first(web_pool) or host0)
+                )
+            else:
+                client = next(
+                    (c for c in clients if c.leaf_id != web.leaf_id),
+                    clients[0] if clients else None,
+                )
+                params["host_name"] = web.name
+                if client is not None:
+                    params["client_host"] = client.name
+                params["dst_ip"] = web.ip
+                params["small_url"] = f"http://{web.ip}/small.bin"
+                params["large_url"] = f"http://{web.ip}/large.bin"
+                params["cpu_quota"] = "0.05"
+                params["stress_cpus"] = "16"
+        else:
+            params["host_name"] = (
+                web0 if web0 in web_pool else (first(web_pool) or host0)
+            )
+        params["duration"] = "900" if scenario == "enterprise_branch" else "600"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -510,6 +604,16 @@ class ReceiverResourceContention(ProblemBase):
     TAGS: list[str] = ["http"]
 
     Params = ReceiverResourceContentionParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = endpoint_target(ctx)
+        params["duration"] = "600"
+        if ctx.scenario == "dc_clos":
+            params["peer_host"] = "webserver0_pod0"
+            params["large_url"] = "http://web0.pod0/large.bin"
+            params["stress_cpus"] = "4"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
