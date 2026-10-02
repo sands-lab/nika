@@ -265,10 +265,11 @@ Or place the file at `.nika_cache/vendor/xrd-*.tgz` and run `./scripts/install.s
 
 1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
 
-2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/utils/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
+2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/utils/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). The CCO download wraps the image with signing files, so extract the inner `*.dockerv1.tgz` first. For a different XRd version, retag as `26.2.1` or change that constant:
 
 ```shell
-docker load -i xrd-control-plane-container-x86_64-<version>.tgz
+tar -xzf xrd-control-plane-container-x86_64-<version>.tgz --wildcards '*.dockerv1.tgz'
+docker load -i xrd-control-plane-container-x64.dockerv1.tgz
 docker tag <loaded-repo>:<loaded-tag> ios-xr/xrd-control-plane:26.2.1
 docker images | grep xrd-control-plane
 ```
@@ -282,6 +283,8 @@ If the tag is missing, `nika env run iosxr_simple_bgp` raises a `RuntimeError` w
 ```shell
 uv run nika env run iosxr_simple_bgp
 ```
+
+Give the host at least 8 vCPUs and 16 GB of RAM. On a 4 vCPU / 8 GB host, one of the two routers crashes during boot (`Bus error` in `/var/log/startup.log` inside the container) and the lab never passes startup verification.
 
 Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.py`). XRd ZTP can briefly race the container network namespace at first boot; the router startup scripts retry config apply until that clears, so a slow first boot is expected.
 

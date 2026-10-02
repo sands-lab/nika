@@ -104,7 +104,9 @@ def test_llm_network_resources_for_host_bridge_uses_localhost_port() -> None:
     assert llm_network_resources_for_url("http://host.docker.internal:18080/v1") == [
         "localhost:18080"
     ]
-    assert llm_network_resources_for_url("http://mcnode33:8000/v1") == ["mcnode33"]
+    assert llm_network_resources_for_url("http://gateway.example:8000/v1") == [
+        "gateway.example"
+    ]
     assert llm_network_resources_for_url("http://127.0.0.1:9000") == ["localhost:9000"]
 
 
@@ -161,13 +163,13 @@ def test_exec_command_forwards_unauthenticated_custom_key() -> None:
         env={
             "ANTHROPIC_API_KEY": CUSTOM_UNAUTHENTICATED_API_KEY,
             "ANTHROPIC_AUTH_TOKEN": CUSTOM_UNAUTHENTICATED_API_KEY,
-            "ANTHROPIC_BASE_URL": "http://mcnode33:8000",
+            "ANTHROPIC_BASE_URL": "http://gateway.example:8000",
         },
     )
     inner = command[-1]
     assert f"ANTHROPIC_API_KEY={CUSTOM_UNAUTHENTICATED_API_KEY}" in inner
     assert f"ANTHROPIC_AUTH_TOKEN={CUSTOM_UNAUTHENTICATED_API_KEY}" in inner
-    assert "ANTHROPIC_BASE_URL=http://mcnode33:8000" in inner
+    assert "ANTHROPIC_BASE_URL=http://gateway.example:8000" in inner
 
 
 def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
@@ -906,7 +908,7 @@ def test_ensure_sbx_credentials_custom_keyless_forwards_base_url(tmp_path) -> No
 
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "NIKA_CUSTOM_BASE_URL=http://mcnode32:8000/v1\n",
+        "NIKA_CUSTOM_BASE_URL=http://gateway.example:8000/v1\n",
         encoding="utf-8",
     )
     with (
@@ -931,9 +933,9 @@ def test_ensure_sbx_credentials_custom_keyless_forwards_base_url(tmp_path) -> No
 
     run.assert_not_called()
     assert plan.third_party_openai
-    assert plan.openai_base_url == "http://mcnode32:8000/v1"
+    assert plan.openai_base_url == "http://gateway.example:8000/v1"
     runtime = plan.sentinel_runtime_env()
-    assert runtime["OPENAI_BASE_URL"] == "http://mcnode32:8000/v1"
+    assert runtime["OPENAI_BASE_URL"] == "http://gateway.example:8000/v1"
     assert runtime["OPENAI_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
 
 
@@ -943,7 +945,7 @@ def test_ensure_sbx_credentials_custom_strips_v1_for_claude(tmp_path) -> None:
 
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "NIKA_CUSTOM_BASE_URL=http://mcnode33:8000/v1\n",
+        "NIKA_CUSTOM_BASE_URL=http://gateway.example:8000/v1\n",
         encoding="utf-8",
     )
     with (
@@ -968,9 +970,9 @@ def test_ensure_sbx_credentials_custom_strips_v1_for_claude(tmp_path) -> None:
 
     run.assert_not_called()
     assert plan.third_party_anthropic
-    assert plan.anthropic_base_url == "http://mcnode33:8000"
+    assert plan.anthropic_base_url == "http://gateway.example:8000"
     runtime = plan.sentinel_runtime_env()
-    assert runtime["ANTHROPIC_BASE_URL"] == "http://mcnode33:8000"
+    assert runtime["ANTHROPIC_BASE_URL"] == "http://gateway.example:8000"
     assert runtime["ANTHROPIC_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
 
 
