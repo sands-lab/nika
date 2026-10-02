@@ -146,8 +146,9 @@ def _independent_control_ip(
 ) -> tuple[str, str] | None:
     """Return a control ``(source, destination)`` that does not depend on the root cause.
 
-    A source attached only to a root-cause node, or a host the inject
-    parameters name, is replaced by an endpoint on an unaffected device. The probe destination is kept unless it is the control
+    A source attached only to a root-cause node, or an attacker or load host
+    named in the inject parameters, is replaced by an endpoint on an
+    unaffected device. The probe destination is kept unless it is the control
     source itself or an endpoint reached only through a root-cause interface or
     node. It is then replaced by a neighbor on the same device or segment, else
     by an endpoint on an unaffected device. ``None`` means no independent
@@ -184,13 +185,16 @@ def _independent_control_ip(
         endpoints |= set(members or [])
 
     behind = {ep for ep in faulted if _node(ep) in endpoints}
-    # Hosts the inject parameters name (attackers, load generators) carry the fault.
+    # Attackers and load generators named in the inject parameters carry the fault.
     values = parsed.model_dump() if hasattr(parsed, "model_dump") else parsed
     actors = {
-        item
-        for value in (values.values() if isinstance(values, dict) else [])
-        for item in (value if isinstance(value, list) else [value])
-        if isinstance(item, str) and item in endpoints
+        item.strip()
+        for key, value in (values.items() if isinstance(values, dict) else [])
+        if "attacker" in key or key.startswith("load_")
+        for entry in (value if isinstance(value, list) else [value])
+        if isinstance(entry, str)
+        for item in entry.split(",")
+        if item.strip() in endpoints
     }
     behind |= {ep for eps in links for ep in eps if _node(ep) in actors}
     siblings: list[tuple[set[str], list[str]]] = []
