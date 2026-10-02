@@ -29,6 +29,10 @@ class ProbePath:
 
 class NetworkEnvBase:
     LAB_NAME: ClassVar[str | None] = None
+    # Kubernetes labs (``NetEnvSpec.k8s_image_cache``): lab node images pulled
+    # on the host, and in-cluster images cached as tars and loaded into k3s.
+    K8S_HOST_IMAGES: ClassVar[tuple[str, ...]] = ()
+    K8S_WORKLOAD_IMAGES: ClassVar[tuple[str, ...]] = ()
     """
     Base class for network environments."""
 
@@ -296,6 +300,10 @@ class NetworkEnvBase:
     ) -> None:
         """Re-apply controller-managed forwarding after a switch port was moved."""
         return
+
+    @classmethod
+    def prepare_k8s_image_cache(cls) -> None:
+        """Stage extra host-side artifacts when the k8s image cache is filled."""
 
     def preload_workload_images(self) -> None:
         """Import cached in-cluster images into k3s nodes when a cache is present."""

@@ -501,6 +501,14 @@ def preflight_release(
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
     if missing_problems:
         raise ReleaseError(f"Missing problems: {missing_problems}")
+    licensed = sorted(
+        name for name in scenarios if list_all_net_envs()[name].licensed_images
+    )
+    if licensed:
+        raise ReleaseError(
+            f"Release cases use scenarios that need licensed vendor images: "
+            f"{licensed}; releases must only depend on openly available images"
+        )
 
     # Isolation requires both splits on disk (always true for 0.1.0).
     if "dev" in release.splits and "test" in release.splits:

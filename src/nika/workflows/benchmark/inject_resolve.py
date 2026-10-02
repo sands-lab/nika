@@ -385,10 +385,6 @@ def _resolve_link_flap_params(
         )
         return params
 
-    if scenario == "simple_bgp":
-        params.update(host_name="pc1", intf_name="eth0")
-        return params
-
     params.update(
         host_name=host0,
         intf_name=_choice_interface(rng, net_env, host0, backend),
@@ -1495,7 +1491,7 @@ def resolve_inject_params(
             )
         elif scenario == "k8s_lab":
             params["host_name"] = _prefer_named(host_pool, "client", host0)
-        elif scenario in {"p4_dc_fabric", "sdn_l3_clos", "min3clos"}:
+        elif scenario in {"p4_dc_fabric", "sdn_l3_clos"}:
             params["host_name"] = _prefer_named(host_pool, "client_1_1", host0)
         else:
             params["host_name"] = host0

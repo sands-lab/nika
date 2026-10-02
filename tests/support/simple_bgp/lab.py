@@ -16,6 +16,10 @@ class SimpleBGP(NetworkEnvBase):
     TOPO_SIZE = None
     TAGS = ["arp", "link", "mac", "bgp", "icmp", "frr", "pc"]
 
+    def target_roles(self) -> dict[str, list[str]]:
+        # Link faults target the probe source host (see default_probe_path).
+        return {**super().target_roles(), "hosts": ["pc1"], "host1_pool": ["pc1"]}
+
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
         return ProbePath(

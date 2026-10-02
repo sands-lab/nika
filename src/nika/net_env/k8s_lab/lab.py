@@ -12,7 +12,11 @@ from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
-from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE, mount_workload_cache
+from nika.net_env.utils.k8s_workload_cache import (
+    K3S_IMAGE,
+    K3S_SYSTEM_IMAGES,
+    mount_workload_cache,
+)
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
 
@@ -29,6 +33,18 @@ _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 
 class K8sFatTreeBGP(NetworkEnvBase):
     LAB_NAME = "k8s_lab"
+    K8S_HOST_IMAGES = (_FRR_IMAGE, _K3S_IMAGE, _BASE_IMAGE)
+    K8S_WORKLOAD_IMAGES = (
+        *K3S_SYSTEM_IMAGES,
+        "quay.io/metallb/controller:v0.14.9@sha256:86261567e5ff03978893bf03ea865275283ad1e3f0f20dd342ed501b651fdf78",
+        "quay.io/metallb/speaker:v0.14.9@sha256:b09a1dfcf330938950b65115cd58f6989108c0c21d3c096040e7fe9a25a92993",
+        "quay.io/frrouting/frr:9.1.0@sha256:f310c2ebb3827fa03b9674ee05e70a7d5eef2123bcc3b475eb2ef14dafcb52b4",
+        "registry.k8s.io/ingress-nginx/controller:v1.12.0@sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa",
+        "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0@sha256:aaafd456bda110628b2d4ca6296f38731a3aaf0bf7581efae824a41c770a8fc4",
+        "postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54",
+        "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d",
+        "ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e",
+    )
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 15
     TOPO_LEVEL = "hard"
