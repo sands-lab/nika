@@ -133,8 +133,13 @@ class K8sAPIMixin:
     def kubectl_apply_manifest(
         self: SupportsExec, node: str, manifest: str, *, timeout: float | None = None
     ) -> KubectlResult:
+        # The applied manifest is removed: a copy left in /tmp spells out the
+        # object an injection created.
         path = self.k8s_write_manifest(node, manifest)
-        return self.kubectl(node, f"apply -f {shlex.quote(path)}", timeout=timeout)
+        try:
+            return self.kubectl(node, f"apply -f {shlex.quote(path)}", timeout=timeout)
+        finally:
+            self.exec_cmd(node, f"rm -f {shlex.quote(path)}")
 
     def k8s_object_exists(
         self: SupportsExec,

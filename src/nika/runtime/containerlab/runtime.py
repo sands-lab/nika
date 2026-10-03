@@ -18,7 +18,11 @@ from nika.runtime.shared.containers import (
     pause_container,
     unpause_container,
 )
-from nika.runtime.shared.execution import exec_with_timeout, merge_exec_output
+from nika.runtime.shared.execution import (
+    exec_with_timeout,
+    merge_exec_output,
+    without_shell_history,
+)
 from nika.runtime.shared.settings import lab_settings as _lab_settings
 
 # Upper bounds for ``clab`` subprocesses. Large SR Linux / XRd labs take
@@ -309,17 +313,18 @@ class ContainerlabRuntime(LabRuntime):
 
     def exec(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         container = self._cached_container(node)
+        shell_cmd = without_shell_history(cmd)
 
         def _run() -> str:
             try:
                 _, (stdout, stderr) = container.exec_run(
-                    ["/bin/sh", "-c", cmd], demux=True
+                    ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             except docker.errors.NotFound:
                 # The lab was redeployed under the same name; look it up again.
                 self._forget_container(node, container)
                 _, (stdout, stderr) = self._cached_container(node).exec_run(
-                    ["/bin/sh", "-c", cmd], demux=True
+                    ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             return merge_exec_output(stdout, stderr)
 
