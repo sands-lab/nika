@@ -24,7 +24,7 @@ from experiment.audit.live import (
     _note_sibling_control,
 )
 from experiment.audit.matrix import audit_plan, diagnose
-from experiment.audit.report_doc import DOC_PATH, render_environment_audit_doc
+from experiment.audit.report_doc import DOC_PATH, render_benchmark_audit_doc
 
 pytestmark = pytest.mark.unit
 
@@ -108,7 +108,7 @@ def test_release_report_lists_every_case() -> None:
     rows = release_cases("0.2.0")
     for text in (
         DOC_PATH.read_text(encoding="utf-8"),
-        render_environment_audit_doc(records=[]),
+        render_benchmark_audit_doc(records=[]),
     ):
         for row in rows:
             assert (
