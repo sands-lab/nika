@@ -1,0 +1,57 @@
+# Red Team run config. redteam.py passes this file as --run-config to
+# `nika benchmark run`. Same agent/harness as healthy_hunter/config.yaml:
+# Qwen3-30B-A3B-Instruct-2507 served by vLLM on acclnode06. Credentials stay
+# in the repo-root .env.
+agent:
+  type: cli.claude
+  provider: custom
+  model: Qwen3-30B-A3B-Instruct-2507
+  max_steps: 100
+  timeout_sec: 0
+  enable_skills: true
+  reasoning_effort: low
+  max_tokens: 8192
+  custom:
+    base_url: http://acclnode06:8000/v1
+
+nika:
+  result_dir: experiment/red_team/runs/results
+  remote:
+    enabled: false
+  sandbox:
+    keep: false
+    offline_sdk_wheels: true
+  lab:
+    deploy_attempts: 4
+    deploy_ready_timeout_sec: 90
+    deploy_settle_sec: 5
+    undeploy_verify_timeout_sec: 30
+    ready_max_wait_sec: 180
+    ready_retry_delay_sec: 5
+    failure_verify_max_attempts: 3
+    failure_verify_retry_delay_sec: 5
+    containerlab_max_workers: 2
+  mcp:
+    read_timeout_sec: 99
+    gateway_host: "127.0.0.1"
+    gateway_port: 0
+    tool_output_max_chars: 10000
+  static_validation:
+    enabled: false
+  runtime_validation:
+    depth: light
+    # Red team runs keep the benchmark default; `redteam.py oracle` turns
+    # failure_effect on in its derived config.
+    failure_effect: false
+
+benchmark:
+  release: null
+  split: null
+  # Other sessions share this host: one trial at a time.
+  batch_size: 1
+  serialize_heavy: true
+  case_timeout_sec: 3600
+  continue_on_error: true
+  retry_passes: 0
+  resume: true
+  session_tag: rt
