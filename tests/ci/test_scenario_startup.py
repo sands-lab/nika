@@ -8,7 +8,7 @@ import pytest
 
 from tests.ci.constants import CI_KATHARA_STARTUP_SCENARIOS
 from tests.support.integration_base import IntegrationTestCase
-from tests.support.prerequisites import docker_available
+from tests.support.prerequisites import docker_available, linux_vrf_available
 
 pytestmark = [
     pytest.mark.integration,
@@ -32,6 +32,8 @@ def _selected_scenarios() -> list[str]:
 @pytest.mark.parametrize("scenario", _selected_scenarios())
 def test_kathara_scenario_light_startup(scenario: str) -> None:
     """Deploy size=s; start_net_env already polls light startup_verify_lab."""
+    if scenario == "enterprise_branch" and not linux_vrf_available():
+        pytest.skip("Linux VRF unavailable on this host")
     helper = IntegrationTestCase()
     session_id = helper._start_env(scenario, ["-s", "s"])
     try:

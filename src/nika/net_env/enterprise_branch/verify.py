@@ -82,9 +82,11 @@ def verify_enterprise_branch_lab_startup(
     spec: TopoSpec | None = None,
     **_kwargs: Any,
 ) -> dict[str, Any]:
-    """Bounded readiness: nodes, HQ CORP attachment, and HQ edge FRR."""
+    """Bounded readiness: nodes, HQ edge FRR, and every branch overlay to HQ."""
     spec = spec or build_topo_spec(topo_size)
     hq_corp = _corp_lan(spec, "hq")
+    hq_srv = _server_lan(spec, "hq")
+    hq_srv_ip = _lan_host_ip(hq_srv)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, spec.all_node_names()),
         "hq_corp_ipv4": host_has_ipv4(runtime, hq_corp.host_name, "10.0.10.2"),
@@ -94,6 +96,20 @@ def verify_enterprise_branch_lab_startup(
             ).strip()
         ),
     }
+
+    def spoke_overlay_checks(spoke: str) -> dict[str, bool]:
+        rib = exec_or_empty(
+            runtime, edge_name_for(spoke), "vtysh -c 'show ip bgp'", timeout=20
+        )
+        corp = _corp_lan(spec, spoke)
+        return {
+            f"overlay_hq_corp_on_{spoke}": _rib_has_prefix(rib, hq_corp.prefix),
+            f"overlay_hq_server_on_{spoke}": _rib_has_prefix(rib, hq_srv.prefix),
+            f"e2e_{spoke}_to_hq_server": ping_ok(runtime, corp.host_name, hq_srv_ip),
+        }
+
+    for spoke_result in bounded_parallel_map(spoke_overlay_checks, spec.branch_names()):
+        checks.update(spoke_result)
     return build_lab_verify_result(
         scenario_name=scenario_name,
         verified=all(checks.values()),

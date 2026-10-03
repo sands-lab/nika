@@ -153,10 +153,13 @@ def test_ensure_cached_fetches_complete_graph_when_missing(tmp_path: Path) -> No
     image, _ = _image_tar(tmp_path)
 
     def fetch(command, **kwargs):
+        if command[1:] == ["copy", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="--preserve-digests")
         if command[1] == "inspect":
             return subprocess.CompletedProcess(
                 command, 0, stdout=(tmp_path / "source" / "manifest.json").read_bytes()
             )
+        assert "--preserve-digests" in command
         _image_directory(Path(command[-1].removeprefix("dir:")))
 
     with (
@@ -185,10 +188,14 @@ def test_ensure_cached_rejects_archives_missing_layers(tmp_path: Path) -> None:
     assert not cache._tar_is_complete(tar_path, image)
 
     def fetch(command, **kwargs):
+        if command[1:] == ["copy", "--help"]:
+            # skopeo < 1.6 has no --preserve-digests.
+            return subprocess.CompletedProcess(command, 0, stdout="--retry-times")
         if command[1] == "inspect":
             return subprocess.CompletedProcess(
                 command, 0, stdout=(tmp_path / "source" / "manifest.json").read_bytes()
             )
+        assert "--preserve-digests" not in command
         _image_directory(Path(command[-1].removeprefix("dir:")), complete=False)
 
     with (

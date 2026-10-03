@@ -201,6 +201,15 @@ def _write_oci_archive(directory: Path, archive_path: Path, image: str) -> None:
             archive.add(blob, arcname=f"blobs/sha256/{value}", recursive=False)
 
 
+def _preserve_digests_flag() -> list[str]:
+    # skopeo < 1.6 (Ubuntu 22.04 apt) lacks the flag; the manifest digest and
+    # archive completeness checks still reject a converted image.
+    usage = subprocess.run(
+        ["skopeo", "copy", "--help"], capture_output=True, text=True, timeout=30
+    ).stdout
+    return ["--preserve-digests"] if "--preserve-digests" in usage else []
+
+
 def ensure_cached(image: str) -> Path:
     """Fetch a digest-pinned, complete image graph independently of Docker's store."""
     if "@sha256:" not in image:
@@ -236,7 +245,7 @@ def ensure_cached(image: str) -> Path:
                     "linux",
                     "--override-arch",
                     host_machine_arch(),
-                    "--preserve-digests",
+                    *_preserve_digests_flag(),
                     "--retry-times",
                     "2",
                     f"docker://{source}",

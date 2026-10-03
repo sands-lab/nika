@@ -98,7 +98,7 @@ def _deploy_label(entry: dict[str, Any]) -> str:
     return size
 
 
-def _load_catalog_rows(
+def load_catalog_rows(
     *,
     config: Path | None,
     release: str | None,
@@ -203,7 +203,7 @@ def benchmark_list(
     """List public task ids for a release or YAML matrix."""
     from nika.workflows.benchmark.trials import catalog_entries
 
-    rows = _load_catalog_rows(
+    rows = load_catalog_rows(
         config=config, release=release, split=split, run_config=run_config
     )
     try:
@@ -264,7 +264,7 @@ def benchmark_describe(
         resolve_catalog_row,
     )
 
-    rows = _load_catalog_rows(
+    rows = load_catalog_rows(
         config=config, release=release, split=split, run_config=run_config
     )
     try:

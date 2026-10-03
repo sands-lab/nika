@@ -3,7 +3,7 @@
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from nika.net_env.contract import (
@@ -581,6 +581,18 @@ def start_net_env(
         session_id=resolved_session_id,
         lab_name=net_env.name,
         metadata=getattr(net_env, "metadata", None) or metadata,
+        link_count=_link_count(net_env),
         duration_ms=elapsed_ms(env_started),
     )
     return resolved_session_id
+
+
+def _link_count(net_env: Any) -> int | None:
+    """Number of links; a Kathara collision domain with 2+ members is one link."""
+    try:
+        lab = getattr(net_env, "lab", None)
+        if lab is not None and getattr(lab, "links", None) is not None:
+            return sum(1 for link in lab.links.values() if len(link.machines) >= 2)
+        return len(net_env.get_topology())
+    except Exception:  # noqa: BLE001 - some labs have no static topology
+        return None

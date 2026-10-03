@@ -30,10 +30,10 @@ def list_lab_containers(*, lab_name: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for container in containers:
         labels = container.labels or {}
-        image = (
-            container.image.tags[0]
-            if container.image.tags
-            else container.image.short_id
+        # ``container.image`` costs one Docker API call per container; the
+        # create-time reference is already in the listed attrs.
+        image = (container.attrs.get("Config") or {}).get("Image") or (
+            container.attrs.get("Image", "")
         )
         rows.append(
             {

@@ -101,6 +101,49 @@ Both values should be `64000`. After `nika env run`, lab verification completes:
 - A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full 0.2.0-style matrices) hit the limit sooner.
 - After an OOM or hard reset, run the `sysctl` check again before the next XR or k3s lab.
 
+## Host kernel lacks the vrf module (enterprise_branch)
+
+Every `enterprise_branch` Site Edge binds its business LANs to Linux VRF devices. Containers cannot load kernel modules, so the Docker host must provide `vrf`.
+
+### Match these symptoms
+
+Lab verification waits and times out before failure injection, with the overlay checks failing on every branch:
+
+```text
+Lab verification pending for enterprise_branch__…: … failed=[overlay_hq_corp_on_br1, overlay_hq_server_on_br1, e2e_br1_to_hq_server, …]
+```
+
+On a Site Edge, BGP sessions are `Established` with `0` prefixes, FRR shows the VRFs as `inactive`, and `/var/log/startup.log` contains:
+
+```text
+++ ip link add vrf_corp type vrf table 10
+Error: Unknown device type.
+```
+
+### Cause
+
+The running kernel has no `vrf` module. Ubuntu `-virtual` and cloud kernels ship `vrf.ko` only in `linux-modules-extra-<kernel>`. Without VRF devices, FRR cannot redistribute the LAN prefixes, so the overlay carries no routes.
+
+### Fix
+
+```shell
+sudo apt-get install linux-modules-extra-$(uname -r)
+sudo modprobe vrf
+echo vrf | sudo tee /etc/modules-load.d/nika-vrf.conf
+uv run nika session wipe -y
+```
+
+Re-running `./scripts/install.sh` does the same. After a kernel upgrade, install the matching `linux-modules-extra` package before the next `enterprise_branch` lab.
+
+### Confirm success
+
+```shell
+lsmod | grep '^vrf'
+uv run nika env run enterprise_branch -s s
+```
+
+Lab verification passes with `overlay_hq_*` and `e2e_*_to_hq_server` checks `true`.
+
 ## Containerlab deploy OOM on memory-tight hosts
 
 Containerlab starts many Nokia SR Linux nodes and PC endpoints in one lab. Parallel create and wiring can push host RAM over the edge even when the running lab would fit. NIKA passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`) to limit that peak.

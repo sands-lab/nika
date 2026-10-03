@@ -10,7 +10,7 @@ k8s/llmd/XRd, and any case with ``topo_size`` / ``topo`` ``l``.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from nika.net_env.net_env_pool import list_all_net_envs
 from nika.workflows.benchmark.trials import Trial
@@ -121,10 +121,11 @@ def can_admit(
 
 
 def pick_admissible(
-    pending: list[Trial],
+    pending: Sequence[Any],
     *,
     in_flight: Mapping[ResourceClass, int],
     limits: Mapping[ResourceClass, int],
+    classify: Callable[[Any], ResourceClass] = resource_class,
 ) -> int | None:
     """Return the index of the next pending trial to start, or ``None``.
 
@@ -132,10 +133,11 @@ def pick_admissible(
     scan reaches an exclusive trial that is waiting for the host to empty, it
     stops: admitting later light trials would keep the host busy and starve
     the exclusive trial until every light trial had run. The host drains, then
-    the exclusive trial starts.
+    the exclusive trial starts. ``classify`` maps a pending item to its class
+    (``Trial`` by default; pass ``resource_class_for_row`` for case rows).
     """
     for index, trial in enumerate(pending):
-        cls = resource_class(trial)
+        cls = classify(trial)
         if can_admit(cls, in_flight=in_flight, limits=limits):
             return index
         if _runs_exclusive(cls, limits):
