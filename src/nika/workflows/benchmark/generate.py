@@ -185,8 +185,6 @@ def _failure_group_specs() -> Iterable[tuple[str, str, str, dict[str, Any] | Non
                 continue
             if not problem_cls.is_compatible(scenario):
                 continue
-            if scenario in problem_cls.INCOMPATIBLE_SCENARIOS:
-                continue
             if is_isp_named_special(scenario):
                 for stack in _isp_stack_variants(scenario, problem_cls):
                     yield (

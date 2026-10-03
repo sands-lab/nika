@@ -13,8 +13,8 @@ from typing import Any
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
 from nika.runtime.base import LabRuntime
+from tests.support.symptom.addressing_probes import _HOST_PREFIXES, _eth0_ip
 
-_HOST_PREFIXES = ("client", "pc", "web", "service", "host", "server")
 _COUNT = 5
 
 # Sends ``count`` ICMP type 3 messages with ``code`` that quote a TCP packet
@@ -38,13 +38,6 @@ for _ in range(count):
     packet = packet[:2] + struct.pack("!H", checksum(packet)) + packet[4:]
     sock.sendto(packet, (dst, 0))
 """
-
-
-def _eth0_ip(runtime: LabRuntime, node: str) -> str:
-    out = runtime.exec(
-        node, "ip -4 -o addr show dev eth0 scope global | awk '{print $4}'"
-    )
-    return out.strip().split("/")[0]
 
 
 def _endpoints(runtime: LabRuntime, node: str) -> dict[str, str]:

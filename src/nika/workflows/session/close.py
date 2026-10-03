@@ -608,6 +608,10 @@ def close_session(
         return
 
     if session_id is not None:
+        from nika.validation.presence import clear_injected_problem
+
+        # Drop the binding even when undeploy fails below.
+        clear_injected_problem(session_id)
         meta = load_session_meta_for_close(
             session_id, session_dir=session_dir, store=store
         )

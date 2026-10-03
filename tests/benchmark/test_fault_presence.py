@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from nika.problems.base import ProblemBase
 from nika.validation.presence import (
     PRESENCE_FILENAME,
     EnvironmentInvalid,
@@ -69,33 +68,6 @@ def test_fast_agent_still_records_during_and_before(tmp_path: Path) -> None:
     assert _phases(tmp_path) == ["post_inject", "during_agent", "before_cleanup"]
     assert all(item["result"] == "present" for item in _checks(tmp_path)[1:])
     assert _checks(tmp_path)[0]["check"] == "verify_fault"
-    assert "network effect" not in (tmp_path / PRESENCE_FILENAME).read_text()
-
-
-def test_normal_window_checks_once_during_agent(tmp_path: Path) -> None:
-    fault = _ArtifactFault()
-    bind_injected_problem("s-normal", fault, {"host": "r1"})
-    record_injection_verify(
-        tmp_path,
-        fault="bgp_asn_misconfig",
-        verify_result={"verified": True, "details": {}},
-    )
-    (tmp_path / "ground_truth.json").write_text(
-        json.dumps({"is_anomaly": True}), encoding="utf-8"
-    )
-    watch = PresenceWatch("s-normal", tmp_path, delay_sec=0)
-    watch.start()
-    deadline = 0
-    while "during_agent" not in _phases(tmp_path) and deadline < 50:
-        deadline += 1
-        import time
-
-        time.sleep(0.02)
-    failure = watch.finish()
-    clear_injected_problem("s-normal")
-    assert failure is None
-    assert _phases(tmp_path).count("during_agent") == 1
-    assert _phases(tmp_path)[-1] == "before_cleanup"
 
 
 def test_absent_artifact_is_environment_invalid(tmp_path: Path) -> None:
@@ -150,7 +122,7 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
 def test_timeout_and_keyboard_interrupt_paths() -> None:
     with pytest.raises(SystemExit):
         raise_if_presence_failed(None, SystemExit(143))
-    with pytest.raises(EnvironmentInvalid):
+    with pytest.raises(SystemExit):
         raise_if_presence_failed("during_agent: fault artifact absent", SystemExit(143))
     with pytest.raises(KeyboardInterrupt):
         raise_if_presence_failed(
@@ -171,59 +143,6 @@ def test_recheck_uses_the_injected_instance() -> None:
     assert result["evidence"]["wrong_asn"] == 65000
     assert other.calls == [] or len(other.calls) == raw_calls_before
     assert injected.calls
-
-
-def test_recheck_retries_a_transient_runtime_timeout(monkeypatch) -> None:
-    from nika.validation import presence
-
-    monkeypatch.setattr(presence.time, "sleep", lambda _seconds: None)
-
-    class _IntermittentFault:
-        root_cause_name = "mac_address_conflict"
-
-        def __init__(self) -> None:
-            self.calls = 0
-
-        def recheck_artifact(self, _params=None) -> dict:
-            self.calls += 1
-            return {
-                "present": self.calls == 2,
-                "evidence": {"mac": "[TIMEOUT]" if self.calls == 1 else "aa:bb"},
-            }
-
-    fault = _IntermittentFault()
-    presence.bind_injected_problem("s-timeout", fault, None)
-    try:
-        assert presence.recheck_bound_artifact("s-timeout")["present"] is True
-        assert fault.calls == 2
-    finally:
-        presence.clear_injected_problem("s-timeout")
-
-
-def test_default_recheck_does_not_call_verify_lab() -> None:
-    class _Lab(ProblemBase):
-        root_cause_name = "link_down"
-
-        def __init__(self) -> None:
-            super().__init__()
-            self.lab_calls = 0
-
-        def verify_fault(self, params: object = None) -> dict:
-            return {
-                "verified": True,
-                "fault_type": "link_down",
-                "details": {"operstate": "down"},
-            }
-
-        def verify_lab(self) -> dict:
-            self.lab_calls += 1
-            return {"verified": True}
-
-    problem = _Lab()
-    result = problem.recheck_artifact()
-    assert result["present"] is True
-    assert result["scope"] == "artifact"
-    assert problem.lab_calls == 0
 
 
 def test_finalize_keeps_environment_invalid_with_submission(

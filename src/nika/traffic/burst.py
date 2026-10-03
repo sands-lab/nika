@@ -206,7 +206,7 @@ class BurstTrafficGenerator:
             delay = max(0.0, start_time - time.time())
             if raw_udp:
                 command = (
-                    f"sleep {delay:.6f}; python3 -c {shlex.quote(_RAW_UDP_SENDER)} "
+                    f"sleep {delay:.6f}; exec python3 -c {shlex.quote(_RAW_UDP_SENDER)} "
                     f"{shlex.quote(destination_ip)} {flow.destination_port} "
                     f"{_rate_bps(rate)} {packet_size} {duration} {flow.source_port}"
                 )

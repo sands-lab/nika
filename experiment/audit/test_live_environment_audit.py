@@ -18,16 +18,18 @@ from tests.support.prerequisites import docker_available
 pytestmark = pytest.mark.e2e
 
 
-def _running_containers() -> int:
+def _container_names() -> list[str]:
     if not docker_available():
-        return 0
-    output = subprocess.check_output(["docker", "ps", "-q"], text=True)
-    return len([line for line in output.splitlines() if line.strip()])
+        return []
+    output = subprocess.check_output(
+        ["docker", "ps", "--format", "{{.Names}}"], text=True
+    )
+    return [line.strip() for line in output.splitlines() if line.strip()]
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker is required")
 @pytest.mark.skipif(
-    _running_containers() > 0,
+    bool(_container_names()),
     reason="host already runs labs; this audit would add another lab",
 )
 def test_dc_clos_link_down_observes_path_and_cleans_up() -> None:
@@ -59,10 +61,3 @@ def test_dc_clos_link_down_observes_path_and_cleans_up() -> None:
         assert report.admission() == "pass"
         assert admits(report.admission()) is True
     assert after <= before
-
-
-def _container_names() -> list[str]:
-    output = subprocess.check_output(
-        ["docker", "ps", "--format", "{{.Names}}"], text=True
-    )
-    return [line.strip() for line in output.splitlines() if line.strip()]

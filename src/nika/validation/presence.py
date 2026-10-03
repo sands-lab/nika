@@ -254,12 +254,14 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
 
 
 def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
-    """Retry one transient runtime command timeout; never replay injection."""
+    """Read the artifact again once after an absent read; never replay injection.
+
+    Many checks reduce a timed-out command to a boolean, so a busy container
+    can read as absent once.
+    """
     for attempt in range(2):
         raw = problem.recheck_artifact(params)
-        if not isinstance(raw, dict):
-            return raw
-        if raw.get("present") or "[TIMEOUT]" not in str(raw.get("evidence")):
+        if not isinstance(raw, dict) or raw.get("present"):
             return raw
         if attempt == 0:
             time.sleep(1.0)
@@ -375,6 +377,10 @@ class PresenceWatch:
             return
         self._run_phase("during_agent")
 
+    def cancel(self) -> None:
+        """Stop the timer without reading artifacts."""
+        self._stop.set()
+
     def finish(self) -> str | None:
         """Stop the timer, then read artifacts that have not been read yet."""
         self._stop.set()
@@ -389,11 +395,11 @@ class PresenceWatch:
 def raise_if_presence_failed(
     failure: str | None, agent_exc: BaseException | None
 ) -> None:
-    """Raise ``EnvironmentInvalid`` unless the agent was cancelled by the user.
+    """Raise ``EnvironmentInvalid`` unless the agent was interrupted.
 
     Re-raises ``agent_exc`` when the artifact checks passed.
     """
-    if failure and not isinstance(agent_exc, KeyboardInterrupt):
+    if failure and not isinstance(agent_exc, (KeyboardInterrupt, SystemExit)):
         raise EnvironmentInvalid(failure) from agent_exc
     if agent_exc is not None:
         raise agent_exc
