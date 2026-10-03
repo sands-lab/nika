@@ -80,9 +80,27 @@ def runtime_for_session(meta: dict[str, Any] | Any) -> LabRuntime:
     from nika.net_env.net_env_pool import get_net_env_instance
 
     scenario_name = meta_get(meta, "scenario_name")
-    kwargs: dict[str, Any] = {"lab_name": lab_name, "backend": backend}
+    if scenario_name:
+        net_env = get_net_env_instance(
+            str(scenario_name),
+            lab_name=lab_name,
+            backend=backend,
+            **net_env_kwargs_for_session(meta),
+        )
+        return _kathara_runtime(net_env)
+    raise ValueError("Kathara runtime requires scenario_name in session metadata.")
+
+
+def net_env_kwargs_for_session(meta: dict[str, Any] | Any) -> dict[str, Any]:
+    """Scenario kwargs for rebuilding a session's network env from its metadata.
+
+    The caller supplies ``lab_name`` and ``backend``.
+    """
+    scenario_name = meta_get(meta, "scenario_name")
+    kwargs: dict[str, Any] = {}
     scenario_params = dict(meta_get(meta, "scenario_params") or {})
     scenario_params.pop("backend", None)
+    scenario_params.pop("lab_name", None)
     scenario_params.pop("topology_file", None)
     scenario_params.pop("runtime_workdir", None)
     if scenario_name:
@@ -96,10 +114,7 @@ def runtime_for_session(meta: dict[str, Any] | Any) -> LabRuntime:
     if scenario_params.get("topo_size") is not None:
         kwargs["topo_size"] = scenario_params.pop("topo_size")
     kwargs.update(scenario_params)
-    if scenario_name:
-        net_env = get_net_env_instance(str(scenario_name), **kwargs)
-        return _kathara_runtime(net_env)
-    raise ValueError("Kathara runtime requires scenario_name in session metadata.")
+    return kwargs
 
 
 def runtime_for_net_env(net_env: "NetworkEnvBase") -> LabRuntime:

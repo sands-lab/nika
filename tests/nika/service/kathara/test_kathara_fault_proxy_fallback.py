@@ -29,3 +29,25 @@ def test_uses_static_lab_definition_when_fault_proxy_breaks_live_parser(
     )
 
     assert api.lab is fallback_lab
+
+
+def test_static_lab_rebuilds_isp_from_persisted_session_params() -> None:
+    # ISP sessions persist topo_size/topo, which the ISP lab constructor rejects.
+    session_meta = {
+        "scenario_name": "isp_dfn-bwin",
+        "scenario_params": {
+            "lab_name": "isp_dfn-bwin__test",
+            "backend": "kathara",
+            "topo_size": "s",
+            "topo": "dfn-bwin",
+            "igp": "isis",
+            "bgp_mode": "none",
+            "rpki": False,
+            "device_profile": "frr",
+        },
+    }
+
+    lab = base_api._static_lab_from_session(session_meta, "isp_dfn-bwin__test")
+
+    assert lab.name == "isp_dfn-bwin__test"
+    assert "berlin" in lab.machines
