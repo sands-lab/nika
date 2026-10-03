@@ -482,7 +482,9 @@ def quarantine_failed_trials(name: str, phase: str) -> None:
         print(f"[quarantine] {trial.name}: {reason}, will run again")
 
 
-def run(name: str, phase: str, task_ids: list[str]) -> None:
+def run(
+    name: str, phase: str, task_ids: list[str], batch_size: int | None = None
+) -> None:
     preflight()
     mode = "whitebox" if phase == "whitebox" else "blind"
     os.environ[RED_TEAM_ENV] = mode
@@ -509,10 +511,19 @@ def run(name: str, phase: str, task_ids: list[str]) -> None:
     ]
     for task_id in task_ids:
         argv += ["--task-id", task_id]
+    if batch_size:
+        # Concurrent trials; serialize_heavy still runs heavy labs alone.
+        argv += ["--batch-size", str(batch_size)]
     nika_cli(argv)
 
 
-def oracle(name: str, phase: str, task_ids: list[str], batfish: bool = False) -> None:
+def oracle(
+    name: str,
+    phase: str,
+    task_ids: list[str],
+    batfish: bool = False,
+    batch_size: int | None = None,
+) -> None:
     """Mock (ground-truth) agent with failure-effect validation on: the fault
     must still inject, verify, and score after an injection change."""
     os.environ.pop(RED_TEAM_ENV, None)
@@ -542,6 +553,9 @@ def oracle(name: str, phase: str, task_ids: list[str], batfish: bool = False) ->
     ]
     for task_id in task_ids:
         argv += ["--task-id", task_id]
+    if batch_size:
+        # Concurrent trials; serialize_heavy still runs heavy labs alone.
+        argv += ["--batch-size", str(batch_size)]
     nika_cli(argv)
 
 
@@ -1141,6 +1155,11 @@ def main() -> None:
         p.add_argument("--phase", default="before", choices=PHASES)
         if cmd != "baseline":
             p.add_argument("--task-id", action="extend", nargs="+", default=[])
+            p.add_argument(
+                "--batch-size",
+                type=int,
+                help="concurrent trials (default: benchmark.batch_size in config.yaml)",
+            )
         if cmd == "oracle":
             p.add_argument("--batfish", action="store_true")
     for cmd in ("judge", "summary", "recheck"):
@@ -1149,9 +1168,9 @@ def main() -> None:
     if args.cmd == "sample":
         sample(args.name, args.types, args.max_class, args.with_healthy)
     elif args.cmd == "run":
-        run(args.name, args.phase, args.task_id)
+        run(args.name, args.phase, args.task_id, args.batch_size)
     elif args.cmd == "oracle":
-        oracle(args.name, args.phase, args.task_id, args.batfish)
+        oracle(args.name, args.phase, args.task_id, args.batfish, args.batch_size)
     elif args.cmd == "baseline":
         baseline(args.name, args.phase)
     elif args.cmd == "judge":
