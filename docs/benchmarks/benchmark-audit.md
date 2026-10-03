@@ -55,19 +55,20 @@ The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, 
 | Kathara | 3.8.3 |
 | Python | 3.12.12, run through `uv` |
 
-The stored records span 2026-10-02 11:06 to 2026-10-02 21:16 UTC.
+The stored records span 2026-10-02 11:06 to 2026-10-03 11:03 UTC.
 Each case took 4.4 minutes at the median and 15.0 minutes at most, from lab deploy to undeploy.
 
 Each record stores the NIKA commit it ran on. A case keeps its result until a change to that case requires a rerun, so records come from several commits:
 
 | Commit | Cases |
 | --- | --- |
-| `6476b56` | 104 |
-| `b4f9e8f` | 18 |
+| `6476b56` | 103 |
+| `b4f9e8f` | 17 |
 | `56bbc59` | 14 |
-| `03b9251` | 11 |
+| `03b9251` | 9 |
 | `3fc4adf` | 7 |
 | `d84c44c` | 4 |
+| `97f6bab` | 4 |
 | `07ed124` | 3 |
 | `0956260` | 2 |
 | `273307e` | 2 |
@@ -222,14 +223,14 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | Scenario | Fault | Scale | Backend | Design | Inject | Admission | Diagnosis |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | campus_lan | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | pass | pass |
-| campus_lan | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
-| campus_lan | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
+| campus_lan | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
+| campus_lan | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
-| campus_lan | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
+| campus_lan | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | pass | pass |
 | campus_lan | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | pass | pass |
 | campus_lan | dns_lookup_latency | m | scenario default | none | delay_ms=1000, host_name=dns_server, intf_name=eth0 | pass | pass |
@@ -247,9 +248,9 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | dc_clos | dns_port_blocked | m | scenario default | none | host_name=dns_pod0 | pass | pass |
 | dc_clos | dns_record_error | l | scenario default | none | host_name=dns_pod0, target_domain=pod0, target_website=web0 | pass | pass |
 | dc_clos | dns_service_down | s | scenario default | none | host_name=dns_pod0 | pass | pass |
-| dc_clos | healthy | m | scenario default | none | none | pass | pass |
 | dc_clos | healthy | s | scenario default | none | none | pass | pass |
 | dc_clos | healthy | l | scenario default | none | none | pass | pass |
+| dc_clos | healthy | m | scenario default | none | none | pass | pass |
 | dc_clos | host_incorrect_dns | s | scenario default | none | host_name=client_0 | pass | pass |
 | dc_clos | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | pass | pass |
 | dc_clos | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | pass | pass |
@@ -264,16 +265,16 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | enterprise_branch | link_down | l | scenario default | none | host_name=br1_corp_pc, intf_name=eth0 | pass | pass |
 | enterprise_branch | link_packet_corruption | m | scenario default | none | corruption_percentage=10, host_name=br1_edge, intf_name=eth3, observer_device=br1_corp_pc, probe_dst_ip=10.0.20.2 | pass | pass |
 | enterprise_branch | mtu_mismatch | l | scenario default | none | host_name=br1_edge, intf_name=eth2, mtu=500 | pass | pass |
-| enterprise_branch | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | pass | pass |
 | enterprise_branch | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | pass | pass |
-| enterprise_branch | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | pass | pass |
+| enterprise_branch | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | pass | pass |
 | enterprise_branch | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | pass | pass |
-| enterprise_branch | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | pass | pass |
+| enterprise_branch | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | pass | pass |
 | enterprise_branch | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | pass | pass |
+| enterprise_branch | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | pass | pass |
 | enterprise_branch | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | pass | pass |
 | enterprise_branch | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | pass | pass |
-| enterprise_branch | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | pass | pass |
 | enterprise_branch | wireguard_allowed_ips_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | pass | pass |
+| enterprise_branch | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | pass | pass |
 | enterprise_branch | wireguard_peer_key_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq | pass | pass |
 | enterprise_branch | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | pass | pass |
 | isp_abilene | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | pass | pass |
@@ -302,9 +303,9 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | isp_nobel-eu | bgp_acl_block | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=amsterdam | pass | pass |
 | isp_nobel-germany | link_flap | m | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | down_time=1, host_name=berlin, intf_name=eth0, peer_host=pc_hamburg, probe_dst_ip=10.254.0.26, symptom_host=pc_berlin, up_time=1 | pass | pass |
 | isp_pdh | bgp_acl_block | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | host_name=n1 | pass | pass |
-| isp_pdh | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
-| isp_pdh | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_pdh | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
+| isp_pdh | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
+| isp_pdh | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | pass | pass |
 | isp_pioro40 | bgp_missing_route_advertisement | l | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=n7, peer_host=pc_n7, prefix=203.0.113.0/24, probe_dst_ip=203.0.113.1, symptom_host=n0 | pass | pass |
 | isp_ta1 | ospf_acl_block | m | kathara | igp=ospf, bgp_mode=none, rpki=False, device_profile=frr | host_name=n1 | pass | pass |
 | isp_ta2 | link_detach | l | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=n10, intf_name=eth0, peer_host=pc_n2, probe_dst_ip=10.254.0.46, symptom_host=pc_n10 | pass | pass |
@@ -353,10 +354,10 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | p4_dc_gateway | incast_traffic_network_limitation | m | scenario default | none | duration=3600, host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | pass | pass |
 | p4_dc_gateway | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | pass | pass |
 | p4_dc_gateway | int_insufficient_mtu_headroom | m | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | pass | pass |
-| p4_dc_gateway | lb_connection_state_exhaustion | l | scenario default | none | attacker_device=client_8, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | pass | pass |
 | p4_dc_gateway | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | pass | pass |
-| p4_dc_gateway | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | pass | pass |
+| p4_dc_gateway | lb_connection_state_exhaustion | l | scenario default | none | attacker_device=client_8, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | pass | pass |
 | p4_dc_gateway | lb_pending_connection_update_race | l | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | pass | pass |
+| p4_dc_gateway | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | pass | pass |
 | p4_dc_gateway | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | pass | pass |
 | p4_dc_gateway | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_gateway | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | pass | pass |
@@ -369,14 +370,14 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | p4_dc_gateway | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | pass | pass |
 | p4_dc_gateway | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | pass | pass |
 | p4_dc_gateway | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | pass | pass |
-| p4_dc_gateway | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
 | p4_dc_gateway | silent_egress_packet_loss | m | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
-| p4_dc_gateway | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.4.12, target_port=80 | pass | pass |
+| p4_dc_gateway | silent_egress_packet_loss | s | scenario default | none | bmv2_port=2, host_name=gateway_1, intf_name=eth1, loss_basis_points=200, seed=42 | pass | pass |
 | p4_dc_gateway | tcp_syn_flood_attack | m | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.1.12, target_port=80 | pass | pass |
+| p4_dc_gateway | tcp_syn_flood_attack | l | scenario default | none | attacker_device=client_1, duration=3600, flows=100, rate_pps=1000, seed=42, target_ip=10.0.4.12, target_port=80 | pass | pass |
 | sdn_l3_clos | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | pass | pass |
 | sdn_l3_clos | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | pass | pass |
-| sdn_l3_clos | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | pass | pass |
 | sdn_l3_clos | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | pass | pass |
+| sdn_l3_clos | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | pass | pass |
 | sdn_l3_clos | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | pass | pass |
 | sdn_l3_clos | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | pass | pass |
 | sdn_l3_clos | healthy | m | scenario default | none | none | pass | pass |
@@ -387,8 +388,8 @@ Otherwise it starts with `verify:` when the check or a host prerequisite failed,
 | sdn_l3_clos | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=3600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | pass | pass |
 | sdn_l3_clos | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | pass | pass |
-| sdn_l3_clos | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
 | sdn_l3_clos | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
+| sdn_l3_clos | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | pass | pass |
 | sdn_l3_clos | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | pass | pass |
 
 

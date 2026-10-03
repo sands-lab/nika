@@ -88,8 +88,7 @@ def audit_plan() -> list[dict[str, Any]]:
 
 def result_path(row: dict[str, Any]) -> Path:
     identity = identity_from_row(row)
-    raw = "|".join(identity.key())
-    digest = hashlib.sha256(raw.encode()).hexdigest()[:10]
+    digest = hashlib.sha256(identity.key().encode()).hexdigest()[:10]
     return RESULTS_DIR / f"{identity.scenario}__{identity.fault}__{digest}.json"
 
 

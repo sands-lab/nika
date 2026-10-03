@@ -13,6 +13,7 @@ from nika.net_env.verify import (
     ping_stats,
 )
 from nika.problems.base import build_verify_result
+from nika.problems.management_orchestration_plane.sdn import _switch_controller_state
 from nika.problems.support.ab_helpers import ab_summary_to_dict
 from tests.support.symptom.addressing_probes import (
     ip_conflict,
@@ -523,24 +524,17 @@ def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
 
 
 def _southbound_connections(problem: Any) -> tuple[dict[str, bool], dict[str, str]]:
-    model = getattr(problem.net_env, "model", None)
-    switches = list(getattr(model, "leaves", []) or []) + list(
-        getattr(model, "spines", []) or []
-    )
+    """Empty or unparsable controller output is an error, not a disconnect."""
     states: dict[str, bool] = {}
     errors: dict[str, str] = {}
-    for switch in switches:
-        output = problem.runtime.exec(
-            switch,
-            "ovs-vsctl --format=csv --no-headings --columns=is_connected "
-            "list Controller 2>&1",
-            timeout=10,
-        ).strip()
-        values = [line.strip().strip('"').lower() for line in output.splitlines()]
-        if not values or any(value not in {"true", "false"} for value in values):
-            errors[switch] = output or "empty controller observation"
+    for switch, item in _switch_controller_state(
+        problem.runtime, problem.net_env
+    ).items():
+        value = item["is_connected"].strip('"').lower()
+        if value in {"true", "false"}:
+            states[switch] = value == "true"
         else:
-            states[switch] = any(value == "true" for value in values)
+            errors[switch] = item["target"] or "empty controller observation"
     return states, errors
 
 

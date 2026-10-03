@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.utils.logger import log_event
-from nika.utils.session_artifacts import write_json_atomic
+from nika.utils.session_artifacts import json_safe, write_json_atomic
 
 PRESENCE_FILENAME = "fault-presence.json"
 DURING_AGENT_DELAY_SEC = 2.0
@@ -100,16 +100,6 @@ def fault_label(problem: Any) -> str:
     return type(problem).__name__
 
 
-def _json_safe(value: Any) -> Any:
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_json_safe(item) for item in value]
-    return str(value)
-
-
 def _anomaly_expected(session_dir: Path) -> bool:
     path = session_dir / "ground_truth.json"
     if not path.is_file():
@@ -134,7 +124,7 @@ def append_presence_check(session_dir: str | Path, check: dict[str, Any]) -> Non
     """Append one artifact check to ``fault-presence.json``."""
     root = Path(session_dir)
     path = root / PRESENCE_FILENAME
-    safe = _json_safe(check)
+    safe = json_safe(check)
     with _FILE_LOCK:
         payload: dict[str, Any] = {"scope": "artifact", "checks": []}
         if path.is_file():

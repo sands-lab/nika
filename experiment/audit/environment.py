@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from experiment.audit.provenance import AuditProvenance
+from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 AuditStatus = Literal[
     "pass",
@@ -57,20 +58,20 @@ class CaseIdentity(BaseModel):
     fault: str
     inject: dict[str, Any] = Field(default_factory=dict)
 
-    def key(self) -> tuple[str, ...]:
-        inject_items = tuple(
-            f"{name}={self.inject[name]}" for name in sorted(self.inject)
-        )
-        return (
-            self.scenario,
-            self.topo_size,
-            self.backend,
-            self.igp,
-            self.bgp_mode,
-            self.rpki,
-            self.device_profile,
-            self.fault,
-            *inject_items,
+    def key(self) -> str:
+        """The benchmark row fingerprint of this case."""
+        return benchmark_row_fingerprint(
+            {
+                "scenario": self.scenario,
+                "problem": self.fault,
+                "topo_size": self.topo_size,
+                "igp": self.igp,
+                "bgp_mode": self.bgp_mode,
+                "rpki": self.rpki.lower() == "true",
+                "backend": self.backend,
+                "device_profile": self.device_profile,
+                "inject": self.inject,
+            }
         )
 
 
