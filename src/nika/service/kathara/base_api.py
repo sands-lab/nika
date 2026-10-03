@@ -41,17 +41,13 @@ def _static_lab_from_session(session_meta: dict | None, lab_name: str) -> "Lab |
     if not session_meta or not session_meta.get("scenario_name"):
         return None
     from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.runtime.factory import net_env_kwargs_for_session
 
-    params = dict(session_meta.get("scenario_params") or {})
-    params.pop("backend", None)
-    params.pop("lab_name", None)
-    params.pop("topology_file", None)
-    params.pop("runtime_workdir", None)
     net_env = get_net_env_instance(
         str(session_meta["scenario_name"]),
         backend="kathara",
         lab_name=lab_name,
-        **params,
+        **net_env_kwargs_for_session(session_meta),
     )
     net_env.load_machines()
     return net_env.lab
