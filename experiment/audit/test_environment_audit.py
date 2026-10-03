@@ -32,12 +32,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_observation_statuses_stay_distinct() -> None:
-    assert classify_observation(
-        {"skipped": True, "reason": "artifact_only"}, ok=True
-    ) == ("no_evidence", "artifact_only")
-    assert classify_observation(
-        {"skipped": True, "reason": "control_plane_only"}, ok=True
-    ) == ("unsupported", "control_plane_only")
     assert classify_observation({"skipped": True, "reason": "manual"}) == (
         "skipped",
         "manual",
@@ -65,7 +59,7 @@ def test_admission_rejects_gaps() -> None:
         ),
         stages=[
             StageResult(stage="baseline_lab", status="pass"),
-            StageResult(stage="symptom", status="no_evidence", reason="artifact_only"),
+            StageResult(stage="symptom", status="no_evidence", reason="no_probe_path"),
         ],
     )
     assert audit.admission() == "no_evidence"
@@ -96,11 +90,11 @@ def test_changed_symptom_contract_requires_a_new_live_audit() -> None:
     }
     old = CaseAudit(
         identity=identity_from_row(row),
-        symptom_probe="artifact_only",
+        symptom_probe="path_ping",
         stages=[StageResult(stage="symptom", status="no_evidence")],
     )
     assert cover_release([row], [old])[0]["admission"] == "not_run"
-    row["symptom_probe"] = "artifact_only"
+    row["symptom_probe"] = "path_ping"
     assert cover_release([row], [old])[0]["admission"] == "not_run"
 
 
@@ -189,7 +183,6 @@ def test_control_and_baseline_helpers() -> None:
             return {"ping_ok": True}
 
     assert _baseline_path("path_ping", _Snap()).status == "pass"
-    assert _baseline_path("artifact_only", _Snap()).status == "no_evidence"
     assert _control_stage("link_down", {"comparison": {}}).status == "unsupported"
     assert _control_stage("link_down", {"after": {"control_ok": None}}).status == (
         "unsupported"

@@ -33,8 +33,6 @@ _STATUS_RANK: dict[str, int] = {
 }
 
 _REASON_STATUS: dict[str, AuditStatus] = {
-    "artifact_only": "no_evidence",
-    "control_plane_only": "unsupported",
     "no_verify_lab": "unsupported",
     "no_probe_path": "no_evidence",
     "custom_requires_problem_instance": "no_evidence",
@@ -147,7 +145,7 @@ def classify_observation(
 ) -> tuple[AuditStatus, str | None]:
     """Map a probe payload to an audit status.
 
-    ``artifact_only``, ``skipped``, ``unsupported``, and a missing payload
+    ``skipped``, ``unsupported``, and a missing payload
     do not become ``pass``, even when a caller also passes ``ok=True``.
     """
     if not isinstance(payload, dict) or not payload:

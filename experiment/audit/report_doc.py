@@ -106,7 +106,6 @@ def render_benchmark_audit_doc(
         [
             "",
             "Each case declares one symptom probe. The probe decides what the audit measures after inject.",
-            f"{probes.get('artifact_only', 0)} cases declare `artifact_only`. For those, the audit compares the scenario health checks before and after inject and requires the same checks to stay failed. A health check that stays green does not prove the fault had an effect.",
             "",
             "| Probe | Cases |",
             "| --- | --- |",
@@ -260,10 +259,8 @@ def _executed_section(records: list[dict]) -> list[str]:
 
 _GENERIC_DIAGNOSIS = {
     "pass",
-    "verify: the symptom contract is artifact_only, so this run has no network-effect observation",
     "verify: the behavioral stages passed and this fault has no separate control path",
     "verify: a recorded stage has no behavioral check",
-    "verify: the symptom contract is control_plane_only, so this run has no data-plane observation",
 }
 
 
@@ -420,7 +417,7 @@ def _procedure_section() -> list[str]:
         "| `fail` | A stage ran and the observation failed. |",
         "| `skipped` | The audit ran and skipped the stage. |",
         "| `unsupported` | The fault has no behavioral check for the stage. `reason` names the scope. |",
-        "| `no_evidence` | The stage produced no observation. An `artifact_only` symptom result is `no_evidence`. |",
+        "| `no_evidence` | The stage produced no observation. |",
         "| `not_run` | No complete stored result exists for this case. |",
         "",
         "A stored result counts only when it has a finished run, a Git commit, image identities for every lab node, and the symptom probe that the fault declares today. Otherwise the case shows `not_run`.",
@@ -514,7 +511,6 @@ def _limits_section() -> list[str]:
         "",
         "- The persistence window lasts seconds. It does not cover the 2400-second trial budget. In this release, the SYN flood, incast, and sender and receiver contention cases set `duration=3600`, and the load balancer overload workers run until recovery. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).",
         "- The P4 gateway ECN probe counts ECN marks from a virtual queue that drains about 61 packets per second. It does not measure congestion of a physical egress queue. The `queue_occupancy` register in that scenario reports the modeled queue depth.",
-        "- An `artifact_only` case shows that the scenario health checks regress and stay regressed. It does not measure a fault-specific symptom.",
         "",
         "## Checks during a benchmark trial",
         "",

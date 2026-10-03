@@ -30,7 +30,7 @@ from nika.workflows.failure.inject import inject_failure as inject_failure_workf
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_failure_compat import write_probe_report
-from tests.support.symptom import evaluate_symptom, get_symptom_contract
+from tests.support.symptom import evaluate_symptom
 from tests.support.symptom.custom import evaluate_custom_baseline
 
 pytestmark = pytest.mark.integration
@@ -183,9 +183,6 @@ def _sdn_observable(
     instance: Any,
     parsed: Any,
 ) -> bool:
-    contract = get_symptom_contract(problem)
-    if contract.control_plane_only and verify_ok:
-        return True
     if verify_ok and (
         smoke_before.get("cross_rack_ping") and not smoke_after.get("cross_rack_ping")
     ):

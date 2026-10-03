@@ -25,7 +25,6 @@ class SymptomContract:
     failure: str
     symptom_class: SymptomClass
     probe: ProbeKind
-    control_plane_only: bool = False
     loss_min_percent: float = 10.0
     latency_factor: float = 2.0
 
@@ -35,14 +34,12 @@ def _c(
     symptom_class: SymptomClass,
     probe: ProbeKind,
     *,
-    control_plane_only: bool = False,
     loss_min: float = 10.0,
 ) -> SymptomContract:
     return SymptomContract(
         failure=failure,
         symptom_class=symptom_class,
         probe=probe,
-        control_plane_only=control_plane_only,
         loss_min_percent=loss_min,
     )
 
@@ -103,10 +100,10 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "p4_table_entry_misconfig", "unreachable", "path_http"
     ),
     "p4_action_selector_member_misconfig": _c(
-        "p4_action_selector_member_misconfig", "unreachable", "artifact_only"
+        "p4_action_selector_member_misconfig", "loss", "custom"
     ),
     "p4_ecmp_group_member_missing": _c(
-        "p4_ecmp_group_member_missing", "unreachable", "artifact_only"
+        "p4_ecmp_group_member_missing", "degradation", "custom"
     ),
     "p4runtime_pipeline_mismatch": _c(
         "p4runtime_pipeline_mismatch", "unreachable", "path_ping"
@@ -115,7 +112,7 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "p4runtime_partial_write", "unreachable", "path_http"
     ),
     "p4_table_resource_exhaustion": _c(
-        "p4_table_resource_exhaustion", "unreachable", "artifact_only"
+        "p4_table_resource_exhaustion", "control_plane", "custom"
     ),
     # The silent drop matches the destination address. Ping that address.
     # HTTP to a service DIP is not a healthy client path on the gateway fabric.
@@ -149,18 +146,16 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "nat_mapping_removed_without_drain", "unreachable", "custom"
     ),
     "k8s_worker_apiserver_partition": _c(
-        "k8s_worker_apiserver_partition", "control_plane", "artifact_only"
+        "k8s_worker_apiserver_partition", "control_plane", "custom"
     ),
-    "sdn_controller_crash": _c(
-        "sdn_controller_crash", "none", "artifact_only", control_plane_only=True
-    ),
+    "sdn_controller_crash": _c("sdn_controller_crash", "control_plane", "custom"),
     "southbound_port_block": _c("southbound_port_block", "control_plane", "custom"),
     "southbound_port_mismatch": _c(
         "southbound_port_mismatch", "control_plane", "custom"
     ),
     "mac_address_conflict": _c("mac_address_conflict", "unreachable", "custom"),
-    "dhcp_missing_subnet": _c("dhcp_missing_subnet", "unreachable", "artifact_only"),
-    "dhcp_service_down": _c("dhcp_service_down", "unreachable", "artifact_only"),
+    "dhcp_missing_subnet": _c("dhcp_missing_subnet", "unreachable", "custom"),
+    "dhcp_service_down": _c("dhcp_service_down", "unreachable", "custom"),
     "dns_record_error": _c("dns_record_error", "unreachable", "dns_answer"),
     "dns_service_down": _c("dns_service_down", "unreachable", "path_http"),
     "host_incorrect_dns": _c("host_incorrect_dns", "unreachable", "http_by_name"),
@@ -190,9 +185,9 @@ _SYMPTOM_CONTRACTS: dict[str, SymptomContract] = {
         "p4_ecn_threshold_misconfiguration", "gray", "custom"
     ),
     "bgp_hijacking": _c("bgp_hijacking", "control_plane", "bgp_hijack_route"),
-    "dhcp_spoofed_dns": _c("dhcp_spoofed_dns", "unreachable", "artifact_only"),
-    "dhcp_spoofed_gateway": _c("dhcp_spoofed_gateway", "unreachable", "artifact_only"),
-    "dhcp_spoofed_subnet": _c("dhcp_spoofed_subnet", "unreachable", "artifact_only"),
+    "dhcp_spoofed_dns": _c("dhcp_spoofed_dns", "unreachable", "custom"),
+    "dhcp_spoofed_gateway": _c("dhcp_spoofed_gateway", "unreachable", "custom"),
+    "dhcp_spoofed_subnet": _c("dhcp_spoofed_subnet", "unreachable", "custom"),
     "tcp_syn_flood_attack": _c("tcp_syn_flood_attack", "degradation", "custom"),
     "web_dos_attack": _c("web_dos_attack", "degradation", "custom"),
 }

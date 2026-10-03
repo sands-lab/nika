@@ -12,6 +12,7 @@ from nika.net_env.verify import (
     median_float,
     ping_stats,
 )
+from nika.net_env.sdn_l3_clos.topology_model import ONOS_OF_PORT, ONOS_OOB_IP
 from nika.problems.base import build_verify_result
 from nika.problems.management_orchestration_plane.sdn import _switch_controller_state
 from nika.problems.support.ab_helpers import ab_summary_to_dict
@@ -20,6 +21,15 @@ from tests.support.symptom.addressing_probes import (
     ip_conflict_baseline,
     mac_conflict,
     mac_conflict_baseline,
+)
+from tests.support.symptom.dhcp_probes import (
+    dhcp_client_baseline,
+    dhcp_missing_subnet,
+    dhcp_offer_baseline,
+    dhcp_service_down,
+    dhcp_spoofed_dns,
+    dhcp_spoofed_gateway,
+    dhcp_spoofed_subnet,
 )
 from tests.support.symptom.flap_probes import evaluate_link_flap_symptom
 from tests.support.symptom.icmp_probes import (
@@ -40,7 +50,15 @@ from tests.support.symptom.p4_gateway_probes import (
     tcam_drop,
     tcam_drop_baseline,
 )
+from tests.support.symptom.p4_runtime_probes import (
+    ecmp_member_missing,
+    ecmp_sweep_baseline,
+    selector_member_blackhole,
+    table_exhaustion,
+    table_exhaustion_baseline,
+)
 from tests.support.symptom.sdn_probes import flow_shadow, flow_shadow_baseline
+from tests.support.symptom.k8s_probes import worker_partition, worker_partition_baseline
 from tests.support.symptom.nat_probes import (
     nat_flow_baseline,
     nat_mapping_removed,
@@ -563,6 +581,58 @@ def _southbound_disconnected(problem: Any, params: Any) -> tuple[bool, dict[str,
     )
 
 
+def _controller_channel(problem: Any) -> dict[str, Any]:
+    """Open the OpenFlow port from a leaf and ping a cross-rack web host."""
+    model = problem.net_env.model
+    switch = model.leaves[0]
+    out = problem.runtime.exec(
+        switch,
+        f"timeout 3 bash -c '</dev/tcp/{ONOS_OOB_IP}/{ONOS_OF_PORT}' 2>&1; echo rc=$?",
+    ).strip()
+    if out.endswith("rc=0"):
+        connect = "connected"
+    elif "Connection refused" in out:
+        connect = "refused"
+    else:
+        connect = out[-200:] or "empty"
+    source = model.client_endpoints()[0]
+    target = next(e for e in model.web_endpoints() if e.leaf_id != source.leaf_id)
+    ping = ping_stats(problem.runtime, source.name, target.ip, count=5)
+    return {
+        "connect_switch": switch,
+        "controller": f"{ONOS_OOB_IP}:{ONOS_OF_PORT}",
+        "openflow_connect": connect,
+        "data_path": f"{source.name}->{target.name}",
+        "data_loss_percent": ping.loss_percent,
+        "control_ok": ping.loss_percent == 0.0,
+    }
+
+
+def _controller_serving(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    connected, observed = _southbound_connected(problem, params)
+    channel = _controller_channel(problem)
+    ok = connected and channel["openflow_connect"] == "connected"
+    return ok and channel["control_ok"], {**observed, **channel}
+
+
+def _controller_crashed(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Switches lose the controller and its port refuses; flows keep forwarding."""
+    disconnected, result = _southbound_disconnected(problem, params)
+    if "error" in result:
+        return False, result
+    channel = _controller_channel(problem)
+    verified = (
+        disconnected
+        and channel["openflow_connect"] == "refused"
+        and channel["control_ok"]
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={**result["details"], **channel},
+    )
+
+
 def _clusterip_routing_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     result = problem.verify_fault(params)
     details = result.get("details") or {}
@@ -711,8 +781,10 @@ _CUSTOM: dict[str, Any] = {
     "vrf_dscp_remarking": _vrf_dscp_remarking,
     "southbound_port_block": _southbound_disconnected,
     "southbound_port_mismatch": _southbound_disconnected,
+    "sdn_controller_crash": _controller_crashed,
     "flow_rule_loop": _flow_rule_loop,
     "k8s_clusterip_routing_broken": _clusterip_routing_broken,
+    "k8s_worker_apiserver_partition": worker_partition,
     "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": _load_balancer_overload,
     "lb_connection_state_exhaustion": _lb_connection_state_exhaustion,
@@ -727,12 +799,21 @@ _CUSTOM: dict[str, Any] = {
     "flow_rule_shadowing": flow_shadow,
     "p4_ecn_threshold_misconfiguration": ecn_marking,
     "p4_tcam_entry_corruption": tcam_drop,
+    "p4_ecmp_group_member_missing": ecmp_member_missing,
+    "p4_action_selector_member_misconfig": selector_member_blackhole,
+    "p4_table_resource_exhaustion": table_exhaustion,
+    "dhcp_spoofed_gateway": dhcp_spoofed_gateway,
+    "dhcp_spoofed_dns": dhcp_spoofed_dns,
+    "dhcp_spoofed_subnet": dhcp_spoofed_subnet,
+    "dhcp_missing_subnet": dhcp_missing_subnet,
+    "dhcp_service_down": dhcp_service_down,
 }
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
     "southbound_port_block": _southbound_connected,
     "southbound_port_mismatch": _southbound_connected,
+    "sdn_controller_crash": _controller_serving,
     "snat_port_pool_exhaustion": snat_pool_baseline,
     "nat_mapping_removed_without_drain": nat_flow_baseline,
     "mac_address_conflict": mac_conflict_baseline,
@@ -744,7 +825,16 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "flow_rule_shadowing": flow_shadow_baseline,
     "p4_ecn_threshold_misconfiguration": ecn_marking_baseline,
     "p4_tcam_entry_corruption": tcam_drop_baseline,
+    "p4_ecmp_group_member_missing": ecmp_sweep_baseline,
+    "p4_action_selector_member_misconfig": ecmp_sweep_baseline,
+    "p4_table_resource_exhaustion": table_exhaustion_baseline,
     "silent_egress_packet_loss": silent_loss_baseline,
+    "k8s_worker_apiserver_partition": worker_partition_baseline,
+    "dhcp_spoofed_gateway": dhcp_client_baseline,
+    "dhcp_spoofed_dns": dhcp_client_baseline,
+    "dhcp_spoofed_subnet": dhcp_client_baseline,
+    "dhcp_missing_subnet": dhcp_offer_baseline,
+    "dhcp_service_down": dhcp_offer_baseline,
 }
 
 

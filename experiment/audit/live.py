@@ -86,8 +86,6 @@ def _from_observation(
 
 def _baseline_path(probe: str, snapshot: Any) -> StageResult:
     data = snapshot.as_dict() if hasattr(snapshot, "as_dict") else {}
-    if probe == "artifact_only":
-        return _stage("baseline_path", "no_evidence", "artifact_only", data)
     if probe == "dns_answer":
         return _stage(
             "baseline_path",
@@ -464,32 +462,6 @@ def _lab(net_env: Any) -> tuple[bool, dict[str, Any]]:
     return ok, result
 
 
-def _scenario_effect(
-    net_env: Any,
-    healthy_checks: dict[str, Any],
-    *,
-    expected: set[str] | None = None,
-) -> tuple[bool, dict[str, Any]]:
-    """Observe a persistent regression in scenario network-health checks."""
-    _, current = _lab(net_env)
-    checks = current.get("checks") if isinstance(current.get("checks"), dict) else {}
-    regressed = {
-        name
-        for name, healthy in healthy_checks.items()
-        if healthy is True and checks.get(name) is False
-    }
-    observed = regressed if expected is None else regressed & expected
-    ok = bool(observed)
-    return ok, {
-        "verified": ok,
-        "probe": "scenario_health_delta",
-        "regressed_checks": sorted(regressed),
-        "persistent_checks": sorted(observed),
-        "expected_checks": sorted(expected) if expected is not None else None,
-        "checks": checks,
-    }
-
-
 def audit_open_session(
     session_id: str,
     row: dict[str, Any],
@@ -559,17 +531,7 @@ def audit_open_session(
     if "pre_inject" in hooks:
         hooks["pre_inject"](ctx)
 
-    healthy_checks = lab.get("checks") if isinstance(lab.get("checks"), dict) else {}
-    if probe == "artifact_only":
-        stages.append(
-            _stage(
-                "baseline_path",
-                "pass" if ok and healthy_checks else "no_evidence",
-                None if ok and healthy_checks else "missing healthy scenario checks",
-                {"checks": healthy_checks},
-            )
-        )
-    elif probe in {"custom", "undeclared"}:
+    if probe in {"custom", "undeclared"}:
         own = evaluate_custom_baseline(fault, problem, parsed)
         healthy = (
             _healthy_custom_baseline(
@@ -636,20 +598,15 @@ def audit_open_session(
         )
     )
 
-    if probe == "artifact_only":
-        symptom_ok, symptom = _scenario_effect(net_env, healthy_checks)
-        effect_checks = set(symptom["persistent_checks"])
-    else:
-        symptom_ok, symptom = evaluate_symptom(
-            runtime,
-            fault,
-            parsed,
-            scenario=identity.scenario,
-            topo_size=identity.topo_size or "s",
-            before=ctx.before,
-            problem=problem,
-        )
-        effect_checks = set()
+    symptom_ok, symptom = evaluate_symptom(
+        runtime,
+        fault,
+        parsed,
+        scenario=identity.scenario,
+        topo_size=identity.topo_size or "s",
+        before=ctx.before,
+        problem=problem,
+    )
     symptom_payload = symptom if isinstance(symptom, dict) else {}
     symptom_payload = _note_sibling_control(
         runtime,
@@ -668,20 +625,15 @@ def audit_open_session(
             "persistence_artifact", recheck_artifact_with_retry(problem, parsed)
         )
     )
-    if probe == "artifact_only":
-        held_ok, held = _scenario_effect(
-            net_env, healthy_checks, expected=effect_checks
-        )
-    else:
-        held_ok, held = evaluate_symptom(
-            runtime,
-            fault,
-            parsed,
-            scenario=identity.scenario,
-            topo_size=identity.topo_size or "s",
-            before=ctx.before,
-            problem=problem,
-        )
+    held_ok, held = evaluate_symptom(
+        runtime,
+        fault,
+        parsed,
+        scenario=identity.scenario,
+        topo_size=identity.topo_size or "s",
+        before=ctx.before,
+        problem=problem,
+    )
     stages.append(
         _from_observation(
             "persistence_symptom", held if isinstance(held, dict) else {}, ok=held_ok
@@ -691,20 +643,15 @@ def audit_open_session(
     stages.append(
         _artifact_stage("final_artifact", recheck_artifact_with_retry(problem, parsed))
     )
-    if probe == "artifact_only":
-        final_ok, final = _scenario_effect(
-            net_env, healthy_checks, expected=effect_checks
-        )
-    else:
-        final_ok, final = evaluate_symptom(
-            runtime,
-            fault,
-            parsed,
-            scenario=identity.scenario,
-            topo_size=identity.topo_size or "s",
-            before=ctx.before,
-            problem=problem,
-        )
+    final_ok, final = evaluate_symptom(
+        runtime,
+        fault,
+        parsed,
+        scenario=identity.scenario,
+        topo_size=identity.topo_size or "s",
+        before=ctx.before,
+        problem=problem,
+    )
     stages.append(
         _from_observation(
             "final_symptom", final if isinstance(final, dict) else {}, ok=final_ok

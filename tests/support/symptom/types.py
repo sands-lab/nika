@@ -26,7 +26,6 @@ ProbeKind = Literal[
     "iperf_throughput",
     "route_get_onlink",
     "ping_old_ip",
-    "artifact_only",
     "custom",
 ]
 

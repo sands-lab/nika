@@ -231,17 +231,9 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
         if name in by_stage
     ]
     symptom_failed = [stage for stage in symptom_stages if stage.status == "fail"]
-    artifact_only = any(
-        stage.status == "no_evidence" and stage.reason == "artifact_only"
-        for stage in symptom_stages
-    )
     if symptom_failed:
         blob = " ".join(_evidence_text(stage) for stage in symptom_failed)
         passed = any(stage.status == "pass" for stage in symptom_stages)
-        if audit.symptom_probe == "artifact_only":
-            if by_stage.get("symptom") and by_stage["symptom"].status == "fail":
-                return "verify: scenario health checks did not expose the fault effect"
-            return "case: the observed scenario health regression did not persist"
         if '"drops_delta": 0' in blob:
             return "case: the incast probe saw no queue-drop increase on the recorded egress"
         if '"nginx_saturated": false' in blob:
@@ -271,10 +263,6 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
         ):
             return "case: the corruption artifact stayed attached and the samples saw no ping loss"
         return "case: the symptom probe did not observe the network effect"
-    if artifact_only:
-        return "verify: the symptom contract is artifact_only, so this run has no network-effect observation"
-    if any(stage.reason == "control_plane_only" for stage in audit.stages):
-        return "verify: the symptom contract is control_plane_only, so this run has no data-plane observation"
     if audit.admission() == "pass":
         return "pass"
     if audit.admission() == "unsupported":

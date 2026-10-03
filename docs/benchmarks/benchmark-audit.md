@@ -21,16 +21,14 @@ Admitted cases: 169.
 | `not_run` | 0 |
 
 Each case declares one symptom probe. The probe decides what the audit measures after inject.
-20 cases declare `artifact_only`. For those, the audit compares the scenario health checks before and after inject and requires the same checks to stay failed. A health check that stays green does not prove the fault had an effect.
 
 | Probe | Cases |
 | --- | --- |
-| `artifact_only` | 20 |
 | `bgp_hijack_route` | 2 |
 | `control_plane_bgp` | 7 |
 | `control_plane_ospf` | 6 |
 | `control_plane_routing` | 2 |
-| `custom` | 56 |
+| `custom` | 76 |
 | `dns_answer` | 2 |
 | `healthy` | 18 |
 | `http_by_name` | 4 |
@@ -55,8 +53,8 @@ The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, 
 | Kathara | 3.8.3 |
 | Python | 3.12.12, run through `uv` |
 
-The audit ran from 2026-10-02 11:06 to 2026-10-03 11:03 UTC.
-Each case took 4.4 minutes at the median and 15.0 minutes at most, from lab deploy to undeploy.
+The audit ran from 2026-10-02 11:06 to 2026-10-03 12:59 UTC.
+Each case took 4.1 minutes at the median and 14.6 minutes at most, from lab deploy to undeploy.
 
 Lab nodes used these images. Every node that used an image reference had the same image ID.
 
@@ -104,7 +102,7 @@ The audit admits a case only when its admission status is `pass`.
 | `fail` | A stage ran and the observation failed. |
 | `skipped` | The audit ran and skipped the stage. |
 | `unsupported` | The fault has no behavioral check for the stage. `reason` names the scope. |
-| `no_evidence` | The stage produced no observation. An `artifact_only` symptom result is `no_evidence`. |
+| `no_evidence` | The stage produced no observation. |
 | `not_run` | No complete stored result exists for this case. |
 
 A stored result counts only when it has a finished run, a Git commit, image identities for every lab node, and the symptom probe that the fault declares today. Otherwise the case shows `not_run`.
@@ -178,7 +176,6 @@ uv run python -c "from experiment.audit.report_doc import write_benchmark_audit_
 
 - The persistence window lasts seconds. It does not cover the 2400-second trial budget. In this release, the SYN flood, incast, and sender and receiver contention cases set `duration=3600`, and the load balancer overload workers run until recovery. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).
 - The P4 gateway ECN probe counts ECN marks from a virtual queue that drains about 61 packets per second. It does not measure congestion of a physical egress queue. The `queue_occupancy` register in that scenario reports the modeled queue depth.
-- An `artifact_only` case shows that the scenario health checks regress and stay regressed. It does not measure a fault-specific symptom.
 
 ## Checks during a benchmark trial
 
@@ -415,7 +412,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | test | host_incorrect_netmask | none | scenario default | none | host_name=client, netmask_prefix=8 | route_get_onlink | pass |
 | test | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass |
 | test | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://datacenter.com/weather?location=London, namespace=word-ns, pod_selector=app=word, symptom_host=client, symptom_url=http://datacenter.com/word | isolation_http | pass |
-| test | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass |
+| test | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | custom | pass |
 | test | healthy | none | scenario default | none | none | healthy | pass |
 
 ### `isp_nobel-eu`
@@ -467,10 +464,10 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | bmv2_switch_down | l | scenario default | none | host_name=leaf_1 | path_http | pass |
 | dev | host_missing_ip | s | scenario default | none | host_name=client_3_1, intf_name=eth0 | path_ping | pass |
 | dev | mac_address_conflict | m | scenario default | none | host_name=web_2, host_name_2=client_3_2 | custom | pass |
-| dev | p4_action_selector_member_misconfig | m | scenario default | none | host_name=leaf_1 | artifact_only | pass |
-| dev | p4_ecmp_group_member_missing | l | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| dev | p4_action_selector_member_misconfig | m | scenario default | none | host_name=leaf_1 | custom | pass |
+| dev | p4_ecmp_group_member_missing | l | scenario default | none | host_name=leaf_1 | custom | pass |
 | dev | p4_table_entry_misconfig | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | path_http | pass |
-| dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | custom | pass |
 | dev | p4runtime_partial_write | l | scenario default | none | host_name=leaf_1 | path_http | pass |
 | dev | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | path_ping | pass |
 | test | incast_traffic_network_limitation | l | scenario default | none | duration=3600, host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | custom | pass |
@@ -483,7 +480,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | custom | pass |
 | dev | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | custom | pass |
 | dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | custom | pass |
-| dev | sdn_controller_crash | m | scenario default | none | host_name=onos | artifact_only | pass |
+| dev | sdn_controller_crash | m | scenario default | none | host_name=onos | custom | pass |
 | dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=3600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | custom | pass |
 | dev | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | custom | pass |
 | dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass |
@@ -491,7 +488,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | test | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | custom | pass |
 | test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | custom | pass |
 | test | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | custom | pass |
-| test | sdn_controller_crash | l | scenario default | none | host_name=onos | artifact_only | pass |
+| test | sdn_controller_crash | l | scenario default | none | host_name=onos | custom | pass |
 | test | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | custom | pass |
 | test | southbound_port_mismatch | l | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | custom | pass |
 | test | web_dos_attack | s | scenario default | none | attacker_device=client_4_1, host_name=web_2, observer_device=client_1_1, probe_url=http://10.0.2.11/ | custom | pass |
@@ -502,18 +499,18 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
-| dev | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
-| dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
-| dev | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
-| dev | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
+| dev | dhcp_missing_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | custom | pass |
+| dev | dhcp_service_down | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | custom | pass |
+| dev | dhcp_spoofed_dns | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | custom | pass |
+| dev | dhcp_spoofed_gateway | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | custom | pass |
+| dev | dhcp_spoofed_subnet | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | custom | pass |
 | dev | load_balancer_overload | s | scenario default | none | backend_cpu_host=backend_web_0, backend_probe_host=load_balancer, backend_url=http://20.200.0.2/small, client_host=pc_1_1_1_1, concurrency=200, control_url=http://web0.local/small, cpu_quota=0.2, duration_sec=300, host_name=load_balancer, load_client_hosts=pc_2_1_1_1, load_workers=4, probe_concurrency=4, probe_requests=60, vip_url=http://web99.local/small, warmup_sec=5 | custom | pass |
 | test | device_forwarding_packet_corruption | l | scenario default | none | forwarding_device=router_core_2, intf_name=eth5, observer_device=pc_1_1_1_1, probe_dst_ip=10.200.0.3, seed=42 | custom | pass |
-| test | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
-| test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
-| test | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
-| test | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | artifact_only | pass |
-| test | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | artifact_only | pass |
+| test | dhcp_missing_subnet | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | custom | pass |
+| test | dhcp_service_down | m | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | custom | pass |
+| test | dhcp_spoofed_dns | l | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | custom | pass |
+| test | dhcp_spoofed_gateway | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1 | custom | pass |
+| test | dhcp_spoofed_subnet | s | scenario default | none | host_name=dhcp_server, host_name_2=pc_1_1_1_1, subnet=10.1.1.0 | custom | pass |
 | test | dns_lookup_latency | m | scenario default | none | delay_ms=1000, host_name=dns_server, intf_name=eth0 | http_by_name | pass |
 | test | dns_port_blocked | l | scenario default | none | host_name=dns_server | path_http | pass |
 | test | dns_record_error | m | scenario default | none | host_name=dns_server, target_domain=local, target_website=web1 | dns_answer | pass |
@@ -550,7 +547,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | http_acl_block | none | scenario default | none | host_name=client | path_http | pass |
 | dev | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | custom | pass |
 | dev | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | isolation_http | pass |
-| dev | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | artifact_only | pass |
+| dev | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | custom | pass |
 | dev | receiver_resource_contention | none | scenario default | none | duration=3600, host_name=client | custom | pass |
 | test | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | custom | pass |
 | test | host_missing_ip | none | scenario default | none | host_name=client, intf_name=eth0 | path_ping | pass |
@@ -581,11 +578,11 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | test | lb_connection_state_exhaustion | s | scenario default | none | attacker_device=client_2, backend_dip=10.0.1.11, capacity=256, client_host=client_1, host_name=gateway_1, seed=42, syn_timeout_sec=10, vip_url=http://20.0.0.1:80/ | custom | pass |
 | test | lb_pending_connection_update_race | l | scenario default | none | host_name=gateway_1, learning_delay_ms=5, seed=42 | custom | pass |
 | test | mac_address_conflict | s | scenario default | none | host_name=service_1_2, host_name_2=client_1 | custom | pass |
-| test | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | artifact_only | pass |
-| test | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| test | p4_action_selector_member_misconfig | s | scenario default | none | host_name=leaf_1 | custom | pass |
+| test | p4_ecmp_group_member_missing | m | scenario default | none | host_name=leaf_1 | custom | pass |
 | test | p4_ecn_threshold_misconfiguration | l | scenario default | none | bmv2_port=10, host_name=spine_1, intf_name=eth9, threshold=1024 | custom | pass |
 | test | p4_table_entry_misconfig | s | scenario default | none | host_name=leaf_1 | path_http | pass |
-| test | p4_table_resource_exhaustion | l | scenario default | none | host_name=leaf_1 | artifact_only | pass |
+| test | p4_table_resource_exhaustion | l | scenario default | none | host_name=leaf_1 | custom | pass |
 | test | p4_tcam_entry_corruption | s | scenario default | none | control_source=client_2, host_name=spine_1, target_ip=10.0.1.12 | custom | pass |
 | test | p4runtime_partial_write | m | scenario default | none | host_name=leaf_1 | path_http | pass |
 | test | p4runtime_pipeline_mismatch | l | scenario default | none | host_name=gateway_1 | path_ping | pass |

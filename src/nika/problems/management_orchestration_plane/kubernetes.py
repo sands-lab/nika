@@ -65,9 +65,11 @@ class WorkerApiServerPartition(K8sProblemBase):
     description = "Worker is partitioned from the Kubernetes API server."
     symptom_desc = (
         "One Kubernetes worker node reports NotReady and stops receiving new pods, "
-        "and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while "
-        "those pods keep serving traffic and the node itself is still reachable over "
-        "the network."
+        "and `kubectl exec` / `kubectl logs` fail for the pods it hosts. Those pods "
+        "keep running and answer on their pod IPs, but they are marked not ready and "
+        "removed from Service endpoints, so services that depend only on them fail; "
+        "after the eviction timeout they stay Terminating. The node itself is still "
+        "reachable over the network."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "k8s_control_plane"]
 

@@ -63,18 +63,6 @@ def evaluate_symptom(
     ``tests.support.symptom.custom``.
     """
     contract = get_symptom_contract(failure)
-    if contract.control_plane_only:
-        return True, {
-            "skipped": True,
-            "reason": "control_plane_only",
-            "symptom_class": contract.symptom_class,
-        }
-    if contract.probe == "artifact_only":
-        return True, {
-            "skipped": True,
-            "reason": "artifact_only",
-            "symptom_class": contract.symptom_class,
-        }
     if contract.probe == "custom":
         if problem is None:
             return False, {
