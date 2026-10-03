@@ -21,7 +21,7 @@ Excerpts that only repeat commands the agent itself ran earlier in the trial
 Phases (from the repo root; NAME is a run under ``runs/``, PHASE is
 ``before`` or ``after`` an injection fix):
   python experiment/red_team/redteam.py sample NAME [--types T ...] [--max-class light] [--with-healthy]
-  python experiment/red_team/redteam.py run NAME [--phase before] [--task-id ID ...]
+  python experiment/red_team/redteam.py run NAME [--phase before|after|whitebox] [--task-id ID ...]
   python experiment/red_team/redteam.py baseline NAME [--phase before]
   python experiment/red_team/redteam.py judge NAME
   python experiment/red_team/redteam.py oracle NAME [--phase after] [--task-id ID ...] [--batfish]
@@ -53,13 +53,20 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 CONFIG = HERE / "config.yaml"
 PROMPT = HERE / "prompt.md"
+PROMPT_WHITEBOX = HERE / "prompt_whitebox.md"
 RUNS = HERE / "runs"
 CASES = REPO / "benchmark/working/cases.yaml"
-PHASES = ("before", "after")
+# ``whitebox`` runs the auditor that is told the answer and shown the injector
+# source (prompt_whitebox.md); ``before``/``after`` run the blind red team.
+PHASES = ("before", "after", "whitebox")
 MIN_FREE_GB = float(os.environ.get("RED_TEAM_MIN_FREE_GB", "16"))
-# Set by `run` and inherited by spawned benchmark trial workers, which
-# re-import this file as ``__mp_main__`` and so re-install the prompt patch.
+# Set by `run` ("blind" or "whitebox") and inherited by spawned benchmark trial
+# workers, which re-import this file as ``__mp_main__`` and so re-install the
+# prompt patch.
 RED_TEAM_ENV = "NIKA_RED_TEAM"
+RED_TEAM_MODES = ("blind", "whitebox")
+# Cap on the injector source pasted into a white-box task.
+WHITEBOX_SOURCE_CHARS = 60000
 
 sys.path.insert(0, str(HERE))
 # A spawned trial worker (this file re-imported as ``__mp_main__``) keeps the
@@ -95,8 +102,12 @@ def fault_type_ids() -> list[dict[str, str]]:
     return ownership_entries(fault_candidates())
 
 
-def red_team_task(task_description: str) -> str:
-    """Red-team instructions plus the network description the agent would get."""
+def red_team_task(task_description: str, whitebox: str | None = None) -> str:
+    """Red-team instructions plus the network description the agent would get.
+
+    With ``whitebox`` (ground truth and injector source), the white-box prompt
+    is used and that context is appended.
+    """
     if not _DIAGNOSIS_TASK.search(task_description):
         raise RuntimeError("task description no longer matches the diagnosis template")
     network = _DIAGNOSIS_TASK.sub("", task_description).strip()
@@ -104,11 +115,77 @@ def red_team_task(task_description: str) -> str:
         "You are provided with the following network description and its current state:"
     ).strip()
     types = "\n".join(f"- `{e['id']}`: {e['description']}" for e in fault_type_ids())
-    instructions = PROMPT.read_text(encoding="utf-8").replace("{fault_types}", types)
-    return f"{instructions.rstrip()}\n\n## Network under test\n\n{network}"
+    prompt = PROMPT_WHITEBOX if whitebox is not None else PROMPT
+    instructions = prompt.read_text(encoding="utf-8").replace("{fault_types}", types)
+    task = f"{instructions.rstrip()}\n\n## Network under test\n\n{network}"
+    if whitebox is not None:
+        task += f"\n\n{whitebox}"
+    return task
 
 
-def install_red_team_prompt() -> None:
+def injector_source(problem_names: list[str]) -> str:
+    """Source of each injected problem class (and its NIKA problem bases), plus
+    the module-level NIKA helpers those classes call, one level deep."""
+    import inspect
+
+    from nika.problems.registry import get_problem_class
+
+    seen: set[object] = set()
+    parts: list[str] = []
+
+    def add(obj: object) -> None:
+        if obj in seen:
+            return
+        seen.add(obj)
+        try:
+            source = inspect.getsource(obj)  # type: ignore[arg-type]
+        except (OSError, TypeError):
+            return
+        parts.append(f"# {obj.__module__}.{obj.__qualname__}\n{source}")  # type: ignore[attr-defined]
+
+    classes = []
+    for name in problem_names:
+        cls = get_problem_class(name)
+        if cls is None:
+            continue
+        for base in cls.__mro__:
+            if (
+                base.__module__.startswith("nika.problems")
+                and base.__name__ != "ProblemBase"
+            ):
+                classes.append(base)
+                add(base)
+    for cls in classes:
+        scope = vars(sys.modules[cls.__module__])
+        for ref in re.findall(r"\b([A-Za-z_]\w*)\(", inspect.getsource(cls)):
+            obj = scope.get(ref)
+            if (
+                (inspect.isfunction(obj) or inspect.isclass(obj))
+                and getattr(obj, "__module__", "").startswith("nika.")
+                and obj.__module__ != "nika.problems.base"
+            ):
+                add(obj)
+    text = "\n\n".join(parts)
+    if len(text) > WHITEBOX_SOURCE_CHARS:
+        text = text[:WHITEBOX_SOURCE_CHARS] + "\n# ... (truncated)"
+    return text
+
+
+def whitebox_context(session: Any) -> str:
+    """Ground truth and injector source for the white-box auditor."""
+    gt = _read_json(Path(session.session_dir) / "ground_truth.json") or {}
+    problems = list(getattr(session, "problem_names", None) or [])
+    return (
+        "## Ground truth (known to you only)\n\n"
+        f"```json\n{json.dumps(gt, indent=2)}\n```\n\n"
+        "## Injector source\n\n"
+        "Runtime commands run as `sh -c` inside the device container "
+        "(`self.runtime.exec(node, cmd)`).\n\n"
+        f"```python\n{injector_source(problems)}\n```"
+    )
+
+
+def install_red_team_prompt(mode: str = "blind") -> None:
     """Swap the diagnosis prompt strings; the rest of the benchmark is unchanged."""
     import agent.cli.claude.phases.diagnosis as diagnosis
     import nika.workflows.benchmark.run as bench_run
@@ -121,8 +198,9 @@ def install_red_team_prompt() -> None:
 
     def start_agent(*args: Any, session_id: str | None = None, **kwargs: Any) -> None:
         session = Session().load_running_session(session_id=session_id)
+        extra = whitebox_context(session) if mode == "whitebox" else None
         session.update_session(
-            "task_description", red_team_task(session.task_description)
+            "task_description", red_team_task(session.task_description, extra)
         )
         return original(*args, session_id=session_id, **kwargs)
 
@@ -130,8 +208,12 @@ def install_red_team_prompt() -> None:
     bench_run.start_agent = start_agent
 
 
-if os.environ.get(RED_TEAM_ENV) == "1":
-    install_red_team_prompt()
+# "1" is the blind mode's value in runs started before the white-box mode.
+_mode = {"1": "blind"}.get(
+    os.environ.get(RED_TEAM_ENV, ""), os.environ.get(RED_TEAM_ENV)
+)
+if _mode in RED_TEAM_MODES:
+    install_red_team_prompt(_mode)
 
 
 # ------------------------------------------------------------------ helpers
@@ -290,6 +372,9 @@ def record_provenance(result_dir: Path) -> None:
         ).hexdigest(),
         "src_diff_files": git("diff", "--name-only", "HEAD", "--", "src").split(),
         "prompt_sha256": hashlib.sha256(PROMPT.read_bytes()).hexdigest(),
+        "prompt_whitebox_sha256": hashlib.sha256(
+            PROMPT_WHITEBOX.read_bytes()
+        ).hexdigest(),
         "config_sha256": hashlib.sha256(CONFIG.read_bytes()).hexdigest(),
     }
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -358,15 +443,62 @@ def sample(
 # ---------------------------------------------------------------- run/oracle
 
 
+def trial_failure(trial: Path) -> str | None:
+    """Why a trial carries no red-team signal, or None.
+
+    ``endpoint``: the agent failed without a single tool call (the model
+    endpoint errored; benchmark resume keeps ``agent_failed`` trials).
+    ``tools_failed``: every MCP tool call returned an error, so no device was
+    observed (e.g. issue #123).
+    """
+    calls = rt_trace.load_tool_calls(trial / "messages.jsonl")
+    outcome = (_read_json(trial / "run.json") or {}).get("outcome")
+    if not calls and outcome == "agent_failed":
+        return "endpoint"
+    # Diagnosis-phase device tools; the submission phase only has ``submit``.
+    mcp = [c for c in calls if c["name"].startswith("mcp__") and c["tool"] != "submit"]
+    if mcp and all(c["is_error"] for c in mcp):
+        return "tools_failed"
+    return None
+
+
+def quarantine_failed_trials(name: str, phase: str) -> None:
+    """Move trials without signal aside so benchmark resume runs them again.
+
+    A trial is moved at most twice (``<phase>-quarantine/<trial>.<n>``); after
+    that it stays and the summary lists it under ``invalid_trials``.
+    """
+    aside = run_dir(name) / f"{phase}-quarantine"
+    for trial in trial_dirs(name, phase):
+        reason = trial_failure(trial)
+        if reason is None:
+            continue
+        tries = len(list(aside.glob(f"{trial.name}.*"))) if aside.is_dir() else 0
+        if tries >= 2:
+            print(f"[quarantine] {trial.name}: {reason} again, kept")
+            continue
+        aside.mkdir(parents=True, exist_ok=True)
+        trial.rename(aside / f"{trial.name}.{tries + 1}")
+        print(f"[quarantine] {trial.name}: {reason}, will run again")
+
+
 def run(name: str, phase: str, task_ids: list[str]) -> None:
     preflight()
-    os.environ[RED_TEAM_ENV] = "1"
-    install_red_team_prompt()
+    mode = "whitebox" if phase == "whitebox" else "blind"
+    os.environ[RED_TEAM_ENV] = mode
+    install_red_team_prompt(mode)
+    quarantine_failed_trials(name, phase)
+    cases = run_dir(name) / "cases.yaml"
+    if mode == "whitebox":
+        # A healthy case has nothing injected to audit.
+        rows = [r for r in load_rows(name) if r["problem"] != "healthy"]
+        cases = run_dir(name) / "whitebox-cases.yaml"
+        cases.write_text(yaml.safe_dump({"cases": rows}, sort_keys=False))
     argv = [
         "benchmark",
         "run",
         "--config",
-        str(run_dir(name) / "cases.yaml"),
+        str(cases),
         "--run-config",
         str(CONFIG),
         "--result_dir",
@@ -475,11 +607,41 @@ def answer_match(inferred: dict | None, gt: dict) -> dict[str, bool]:
     }
 
 
+def targeted_values(row: dict) -> list[str]:
+    """Inject parameter values only someone who knows the answer would type:
+    prefixes, IPs, communities, rule and file names. Node and interface names
+    are left out (a blind sweep covers every device and interface), and so are
+    plain words, which are too common to tell anything."""
+    values = []
+    for key, value in (row.get("inject") or {}).items():
+        if re.search(
+            r"host|device|node|router|switch|peer|observer|intf|iface|interface", key
+        ):
+            continue
+        text = str(value).strip().lower()
+        if len(text) >= 4 and re.search(r"[\d./:_-]", text) and not text.isdigit():
+            values.append(text)
+    return values
+
+
+def targeted(trace: dict, values: list[str]) -> bool:
+    """A white-box trace whose evidence command uses an answer-specific value,
+    so an agent that does not know the answer would not have run it."""
+    commands = " ".join(
+        str(v).lower()
+        for e in trace["evidence"]
+        for v in (e.get("args") or {}).values()
+    )
+    return any(value in commands for value in values)
+
+
 def trace_verdict(trace: dict) -> str:
     if trace["citation"] != "verified":
         return "unsupported"
     if trace["self_inflicted"]:
         return "self_inflicted"
+    if trace.get("targeted"):
+        return "targeted"
     match = trace["answer_match"]
     if not (match["fault_type"] or match["device"]):
         return "wrong_answer"
@@ -567,7 +729,10 @@ def judge(name: str) -> list[dict]:
                         for e, c in zip(trace.get("evidence") or [], checks)
                     ),
                     "answer_match": answer_match(trace.get("inferred_answer"), gt),
+                    "trial_failure": trial_failure(trial),
                 }
+                if phase == "whitebox":
+                    item["targeted"] = targeted(item, targeted_values(row))
                 item["baseline"] = baseline_status(item, replay)
                 item["verdict"] = trace_verdict(item)
                 rows.append(item)
@@ -821,6 +986,9 @@ def _phase_cases(name: str, phase: str, traces: list[dict]) -> dict[str, Any]:
         "best_guess_fault_type": sum(1 for g in guesses if g["fault_type"]),
         "best_guess_device": sum(1 for g in guesses if g["device"]),
         "healthy_false_positive": healthy_fp,
+        "invalid_trials": {
+            t.name: reason for t in trials if (reason := trial_failure(t)) is not None
+        },
     }
 
 
@@ -894,6 +1062,19 @@ def summary(name: str) -> None:
         + " | ".join(str(len(v["healthy_false_positive"])) for v in phases.values())
         + " |"
     )
+    lines.append(
+        "| invalid_trials | "
+        + " | ".join(str(len(v["invalid_trials"])) for v in phases.values())
+        + " |"
+    )
+    invalid = [
+        (phase, trial, reason)
+        for phase, v in phases.items()
+        for trial, reason in v["invalid_trials"].items()
+    ]
+    if invalid:
+        lines += ["", "## Invalid trials (no device observed)", ""]
+        lines += [f"- {phase} {trial}: {reason}" for phase, trial, reason in invalid]
     lines += ["", "## Traces by type", "", "| Trace type | Verdicts |", "|---|---|"]
     for k, v in sorted(by_type.items()):
         lines.append(

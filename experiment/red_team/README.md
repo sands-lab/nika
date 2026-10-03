@@ -14,6 +14,7 @@ A deterministic judge (`redteam.py judge`) gives every reported trace one verdic
 | `self_inflicted` | Every excerpt line is a command the agent itself ran earlier in the trial. |
 | `wrong_answer` | The implied fault type and device both miss `ground_truth.json`. |
 | `in_baseline` | Replaying the cited calls on a fresh fault-free deployment reproduces the excerpt (timestamps masked). |
+| `targeted` | White-box only: the cited command uses an answer-specific inject value (prefix, IP, rule or file name), so an agent that does not know the answer would not run it. |
 | `baseline_pending` | The cited calls were not replayed yet, or were skipped because they match the mutating-command filter. |
 | `confirmed` | Verified citation, matching answer, absent from the healthy baseline. |
 
@@ -40,9 +41,15 @@ python experiment/red_team/redteam.py summary NAME
 ```
 
 1. `sample` writes `runs/NAME/cases.yaml`: the cheapest case of each fault type up to `--max-class`, plus one healthy case per sampled environment with `--with-healthy`.
-2. `run` executes the red team trials. Re-running it resumes: missing and infrastructure-failed trials run again, while `agent_failed` trials are kept. A trial that failed because the model endpoint errored also counts as `agent_failed`, so move its trial directory aside before resuming.
+2. `run` executes the red team trials. Re-running it resumes: missing and infrastructure-failed trials run again. Before resuming, `run` moves aside (to `runs/NAME/PHASE-quarantine/`) trials that carry no signal, so they run again: `endpoint` (the agent failed without a tool call, e.g. the model endpoint returned 500) and `tools_failed` (every device tool call errored). A trial is moved at most twice; after that the summary lists it under `invalid_trials`.
 3. `baseline` replays cited calls on one healthy deployment per environment.
 4. `summary` re-judges and writes `runs/NAME/summary.md`, `summary.json`, and `traces.jsonl`.
+
+## White-box audit
+
+`run NAME --phase whitebox` runs an auditor that is told the answer. Its task adds the case's `ground_truth.json` and the source of the injected problem class (with the module-level helpers it calls), and the prompt is `prompt_whitebox.md`: list the side effects the injector can leave, check each on the devices, and cite the generic command a blind agent would run to find it. Healthy cases are skipped. Run `baseline NAME --phase whitebox` and `summary` as for the blind phases. `best_guess` metrics mean nothing in this phase; read `cases_with_confirmed_trace` and review each confirmed trace by hand.
+
+A clean white-box result is a stronger statement than a clean blind one: an auditor that knows the fault and reads the injector found no leftover that a blind agent could use.
 
 ## Verify an injection fix
 
