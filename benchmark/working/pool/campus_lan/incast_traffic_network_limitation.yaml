@@ -5,6 +5,7 @@ failure:
   cases:
   - topo_size: s
     inject:
+      duration: '3600'
       host_name: web_server_0
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3
@@ -16,6 +17,7 @@ failure:
       fault_type: incast_traffic_network_limitation
   - topo_size: m
     inject:
+      duration: '3600'
       host_name: web_server_0
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3
@@ -27,6 +29,7 @@ failure:
       fault_type: incast_traffic_network_limitation
   - topo_size: l
     inject:
+      duration: '3600'
       host_name: web_server_0
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3

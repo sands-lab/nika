@@ -5,7 +5,7 @@ from __future__ import annotations
 import ipaddress
 from typing import Any, Mapping
 
-# Synthetic hijack prefix outside ISP business pools (203.0.113/24, 198.51.100/24).
+# Synthetic prefix permitted by BGP policy but unowned in the healthy baseline.
 DEFAULT_HIJACK_PREFIX = "198.18.0.0/24"
 
 LINK_INTF_PROBLEMS = frozenset(

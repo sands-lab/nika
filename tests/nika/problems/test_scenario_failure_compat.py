@@ -30,7 +30,8 @@ from nika.workflows.failure.inject import inject_failure as inject_failure_workf
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_failure_compat import write_probe_report
-from tests.support.symptom import evaluate_symptom, get_symptom_contract
+from tests.support.symptom import evaluate_symptom
+from tests.support.symptom.custom import evaluate_custom_baseline
 
 pytestmark = pytest.mark.integration
 
@@ -179,11 +180,9 @@ def _sdn_observable(
     smoke_before: dict[str, bool],
     smoke_after: dict[str, bool],
     runtime,
-    params: dict[str, Any],
+    instance: Any,
+    parsed: Any,
 ) -> bool:
-    contract = get_symptom_contract(problem)
-    if contract.control_plane_only and verify_ok:
-        return True
     if verify_ok and (
         smoke_before.get("cross_rack_ping") and not smoke_after.get("cross_rack_ping")
     ):
@@ -193,18 +192,14 @@ def _sdn_observable(
     ):
         return True
     if verify_ok:
-        from pydantic import create_model
-
-        param_model = create_model(
-            "CompatParams", **{k: (str, v) for k, v in params.items()}
-        )()
         ok, _ = evaluate_symptom(
             runtime,
             problem,
-            param_model,
+            parsed,
             scenario="sdn_l3_clos",
             topo_size=TOPO_SIZE,
             before=None,
+            problem=instance,
         )
         if ok:
             return True
@@ -218,7 +213,8 @@ def _p4_fabric_observable(
     smoke_before: dict[str, bool],
     smoke_after: dict[str, bool],
     runtime,
-    params: dict[str, Any],
+    instance: Any,
+    parsed: Any,
 ) -> bool:
     if verify_ok and (
         smoke_before.get("cross_rack_ping") and not smoke_after.get("cross_rack_ping")
@@ -229,18 +225,14 @@ def _p4_fabric_observable(
     ):
         return True
     if verify_ok:
-        from pydantic import create_model
-
-        param_model = create_model(
-            "CompatParams", **{k: (str, v) for k, v in params.items()}
-        )()
         ok, _ = evaluate_symptom(
             runtime,
             problem,
-            param_model,
+            parsed,
             scenario="p4_dc_fabric",
             topo_size=TOPO_SIZE,
             before=None,
+            problem=instance,
         )
         if ok:
             return True
@@ -305,6 +297,15 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         results.append(row)
                         continue
 
+                instance = get_problem_instance(
+                    [problem], scenario_name=sweep.scenario, **scenario_kwargs
+                )
+                parsed = instance.Params(**params)
+                baseline = evaluate_custom_baseline(problem, instance, parsed)
+                if baseline is not None and not baseline[0]:
+                    row["error"] = f"symptom baseline failed: {baseline[1]}"
+                    continue
+
                 inject_failure_workflow(
                     [problem], session_id=session_id, param_overrides=params
                 )
@@ -328,7 +329,8 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         smoke_before=smoke_before,
                         smoke_after=row["smoke_after"],
                         runtime=runtime,
-                        params=params,
+                        instance=instance,
+                        parsed=parsed,
                     )
                     row["regression_status"] = (
                         "pass"
@@ -347,7 +349,8 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         smoke_before=smoke_before,
                         smoke_after=smoke_after,
                         runtime=runtime,
-                        params=params,
+                        instance=instance,
+                        parsed=parsed,
                     )
                     row["regression_status"] = (
                         "pass"

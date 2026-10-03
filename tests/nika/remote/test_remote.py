@@ -128,6 +128,19 @@ def test_remote_app_health_no_auth() -> None:
     assert resp.json()["session_id"] == "sess-1"
 
 
+def test_remote_fault_artifact_endpoint() -> None:
+    app = create_remote_app()
+    client = TestClient(app)
+    with patch(
+        "nika.remote.api.handle_fault_artifact",
+        return_value={"present": True, "fault": "link_down", "evidence": {}},
+    ) as recheck:
+        resp = client.get("/v1/sessions/sess-1/fault-artifact")
+    assert resp.status_code == 200
+    assert resp.json()["present"] is True
+    recheck.assert_called_once_with("sess-1")
+
+
 def test_remote_app_artifacts(tmp_path: Path) -> None:
     session_dir = tmp_path / "session"
     session_dir.mkdir()

@@ -12,9 +12,9 @@ class TcpSynFloodAttackParams(BaseModel):
     attacker_device: str
     target_ip: str
     target_port: int = Field(default=80, gt=0, le=65535)
-    rate_pps: int = Field(default=100, gt=0)
-    duration: int = Field(default=60, gt=0)
-    flows: int = Field(default=40, gt=0, le=1000)
+    rate_pps: int = Field(default=1000, gt=0)
+    duration: int = Field(default=3600, gt=0)
+    flows: int = Field(default=100, gt=0, le=1000)
     seed: int = 42
 
 
@@ -39,9 +39,9 @@ class TcpSynFloodAttack(ProblemBase):
             "attacker_device": ctx.rng.choice(model.clients).name,
             "target_ip": service.ip,
             "target_port": "80",
-            "rate_pps": "100",
-            "duration": "60",
-            "flows": "40",
+            "rate_pps": "1000",
+            "duration": "3600",
+            "flows": "100",
             "seed": str(ctx.seed),
         }
 

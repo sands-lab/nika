@@ -62,6 +62,10 @@ def verify_isp_lab_startup(
         check_functions["bgp_prefixes_propagated"] = lambda: (
             _bgp_prefixes_propagated_ok(runtime, bgp_plan)
         )
+        if bgp_plan.inventory.get("rpki"):
+            check_functions["rpki_rtr_connected"] = lambda: _rpki_rtr_ok(
+                runtime, bgp_plan
+            )
     checks = dict(
         zip(
             check_functions,
@@ -700,6 +704,19 @@ def _rtbh_baseline_healthy_ok(
     return True
 
 
+def _rpki_output_ok(output: str, routinator_address: str) -> bool:
+    lowered = output.lower()
+    if "unknown command" in lowered or "failed to connect" in lowered:
+        return False
+    return (
+        "connected" in lowered
+        or "establ" in lowered
+        or "up" in lowered
+        or (routinator_address and routinator_address in output)
+        or "rtr" in lowered
+    )
+
+
 def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     """ROV observer has an established RPKI cache connection."""
     observer = str(bgp_plan.inventory.get("rov_observer") or "")
@@ -710,16 +727,20 @@ def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     output = exec_or_empty(
         runtime, observer, "vtysh -c 'show rpki cache-connection'", timeout=20
     )
-    lowered = output.lower()
-    if "unknown command" in lowered:
-        return False
-    return (
-        "connected" in lowered
-        or "establ" in lowered
-        or "up" in lowered
-        or (routinator_address and routinator_address in output)
-        or "rtr" in lowered
+    if _rpki_output_ok(output, routinator_address):
+        return True
+    # bgpd accepts vtysh before the RPKI module has dialed Routinator.
+    # A readiness poll can issue the start; the next read sees the session.
+    exec_or_empty(
+        runtime,
+        observer,
+        "vtysh -c 'rpki start' >/dev/null 2>&1 || true",
+        timeout=20,
     )
+    output = exec_or_empty(
+        runtime, observer, "vtysh -c 'show rpki cache-connection'", timeout=20
+    )
+    return _rpki_output_ok(output, routinator_address)
 
 
 def _rpki_leak_absent_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:

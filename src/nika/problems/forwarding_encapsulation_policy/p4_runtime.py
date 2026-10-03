@@ -374,6 +374,32 @@ class P4RuntimePartialWrite(ProblemBase):
             },
         )
 
+    def recheck_artifact(self, params: P4RuntimePartialWriteParams) -> dict:
+        """Re-read the LPM table. Does not send the HTTP symptom probe."""
+        intent = load_intent(self.runtime)
+        prefix = self._prefix or _ecmp_target(intent, params.host_name)[0]
+        observed = run_manager(
+            self.runtime, "read", "--switch", params.host_name, timeout=30
+        )
+        entries = (observed.get("switches") or {}).get(params.host_name, {}).get(
+            "ipv4_lpm"
+        ) or []
+        present = any(entry.get("prefix") == prefix for entry in entries)
+        remaining = len(entries)
+        artifact_ok = (not present) and remaining > 0
+        return {
+            "present": artifact_ok,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "host": params.host_name,
+                "prefix": prefix,
+                "entry_present": present,
+                "remaining_lpm": remaining,
+            },
+            "error": None if artifact_ok else "fault artifact absent",
+        }
+
 
 class P4TableResourceExhaustionParams(BaseModel):
     host_name: str = Field(description="Target BMv2 switch name.")

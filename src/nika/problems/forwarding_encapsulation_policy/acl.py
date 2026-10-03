@@ -75,7 +75,9 @@ class BGPAclBlock(ProblemBase):
     def inject_fault(self, params: BGPAclBlockParams):
         match self.lab_backend:
             case "containerlab":
-                self.runtime.srl_add_bgp_acl_drop_179(params.host_name)
+                self._srl_acl_entries = self.runtime.srl_add_bgp_acl_drop_179(
+                    params.host_name
+                )
             case "kathara":
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "tcp dport 179 drop", family="inet"
@@ -106,11 +108,18 @@ class BGPAclBlock(ProblemBase):
         """Verify nftables or SRL ACL blocks TCP port 179 (BGP)."""
         match self.lab_backend:
             case "containerlab":
-                verified = self.runtime.srl_bgp_acl_drop_179_present(params.host_name)
+                entries = getattr(self, "_srl_acl_entries", {})
+                verified = self.runtime.srl_bgp_acl_drop_179_present(
+                    params.host_name, entries
+                )
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
-                    details={"host": params.host_name, "srl_acl": verified},
+                    details={
+                        "host": params.host_name,
+                        "srl_acl": verified,
+                        "srl_acl_entries": sorted(entries),
+                    },
                 )
             case "kathara":
                 return _verify_nft_drop(

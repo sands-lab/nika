@@ -113,6 +113,15 @@ class RemoteClient:
             )
         )
 
+    def fault_artifact(self, session_id: str) -> dict[str, Any]:
+        """Bound the network wait for a benchmark artifact recheck."""
+        payload = self._request(
+            "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=30.0
+        )
+        if not isinstance(payload, dict):
+            raise RemoteError("Unexpected fault-artifact response shape")
+        return payload
+
     def mcp_attach(
         self,
         session_id: str,

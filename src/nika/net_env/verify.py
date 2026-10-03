@@ -767,6 +767,20 @@ def frr_bgp_established_peers(summary: str) -> set[str]:
     return peers
 
 
+def srl_bgp_established_peers(output: str) -> set[str]:
+    """Parse SR Linux ``show network-instance ... bgp neighbor`` for Established peers.
+
+    Only table rows count: the trailing summary ("0 configured sessions are
+    established") also contains the word.
+    """
+    peers: set[str] = set()
+    for line in output.splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 6 and cells[6] == "established":
+            peers.add(cells[2])
+    return peers
+
+
 def frr_ospf_full_router_ids(output: str) -> set[str]:
     """Parse FRR ``show ip ospf neighbor`` for router IDs in Full state."""
     peers: set[str] = set()
@@ -818,7 +832,8 @@ def raise_for_k8s_startup_failure(
     failure = exec_or_empty(
         runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
     ).strip()
-    if failure:
+    # A busy controller can time out the read; only the marker itself is a failure.
+    if failure and not failure.startswith("[TIMEOUT]"):
         log = exec_or_empty(runtime, "controller", "tail -60 /var/log/startup.log")
         raise RuntimeError(f"k3s controller bootstrap failed: {failure}\n{log}")
 

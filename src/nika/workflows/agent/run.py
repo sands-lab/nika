@@ -2,6 +2,7 @@
 
 import logging
 import time
+from pathlib import Path
 
 from agent.registry import create_agent, run_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
@@ -32,6 +33,7 @@ def start_agent(
     session_id: str | None = None,
     reasoning_effort: str | None = None,
     stream_output: bool = True,
+    check_fault_presence: bool = False,
     sandbox_keep_container: bool | None = None,
     sandbox_cpus: str | None = None,
     sandbox_memory: str | None = None,
@@ -102,7 +104,23 @@ def start_agent(
         max_steps=max_steps,
         timeout_sec=timeout_sec,
     )
+    from nika.validation.presence import (
+        PRESENCE_FILENAME,
+        PresenceWatch,
+        raise_if_presence_failed,
+    )
+
+    # Benchmark inject and agent execution share the injecting instance. Standalone
+    # session commands run in separate processes and cannot use that instance.
+    presence = (
+        PresenceWatch(session.session_id, session.session_dir)
+        if check_fault_presence
+        else None
+    )
+    if presence is not None:
+        presence.start()
     agent_started = time.perf_counter()
+    agent_exc: BaseException | None = None
     if agent_type == "cli.codex" and stream_output:
         effort_line = (
             f" | Reasoning effort: {reasoning_effort}" if reasoning_effort else ""
@@ -163,7 +181,14 @@ def start_agent(
                             timeout_sec=timeout_sec,
                         )
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
+            # The local presence file has the during-agent read; the daemon copy does not.
+            presence_file = Path(session.session_dir) / PRESENCE_FILENAME
+            local_presence = (
+                presence_file.read_bytes() if presence_file.is_file() else None
+            )
             pull_session_artifacts(session.session_id, session.session_dir)
+            if local_presence is not None:
+                presence_file.write_bytes(local_presence)
         else:
             with mcp_gateway_for_session(
                 session.session_id,
@@ -216,18 +241,27 @@ def start_agent(
                             session.task_description,
                             timeout_sec=timeout_sec,
                         )
-    except Exception as exc:
-        log_error_event(
-            "agent_error",
-            f"Agent run failed for session {session.session_id}: {exc}",
-            session_id=session.session_id,
-            agent_type=agent_type,
-            model=model,
-            error=str(exc),
-            error_type=type(exc).__name__,
-            duration_ms=elapsed_ms(agent_started),
-        )
-        raise
+    except BaseException as exc:
+        agent_exc = exc
+        if not isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            log_error_event(
+                "agent_error",
+                f"Agent run failed for session {session.session_id}: {exc}",
+                session_id=session.session_id,
+                agent_type=agent_type,
+                model=model,
+                error=str(exc),
+                error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(agent_started),
+            )
+    if isinstance(agent_exc, (KeyboardInterrupt, SystemExit)):
+        # The parent kills the worker after a short grace period, so lab
+        # cleanup must not wait for artifact reads.
+        if presence is not None:
+            presence.cancel()
+        raise agent_exc
+    presence_failure = presence.finish() if presence is not None else None
+    raise_if_presence_failed(presence_failure, agent_exc)
 
     session.end_session()
     log_event(

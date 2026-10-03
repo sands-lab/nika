@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from nika.net_env.verify import build_lab_verify_result
+from nika.net_env.verify import build_lab_verify_result, srl_bgp_established_peers
 from nika.runtime.base import LabRuntime
 
 CLIENT1 = "client1"
@@ -52,15 +52,10 @@ def _leaf_bgp_neighbors_established(
         'sr_cli "show network-instance default protocols bgp neighbor"',
         timeout=30,
     )
-    established = sum(
-        1 for line in output.splitlines() if "established" in line.lower()
-    )
-    return established >= min_neighbors
+    return len(srl_bgp_established_peers(output)) >= min_neighbors
 
 
-def verify_min3clos_lab_startup(
-    runtime: LabRuntime, *, scenario_name: str
-) -> dict:
+def verify_min3clos_lab_startup(runtime: LabRuntime, *, scenario_name: str) -> dict:
     """Bounded readiness: fabric nodes, client attachment, and leaf BGP."""
     checks = {
         "nodes_deployed": _nodes_deployed(runtime),

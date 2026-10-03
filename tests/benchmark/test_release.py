@@ -75,6 +75,26 @@ def test_published_0_2_0_release_preflight() -> None:
     preflight_release(release, check_images=False)
 
 
+def test_timed_release_faults_cover_the_default_trial_budget() -> None:
+    """Worker expiry must not invalidate a legitimate long benchmark trial."""
+    from nika.problems.registry import get_problem_class
+    from nika.run_config.schema import BenchmarkSettings
+
+    timed_faults = {
+        "sender_resource_contention",
+        "receiver_resource_contention",
+        "tcp_syn_flood_attack",
+        "incast_traffic_network_limitation",
+    }
+    timeout = BenchmarkSettings.model_fields["case_timeout_sec"].default
+    for split in ("dev", "test"):
+        for row in load_release("0.2.0", split=split).cases:
+            if row["problem"] in timed_faults:
+                cls = get_problem_class(row["problem"])
+                params = cls.Params.model_validate(row["inject"])
+                assert params.duration > timeout, (split, row)
+
+
 class TestFreezeRelease:
     def test_freeze_writes_versioned_manifest(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")

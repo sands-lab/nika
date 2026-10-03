@@ -3,7 +3,6 @@
 import json
 import time
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +13,7 @@ from nika.problems.registry import (
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
+from nika.utils.session_artifacts import json_safe
 from nika.utils.session_log_summaries import summarize_fault_verify, summarize_injection
 from nika.utils.session_store import SessionStore
 
@@ -39,23 +39,11 @@ def _failure_effect_enabled() -> bool:
         return False
 
 
-def _json_safe(value: Any) -> Any:
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, dict):
-        return {str(k): _json_safe(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_json_safe(v) for v in value]
-    return str(value)
-
-
 def _extract_injection_params(problem: Any) -> dict[str, Any]:
     params: dict[str, Any] = {"problem_class": problem.__class__.__name__}
     for attr in problem.RECORDED_ATTRS:
         if hasattr(problem, attr):
-            params[attr] = _json_safe(getattr(problem, attr))
+            params[attr] = json_safe(getattr(problem, attr))
     return params
 
 
@@ -148,7 +136,7 @@ def inject_failure(
             if isinstance(fault_params, object) and hasattr(fault_params, "sub_params"):
                 parsed = getattr(fault_params, "sub_params", {}).get(problem_name)
                 if parsed is not None:
-                    params_snapshot["resolved_params"] = _json_safe(
+                    params_snapshot["resolved_params"] = json_safe(
                         parsed.model_dump(exclude_none=True)
                     )
             failure_id = store.create_failure_injection(
@@ -167,11 +155,11 @@ def inject_failure(
     else:
         params_snapshot = _extract_injection_params(inject_problem)
         if fault_params is not None:
-            params_snapshot["resolved_params"] = _json_safe(
+            params_snapshot["resolved_params"] = json_safe(
                 fault_params.model_dump(exclude_none=True)
             )
         if overrides:
-            params_snapshot["requested_overrides"] = _json_safe(overrides)
+            params_snapshot["requested_overrides"] = json_safe(overrides)
         if ParamsClass is not None:
             params_snapshot["param_schema"] = ParamsClass.__name__
         failure_id = store.create_failure_injection(
@@ -240,7 +228,7 @@ def inject_failure(
     verify_started = time.perf_counter()
     verify_result = _verify_with_retry(inject_problem, fault_params)
     verify_duration_ms = elapsed_ms(verify_started)
-    verify_payload = _json_safe(verify_result)
+    verify_payload = json_safe(verify_result)
     verify_summary = summarize_fault_verify(verify_payload)
     if not verify_result.get("verified", False):
         for failure_id, _problem_name, _params in failure_rows:
@@ -307,6 +295,16 @@ def inject_failure(
         problems=problem_names,
         scenario=session.scenario_name,
         duration_ms=elapsed_ms(workflow_started),
+    )
+    from nika.validation.presence import bind_injected_problem, record_injection_verify
+
+    if len(resolved_names) == 1:
+        fault_name = resolved_names[0]
+    else:
+        fault_name = ",".join(resolved_names)
+    bind_injected_problem(session.session_id, inject_problem, fault_params)
+    record_injection_verify(
+        session.session_dir, fault=fault_name, verify_result=verify_payload
     )
     task_description = inject_problem.get_task_description()
     session.update_session("task_description", task_description)

@@ -46,6 +46,17 @@ def read_nano_cpus(runtime: "LabRuntime", host: str) -> int:
     return 0
 
 
+def container_commands(runtime: "LabRuntime", host: str) -> list[str]:
+    """Return the container's process command lines as seen from the host.
+
+    ``docker top`` needs no CPU inside the container, so it stays reliable
+    while a tight quota starves ``docker exec`` there.
+    """
+    top = runtime.get_container(host).top()
+    column = top["Titles"].index("CMD")
+    return [row[column] for row in top.get("Processes") or []]
+
+
 def _update_container_resources(container: Any, data: dict[str, Any]) -> None:
     """POST /containers/{id}/update with a raw resource body.
 

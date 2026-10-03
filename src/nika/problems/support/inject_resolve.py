@@ -3,21 +3,46 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 
 from nika.runtime.base import LabRuntime
 
 
 def derive_incorrect_ip(runtime: LabRuntime, host: str, intf: str = "eth0") -> str:
-    """Return a wrong CIDR by incrementing the host part of the current address."""
+    """Return a wrong CIDR by incrementing the host part of the current address.
+
+    Addresses that answer ARP on the segment or are configured on any lab node
+    are skipped: reusing another host's address would turn the fault into an
+    IP conflict. Hosts on /32 links reach other hosts through a router, so
+    ARP alone misses them.
+    """
     current = runtime.get_host_ip(host, intf, with_prefix=True)
     if not current:
         raise ValueError(f"Cannot derive incorrect IP: no address on {host}:{intf}")
     network = ipaddress.ip_interface(current)
     prefix = network.network.prefixlen
     host_int = int(network.ip)
+    edges = {network.network.network_address, network.network.broadcast_address}
+    in_use: set[str] = set()
+    for node in runtime.list_nodes() or []:
+        try:
+            output = runtime.exec(node, "ip -4 -o addr show 2>/dev/null", timeout=10)
+        except RuntimeError:
+            continue
+        in_use |= set(re.findall(r"inet (\d+\.\d+\.\d+\.\d+)/", output or ""))
     for offset in (1, 2, 3, -1, -2):
         candidate = ipaddress.ip_address(host_int + offset)
         if candidate.is_multicast or candidate.is_reserved or candidate.is_loopback:
+            continue
+        if (prefix < 31 and candidate in edges) or str(candidate) in in_use:
+            continue
+        neighbor = runtime.exec(
+            host,
+            f"ping -c 1 -W 1 {candidate} >/dev/null 2>&1; "
+            f"ip neigh show {candidate} dev {intf}",
+            timeout=10,
+        )
+        if "lladdr" in (neighbor or ""):
             continue
         return f"{candidate}/{prefix}"
     raise ValueError(f"Cannot derive incorrect IP for {host}:{intf}")

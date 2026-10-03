@@ -11,6 +11,9 @@ from nika.problems.registry import get_problem_class
 from tests.support.ci_depth import artifact_verify_only
 from tests.support.failure_e2e_hooks import HOOKS, FailureE2EContext
 from tests.support.symptom import evaluate_symptom
+from tests.support.symptom.contracts import get_symptom_contract
+from tests.support.symptom.custom import evaluate_custom_baseline
+from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,22 @@ def _assert_artifact_verify(verify: dict[str, Any]) -> None:
     assert verify.get("verified") is True, verify
 
 
+def _record_baseline(case: FailureE2ECase, ctx: FailureE2EContext) -> None:
+    """Take the healthy reading that comparison-based symptom checks need."""
+    own = evaluate_custom_baseline(case.problem, ctx.problem, ctx.parsed)
+    if own is not None:
+        assert own[0] is True, own[1]
+        return
+    if ctx.before is not None:
+        return
+    probe = get_symptom_contract(case.problem).probe
+    if probe == "custom":
+        return
+    path = _resolve_path(case.scenario, ctx.parsed, topo_size=case.topo_size)
+    if path is not None:
+        ctx.before = run_probe_snapshot(ctx.runtime, probe, path, params=ctx.parsed)
+
+
 def run_failure_e2e(
     case: FailureE2ECase,
     *,
@@ -74,9 +93,7 @@ def run_failure_e2e(
     runtime = problem.runtime
     hooks = HOOKS.get(case.problem, {})
     # Nightly / CI artifact mode: inject + verify_fault only (no symptom/recover).
-    checks = (
-        frozenset({"verify"}) if artifact_verify_only() else case.checks
-    )
+    checks = frozenset({"verify"}) if artifact_verify_only() else case.checks
 
     ctx = FailureE2EContext(
         problem_name=case.problem,
@@ -93,6 +110,13 @@ def run_failure_e2e(
             hooks["pre_inject"](ctx)
         finally:
             record("pre_inject", started)
+
+    if "symptom" in checks:
+        started = time.monotonic()
+        try:
+            _record_baseline(case, ctx)
+        finally:
+            record("baseline", started)
 
     recovered_ok = False
     try:

@@ -286,9 +286,11 @@ class SouthboundPortMismatch(ProblemBase):
 
         ONOS briefly re-binds ``original_port`` while applying the new
         ``openflowPorts``; switches that reconnect in that window keep an
-        accepted channel after the listener is gone. Re-apply each switch's
-        unchanged controller target in two transactions so the next connect
-        attempt hits the refused port, as a steady-state mismatch would.
+        accepted channel after the listener is gone. Point each bridge at a
+        refused placeholder and back to its unchanged target so the next
+        connect attempt hits the refused port, as a steady-state mismatch
+        would. OVS flushes all flows when a bridge is left with no controller,
+        so the controller set never becomes empty.
         """
         state = _switch_controller_state(self.runtime, self.net_env)
         suffix = f":{params.original_port}"
@@ -299,7 +301,8 @@ class SouthboundPortMismatch(ProblemBase):
             self.runtime.exec(
                 switch,
                 f"for br in $(ovs-vsctl list-br); do "
-                f"ovs-vsctl del-controller $br && ovs-vsctl set-controller $br {target}; "
+                f"ovs-vsctl set-controller $br tcp:127.0.0.1:{params.original_port} "
+                f"&& ovs-vsctl set-controller $br {target}; "
                 f"done",
             )
 

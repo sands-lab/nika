@@ -202,7 +202,7 @@ Rows follow [`test.yaml`](test.yaml) order. Labels such as `test-001` locate row
 | `test-073` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `web_dos_attack`: Web service is under a denial-of-service attack. | node `web_2` |
 | `test-074` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `s` | `wireguard_allowed_ips_misconfiguration`: WireGuard AllowedIPs omits a required remote prefix. | interface `br1_edge:wg_hq` |
 | `test-075` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `wireguard_peer_key_misconfiguration`: WireGuard peer public key is incorrect. | interface `br1_edge:wg_dc2`<br>interface `br1_edge:wg_hq`<br>interface `br1_edge:wg_hq_b` |
-| `test-076` | `min3clos`: five-node SR Linux eBGP Clos | fixed size | `bgp_missing_route_advertisement`: An expected BGP route advertisement is missing. | node `leaf1` |
+| `test-076` | `min3clos`: five-node SR Linux eBGP Clos | fixed size | `bgp_asn_misconfig`: BGP local ASN is misconfigured relative to peer expectation. | node `leaf1` |
 | `test-077` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `healthy`: The runner injects no fault; the case checks the healthy scenario baseline. | None; healthy baseline |
 | `test-078` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `m` | `healthy`: The runner injects no fault; the case checks the healthy scenario baseline. | None; healthy baseline |
 | `test-079` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `l` | `healthy`: The runner injects no fault; the case checks the healthy scenario baseline. | None; healthy baseline |

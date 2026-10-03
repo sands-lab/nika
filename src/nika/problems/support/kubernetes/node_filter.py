@@ -12,7 +12,6 @@ IPTABLES_CHAINS = ("PREROUTING", "OUTPUT")
 IPTABLES_FILTER_CHAINS = ("INPUT", "FORWARD", "OUTPUT")
 IPTABLES_BINARY = "iptables"
 FILTER_TIMEOUT_SEC: float = 30.0
-WGET_BINARY = "wget"
 PROBE_TIMEOUT_SEC: float = 3.0
 _RC_MARK = "__rc="
 _TIMEOUT_SENTINEL = "[TIMEOUT]"
@@ -180,6 +179,10 @@ class NodeFilter:
 
     def tcp_reachable(self, address: str, port: int) -> bool | None:
         timeout = int(PROBE_TIMEOUT_SEC)
-        command = f"{WGET_BINARY} -q -T {timeout} -O /dev/null http://{address}:{port}/ >/dev/null 2>&1"
-        _, returncode = self._exec(command)
-        return returncode == 0
+        # Service and backend ports can speak different application protocols
+        # (the Kubernetes API uses TLS). Probe the TCP handshake itself.
+        output, _ = self._exec(
+            f"timeout {timeout} busybox telnet {shlex.quote(address)} {int(port)} "
+            "</dev/null 2>&1"
+        )
+        return "Connected to" in output

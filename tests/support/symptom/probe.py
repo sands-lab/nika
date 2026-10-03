@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import shlex
 from dataclasses import replace
 from typing import Any
 
@@ -11,7 +12,7 @@ from pydantic import BaseModel
 
 from nika.net_env.verify import (
     exec_or_empty,
-    frr_bgp_has_established_session,
+    frr_bgp_established_peers,
     http_body_time_ms,
     http_download_stats,
     http_ok,
@@ -23,6 +24,7 @@ from nika.net_env.verify import (
     ping_ok,
     ping_stats,
     route_is_onlink,
+    srl_bgp_established_peers,
     tbf_overlimits,
 )
 from nika.net_env.base import ProbePath
@@ -358,6 +360,52 @@ def _cluster_dns_ok(
     return "name:" in lowered
 
 
+def _srl_bgp_established_peers(runtime: LabRuntime, host: str) -> tuple[bool, set[str]]:
+    """Established peers from the SR Linux neighbor table (no vtysh there)."""
+    output = exec_or_empty(
+        runtime,
+        host,
+        'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
+        timeout=30,
+    )
+    query_ok = bool(re.search(r"\d+ configured sessions", output, re.IGNORECASE))
+    return query_ok, srl_bgp_established_peers(output) if query_ok else set()
+
+
+def _first_hop_answers(runtime: LabRuntime, router: str, target: str) -> bool | None:
+    """Whether a host routed through ``router`` gets a TTL=1 echo reply from ``target``.
+
+    A remote destination answers TTL=1 with time-exceeded from the first hop;
+    a reply means the first-hop router itself owns the prefix. Only nodes that
+    share the router's site prefix are tried, so large topologies stay cheap.
+    """
+    site = router.split("_", 1)[0]
+    if site == router:
+        return None
+    router_ips = set(
+        re.findall(
+            r"inet (\d+\.\d+\.\d+\.\d+)/",
+            exec_or_empty(runtime, router, "ip -4 -o addr show"),
+        )
+    )
+    probe_ip = next(ipaddress.ip_network(target, strict=False).hosts())
+    candidates = [
+        node
+        for node in sorted(runtime.list_nodes())
+        if node != router and node.startswith(f"{site}_")
+    ][:8]
+    for node in candidates:
+        route = exec_or_empty(runtime, node, "ip route show default")
+        gateway = re.search(r"via (\d+\.\d+\.\d+\.\d+)", route)
+        if gateway and gateway.group(1) in router_ips:
+            output = exec_or_empty(
+                runtime, node, f"ping -c 2 -W 2 -t 1 {probe_ip}", timeout=15
+            )
+            received = re.search(r"(\d+) (?:packets )?received", output)
+            return bool(received and int(received.group(1)) > 0)
+    return None
+
+
 def run_probe_snapshot(
     runtime: LabRuntime,
     probe_kind: ProbeKind,
@@ -367,7 +415,33 @@ def run_probe_snapshot(
 ) -> ProbeSnapshot:
     snap = ProbeSnapshot()
     src = path.src_host
+    if probe_kind == "dns_answer":
+        website = _params_get(params, "target_website")
+        domain = _params_get(params, "target_domain")
+        if not website or not domain:
+            snap.extra["error"] = "missing_dns_name"
+            return snap
+        name = f"{website}.{domain}"
+        output = exec_or_empty(
+            runtime, src, f"dig +short A {shlex.quote(name)} 2>/dev/null", timeout=12
+        )
+        answers: list[str] = []
+        for line in output.splitlines():
+            value = line.strip()
+            try:
+                if ipaddress.ip_address(value).version == 4:
+                    answers.append(value)
+            except ValueError:
+                continue
+        snap.extra.update({"dns_name": name, "dns_answers": sorted(set(answers))})
+        return snap
     if probe_kind == "gray_ping_loss" and path.dst_ip:
+        # The gateway VIP accepts TCP but does not answer ICMP. Probe a real
+        # service behind the gateway to sample packets on its fabric egress.
+        if path.dst_ip == "20.0.0.1":
+            from nika.net_env.p4_dc_gateway.topology_model import service_ip
+
+            path = replace(path, dst_ip=service_ip(1, 1))
         ok, details = probe_gray_packet_loss(runtime, path)
         snap = ProbeSnapshot(
             ping_ok=details.get("received", 0) > 0,
@@ -378,10 +452,20 @@ def run_probe_snapshot(
             snap.extra["gray_probe_failed"] = True
         return snap
     if probe_kind in {"path_ping", "path_ping_loss"} and path.dst_ip:
+        dst_ip = path.dst_ip
+        # The gateway VIP is an L4 TCP listener, not an ICMP endpoint.
+        if dst_ip == "20.0.0.1":
+            from nika.net_env.p4_dc_gateway.topology_model import service_ip
+
+            dst_ip = service_ip(1, 1)
         if probe_kind == "path_ping_loss":
-            stats = ping_stats(runtime, src, path.dst_ip, count=path.ping_count)
+            stats = ping_stats(runtime, src, dst_ip, count=path.ping_count)
         else:
-            snap.ping_ok = ping_ok(runtime, src, path.dst_ip)
+            output = exec_or_empty(runtime, src, f"ping -c 1 -W 2 {dst_ip}", timeout=15)
+            snap.ping_ok = "1 received" in output or "1 packets received" in output
+            ttl = re.search(r"ttl=(\d+)", output)
+            if snap.ping_ok and ttl:
+                snap.extra["reply_ttl"] = int(ttl.group(1))
             return snap
         snap.ping_ok = stats.received > 0
         snap.loss_percent = stats.loss_percent
@@ -441,6 +525,16 @@ def run_probe_snapshot(
     if probe_kind == "http_by_name" and path.http_name_url:
         snap.http_ok = http_ok(runtime, src, path.http_name_url)
         snap.http_time_ms = http_time_ms(runtime, src, path.http_name_url)
+        lookup = exec_or_empty(
+            runtime,
+            src,
+            f"curl -s -o /dev/null -w '%{{http_code}} %{{time_namelookup}}' "
+            f"--connect-timeout 5 --max-time 20 {path.http_name_url}",
+            timeout=25,
+        ).strip()
+        matched = re.fullmatch(r"20[06] (\d+(?:\.\d+)?)", lookup)
+        if matched:
+            snap.extra["name_lookup_ms"] = float(matched.group(1)) * 1000.0
         return snap
     if probe_kind == "http_body_time" and (path.http_url or path.http_name_url):
         url = path.http_url or path.http_name_url or ""
@@ -508,6 +602,9 @@ def run_probe_snapshot(
     if probe_kind == "ping_old_ip":
         inject_host = _params_get(params, "host_name") or src
         old_ip = path.old_ip
+        if not old_ip and inject_host:
+            # Only the healthy baseline lacks old_ip; the host still holds it.
+            old_ip = runtime.get_data_plane_host_ip(inject_host)
         peer = path.peer_host
         if not peer or peer == inject_host:
             peer = None
@@ -518,13 +615,19 @@ def run_probe_snapshot(
                 nodes = runtime.list_nodes() or []
                 if edge in nodes:
                     peer = edge
+        if peer and old_ip and not path.old_ip:
+            # Some designs route clients only to services, not to each other.
+            others = sorted(set(runtime.list_nodes() or []) - {peer, inject_host})
+            for candidate in [peer, *others]:
+                if ping_ok(runtime, candidate, old_ip.split("/")[0]):
+                    peer = candidate
+                    break
         if peer and old_ip:
             snap.ping_ok = ping_ok(runtime, peer, old_ip.split("/")[0])
             snap.symptom_ok = snap.ping_ok
             snap.extra["old_ip"] = old_ip
             snap.extra["peer_host"] = peer
         else:
-            snap.ping_ok = True  # fail closed: cannot verify without peer/old_ip
             snap.extra["error"] = "missing_peer_or_old_ip"
         return snap
     if probe_kind == "isolation_http":
@@ -573,10 +676,94 @@ def run_probe_snapshot(
                 "bgp state" in line.lower() and "established" in line.lower()
                 for line in neighbor_out.splitlines()
             )
+            query_ok = "bgp state" in neighbor_out.lower()
         else:
-            snap.control_plane_ok = frr_bgp_has_established_session(
-                runtime, path.control_plane_host
+            summary = exec_or_empty(
+                runtime,
+                path.control_plane_host,
+                "vtysh -c 'show bgp summary'",
+                timeout=20,
             )
+            # A native vtysh response that bgpd is stopped is an observed
+            # protocol outage. Empty output, exec errors, and timeouts are not.
+            query_ok = "[TIMEOUT]" not in summary and (
+                "State/PfxRcd" in summary
+                or "No BGP neighbors found" in summary
+                or summary.strip() == "bgpd is not running"
+            )
+            if query_ok:
+                peers = frr_bgp_established_peers(summary)
+            else:
+                query_ok, peers = _srl_bgp_established_peers(
+                    runtime, path.control_plane_host
+                )
+            snap.extra["bgp_established_peers"] = sorted(peers)
+            snap.extra["bgp_query_output"] = summary
+            snap.control_plane_ok = bool(peers)
+        snap.extra["bgp_query_ok"] = query_ok
+        if not query_ok:
+            snap.control_plane_ok = None
+            snap.extra["error"] = "bgp_query_failed"
+        return snap
+    if probe_kind == "bgp_hijack_route":
+        target = _params_get(params, "target_network")
+        observer = next(
+            (
+                node
+                for node in sorted(runtime.list_nodes())
+                if node != path.control_plane_host
+                and not node.startswith(("pc", "client", "host", "br"))
+                and frr_bgp_established_peers(
+                    exec_or_empty(
+                        runtime, node, "vtysh -c 'show bgp summary' 2>/dev/null"
+                    )
+                )
+            ),
+            None,
+        )
+        if target and observer:
+            output = exec_or_empty(
+                runtime,
+                observer,
+                f"vtysh -c 'show bgp ipv4 unicast {target}' 2>/dev/null",
+                timeout=20,
+            )
+            query_ok = bool(output.strip()) and not any(
+                marker in output.lower()
+                for marker in (
+                    "command not found",
+                    "failed to connect",
+                    "unknown command",
+                )
+            )
+            snap.extra.update(
+                bgp_target_present=query_ok
+                and (target in output or target.split("/")[0] in output),
+                bgp_query_ok=query_ok,
+                bgp_observer=observer,
+                bgp_target=target,
+                bgp_route_output=output[:800],
+            )
+        if target and path.control_plane_host:
+            snap.extra["bgp_local_capture"] = _first_hop_answers(
+                runtime, path.control_plane_host, target
+            )
+        return snap
+    if probe_kind == "control_plane_routing" and path.control_plane_host:
+        # Campus access routers run OSPF; ISP routers run BGP. Either daemon
+        # answering `show ip route` is the healthy FRR signal.
+        route = exec_or_empty(
+            runtime,
+            path.control_plane_host,
+            "vtysh -c 'show ip route' 2>&1 || true",
+            timeout=20,
+        )
+        lowered = route.lower()
+        snap.control_plane_ok = (
+            "Codes:" in route
+            and "failed to connect" not in lowered
+            and "not running" not in lowered
+        )
         return snap
     if probe_kind == "control_plane_ospf" and path.control_plane_host:
         output = runtime.exec(
@@ -584,7 +771,14 @@ def run_probe_snapshot(
             "vtysh -c 'show ip ospf neighbor' 2>/dev/null || true",
             timeout=15,
         )
-        snap.control_plane_ok = "Full" in output or "full" in output.lower()
+        query_ok = "Neighbor ID" in output and "State" in output
+        snap.extra["ospf_query_ok"] = query_ok
+        if not query_ok:
+            snap.extra["error"] = "ospf_query_failed"
+            return snap
+        full_neighbors = sum("full" in line.lower() for line in output.splitlines())
+        snap.extra["ospf_full_neighbors"] = full_neighbors
+        snap.control_plane_ok = full_neighbors > 0
         return snap
     if path.dst_ip:
         snap.ping_ok = ping_ok(runtime, src, path.dst_ip)

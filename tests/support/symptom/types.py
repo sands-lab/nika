@@ -15,15 +15,17 @@ ProbeKind = Literal[
     "path_mtu_frag_needed",
     "gray_ping_loss",
     "control_plane_bgp",
+    "bgp_hijack_route",
     "control_plane_ospf",
+    "control_plane_routing",
     "isolation_http",
     "degradation_http",
     "http_by_name",
     "http_body_time",
+    "dns_answer",
     "iperf_throughput",
     "route_get_onlink",
     "ping_old_ip",
-    "artifact_only",
     "custom",
 ]
 

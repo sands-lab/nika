@@ -5,7 +5,7 @@ failure:
   cases:
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc
     root_causes:
     - resource:
@@ -14,7 +14,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc
     root_causes:
     - resource:
@@ -23,7 +23,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc
     root_causes:
     - resource:
@@ -32,7 +32,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc
     root_causes:
     - resource:
@@ -41,7 +41,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc
     root_causes:
     - resource:
@@ -50,7 +50,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc
     root_causes:
     - resource:
@@ -59,7 +59,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_srv
     root_causes:
     - resource:
@@ -68,7 +68,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc
     root_causes:
     - resource:
@@ -77,7 +77,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc
     root_causes:
     - resource:
@@ -86,7 +86,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_srv
     root_causes:
     - resource:
@@ -95,7 +95,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc
     root_causes:
     - resource:
@@ -104,7 +104,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc2
     root_causes:
     - resource:
@@ -113,7 +113,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc
     root_causes:
     - resource:
@@ -122,7 +122,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc2
     root_causes:
     - resource:
@@ -131,7 +131,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_iot_pc
     root_causes:
     - resource:
@@ -140,7 +140,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_iot_pc2
     root_causes:
     - resource:
@@ -149,7 +149,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc
     root_causes:
     - resource:
@@ -158,7 +158,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc2
     root_causes:
     - resource:
@@ -167,7 +167,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc
     root_causes:
     - resource:
@@ -176,7 +176,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc2
     root_causes:
     - resource:
@@ -185,7 +185,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_iot_pc
     root_causes:
     - resource:
@@ -194,7 +194,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_iot_pc2
     root_causes:
     - resource:
@@ -203,7 +203,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_corp_pc
     root_causes:
     - resource:
@@ -212,7 +212,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_corp_pc2
     root_causes:
     - resource:
@@ -221,7 +221,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_guest_pc
     root_causes:
     - resource:
@@ -230,7 +230,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_guest_pc2
     root_causes:
     - resource:
@@ -239,7 +239,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_iot_pc
     root_causes:
     - resource:
@@ -248,7 +248,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_iot_pc2
     root_causes:
     - resource:
@@ -257,7 +257,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_corp_pc
     root_causes:
     - resource:
@@ -266,7 +266,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_corp_pc2
     root_causes:
     - resource:
@@ -275,7 +275,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_guest_pc
     root_causes:
     - resource:
@@ -284,7 +284,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_guest_pc2
     root_causes:
     - resource:
@@ -293,7 +293,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_iot_pc
     root_causes:
     - resource:
@@ -302,7 +302,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_iot_pc2
     root_causes:
     - resource:
@@ -311,7 +311,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc
     root_causes:
     - resource:
@@ -320,7 +320,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc2
     root_causes:
     - resource:
@@ -329,7 +329,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc
     root_causes:
     - resource:
@@ -338,7 +338,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc2
     root_causes:
     - resource:
@@ -347,7 +347,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_iot_pc
     root_causes:
     - resource:
@@ -356,7 +356,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_iot_pc2
     root_causes:
     - resource:
@@ -365,7 +365,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_srv
     root_causes:
     - resource:
@@ -374,7 +374,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc
     root_causes:
     - resource:
@@ -383,7 +383,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc2
     root_causes:
     - resource:
@@ -392,7 +392,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc
     root_causes:
     - resource:
@@ -401,7 +401,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc2
     root_causes:
     - resource:
@@ -410,7 +410,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_iot_pc
     root_causes:
     - resource:
@@ -419,7 +419,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_iot_pc2
     root_causes:
     - resource:
@@ -428,7 +428,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_srv
     root_causes:
     - resource:
@@ -437,7 +437,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc
     root_causes:
     - resource:
@@ -446,7 +446,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc2
     root_causes:
     - resource:
@@ -455,7 +455,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc3
     root_causes:
     - resource:
@@ -464,7 +464,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_corp_pc4
     root_causes:
     - resource:
@@ -473,7 +473,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc
     root_causes:
     - resource:
@@ -482,7 +482,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc2
     root_causes:
     - resource:
@@ -491,7 +491,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc3
     root_causes:
     - resource:
@@ -500,7 +500,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_guest_pc4
     root_causes:
     - resource:
@@ -509,7 +509,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_iot_pc
     root_causes:
     - resource:
@@ -518,7 +518,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_iot_pc2
     root_causes:
     - resource:
@@ -527,7 +527,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_iot_pc3
     root_causes:
     - resource:
@@ -536,7 +536,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br1_iot_pc4
     root_causes:
     - resource:
@@ -545,7 +545,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc
     root_causes:
     - resource:
@@ -554,7 +554,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc2
     root_causes:
     - resource:
@@ -563,7 +563,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc3
     root_causes:
     - resource:
@@ -572,7 +572,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_corp_pc4
     root_causes:
     - resource:
@@ -581,7 +581,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc
     root_causes:
     - resource:
@@ -590,7 +590,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc2
     root_causes:
     - resource:
@@ -599,7 +599,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc3
     root_causes:
     - resource:
@@ -608,7 +608,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_guest_pc4
     root_causes:
     - resource:
@@ -617,7 +617,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_iot_pc
     root_causes:
     - resource:
@@ -626,7 +626,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_iot_pc2
     root_causes:
     - resource:
@@ -635,7 +635,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_iot_pc3
     root_causes:
     - resource:
@@ -644,7 +644,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br2_iot_pc4
     root_causes:
     - resource:
@@ -653,7 +653,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_corp_pc
     root_causes:
     - resource:
@@ -662,7 +662,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_corp_pc2
     root_causes:
     - resource:
@@ -671,7 +671,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_corp_pc3
     root_causes:
     - resource:
@@ -680,7 +680,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_corp_pc4
     root_causes:
     - resource:
@@ -689,7 +689,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_guest_pc
     root_causes:
     - resource:
@@ -698,7 +698,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_guest_pc2
     root_causes:
     - resource:
@@ -707,7 +707,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_guest_pc3
     root_causes:
     - resource:
@@ -716,7 +716,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_guest_pc4
     root_causes:
     - resource:
@@ -725,7 +725,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_iot_pc
     root_causes:
     - resource:
@@ -734,7 +734,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_iot_pc2
     root_causes:
     - resource:
@@ -743,7 +743,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_iot_pc3
     root_causes:
     - resource:
@@ -752,7 +752,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br3_iot_pc4
     root_causes:
     - resource:
@@ -761,7 +761,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_corp_pc
     root_causes:
     - resource:
@@ -770,7 +770,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_corp_pc2
     root_causes:
     - resource:
@@ -779,7 +779,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_corp_pc3
     root_causes:
     - resource:
@@ -788,7 +788,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_corp_pc4
     root_causes:
     - resource:
@@ -797,7 +797,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_guest_pc
     root_causes:
     - resource:
@@ -806,7 +806,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_guest_pc2
     root_causes:
     - resource:
@@ -815,7 +815,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_guest_pc3
     root_causes:
     - resource:
@@ -824,7 +824,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_guest_pc4
     root_causes:
     - resource:
@@ -833,7 +833,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_iot_pc
     root_causes:
     - resource:
@@ -842,7 +842,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_iot_pc2
     root_causes:
     - resource:
@@ -851,7 +851,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_iot_pc3
     root_causes:
     - resource:
@@ -860,7 +860,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br4_iot_pc4
     root_causes:
     - resource:
@@ -869,7 +869,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_corp_pc
     root_causes:
     - resource:
@@ -878,7 +878,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_corp_pc2
     root_causes:
     - resource:
@@ -887,7 +887,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_corp_pc3
     root_causes:
     - resource:
@@ -896,7 +896,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_corp_pc4
     root_causes:
     - resource:
@@ -905,7 +905,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_guest_pc
     root_causes:
     - resource:
@@ -914,7 +914,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_guest_pc2
     root_causes:
     - resource:
@@ -923,7 +923,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_guest_pc3
     root_causes:
     - resource:
@@ -932,7 +932,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_guest_pc4
     root_causes:
     - resource:
@@ -941,7 +941,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_iot_pc
     root_causes:
     - resource:
@@ -950,7 +950,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_iot_pc2
     root_causes:
     - resource:
@@ -959,7 +959,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_iot_pc3
     root_causes:
     - resource:
@@ -968,7 +968,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br5_iot_pc4
     root_causes:
     - resource:
@@ -977,7 +977,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_corp_pc
     root_causes:
     - resource:
@@ -986,7 +986,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_corp_pc2
     root_causes:
     - resource:
@@ -995,7 +995,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_corp_pc3
     root_causes:
     - resource:
@@ -1004,7 +1004,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_corp_pc4
     root_causes:
     - resource:
@@ -1013,7 +1013,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_guest_pc
     root_causes:
     - resource:
@@ -1022,7 +1022,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_guest_pc2
     root_causes:
     - resource:
@@ -1031,7 +1031,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_guest_pc3
     root_causes:
     - resource:
@@ -1040,7 +1040,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_guest_pc4
     root_causes:
     - resource:
@@ -1049,7 +1049,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_iot_pc
     root_causes:
     - resource:
@@ -1058,7 +1058,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_iot_pc2
     root_causes:
     - resource:
@@ -1067,7 +1067,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_iot_pc3
     root_causes:
     - resource:
@@ -1076,7 +1076,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br6_iot_pc4
     root_causes:
     - resource:
@@ -1085,7 +1085,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_corp_pc
     root_causes:
     - resource:
@@ -1094,7 +1094,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_corp_pc2
     root_causes:
     - resource:
@@ -1103,7 +1103,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_corp_pc3
     root_causes:
     - resource:
@@ -1112,7 +1112,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_corp_pc4
     root_causes:
     - resource:
@@ -1121,7 +1121,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_guest_pc
     root_causes:
     - resource:
@@ -1130,7 +1130,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_guest_pc2
     root_causes:
     - resource:
@@ -1139,7 +1139,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_guest_pc3
     root_causes:
     - resource:
@@ -1148,7 +1148,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_guest_pc4
     root_causes:
     - resource:
@@ -1157,7 +1157,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_iot_pc
     root_causes:
     - resource:
@@ -1166,7 +1166,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_iot_pc2
     root_causes:
     - resource:
@@ -1175,7 +1175,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_iot_pc3
     root_causes:
     - resource:
@@ -1184,7 +1184,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br7_iot_pc4
     root_causes:
     - resource:
@@ -1193,7 +1193,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_corp_pc
     root_causes:
     - resource:
@@ -1202,7 +1202,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_corp_pc2
     root_causes:
     - resource:
@@ -1211,7 +1211,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_corp_pc3
     root_causes:
     - resource:
@@ -1220,7 +1220,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_corp_pc4
     root_causes:
     - resource:
@@ -1229,7 +1229,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_guest_pc
     root_causes:
     - resource:
@@ -1238,7 +1238,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_guest_pc2
     root_causes:
     - resource:
@@ -1247,7 +1247,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_guest_pc3
     root_causes:
     - resource:
@@ -1256,7 +1256,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_guest_pc4
     root_causes:
     - resource:
@@ -1265,7 +1265,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_iot_pc
     root_causes:
     - resource:
@@ -1274,7 +1274,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_iot_pc2
     root_causes:
     - resource:
@@ -1283,7 +1283,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_iot_pc3
     root_causes:
     - resource:
@@ -1292,7 +1292,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: br8_iot_pc4
     root_causes:
     - resource:
@@ -1301,7 +1301,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc
     root_causes:
     - resource:
@@ -1310,7 +1310,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc2
     root_causes:
     - resource:
@@ -1319,7 +1319,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc3
     root_causes:
     - resource:
@@ -1328,7 +1328,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_corp_pc4
     root_causes:
     - resource:
@@ -1337,7 +1337,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc
     root_causes:
     - resource:
@@ -1346,7 +1346,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc2
     root_causes:
     - resource:
@@ -1355,7 +1355,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc3
     root_causes:
     - resource:
@@ -1364,7 +1364,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_guest_pc4
     root_causes:
     - resource:
@@ -1373,7 +1373,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_iot_pc
     root_causes:
     - resource:
@@ -1382,7 +1382,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_iot_pc2
     root_causes:
     - resource:
@@ -1391,7 +1391,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_iot_pc3
     root_causes:
     - resource:
@@ -1400,7 +1400,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_iot_pc4
     root_causes:
     - resource:
@@ -1409,7 +1409,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: dc2_srv
     root_causes:
     - resource:
@@ -1418,7 +1418,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc
     root_causes:
     - resource:
@@ -1427,7 +1427,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc2
     root_causes:
     - resource:
@@ -1436,7 +1436,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc3
     root_causes:
     - resource:
@@ -1445,7 +1445,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_corp_pc4
     root_causes:
     - resource:
@@ -1454,7 +1454,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc
     root_causes:
     - resource:
@@ -1463,7 +1463,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc2
     root_causes:
     - resource:
@@ -1472,7 +1472,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc3
     root_causes:
     - resource:
@@ -1481,7 +1481,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_guest_pc4
     root_causes:
     - resource:
@@ -1490,7 +1490,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_iot_pc
     root_causes:
     - resource:
@@ -1499,7 +1499,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_iot_pc2
     root_causes:
     - resource:
@@ -1508,7 +1508,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_iot_pc3
     root_causes:
     - resource:
@@ -1517,7 +1517,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_iot_pc4
     root_causes:
     - resource:
@@ -1526,7 +1526,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: hq_srv
     root_causes:
     - resource:

@@ -375,6 +375,12 @@ def assert_incast_pre(ctx: FailureE2EContext) -> None:
     ctx.before = before
 
 
+def resolve_bgp_hijack_target(ctx: FailureE2EContext) -> None:
+    """Pin the default hijacked prefix so the probe can watch it before inject."""
+    if ctx.parsed.target_network is None:
+        ctx.parsed.target_network = ctx.problem._default_target_network()
+
+
 def assert_receiver_resource_contention_pre(ctx: FailureE2EContext) -> None:
     """Ensure the receiver can fetch a large object before contention."""
     from nika.net_env.verify import http_download_stats
@@ -596,6 +602,9 @@ HOOKS: dict[str, dict[str, Any]] = {
     },
     "receiver_resource_contention": {
         "pre_inject": assert_receiver_resource_contention_pre,
+    },
+    "bgp_hijacking": {
+        "pre_inject": resolve_bgp_hijack_target,
     },
     "k8s_networkpolicy_deny": {
         "pre_inject": assert_isolation_http_pre,
