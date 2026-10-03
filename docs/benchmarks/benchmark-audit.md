@@ -55,28 +55,8 @@ The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, 
 | Kathara | 3.8.3 |
 | Python | 3.12.12, run through `uv` |
 
-The stored records span 2026-10-02 11:06 to 2026-10-03 11:03 UTC.
+The audit ran from 2026-10-02 11:06 to 2026-10-03 11:03 UTC.
 Each case took 4.4 minutes at the median and 15.0 minutes at most, from lab deploy to undeploy.
-
-Each record stores the NIKA commit it ran on. A case keeps its result until a change to that case requires a rerun, so records come from several commits:
-
-| Commit | Cases |
-| --- | --- |
-| `6476b56` | 103 |
-| `b4f9e8f` | 17 |
-| `56bbc59` | 14 |
-| `03b9251` | 9 |
-| `3fc4adf` | 7 |
-| `d84c44c` | 4 |
-| `97f6bab` | 4 |
-| `07ed124` | 3 |
-| `0956260` | 2 |
-| `273307e` | 2 |
-| `5642b9c` | 2 |
-| `33976a4` | 1 |
-| `742306f` | 1 |
-
-48 records ran with uncommitted changes in the working tree. Their `source_sha256` field identifies the exact source.
 
 Lab nodes used these images. Every node that used an image reference had the same image ID.
 

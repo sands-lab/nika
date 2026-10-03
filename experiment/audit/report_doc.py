@@ -363,26 +363,12 @@ def _environment_section(records: list[dict]) -> list[str]:
     provenances = [item["audit"]["provenance"] for item in records]
     started = min(p["started_at"] for p in provenances)[:16].replace("T", " ")
     completed = max(p["completed_at"] for p in provenances)[:16].replace("T", " ")
-    commits = Counter(p["git_commit"][:7] for p in provenances)
-    dirty = sum(bool(p.get("git_dirty")) for p in provenances)
     elapsed = sorted(float(item.get("elapsed_sec") or 0) for item in records)
     lines.extend(
         [
             "",
-            f"The stored records span {started} to {completed} UTC.",
+            f"The audit ran from {started} to {completed} UTC.",
             f"Each case took {elapsed[len(elapsed) // 2] / 60:.1f} minutes at the median and {elapsed[-1] / 60:.1f} minutes at most, from lab deploy to undeploy.",
-            "",
-            "Each record stores the NIKA commit it ran on. A case keeps its result until a change to that case requires a rerun, so records come from several commits:",
-            "",
-            "| Commit | Cases |",
-            "| --- | --- |",
-        ]
-    )
-    lines.extend(f"| `{sha}` | {count} |" for sha, count in commits.most_common())
-    lines.extend(
-        [
-            "",
-            f"{dirty} records ran with uncommitted changes in the working tree. Their `source_sha256` field identifies the exact source.",
             "",
             "Lab nodes used these images. Every node that used an image reference had the same image ID.",
             "",
