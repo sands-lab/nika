@@ -167,7 +167,7 @@ def verify_campus_lan_lab_startup(
     *,
     scenario_name: str,
 ) -> dict:
-    """Bounded readiness: core OSPF and probe-host gateway attachment."""
+    """Bounded readiness: core OSPF and the probe-host to peer-host path."""
     host_ready = _host_has_ipv4(runtime)
     checks = {
         "ospf_process": _ospf_process_running(runtime),
@@ -181,6 +181,7 @@ def verify_campus_lan_lab_startup(
         "gateway_reachable": _ping_ok(runtime, PROBE_HOST, HOST_GATEWAY)
         if host_ready
         else False,
+        "peer_host_reachable": _peer_host_reachable(runtime) if host_ready else False,
     }
     return build_lab_verify_result(
         scenario_name=scenario_name,
@@ -188,6 +189,7 @@ def verify_campus_lan_lab_startup(
         checks=checks,
         details={
             "probe_host": PROBE_HOST,
+            "peer_host": PEER_HOST,
             "core_router": CORE_ROUTER,
             "dist_router": DIST_ROUTER_DHCP,
         },

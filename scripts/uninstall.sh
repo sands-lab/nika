@@ -6,6 +6,7 @@
 set -euo pipefail
 
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
+VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
 SUDOERS_FILE=/etc/sudoers.d/nika-host-tc
 GNMIC_BIN=/usr/local/bin/gnmic
 
@@ -22,7 +23,8 @@ Removes everything NIKA set up on this host:
   - Docker images NIKA built or pulled (nika/*, kathara/*, k3s, srlinux,
     vendor router images, build parents, legacy tags) unless a non-NIKA
     container still uses them, and the Kathara Docker network plugin
-  - the inotify sysctl file (original values restored) and ${SUDOERS_FILE}
+  - the inotify sysctl file (original values restored), ${SUDOERS_FILE},
+    and ${VRF_MODULES_CONF}
   - Containerlab (package, /etc/containerlab, clab_admins group) and gnmic
   - ~/.config/kathara.conf and, in the repo, .venv, .nika_cache, runtime/
 
@@ -224,6 +226,11 @@ remove_host_tools() {
   if [[ -f "${SUDOERS_FILE}" ]]; then
     ${SUDO} rm -f "${SUDOERS_FILE}"
     log "Removed ${SUDOERS_FILE}"
+  fi
+  # The loaded vrf module and linux-modules-extra stay; only boot-time loading goes.
+  if [[ -f "${VRF_MODULES_CONF}" ]]; then
+    ${SUDO} rm -f "${VRF_MODULES_CONF}"
+    log "Removed ${VRF_MODULES_CONF}"
   fi
 
   if command -v dpkg >/dev/null 2>&1 && dpkg -s containerlab >/dev/null 2>&1; then

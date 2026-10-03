@@ -413,6 +413,11 @@ done
                         self._client.networks.get(resource_id).remove()
                 except docker.errors.NotFound:
                     pass
+                except docker.errors.APIError:
+                    # Under load Docker can still report active endpoints;
+                    # cleanup_lab removes the labelled leftovers at teardown.
+                    if not suppress_errors:
+                        raise
 
     def discover(self, node: str, intf: str) -> VdeFaultProxyState | None:
         key = self._key(node, intf)

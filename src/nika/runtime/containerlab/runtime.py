@@ -81,7 +81,10 @@ class ContainerlabRuntime(LabRuntime):
                 check=False,
                 capture_output=True,
                 text=True,
-                cwd=str(self._runtime_workdir),
+                # A closed session has no workdir; a missing cwd must not raise.
+                cwd=str(self._runtime_workdir)
+                if self._runtime_workdir.is_dir()
+                else None,
                 timeout=timeout,
             )
         except subprocess.TimeoutExpired as exc:
@@ -254,10 +257,10 @@ class ContainerlabRuntime(LabRuntime):
                 container.reload()
             except docker.errors.NotFound:
                 continue
-            image = (
-                container.image.tags[0]
-                if container.image.tags
-                else container.image.short_id
+            # ``container.image`` costs one more Docker API call per container;
+            # the create-time reference is already in the reloaded attrs.
+            image = (container.attrs.get("Config") or {}).get("Image") or (
+                container.attrs.get("Image", "")
             )
             rows.append(
                 {
