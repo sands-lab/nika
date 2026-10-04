@@ -124,7 +124,7 @@ def merge_cli(
     sandbox_offline_sdk_wheels: bool | None = None,
     sandbox_upstream_proxy: str | None = None,
     batch_size: int | None = None,
-    serialize_heavy: bool | None = None,
+    heavy_batch_size: int | None = None,
     case_timeout_sec: int | None = None,
     continue_on_error: bool | None = None,
     retry_passes: int | None = None,
@@ -187,8 +187,8 @@ def merge_cli(
     bench_overlay: dict[str, Any] = {}
     if batch_size is not None:
         bench_overlay["batch_size"] = batch_size
-    if serialize_heavy is not None:
-        bench_overlay["serialize_heavy"] = serialize_heavy
+    if heavy_batch_size is not None:
+        bench_overlay["heavy_batch_size"] = heavy_batch_size
     if case_timeout_sec is not None:
         bench_overlay["case_timeout_sec"] = case_timeout_sec
     if continue_on_error is not None:

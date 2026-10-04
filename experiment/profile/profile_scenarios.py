@@ -9,9 +9,9 @@ No agent runs. Each case starts a lab, injects (with --inject), holds it, and
 closes it under the shared NIKA ResourceSampler; phases (deploy, convergence,
 inject, cleanup) come from the session's lifecycle events. Total includes setup, startup, hold and cleanup, but excludes
 scheduler queue time. Like ``nika benchmark run``, --run-config (default
-config/nika.yaml) supplies batch_size, serialize_heavy and validation settings;
---batch-size and --[no-]serialize-heavy override them. With serialize_heavy,
-Containerlab, k8s/llmd/XRd and topo_size l cases run alone after the light cases.
+config/nika.yaml) supplies batch_size, heavy_batch_size and validation settings;
+--batch-size and --heavy-batch-size override them. Containerlab, k8s/llmd/XRd and
+topo_size l cases run after the light cases, up to heavy_batch_size at a time.
 """
 
 from __future__ import annotations
@@ -42,9 +42,9 @@ from nika.net_env.net_env_pool import (
 from nika.run_config.loader import ENV_RUN_CONFIG, get_run_config
 from nika.workflows.benchmark.admit import (
     CLASS_LIGHT,
-    class_limits,
     pick_admissible,
     resource_class_for_row,
+    tier_limits,
 )
 
 
@@ -188,10 +188,10 @@ def main() -> int:
         "--batch-size", type=int, help="Default: benchmark.batch_size in run config"
     )
     parser.add_argument(
-        "--serialize-heavy",
-        action=argparse.BooleanOptionalAction,
-        help="Run Containerlab, k8s/llmd/XRd and size l cases alone "
-        "(default: benchmark.serialize_heavy in run config)",
+        "--heavy-batch-size",
+        type=int,
+        help="Max concurrent Containerlab, k8s/llmd/XRd and size l cases "
+        "(default: benchmark.heavy_batch_size in run config)",
     )
     parser.add_argument(
         "--repeats",
@@ -230,15 +230,11 @@ def main() -> int:
     # load_catalog_rows exported the run config path, so workers load it too.
     config = get_run_config()
     batch_size = args.batch_size or config.benchmark.batch_size
-    serialize_heavy = (
-        config.benchmark.serialize_heavy
-        if args.serialize_heavy is None
-        else args.serialize_heavy
-    )
-    if batch_size < 1:
-        parser.error("batch size >= 1 required")
+    heavy_batch_size = args.heavy_batch_size or config.benchmark.heavy_batch_size
+    if batch_size < 1 or heavy_batch_size < 1:
+        parser.error("batch size and heavy batch size >= 1 required")
     cases = benchmark_cases(rows, args.inject, list_all_net_envs())
-    # Admission stops at a waiting exclusive case, so queue light cases first.
+    # Admission stops at a waiting heavy case, so queue light cases first.
     cases.sort(key=lambda case: resource_class_for_row(case) != CLASS_LIGHT)
     # Rounds keep repeats of one case apart instead of running them side by side.
     cases = [
@@ -263,7 +259,7 @@ def main() -> int:
                 cases=cases,
                 run_config=os.environ[ENV_RUN_CONFIG],
                 batch_size=batch_size,
-                serialize_heavy=serialize_heavy,
+                heavy_batch_size=heavy_batch_size,
                 repeats=args.repeats,
                 sample_interval=args.sample_interval,
                 hold_seconds=args.hold_seconds,
@@ -287,12 +283,12 @@ def main() -> int:
     )
     from nika.workflows.session.close import close_session
 
-    limits = class_limits(batch_size=batch_size, serialize_heavy=serialize_heavy)
+    limits = tier_limits(batch_size=batch_size, heavy_batch_size=heavy_batch_size)
     in_flight: dict[str, int] = {}
     context = multiprocessing.get_context("spawn")
     try:
         while pending or running:
-            while pending and len(running) < batch_size:
+            while pending and len(running) < max(limits.values()):
                 index = pick_admissible(
                     pending,
                     in_flight=in_flight,

@@ -78,14 +78,14 @@ uv run python experiment/profile/profile_scenarios.py --release 0.2.0 \
     injection.
 - **Run config:** `--run-config` (default `config/nika.yaml`, or `NIKA_RUN_CONFIG`)
   is loaded as by `nika benchmark run`: `benchmark.batch_size`,
-  `benchmark.serialize_heavy`, `nika.runtime_validation` and `nika.static_validation`
-  apply. `--batch-size` and `--[no-]serialize-heavy` override the first two.
+  `benchmark.heavy_batch_size`, `nika.runtime_validation` and `nika.static_validation`
+  apply. `--batch-size` and `--heavy-batch-size` override the first two.
 - **Session handling:** each case uses a unique test session, normal NIKA startup, a
   hold of `--hold-seconds`, and NIKA session cleanup in `finally`.
-- **Admission:** at most `batch_size` cases run at once. With `serialize_heavy`,
-  Containerlab, k8s/llmd/XRd and topo_size `l` cases run alone after the light cases;
-  without it, every case shares the flat limit. To measure throughput at several
-  concurrency levels, run once per `--batch-size`.
+- **Admission:** at most `batch_size` light cases run at once. Containerlab,
+  k8s/llmd/XRd and topo_size `l` cases run after the light cases, at most
+  `heavy_batch_size` at once and never alongside light cases. To measure throughput
+  at several concurrency levels, run once per `--batch-size` / `--heavy-batch-size`.
 - **Repeats:** `--repeats N` queues every case N times, in rounds.
 - **Output:** the output directory must be new. It contains `plan.json`, incremental
   `profiles.jsonl`, `profiles.csv`, `summary.csv`, and one session directory per case.

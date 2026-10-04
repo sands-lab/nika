@@ -23,9 +23,14 @@ Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-mul
 
 ### Concurrency and `--batch-size`
 
-`--batch-size` defaults to `1` (see [`benchmark` settings](configuration.md#benchmark-settings)) and caps how many trials run at once (sliding window). With the default `benchmark.serialize_heavy: true`, Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case are **exclusive** (that session runs alone—no overlapping peers). Light ``s``/``m`` Kathara cases can still use the full `batch_size` when no exclusive lab is active. Pass `--no-serialize-heavy` only when you intentionally parallelize those labs.
+Benchmark runs use two concurrency limits (see [`benchmark` settings](configuration.md#benchmark-settings)), both sliding windows that default to `1`:
 
-Why heavy labs need the class cap:
+- `--batch-size` caps light trials: ``s``/``m`` Kathara cases.
+- `--heavy-batch-size` caps heavy trials: Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case.
+
+Heavy and light trials never run at the same time. With the default `--heavy-batch-size 1`, each heavy session runs alone on the host. Raise it only when the host has capacity for several heavy labs at once, for example `--batch-size 8 --heavy-batch-size 4`.
+
+Why heavy labs need a separate cap:
 
 - `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 - Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).

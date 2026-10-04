@@ -131,7 +131,7 @@ class RunPlan:
     skipped_labels: Sequence[str] = ()
     header: str | None = None
     batch_size: int = 1
-    serialize_heavy: bool = True
+    heavy_batch_size: int = 1
     case_count: int | None = None
     n_trials: int = 1
 
@@ -182,12 +182,8 @@ def format_run_plan(plan: RunPlan, *, max_labels: int = _DEFAULT_PLAN_LABELS) ->
         f"Plan: {plan.pending_count}/{plan.total_trials} run(s) remaining "
         f"({plan.skipped_count} already complete), "
         f"{scope}, "
-        f"batch_size={plan.batch_size}"
-        + (
-            ", serialize_heavy=true"
-            if plan.serialize_heavy
-            else ", serialize_heavy=false"
-        )
+        f"batch_size={plan.batch_size}, "
+        f"heavy_batch_size={plan.heavy_batch_size}"
     )
     lines.append(
         f"Agent: {plan.agent_type}" + (f"  model={plan.model}" if plan.model else "")

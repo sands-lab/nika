@@ -54,7 +54,7 @@ def test_format_run_plan_lists_pending_and_skips() -> None:
     assert "2 case(s) × 1 trial(s)/case" in text
     assert "3 already complete" in text
     assert "batch_size=2" in text
-    assert "serialize_heavy=true" in text
+    assert "heavy_batch_size=1" in text
     assert "Agent: mock  model=mock-v1" in text
     assert "Results: /tmp/results" in text
     assert "Done (3):" in text

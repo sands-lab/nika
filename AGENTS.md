@@ -58,7 +58,7 @@ For changes involving scenarios, failures, traffic, telemetry, runtime, or backe
 * Validate observable behavior such as connectivity, routes, protocol sessions, counters, traffic, telemetry, failure symptoms, and recovery.
 * Prefer real protocol and runtime behavior over mocks or synthetic substitutes.
 
-Run independent E2E tests in parallel when safe to reduce test time. The benchmark runner defaults to `serialize_heavy` so Containerlab, k8s/llmd/XRd, and topo_size `l` run exclusively (no peer sessions); still avoid stacking multiple heavy labs manually in ad-hoc scripts.
+Run independent E2E tests in parallel when safe to reduce test time. The benchmark runner defaults to `heavy_batch_size: 1` so Containerlab, k8s/llmd/XRd, and topo_size `l` run exclusively (no peer sessions); still avoid stacking multiple heavy labs manually in ad-hoc scripts.
 
 Use unit tests mainly for stable isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms.
 
