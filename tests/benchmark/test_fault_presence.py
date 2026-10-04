@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from nika.validation import presence
 from nika.validation.presence import (
-    PRESENCE_FILENAME,
     EnvironmentInvalid,
     PresenceWatch,
     bind_injected_problem,
@@ -44,16 +44,19 @@ class _ArtifactFault:
         }
 
 
-def _phases(root: Path) -> list[str]:
-    payload = json.loads((root / PRESENCE_FILENAME).read_text(encoding="utf-8"))
-    return [item["phase"] for item in payload["checks"]]
+@pytest.fixture
+def logged(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    checks: list[dict] = []
+    monkeypatch.setattr(presence, "log_presence_check", checks.append)
+    return checks
 
 
-def test_fast_agent_still_records_during_and_before(tmp_path: Path) -> None:
+def test_fast_agent_still_records_during_and_before(
+    tmp_path: Path, logged: list[dict]
+) -> None:
     fault = _ArtifactFault()
     bind_injected_problem("s-fast", fault, {"host": "r1"})
     record_injection_verify(
-        tmp_path,
         fault="bgp_asn_misconfig",
         verify_result={"verified": True, "details": {"running_asn": 65000}},
     )
@@ -65,9 +68,13 @@ def test_fast_agent_still_records_during_and_before(tmp_path: Path) -> None:
     failure = watch.finish()
     clear_injected_problem("s-fast")
     assert failure is None
-    assert _phases(tmp_path) == ["post_inject", "during_agent", "before_cleanup"]
-    assert all(item["result"] == "present" for item in _checks(tmp_path)[1:])
-    assert _checks(tmp_path)[0]["check"] == "verify_fault"
+    assert [item["phase"] for item in logged] == [
+        "post_inject",
+        "during_agent",
+        "before_cleanup",
+    ]
+    assert all(item["result"] == "present" for item in logged[1:])
+    assert logged[0]["check"] == "verify_fault"
 
 
 def test_absent_artifact_is_environment_invalid(tmp_path: Path) -> None:
@@ -90,10 +97,9 @@ def test_absent_artifact_is_environment_invalid(tmp_path: Path) -> None:
 
 
 def test_remote_artifact_is_checked_during_and_before_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, logged: list[dict]
 ) -> None:
     from nika.remote.client import RemoteClient
-    from nika.validation import presence
 
     (tmp_path / "ground_truth.json").write_text(
         json.dumps({"is_anomaly": True}), encoding="utf-8"
@@ -116,7 +122,11 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     failure = watch.finish()
     assert len(calls) == 3
     assert failure is not None and "before_cleanup" in failure
-    assert _phases(tmp_path) == ["post_inject", "during_agent", "before_cleanup"]
+    assert [item["phase"] for item in logged] == [
+        "post_inject",
+        "during_agent",
+        "before_cleanup",
+    ]
 
 
 def test_timeout_and_keyboard_interrupt_paths() -> None:
@@ -176,8 +186,3 @@ def test_finalize_keeps_environment_invalid_with_submission(
     assert meta["outcome"] == ENVIRONMENT_INVALID
     assert meta["status"] == "error"
     assert not (tmp_path / "eval_metrics.json").exists()
-
-
-def _checks(root: Path) -> list[dict]:
-    payload = json.loads((root / PRESENCE_FILENAME).read_text(encoding="utf-8"))
-    return list(payload["checks"])

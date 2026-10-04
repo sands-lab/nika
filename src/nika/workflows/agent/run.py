@@ -2,7 +2,6 @@
 
 import logging
 import time
-from pathlib import Path
 
 from agent.registry import create_agent, run_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
@@ -105,7 +104,6 @@ def start_agent(
         timeout_sec=timeout_sec,
     )
     from nika.validation.presence import (
-        PRESENCE_FILENAME,
         PresenceWatch,
         raise_if_presence_failed,
     )
@@ -181,14 +179,7 @@ def start_agent(
                             timeout_sec=timeout_sec,
                         )
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
-            # The local presence file has the during-agent read; the daemon copy does not.
-            presence_file = Path(session.session_dir) / PRESENCE_FILENAME
-            local_presence = (
-                presence_file.read_bytes() if presence_file.is_file() else None
-            )
             pull_session_artifacts(session.session_id, session.session_dir)
-            if local_presence is not None:
-                presence_file.write_bytes(local_presence)
         else:
             with mcp_gateway_for_session(
                 session.session_id,

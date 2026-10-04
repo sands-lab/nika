@@ -21,9 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from nika.utils.logger import log_event
-from nika.utils.session_artifacts import json_safe, write_json_atomic
+from nika.utils.session_artifacts import json_safe
 
-PRESENCE_FILENAME = "fault-presence.json"
 DURING_AGENT_DELAY_SEC = 2.0
 
 # Faults whose effect is a live worker, flap, or quota. The recheck reads
@@ -72,7 +71,6 @@ def is_environment_invalid(exc: BaseException) -> bool:
 
 _BOUND: dict[str, tuple[Any, Any]] = {}
 _BOUND_LOCK = threading.Lock()
-_FILE_LOCK = threading.Lock()
 
 
 def bind_injected_problem(session_id: str, problem: Any, params: Any) -> None:
@@ -120,25 +118,9 @@ def _remote_lab() -> bool:
         return False
 
 
-def append_presence_check(session_dir: str | Path, check: dict[str, Any]) -> None:
-    """Append one artifact check to ``fault-presence.json``."""
-    root = Path(session_dir)
-    path = root / PRESENCE_FILENAME
+def log_presence_check(check: dict[str, Any]) -> None:
+    """Log one artifact check as a ``fault_presence_recheck`` event."""
     safe = json_safe(check)
-    with _FILE_LOCK:
-        payload: dict[str, Any] = {"scope": "artifact", "checks": []}
-        if path.is_file():
-            try:
-                loaded = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                loaded = None
-            if isinstance(loaded, dict):
-                payload = loaded
-        checks = list(payload.get("checks") or [])
-        checks.append(safe)
-        payload["scope"] = "artifact"
-        payload["checks"] = checks
-        write_json_atomic(path, payload)
     log_event(
         "fault_presence_recheck",
         (
@@ -149,17 +131,16 @@ def append_presence_check(session_dir: str | Path, check: dict[str, Any]) -> Non
         fault=safe.get("fault"),
         result=safe.get("result"),
         scope="artifact",
+        check=safe.get("check"),
+        evidence=safe.get("evidence"),
         error=safe.get("error"),
     )
 
 
-def record_injection_verify(
-    session_dir: str | Path, *, fault: str, verify_result: dict[str, Any]
-) -> None:
+def record_injection_verify(*, fault: str, verify_result: dict[str, Any]) -> None:
     """Record the inject-time ``verify_fault`` result. Does not probe again."""
     details = verify_result.get("details") if isinstance(verify_result, dict) else {}
-    append_presence_check(
-        session_dir,
+    log_presence_check(
         {
             "phase": "post_inject",
             "timestamp": datetime.now(UTC).isoformat(),
@@ -171,24 +152,6 @@ def record_injection_verify(
             "error": None,
         },
     )
-
-
-def _phases_present(session_dir: Path) -> set[str]:
-    path = session_dir / PRESENCE_FILENAME
-    if not path.is_file():
-        return set()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return set()
-    checks = payload.get("checks") if isinstance(payload, dict) else None
-    if not isinstance(checks, list):
-        return set()
-    return {
-        str(item.get("phase"))
-        for item in checks
-        if isinstance(item, dict) and item.get("phase")
-    }
 
 
 def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
@@ -333,7 +296,7 @@ class PresenceWatch:
         self.failure: str | None = None
 
     def start(self) -> None:
-        if "post_inject" not in _phases_present(self.session_dir):
+        if bound_injected_problem(self.session_id) is None:
             self._run_phase("post_inject")
         self._thread = threading.Thread(
             target=self._during,
@@ -354,7 +317,7 @@ class PresenceWatch:
             return
         with self._read_lock:
             record = _check_record(self.session_id, self.session_dir, phase)
-            append_presence_check(self.session_dir, record)
+            log_presence_check(record)
         if record.get("result") in {"absent", "error"} and record.get("fault") != (
             "healthy"
         ):

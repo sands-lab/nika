@@ -303,9 +303,7 @@ def inject_failure(
     else:
         fault_name = ",".join(resolved_names)
     bind_injected_problem(session.session_id, inject_problem, fault_params)
-    record_injection_verify(
-        session.session_dir, fault=fault_name, verify_result=verify_payload
-    )
+    record_injection_verify(fault=fault_name, verify_result=verify_payload)
     task_description = inject_problem.get_task_description()
     session.update_session("task_description", task_description)
 

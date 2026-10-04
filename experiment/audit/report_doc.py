@@ -119,21 +119,6 @@ def render_benchmark_audit_doc(
     lines.extend(_run_section())
     lines.extend(_limits_section())
     lines.extend(
-        _executed_section(
-            [
-                item
-                for item in (stored or [])
-                if identity_from_row(item["audit"]["identity"]).key() in release_keys
-                and (item["audit"].get("symptom_probe") or "")
-                == (
-                    ""
-                    if item["audit"]["identity"].get("fault") == "healthy"
-                    else declared_probe(item["audit"]["identity"]["fault"])
-                )
-            ]
-        )
-    )
-    lines.extend(
         [
             "",
             "## Cases",
@@ -180,6 +165,21 @@ def render_benchmark_audit_doc(
         lines.append("")
     lines.append("Rows with admission `not_run` are coverage gaps for the full audit.")
     lines.append("")
+    lines.extend(
+        _inspect_section(
+            [
+                item
+                for item in (stored or [])
+                if identity_from_row(item["audit"]["identity"]).key() in release_keys
+                and (item["audit"].get("symptom_probe") or "")
+                == (
+                    ""
+                    if item["audit"]["identity"].get("fault") == "healthy"
+                    else declared_probe(item["audit"]["identity"]["fault"])
+                )
+            ]
+        )
+    )
     return "\n".join(lines)
 
 
@@ -201,30 +201,9 @@ def _pending_rows() -> list[dict]:
     return pending
 
 
-def _executed_section(records: list[dict]) -> list[str]:
+def _inspect_section(records: list[dict]) -> list[str]:
     from experiment.audit.matrix import diagnose
 
-    lines = [
-        "",
-        "## Executed audits",
-        "",
-        "Each row is the stored result of one `audit_case` run.",
-        "The case tables in [Cases](#cases) count a run only when its scenario, scale, backend, design options, fault, and inject parameters all match a release case.",
-        "",
-        "The Diagnosis column is `pass` for a passing run.",
-        "Otherwise it starts with `verify:` when the check or a host prerequisite failed, or with `case:` when the fault symptom did not appear on that lab.",
-        "",
-    ]
-    if not records:
-        lines.append("No current live audit result is stored yet.")
-        lines.append("")
-        return lines
-    lines.extend(
-        [
-            "| Scenario | Fault | Scale | Backend | Design | Inject | Admission | Diagnosis |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- |",
-        ]
-    )
     parsed = []
     for item in records:
         audit = CaseAudit.model_validate(item["audit"])
@@ -232,29 +211,7 @@ def _executed_section(records: list[dict]) -> list[str]:
             (audit, diagnose(audit, str(item["error"]) if item.get("error") else None))
         )
     parsed.sort(key=lambda item: (item[0].identity.scenario, item[0].identity.fault))
-    for audit, diagnosis in parsed:
-        identity = audit.identity
-        lines.append(
-            "| "
-            + " | ".join(
-                _cell(part)
-                for part in (
-                    identity.scenario,
-                    identity.fault,
-                    identity.topo_size or "none",
-                    identity.backend or "scenario default",
-                    _design(identity),
-                    _inject(identity),
-                    audit.admission(),
-                    diagnosis,
-                )
-            )
-            + " |"
-        )
-    lines.append("")
-    lines.extend(_closer_look(parsed))
-    lines.extend(_pending_section())
-    return lines
+    return _closer_look(parsed) + _pending_section()
 
 
 _GENERIC_DIAGNOSIS = {
@@ -273,9 +230,9 @@ def _closer_look(parsed: list[tuple[CaseAudit, str]]) -> list[str]:
     if not rows:
         return []
     lines = [
-        "### Rows to inspect",
+        "## Rows to inspect",
         "",
-        "These runs left a failed stage or a host prerequisite. The diagnosis says whether that came from the fault or from the check.",
+        "These runs left a failed stage or a host prerequisite. The diagnosis starts with `verify:` when the check or a host prerequisite failed, or with `case:` when the fault symptom did not appear on that lab.",
         "",
         "| Scenario | Fault | Admission | Diagnosis |",
         "| --- | --- | --- | --- |",
@@ -304,7 +261,7 @@ def _pending_section() -> list[str]:
     if not pending:
         return []
     lines = [
-        "### Cases without a stored result",
+        "## Cases without a stored result",
         "",
         "The matrix schedules these cases by resource class and host capacity.",
         "",
@@ -520,7 +477,7 @@ def _limits_section() -> list[str]:
         "2. `verify_fault` after inject.",
         "3. `PresenceWatch` reads the fault artifact on the problem instance that injected it: once 2 seconds after the agent starts, and once before NIKA removes the lab. For the faults in `DYNAMIC_ARTIFACT_FAULTS`, the read checks the live worker, flap, or quota.",
         "",
-        "The trial writes those reads to `fault-presence.json`. A `present` read means the artifact was still on the lab. It does not measure the network effect.",
+        "The trial logs each read as a `fault_presence_recheck` event in the session log. A `present` read means the artifact was still on the lab. It does not measure the network effect.",
         "When any of these reads finds the artifact absent or fails, the trial outcome is `environment_invalid`. Leaderboard averages omit that outcome, and `nika benchmark run --resume` deletes the slot and runs it again.",
         "When the agent run is interrupted (Ctrl+C or SIGTERM), NIKA skips the remaining reads and undeploys the lab.",
     ]
