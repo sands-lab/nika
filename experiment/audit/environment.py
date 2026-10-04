@@ -125,11 +125,6 @@ class CaseAudit(BaseModel):
         return admission_status(required)
 
 
-def admits(status: str) -> bool:
-    """True only for a full-audit pass."""
-    return status == "pass"
-
-
 def admission_status(statuses: list[str]) -> AuditStatus:
     """Combine stage statuses. An empty list is ``not_run``."""
     if not statuses:

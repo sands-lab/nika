@@ -1,7 +1,7 @@
 """Coverage of a published benchmark release against full-audit results.
 
 A release case with no live audit is ``not_run``. That status is a coverage
-gap. ``admits`` rejects it.
+gap and does not admit the case.
 """
 
 from __future__ import annotations
