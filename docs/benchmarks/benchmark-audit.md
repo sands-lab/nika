@@ -53,7 +53,7 @@ The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, 
 | Kathara | 3.8.3 |
 | Python | 3.12.12, run through `uv` |
 
-The audit ran from 2026-10-02 11:06 to 2026-10-03 12:59 UTC.
+The audit ran from 2026-10-02 11:06 to 2026-10-04 08:09 UTC.
 Each case took 4.1 minutes at the median and 14.6 minutes at most, from lab deploy to undeploy.
 
 Lab nodes used these images. Every node that used an image reference had the same image ID.

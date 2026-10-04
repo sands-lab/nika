@@ -636,21 +636,18 @@ class ReceiverResourceContention(ProblemBase):
                 return True
         return False
 
-    def _resolve_peer_host(self, params: ReceiverResourceContentionParams) -> str:
-        """Prefer an HTTP peer that exists in this scenario (dc_clos uses webserver*)."""
-        peer = params.peer_host
-        if self._device_in_lab(peer):
-            return peer
-        from nika.net_env.net_env_pool import get_probe_path
-
-        path = get_probe_path(self.scenario_name or "")
-        if path is not None and path.peer_host and self._device_in_lab(path.peer_host):
-            return path.peer_host
+    def _resolve_peer_hosts(
+        self, params: ReceiverResourceContentionParams
+    ) -> list[str]:
+        """HTTP servers that must hold the large object (dc_clos uses webserver*)."""
+        if self._device_in_lab(params.peer_host):
+            return [params.peer_host]
         servers = getattr(self.net_env, "servers", None) or {}
-        for name in servers.get("web") or []:
-            if self._device_in_lab(name):
-                return name
-        return peer
+        return [
+            name
+            for name in servers.get("web") or []
+            if name != params.host_name and self._device_in_lab(name)
+        ]
 
     def _resolve_large_url(self, params: ReceiverResourceContentionParams) -> str:
         if params.large_url:
@@ -659,9 +656,11 @@ class ReceiverResourceContention(ProblemBase):
 
         path = get_probe_path(self.scenario_name or "")
         if path is not None and path.http_url:
-            base = path.http_url.rstrip("/")
-            return f"{base}/large.bin"
-        peer = self._resolve_peer_host(params)
+            parts = urlsplit(path.http_url)
+            base = parts.path.rsplit("/", 1)[0]
+            return f"{parts.scheme}://{parts.netloc}{base}/large.bin"
+        peers = self._resolve_peer_hosts(params)
+        peer = peers[0] if peers else params.peer_host
         peer_ip = ""
         try:
             peer_ip = self.runtime.get_host_ip(peer, with_prefix=False) or ""
@@ -675,23 +674,24 @@ class ReceiverResourceContention(ProblemBase):
         self, params: ReceiverResourceContentionParams
     ) -> str:
         url = self._resolve_large_url(params)
-        peer = self._resolve_peer_host(params)
-        self.runtime.exec(
-            peer,
-            (
-                "mkdir -p /var/www /usr/share/nginx/html /tmp 2>/dev/null || true; "
-                "for d in /var/www /usr/share/nginx/html /tmp; do "
-                "  dd if=/dev/zero of=$d/large.bin bs=1M count=16 status=none "
-                "  2>/dev/null || true; "
-                "done; "
-                "curl -s -o /dev/null -w '%{http_code}' --max-time 3 "
-                "http://127.0.0.1/large.bin 2>/dev/null | grep -qE '200|206' "
-                "|| (pkill -f '[p]ython3 -m http.server 80' 2>/dev/null || true; "
-                " cd /var/www && nohup python3 -m http.server 80 </dev/null "
-                " >/dev/null 2>&1 & sleep 0.5)"
-            ),
-            timeout=60,
-        )
+        for peer in self._resolve_peer_hosts(params):
+            self.runtime.exec(
+                peer,
+                (
+                    "mkdir -p /var/www/html /usr/share/nginx/html /tmp "
+                    "2>/dev/null || true; "
+                    "for d in /var/www /var/www/html /usr/share/nginx/html /tmp; do "
+                    "  dd if=/dev/zero of=$d/large.bin bs=1M count=16 status=none "
+                    "  2>/dev/null || true; "
+                    "done; "
+                    "curl -s -o /dev/null -w '%{http_code}' --max-time 3 "
+                    "http://127.0.0.1/large.bin 2>/dev/null | grep -qE '200|206' "
+                    "|| (pkill -f '[p]ython3 -m http.server 80' 2>/dev/null || true; "
+                    " cd /var/www && nohup python3 -m http.server 80 </dev/null "
+                    " >/dev/null 2>&1 & sleep 0.5)"
+                ),
+                timeout=60,
+            )
         self._large_url = url
         return url
 

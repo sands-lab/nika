@@ -26,6 +26,7 @@ from nika.problems.registry import (
     list_avail_problem_names,
 )
 from nika.runtime.factory import runtime_for_session
+from nika.validation.presence import bound_injected_problem
 from nika.workflows.failure.inject import inject_failure as inject_failure_workflow
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
@@ -59,18 +60,11 @@ def _resolve_compat_params(problem: str, scenario: str) -> dict[str, str]:
     return resolve_inject_params(problem, scenario, topo_size=TOPO_SIZE, seed=0)
 
 
-def _verify_injected(
-    problem: str,
-    scenario: str,
-    params: dict[str, str],
-    scenario_kwargs: dict[str, Any],
-) -> bool:
-    problem_obj = get_problem_instance(
-        [problem],
-        scenario_name=scenario,
-        **scenario_kwargs,
-    )
-    verify = problem_obj.verify_fault(params=problem_obj.Params(**params))
+def _verify_injected(session_id: str) -> bool:
+    bound = bound_injected_problem(session_id)
+    assert bound is not None, session_id
+    problem_obj, params = bound
+    verify = problem_obj.verify_fault(params=params)
     return bool(verify.get("verified"))
 
 
@@ -312,12 +306,8 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                 row["injection_success"] = True
                 time.sleep(2)
 
-                verify_ok = _verify_injected(
-                    problem,
-                    sweep.scenario,
-                    params,
-                    scenario_kwargs,
-                )
+                instance, parsed = bound_injected_problem(session_id)
+                verify_ok = _verify_injected(session_id)
                 row["verify_fault"] = verify_ok
 
                 if sweep.scenario == "p4_dc_fabric":
@@ -399,12 +389,7 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         [problem], session_id=session_id, param_overrides=params
                     )
                     row["injection_success"] = True
-                    row["verify_fault"] = _verify_injected(
-                        problem,
-                        sweep.scenario,
-                        params,
-                        self._scenario_kwargs(session_id),
-                    )
+                    row["verify_fault"] = _verify_injected(session_id)
                     row["smoke_after"] = _p4_fabric_smoke(runtime, model)
                     reconcile_fabric(runtime, model)
                     restored = _p4_fabric_smoke(runtime, model)
@@ -439,7 +424,7 @@ class TestScenarioFailureCompat(IntegrationTestCase):
             runtime = runtime_for_session(meta)
             model = build_gateway_fabric_model(TOPO_SIZE)
             source = model.clients[0]
-            url = model.web_urls[0]
+            url = model.vip_url
             assert http_ok(runtime, source.name, url)
 
             for problem in failures:
@@ -474,7 +459,6 @@ class TestP4RuntimePipelineMismatchStability(IntegrationTestCase):
             meta = self._assert_session_ready(session_id, "p4_dc_fabric")
             runtime = runtime_for_session(meta)
             model = build_clos_fabric_model(TOPO_SIZE)
-            scenario_kwargs = self._scenario_kwargs(session_id)
             healthy = verify_p4_dc_fabric_lab(
                 runtime, scenario_name="p4_dc_fabric", model=model
             )
@@ -491,9 +475,7 @@ class TestP4RuntimePipelineMismatchStability(IntegrationTestCase):
                 )
                 time.sleep(2)
 
-                verify_ok = _verify_injected(
-                    problem, "p4_dc_fabric", params, scenario_kwargs
-                )
+                verify_ok = _verify_injected(session_id)
                 assert verify_ok, f"cycle {cycle}: verify failed"
 
                 from pydantic import create_model
