@@ -265,6 +265,18 @@ class LabOpsTest:
 
         assert runtime.process_running("pc1", "named")
 
+    def test_process_running_rejects_timeout_diagnostic(self):
+        runtime = _StubRuntime(
+            {
+                (
+                    "pc1",
+                    "pgrep -a stress-ng 2>/dev/null || echo NONE",
+                ): "[TIMEOUT] Command 'pgrep -a stress-ng' exceeded 10.0s."
+            }
+        )
+
+        assert not runtime.process_running("pc1", "stress-ng")
+
     def test_process_not_running(self):
         runtime = _StubRuntime(
             {("pc1", "pgrep -a dhcpd 2>/dev/null || echo NONE"): "NONE"}

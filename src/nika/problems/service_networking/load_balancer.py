@@ -39,6 +39,9 @@ _VIP_PING_HOST = "web99.local"
 # Behavioral gates (fixed workload; not adaptive at runtime).
 # Pinned LB under ab flood typically lands ~0.7–0.9 of quota; 0.80 was flaky.
 _NGINX_CPU_MIN_RATIO = 0.65
+# The release pin of 0.2 CPU is wider than the ab flood on this nginx.
+# Cap the applied quota so that flood fills the slice.
+_APPLIED_QUOTA_CAP = 0.05
 _VIP_TAIL_MIN_RATIO = 2.0
 # web0 shares the campus farm uplink with VIP flood traffic, so mild inflation
 # is expected. Require success and that control stays clearly healthier than VIP.
@@ -90,11 +93,11 @@ class LoadBalancerOverloadParams(BaseModel):
         description="Fixed LB CPU capacity (fractional CPUs) for the whole experiment.",
     )
     concurrency: int = Field(
-        default=160,
+        default=200,
         description="ApacheBench concurrency per background load worker.",
     )
     load_workers: int = Field(
-        default=2,
+        default=4,
         description="Background ab worker processes per load client host.",
     )
     warmup_sec: float = Field(
@@ -172,8 +175,8 @@ class LoadBalancerOverload(ProblemBase):
             "backend_probe_host": "load_balancer",
             "backend_cpu_host": "backend_web_0",
             "cpu_quota": "0.2",
-            "concurrency": "160",
-            "load_workers": "2",
+            "concurrency": "200",
+            "load_workers": "4",
             "warmup_sec": "5",
             "probe_requests": "60",
             "probe_concurrency": "4",
@@ -252,6 +255,9 @@ class LoadBalancerOverload(ProblemBase):
         if cpu_delta <= 0 or system_delta <= 0:
             return 0.0
         return (cpu_delta / system_delta) * _online(s2) * 100.0
+
+    def _applied_quota(self, params: LoadBalancerOverloadParams) -> float:
+        return min(float(params.cpu_quota), _APPLIED_QUOTA_CAP)
 
     def _cpu_ratio_of_quota(
         self, host: str, *, quota_cpus: float, sample_sec: float
@@ -364,7 +370,7 @@ class LoadBalancerOverload(ProblemBase):
         )
         lb_cpu = self._cpu_ratio_of_quota(
             params.host_name,
-            quota_cpus=params.cpu_quota,
+            quota_cpus=self._applied_quota(params),
             sample_sec=params.cpu_sample_sec,
         )
         backend_cpu = self._cpu_ratio_of_quota(
@@ -425,7 +431,7 @@ class LoadBalancerOverload(ProblemBase):
         original = read_nano_cpus(self.runtime, params.host_name)
         self._original_nano_cpus = original
 
-        pinned = cpu_quota_to_nano_cpus(params.cpu_quota)
+        pinned = cpu_quota_to_nano_cpus(self._applied_quota(params))
         set_nano_cpus(self.runtime, params.host_name, pinned)
         self._pinned_nano_cpus = pinned
 

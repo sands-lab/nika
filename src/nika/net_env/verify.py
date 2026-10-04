@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 import time
 from collections.abc import Iterable, Mapping
@@ -239,6 +240,7 @@ class HttpDownloadStats:
     size_bytes: float | None
     throughput_bps: float | None
     raw: str = ""
+    exit_code: int | None = None
 
 
 def http_download_stats(
@@ -249,6 +251,8 @@ def http_download_stats(
     max_time_sec: int = 180,
     connect_timeout_sec: int = 10,
     max_bytes: int | None = None,
+    output_path: str = "/dev/null",
+    compressed: bool = False,
 ) -> HttpDownloadStats:
     """Download a URL over a new TCP connection and measure throughput.
 
@@ -256,16 +260,19 @@ def http_download_stats(
     probes that still exercise sustained bulk TCP).
     """
     range_arg = f" --range 0-{max_bytes - 1}" if max_bytes is not None else ""
+    encoding_arg = " --compressed" if compressed else ""
     output = exec_or_empty(
         runtime,
         host,
-        f"curl -s -o /dev/null -w '%{{http_code}} %{{time_total}} %{{size_download}}' "
+        f"curl -s -o {shlex.quote(output_path)} "
+        "-w '%{http_code} %{time_total} %{size_download}' "
         f"--connect-timeout {connect_timeout_sec} --max-time {max_time_sec} "
-        f"--http1.1{range_arg} {url}",
+        f"--http1.1{range_arg}{encoding_arg} {shlex.quote(url)}; "
+        "result=$?; printf ' %s' \"$result\"",
         timeout=float(max_time_sec + 20),
     ).strip()
     parts = output.split()
-    if len(parts) != 3:
+    if len(parts) != 4:
         return HttpDownloadStats(
             ok=False,
             http_code="",
@@ -274,10 +281,11 @@ def http_download_stats(
             throughput_bps=None,
             raw=output,
         )
-    code, total_s, size_s = parts
+    code, total_s, size_s, exit_s = parts
     try:
         time_total = float(total_s)
         size_bytes = float(size_s)
+        exit_code = int(exit_s)
     except ValueError:
         return HttpDownloadStats(
             ok=False,
@@ -296,6 +304,7 @@ def http_download_stats(
         size_bytes=size_bytes,
         throughput_bps=bps,
         raw=output,
+        exit_code=exit_code,
     )
 
 
@@ -767,6 +776,20 @@ def frr_bgp_established_peers(summary: str) -> set[str]:
     return peers
 
 
+def srl_bgp_established_peers(output: str) -> set[str]:
+    """Parse SR Linux ``show network-instance ... bgp neighbor`` for Established peers.
+
+    Only table rows count: the trailing summary ("0 configured sessions are
+    established") also contains the word.
+    """
+    peers: set[str] = set()
+    for line in output.splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 6 and cells[6] == "established":
+            peers.add(cells[2])
+    return peers
+
+
 def frr_ospf_full_router_ids(output: str) -> set[str]:
     """Parse FRR ``show ip ospf neighbor`` for router IDs in Full state."""
     peers: set[str] = set()
@@ -818,7 +841,8 @@ def raise_for_k8s_startup_failure(
     failure = exec_or_empty(
         runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
     ).strip()
-    if failure:
+    # A busy controller can time out the read; only the marker itself is a failure.
+    if failure and not failure.startswith("[TIMEOUT]"):
         log = exec_or_empty(runtime, "controller", "tail -60 /var/log/startup.log")
         raise RuntimeError(f"k3s controller bootstrap failed: {failure}\n{log}")
 

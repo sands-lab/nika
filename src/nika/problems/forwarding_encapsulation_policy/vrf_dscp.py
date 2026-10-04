@@ -15,7 +15,7 @@ from nika.net_env.enterprise_branch.topology import (
     TopoSize,
     dscp_remark_inject_targets,
 )
-from nika.net_env.verify import http_ok, ping_ok
+from nika.net_env.verify import http_ok, ping_stats
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -31,6 +31,8 @@ _NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
 _SETTLE_SEC = 4
 _PROBE_PORT = 5198
+# The remark only degrades EF under contention, so bulk must outlive a trial.
+_WORKLOAD_SEC = 3600
 
 
 def _remark_targets(net_env: Any, scenario: str) -> list[Any]:
@@ -212,7 +214,9 @@ class VrfDscpRemarking(ProblemBase):
             src_host=params.src_host,
             dst_host=params.dst_host,
         )
-        self._workload = qos_traffic.start(self.runtime, matrix, duration_sec=600)
+        self._workload = qos_traffic.start(
+            self.runtime, matrix, duration_sec=_WORKLOAD_SEC
+        )
         time.sleep(_SETTLE_SEC)
         self._baseline = qos_traffic.measure(self._workload)
         self.logger.info(
@@ -267,10 +271,15 @@ class VrfDscpRemarking(ProblemBase):
             params.host_name, f"ip -o link show {params.intf_name}"
         ).strip()
         checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
-        checks["ef_path_ping"] = ping_ok(
-            self.runtime,
-            params.src_host,
-            qos_traffic.host_ip(self.runtime, params.dst_host),
+        # The fault itself drops much of the EF traffic; any reply shows the path is up.
+        checks["ef_path_ping"] = (
+            ping_stats(
+                self.runtime,
+                params.src_host,
+                qos_traffic.host_ip(self.runtime, params.dst_host),
+                count=5,
+            ).received
+            > 0
         )
         checks["hq_server_http"] = http_ok(
             self.runtime, params.src_host, "http://10.0.20.2/"
@@ -344,7 +353,7 @@ class VrfDscpRemarking(ProblemBase):
         )
 
         if self._workload is not None:
-            qos_traffic.resume_bulk(self._workload)
+            qos_traffic.resume_bulk(self._workload, duration_sec=_WORKLOAD_SEC)
             time.sleep(2.0)
 
         details: dict[str, Any] = {
@@ -377,6 +386,17 @@ class VrfDscpRemarking(ProblemBase):
             verified=bool(remark_ok),
             details=details,
         )
+
+    def recheck_artifact(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
+        """Re-read the nft remark rule. Does not sample DSCP or send bulk traffic."""
+        remark_ok = bool(self._remark_present(params))
+        return {
+            "present": remark_ok,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {"remark_present": remark_ok, "intf": params.intf_name},
+            "error": None if remark_ok else "fault artifact absent",
+        }
 
     def recover_fault(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
         """Remove remarking, confirm DSCP/performance recovery, then stop workload."""

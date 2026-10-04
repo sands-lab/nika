@@ -14,6 +14,7 @@ from nika.net_env.verify import (
     host_has_ipv4,
     nodes_deployed,
     ping_ok,
+    srl_bgp_established_peers,
 )
 from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
@@ -88,10 +89,10 @@ def verify_isp_srl_lab(
         checks["bgp_prefixes_originated"] = _bgp_prefixes_originated_ok(
             runtime, bgp_plan
         )
-        checks["bgp_prefixes_propagated"] = _bgp_prefixes_propagated_ok(
-            runtime, bgp_plan
-        )
+        propagated, prefix_probes = _bgp_prefixes_propagated_ok(runtime, bgp_plan)
+        checks["bgp_prefixes_propagated"] = propagated
         details["bgp"] = bgp_plan.inventory
+        details["bgp_prefix_probes"] = prefix_probes
     return build_lab_verify_result(
         scenario_name=scenario_name,
         verified=all(checks.values()),
@@ -243,10 +244,7 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
             'sr_cli "show network-instance default protocols bgp neighbor"',
             timeout=30,
         )
-        established = sum(
-            1 for line in output.splitlines() if "established" in line.lower()
-        )
-        return established >= len(peers)
+        return len(srl_bgp_established_peers(output)) >= len(peers)
 
     return all(bounded_parallel_map(device_ok, needed.items()))
 
@@ -280,12 +278,15 @@ def _bgp_prefixes_originated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     return True
 
 
-def _srl_ping_ok(runtime: LabRuntime, device: str, target: str) -> bool:
+def _srl_ping_ok(
+    runtime: LabRuntime, device: str, target: str, source: str | None = None
+) -> bool:
     """Ping from an SRL router via sr_cli (linux ping has no data-plane netns)."""
+    source_arg = f" -I {source}" if source else ""
     output = exec_or_empty(
         runtime,
         device,
-        f'sr_cli "ping {target} network-instance default -c 1"',
+        f'sr_cli "ping {target} network-instance default -c 1{source_arg}"',
         timeout=20,
     )
     return "1 received" in output or "1 packets received" in output
@@ -304,12 +305,41 @@ def _srl_bgp_prefix_ok(runtime: LabRuntime, device: str, prefix: str) -> bool:
     return network in output or prefix in output
 
 
-def _bgp_prefixes_propagated_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
-    ping_by_prefix = {o.prefix: o.ping_address for o in bgp_plan.originated}
+def _bgp_prefixes_propagated_ok(
+    runtime: LabRuntime, bgp_plan: BgpPlan
+) -> tuple[bool, list[dict[str, Any]]]:
+    origin_by_prefix = {o.prefix: o for o in bgp_plan.originated}
+    probes: list[dict[str, Any]] = []
     for observer, prefix in bgp_plan.expect_reachable:
-        if not _srl_bgp_prefix_ok(runtime, observer, prefix):
-            return False
-        target = ping_by_prefix.get(prefix)
-        if target and not _srl_ping_ok(runtime, observer, target):
-            return False
-    return True
+        route_present = _srl_bgp_prefix_ok(runtime, observer, prefix)
+        origin = origin_by_prefix.get(prefix)
+        # SRL sources pings from system0, which eBGP export policy keeps out
+        # of the peer AS; the eBGP link address is reachable from the origin.
+        source = next(
+            (
+                session.local_ip
+                for session in bgp_plan.sessions
+                if origin is not None
+                and session.session_type == "ebgp"
+                and session.local_device == observer
+                and session.remote_device == origin.device
+            ),
+            None,
+        )
+        ping_reachable = (
+            _srl_ping_ok(runtime, observer, origin.ping_address, source)
+            if origin
+            else None
+        )
+        probes.append(
+            {
+                "observer": observer,
+                "prefix": prefix,
+                "route_present": route_present,
+                "ping_reachable": ping_reachable,
+            }
+        )
+    return all(
+        probe["route_present"] and probe["ping_reachable"] is not False
+        for probe in probes
+    ), probes

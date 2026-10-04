@@ -428,12 +428,15 @@ cases:
       node: atlam5
     fault_type: icmp_frag_needed_filter_misconfiguration
 - scenario: p4_dc_gateway
+  topo_size: m
   problem: incast_traffic_network_limitation
+  problems:
+  - incast_traffic_network_limitation
   inject:
     host_name: service_1_1
     observer_device: client_1
     probe_dst_ip: 10.0.1.11
-  topo_size: m
+    duration: '3600'
   root_causes:
   - resource:
       kind: interface
@@ -631,13 +634,13 @@ cases:
     backend_probe_host: load_balancer
     backend_url: http://20.200.0.2/small
     client_host: pc_1_1_1_1
-    concurrency: '160'
+    concurrency: '200'
     control_url: http://web0.local/small
     cpu_quota: '0.2'
     duration_sec: '300'
     host_name: load_balancer
     load_client_hosts: pc_2_1_1_1
-    load_workers: '2'
+    load_workers: '4'
     probe_concurrency: '4'
     probe_requests: '60'
     vip_url: http://web99.local/small
@@ -830,7 +833,7 @@ cases:
 - scenario: llmd_lab
   problem: receiver_resource_contention
   inject:
-    duration: '600'
+    duration: '3600'
     host_name: client
   root_causes:
   - resource:
@@ -853,7 +856,7 @@ cases:
     client_host: client_2_1
     cpu_quota: '0.05'
     dst_ip: 10.0.1.11
-    duration: '600'
+    duration: '3600'
     host_name: web_1
     large_url: http://10.0.1.11/large.bin
     small_url: http://10.0.1.11/small.bin
@@ -934,9 +937,9 @@ cases:
   problem: tcp_syn_flood_attack
   inject:
     attacker_device: client_1
-    duration: '60'
-    flows: '40'
-    rate_pps: '100'
+    duration: '3600'
+    flows: '100'
+    rate_pps: '1000'
     seed: '42'
     target_ip: 10.0.1.12
     target_port: '80'
@@ -1643,13 +1646,13 @@ cases:
     backend_probe_host: load_balancer
     backend_url: http://20.200.0.2/small
     client_host: pc_1_1_1_1
-    concurrency: '160'
+    concurrency: '200'
     control_url: http://web0.local/small
     cpu_quota: '0.2'
     duration_sec: '300'
     host_name: load_balancer
     load_client_hosts: pc_2_1_1_1
-    load_workers: '2'
+    load_workers: '4'
     probe_concurrency: '4'
     probe_requests: '60'
     vip_url: http://web99.local/small
@@ -1851,7 +1854,7 @@ cases:
 - scenario: dc_clos
   problem: receiver_resource_contention
   inject:
-    duration: '600'
+    duration: '3600'
     host_name: client_0
   topo_size: s
   root_causes:
@@ -1875,7 +1878,7 @@ cases:
     client_host: client_2_1
     cpu_quota: '0.05'
     dst_ip: 10.0.1.11
-    duration: '600'
+    duration: '3600'
     host_name: web_1
     large_url: http://10.0.1.11/large.bin
     small_url: http://10.0.1.11/small.bin
@@ -1956,9 +1959,9 @@ cases:
   problem: tcp_syn_flood_attack
   inject:
     attacker_device: client_1
-    duration: '60'
-    flows: '40'
-    rate_pps: '100'
+    duration: '3600'
+    flows: '100'
+    rate_pps: '1000'
     seed: '42'
     target_ip: 10.0.4.12
     target_port: '80'

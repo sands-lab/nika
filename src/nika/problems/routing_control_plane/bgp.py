@@ -343,6 +343,10 @@ class BGPMissingAdvertise(ProblemBase):
     description = "An expected BGP route advertisement is missing."
     effect_property = "reachability"
     TAGS: str = ["bgp"]
+    INCOMPATIBLE_SCENARIOS = {
+        "min3clos": "The IGP also carries the host subnets, so peers keep a route "
+        "after BGP stops advertising it."
+    }
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPMissingAdvertiseParams

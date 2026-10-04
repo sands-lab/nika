@@ -5,7 +5,7 @@ failure:
   cases:
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: service_1_2
     root_causes:
     - resource:
@@ -14,7 +14,7 @@ failure:
       fault_type: sender_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: service_2_2
     root_causes:
     - resource:
@@ -23,7 +23,7 @@ failure:
       fault_type: sender_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: service_2_1
     root_causes:
     - resource:

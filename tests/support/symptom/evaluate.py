@@ -63,18 +63,6 @@ def evaluate_symptom(
     ``tests.support.symptom.custom``.
     """
     contract = get_symptom_contract(failure)
-    if contract.control_plane_only:
-        return True, {
-            "skipped": True,
-            "reason": "control_plane_only",
-            "symptom_class": contract.symptom_class,
-        }
-    if contract.probe == "artifact_only":
-        return True, {
-            "skipped": True,
-            "reason": "artifact_only",
-            "symptom_class": contract.symptom_class,
-        }
     if contract.probe == "custom":
         if problem is None:
             return False, {
@@ -94,10 +82,113 @@ def evaluate_symptom(
         path = _resolve_blackhole_path(runtime, params, path, problem)
     if failure == "host_incorrect_ip" and getattr(problem, "_original_ip", None):
         path = replace(path, old_ip=problem._original_ip)
+        if before is not None and before.extra.get("peer_host"):
+            path = replace(path, peer_host=before.extra["peer_host"])
     if failure == "mtu_mismatch" and problem is not None:
         path = _resolve_mtu_mismatch_path(problem, params, path)
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)
     before_snap = before if before is not None else ProbeSnapshot()
+    if after.extra.get("error") or before_snap.extra.get("error"):
+        return False, {
+            "error": after.extra.get("error") or before_snap.extra.get("error"),
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+        }
+    if contract.probe == "dns_answer":
+        before_answers = before_snap.extra.get("dns_answers")
+        after_answers = after.extra.get("dns_answers")
+        ok = bool(before_answers and after_answers and before_answers != after_answers)
+        return ok, {
+            "failure": failure,
+            "probe": contract.probe,
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+            "comparison": {
+                "expect": "client_dns_answer_changed",
+                "observed": ok,
+            },
+        }
+    if contract.probe == "bgp_hijack_route":
+        was_absent = (
+            before_snap.extra.get("bgp_query_ok") is True
+            and before_snap.extra.get("bgp_target_present") is False
+        )
+        # Edge prefix filters can keep the hijack on the hijacking router; its
+        # own hosts are then the ones whose traffic it captures.
+        was_uncaptured = before_snap.extra.get("bgp_local_capture") is False
+        deadline = time.monotonic() + _BGP_RIB_WITHDRAW_TIMEOUT_S
+        while was_absent and time.monotonic() < deadline:
+            if after.extra.get("bgp_target_present") is True or (
+                was_uncaptured and after.extra.get("bgp_local_capture") is True
+            ):
+                break
+            time.sleep(2.0)
+            after = run_probe_snapshot(runtime, contract.probe, path, params=params)
+        propagated = (
+            after.extra.get("bgp_query_ok") is True
+            and after.extra.get("bgp_target_present") is True
+        )
+        captured = was_uncaptured and after.extra.get("bgp_local_capture") is True
+        ok = was_absent and (propagated or captured)
+        return ok, {
+            "failure": failure,
+            "probe": contract.probe,
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+            "comparison": {
+                "expect": "prefix_reaches_remote_router_or_local_hosts",
+                "propagated": propagated,
+                "captured_locally": captured,
+                "observed": ok,
+            },
+        }
+    if failure in {"bgp_acl_block", "bgp_asn_misconfig"}:
+        baseline = set(before_snap.extra.get("bgp_established_peers") or [])
+        deadline = time.monotonic() + 35.0
+        while time.monotonic() < deadline and after.extra.get("bgp_query_ok") is True:
+            current = set(after.extra.get("bgp_established_peers") or [])
+            if baseline and baseline - current:
+                break
+            time.sleep(2.0)
+            after = run_probe_snapshot(runtime, contract.probe, path, params=params)
+        current = set(after.extra.get("bgp_established_peers") or [])
+        ok = bool(
+            before_snap.extra.get("bgp_query_ok") is True
+            and after.extra.get("bgp_query_ok") is True
+            and baseline
+            and baseline - current
+        )
+        return ok, {
+            "failure": failure,
+            "probe": contract.probe,
+            "before": before_snap.as_dict(),
+            "after": after.as_dict(),
+            "comparison": {
+                "expect": "established_peers_decline",
+                "lost_peers": sorted(baseline - current),
+                "observed": ok,
+            },
+        }
+    if failure in {"ospf_acl_block", "ospf_area_misconfiguration"}:
+        baseline_neighbors = before_snap.extra.get("ospf_full_neighbors")
+        deadline = time.monotonic() + 50.0
+        while time.monotonic() < deadline and after.extra.get("ospf_query_ok") is True:
+            current_neighbors = after.extra.get("ospf_full_neighbors")
+            expected_loss = (
+                isinstance(baseline_neighbors, int)
+                and isinstance(current_neighbors, int)
+                and (
+                    current_neighbors == 0
+                    if failure == "ospf_acl_block"
+                    else current_neighbors < baseline_neighbors
+                )
+            )
+            if expected_loss:
+                break
+            time.sleep(2.0)
+            after = run_probe_snapshot(runtime, contract.probe, path, params=params)
+    if after.extra.get("error"):
+        return False, {"error": after.extra["error"], "after": after.as_dict()}
     expect = symptom_class_to_expect(contract.symptom_class)
     if contract.symptom_class == "gray":
         expect = "gray_loss"
@@ -168,6 +259,20 @@ def evaluate_symptom(
         loss_min_percent=contract.loss_min_percent,
         latency_factor=contract.latency_factor,
     )
+    if failure == "ospf_area_misconfiguration":
+        baseline_neighbors = before_snap.extra.get("ospf_full_neighbors")
+        current_neighbors = after.extra.get("ospf_full_neighbors")
+        ok = (
+            isinstance(baseline_neighbors, int)
+            and isinstance(current_neighbors, int)
+            and baseline_neighbors > 0
+            and current_neighbors < baseline_neighbors
+        )
+        cmp_details = {
+            **cmp_details,
+            "ospf_full_neighbors_before": baseline_neighbors,
+            "ospf_full_neighbors_after": current_neighbors,
+        }
     if failure == "link_down":
         intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
         host = getattr(params, "host_name", None)
@@ -206,11 +311,23 @@ def evaluate_symptom(
         intf = resolve_default_intf(getattr(params, "intf_name", "eth0"), runtime)
         host = getattr(params, "host_name", None)
         interface_gone = not runtime.interface_exists(host, intf) if host else False
-        ok = ok and interface_gone
+        # With an alternate path the IGP reroutes instead of blackholing; the
+        # echo reply then crosses more routers and arrives with a lower TTL.
+        ttl_before = before_snap.extra.get("reply_ttl")
+        ttl_after = after.extra.get("reply_ttl")
+        rerouted = (
+            isinstance(ttl_before, int)
+            and isinstance(ttl_after, int)
+            and ttl_after < ttl_before
+        )
+        ok = (ok or rerouted) and interface_gone
         cmp_details = {
             **cmp_details,
             "interface_exists": not interface_gone,
             "interface_gone": interface_gone,
+            "reply_ttl_before": ttl_before,
+            "reply_ttl_after": ttl_after,
+            "rerouted": rerouted,
         }
     if not ok and contract.symptom_class in {"degradation", "latency"}:
         after_ms = after.http_time_ms
@@ -223,6 +340,21 @@ def evaluate_symptom(
         ):
             ok = True
             cmp_details["absolute_latency_pass"] = after_ms
+    if failure == "dns_lookup_latency":
+        # Total HTTP time includes the transfer, which can hide the lookup delay.
+        lookup_before = before_snap.extra.get("name_lookup_ms")
+        lookup_after = after.extra.get("name_lookup_ms")
+        ok = (
+            isinstance(lookup_before, float)
+            and isinstance(lookup_after, float)
+            and lookup_after >= 500.0
+            and lookup_after >= lookup_before * contract.latency_factor
+        )
+        cmp_details = {
+            **cmp_details,
+            "name_lookup_ms_before": lookup_before,
+            "name_lookup_ms_after": lookup_after,
+        }
     return ok, {
         "failure": failure,
         "probe": contract.probe,

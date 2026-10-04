@@ -255,7 +255,7 @@ uv run pytest tests/nika/problems/test_symptom_contracts.py -v
 uv run pytest tests/nika/problems/test_failure_inject_contract.py -v
 ```
 
-Artifact `verify_fault` gates `nika failure inject`. Symptom checks use the unified test API `tests.support.symptom.evaluate_symptom` (per-failure contracts + custom handlers). User workflows must not import that package. Gray/statistical failures use heavier probes inside `evaluate_symptom`; `probe="artifact_only"` skips network probes when impact is nondeterministic (BGP ACL).
+Artifact `verify_fault` gates `nika failure inject`. Symptom checks use the unified test API `tests.support.symptom.evaluate_symptom` (per-failure contracts + custom handlers). User workflows must not import that package. Gray/statistical failures use heavier probes inside `evaluate_symptom`. Every failure declares a probe that measures its effect.
 
 ## Network environment (`tests/nika/net_env/`)
 

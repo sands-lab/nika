@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from collections.abc import Callable
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
@@ -85,6 +86,19 @@ def order_run_json(payload: dict[str, Any]) -> dict[str, Any]:
     if "metadata" in payload:
         ordered["metadata"] = payload["metadata"]
     return ordered
+
+
+def json_safe(value: Any) -> Any:
+    """Convert ``value`` to JSON types; unknown objects become strings."""
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {str(key): json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [json_safe(item) for item in value]
+    return str(value)
 
 
 def write_json_atomic(

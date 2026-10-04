@@ -6,10 +6,65 @@ import re
 import time
 from typing import Any
 
-from nika.net_env.verify import http_download_stats, ping_stats
+from nika.net_env.verify import (
+    http_download_stats,
+    iperf_throughput_bps,
+    median_float,
+    ping_stats,
+)
+from nika.net_env.sdn_l3_clos.topology_model import ONOS_OF_PORT, ONOS_OOB_IP
 from nika.problems.base import build_verify_result
+from nika.problems.management_orchestration_plane.sdn import _switch_controller_state
 from nika.problems.support.ab_helpers import ab_summary_to_dict
+from tests.support.symptom.addressing_probes import (
+    ip_conflict,
+    ip_conflict_baseline,
+    mac_conflict,
+    mac_conflict_baseline,
+)
+from tests.support.symptom.dhcp_probes import (
+    dhcp_client_baseline,
+    dhcp_missing_subnet,
+    dhcp_offer_baseline,
+    dhcp_service_down,
+    dhcp_spoofed_dns,
+    dhcp_spoofed_gateway,
+    dhcp_spoofed_subnet,
+)
 from tests.support.symptom.flap_probes import evaluate_link_flap_symptom
+from tests.support.symptom.icmp_probes import (
+    frag_needed_baseline,
+    frag_needed_filtered,
+)
+from tests.support.symptom.p4_gateway_probes import (
+    ecn_marking,
+    ecn_marking_baseline,
+    int_headroom,
+    int_headroom_baseline,
+    lb_race,
+    lb_race_baseline,
+    silent_loss,
+    silent_loss_baseline,
+    syn_flood,
+    syn_flood_baseline,
+    tcam_drop,
+    tcam_drop_baseline,
+)
+from tests.support.symptom.p4_runtime_probes import (
+    ecmp_member_missing,
+    ecmp_sweep_baseline,
+    selector_member_blackhole,
+    table_exhaustion,
+    table_exhaustion_baseline,
+)
+from tests.support.symptom.sdn_probes import flow_shadow, flow_shadow_baseline
+from tests.support.symptom.k8s_probes import worker_partition, worker_partition_baseline
+from tests.support.symptom.nat_probes import (
+    nat_flow_baseline,
+    nat_mapping_removed,
+    snat_pool_baseline,
+    snat_pool_exhaustion,
+)
 from tests.support.symptom.corruption_probes import (
     evaluate_device_forwarding_corruption_symptom,
     evaluate_link_capacity_symptom,
@@ -18,14 +73,10 @@ from tests.support.symptom.corruption_probes import (
 from nika.problems.service_networking.load_balancer import (
     _BACKEND_CPU_MAX_RATIO,
     _BACKEND_LOCAL_URL,
-    _CONTROL_ABS_P95_MAX_MS,
-    _CONTROL_P95_BASELINE_MAX_RATIO,
     _CONTROL_VS_VIP_MAX_RATIO,
     _MAX_LOSS_PERCENT as _LB_MAX_LOSS_PERCENT,
     _MIN_ERROR_COUNT_FOR_DEGRADATION,
     _NGINX_CPU_MIN_RATIO,
-    _RTT_ABS_MAX_MS,
-    _RTT_MAX_RATIO as _LB_RTT_MAX_RATIO,
     _VIP_PING_HOST,
     _VIP_TAIL_MIN_RATIO,
 )
@@ -159,7 +210,7 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
 
     lb_cpu = problem._cpu_ratio_of_quota(
         params.host_name,
-        quota_cpus=params.cpu_quota,
+        quota_cpus=problem._applied_quota(params),
         sample_sec=params.cpu_sample_sec,
     )
     backend_cpu = problem._cpu_ratio_of_quota(
@@ -228,19 +279,16 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
     vip_probe_failed = vip.p95_ms is None or vip.complete_requests in {None, 0}
     vip_degraded = vip_tail_ok or vip_errors_ok or vip_probe_failed
 
+    # A healthy control path has a measured p95 and no errors. When the VIP is
+    # so overloaded that its probe completes no request (p95 is None, the
+    # strongest degradation), the control stays the independent healthy path;
+    # otherwise it must also sit well below the VIP tail.
     control_ok = (
         control.p95_ms is not None
         and control.error_count == 0
         and (
-            (
-                control_p95_ratio is not None
-                and control_p95_ratio <= _CONTROL_P95_BASELINE_MAX_RATIO
-            )
-            or (
-                control.p95_ms <= _CONTROL_ABS_P95_MAX_MS
-                and vip.p95_ms is not None
-                and control.p95_ms <= vip.p95_ms * _CONTROL_VS_VIP_MAX_RATIO
-            )
+            vip.p95_ms is None
+            or control.p95_ms <= vip.p95_ms * _CONTROL_VS_VIP_MAX_RATIO
         )
     )
     base_backend_local_time = baseline.get("backend_local_time_s")
@@ -264,11 +312,8 @@ def _load_balancer_overload(problem: Any, params: Any) -> tuple[bool, dict[str, 
         and ping.loss_percent <= _LB_MAX_LOSS_PERCENT
         and nginx_running
     )
-    if ping.rtt_avg_ms is not None:
-        rtt_ok = ping.rtt_avg_ms <= _RTT_ABS_MAX_MS
-        if base_rtt is not None and base_rtt > 0:
-            rtt_ok = rtt_ok or ping.rtt_avg_ms <= base_rtt * _LB_RTT_MAX_RATIO
-        path_ok = path_ok and rtt_ok
+    # ICMP replies come from the CPU-limited VIP host itself. Its RTT is an
+    # endpoint load signal, not an independent fabric-path health gate.
 
     verified = bool(
         nginx_saturated and vip_degraded and control_ok and backend_ok and path_ok
@@ -366,17 +411,84 @@ def _lb_connection_state_exhaustion(
     return verified, result
 
 
+def _receiver_baseline(problem: Any, params: Any) -> tuple[bool, dict] | None:
+    if problem.scenario_name != "campus_lan":
+        return None
+    bps, seconds = problem._median_large_stats(
+        params, problem._resolve_large_url(params), max_time_sec=120
+    )
+    return bool(bps and seconds), {"downloads": problem._last_downloads}
+
+
 def _receiver_resource_contention(
     problem: Any, params: Any
 ) -> tuple[bool, dict[str, Any]]:
+    if problem.scenario_name == "campus_lan":
+        url = problem._resolve_large_url(params)
+        bps, seconds = problem._median_large_stats(params, url, max_time_sec=120)
+        samples = list(problem._last_downloads)
+        baseline = problem._baseline_throughput_bps
+        ratio = bps / baseline if bps and baseline else None
+        control_bps, _ = problem._median_large_stats(
+            params, url, max_time_sec=120, host=problem._control_host(params)
+        )
+        control_base = problem._control_baseline_bps
+        control_ratio = (
+            control_bps / control_base if control_bps and control_base else None
+        )
+        # The download is CPU-bound by design, so shared-host load slows the
+        # control PC too; only a slowdown twice the control's is receiver-local.
+        control_ok = (
+            ratio is not None
+            and control_ratio is not None
+            and ratio <= 0.5 * control_ratio
+        )
+        ok = ratio is not None and ratio <= 0.50 and control_ok
+        return ok, build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=ok,
+            details={
+                "host": params.host_name,
+                "large_url": url,
+                "baseline_throughput_bps": baseline,
+                "injected_throughput_bps": bps,
+                "injected_time_s": seconds,
+                "throughput_ratio": ratio,
+                "downloads": samples,
+                "control_host": problem._control_host(params),
+                "control_throughput_ratio": control_ratio,
+                "control_ok": control_ok,
+            },
+        )
     url = getattr(problem, "_large_url", None) or getattr(params, "large_url", None)
     if not url:
         url = problem._resolve_large_url(params)
-    injected_bps, injected_time_s = problem._median_large_stats(
-        params, url, max_time_sec=300, trials=3
-    )
     baseline_bps = problem._baseline_throughput_bps
     baseline_time = problem._baseline_time_s
+    # A starved receiver can stall a download, or the exec that starts it, for
+    # minutes. Count a missed deadline as the measured time and stop at the
+    # first slow sample so all reads finish inside the stress duration.
+    max_time_sec = max(20, int((baseline_time or 5) * 4) + 1)
+    rates: list[float] = []
+    times: list[float] = []
+    for _ in range(3):
+        stats = http_download_stats(
+            problem.runtime, params.host_name, url, max_time_sec=max_time_sec
+        )
+        if stats.raw.startswith("[TIMEOUT]"):
+            rates.append(0.0)
+            times.append(float(max_time_sec))
+        elif stats.throughput_bps is not None:
+            rates.append(stats.throughput_bps)
+            times.append(stats.time_total_s)
+        elif (stats.time_total_s or 0) >= max_time_sec:
+            rates.append((stats.size_bytes or 0) * 8.0 / max_time_sec)
+            times.append(stats.time_total_s)
+        else:
+            continue
+        if baseline_time and times[-1] >= 2.0 * baseline_time:
+            break
+    injected_bps, injected_time_s = median_float(rates), median_float(times)
     throughput_ratio = None
     time_ratio = None
     perf_ok = False
@@ -412,26 +524,280 @@ def _receiver_resource_contention(
     return verified, result
 
 
+def _tcp_receive_window_limited(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import primary_ipv4
+
+    receiver_ip = primary_ipv4(problem.runtime, params.host_name)
+    baseline_bps = getattr(problem, "_healthy_throughput_bps", None)
+    current_bps = (
+        iperf_throughput_bps(
+            problem.runtime,
+            params.sender_host,
+            params.host_name,
+            receiver_ip,
+            duration_sec=3,
+        )
+        if receiver_ip
+        else None
+    )
+    small = http_download_stats(
+        problem.runtime, params.host_name, params.small_url, max_time_sec=30
+    )
+    ping = ping_stats(
+        problem.runtime, params.host_name, params.sender_ip, count=5, interval_sec=0.2
+    )
+    ratio = (
+        current_bps / baseline_bps if current_bps is not None and baseline_bps else None
+    )
+    path_ok = small.ok and ping.loss_percent < 5.0
+    verified = bool(path_ok and ratio is not None and ratio < 0.5)
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "receiver": params.host_name,
+            "receiver_ip": receiver_ip,
+            "small_http_ok": small.ok,
+            "ping_loss_percent": ping.loss_percent,
+            "healthy_throughput_bps": baseline_bps,
+            "current_throughput_bps": current_bps,
+            "throughput_ratio": ratio,
+            "path_ok": path_ok,
+        },
+    )
+
+
+def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    observed = problem.verify_fault(params)
+    details = observed.get("details") if isinstance(observed, dict) else {}
+    details = details if isinstance(details, dict) else {}
+    smoke = details.get("smoke") if isinstance(details.get("smoke"), dict) else {}
+    verified = bool(
+        details.get("samples_confirm")
+        and details.get("perf_degraded")
+        and smoke
+        and all(smoke.values())
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details=details,
+    )
+
+
+def _southbound_connections(problem: Any) -> tuple[dict[str, bool], dict[str, str]]:
+    """Empty or unparsable controller output is an error, not a disconnect."""
+    states: dict[str, bool] = {}
+    errors: dict[str, str] = {}
+    for switch, item in _switch_controller_state(
+        problem.runtime, problem.net_env
+    ).items():
+        value = item["is_connected"].strip('"').lower()
+        if value in {"true", "false"}:
+            states[switch] = value == "true"
+        else:
+            errors[switch] = item["target"] or "empty controller observation"
+    return states, errors
+
+
+def _southbound_connected(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    states, errors = _southbound_connections(problem)
+    ok = bool(states) and not errors and all(states.values())
+    return ok, {"switch_connected": states, "query_errors": errors}
+
+
+def _southbound_disconnected(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    states: dict[str, bool] = {}
+    deadline = time.monotonic() + 90.0
+    while time.monotonic() < deadline:
+        states, errors = _southbound_connections(problem)
+        if errors:
+            return False, {"error": "southbound_query_failed", "details": errors}
+        if states and not any(states.values()):
+            break
+        time.sleep(2.0)
+    disconnected = sorted(name for name, connected in states.items() if not connected)
+    verified = bool(states) and len(disconnected) == len(states)
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={"switch_connected": states, "disconnected": disconnected},
+    )
+
+
+def _controller_channel(problem: Any) -> dict[str, Any]:
+    """Open the OpenFlow port from a leaf and ping a cross-rack web host."""
+    model = problem.net_env.model
+    switch = model.leaves[0]
+    out = problem.runtime.exec(
+        switch,
+        f"timeout 3 bash -c '</dev/tcp/{ONOS_OOB_IP}/{ONOS_OF_PORT}' 2>&1; echo rc=$?",
+    ).strip()
+    if out.endswith("rc=0"):
+        connect = "connected"
+    elif "Connection refused" in out:
+        connect = "refused"
+    else:
+        connect = out[-200:] or "empty"
+    source = model.client_endpoints()[0]
+    target = next(e for e in model.web_endpoints() if e.leaf_id != source.leaf_id)
+    ping = ping_stats(problem.runtime, source.name, target.ip, count=5)
+    return {
+        "connect_switch": switch,
+        "controller": f"{ONOS_OOB_IP}:{ONOS_OF_PORT}",
+        "openflow_connect": connect,
+        "data_path": f"{source.name}->{target.name}",
+        "data_loss_percent": ping.loss_percent,
+        "control_ok": ping.loss_percent == 0.0,
+    }
+
+
+def _controller_serving(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    connected, observed = _southbound_connected(problem, params)
+    channel = _controller_channel(problem)
+    ok = connected and channel["openflow_connect"] == "connected"
+    return ok and channel["control_ok"], {**observed, **channel}
+
+
+def _controller_crashed(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Switches lose the controller and its port refuses; flows keep forwarding."""
+    disconnected, result = _southbound_disconnected(problem, params)
+    if "error" in result:
+        return False, result
+    channel = _controller_channel(problem)
+    verified = (
+        disconnected
+        and channel["openflow_connect"] == "refused"
+        and channel["control_ok"]
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={**result["details"], **channel},
+    )
+
+
+def _clusterip_routing_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    result = problem.verify_fault(params)
+    details = result.get("details") or {}
+    verified = (
+        bool(result.get("verified"))
+        and details.get("clusterip_reachable") is False
+        and details.get("backend_reachable") is True
+        and details.get("service_object_intact") is True
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details=details,
+    )
+
+
+def _flow_rule_loop(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Exercise all remote racks and tie packet loss to the loop rule counters."""
+    model = problem.net_env.model
+    source_leaf = model.leaf_id(params.host_name)
+    sources = [e for e in model.client_endpoints() if e.leaf_id == source_leaf]
+    targets = [e for e in model.web_endpoints() if e.leaf_id != source_leaf]
+    if not sources or not targets:
+        return False, {"error": "no_cross_leaf_probe_path"}
+
+    port0, port1 = problem._resolve_ports(params)
+    switches = ((params.host_name, port0), (params.host_name_2, port1))
+
+    def loop_packets(switch: str, port: str) -> int | None:
+        ofport = problem.runtime.exec(
+            switch, f"ovs-vsctl get Interface {port} ofport 2>/dev/null"
+        ).strip()
+        flows = problem.runtime.exec(
+            switch, f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null"
+        )
+        for line in flows.splitlines():
+            if f"priority={problem._LOOP_PRIORITY},in_port={ofport}" in line:
+                match = re.search(r"\bn_packets=(\d+)", line)
+                if match:
+                    return int(match.group(1))
+        return None
+
+    before = {switch: loop_packets(switch, port) for switch, port in switches}
+    losses: dict[str, float] = {}
+    for target in targets:
+        sample = ping_stats(
+            problem.runtime, sources[0].name, target.ip, count=3, interval_sec=0.2
+        )
+        losses[target.name] = sample.loss_percent
+    after = {switch: loop_packets(switch, port) for switch, port in switches}
+    counter_rise = any(
+        before[switch] is not None
+        and after[switch] is not None
+        and after[switch] > before[switch]
+        for switch, _ in switches
+    )
+    verified = counter_rise and any(loss > 0 for loss in losses.values())
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "source": sources[0].name,
+            "loss_percent_by_target": losses,
+            "loop_packets_before": before,
+            "loop_packets_after": after,
+        },
+    )
+
+
 _QDISC_DROPPED_RE = re.compile(r"\bdropped (\d+)")
 _INCAST_SAMPLE_SEC = 5.0
 
 
-def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> int | None:
+def _egress_qdisc_drops(problem: Any, device: str, intf: str) -> tuple[int | None, str]:
     output = problem.runtime.exec(
-        device, f"tc -s qdisc show dev {intf} 2>/dev/null || true", timeout=10
+        device,
+        f"tc -s qdisc show dev {intf} 2>/dev/null || true; "
+        f"tc -s filter show dev {intf} ingress 2>/dev/null || true",
+        timeout=10,
     )
     counts = [int(m) for m in _QDISC_DROPPED_RE.findall(output or "")]
-    return sum(counts) if counts else None
+    return (sum(counts) if counts else None), output
 
 
 def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Synchronized bursts overflow the shallow egress queue: drops keep rising."""
     device, intf = problem._egress_port(params)
-    before = _egress_qdisc_drops(problem, device, intf)
+    before, before_stats = _egress_qdisc_drops(problem, device, intf)
     time.sleep(_INCAST_SAMPLE_SEC)
-    after = _egress_qdisc_drops(problem, device, intf)
+    after, after_stats = _egress_qdisc_drops(problem, device, intf)
     delta = after - before if before is not None and after is not None else None
     verified = delta is not None and delta > 0
+    diagnostics: dict[str, str] = {}
+    if not verified:
+        senders = list(getattr(problem, "_senders", []) or [])
+        if senders:
+            diagnostics["sender_log"] = problem.runtime.exec(
+                senders[0],
+                'for f in /tmp/burst-*.log; do tail -n 8 "$f"; done',
+                timeout=10,
+            )[:1200]
+            diagnostics["sender_process"] = problem.runtime.exec(
+                senders[0], "pgrep -af iperf3 2>/dev/null || true", timeout=10
+            )[:800]
+            destination_ip = str(getattr(problem, "_receiver_ip", ""))
+            diagnostics["sender_route"] = problem.runtime.exec(
+                senders[0],
+                f"ip route get {destination_ip} 2>/dev/null || true",
+                timeout=10,
+            )[:500]
+        diagnostics["receiver_log"] = problem.runtime.exec(
+            params.host_name,
+            'for f in /tmp/burst-server-*.log; do tail -n 8 "$f"; done',
+            timeout=10,
+        )[:1200]
+        diagnostics["receiver_process"] = problem.runtime.exec(
+            params.host_name, "pgrep -af iperf3 2>/dev/null || true", timeout=10
+        )[:800]
+        diagnostics["receiver_ip"] = str(getattr(problem, "_receiver_ip", ""))
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
@@ -441,6 +807,9 @@ def _incast(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "drops_after": after,
             "drops_delta": delta,
             "window_sec": _INCAST_SAMPLE_SEC,
+            "tc_stats_before": before_stats[:1200],
+            "tc_stats_after": after_stats[:1200],
+            **diagnostics,
         },
     )
 
@@ -454,9 +823,76 @@ _CUSTOM: dict[str, Any] = {
     "web_dos_attack": _web_dos,
     "sender_resource_contention": _sender_resource_contention,
     "receiver_resource_contention": _receiver_resource_contention,
+    "tcp_receive_window_limited": _tcp_receive_window_limited,
+    "vrf_dscp_remarking": _vrf_dscp_remarking,
+    "southbound_port_block": _southbound_disconnected,
+    "southbound_port_mismatch": _southbound_disconnected,
+    "sdn_controller_crash": _controller_crashed,
+    "flow_rule_loop": _flow_rule_loop,
+    "k8s_clusterip_routing_broken": _clusterip_routing_broken,
+    "k8s_worker_apiserver_partition": worker_partition,
+    "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": _load_balancer_overload,
     "lb_connection_state_exhaustion": _lb_connection_state_exhaustion,
+    "snat_port_pool_exhaustion": snat_pool_exhaustion,
+    "nat_mapping_removed_without_drain": nat_mapping_removed,
+    "mac_address_conflict": mac_conflict,
+    "host_ip_conflict": ip_conflict,
+    "icmp_frag_needed_filter_misconfiguration": frag_needed_filtered,
+    "int_insufficient_mtu_headroom": int_headroom,
+    "tcp_syn_flood_attack": syn_flood,
+    "lb_pending_connection_update_race": lb_race,
+    "flow_rule_shadowing": flow_shadow,
+    "p4_ecn_threshold_misconfiguration": ecn_marking,
+    "p4_tcam_entry_corruption": tcam_drop,
+    "p4_ecmp_group_member_missing": ecmp_member_missing,
+    "p4_action_selector_member_misconfig": selector_member_blackhole,
+    "p4_table_resource_exhaustion": table_exhaustion,
+    "dhcp_spoofed_gateway": dhcp_spoofed_gateway,
+    "dhcp_spoofed_dns": dhcp_spoofed_dns,
+    "dhcp_spoofed_subnet": dhcp_spoofed_subnet,
+    "dhcp_missing_subnet": dhcp_missing_subnet,
+    "dhcp_service_down": dhcp_service_down,
 }
+
+# Pre-inject measurements of the same signal a custom probe reads after inject.
+_CUSTOM_BASELINE: dict[str, Any] = {
+    "receiver_resource_contention": _receiver_baseline,
+    "southbound_port_block": _southbound_connected,
+    "southbound_port_mismatch": _southbound_connected,
+    "sdn_controller_crash": _controller_serving,
+    "snat_port_pool_exhaustion": snat_pool_baseline,
+    "nat_mapping_removed_without_drain": nat_flow_baseline,
+    "mac_address_conflict": mac_conflict_baseline,
+    "host_ip_conflict": ip_conflict_baseline,
+    "icmp_frag_needed_filter_misconfiguration": frag_needed_baseline,
+    "int_insufficient_mtu_headroom": int_headroom_baseline,
+    "tcp_syn_flood_attack": syn_flood_baseline,
+    "lb_pending_connection_update_race": lb_race_baseline,
+    "flow_rule_shadowing": flow_shadow_baseline,
+    "p4_ecn_threshold_misconfiguration": ecn_marking_baseline,
+    "p4_tcam_entry_corruption": tcam_drop_baseline,
+    "p4_ecmp_group_member_missing": ecmp_sweep_baseline,
+    "p4_action_selector_member_misconfig": ecmp_sweep_baseline,
+    "p4_table_resource_exhaustion": table_exhaustion_baseline,
+    "silent_egress_packet_loss": silent_loss_baseline,
+    "k8s_worker_apiserver_partition": worker_partition_baseline,
+    "dhcp_spoofed_gateway": dhcp_client_baseline,
+    "dhcp_spoofed_dns": dhcp_client_baseline,
+    "dhcp_spoofed_subnet": dhcp_client_baseline,
+    "dhcp_missing_subnet": dhcp_offer_baseline,
+    "dhcp_service_down": dhcp_offer_baseline,
+}
+
+
+def evaluate_custom_baseline(
+    failure: str, problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]] | None:
+    """Return the healthy pre-inject reading, or ``None`` without a baseline."""
+    handler = _CUSTOM_BASELINE.get(failure)
+    if handler is None:
+        return None
+    return handler(problem, params)
 
 
 def evaluate_custom_symptom(

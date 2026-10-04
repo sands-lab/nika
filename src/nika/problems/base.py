@@ -96,6 +96,9 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # Scenarios whose TAGS match but whose design hides the failure effect,
+    # mapped to the reason.
+    INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
     # ISP protocol stack (``igp`` / ``bgp_mode`` / ``rpki``) this failure needs on
     # a base ``isp_<topo>`` scenario. ``None`` derives it from TAGS (``ospf`` ->
     # OSPF only, ``bgp`` -> iBGP route reflection, else the default stack). An
@@ -139,6 +142,8 @@ class ProblemBase:
             and target not in allowed
             and target not in {parse_column(column)[0] for column in allowed}
         ):
+            return False
+        if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
         return frozenset(cls.TAGS).issubset(effective_tags(target))
 
@@ -394,6 +399,39 @@ class ProblemBase:
                     f"{type(self).__name__} cannot {operation}: runtime for backend {backend!r} "
                     f"lacks required capabilities: {missing_text}."
                 )
+
+    def recheck_artifact(self, params: Any = None) -> dict[str, Any]:
+        """Read this instance's fault artifacts.
+
+        Call this on the instance that ran ``inject_fault``. A new instance
+        does not have inject-time state, and this method does not create one.
+        The result reports artifact presence. It does not report a network effect.
+        """
+        if params is not None:
+            result = self.verify_fault(params=params)
+        else:
+            result = self.verify_fault()
+        if not isinstance(result, dict):
+            return {
+                "present": False,
+                "fault": str(
+                    getattr(self, "root_cause_name", "") or type(self).__name__
+                ),
+                "scope": "artifact",
+                "evidence": {},
+                "error": "verify_fault did not return a dict",
+            }
+        present = bool(result.get("verified"))
+        details = result.get("details")
+        evidence = details if isinstance(details, dict) else {"details": details}
+        fault = result.get("fault_type") or getattr(self, "root_cause_name", "")
+        return {
+            "present": present,
+            "fault": fault if isinstance(fault, str) else str(fault),
+            "scope": "artifact",
+            "evidence": evidence,
+            "error": None if present else "fault artifact absent",
+        }
 
 
 def build_verify_result(

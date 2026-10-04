@@ -110,7 +110,7 @@ user PCs -- access switches -- distribution routers
 | `m` | 4 | 8 | 16 |
 | `l` | 8 | 32 | 128 |
 
-Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
+Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service. Lab PCs refresh their software catalog by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
 ```shell
 uv run nika env run campus_lan -s s
@@ -246,7 +246,7 @@ This benchmark scenario connects one external client to each gateway, fully mesh
 | `m` | 4 | 4 | 4 | 4 | 8 |
 | `l` | 8 | 8 | 8 | 8 | 16 |
 
-The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
+The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 sends packets as fast as its CPU allows, so its egress queue stays empty. Each egress port therefore keeps a virtual queue that drains one packet per 16384 µs (about 61 packets per second) and holds at most 64 packets. The `queue_occupancy` register reports that depth, and ECN marks ECT packets when the depth reaches the port threshold. The virtual queue never drops packets. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
 
 ```shell
 uv run nika env run p4_dc_gateway -s s

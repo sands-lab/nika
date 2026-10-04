@@ -193,11 +193,13 @@ class ExecSemanticOpsMixin:
     def srl_set_bgp_as(self, node: str, asn: int) -> None:
         self._api().srl_set_bgp_as(node, asn)
 
-    def srl_add_bgp_acl_drop_179(self, node: str) -> None:
-        self._api().srl_add_bgp_acl_drop_179(node)
+    def srl_add_bgp_acl_drop_179(self, node: str) -> dict[int, str]:
+        return self._api().srl_add_bgp_acl_drop_179(node)
 
-    def srl_bgp_acl_drop_179_present(self, node: str) -> bool:
-        return self._api().srl_bgp_acl_drop_179_present(node)
+    def srl_bgp_acl_drop_179_present(
+        self, node: str, drop_entries: dict[int, str]
+    ) -> bool:
+        return self._api().srl_bgp_acl_drop_179_present(node, drop_entries)
 
     def srl_withdraw_client_prefix(
         self, node: str, *, subinterface: str = "ethernet-1/2.0"

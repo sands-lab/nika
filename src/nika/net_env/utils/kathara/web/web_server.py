@@ -1,3 +1,4 @@
+import os
 import random
 import string
 import time
@@ -97,8 +98,8 @@ class SimpleHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    host = "0.0.0.0"
-    port = 80
+    host = os.environ.get("WEB_HOST", "0.0.0.0")
+    port = int(os.environ.get("WEB_PORT", "80"))
 
     httpd = HTTPServer((host, port), SimpleHandler)
     print(f"Serving on http://{host}:{port}")

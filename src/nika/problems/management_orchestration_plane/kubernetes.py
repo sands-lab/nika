@@ -65,9 +65,11 @@ class WorkerApiServerPartition(K8sProblemBase):
     description = "Worker is partitioned from the Kubernetes API server."
     symptom_desc = (
         "One Kubernetes worker node reports NotReady and stops receiving new pods, "
-        "and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while "
-        "those pods keep serving traffic and the node itself is still reachable over "
-        "the network."
+        "and `kubectl exec` / `kubectl logs` fail for the pods it hosts. Those pods "
+        "keep running and answer on their pod IPs, but they are marked not ready and "
+        "removed from Service endpoints, so services that depend only on them fail; "
+        "after the eviction timeout they stay Terminating. The node itself is still "
+        "reachable over the network."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "k8s_control_plane"]
 
@@ -293,3 +295,27 @@ class WorkerApiServerPartition(K8sProblemBase):
                 return False, {"target_device": device, "error": str(exc)}
 
         return self.poll_verify(check, timeout=NODE_NOTREADY_TIMEOUT_SEC)
+
+    def recheck_artifact(self, params: WorkerApiServerPartitionParams) -> dict:
+        """Re-read the worker iptables drops. Does not ping or open kubectl logs."""
+        k8s = self.runtime.lab_api
+        device = self._target_device(params)
+        specs = self._drop_specs(params, k8s)
+        node_filter = NodeFilter(self.runtime, device)
+        unfiltered = [
+            f"{spec.describe()}:{chain}"
+            for spec in specs
+            for chain, installed in node_filter.blocked_spec(spec).items()
+            if not installed
+        ]
+        present = not unfiltered
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_device": device,
+                "unfiltered": unfiltered,
+            },
+            "error": None if present else "fault artifact absent",
+        }

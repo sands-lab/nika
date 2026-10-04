@@ -30,6 +30,7 @@ from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
 from nika.workflows.session.containers import list_session_containers
 from nika.workflows.session.list import list_sessions
+from nika.validation.presence import recheck_bound_artifact
 
 logger = logging.getLogger("nika.remote")
 
@@ -177,6 +178,14 @@ def handle_failure_inject(request: FailureInjectRequest) -> FailureInjectRespons
         session_id=request.session_id,
         session=session_public_dict(request.session_id),
     )
+
+
+def handle_fault_artifact(session_id: str) -> dict[str, Any]:
+    """Recheck the artifact on the instance that injected it in this daemon."""
+    meta = SessionStore().get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    return recheck_bound_artifact(session_id)
 
 
 def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachResponse:

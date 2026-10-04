@@ -4,7 +4,7 @@ failure:
   fault_type: receiver_resource_contention
   cases:
   - inject:
-      duration: '600'
+      duration: '3600'
       host_name: client
     root_causes:
     - resource:
