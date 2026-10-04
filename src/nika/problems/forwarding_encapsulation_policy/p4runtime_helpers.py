@@ -183,7 +183,8 @@ def load_blackhole_pipeline(
         _copy_out(runtime, switch, f"/tmp/{stem}.p4info.txt"),
     )
     runtime.exec(
-        switch, f"rm -f /tmp/{stem}.p4 /tmp/{stem}.json /tmp/{stem}.p4info.txt"
+        switch,
+        f"rm -f /tmp/{stem}.p4 /tmp/{stem}.p4i /tmp/{stem}.json /tmp/{stem}.p4info.txt",
     )
     return p4info, json_path
 
