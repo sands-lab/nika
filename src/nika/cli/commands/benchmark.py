@@ -391,19 +391,19 @@ def benchmark_run(
         None,
         "--batch-size",
         help=(
-            "Batch mode: max concurrent cases/trials (sliding window; a finished "
-            "slot is filled by the next pending trial). "
+            "Batch mode: max concurrent light cases/trials (sliding window; a "
+            "finished slot is filled by the next pending trial). "
             "Default: benchmark.batch_size in run config."
         ),
     ),
-    serialize_heavy: bool | None = typer.Option(
+    heavy_batch_size: int | None = typer.Option(
         None,
-        "--serialize-heavy/--no-serialize-heavy",
+        "--heavy-batch-size",
         help=(
-            "Batch mode: run Containerlab, k8s/llmd/XRd, and topo_size l "
-            "exclusively (no peer sessions of any class) "
-            "(default: benchmark.serialize_heavy, true). "
-            "Disable only when you intentionally parallelize those labs."
+            "Batch mode: max concurrent heavy trials (Containerlab, "
+            "k8s/llmd/XRd, topo_size l). Heavy and light trials never overlap; "
+            "1 runs each heavy trial alone. "
+            "Default: benchmark.heavy_batch_size in run config (1)."
         ),
     ),
     result_dir: str | None = typer.Option(
@@ -505,7 +505,7 @@ def benchmark_run(
         base_url=base_url,
         result_dir=result_dir,
         batch_size=batch_size,
-        serialize_heavy=serialize_heavy,
+        heavy_batch_size=heavy_batch_size,
         case_timeout_sec=case_timeout,
         continue_on_error=continue_on_error,
         retry_passes=retry_passes,
@@ -526,7 +526,7 @@ def benchmark_run(
 
     bench = cfg.benchmark
     resolved_batch_size = bench.batch_size
-    resolved_serialize_heavy = bench.serialize_heavy
+    resolved_heavy_batch_size = bench.heavy_batch_size
     resolved_resume = bench.resume
     resolved_continue = bench.continue_on_error
     resolved_retry = bench.retry_passes
@@ -549,6 +549,10 @@ def benchmark_run(
         if batch_size is not None and batch_size != 1:
             raise typer.BadParameter(
                 "--batch-size applies to batch mode only; omit it for a single case."
+            )
+        if heavy_batch_size is not None and heavy_batch_size != 1:
+            raise typer.BadParameter(
+                "--heavy-batch-size applies to batch mode only; omit it for a single case."
             )
         if case_timeout:
             raise typer.BadParameter(
@@ -621,7 +625,7 @@ def benchmark_run(
                 model=model,
                 max_steps=max_steps,
                 batch_size=resolved_batch_size,
-                serialize_heavy=resolved_serialize_heavy,
+                heavy_batch_size=resolved_heavy_batch_size,
                 result_dir=resolved_result_dir,
                 resume=resolved_resume,
                 session_tag=resolved_session_tag,
@@ -657,7 +661,7 @@ def benchmark_run(
             model=model,
             max_steps=max_steps,
             batch_size=resolved_batch_size,
-            serialize_heavy=resolved_serialize_heavy,
+            heavy_batch_size=resolved_heavy_batch_size,
             result_dir=resolved_result_dir,
             resume=resolved_resume,
             session_tag=resolved_session_tag,

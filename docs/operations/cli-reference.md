@@ -319,9 +319,9 @@ Python library warnings are buffered and printed once afterward (Rich **Warnings
 
 Scoped to the current `--result_dir` only.
 
-**`--batch-size`**: max concurrent trials (default `1`). Sliding window; with default `--serialize-heavy`, Containerlab, k8s/llmd/XRd, and topo_size `l` run exclusively (no peer sessions). When an exclusive trial reaches the front of the queue, NIKA stops starting light trials until the running ones finish, so exclusive trials do not wait behind the whole light backlog. Parallel groups and timeouts use spawn processes. Batch mode only.
+**`--batch-size`**: max concurrent light trials (default `1`). Sliding window. Parallel groups and timeouts use spawn processes. Batch mode only.
 
-**`--serialize-heavy` / `--no-serialize-heavy`**: enable or disable heavy-lab exclusivity (default on). Batch mode only.
+**`--heavy-batch-size`**: max concurrent heavy trials, meaning Containerlab, k8s/llmd/XRd, and topo_size `l` (default `1`). Heavy and light trials never overlap. With `1`, each heavy trial runs alone on the host. When a heavy trial reaches the front of the queue, NIKA stops starting light trials until the running ones finish, so heavy trials do not wait behind the whole light backlog. While heavy trials run, NIKA fills free heavy slots with later heavy trials in the queue. Example: `--batch-size 8 --heavy-batch-size 4`. Batch mode only.
 
 **`--case-timeout SECONDS`** (`benchmark.case_timeout_sec`, default **2400**; `0` disables): stop the trial worker when the budget expires. NIKA sends SIGTERM, waits up to 60 seconds for the worker to remove its sandbox, stop the MCP gateway, and undeploy the lab, then sends SIGKILL. If `ground_truth.json` exists, NIKA finalizes the trial:
 

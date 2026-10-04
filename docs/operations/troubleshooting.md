@@ -97,7 +97,7 @@ Both values should be `64000`. After `nika env run`, lab verification completes:
 ### Notes
 
 - You do not need to rebuild Docker images or reload the XRd tarball.
-- Keep default `serialize_heavy` (or `--batch-size 1`) for runs that include `k8s_lab` or `llmd_lab`.
+- Keep the default `heavy_batch_size: 1` for runs that include `k8s_lab` or `llmd_lab`.
 - A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full 0.2.0-style matrices) hit the limit sooner.
 - After an OOM or hard reset, run the `sysctl` check again before the next XR or k3s lab.
 
@@ -158,7 +158,7 @@ Typical scenarios: `min3clos`, `isp_*` with `--backend containerlab` (especially
 
 ### Cause
 
-`clab deploy` creates nodes and virtual wires concurrently. On hosts around 16 GiB RAM, several SR Linux starts at once can exceed available memory before steady-state RSS settles. Leaving `batch-size` above `1` without `serialize_heavy` for Containerlab cases compounds the problem across labs.
+`clab deploy` creates nodes and virtual wires concurrently. On hosts around 16 GiB RAM, several SR Linux starts at once can exceed available memory before steady-state RSS settles. Raising `heavy_batch_size` above `1` for Containerlab cases compounds the problem across labs.
 
 ### Fix
 
@@ -176,7 +176,7 @@ nika:
     containerlab_max_workers: 1
 ```
 
-3. Keep default `serialize_heavy` (or `--batch-size 1`) for runs that include Containerlab scenarios (see [configuration](configuration.md#benchmark-settings)).
+3. Keep the default `heavy_batch_size: 1` for runs that include Containerlab scenarios (see [configuration](configuration.md#benchmark-settings)).
 
 4. Retry the same scenario:
 

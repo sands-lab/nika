@@ -20,7 +20,7 @@ The page has two measurements:
 | Dates | 2026-10-01 20:41 UTC to 2026-10-03 11:39 UTC |
 | Host | 32 vCPU (AMD EPYC 9754, 1 thread per core), 125 GiB RAM, no swap, Linux 5.15.0-191, cgroup v2, Docker 28.0.1, Containerlab 0.79.0 |
 | Cases | Release 0.2.0, test and dev splits: 169 cases, 49 distinct lab variants (scenario, backend, size, `topo`, `igp`, `bgp_mode`, `rpki`, `device_profile`) |
-| Run config | `config/nika.yaml`: `runtime_validation.depth: light`, `static_validation.enabled: false`, `serialize_heavy: true` |
+| Run config | `config/nika.yaml`: `runtime_validation.depth: light`, `static_validation.enabled: false`, `heavy_batch_size: 1` |
 | Sampling | 1 s interval, lab container cgroups and the NIKA worker process tree |
 | Other load | No other NIKA lab ran. An unrelated libvirt VM ran from 2026-10-02 10:21 to 11:43 UTC and overlapped 37 of the 84 runs in the ISP part of the baseline (see [Sampling quality](#sampling-quality)) |
 | Leftovers | After every step: no containers and no sessions from this run |
@@ -153,7 +153,7 @@ ISP topology sit next to each other.
 
 ## Concurrency and throughput
 
-The sweep ran all 169 cases at `batch_size` 8, 16 and 24 with `serialize_heavy`.
+The sweep ran all 169 cases at `batch_size` 8, 16 and 24 with `heavy_batch_size` 1.
 Light cases share the batch limit; the 78 heavy cases (45 topo_size `l`, 21
 k8s/llmd, 12 Containerlab) run alone after the light cases finish. Throughput is ok
 cases per hour of sweep wall time. Light and heavy phase times are measured from the
@@ -201,7 +201,7 @@ the light phase.
 
 - Use `batch_size` 8. Values above 8 add per-case latency and Docker daemon load
   without improving throughput. Values below 8 were not measured.
-- Keep `serialize_heavy`. Expect a full 0.2.0 release (169 cases, both splits) to
+- Keep `heavy_batch_size` 1. Expect a full 0.2.0 release (169 cases, both splits) to
   take about 4.5 h of lab time before agent time, about 4.1 h of it in the heavy
   cases. Adding CPU cores or raising `batch_size` does not shorten that part; this
   run did not measure running heavy cases in parallel.
