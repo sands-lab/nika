@@ -235,8 +235,26 @@ def _norm(text: Any) -> str:
 # Timestamps differ between deployments (ls -l, stat, ps lstart, daemon logs).
 _TIMESTAMP = re.compile(
     r"\d{4}[-/]\d{2}[-/]\d{2}[ t]\d{2}:\d{2}(:\d{2}(\.\d+)?)?( [+-]\d{4})?"
-    r"|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec) +\d{1,2} +(\d{2}:\d{2}(:\d{2})?|\d{4})\b"
+    r"|\b((mon|tue|wed|thu|fri|sat|sun) +)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec) +\d{1,2} +(\d{2}:\d{2}(:\d{2})?|\d{4})\b"
 )
+# Lines that carry a timestamp (ps lstart, ls -l, log lines) also carry
+# per-deployment PIDs, sizes, and link counts; daemons also use PID-numbered
+# paths (isisd.68). Only those numbers are masked, so config values such as an
+# ASN, MTU, or prefix still have to match.
+_PID_SUFFIX = re.compile(r"(?<=[a-z])\.\d+\b")
+_STANDALONE_NUMBER = re.compile(r"(?<![.:/-])\b\d+\b(?![.:/]\d)")
+
+
+def mask_deployment(text: str) -> str:
+    """Mask per-deployment values line by line. Tool outputs are JSON text, so
+    lines may be separated by a literal backslash-n as well as a newline."""
+    lines = []
+    for line in re.split(r"\n|\\n", _PID_SUFFIX.sub(".<n>", text.lower())):
+        line = _TIMESTAMP.sub("<time>", line)
+        if "<time>" in line:
+            line = _STANDALONE_NUMBER.sub("<n>", line)
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def excerpt_in(excerpt: Any, output: Any, *, across_deployments: bool = False) -> bool:
@@ -248,8 +266,8 @@ def excerpt_in(excerpt: Any, output: Any, *, across_deployments: bool = False) -
     """
 
     def norm(text: Any) -> str:
-        text = _norm(text)
-        return _TIMESTAMP.sub("<time>", text) if across_deployments else text
+        text = str(text or "")
+        return _norm(mask_deployment(text) if across_deployments else text)
 
     text = norm(output)
     if not norm(excerpt) or not text:
