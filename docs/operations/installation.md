@@ -65,6 +65,21 @@ After `--track stable`, run cases with a frozen release, for example:
 uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
+## Install sbx for sandboxed agents
+
+Skip this unless you run sandboxed agents (`cli.*`, `sdk.*`, `community.sade`). Host agents such as `byo.langgraph` do not need it.
+
+```shell
+./scripts/install.sh --with-sbx
+sbx login
+```
+
+The flag installs `docker-sbx` from Docker's apt repo, or runs `get.docker.com` with `SBX=1` when that package is unavailable. It skips the install when `sbx` is already on `PATH`.
+
+sbx runs each sandbox as a KVM microVM, so your user needs read/write on `/dev/kvm`. When it lacks access, the installer adds you to the group that owns the device (usually `kvm`). Open a new login shell (or run `newgrp kvm`), then run `sbx daemon stop` so the next NIKA run starts the daemon with the new group. Without this, `sbx create` fails with `KVM error: Permission denied`. If `/dev/kvm` is missing, enable hardware virtualization (or nested virtualization on a VM).
+
+See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
+
 ## Prepare vendor images
 
 Skip this unless you need a lab that depends on a third-party router image (for example [`iosxr_simple_bgp`](network-scenarios.md#ios-xr-simple-bgp-scenario) or [`routeros_simple_bgp`](network-scenarios.md#routeros-simple-bgp-scenario)). Ordinary FRR and Containerlab labs do not need it.
@@ -117,7 +132,7 @@ The last command now prints the loopback qdisc without a password prompt.
 
 | Removed | Kept |
 | --- | --- |
-| Running sessions, Kathará and Containerlab labs, the Batfish container | Docker and your docker group membership |
+| Running sessions, Kathará and Containerlab labs, the Batfish container | Docker and your docker group membership; sbx and your kvm group membership |
 | Docker images NIKA built or pulled, including vendor router images, build parents such as `debian:bookworm-slim`, and legacy tags | uv |
 | The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages: clang, iproute2, skopeo |
 | `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |

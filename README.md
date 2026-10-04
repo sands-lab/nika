@@ -126,14 +126,14 @@ For installing NIKA in remote environments, see [remote lab execution](docs/oper
 
 ### Agent sandboxing
 
-For sandboxed agents (`cli.*`, `sdk.*`, `community.sade`), install `sbx` and sign in:
+For sandboxed agents (`cli.*`, `sdk.*`, `community.sade`), install `sbx` with KVM access and sign in:
 
 ```shell
-curl -fsSL https://get.docker.com | sudo SBX=1 sh
+./scripts/install.sh --with-sbx
 sbx login
 ```
 
-If Docker is already installed by `./scripts/install.sh`, use `sudo apt install docker-sbx` instead, then `sbx login`. Not required for host agents such as `byo.langgraph`. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
+If the installer adds you to the `kvm` group, open a new login shell and run `sbx daemon stop` before the first sandboxed run. Not required for host agents such as `byo.langgraph`. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
 
 ### Choose and configure an agent
 
