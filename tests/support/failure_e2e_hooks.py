@@ -385,6 +385,14 @@ def assert_receiver_resource_contention_pre(ctx: FailureE2EContext) -> None:
     """Ensure the receiver can fetch a large object before contention."""
     from nika.net_env.verify import http_download_stats
 
+    if ctx.scenario == "campus_lan":
+        url = ctx.problem._ensure_peer_large_object(ctx.parsed)
+        bps, seconds = ctx.problem._median_large_stats(
+            ctx.parsed, url, max_time_sec=120
+        )
+        assert bps and seconds, ctx.problem._last_downloads
+        return
+
     ensure = getattr(ctx.problem, "_ensure_peer_large_object", None)
     url = ensure(ctx.parsed) if callable(ensure) else None
     if not url:

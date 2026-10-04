@@ -411,9 +411,55 @@ def _lb_connection_state_exhaustion(
     return verified, result
 
 
+def _receiver_baseline(problem: Any, params: Any) -> tuple[bool, dict] | None:
+    if problem.scenario_name != "campus_lan":
+        return None
+    bps, seconds = problem._median_large_stats(
+        params, problem._resolve_large_url(params), max_time_sec=120
+    )
+    return bool(bps and seconds), {"downloads": problem._last_downloads}
+
+
 def _receiver_resource_contention(
     problem: Any, params: Any
 ) -> tuple[bool, dict[str, Any]]:
+    if problem.scenario_name == "campus_lan":
+        url = problem._resolve_large_url(params)
+        bps, seconds = problem._median_large_stats(params, url, max_time_sec=120)
+        samples = list(problem._last_downloads)
+        baseline = problem._baseline_throughput_bps
+        ratio = bps / baseline if bps and baseline else None
+        control_bps, _ = problem._median_large_stats(
+            params, url, max_time_sec=120, host=problem._control_host(params)
+        )
+        control_base = problem._control_baseline_bps
+        control_ratio = (
+            control_bps / control_base if control_bps and control_base else None
+        )
+        # The download is CPU-bound by design, so shared-host load slows the
+        # control PC too; only a slowdown twice the control's is receiver-local.
+        control_ok = (
+            ratio is not None
+            and control_ratio is not None
+            and ratio <= 0.5 * control_ratio
+        )
+        ok = ratio is not None and ratio <= 0.50 and control_ok
+        return ok, build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=ok,
+            details={
+                "host": params.host_name,
+                "large_url": url,
+                "baseline_throughput_bps": baseline,
+                "injected_throughput_bps": bps,
+                "injected_time_s": seconds,
+                "throughput_ratio": ratio,
+                "downloads": samples,
+                "control_host": problem._control_host(params),
+                "control_throughput_ratio": control_ratio,
+                "control_ok": control_ok,
+            },
+        )
     url = getattr(problem, "_large_url", None) or getattr(params, "large_url", None)
     if not url:
         url = problem._resolve_large_url(params)
@@ -811,6 +857,7 @@ _CUSTOM: dict[str, Any] = {
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
+    "receiver_resource_contention": _receiver_baseline,
     "southbound_port_block": _southbound_connected,
     "southbound_port_mismatch": _southbound_connected,
     "sdn_controller_crash": _controller_serving,

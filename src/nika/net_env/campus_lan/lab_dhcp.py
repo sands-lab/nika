@@ -217,7 +217,7 @@ class CampusLanDhcp(NetworkEnvBase):
         for web_idx in range(web_server_count):
             host_name = f"web_server_{web_idx}"
             host_machine = self.lab.new_machine(
-                host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+                host_name, **{"image": "nika/nginx", "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 host_name,
@@ -637,6 +637,23 @@ class CampusLanDhcp(NetworkEnvBase):
         # add configurations for hosts
         for access_key, host_metas in access_hosts.items():
             for host_meta in host_metas:
+                host_meta.machine.create_file_from_path(
+                    str(pkg_path("net_env/utils/kathara/archive_job.py")),
+                    "/usr/local/bin/archive-job.py",
+                )
+                host_meta.machine.create_file_from_string(
+                    '{"workers": 1}\n', "/etc/archive-job.json"
+                )
+                host_meta.machine.create_file_from_path(
+                    os.path.join(cur_path, "campus-repository.crt"),
+                    "/usr/local/share/ca-certificates/campus-repository.crt",
+                )
+                host_meta.cmd_list.extend(
+                    [
+                        "update-ca-certificates",
+                        "python3 /usr/local/bin/archive-job.py prepare",
+                    ]
+                )
                 # startup file
                 host_meta.cmd_list.append(
                     "printf 'timeout 1;\nretry 1;\n' >> /etc/dhcp/dhclient.conf"
@@ -700,9 +717,34 @@ class CampusLanDhcp(NetworkEnvBase):
                 str(pkg_path("net_env/utils/kathara/web/web_server.py")),
                 "web_server.py",
             )
-            web_meta.machine.create_file_from_path(
-                str(pkg_path("net_env/utils/kathara/web/web_server.service")),
+            with open(pkg_path("net_env/utils/kathara/web/web_server.service")) as unit:
+                service = unit.read().replace(
+                    "[Service]",
+                    "[Service]\nEnvironment=WEB_HOST=127.0.0.1 WEB_PORT=8000",
+                )
+            web_meta.machine.create_file_from_string(
+                service,
                 "/etc/systemd/system/web_server.service",
+            )
+            web_meta.machine.create_file_from_path(
+                os.path.join(cur_path, "web.conf"), "/etc/nginx/nginx.conf"
+            )
+            web_meta.machine.create_file_from_path(
+                str(pkg_path("net_env/utils/kathara/web/package_catalog.py")),
+                "/usr/local/bin/package-catalog.py",
+            )
+            for name, destination in (
+                ("campus-repository.crt", "/etc/ssl/certs/campus-repository.crt"),
+                ("campus-repository.key", "/etc/ssl/private/campus-repository.key"),
+            ):
+                web_meta.machine.create_file_from_path(
+                    os.path.join(cur_path, name), destination
+                )
+            web_meta.cmd_list.extend(
+                [
+                    "python3 /usr/local/bin/package-catalog.py",
+                    "service nginx start",
+                ]
             )
             web_meta.cmd_list.append("systemctl daemon-reload")
             web_meta.cmd_list.append("systemctl enable web_server")
@@ -786,7 +828,9 @@ class CampusLanDhcp(NetworkEnvBase):
         self.desc = (
             "An enterprise hierarchical network using OSPF with multiple areas, built from three core routers, distribution routers, and bridged access switches."
             "User hosts sit in subnets of the form 10.<core>.<dist>.0/24, obtain their IP configuration via DHCP (with dist-layer DHCP relay to a central DHCP server), "
-            "and reach a server farm in 10.200.0.0/24 that hosts a DNS server for the local zone, several Apache web servers (web0.local…web3.local), "
+            "and reach a server farm in 10.200.0.0/24 that hosts a DNS server for the local zone, several web servers (web0.local…web3.local), "
+            "Lab PC users refresh their software catalog from the campus software repository on web0.local: they download https://web0.local/packages/catalog.txt "
+            "over HTTPS (trusted through the campus CA) with gzip content encoding and expect the complete catalog within a few seconds. "
             "An Nginx HTTP load balancer published as web99.local, which load-balances requests to three backend web servers."
             "Note that by design the backend web servers should not be directly accessible from the hosts. "
             "All infrastructure and server networks are advertised by FRR OSPF so that hosts can resolve and access the web services end-to-end."

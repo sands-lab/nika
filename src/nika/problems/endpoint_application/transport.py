@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import time
+from dataclasses import asdict
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -576,6 +578,10 @@ class SenderResourceContention(ProblemBase):
 # Problem: receiver resource contention
 # ==================================================================
 
+_CAMPUS_CATALOG_URL = "https://web0.local/packages/catalog.txt"
+_CAMPUS_CATALOG_PATH = "/tmp/catalog.txt"
+_CAMPUS_CATALOG_BYTES = 64 * 1024 * 1024
+
 
 class ReceiverResourceContentionParams(BaseModel):
     """Parameters for injecting a receiver resource contention fault."""
@@ -585,6 +591,12 @@ class ReceiverResourceContentionParams(BaseModel):
     stress_cpus: int = Field(
         default=8,
         description="Number of stress-ng CPU workers on the receiver.",
+    )
+    archive_workers: int = Field(
+        default=8,
+        ge=2,
+        le=16,
+        description="Concurrent local gzip archive workers on campus_lan.",
     )
     peer_host: str = Field(
         default="web",
@@ -612,6 +624,9 @@ class ReceiverResourceContention(ProblemBase):
             params["peer_host"] = "webserver0_pod0"
             params["large_url"] = "http://web0.pod0/large.bin"
             params["stress_cpus"] = "4"
+        elif ctx.scenario == "campus_lan":
+            params["peer_host"] = "web_server_0"
+            params["large_url"] = _CAMPUS_CATALOG_URL
         return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
@@ -619,6 +634,23 @@ class ReceiverResourceContention(ProblemBase):
         self._baseline_throughput_bps: float | None = None
         self._baseline_time_s: float | None = None
         self._large_url: str | None = None
+        self._last_downloads: list[dict] = []
+        self._control_baseline_bps: float | None = None
+        self._archive_pid: int | None = None
+        self._archive_config: str | None = None
+
+    def _archive_job(self, host: str, action: str) -> dict:
+        output = self.runtime.exec(
+            host, f"python3 /usr/local/bin/archive-job.py {action}", timeout=20
+        ).strip()
+        return json.loads(output)
+
+    def _control_host(self, params: ReceiverResourceContentionParams) -> str:
+        return next(
+            host
+            for host in self.net_env.hosts
+            if host.startswith("pc_") and host != params.host_name
+        )
 
     def root_cause_resources(self, params: ReceiverResourceContentionParams):
         return [node_resource(params.host_name)]
@@ -652,6 +684,8 @@ class ReceiverResourceContention(ProblemBase):
     def _resolve_large_url(self, params: ReceiverResourceContentionParams) -> str:
         if params.large_url:
             return params.large_url
+        if self.scenario_name == "campus_lan":
+            return _CAMPUS_CATALOG_URL
         from nika.net_env.net_env_pool import get_probe_path
 
         path = get_probe_path(self.scenario_name or "")
@@ -674,6 +708,10 @@ class ReceiverResourceContention(ProblemBase):
         self, params: ReceiverResourceContentionParams
     ) -> str:
         url = self._resolve_large_url(params)
+        if self.scenario_name == "campus_lan":
+            # The scenario owns its repository, certificate trust, and payload.
+            self._large_url = url
+            return url
         for peer in self._resolve_peer_hosts(params):
             self.runtime.exec(
                 peer,
@@ -702,22 +740,49 @@ class ReceiverResourceContention(ProblemBase):
         *,
         max_time_sec: int,
         trials: int = 3,
+        host: str | None = None,
     ) -> tuple[float | None, float | None]:
         throughputs: list[float] = []
         times: list[float] = []
+        self._last_downloads = []
+        campus = self.scenario_name == "campus_lan"
+        host = host or params.host_name
         for _ in range(trials):
             stats = http_download_stats(
                 self.runtime,
-                params.host_name,
+                host,
                 url,
                 max_time_sec=max_time_sec,
+                output_path=_CAMPUS_CATALOG_PATH if campus else "/dev/null",
+                compressed=campus,
             )
+            sample = asdict(stats)
+            self._last_downloads.append(sample)
+            if campus:
+                decoded = self.runtime.exec(
+                    host, f"stat -c %s {_CAMPUS_CATALOG_PATH} 2>/dev/null"
+                ).strip()
+                sample["decoded_bytes"] = int(decoded) if decoded.isdigit() else None
+                if (
+                    not stats.ok
+                    or stats.exit_code != 0
+                    or sample["decoded_bytes"] != _CAMPUS_CATALOG_BYTES
+                ):
+                    return None, None
             if stats.ok and stats.throughput_bps is not None and stats.time_total_s:
                 throughputs.append(stats.throughput_bps)
                 times.append(stats.time_total_s)
         return median_float(throughputs), median_float(times)
 
     def inject_fault(self, params: ReceiverResourceContentionParams):
+        campus = self.scenario_name == "campus_lan"
+        if campus:
+            status = self._archive_job(params.host_name, "status")
+            if status.get("pid"):
+                raise RuntimeError("Archive job is already running on the receiver")
+            self._archive_config = self.runtime.exec(
+                params.host_name, "cat /etc/archive-job.json"
+            )
         url = self._ensure_peer_large_object(params)
         bps, time_s = self._median_large_stats(params, url, max_time_sec=120)
         if bps is None or time_s is None:
@@ -727,6 +792,25 @@ class ReceiverResourceContention(ProblemBase):
             )
         self._baseline_throughput_bps = bps
         self._baseline_time_s = time_s
+
+        if campus:
+            self._control_baseline_bps, _ = self._median_large_stats(
+                params, url, max_time_sec=120, host=self._control_host(params)
+            )
+            if not self._control_baseline_bps:
+                raise RuntimeError("Repository download failed on the control receiver")
+            self.runtime.write_file(
+                params.host_name,
+                "/etc/archive-job.json",
+                json.dumps({"workers": params.archive_workers}) + "\n",
+            )
+            self._archive_pid = self._archive_job(
+                params.host_name, f"start --duration {params.duration}"
+            )["pid"]
+            time.sleep(3)
+            if not self.verify_fault(params)["verified"]:
+                raise RuntimeError("Archive workers did not start on the receiver")
+            return
 
         # Share one small CPU slice between stress-ng and the download.
         # A multi-core container lets stress-ng and curl run side by side,
@@ -768,6 +852,15 @@ class ReceiverResourceContention(ProblemBase):
 
     def verify_fault(self, params: ReceiverResourceContentionParams) -> dict:
         """Verify stress-ng is running on the receiver."""
+        if self.scenario_name == "campus_lan":
+            status = self._archive_job(params.host_name, "status")
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(status.get("pid"))
+                and status.get("active_workers", 0) > 0
+                and status.get("workers") == params.archive_workers,
+                details={"host": params.host_name, **status},
+            )
         if getattr(self, "_receiver_quota_applied", False):
             commands = container_commands(self.runtime, params.host_name)
             stress_running = any("stress-ng" in cmd for cmd in commands)
@@ -780,6 +873,35 @@ class ReceiverResourceContention(ProblemBase):
         )
 
     def recover_fault(self, params: ReceiverResourceContentionParams) -> dict:
+        if self.scenario_name == "campus_lan":
+            if self._archive_pid is None:
+                return {"verified": False, "details": {"error": "no_owned_archive_job"}}
+            stopped = self._archive_job(
+                params.host_name, f"stop --pid {self._archive_pid}"
+            ).get("stopped", False)
+            self.runtime.write_file(
+                params.host_name,
+                "/etc/archive-job.json",
+                self._archive_config or '{"workers": 1}\n',
+            )
+            bps, time_s = self._median_large_stats(
+                params, self._resolve_large_url(params), max_time_sec=120
+            )
+            ratio = (
+                bps / self._baseline_throughput_bps
+                if (bps and self._baseline_throughput_bps)
+                else None
+            )
+            return {
+                "verified": bool(stopped and ratio is not None and ratio >= 0.70),
+                "details": {
+                    "archive_stopped": stopped,
+                    "throughput_bps": bps,
+                    "time_s": time_s,
+                    "restore_ratio": ratio,
+                    "downloads": self._last_downloads,
+                },
+            }
         self.runtime.exec(
             params.host_name,
             (
