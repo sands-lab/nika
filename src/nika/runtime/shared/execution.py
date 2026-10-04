@@ -8,6 +8,15 @@ from typing import Any
 from func_timeout import FunctionTimedOut, func_timeout
 
 
+def without_shell_history(cmd: str) -> str:
+    """Keep runtime commands out of node shell histories.
+
+    vtysh records every ``-c`` command in ``~/.history_frr``; injection and
+    verification commands left there would point at the faulty router.
+    """
+    return f"export VTYSH_HISTFILE=/dev/null; {cmd}"
+
+
 def exec_with_timeout(
     run: Callable[[], str],
     *,

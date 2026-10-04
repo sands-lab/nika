@@ -154,10 +154,8 @@ class DNSRecordError(ProblemBase):
         self._wrong_ip = wrong_ip
         right_ip = self.runtime.get_host_ip(params.host_name)
 
-        self.runtime.exec(
-            params.host_name,
-            f"cp /etc/bind/db.{params.target_domain} /etc/bind/db.{params.target_domain}.bak",
-        )
+        # No backup copy: a db.*.bak next to the zone file exposes the original
+        # record and the injected server.
         cmd = r"sed -i 's/^\({name}[[:space:]]\+IN[[:space:]]\+A[[:space:]]\+\)[0-9\.]\+/\1{new_ip}/' /etc/bind/db.{domain}"
         cmd = cmd.format(
             name=params.target_website, new_ip=wrong_ip, domain=params.target_domain

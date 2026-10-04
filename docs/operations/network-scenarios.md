@@ -23,9 +23,14 @@ Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-mul
 
 ### Concurrency and `--batch-size`
 
-`--batch-size` defaults to `1` (see [`benchmark` settings](configuration.md#benchmark-settings)) and caps how many trials run at once (sliding window). With the default `benchmark.serialize_heavy: true`, Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case are **exclusive** (that session runs alone—no overlapping peers). Light ``s``/``m`` Kathara cases can still use the full `batch_size` when no exclusive lab is active. Pass `--no-serialize-heavy` only when you intentionally parallelize those labs.
+Benchmark runs use two concurrency limits (see [`benchmark` settings](configuration.md#benchmark-settings)), both sliding windows that default to `1`:
 
-Why heavy labs need the class cap:
+- `--batch-size` caps light trials: ``s``/``m`` Kathara cases.
+- `--heavy-batch-size` caps heavy trials: Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case.
+
+Heavy and light trials never run at the same time. With the default `--heavy-batch-size 1`, each heavy session runs alone on the host. Raise it only when the host has capacity for several heavy labs at once, for example `--batch-size 8 --heavy-batch-size 4`.
+
+Why heavy labs need a separate cap:
 
 - `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 - Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
@@ -117,7 +122,7 @@ uv run nika env run campus_lan -s s
 
 NIKA builds a multi-site enterprise WAN from one production template: HQ and a secondary DC hub, branch sites, and dual provider underlays. Every size keeps the same dual providers, dual hubs, WAN redundancy, and WireGuard+eBGP overlay. Size scales branch count and hosts per LAN. The `m` and `l` sizes add an IOT VRF, which increases the number of business domains alongside the replicated VLANs.
 
-Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
+Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`), so the Docker host needs the `vrf` kernel module (see [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch)). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
 
 Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). FRR imports those overlay prefixes into the matching business VRFs. SERVER is a shared-services domain: CORP and SERVER exchange prefixes through explicit route leaking only. GUEST and IOT stay local (default route via the provider with NAT) and are not advertised in overlay BGP. Cross-site traffic follows `LAN VRF → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN VRF`. Branch-to-branch traffic hairpins a hub. HQ and DC2 also peer directly over dual-provider WireGuard+eBGP.
 

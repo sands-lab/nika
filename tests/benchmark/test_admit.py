@@ -15,10 +15,10 @@ from nika.workflows.benchmark.admit import (
     CLASS_LARGE,
     CLASS_LIGHT,
     can_admit,
-    class_limits,
     pick_admissible,
     resource_class,
     resource_class_for_row,
+    tier_limits,
 )
 from nika.workflows.benchmark.trials import Trial
 
@@ -94,36 +94,18 @@ def test_resource_class_large_topo() -> None:
     )
 
 
-def test_class_limits_serialize_heavy() -> None:
-    limits = class_limits(batch_size=4, serialize_heavy=True)
-    assert limits[CLASS_CLAB] == 1
-    assert limits[CLASS_K8S] == 1
-    assert limits[CLASS_LARGE] == 1
-    assert limits[CLASS_LIGHT] == 4
-
-
-def test_class_limits_flat() -> None:
-    limits = class_limits(batch_size=3, serialize_heavy=False)
-    assert limits == {
-        CLASS_CLAB: 3,
-        CLASS_K8S: 3,
-        CLASS_LARGE: 3,
-        CLASS_LIGHT: 3,
-    }
-
-
 def test_pick_admissible_skips_blocked_head() -> None:
     clab_b = _trial(scenario="min3clos", trial_index=2, case_index=1)
     light = _trial(scenario="dc_clos", trial_index=1, case_index=2)
     pending = [clab_b, light]
-    limits = class_limits(batch_size=2, serialize_heavy=True)
+    limits = tier_limits(batch_size=2, heavy_batch_size=1)
     in_flight = {CLASS_CLAB: 1, CLASS_K8S: 0, CLASS_LIGHT: 0}
     # Exclusive clab in flight: neither second clab nor light may start.
     assert pick_admissible(pending, in_flight=in_flight, limits=limits) is None
 
 
 def test_k8s_exclusive_blocks_peers() -> None:
-    limits = class_limits(batch_size=4, serialize_heavy=True)
+    limits = tier_limits(batch_size=4, heavy_batch_size=1)
     assert can_admit(CLASS_K8S, in_flight={}, limits=limits)
     assert not can_admit(
         CLASS_LIGHT,
@@ -143,7 +125,7 @@ def test_k8s_exclusive_blocks_peers() -> None:
 
 
 def test_clab_exclusive_blocks_peers() -> None:
-    limits = class_limits(batch_size=4, serialize_heavy=True)
+    limits = tier_limits(batch_size=4, heavy_batch_size=1)
     assert can_admit(CLASS_CLAB, in_flight={}, limits=limits)
     assert not can_admit(CLASS_LIGHT, in_flight={CLASS_CLAB: 1}, limits=limits)
     assert not can_admit(CLASS_K8S, in_flight={CLASS_CLAB: 1}, limits=limits)
@@ -151,28 +133,35 @@ def test_clab_exclusive_blocks_peers() -> None:
 
 
 def test_large_exclusive_blocks_peers() -> None:
-    limits = class_limits(batch_size=4, serialize_heavy=True)
+    limits = tier_limits(batch_size=4, heavy_batch_size=1)
     assert can_admit(CLASS_LARGE, in_flight={}, limits=limits)
     assert not can_admit(CLASS_LIGHT, in_flight={CLASS_LARGE: 1}, limits=limits)
     assert not can_admit(CLASS_LARGE, in_flight={CLASS_LIGHT: 1}, limits=limits)
 
 
-def test_flat_limits_run_heavy_classes_concurrently() -> None:
-    limits = class_limits(batch_size=3, serialize_heavy=False)
-    assert can_admit(CLASS_K8S, in_flight={CLASS_K8S: 2}, limits=limits)
-    assert not can_admit(CLASS_K8S, in_flight={CLASS_K8S: 3}, limits=limits)
-    assert can_admit(CLASS_LIGHT, in_flight={CLASS_CLAB: 1}, limits=limits)
-    assert can_admit(CLASS_LARGE, in_flight={CLASS_LIGHT: 1}, limits=limits)
-    k8s_a = _trial(scenario="llmd_lab", trial_index=1, case_index=0)
-    k8s_b = _trial(scenario="llmd_lab", trial_index=1, case_index=1)
-    assert pick_admissible([k8s_a, k8s_b], in_flight={CLASS_K8S: 1}, limits=limits) == 0
+def test_heavy_batch_size_caps_heavy_tier_and_excludes_light() -> None:
+    limits = tier_limits(batch_size=8, heavy_batch_size=4)
+    # Heavy classes share one cap.
+    assert can_admit(CLASS_K8S, in_flight={CLASS_K8S: 2, CLASS_CLAB: 1}, limits=limits)
+    assert not can_admit(
+        CLASS_LARGE, in_flight={CLASS_K8S: 2, CLASS_CLAB: 2}, limits=limits
+    )
+    assert can_admit(CLASS_LIGHT, in_flight={CLASS_LIGHT: 7}, limits=limits)
+    assert not can_admit(CLASS_LIGHT, in_flight={CLASS_LIGHT: 8}, limits=limits)
+    # Tiers never overlap.
+    assert not can_admit(CLASS_LIGHT, in_flight={CLASS_CLAB: 1}, limits=limits)
+    assert not can_admit(CLASS_LARGE, in_flight={CLASS_LIGHT: 1}, limits=limits)
+    # During the heavy phase, later heavy trials fill free slots past lights.
+    light = _trial(scenario="dc_clos", trial_index=1, case_index=0)
+    k8s = _trial(scenario="llmd_lab", trial_index=1, case_index=1)
+    assert pick_admissible([light, k8s], in_flight={CLASS_K8S: 1}, limits=limits) == 1
 
 
 def test_pick_admissible_drains_host_for_blocked_exclusive() -> None:
     light_a = _trial(scenario="dc_clos", trial_index=1, case_index=0)
     k8s = _trial(scenario="k8s_lab", trial_index=1, case_index=1)
     light_b = _trial(scenario="dc_clos", trial_index=1, case_index=2)
-    limits = class_limits(batch_size=2, serialize_heavy=True)
+    limits = tier_limits(batch_size=2, heavy_batch_size=1)
     # Light ahead of the exclusive trial still starts.
     assert pick_admissible([light_a, k8s, light_b], in_flight={}, limits=limits) == 0
     # Exclusive head waits for peers: stop admitting lights behind it.
@@ -217,7 +206,7 @@ def test_run_trials_batch_exclusive_not_starved_by_lights(tmp_path: Path) -> Non
             session_tag=None,
             release_meta=None,
             max_workers=2,
-            serialize_heavy=True,
+            heavy_batch_size=1,
         )
 
     assert failures == []
@@ -262,7 +251,7 @@ def test_run_trials_batch_serializes_two_clab(tmp_path: Path) -> None:
             session_tag=None,
             release_meta=None,
             max_workers=2,
-            serialize_heavy=True,
+            heavy_batch_size=1,
         )
 
     assert failures == []
@@ -313,7 +302,7 @@ def test_run_trials_batch_clab_exclusive_no_peer_sessions(tmp_path: Path) -> Non
             session_tag=None,
             release_meta=None,
             max_workers=3,
-            serialize_heavy=True,
+            heavy_batch_size=1,
         )
 
     assert failures == []
@@ -370,7 +359,7 @@ def test_run_trials_batch_waits_for_clab_before_light(tmp_path: Path) -> None:
             session_tag=None,
             release_meta=None,
             max_workers=2,
-            serialize_heavy=True,
+            heavy_batch_size=1,
         )
 
     assert failures == []
@@ -424,7 +413,7 @@ def test_run_trials_batch_k8s_exclusive_no_peer_sessions(tmp_path: Path) -> None
             session_tag=None,
             release_meta=None,
             max_workers=4,
-            serialize_heavy=True,
+            heavy_batch_size=1,
         )
 
     assert failures == []
@@ -486,8 +475,62 @@ def test_run_trials_batch_large_exclusive_no_peer_sessions(tmp_path: Path) -> No
             session_tag=None,
             release_meta=None,
             max_workers=4,
-            serialize_heavy=True,
+            heavy_batch_size=1,
         )
 
     assert failures == []
     assert large_alone.is_set()
+
+
+def test_run_trials_batch_heavy_batch_size(tmp_path: Path) -> None:
+    """Heavy trials run up to ``heavy_batch_size`` at once, never beside light."""
+    from nika.workflows.benchmark.run import _run_trials_batch
+
+    active = {"heavy": 0, "light": 0}
+    peak = {"heavy": 0, "light": 0}
+    lock = threading.Lock()
+
+    def _fake_run(trial: Trial, **_kwargs: object) -> None:
+        tier = "light" if resource_class(trial) == CLASS_LIGHT else "heavy"
+        other = "heavy" if tier == "light" else "light"
+        with lock:
+            assert active[other] == 0, f"{tier} overlapped {other}"
+            active[tier] += 1
+            peak[tier] = max(peak[tier], active[tier])
+        try:
+            time.sleep(0.1)
+        finally:
+            with lock:
+                active[tier] -= 1
+
+    trials = [
+        *[
+            _trial(scenario="dc_clos", trial_index=1, case_index=i, case_key=f"l{i}")
+            for i in range(4)
+        ],
+        *[
+            _trial(scenario="min3clos", trial_index=1, case_index=i, case_key=f"h{i}")
+            for i in range(4, 7)
+        ],
+    ]
+    with patch(
+        "nika.workflows.benchmark.run._run_trial_with_timeout",
+        side_effect=_fake_run,
+    ):
+        failures = _run_trials_batch(
+            trials,
+            continue_on_error=False,
+            case_timeout=0,
+            agent_type="byo.langgraph",
+            llm_provider=None,
+            model=None,
+            max_steps=None,
+            result_dir=str(tmp_path),
+            session_tag=None,
+            release_meta=None,
+            max_workers=4,
+            heavy_batch_size=2,
+        )
+
+    assert failures == []
+    assert peak == {"heavy": 2, "light": 4}

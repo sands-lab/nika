@@ -27,9 +27,9 @@ from nika.utils.session_artifacts import (
 from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
 from nika.workflows.benchmark.admit import (
-    class_limits,
     pick_admissible,
     resource_class,
+    tier_limits,
 )
 from nika.workflows.benchmark.display import (
     BenchmarkProgress,
@@ -1059,7 +1059,7 @@ def run_benchmark_from_yaml(
     max_steps: int | None,
     *,
     batch_size: int = 1,
-    serialize_heavy: bool = True,
+    heavy_batch_size: int = 1,
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
@@ -1086,7 +1086,7 @@ def run_benchmark_from_yaml(
         max_steps=max_steps,
         n_trials=1,
         batch_size=batch_size,
-        serialize_heavy=serialize_heavy,
+        heavy_batch_size=heavy_batch_size,
         result_dir=result_dir,
         resume=resume,
         session_tag=session_tag,
@@ -1261,26 +1261,29 @@ def _run_trials_batch(
     session_tag: str | None,
     release_meta: dict | None,
     max_workers: int | None = None,
-    serialize_heavy: bool = True,
+    heavy_batch_size: int = 1,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     on_trial_finished: Any | None = None,
 ) -> list[str]:
     """Run trials with a concurrency cap (sliding window).
 
-    ``max_workers`` limits how many trials run at once. When one finishes, the
-    next pending trial starts immediately — slots are not held empty until a
-    fixed wave drains. With ``serialize_heavy`` (default), Containerlab and
-    k8s/llmd/XRd classes are also capped at one in-flight trial each so mixed
-    batches do not start two heavy labs on one host. Containerlab, the k8s
-    class, and topo_size ``l`` cases are exclusive: while any of those runs,
-    no other trial (including light) is admitted. Parallel work uses spawn
-    processes for isolation.
+    ``max_workers`` limits how many light trials run at once and
+    ``heavy_batch_size`` how many heavy trials (Containerlab, k8s/llmd/XRd,
+    topo_size ``l``) run at once. When one finishes, the next pending trial
+    starts immediately — slots are not held empty until a fixed wave drains.
+    Light and heavy trials never run at the same time; with the default
+    ``heavy_batch_size=1`` each heavy trial has the host to itself. Parallel
+    work uses spawn processes for isolation.
     """
     failures: list[str] = []
     if not trials_batch:
         return failures
-    workers = max(1, min(max_workers or len(trials_batch), len(trials_batch)))
+    limits = tier_limits(
+        batch_size=max_workers or len(trials_batch),
+        heavy_batch_size=heavy_batch_size,
+    )
+    workers = max(1, min(max(limits.values()), len(trials_batch)))
     # Parallel Kathara/MCP work is not safe on shared in-process clients.
     isolate = workers > 1
     shared = dict(
@@ -1296,7 +1299,6 @@ def _run_trials_batch(
         verbose=verbose,
     )
     results_root = resolve_results_root(result_dir)
-    limits = class_limits(batch_size=workers, serialize_heavy=serialize_heavy)
 
     def _begin_progress(trial: Trial) -> None:
         if progress is not None:
@@ -1368,10 +1370,9 @@ def _run_trials_batch(
         return failures
 
     if verbose and progress is None:
-        heavy = "serialize_heavy" if serialize_heavy else "flat"
         print(
             f"[batch] running {len(trials_batch)} trial(s) "
-            f"(max {workers} concurrent, {heavy})"
+            f"(max {limits['light']} light / {limits['heavy']} heavy concurrent)"
         )
 
     # Avoid ``with ThreadPoolExecutor``: on Ctrl+C its __exit__ joins worker
@@ -1427,7 +1428,7 @@ def run_benchmark_trials(
     *,
     n_trials: int = 1,
     batch_size: int = 1,
-    serialize_heavy: bool = True,
+    heavy_batch_size: int = 1,
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
@@ -1453,6 +1454,8 @@ def run_benchmark_trials(
     """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
+    if heavy_batch_size < 1:
+        raise ValueError("heavy_batch_size must be >= 1")
     if n_trials < 1:
         raise ValueError("n_trials must be >= 1")
     if retry_passes < 0:
@@ -1607,7 +1610,7 @@ def run_benchmark_trials(
             session_tag=session_tag,
             release_meta=release_meta,
             max_workers=batch_size,
-            serialize_heavy=serialize_heavy,
+            heavy_batch_size=heavy_batch_size,
             verbose=verbose,
             progress=progress,
             on_trial_finished=_refresh_after_trial,
@@ -1638,7 +1641,7 @@ def run_benchmark_trials(
             ],
             header=plan_header,
             batch_size=batch_size,
-            serialize_heavy=serialize_heavy,
+            heavy_batch_size=heavy_batch_size,
             case_count=case_count,
             n_trials=n_trials,
         ),
@@ -1822,7 +1825,7 @@ def run_benchmark_from_release(
     *,
     split: SplitName | str = "test",
     batch_size: int = 1,
-    serialize_heavy: bool = True,
+    heavy_batch_size: int = 1,
     result_dir: str | None = None,
     resume: bool = True,
     session_tag: str | None = None,
@@ -1902,7 +1905,7 @@ def run_benchmark_from_release(
         max_steps=max_steps,
         n_trials=n_trials,
         batch_size=batch_size,
-        serialize_heavy=serialize_heavy,
+        heavy_batch_size=heavy_batch_size,
         result_dir=str(results_root),
         resume=resume,
         session_tag=session_tag,

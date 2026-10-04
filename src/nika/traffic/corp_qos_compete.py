@@ -394,7 +394,8 @@ def sample_dscp_tos(
     time.sleep(2.5)
     out = runtime.exec(
         capture_host,
-        "cat /tmp/nika_dscp_tos.err /tmp/nika_dscp_tos.out 2>/dev/null || true",
+        "cat /tmp/nika_dscp_tos.err /tmp/nika_dscp_tos.out 2>/dev/null; "
+        "rm -f /tmp/nika_dscp_tos.out /tmp/nika_dscp_tos.err /tmp/nika_dscp_cap.sh",
     )
     matches = re.findall(r"tos 0x([0-9a-fA-F]+)", out)
     if not matches:

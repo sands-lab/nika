@@ -149,8 +149,8 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | --- | --- | --- |
 | `benchmark.release` | `null` | Frozen release selected when `--release` is absent. |
 | `benchmark.split` | `null` | Release split selected when `--split` is absent. |
-| `benchmark.batch_size` | `1` | Max concurrent trials (sliding window). Must be at least `1`. |
-| `benchmark.serialize_heavy` | `true` | When true, Containerlab, k8s/llmd/XRd, and topo_size `l` cases run exclusively (at most one such trial, and no peer sessions of any class) even if `batch_size` is higher. Light s/m Kathara trials still use the full `batch_size` when no exclusive lab is active. When an exclusive trial is next in the queue, NIKA stops starting light trials, waits for running trials to finish, then starts the exclusive trial. |
+| `benchmark.batch_size` | `1` | Max concurrent light trials (sliding window). Must be at least `1`. |
+| `benchmark.heavy_batch_size` | `1` | Max concurrent heavy trials: Containerlab, k8s/llmd/XRd, and topo_size `l` cases. Must be at least `1`. Heavy and light trials never overlap; with `1`, each heavy trial runs alone on the host. When a heavy trial is next in the queue, NIKA stops starting light trials, waits for running trials to finish, then starts heavy trials. |
 | `benchmark.case_timeout_sec` | `2400` | Hard wall-clock limit per trial. Set `0` to disable it. |
 | `benchmark.continue_on_error` | `false` | Continue the batch after a failed trial. |
 | `benchmark.retry_passes` | `0` | Additional passes over failed or incomplete trials. Must be non-negative. |

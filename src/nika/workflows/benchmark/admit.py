@@ -1,16 +1,18 @@
 """Benchmark trial resource classes for concurrent admission control.
 
 Heavy labs contend on host-shared capacity even when CPU looks idle.
-``resource_class`` + ``class_limits`` keep a global ``batch_size`` ceiling
-while, with ``serialize_heavy``, exclusive classes run alone on the host.
+``resource_class`` + ``tier_limits`` split trials into two tiers: light trials
+run up to ``batch_size`` at once, heavy trials up to ``heavy_batch_size``, and
+the two tiers never share the host. ``heavy_batch_size=1`` runs each heavy
+trial alone.
 
-Exclusive (one session, no peers under ``serialize_heavy``): Containerlab,
-k8s/llmd/XRd, and any case with ``topo_size`` / ``topo`` ``l``.
+Heavy: Containerlab, k8s/llmd/XRd, and any case with ``topo_size`` /
+``topo`` ``l``.
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from nika.net_env.net_env_pool import list_all_net_envs
 from nika.workflows.benchmark.trials import Trial
@@ -34,8 +36,10 @@ CLASS_K8S = "k8s"
 CLASS_LARGE = "large"
 CLASS_LIGHT = "light"
 
-# While any of these are in flight, the host runs that session alone.
-EXCLUSIVE_CLASSES = frozenset({CLASS_CLAB, CLASS_K8S, CLASS_LARGE})
+HEAVY_CLASSES = frozenset({CLASS_CLAB, CLASS_K8S, CLASS_LARGE})
+
+TIER_HEAVY = "heavy"
+TIER_LIGHT = "light"
 
 
 def _topo_size(row: Mapping[str, Any]) -> str:
@@ -67,77 +71,54 @@ def resource_class(trial: Trial) -> ResourceClass:
     return resource_class_for_row(row)
 
 
-def class_limits(*, batch_size: int, serialize_heavy: bool) -> dict[ResourceClass, int]:
-    """Per-class in-flight caps.
+def tier(cls: ResourceClass) -> str:
+    return TIER_HEAVY if cls in HEAVY_CLASSES else TIER_LIGHT
 
-    When ``serialize_heavy`` is false, every class may use the full
-    ``batch_size`` (flat sliding window). When true, exclusive classes are
-    capped at 1; ``light`` still uses ``batch_size`` (global pool is the real
-    ceiling). Exclusive classes additionally require an empty host (see
-    ``can_admit``).
-    """
-    workers = max(1, int(batch_size))
-    if not serialize_heavy:
-        return {
-            CLASS_CLAB: workers,
-            CLASS_K8S: workers,
-            CLASS_LARGE: workers,
-            CLASS_LIGHT: workers,
-        }
+
+def tier_limits(*, batch_size: int, heavy_batch_size: int) -> dict[str, int]:
+    """In-flight caps per tier: light uses ``batch_size``, heavy ``heavy_batch_size``."""
     return {
-        CLASS_CLAB: 1,
-        CLASS_K8S: 1,
-        CLASS_LARGE: 1,
-        CLASS_LIGHT: workers,
+        TIER_LIGHT: max(1, int(batch_size)),
+        TIER_HEAVY: max(1, int(heavy_batch_size)),
     }
-
-
-def _in_flight_total(in_flight: Mapping[ResourceClass, int]) -> int:
-    return sum(max(0, int(count)) for count in in_flight.values())
-
-
-def _runs_exclusive(cls: ResourceClass, limits: Mapping[ResourceClass, int]) -> bool:
-    # ``serialize_heavy`` caps exclusive classes at 1; flat limits do not.
-    return cls in EXCLUSIVE_CLASSES and limits.get(cls, 1) == 1
 
 
 def can_admit(
     cls: ResourceClass,
     *,
     in_flight: Mapping[ResourceClass, int],
-    limits: Mapping[ResourceClass, int],
+    limits: Mapping[str, int],
 ) -> bool:
     """Whether one more trial of ``cls`` may start given current in-flight counts."""
-    if in_flight.get(cls, 0) >= limits.get(cls, 1):
-        return False
-    total = _in_flight_total(in_flight)
-    if _runs_exclusive(cls, limits):
-        # Exclusive labs need the whole host (no peer sessions of any class).
-        return total == 0
-    for exclusive in EXCLUSIVE_CLASSES:
-        if _runs_exclusive(exclusive, limits) and in_flight.get(exclusive, 0) > 0:
-            return False
-    return True
+    running = {TIER_LIGHT: 0, TIER_HEAVY: 0}
+    for running_cls, count in in_flight.items():
+        running[tier(running_cls)] += max(0, int(count))
+    own = tier(cls)
+    other = TIER_HEAVY if own == TIER_LIGHT else TIER_LIGHT
+    return running[other] == 0 and running[own] < limits[own]
 
 
 def pick_admissible(
-    pending: list[Trial],
+    pending: Sequence[Any],
     *,
     in_flight: Mapping[ResourceClass, int],
-    limits: Mapping[ResourceClass, int],
+    limits: Mapping[str, int],
+    classify: Callable[[Any], ResourceClass] = resource_class,
 ) -> int | None:
     """Return the index of the next pending trial to start, or ``None``.
 
     Scans in order and admits the first trial that ``can_admit``. Once the
-    scan reaches an exclusive trial that is waiting for the host to empty, it
-    stops: admitting later light trials would keep the host busy and starve
-    the exclusive trial until every light trial had run. The host drains, then
-    the exclusive trial starts.
+    scan reaches a heavy trial that cannot start, it stops: admitting later
+    light trials would keep the host busy and starve the heavy trial until
+    every light trial had run. Light trials drain, then heavy trials start.
+    While heavy trials run, the scan skips blocked light trials so later heavy
+    trials can fill the heavy slots. ``classify`` maps a pending item to its
+    class (``Trial`` by default; pass ``resource_class_for_row`` for case rows).
     """
     for index, trial in enumerate(pending):
-        cls = resource_class(trial)
+        cls = classify(trial)
         if can_admit(cls, in_flight=in_flight, limits=limits):
             return index
-        if _runs_exclusive(cls, limits):
+        if tier(cls) == TIER_HEAVY:
             return None
     return None

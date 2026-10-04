@@ -9,6 +9,7 @@ GNMIC_VERSION="${GNMIC_VERSION:-0.48.0}"
 # Older Containerlab releases are upgraded; newer ones are kept.
 CLAB_MIN_VERSION="${CLAB_MIN_VERSION:-0.79.0}"
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
+VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
 
 # Keep in sync with lab.py IMAGE constants.
 ROUTEROS_VERSION="${ROUTEROS_VERSION:-7.21.5}"
@@ -31,7 +32,8 @@ Usage: ./scripts/install.sh [options]
 Installs Docker (if needed), uv, lab Python deps (Kathará), Containerlab,
 gnmic, skopeo for Kubernetes image preparation, plus clang and iproute2
 for fault injection (via apt-get). Raises
-and persists host inotify limits for k3s and XRd labs. Creates .env and
+and persists host inotify limits for k3s and XRd labs, and loads the vrf
+kernel module for enterprise_branch. Creates .env and
 config/nika.yaml from examples when missing.
 
 Then builds and pulls every Docker image the non-vendor scenarios use and
@@ -490,6 +492,28 @@ ensure_inotify_limits() {
   warn "  sudo sysctl -w fs.inotify.max_user_watches=64000"
 }
 
+ensure_vrf_module() {
+  # enterprise_branch Site Edges create Linux VRF devices; containers cannot
+  # load modules, so the host must. Ubuntu cloud/virtual kernels ship vrf.ko
+  # only in linux-modules-extra.
+  local conf="${VRF_MODULES_CONF}"
+  local sudo=""
+  if [[ "$(id -u)" -ne 0 ]]; then
+    sudo=sudo
+  fi
+  if ! ${sudo} modprobe vrf 2>/dev/null && command -v apt-get >/dev/null 2>&1; then
+    log "Installing linux-modules-extra-$(uname -r) for the vrf kernel module"
+    ${sudo} apt-get install -y "linux-modules-extra-$(uname -r)" || true
+  fi
+  if ${sudo} modprobe vrf 2>/dev/null \
+    && printf 'vrf\n' | ${sudo} tee "${conf}" >/dev/null; then
+    log "Loaded vrf kernel module (persisted in ${conf})"
+    return
+  fi
+  warn "Could not load the vrf kernel module; enterprise_branch needs it:"
+  warn "  sudo apt-get install linux-modules-extra-\$(uname -r) && sudo modprobe vrf"
+}
+
 ensure_xrd_image() {
   if docker_image_exists "${XRD_IMAGE}"; then
     log "XRd image already present: ${XRD_IMAGE}"
@@ -651,6 +675,7 @@ main() {
   validate_config
   install_fault_injection_tools
   ensure_inotify_limits
+  ensure_vrf_module
   prepare_images
   if [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]]; then
     install_vendor_images

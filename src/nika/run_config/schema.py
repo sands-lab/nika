@@ -279,18 +279,18 @@ class BenchmarkSettings(BaseModel):
     release: str | None = None
     split: str | None = None
     batch_size: int = 1
-    serialize_heavy: bool = True
+    heavy_batch_size: int = 1
     case_timeout_sec: int = 2400
     continue_on_error: bool = False
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None
 
-    @field_validator("batch_size")
+    @field_validator("batch_size", "heavy_batch_size")
     @classmethod
     def _batch_size_positive(cls, value: int) -> int:
         if value < 1:
-            raise ValueError("benchmark.batch_size must be >= 1")
+            raise ValueError("must be >= 1")
         return value
 
     @field_validator("case_timeout_sec", "retry_passes")

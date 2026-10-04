@@ -82,6 +82,9 @@ def require_xrd_image(image: str = IMAGE) -> None:
     raise RuntimeError(
         f"XRd Control Plane image {image!r} not found locally. Cisco's "
         "license requires loading it by hand, e.g.:\n"
-        "  docker load -i xrd-control-plane-container-x86.<version>.tgz\n"
+        "  ./scripts/install.sh --with-vendor-images --xrd-tarball <Cisco .tgz>\n"
+        "or load the bundle's inner image yourself:\n"
+        "  tar -xzf <Cisco .tgz> xrd-control-plane-container-x64.dockerv1.tgz\n"
+        "  docker load -i xrd-control-plane-container-x64.dockerv1.tgz\n"
         f"  docker tag <loaded-tag> {image}"
     )

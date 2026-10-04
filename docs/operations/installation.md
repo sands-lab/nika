@@ -18,6 +18,8 @@ The installer installs `skopeo` for digest-pinned Kubernetes workload archives. 
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
+`enterprise_branch` creates Linux VRF devices, which need the host `vrf` kernel module. The installer loads it and persists it in `/etc/modules-load.d/nika-vrf.conf`. On apt hosts where `modprobe vrf` fails, such as Ubuntu cloud images with the `-virtual` kernel, it first installs `linux-modules-extra-$(uname -r)`. See [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch).
+
 Check that no other route on the host, such as one from a VPN or the host network, overlaps a subnet Docker uses (by default `172.17.0.0/16`–`172.31.0.0/16` and `192.168.0.0/16`). Overlapping routes break container networking and the Kubernetes API of `k8s_lab` and `llmd_lab`. See [Host routes overlap Docker subnets](troubleshooting.md#host-routes-overlap-docker-subnets).
 
 ## Runtime images

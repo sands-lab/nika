@@ -119,12 +119,12 @@ benchmark:
   release: null
   # Select a release split, such as dev or test.
   split: null
-  # Run this many trials at the same time.
+  # Run this many light trials at the same time.
   batch_size: 1
-  # Run Containerlab, k8s/llmd/XRd, and topo_size l exclusively (no peer
-  # sessions) when batch_size > 1. Set false only if you intentionally
-  # parallelize those labs.
-  serialize_heavy: true
+  # Run this many heavy trials (Containerlab, k8s/llmd/XRd, topo_size l) at the
+  # same time. Heavy and light trials never overlap; 1 runs each heavy trial
+  # alone on the host.
+  heavy_batch_size: 1
   # Stop each trial after this many seconds. Set 0 to disable.
   case_timeout_sec: 2400
   # Continue an ad-hoc batch after a failed trial. Release runs continue unless

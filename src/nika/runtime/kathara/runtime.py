@@ -11,7 +11,11 @@ from Kathara.manager.Kathara import Kathara
 from nika.runtime.base import LabRuntime
 from nika.runtime.shared.containers import pause_container, unpause_container
 from nika.runtime.shared.settings import lab_settings as _lab_settings
-from nika.runtime.shared.execution import exec_with_timeout, merge_exec_output
+from nika.runtime.shared.execution import (
+    exec_with_timeout,
+    merge_exec_output,
+    without_shell_history,
+)
 from nika.service.shell import ShellResolver
 from nika.service.kathara.docker_utils import (
     get_machine_container,
@@ -225,7 +229,7 @@ class KatharaRuntime(LabRuntime):
     def exec(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         return self._shell.exec_via_shell(
             node,
-            cmd,
+            without_shell_history(cmd),
             self._exec_raw,
             preferred_shell=self._preferred_shell(node),
             timeout=timeout,
