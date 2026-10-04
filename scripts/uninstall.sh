@@ -28,8 +28,9 @@ Removes everything NIKA set up on this host:
   - Containerlab (package, /etc/containerlab, clab_admins group) and gnmic
   - ~/.config/kathara.conf and, in the repo, .venv, .nika_cache, runtime/
 
-Keeps Docker and docker group membership, uv, apt packages (clang, iproute2,
-skopeo), the source tree, .env, config/, and results/.
+Keeps Docker and docker group membership, sbx and kvm group membership, uv,
+apt packages (clang, iproute2, skopeo), the source tree, .env, config/, and
+results/.
 
 Options:
   -y, --yes             Do not ask for confirmation

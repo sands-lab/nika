@@ -41,15 +41,15 @@ If the server does not report `max_model_len`, Claude Code keeps its defaults. N
 
 ## Prerequisites
 
-- `sbx` CLI installed and logged in:
+- `sbx` CLI installed and logged in. `./scripts/install.sh --with-sbx` installs it and sets up KVM access (see [Installation](installation.md#install-sbx-for-sandboxed-agents)):
 
   ```shell
-  curl -fsSL https://get.docker.com | sudo SBX=1 sh
+  ./scripts/install.sh --with-sbx
   sbx login
   ```
 
-  On a host that already has Docker's apt repo: `sudo apt install docker-sbx`. See the [Docker Sandboxes install guide](https://docs.docker.com/ai/sandboxes/install/).
-- KVM available on Linux (`/dev/kvm`); your user must be in the `kvm` group (or otherwise have read/write on the device). `sbx diagnose` reports this under Virtualization.
+  To install manually: `curl -fsSL https://get.docker.com | sudo SBX=1 sh`, or `sudo apt install docker-sbx` on a host that already has Docker's apt repo. See the [Docker Sandboxes install guide](https://docs.docker.com/ai/sandboxes/install/).
+- KVM available on Linux (`/dev/kvm`); your user must be in the `kvm` group (or otherwise have read/write on the device). `--with-sbx` adds you to that group. `sbx diagnose` reports this under Virtualization.
 - Docker for Kathara / Containerlab labs
 - Credentials for the agent you run (see [Authentication](#authentication))
 
@@ -187,6 +187,21 @@ Confirm with `sbx secret ls`. Global secrets apply when a sandbox is created; re
 Credentials come from the repository-root `.env`; NIKA has no separate sandbox environment file.
 
 ## Troubleshoot sandbox runs
+
+### `sbx create` fails with a KVM error
+
+`KVM error: Permission denied` in `~/.local/state/sandboxes/sandboxes/sandboxd/daemon.log` means your user cannot open `/dev/kvm`. Run `./scripts/install.sh --with-sbx`, open a new login shell, then run `sbx daemon stop` so the next NIKA run starts the daemon with the new group.
+
+`VM did not connect within 15s` can occur when the host is itself a VM (nested virtualization) and the sandbox gets every host vCPU, which is the sbx default. Cap the sandbox size:
+
+```yaml
+nika:
+  sandbox:
+    cpus: "4"
+    memory: 8g
+```
+
+Or pass `--sandbox-cpus 4 --sandbox-memory 8g`.
 
 ### Sandbox cannot reach an LLM API
 

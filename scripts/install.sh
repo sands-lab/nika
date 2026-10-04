@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install Docker, uv, lab deps (Kathará), Containerlab, gnmic, and fault-injection tools,
 # then build/pull every runtime image. Re-runs upgrade outdated parts and prune stale ones.
-# Optionally switch git track and prepare vendor router images (RouterOS CHR, Cisco XRd).
+# Optionally switch git track, install sbx with KVM access, and prepare vendor router
+# images (RouterOS CHR, Cisco XRd).
 # Usage: ./scripts/install.sh [options]
 set -euo pipefail
 
@@ -21,6 +22,7 @@ CHR_BASE_URL="${CHR_BASE_URL:-https://download.mikrotik.com/routeros/${ROUTEROS_
 
 TRACK=""
 WITH_VENDOR_IMAGES=0
+WITH_SBX=0
 SKIP_IMAGES=0
 XRD_TARBALL="${NIKA_XRD_TARBALL:-}"
 ORIG_ARGS=("$@")
@@ -60,6 +62,11 @@ Options:
       Path to a Cisco XRd Control Plane container .tgz (no public URL).
       Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under the repo.
 
+  --with-sbx
+      Install Docker Sandboxes (sbx) for sandboxed agents (cli.*, sdk.*,
+      community.sade) and give your user read/write access to /dev/kvm,
+      which the sbx microVMs need. Run 'sbx login' afterwards.
+
   --skip-images
       Skip building/pulling runtime images (labs then prepare them on first deploy).
 
@@ -68,6 +75,7 @@ Options:
 Examples:
   ./scripts/install.sh
   ./scripts/install.sh --track stable
+  ./scripts/install.sh --with-sbx
   ./scripts/install.sh --track latest --with-vendor-images
   ./scripts/install.sh --with-vendor-images --xrd-tarball ~/xrd-control-plane-container-x86_64-26.2.1.tgz
 EOF
@@ -86,6 +94,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --with-vendor-images) WITH_VENDOR_IMAGES=1; shift ;;
+    --with-sbx) WITH_SBX=1; shift ;;
     --skip-images) SKIP_IMAGES=1; shift ;;
     --xrd-tarball)
       [[ $# -ge 2 ]] || { echo "error: --xrd-tarball requires a path" >&2; exit 2; }
@@ -514,6 +523,50 @@ ensure_vrf_module() {
   warn "  sudo apt-get install linux-modules-extra-\$(uname -r) && sudo modprobe vrf"
 }
 
+install_sbx() {
+  if command -v sbx >/dev/null 2>&1; then
+    log "sbx already installed: $(sbx version 2>/dev/null | head -n1)"
+    return
+  fi
+  need_cmd sudo
+  # docker-sbx ships in Docker's apt repo, which get.docker.com configures.
+  if command -v apt-get >/dev/null 2>&1 \
+    && [[ "$(apt-cache policy docker-sbx 2>/dev/null | sed -n 's/^ *Candidate: *//p')" =~ ^[0-9] ]]; then
+    log "Installing docker-sbx"
+    sudo apt-get install -y docker-sbx
+  else
+    log "Installing sbx (get.docker.com with SBX=1)"
+    need_cmd curl
+    curl -fsSL https://get.docker.com | sudo SBX=1 sh
+  fi
+  command -v sbx >/dev/null 2>&1 || die "sbx install finished but 'sbx' not found on PATH"
+  log "sbx ready: $(command -v sbx)"
+}
+
+ensure_kvm_access() {
+  # sbx boots each sandbox as a KVM microVM; without read/write on /dev/kvm,
+  # 'sbx create' fails with "KVM error: Permission denied".
+  if [[ ! -e /dev/kvm ]]; then
+    warn "/dev/kvm not found; sbx needs KVM (enable hardware or nested virtualization)"
+    return
+  fi
+  if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+    log "/dev/kvm is accessible"
+    return
+  fi
+  local group
+  group="$(stat -c %G /dev/kvm)"
+  if [[ "${group}" == root ]]; then
+    warn "/dev/kvm is owned by group root; grant ${USER} read/write on it for sbx"
+    return
+  fi
+  need_cmd sudo
+  sudo usermod -aG "${group}" "${USER}"
+  log "Added ${USER} to the ${group} group for /dev/kvm"
+  warn "Open a new login shell (or run 'newgrp ${group}'), then run 'sbx daemon stop'"
+  warn "so the next NIKA run starts sandboxd with the new group"
+}
+
 ensure_xrd_image() {
   if docker_image_exists "${XRD_IMAGE}"; then
     log "XRd image already present: ${XRD_IMAGE}"
@@ -652,7 +705,7 @@ Vendor labs (after --with-vendor-images):
 
 New Docker install: open a new shell or run newgrp docker.
 Remote install: docs/operations/remote.md
-Optional sbx: docs/operations/agent-sandbox.md
+Sandboxed agents (after --with-sbx): sbx login, then see docs/operations/agent-sandbox.md
 Remove NIKA again: ./scripts/uninstall.sh
 EOF
 }
@@ -676,6 +729,10 @@ main() {
   install_fault_injection_tools
   ensure_inotify_limits
   ensure_vrf_module
+  if [[ "${WITH_SBX}" -eq 1 ]]; then
+    install_sbx
+    ensure_kvm_access
+  fi
   prepare_images
   if [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]]; then
     install_vendor_images
