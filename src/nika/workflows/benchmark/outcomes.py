@@ -19,12 +19,6 @@ agent setup). The agent never got a turn, so the slot is retried like
 log shows ``agent_start`` *and* the trajectory holds at least one model/tool
 event (see :func:`agent_demonstrably_started`).
 
-``environment_invalid`` is not counted and is retried. A lightweight artifact
-recheck during the agent window, or the recheck before lab cleanup, found the
-injected fault artifact absent or unreadable. That trial is not an agent
-capability failure. A ``present`` recheck means the artifact was still there.
-It does not mean the fault's network effect was measured.
-
 Case wall-clock kills (``--case-timeout``) default to ``agent_failed``, but when
 the session was killed mid-LLM call and most of the budget was spent inside LLM
 calls (including the in-flight request), they classify as ``endpoint_failed``
@@ -42,14 +36,11 @@ from typing import Literal
 COUNTED_OUTCOMES = frozenset({"success", "agent_failed"})
 ENDPOINT_FAILED = "endpoint_failed"
 INFRA_FAILED = "infra_failed"
-ENVIRONMENT_INVALID = "environment_invalid"
 # Not scored; ``--resume`` and retry passes clean and re-run these slots.
-RETRYABLE_OUTCOMES = frozenset({ENDPOINT_FAILED, INFRA_FAILED, ENVIRONMENT_INVALID})
+RETRYABLE_OUTCOMES = frozenset({ENDPOINT_FAILED, INFRA_FAILED})
 KNOWN_OUTCOMES = frozenset({*COUNTED_OUTCOMES, *RETRYABLE_OUTCOMES})
 
-FailureOutcome = Literal[
-    "agent_failed", "endpoint_failed", "infra_failed", "environment_invalid"
-]
+FailureOutcome = Literal["agent_failed", "endpoint_failed", "infra_failed"]
 
 # Case-timeout → endpoint_failed when LLM wall time dominates agent wall time
 # *and* the kill lands mid-LLM call.
@@ -341,15 +332,7 @@ def classify_trial_failure(
 
     ``until`` is the case-kill instant used when attributing an in-flight LLM
     call; defaults to now when omitted.
-
-    ``EnvironmentInvalid`` is ``environment_invalid`` even when the agent
-    already started or wrote a submission. The fault artifact did not last
-    through the trial.
     """
-    from nika.validation.presence import is_environment_invalid
-
-    if is_environment_invalid(exc):
-        return ENVIRONMENT_INVALID
     if session_dir is not None and not agent_demonstrably_started(session_dir):
         return ENDPOINT_FAILED if is_endpoint_exception(exc) else INFRA_FAILED
     text = _exception_text(exc)

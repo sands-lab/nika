@@ -42,33 +42,6 @@ DYNAMIC_ARTIFACT_FAULTS = frozenset(
 )
 
 
-class EnvironmentInvalid(RuntimeError):
-    """A fault artifact disappeared or could not be read before lab cleanup."""
-
-
-def is_environment_invalid(exc: BaseException) -> bool:
-    """True when ``exc`` or a linked exception is ``EnvironmentInvalid``."""
-    seen: set[int] = set()
-    stack: list[BaseException] = [exc]
-    while stack:
-        item = stack.pop()
-        marker = id(item)
-        if marker in seen:
-            continue
-        seen.add(marker)
-        if isinstance(item, EnvironmentInvalid):
-            return True
-        if isinstance(item, BaseExceptionGroup):
-            stack.extend(item.exceptions)
-        cause = item.__cause__
-        context = item.__context__
-        if cause is not None:
-            stack.append(cause)
-        if context is not None and not item.__suppress_context__:
-            stack.append(context)
-    return False
-
-
 _BOUND: dict[str, tuple[Any, Any]] = {}
 _BOUND_LOCK = threading.Lock()
 
@@ -273,7 +246,8 @@ class PresenceWatch:
     """One during-agent read and one read before lab cleanup.
 
     The during-agent read waits ``delay_sec``, then runs once. If the agent
-    returns first, ``finish`` performs that read before cleanup.
+    returns first, ``finish`` performs that read before cleanup. Reads are
+    only logged; they do not change the trial outcome.
     """
 
     def __init__(
@@ -293,7 +267,6 @@ class PresenceWatch:
         self._read_lock = threading.Lock()
         self._done: set[str] = set()
         self._thread: threading.Thread | None = None
-        self.failure: str | None = None
 
     def start(self) -> None:
         if bound_injected_problem(self.session_id) is None:
@@ -318,12 +291,6 @@ class PresenceWatch:
         with self._read_lock:
             record = _check_record(self.session_id, self.session_dir, phase)
             log_presence_check(record)
-        if record.get("result") in {"absent", "error"} and record.get("fault") != (
-            "healthy"
-        ):
-            self.failure = (
-                f"{phase}: fault={record.get('fault')}: {record.get('error')}"
-            )
 
     def _during(self) -> None:
         if self._stop.wait(self.delay_sec):
@@ -334,7 +301,7 @@ class PresenceWatch:
         """Stop the timer without reading artifacts."""
         self._stop.set()
 
-    def finish(self) -> str | None:
+    def finish(self) -> None:
         """Stop the timer, then read artifacts that have not been read yet."""
         self._stop.set()
         thread = self._thread
@@ -342,17 +309,3 @@ class PresenceWatch:
             thread.join(timeout=60.0)
         self._run_phase("during_agent")
         self._run_phase("before_cleanup")
-        return self.failure
-
-
-def raise_if_presence_failed(
-    failure: str | None, agent_exc: BaseException | None
-) -> None:
-    """Raise ``EnvironmentInvalid`` unless the agent was interrupted.
-
-    Re-raises ``agent_exc`` when the artifact checks passed.
-    """
-    if failure and not isinstance(agent_exc, (KeyboardInterrupt, SystemExit)):
-        raise EnvironmentInvalid(failure) from agent_exc
-    if agent_exc is not None:
-        raise agent_exc

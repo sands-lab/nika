@@ -1,4 +1,4 @@
-"""Lightweight artifact rechecks and environment-invalid trial outcomes."""
+"""Lightweight artifact rechecks logged during a benchmark trial."""
 
 from __future__ import annotations
 
@@ -9,18 +9,11 @@ import pytest
 
 from nika.validation import presence
 from nika.validation.presence import (
-    EnvironmentInvalid,
     PresenceWatch,
     bind_injected_problem,
     clear_injected_problem,
-    raise_if_presence_failed,
     record_injection_verify,
 )
-from nika.workflows.benchmark.outcomes import (
-    ENVIRONMENT_INVALID,
-    classify_trial_failure,
-)
-from nika.workflows.benchmark.run import _finalize_post_inject_failure
 
 pytestmark = pytest.mark.unit
 
@@ -65,9 +58,8 @@ def test_fast_agent_still_records_during_and_before(
     )
     watch = PresenceWatch("s-fast", tmp_path, delay_sec=30)
     watch.start()
-    failure = watch.finish()
+    watch.finish()
     clear_injected_problem("s-fast")
-    assert failure is None
     assert [item["phase"] for item in logged] == [
         "post_inject",
         "during_agent",
@@ -77,7 +69,7 @@ def test_fast_agent_still_records_during_and_before(
     assert logged[0]["check"] == "verify_fault"
 
 
-def test_absent_artifact_is_environment_invalid(tmp_path: Path) -> None:
+def test_absent_artifact_is_only_logged(tmp_path: Path, logged: list[dict]) -> None:
     fault = _ArtifactFault(present=False)
     bind_injected_problem("s-absent", fault, None)
     (tmp_path / "ground_truth.json").write_text(
@@ -85,15 +77,10 @@ def test_absent_artifact_is_environment_invalid(tmp_path: Path) -> None:
     )
     watch = PresenceWatch("s-absent", tmp_path, delay_sec=30)
     watch.start()
-    failure = watch.finish()
+    assert watch.finish() is None
     clear_injected_problem("s-absent")
-    assert failure is not None
-    with pytest.raises(EnvironmentInvalid):
-        raise_if_presence_failed(failure, RuntimeError("agent finished early"))
-    try:
-        raise_if_presence_failed(failure, None)
-    except EnvironmentInvalid as exc:
-        assert classify_trial_failure(exc) == ENVIRONMENT_INVALID
+    assert [item["result"] for item in logged] == ["absent", "absent"]
+    assert all(item["error"] == "fault artifact absent" for item in logged)
 
 
 def test_remote_artifact_is_checked_during_and_before_cleanup(
@@ -119,25 +106,14 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     monkeypatch.setattr(RemoteClient, "fault_artifact", remote_check)
     watch = PresenceWatch("s-remote", tmp_path, delay_sec=30)
     watch.start()
-    failure = watch.finish()
+    watch.finish()
     assert len(calls) == 3
-    assert failure is not None and "before_cleanup" in failure
     assert [item["phase"] for item in logged] == [
         "post_inject",
         "during_agent",
         "before_cleanup",
     ]
-
-
-def test_timeout_and_keyboard_interrupt_paths() -> None:
-    with pytest.raises(SystemExit):
-        raise_if_presence_failed(None, SystemExit(143))
-    with pytest.raises(SystemExit):
-        raise_if_presence_failed("during_agent: fault artifact absent", SystemExit(143))
-    with pytest.raises(KeyboardInterrupt):
-        raise_if_presence_failed(
-            "during_agent: fault artifact absent", KeyboardInterrupt()
-        )
+    assert logged[-1]["result"] == "absent"
 
 
 def test_recheck_uses_the_injected_instance() -> None:
@@ -153,36 +129,3 @@ def test_recheck_uses_the_injected_instance() -> None:
     assert result["evidence"]["wrong_asn"] == 65000
     assert other.calls == [] or len(other.calls) == raw_calls_before
     assert injected.calls
-
-
-def test_finalize_keeps_environment_invalid_with_submission(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "run.json").write_text(
-        json.dumps({"status": "running"}), encoding="utf-8"
-    )
-    (tmp_path / "submission.json").write_text(
-        json.dumps({"root_causes": []}), encoding="utf-8"
-    )
-    (tmp_path / "ground_truth.json").write_text(
-        json.dumps({"is_anomaly": True}), encoding="utf-8"
-    )
-    monkeypatch.setattr(
-        "nika.workflows.benchmark.run.close_session", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(
-        "nika.workflows.benchmark.run.Session",
-        lambda: (_ for _ in ()).throw(RuntimeError("closed session unavailable")),
-    )
-    _finalize_post_inject_failure(
-        session_id="s-final",
-        session_dir=tmp_path,
-        result_dir=None,
-        error=EnvironmentInvalid(
-            "before_cleanup: fault=link_down: fault artifact absent"
-        ),
-    )
-    meta = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
-    assert meta["outcome"] == ENVIRONMENT_INVALID
-    assert meta["status"] == "error"
-    assert not (tmp_path / "eval_metrics.json").exists()

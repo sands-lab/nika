@@ -410,9 +410,8 @@ def trial_outcome(session_dir: str | Path) -> str | None:
 def is_finalized_failure(session_dir: str | Path) -> bool:
     """True when the worker already stamped a known failure outcome.
 
-    Includes retryable ``endpoint_failed``, ``infra_failed``, and
-    ``environment_invalid`` so parents do not overwrite them with a counted
-    ``agent_failed`` after a non-zero worker exit.
+    Includes retryable ``endpoint_failed`` / ``infra_failed`` so parents do not
+    overwrite them with a counted ``agent_failed`` after a non-zero worker exit.
     """
     outcome = trial_outcome(session_dir)
     return outcome in KNOWN_OUTCOMES - {"success"}
@@ -456,8 +455,8 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
     - ``agent_failed`` if the agent demonstrably started
     - otherwise leave the slot incomplete (infra failure, retried)
 
-    Retryable ``endpoint_failed``, ``infra_failed``, and ``environment_invalid``
-    slots stay incomplete so ``--resume`` retries them.
+    Retryable ``endpoint_failed`` / ``infra_failed`` slots stay incomplete so
+    ``--resume`` retries them.
 
     Returns True when the directory is a valid counted trial afterwards.
     """
