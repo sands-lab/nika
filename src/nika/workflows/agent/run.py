@@ -103,10 +103,7 @@ def start_agent(
         max_steps=max_steps,
         timeout_sec=timeout_sec,
     )
-    from nika.validation.presence import (
-        PresenceWatch,
-        raise_if_presence_failed,
-    )
+    from nika.validation.presence import PresenceWatch
 
     # Benchmark inject and agent execution share the injecting instance. Standalone
     # session commands run in separate processes and cannot use that instance.
@@ -251,8 +248,10 @@ def start_agent(
         if presence is not None:
             presence.cancel()
         raise agent_exc
-    presence_failure = presence.finish() if presence is not None else None
-    raise_if_presence_failed(presence_failure, agent_exc)
+    if presence is not None:
+        presence.finish()
+    if agent_exc is not None:
+        raise agent_exc
 
     session.end_session()
     log_event(

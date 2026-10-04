@@ -186,7 +186,7 @@ uv run python -c "from experiment.audit.report_doc import write_benchmark_audit_
 3. `PresenceWatch` reads the fault artifact on the problem instance that injected it: once 2 seconds after the agent starts, and once before NIKA removes the lab. For the faults in `DYNAMIC_ARTIFACT_FAULTS`, the read checks the live worker, flap, or quota.
 
 The trial logs each read as a `fault_presence_recheck` event in the session log. A `present` read means the artifact was still on the lab. It does not measure the network effect.
-When any of these reads finds the artifact absent or fails, the trial outcome is `environment_invalid`. Leaderboard averages omit that outcome, and `nika benchmark run --resume` deletes the slot and runs it again.
+An `absent` or `error` read is only logged. It does not change the trial outcome or score, and the trial is not retried.
 When the agent run is interrupted (Ctrl+C or SIGTERM), NIKA skips the remaining reads and undeploys the lab.
 
 ## Cases
