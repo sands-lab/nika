@@ -9,7 +9,11 @@ import nika.runtime.kathara.patch  # noqa: F401
 from Kathara.manager.Kathara import Kathara
 
 from nika.runtime.base import LabRuntime
-from nika.runtime.shared.containers import pause_container, unpause_container
+from nika.runtime.shared.containers import (
+    lift_cpu_cap,
+    pause_container,
+    unpause_container,
+)
 from nika.runtime.shared.settings import lab_settings as _lab_settings
 from nika.runtime.shared.execution import (
     exec_with_timeout,
@@ -163,6 +167,14 @@ class KatharaRuntime(LabRuntime):
             KatharaVdeFaultProxy.cleanup_lab(self.lab_name)
         except Exception as exc:  # cleanup must not prevent normal teardown
             print(f"Error cleaning VDE fault proxies: {exc}")
+        # undeploy_lab runs shutdown commands via an untimed docker exec in
+        # each machine; under an injected CPU cap runc init starves forever.
+        try:
+            for container in self._machine_containers():
+                if container.status == "running":
+                    lift_cpu_cap(container)
+        except Exception as exc:
+            print(f"Error lifting CPU caps before undeploy: {exc}")
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:

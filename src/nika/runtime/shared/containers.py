@@ -32,6 +32,20 @@ def pause_container(container: Any) -> None:
         container.pause()
 
 
+def lift_cpu_cap(container: Any) -> None:
+    """Raise a container's NanoCPUs cap to every host CPU.
+
+    Docker ignores ``NanoCPUs=0`` on update, so the cap cannot be cleared,
+    only raised. docker-py 7.x ``Container.update()`` omits NanoCPUs.
+    """
+    if not int((container.attrs.get("HostConfig") or {}).get("NanoCpus") or 0):
+        return
+    api = container.client.api
+    url = api._url("/containers/{0}/update", container.id)
+    resp = api._post_json(url, data={"NanoCPUs": api.info()["NCPU"] * 10**9})
+    api._raise_for_status(resp)
+
+
 def unpause_container(container: Any) -> None:
     container.reload()
     if container.status == "paused":
