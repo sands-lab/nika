@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from nika.problems.registry import (
+    get_problem_class,
     get_problem_instance,
-    list_avail_problem_names,
     resolve_problem_name,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
@@ -86,9 +86,11 @@ def inject_failure(
     session = Session()
     session.load_running_session(session_id=session_id)
 
-    resolved_names = [resolve_problem_name(name) for name in problem_names]
+    resolved_names = [
+        resolve_problem_name(name, session.scenario_name) for name in problem_names
+    ]
     for original, resolved in zip(problem_names, resolved_names, strict=True):
-        if resolved not in list_avail_problem_names():
+        if get_problem_class(resolved, session.scenario_name) is None:
             raise ValueError(f"Unknown problem name: {original}")
 
     session.update_session("problem_names", resolved_names)

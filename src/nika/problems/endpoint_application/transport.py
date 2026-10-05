@@ -327,8 +327,13 @@ class SenderResourceContention(ProblemBase):
         self.runtime.write_file(host, _CPU_HTTP_SERVER, _CPU_HTTP_SERVER_SRC)
         # Free :80. nika/nginx has no fuser/psmisc; stop nginx by name. Bracket
         # pkill patterns avoid matching the Kathara/docker exec shell argv.
+        # web_server.service has Restart=always, so it must be stopped via systemd.
+        # Only call systemctl while it runs: under the injected quota it outlives
+        # this exec and its trailing pkill would kill the new server.
         self.runtime.exec(
             host,
+            "pgrep -f '[w]eb_server.py' >/dev/null && "
+            "systemctl stop web_server 2>/dev/null; "
             "nginx -s stop 2>/dev/null || true; "
             "killall -9 nginx 2>/dev/null || true; "
             "pkill -x nginx 2>/dev/null || true; "

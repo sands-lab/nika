@@ -329,7 +329,7 @@ def test_legacy_scenario_benchmark_row_is_rejected() -> None:
     with pytest.raises(ValueError, match="not found in the pool"):
         normalize_benchmark_row(
             {
-                "scenario": "rip_small_internet_vpn",
+                "scenario": "ospf_enterprise_dhcp",
                 "topo_size": "s",
                 "problem": "host_vpn_membership_missing",
                 "inject": {

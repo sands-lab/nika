@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 from nika.net_env.net_env_pool import resolve_scenario_id, scenario_fixed_topo_size
-from nika.problems.registry import list_avail_problem_instances, resolve_problem_name
+from nika.problems.registry import get_problem_class, resolve_problem_name
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import (
     ISP_OPTION_KEYS,
@@ -20,15 +20,15 @@ from nika.workflows.benchmark.multi_fault import join_problem_label
 from nika.workflows.benchmark.resume import benchmark_option_id
 
 
-def _row_problem_fields(row: dict[str, Any]) -> tuple[list[str], str]:
+def _row_problem_fields(row: dict[str, Any], scenario: str) -> tuple[list[str], str]:
     raw_problems = row.get("problems")
     if raw_problems is not None:
         if not isinstance(raw_problems, list) or not raw_problems:
             raise ValueError("'problems' must be a non-empty list")
-        problems = [resolve_problem_name(str(item)) for item in raw_problems]
+        problems = [resolve_problem_name(str(item), scenario) for item in raw_problems]
         return problems, join_problem_label(problems)
     raw_problem = str(row["problem"])
-    problem = resolve_problem_name(raw_problem)
+    problem = resolve_problem_name(raw_problem, scenario)
     return [problem], problem
 
 
@@ -44,7 +44,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         topo = ""
     topo_size = "" if topo in ("-", "", None) else str(topo)
 
-    problems, problem_label = _row_problem_fields(row)
+    problems, problem_label = _row_problem_fields(row, canonical)
     raw_problem = str(row.get("problem") or join_problem_label(problems))
     inject = row.get("inject") or {}
     if not isinstance(inject, dict):
@@ -112,7 +112,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     problem = problem_label
     problem_tags: set[str] = set()
     for item in problems:
-        problem_cls = list_avail_problem_instances().get(item)
+        problem_cls = get_problem_class(item, canonical)
         if problem_cls is not None:
             problem_tags.update(problem_cls.TAGS)
     isp_options = validate_and_resolve_isp_options(

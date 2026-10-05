@@ -18,15 +18,17 @@ from nika.utils.session_artifacts import write_json_atomic
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
 )
+from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
+    legacy_010_specs,
     list_all_net_envs,
     resolve_scenario_backend,
     scenario_family,
     scenario_requires_topo_size,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.problems.registry import list_avail_problem_instances
+from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
     MCP_SERVER_SPECS,
@@ -49,7 +51,7 @@ RUN_CONFIG_FILENAME = "run.json"
 
 # Published suites that predate the current scenario/failure identity model.
 # They remain on disk for provenance but are not loadable or runnable.
-DEPRECATED_RELEASES = frozenset({"0.1.0"})
+DEPRECATED_RELEASES: frozenset[str] = frozenset()
 
 SplitName = Literal["dev", "test"]
 VALID_SPLITS: tuple[SplitName, ...] = ("dev", "test")
@@ -384,6 +386,7 @@ def verify_dev_test_isolation(
     *,
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
+    allow_context_overlap: bool = False,
 ) -> None:
     """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
     if not dev_cases or not test_cases:
@@ -404,7 +407,7 @@ def verify_dev_test_isolation(
     context_overlap = {selection_context_key(row) for row in dev_cases} & {
         selection_context_key(row) for row in test_cases
     }
-    if context_overlap:
+    if context_overlap and not allow_context_overlap:
         raise ReleaseError(
             "Dev/Test semantic isolation failed: "
             f"{len(context_overlap)} shared failure-context pair(s)"
@@ -489,20 +492,33 @@ def preflight_release(
             f"{release.cases_path.name} ({len(release.cases)})"
         )
 
+    is_010 = release.version == RELEASE_010
     scenarios = {row["scenario"] for row in release.cases}
-    problems = {
-        row["problem"] for row in release.cases if not is_healthy_case(row["problem"])
-    }
     known_scenarios = set(list_all_net_envs())
-    known_problems = set(list_avail_problem_instances())
+    if is_010:
+        known_scenarios.update(legacy_010_specs())
+        missing_problems = sorted(
+            {
+                row["problem"]
+                for row in release.cases
+                if get_problem_class(row["problem"], row["scenario"]) is None
+            }
+        )
+    else:
+        problems = {
+            row["problem"]
+            for row in release.cases
+            if not is_healthy_case(row["problem"])
+        }
+        missing_problems = sorted(problems - set(list_avail_problem_instances()))
     missing_scenarios = sorted(scenarios - known_scenarios)
-    missing_problems = sorted(problems - known_problems)
     if missing_scenarios:
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
     if missing_problems:
         raise ReleaseError(f"Missing problems: {missing_problems}")
+    specs = list_all_net_envs()
     licensed = sorted(
-        name for name in scenarios if list_all_net_envs()[name].licensed_images
+        name for name in scenarios if name in specs and specs[name].licensed_images
     )
     if licensed:
         raise ReleaseError(
@@ -514,11 +530,17 @@ def preflight_release(
     if "dev" in release.splits and "test" in release.splits:
         dev = load_release_from_dir(release.root, split="dev").cases
         test = load_release_from_dir(release.root, split="test").cases
-        _validate_release_splits(
-            dev,
-            test,
-            expected_failures=set(list_avail_problem_instances()),
-        )
+        if is_010:
+            # 0.1.0 predates the distinct deployment-context split rule.
+            verify_dev_test_isolation(
+                dev_cases=dev, test_cases=test, allow_context_overlap=True
+            )
+        else:
+            _validate_release_splits(
+                dev,
+                test,
+                expected_failures=set(list_avail_problem_instances()),
+            )
 
     _verify_mcp_policy(release.cases, release.tools)
 

@@ -13,7 +13,7 @@ nika benchmark releases
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
-Release `0.1.0` remains under `benchmark/releases/0.1.0/` for provenance. Its legacy IDs are not runnable, and `nika benchmark releases` reports it as `DEPRECATED` with guidance to use `--release 0.2.0`.
+Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
 
 Each release run treats `--result_dir` as **one run** and writes:
 
@@ -185,7 +185,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 The generator prints group, concrete option, failure, scenario, healthy, and rejection counts to stdout.
 
-Release `0.1.0` is deprecated: its flat case files keep legacy scenario and failure ids, and loaders do not rewrite them. Release `0.2.0` uses the current IDs.
+Release `0.2.0` uses the current IDs. Release `0.1.0` also names six original 0.1.0 labs, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
 
 Frozen releases keep their published flat `cases:` files and remain independent from candidate generation.
 

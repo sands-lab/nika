@@ -9,6 +9,10 @@ from typing import Any
 
 from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import MESSAGES_FILENAME
+from nika.problems.compat.v010 import (
+    RELEASE_VERSION as RELEASE_010,
+    legacy_010_fault_types,
+)
 from nika.problems.ownership import ownership_entries
 from nika.problems.registry import list_avail_problem_names
 from nika.problems.rca.inventory import (
@@ -20,16 +24,18 @@ from nika.utils.session_store import SessionStore
 from nika.workflows.benchmark.healthy import is_healthy_case
 
 
-def fault_candidates() -> list[str]:
+def fault_candidates(benchmark_version: str | None = None) -> list[str]:
     """Fixed fault-type candidates: every registered fault except ``healthy``.
 
     The same list is offered in every launch mode (release, ``--config``,
     single case) so the candidate set never depends on which cases were run.
+    Sessions of the 0.1.0 release also offer every 0.1.0-only fault type.
     """
     # ``healthy`` is a benchmark sentinel, not a registered fault type.
-    return sorted(
-        {name for name in list_avail_problem_names() if not is_healthy_case(name)}
-    )
+    names = {name for name in list_avail_problem_names() if not is_healthy_case(name)}
+    if benchmark_version == RELEASE_010:
+        names.update(legacy_010_fault_types())
+    return sorted(names)
 
 
 def _trajectory_path(session_id: str) -> Path:
@@ -92,7 +98,10 @@ def load_submission_catalog(session_id: str) -> dict[str, Any]:
         k8s_network_policies=k8s_network_policies,
     )
     return {
-        "fault_ontology": ownership_entries(fault_candidates()),
+        "fault_ontology": ownership_entries(
+            fault_candidates(row.get("benchmark_version")),
+            row.get("scenario_name"),
+        ),
         "resources": [{"id": item.id, "kind": str(item.kind)} for item in resources],
     }
 

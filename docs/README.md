@@ -33,6 +33,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Goal | Read | Type |
 | --- | --- | --- |
 | Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
+| Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
 | Size hosts and `batch_size` from measured scenario startup cost | [Scenario startup performance](benchmarks/scenario_perf.md) | Reference |

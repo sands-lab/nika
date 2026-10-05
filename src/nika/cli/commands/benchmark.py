@@ -137,8 +137,14 @@ def load_catalog_rows(
 
 
 @benchmark_app.command("releases")
-def benchmark_releases() -> None:
-    """List frozen releases and run preflight verification for each."""
+def benchmark_releases(
+    all_releases: bool = typer.Option(
+        False,
+        "--all",
+        help=f"Preflight every release (default: only {DEFAULT_RELEASE_VERSION}).",
+    ),
+) -> None:
+    """List frozen releases and run preflight verification on the latest one."""
     versions = list_releases()
     if not versions:
         typer.echo("No releases found under benchmark/releases/")
@@ -151,6 +157,9 @@ def benchmark_releases() -> None:
                 f"Use --release {DEFAULT_RELEASE_VERSION}.",
                 fg=typer.colors.YELLOW,
             )
+            continue
+        if not all_releases and version != DEFAULT_RELEASE_VERSION:
+            typer.echo(f"SKIP {version}: pass --all to preflight")
             continue
         try:
             split = _default_split_for_version(version)

@@ -8,7 +8,6 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from nika.workflows.benchmark.release import ReleaseError, load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import expand_trials, is_valid_trial, trial_dir
 from nika.workflows.leaderboard.meta_input import (
@@ -49,12 +48,6 @@ def test_curated_rows_are_subset_of_0_2_0_test_split() -> None:
             f"curated row not in 0.2.0 test.yaml: "
             f"{row.get('scenario')} / {row.get('problem')} / {row.get('topo_size')}"
         )
-
-
-@pytest.mark.contract
-def test_deprecated_0_1_0_message_points_to_0_2_0() -> None:
-    with pytest.raises(ReleaseError, match=r"0\.2\.0"):
-        load_release("0.1.0", split="test")
 
 
 @pytest.mark.contract

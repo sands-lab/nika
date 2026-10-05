@@ -71,7 +71,7 @@ def ground_truth_for_multi_case(
         )
     sub_faults: list[Any] = []
     for problem in problems:
-        cls = get_problem_class(problem)
+        cls = get_problem_class(problem, scenario)
         if cls is None:
             raise UnresolvedRootCauseError(f"Unknown failure {problem!r}.")
         instance = cls.__new__(cls)
@@ -96,7 +96,7 @@ def ground_truth_for_case(
     from nika.problems.rca.inventory import load_offline_net_env
     from nika.problems.registry import get_problem_class
 
-    cls = get_problem_class(problem)
+    cls = get_problem_class(problem, scenario)
     if cls is None:
         raise UnresolvedRootCauseError(f"Unknown failure {problem!r}.")
     env = net_env if net_env is not None else load_offline_net_env(scenario, topo_size)

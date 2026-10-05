@@ -9,9 +9,7 @@ from nika.workflows.benchmark.load_config import normalize_benchmark_row
 pytestmark = pytest.mark.contract
 
 
-@pytest.mark.parametrize(
-    "scenario", ["dc_clos_service", "ospf_enterprise_dhcp", "p4_counter"]
-)
+@pytest.mark.parametrize("scenario", ["dc_clos_service", "ospf_enterprise_dhcp"])
 def test_legacy_scenario_is_rejected(scenario: str) -> None:
     with pytest.raises(ValueError):
         normalize_benchmark_row(
