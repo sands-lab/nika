@@ -14,6 +14,23 @@ leaderboard_app = typer.Typer(
 )
 
 
+@leaderboard_app.command("validate")
+def leaderboard_validate(
+    package: Path = typer.Argument(..., help="Scores package directory to validate."),
+) -> None:
+    """Validate a scores package locally or in leaderboard GitHub CI."""
+    from nika.workflows.leaderboard.validate import validate_leaderboard_submission
+
+    report = validate_leaderboard_submission(package)
+    for warning in report.warnings:
+        typer.secho(warning, fg=typer.colors.YELLOW, err=True)
+    if not report.ok:
+        for error in report.errors:
+            typer.secho(error, fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Validated scores package: {package}")
+
+
 @leaderboard_app.command("template")
 def leaderboard_template(
     out: Path = typer.Option(
@@ -29,9 +46,7 @@ def leaderboard_template(
     path = write_submission_templates(out)
     typer.echo(f"Wrote submission templates under: {path}")
     typer.echo("Edit metadata.yaml and README.md, then:")
-    typer.echo(
-        f"  nika leaderboard submit --result_dir … --submission {path}"
-    )
+    typer.echo(f"  nika leaderboard submit --result_dir … --submission {path}")
 
 
 @leaderboard_app.command("submit")
@@ -42,17 +57,33 @@ def leaderboard_submit(
         envvar=ENV_RESULT_DIR,
         help="Finished official release-run directory (contains run.json + trials/).",
     ),
-    submission: Path = typer.Option(
-        ...,
+    submission: Optional[Path] = typer.Option(
+        None,
         "--submission",
         help="Directory with edited metadata.yaml + README.md "
         "(see `nika leaderboard template`).",
+    ),
+    name: Optional[str] = typer.Option(
+        None,
+        "--name",
+        help="Entry name; use with --authors instead of --submission.",
+    ),
+    authors: Optional[str] = typer.Option(
+        None,
+        "--authors",
+        help="Authors for an automatically generated submission.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Pack and validate locally without creating remote PRs.",
     ),
     out: Optional[Path] = typer.Option(
         None,
         "--out",
         help="Output scores package directory "
         "(default: {result_dir}/{YYYYMMDD}_{slug}/). "
+        "Directory name must match YYYYMMDD_<slug> for the entry name. "
         "Trajectories land in a sibling {name}_trajectories/ directory.",
     ),
     repo: str = typer.Option(
@@ -115,6 +146,9 @@ def leaderboard_submit(
         result = submit_leaderboard_package(
             result_dir,
             submission_dir=submission,
+            name=name,
+            authors=authors,
+            dry_run=dry_run,
             out_dir=out,
             repo=repo,
             draft=draft,
@@ -132,6 +166,12 @@ def leaderboard_submit(
     typer.echo(f"Packed scores package: {result.package_dir}")
     if result.trajectories_dir is not None:
         typer.echo(f"Packed trajectories package: {result.trajectories_dir}")
+    if dry_run:
+        typer.echo("Local preflight complete. No remote PRs created.")
+        if result.remote_path:
+            typer.echo(f"GitHub destination: {repo}/{result.remote_path}")
+        if result.trajectories_remote_path:
+            typer.echo(f"HF destination: {traj_repo}/{result.trajectories_remote_path}")
 
     if result.pr_url:
         typer.echo(f"Pushed {result.remote_path} on branch {result.branch}")

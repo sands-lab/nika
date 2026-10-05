@@ -142,8 +142,8 @@ def test_release_submit_packs_validates_and_opens_prs(
             )
 
         monkeypatch.setattr(
-            "nika.workflows.leaderboard.submit.hf.ensure_hf_token",
-            lambda: "hf_test_token",
+            "nika.workflows.leaderboard.submit.hf.ensure_hf_auth",
+            lambda _repo: None,
         )
         monkeypatch.setattr(
             "nika.workflows.leaderboard.submit.hf.upload_folder_create_pr",

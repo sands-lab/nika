@@ -481,8 +481,8 @@ class TestReleaseRunToLeaderboardPackE2E:
             lambda **kwargs: "https://github.com/sands-lab/nika-leaderboard/pull/1",
         )
         monkeypatch.setattr(
-            "nika.workflows.leaderboard.submit.hf.ensure_hf_token",
-            lambda: "hf_test",
+            "nika.workflows.leaderboard.submit.hf.ensure_hf_auth",
+            lambda _repo: None,
         )
 
         def fake_hf_upload(**kwargs):
