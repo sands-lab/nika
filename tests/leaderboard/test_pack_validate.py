@@ -296,6 +296,81 @@ def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
 
 
+def test_cli_submit_generates_metadata_and_validates_offline(
+    mini_release_env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+    from nika.cli.main import app
+    from nika.workflows.leaderboard.validate_trajectories import (
+        validate_trajectory_package,
+    )
+
+    release, result_dir = mini_release_env
+
+    def remote_auth(*_a, **_kw):
+        pytest.fail("--dry-run must not authenticate or write to remote services")
+
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.gh.ensure_gh_auth", remote_auth
+    )
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.hf.ensure_hf_auth", remote_auth
+    )
+    args = [
+        "leaderboard",
+        "submit",
+        "--result_dir",
+        str(result_dir),
+        "--name",
+        "Quick Agent",
+        "--authors",
+        "NIKA Test",
+        "--dry-run",
+    ]
+    runner = CliRunner()
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert "Local preflight complete" in result.output
+    package = next(p for p in result_dir.glob("*_quick_agent") if p.is_dir())
+    metadata = load_metadata_file(package / METADATA_FILENAME)
+    assert metadata.info.authors == "NIKA Test"
+    assert metadata.agent.model == "mock-v1"
+    assert metadata.agent.framework == "mock"
+    assert "Model: mock-v1" in (package / README_FILENAME).read_text()
+    assert f"submissions/{release.version}/{package.name}" in result.output
+    assert f"trajectories/{release.version}/{package.name}" in result.output
+
+    # An explicit original output path keeps both identities paired on a later retry.
+    original = result_dir / "20260101_quick_agent"
+    retry = runner.invoke(app, [*args, "--skip-github", "--out", str(original)])
+    assert retry.exit_code == 0, retry.output
+    identity = yaml.safe_load(_identity_path(original).read_text())
+    assert identity["trajectories_relpath"] == (
+        f"trajectories/{release.version}/{original.name}"
+    )
+    assert validate_trajectory_package(
+        original.parent / f"{original.name}_trajectories",
+        scores_dir=original,
+    ).ok
+
+    invalid_out = runner.invoke(app, [*args, "--out", str(result_dir / "trials")])
+    assert invalid_out.exit_code == 1
+    assert "YYYYMMDD_<slug>" in invalid_out.output
+    assert (result_dir / "run.json").is_file()
+    assert list((result_dir / "trials").iterdir())
+
+    # The archive workflow runs this exact public CLI on the scores package.
+    validated = runner.invoke(app, ["leaderboard", "validate", str(package)])
+    assert validated.exit_code == 0, validated.output
+    metrics_path = package / RESULTS_DIRNAME / METRICS_FILENAME
+    metrics = json.loads(metrics_path.read_text())
+    metrics["mean_rca_f1"] = 0.0
+    metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+    invalid = runner.invoke(app, ["leaderboard", "validate", str(package)])
+    assert invalid.exit_code == 1
+    assert "mean_rca_f1" in invalid.output
+
+
 class TestLeaderboardPackValidate:
     def test_pack_rejects_missing_metadata(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env

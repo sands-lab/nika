@@ -11,9 +11,26 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 - A finished official `nika benchmark run --release …` against a current (non-deprecated) frozen release
 - Authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope)
-- A Hugging Face write token in the repo-root `.env` as `HF_TOKEN`. `uv sync` installs `huggingface_hub`. Optional: install the [`hf`](https://huggingface.co/docs/huggingface_hub/guides/cli) CLI for admin merge commands.
+- Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment / repo-root `.env`. Use a token that permits proposing dataset changes. You do not need collaborator access to the public dataset to open a PR. `uv sync` installs `huggingface_hub` and `hf`.
 
-## Submit a release run
+## Submit with one command
+
+After completing the official release run and logging in to both platforms:
+
+```shell
+uv run nika leaderboard submit --result_dir results/my-run \
+  --name "My Agent" --authors "Your Name"
+```
+
+The command generates `metadata.yaml` and a short README using your name and authors, plus the model and agent framework recorded in the run. It packs and validates both packages, checks both accounts, then opens the GitHub scores PR and Hugging Face trajectories PR. Users without GitHub push access submit through a fork. With HTTPS, git uses the `gh` credentials; with SSH, you need a working GitHub SSH key. If you have no git author configured, the command uses your GitHub login for the submission commit.
+
+To inspect packages before uploading, add `--dry-run` to the same command. This packs and validates locally, prints both destination paths, and requires no remote authentication.
+
+Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
+
+## Submit with custom metadata
+
+Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
 # Use a current frozen release when published. 0.1.0 is deprecated; use 0.2.0.
@@ -25,6 +42,7 @@ nika leaderboard template -o results/my-run/submission
 nika leaderboard submit --result_dir results/my-run \
   --submission results/my-run/submission
 # optional:
+#   --dry-run
 #   --draft
 #   --skip-github / --skip-trajectories
 #   --traj-repo Zhihao98/nika-trajectories
@@ -33,6 +51,10 @@ nika leaderboard submit --result_dir results/my-run \
 ```
 
 `submit` packs scores into `{result_dir}/{YYYYMMDD}_{slug}/` and trajectories into a sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens a GitHub PR under `submissions/<release_version>/{YYYYMMDD}_{slug}/` and a Hugging Face dataset PR under `trajectories/<release_version>/{YYYYMMDD}_{slug}/`. Pack or validate failures print an error and stop before any remote submit.
+
+Authentication failures also stop before creating either PR. An upload can still fail after the GitHub PR opens, for example because of a network error or Hub upload permissions. The error prints the existing GitHub PR URL. Retry the same command with `--skip-github --out <original-scores-package-directory>` as printed in the error. This uploads trajectories under the original package name even when retrying on another date. The `--out` directory name must be `YYYYMMDD_<slug>` with the slug derived from the entry name.
+
+`--skip-validate` skips local checks only. GitHub CI still validates scores. A run containing only selected tasks or a single trial per case cannot satisfy the full release coverage unless the result directory already contains all required trials. For release 0.2.0, the test split requires 85 cases × 3 trials = 255 finished slots; the dev split requires 84 × 3 = 252. Agent failures and timeouts can count as finished slots with zero primary score. Infrastructure or grading errors need repair and rerun before submission.
 
 Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on those pairs.
 

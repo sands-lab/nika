@@ -160,7 +160,16 @@ def ensure_fork(repo: str) -> str:
     if probe.returncode == 0 and (probe.stdout or "").strip():
         return (probe.stdout or "").strip()
     run_command(
-        [gh, "repo", "fork", repo, "--default-branch-only", "--fork-name", name],
+        [
+            gh,
+            "repo",
+            "fork",
+            repo,
+            "--default-branch-only",
+            "--fork-name",
+            name,
+            "--clone=false",
+        ],
     )
     # Resolve again (org forks / rename edge cases).
     probe = run_command(
@@ -188,7 +197,14 @@ def ensure_fork(repo: str) -> str:
 def git_clone(url: str, dest: Path, *, depth: int | None = 1) -> None:
     git = require_git()
     dest.parent.mkdir(parents=True, exist_ok=True)
-    args = [git, "clone"]
+    args = [
+        git,
+        "-c",
+        "credential.https://github.com.helper=",
+        "-c",
+        "credential.https://github.com.helper=!gh auth git-credential",
+        "clone",
+    ]
     if depth is not None:
         args.extend(["--depth", str(depth)])
     args.extend([url, str(dest)])
@@ -212,8 +228,24 @@ def git_commit(repo_dir: Path, message: str) -> bool:
     if not status.stdout:
         return False
     run_command([git, "add", "-A"], cwd=repo_dir)
+    identity_args: list[str] = []
+    missing = [
+        key
+        for key in ("user.name", "user.email")
+        if not run_command(
+            [git, "config", "--get", key], cwd=repo_dir, check=False
+        ).stdout
+    ]
+    if missing:
+        login = current_login()
+        defaults = {
+            "user.name": login,
+            "user.email": f"{login}@users.noreply.github.com",
+        }
+        for key in missing:
+            identity_args.extend(["-c", f"{key}={defaults[key]}"])
     run_command(
-        [git, "commit", "-m", message],
+        [git, *identity_args, "commit", "-m", message],
         cwd=repo_dir,
     )
     return True
@@ -221,7 +253,20 @@ def git_commit(repo_dir: Path, message: str) -> bool:
 
 def git_push(repo_dir: Path, *, remote: str = "origin", branch: str) -> None:
     git = require_git()
-    run_command([git, "push", "-u", remote, branch], cwd=repo_dir)
+    run_command(
+        [
+            git,
+            "-c",
+            "credential.https://github.com.helper=",
+            "-c",
+            "credential.https://github.com.helper=!gh auth git-credential",
+            "push",
+            "-u",
+            remote,
+            branch,
+        ],
+        cwd=repo_dir,
+    )
 
 
 def create_pull_request(

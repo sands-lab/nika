@@ -167,8 +167,8 @@ def test_submit_hf_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     (traj / "trials").mkdir()
 
     monkeypatch.setattr(
-        "nika.workflows.leaderboard.submit.hf.ensure_hf_token",
-        lambda: "hf_test",
+        "nika.workflows.leaderboard.submit.hf.ensure_hf_auth",
+        lambda _repo: None,
     )
 
     def fake_upload(**kwargs):
@@ -328,10 +328,11 @@ def test_submit_uses_fork_when_no_push(
         "nika.workflows.leaderboard.submit.gh.current_login",
         lambda: "tester",
     )
+    clones: list[str] = []
     monkeypatch.setattr(
         "nika.workflows.leaderboard.submit.gh.git_clone",
         lambda url, dest, *, depth=1: (
-            dest.mkdir(parents=True) or (dest / ".git").mkdir()
+            clones.append(url) or dest.mkdir(parents=True) or (dest / ".git").mkdir()
         ),
     )
     monkeypatch.setattr(
@@ -346,9 +347,10 @@ def test_submit_uses_fork_when_no_push(
         "nika.workflows.leaderboard.submit.gh.git_commit",
         lambda *_a, **_k: True,
     )
+    pushes: list[str] = []
     monkeypatch.setattr(
         "nika.workflows.leaderboard.submit.gh.git_push",
-        lambda *_a, **_k: None,
+        lambda _d, *, branch, remote: pushes.append(remote),
     )
     monkeypatch.setattr(
         "nika.workflows.leaderboard.submit.gh.create_pull_request",
@@ -363,3 +365,72 @@ def test_submit_uses_fork_when_no_push(
     )
     assert result.used_fork is True
     assert result.head == "tester:submission/20260101_unit_agent"
+    assert clones == ["mock://sands-lab/nika-leaderboard"]
+    assert pushes == ["mock://tester/nika-leaderboard"]
+
+
+def test_hf_auth_failure_stops_before_github(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.workflows.leaderboard.hf_cli import HuggingFaceCliError
+
+    pkg = _write_minimal_package(tmp_path / "20260101_unit_agent")
+    traj = tmp_path / "20260101_unit_agent_trajectories"
+    traj.mkdir()
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.gh.ensure_gh_auth", lambda: None
+    )
+
+    def reject_auth(_repo):
+        raise HuggingFaceCliError("expired token")
+
+    def remote_write(**_kwargs):
+        pytest.fail("must not create a GitHub PR when HF authentication fails")
+
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.hf.ensure_hf_auth", reject_auth
+    )
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit._submit_github", remote_write
+    )
+    with pytest.raises(LeaderboardSubmitError, match="expired token"):
+        _submit_packed_package(pkg, skip_validate=True)
+
+
+def test_hf_upload_failure_reports_existing_github_pr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.workflows.leaderboard.submit import SubmitResult
+
+    pkg = _write_minimal_package(tmp_path / "20260101_unit_agent")
+    (tmp_path / "20260101_unit_agent_trajectories").mkdir()
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.gh.ensure_gh_auth", lambda: None
+    )
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.hf.ensure_hf_auth", lambda _r: None
+    )
+    pr_url = "https://github.com/sands-lab/nika-leaderboard/pull/42"
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit._submit_github",
+        lambda *a, **kw: SubmitResult(
+            repo=kw["repo"],
+            package_dir=pkg,
+            remote_path=None,
+            branch=None,
+            head=None,
+            pr_url=pr_url,
+            used_fork=False,
+        ),
+    )
+
+    def fail_upload(*_a, **_kw):
+        raise LeaderboardSubmitError("upload interrupted")
+
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit._submit_trajectories", fail_upload
+    )
+    with pytest.raises(LeaderboardSubmitError) as exc:
+        _submit_packed_package(pkg, skip_validate=True)
+    assert pr_url in str(exc.value)
+    assert "--skip-github" in str(exc.value)

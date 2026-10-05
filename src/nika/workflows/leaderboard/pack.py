@@ -55,7 +55,6 @@ from nika.workflows.leaderboard.schema import (
 from nika.workflows.leaderboard.secrets import scan_value_for_issues
 from nika.workflows.leaderboard.trial_results import (
     TrialResultError,
-    read_json_object,
     trial_result_from_dir,
 )
 
@@ -134,13 +133,6 @@ def _relative_result_hint(result_dir: Path) -> str:
         return result_dir.name
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        return read_json_object(path)
-    except TrialResultError as exc:
-        raise LeaderboardPackError(str(exc)) from exc
-
-
 def _write_json(path: Path, payload: Any) -> None:
     if hasattr(payload, "model_dump"):
         data = payload.model_dump(mode="json")
@@ -167,26 +159,26 @@ def _resolve_metadata(
     *,
     submission_dir: str | Path | None,
     metadata: SubmissionMetadata | dict[str, Any] | None,
-) -> tuple[SubmissionMetadata, str | None, str | None]:
-    """Return metadata plus optional source paths for metadata.yaml / README.md."""
+) -> tuple[SubmissionMetadata, str | None]:
+    """Return metadata plus an optional source path for README.md."""
     if submission_dir is not None:
         try:
-            meta, meta_path, readme_path = load_submission_dir(submission_dir)
+            meta, _meta_path, readme_path = load_submission_dir(submission_dir)
         except MetaInputError as exc:
             raise LeaderboardPackError(str(exc)) from exc
-        return meta, str(meta_path), str(readme_path)
+        return meta, str(readme_path)
 
     if metadata is None:
         raise LeaderboardPackError(
             "submission metadata is required (pass --submission DIR, or metadata=...)"
         )
     if isinstance(metadata, SubmissionMetadata):
-        return metadata, None, None
+        return metadata, None
     if isinstance(metadata, dict):
         try:
             from nika.workflows.leaderboard.meta_input import parse_metadata_payload
 
-            return parse_metadata_payload(metadata), None, None
+            return parse_metadata_payload(metadata), None
         except MetaInputError as exc:
             raise LeaderboardPackError(str(exc)) from exc
     raise LeaderboardPackError("metadata must be SubmissionMetadata or a dict")
@@ -308,14 +300,7 @@ def pack_leaderboard_submission(
         trial_results.append(result)
         session_by_trial_id[trial.trial_id] = session_dir
 
-    run_json_path = results_root / "run.json"
-    if not run_json_path.is_file():
-        legacy = results_root / "benchmark_job.json"
-        if not legacy.is_file():
-            raise LeaderboardPackError(f"missing run.json under {results_root}")
-        run_json_path = legacy
-
-    meta_model, _meta_src, readme_src = _resolve_metadata(
+    meta_model, readme_src = _resolve_metadata(
         submission_dir=submission_dir,
         metadata=metadata,
     )
@@ -332,7 +317,18 @@ def pack_leaderboard_submission(
 
     scoring = release.scoring if isinstance(release.scoring, dict) else {}
     created = _utc_now()
-    package_name = _package_folder_name(meta_model, when=created)
+    package_name = (
+        Path(out_dir).name
+        if out_dir is not None
+        else _package_folder_name(meta_model, when=created)
+    )
+    if out_dir is not None and not re.fullmatch(
+        rf"\d{{8}}_{re.escape(slugify_name(meta_model.info.name))}",
+        package_name,
+    ):
+        raise LeaderboardPackError(
+            "--out directory name must be YYYYMMDD_<slug> matching info.name"
+        )
     try:
         traj_relpath = remote_trajectories_relpath(release.version, package_name)
     except ValueError as exc:
