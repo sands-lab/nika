@@ -50,7 +50,7 @@ _NIKA_FILENAME = "nika.jsonl"
 # ``messages.jsonl`` events that only a running agent produces: LangChain/SDK
 # ``llm_*`` / ``tool_*``, Claude CLI ``assistant`` stream events, Codex CLI
 # ``item.*`` events, and the frozen diagnosis. Setup markers such as
-# ``mcp_config`` / ``subprocess_start`` / ``agent_start`` do not count.
+# ``mcp_config`` / ``prompt`` / ``subprocess_start`` / ``agent_start`` do not count.
 _AGENT_ACTIVITY_EVENTS = frozenset(
     {
         "llm_start",

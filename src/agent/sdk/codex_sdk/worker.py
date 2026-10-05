@@ -19,6 +19,7 @@ from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
+    render_prompt,
     tool_event_payload,
 )
 from agent.utils.mcp_client import load_session_mcp_config
@@ -268,6 +269,14 @@ class CodexSdkWorker:
 
         self._setup_workspace()
 
+        self._logger.log(
+            "prompt",
+            {
+                "text": render_prompt(
+                    [("developer", self.system_prompt), ("human", prompt)]
+                )
+            },
+        )
         self._logger.log(
             "llm_start",
             {

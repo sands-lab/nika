@@ -488,6 +488,7 @@ class CodexWorker:
             prompt,
         ]
 
+        self._logger.log("prompt", {"text": prompt})
         self._logger.log(
             "subprocess_start",
             {"command": " ".join(cmd[:6] + ["..."]), "phase": self.phase},

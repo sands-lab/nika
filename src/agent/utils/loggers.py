@@ -170,6 +170,21 @@ def log_llm_retry(
     logger.log("llm_retry", payload)
 
 
+def render_prompt(turns: list[tuple[str, str]]) -> str:
+    """Role-labelled plain text of a phase's initial model input (``prompt`` row)."""
+    return "\n\n".join(f"[{role}]\n{content}" for role, content in turns)
+
+
+def _render_messages(messages: list[BaseMessage]) -> str:
+    turns = []
+    for message in messages:
+        content = message.content
+        if not isinstance(content, str):
+            content = json.dumps(content, ensure_ascii=False, default=str)
+        turns.append((message.type, content))
+    return render_prompt(turns)
+
+
 def _resolve_tool_name(output: Any, kwargs: dict[str, Any]) -> str | None:
     name = kwargs.get("name")
     if name:
@@ -233,6 +248,7 @@ class AgentCallbackLogger(BaseCallbackHandler):
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
         self._pending_tool_calls = PendingToolCallTracker()
         self._active_llm_tokens: list[Token] = []
+        self._prompt_logged = False
         # Latest non-empty model text; the report when max_steps runs out.
         self.last_text = ""
 
@@ -258,6 +274,11 @@ class AgentCallbackLogger(BaseCallbackHandler):
         **kwargs,
     ) -> None:
         run_fields = _run_id_field(kwargs)
+        if not self._prompt_logged:
+            # ``llm_start`` keeps only the newest message; record the phase's
+            # initial input (system prompt + task) once in full.
+            self._prompt_logged = True
+            self._logger.log("prompt", {"text": _render_messages(messages[0])})
         self._logger.log(
             "llm_start",
             {

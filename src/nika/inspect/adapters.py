@@ -492,7 +492,7 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
             ),
         )
     # Codex / CLI bookkeeping — keep off the Agent/Other flood.
-    if event in {"mcp_config", "subprocess_start", "thread.started"}:
+    if event in {"mcp_config", "prompt", "subprocess_start", "thread.started"}:
         return (
             "system",
             event.replace(".", " "),
@@ -615,11 +615,14 @@ def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
 def _annotate_claude_request_durations(
     entries: list[dict[str, Any]], events: list[CanonicalTraceEvent]
 ) -> None:
-    """Set ``duration_ms`` on the first llm row of each Claude API response.
+    """Annotate Claude API responses with request and per-block timing.
 
     Claude stream-json has no request bookends. Content blocks of one response
     share ``message.id``; the request is sent right after the preceding entry
-    (tool results or ``system init``) and completes with its last block.
+    (tool results or ``system init``) and completes with its last block. Each
+    block is logged once fully generated, so its generation starts where the
+    previous block of the same response ended (``start_timestamp``). The
+    request elapsed goes on the response's first llm row (``duration_ms``).
     """
     groups: dict[str, list[int]] = {}
     for i, entry in enumerate(entries):
@@ -630,11 +633,18 @@ def _annotate_claude_request_durations(
             if isinstance(message_id, str) and message_id:
                 groups.setdefault(message_id, []).append(i)
     for indices in groups.values():
+        if indices[0] == 0:
+            continue
+        request_start = _timestamp(entries[indices[0] - 1].get("timestamp"))
+        block_start = request_start
+        for i in indices:
+            events[i].start_timestamp = block_start
+            block_start = events[i].timestamp
         target = next((i for i in indices if events[i].kind == "llm"), None)
-        if indices[0] == 0 or target is None:
+        if target is None or request_start is None:
             continue
         try:
-            start = datetime.fromisoformat(entries[indices[0] - 1]["timestamp"])
+            start = datetime.fromisoformat(request_start)
             end = datetime.fromisoformat(entries[indices[-1]]["timestamp"])
             elapsed_ms = (end - start).total_seconds() * 1000
         except (KeyError, TypeError, ValueError):
@@ -643,11 +653,33 @@ def _annotate_claude_request_durations(
             events[target].duration_ms = elapsed_ms
 
 
+def _attach_phase_prompts(
+    entries: list[dict[str, Any]], events: list[CanonicalTraceEvent]
+) -> None:
+    """Show a phase's ``prompt`` row as the input of its first LLM turn.
+
+    Agents log the phase's initial model input (system prompt + task) once as
+    a ``prompt`` row, which has no LLM turn of its own. Kept unslimmed so the
+    full prompt is readable. Only the phase's first model output qualifies;
+    if that is a tool call, no turn gets the prompt.
+    """
+    pending: tuple[Any, str] | None = None
+    for entry, event in zip(entries, events):
+        if entry.get("event") == "prompt" and isinstance(entry.get("text"), str):
+            pending = (entry.get("phase"), entry["text"])
+        elif pending is not None and event.kind in {"llm", "tool_call"}:
+            phase, text = pending
+            if event.kind == "llm" and entry.get("phase") == phase:
+                event.raw["prompt"] = text
+            pending = None
+
+
 def load_agent_events(session_dir: Path) -> list[CanonicalTraceEvent]:
     path = session_dir / "messages.jsonl"
     entries = list(iter_jsonl(path))
     events = [adapt_agent_event(entry, index=i) for i, entry in enumerate(entries)]
     _annotate_claude_request_durations(entries, events)
+    _attach_phase_prompts(entries, events)
     return events
 
 
