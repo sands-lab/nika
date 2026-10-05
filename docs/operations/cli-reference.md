@@ -245,7 +245,7 @@ Implements the experiment pipeline: start env → inject → agent → close ses
 Omit the `SCENARIO` positional argument to run a case matrix. Pass **`--release`** (alias **`-d`**) for a frozen suite or **`--config`** for a YAML file or candidate pool. With neither flag and no `benchmark.release` in `config/nika.yaml`, NIKA runs the candidate pool at `benchmark/working/pool`.
 
 ```shell
-# Frozen release (0.1.0 is deprecated; use 0.2.0)
+# Frozen release
 nika benchmark releases
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 
@@ -255,7 +255,7 @@ nika benchmark run                              # defaults to benchmark/working/
 nika benchmark run --config benchmark/working/pool --batch-size 4
 ```
 
-**Release preflight**: `nika benchmark run --release …` and `nika benchmark releases` check case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
+**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.2.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
 
 ### Task ids
 

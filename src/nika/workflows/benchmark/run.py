@@ -451,7 +451,7 @@ def validate_inject_params(
             problem_inst.resolve_params(nested)
         return
 
-    problem_cls = get_problem_class(resolved_problems[0])
+    problem_cls = get_problem_class(resolved_problems[0], scenario)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {resolved_problems[0]!r}")
     params_class = getattr(problem_cls, "Params", None)

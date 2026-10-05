@@ -162,7 +162,7 @@ SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 K
 
 Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
-Legacy id `rip_small_internet_vpn` (and the short-lived `enterprise_branch_vpn`) resolve to this scenario. They are not listed by `nika env list`. Frozen release `0.1.0` still records the old RIP mini-Internet lab hash and host-VPN selected case; regenerate a release when you publish the new lab.
+The ID `rip_small_internet_vpn` names the original 0.1.0 RIP mini-Internet lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp_*` scenarios are carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay and per-role VRFs.
 
@@ -234,7 +234,7 @@ Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs in
 uv run nika env run p4_dc_fabric -s s
 ```
 
-Legacy id `p4_counter` resolves to this scenario. It is not listed by `nika env list`. Frozen release `0.1.0` still records the old L2 counter lab hash; regenerate a release when you publish the new lab.
+The ID `p4_counter` names the original 0.1.0 L2 counter lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 ### `p4_dc_gateway`
 

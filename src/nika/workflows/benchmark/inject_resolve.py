@@ -8,7 +8,7 @@ from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.problems.base import ProblemBase
-from nika.problems.registry import list_avail_problem_instances
+from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.problems.support.benchmark_targets import (
     InjectTargetContext,
     InjectValidationContext,
@@ -283,16 +283,15 @@ def validate_benchmark_case(
     """Raise ValueError if a benchmark row is inconsistent with tags or topology."""
     from nika.net_env.net_env_pool import resolve_scenario_id, scenario_tags
 
-    problems = list_avail_problem_instances()
     canonical = resolve_scenario_id(scenario)
     try:
         registered_tags = scenario_tags(canonical)
     except ValueError:
         raise ValueError(f"Unknown scenario {scenario!r}") from None
-    if problem not in problems:
+    problem_cls = get_problem_class(problem, canonical)
+    if problem_cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
 
-    problem_cls = problems[problem]
     if not problem_cls.is_compatible(canonical):
         compatible_columns = problem_cls.COMPATIBLE_COLUMNS
         raise ValueError(

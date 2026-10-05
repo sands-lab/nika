@@ -17,6 +17,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 |-----------|---------|---------|
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
 | `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, release, trials, sandbox benchmark runs; runner YAML load contracts |
+| `tests/compat/` | `src/nika/net_env/compat/` + `src/nika/problems/compat/` + `benchmark/releases/0.1.0/` | 0.1.0 release contracts and isolation of the restored labs and failures |
 | `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
 | `tests/ci/` | GitHub Actions smoke | Dual-arch image build, light startup, failure/pipeline/clab curated jobs |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
@@ -156,7 +157,7 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 
 | Module | Purpose |
 |--------|---------|
-| `test_release.py` | Deprecated `0.1.0` rejection; freeze/preflight/job metadata on mini releases |
+| `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |

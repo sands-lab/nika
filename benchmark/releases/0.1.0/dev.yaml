@@ -1,6 +1,6 @@
 seed: 42
 cases:
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: arp_acl_block
   inject:
@@ -10,7 +10,7 @@ cases:
       kind: node
       node: pc_2_1_1_1
     fault_type: arp_acl_block
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: arp_cache_poisoning
   inject:
@@ -20,7 +20,7 @@ cases:
       kind: node
       node: pc_2_1_1_1
     fault_type: arp_cache_poisoning
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: bgp_acl_block
   inject:
@@ -30,7 +30,7 @@ cases:
       kind: node
       node: leaf_router_0_1
     fault_type: bgp_acl_block
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: bgp_asn_misconfig
   inject:
@@ -40,7 +40,7 @@ cases:
       kind: node
       node: leaf_router_0_0
     fault_type: bgp_asn_misconfig
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: bgp_blackhole_route_leak
   inject:
@@ -50,7 +50,7 @@ cases:
       kind: node
       node: leaf_router_0_0
     fault_type: bgp_blackhole_route_leak
-- scenario: dc_clos_service
+- scenario: dc_clos
   topo_size: s
   problem: bgp_hijacking
   inject:
@@ -60,7 +60,7 @@ cases:
       kind: node
       node: leaf_router_0_0
     fault_type: bgp_hijacking
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: bgp_missing_route_advertisement
   inject:
@@ -80,7 +80,7 @@ cases:
       kind: node
       node: switch_1
     fault_type: bmv2_switch_down
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dhcp_missing_subnet
   inject:
@@ -91,7 +91,7 @@ cases:
       kind: node
       node: dhcp_server
     fault_type: dhcp_missing_subnet
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dhcp_service_down
   inject:
@@ -102,7 +102,7 @@ cases:
       kind: node
       node: dhcp_server
     fault_type: dhcp_service_down
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dhcp_spoofed_dns
   inject:
@@ -113,7 +113,7 @@ cases:
       kind: node
       node: dhcp_server
     fault_type: dhcp_spoofed_dns
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dhcp_spoofed_gateway
   inject:
@@ -124,7 +124,7 @@ cases:
       kind: node
       node: dhcp_server
     fault_type: dhcp_spoofed_gateway
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dhcp_spoofed_subnet
   inject:
@@ -135,7 +135,7 @@ cases:
       kind: node
       node: dhcp_server
     fault_type: dhcp_spoofed_subnet
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dns_lookup_latency
   inject:
@@ -144,11 +144,10 @@ cases:
     delay_ms: '1000'
   root_causes:
   - resource:
-      kind: interface
+      kind: node
       node: dns_server
-      name: eth0
     fault_type: dns_lookup_latency
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dns_port_blocked
   inject:
@@ -158,7 +157,7 @@ cases:
       kind: node
       node: dns_server
     fault_type: dns_port_blocked
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dns_record_error
   inject:
@@ -170,7 +169,7 @@ cases:
       kind: node
       node: dns_server
     fault_type: dns_record_error
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: dns_service_down
   inject:
@@ -180,7 +179,7 @@ cases:
       kind: node
       node: dns_server
     fault_type: dns_service_down
-- scenario: sdn_clos
+- scenario: sdn_l3_clos
   topo_size: s
   problem: flow_rule_loop
   inject:
@@ -191,7 +190,7 @@ cases:
       kind: node
       node: leaf_2
     fault_type: flow_rule_loop
-- scenario: sdn_clos
+- scenario: sdn_l3_clos
   topo_size: s
   problem: flow_rule_shadowing
   inject:
@@ -201,7 +200,7 @@ cases:
       kind: node
       node: leaf_2
     fault_type: flow_rule_shadowing
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: frr_service_down
   inject:
@@ -211,17 +210,17 @@ cases:
       kind: node
       node: router_core_1
     fault_type: frr_service_down
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: host_crash
   inject:
-    host_name: pc_0_0
+    host_name: dns_pod0
   root_causes:
   - resource:
       kind: node
-      node: pc_0_0
+      node: dns_pod0
     fault_type: host_crash
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: host_incorrect_dns
   inject:
@@ -231,7 +230,7 @@ cases:
       kind: node
       node: pc_1_1_1_1
     fault_type: host_incorrect_dns
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: host_incorrect_gateway
   inject:
@@ -241,7 +240,7 @@ cases:
       kind: node
       node: pc_2_1_1_1
     fault_type: host_incorrect_gateway
-- scenario: ospf_enterprise_static
+- scenario: campus_lan
   topo_size: s
   problem: host_incorrect_ip
   inject:
@@ -252,7 +251,7 @@ cases:
       node: pc_2_1_1_1
       name: eth0
     fault_type: host_incorrect_ip
-- scenario: ospf_enterprise_static
+- scenario: campus_lan
   topo_size: s
   problem: host_incorrect_netmask
   inject:
@@ -264,19 +263,19 @@ cases:
       node: pc_2_1_1_1
       name: eth0
     fault_type: host_incorrect_netmask
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: host_ip_conflict
   inject:
-    host_name: pc_0_1
-    host_name_2: pc_0_0
+    host_name: webserver0_pod0
+    host_name_2: dns_pod0
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: dns_pod0
       name: eth0
     fault_type: host_ip_conflict
-- scenario: ospf_enterprise_static
+- scenario: campus_lan
   topo_size: s
   problem: host_missing_ip
   inject:
@@ -288,7 +287,7 @@ cases:
       node: pc_2_1_1_1
       name: eth0
     fault_type: host_missing_ip
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: host_static_blackhole
   inject:
@@ -309,7 +308,7 @@ cases:
       kind: node
       node: vpn_server_1
     fault_type: host_vpn_membership_missing
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: http_acl_block
   inject:
@@ -319,7 +318,7 @@ cases:
       kind: node
       node: pc_1_1_1_1
     fault_type: http_acl_block
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: icmp_acl_block
   inject:
@@ -329,7 +328,7 @@ cases:
       kind: node
       node: pc_2_1_1_1
     fault_type: icmp_acl_block
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: incast_traffic_network_limitation
   inject:
@@ -341,14 +340,14 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: web_server_1
-      name: eth0
+      node: server_access_router
+      name: eth2
     fault_type: incast_traffic_network_limitation
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: link_bandwidth_throttling
   inject:
-    host_name: pc_0_1
+    host_name: webserver0_pod0
     intf_name: eth0
     rate: 30kbit
     burst: 64kb
@@ -356,85 +355,100 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_1
+      node: webserver0_pod0
       name: eth0
     fault_type: link_bandwidth_throttling
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: link_detach
   inject:
-    host_name: pc_0_1
+    host_name: webserver0_pod0
     intf_name: eth0
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_1
+      node: webserver0_pod0
       name: eth0
     fault_type: link_detach
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: link_down
   inject:
-    host_name: pc_0_1
+    host_name: webserver0_pod0
     intf_name: eth0
   root_causes:
   - resource:
-      kind: interface
-      node: pc_0_1
-      name: eth0
+      kind: link
+      name: leaf_router_0_1:eth2--webserver0_pod0:eth0
     fault_type: link_down
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
   problem: link_flap
   inject:
-    host_name: pc_0_0
+    host_name: dns_pod0
     intf_name: eth0
     down_time: '30'
     up_time: '30'
   root_causes:
   - resource:
-      kind: interface
-      node: pc_0_0
-      name: eth0
+      kind: link
+      name: dns_pod0:eth0--leaf_router_0_0:eth2
     fault_type: link_flap
-- scenario: dc_clos_bgp
+- scenario: dc_clos
   topo_size: s
-  problem: link_fragmentation_disabled
+  problem: mtu_mismatch
   inject:
-    host_name: pc_0_0
+    host_name: dns_pod0
     intf_name: eth0
     mtu: '100'
   root_causes:
   - resource:
       kind: interface
-      node: pc_0_0
+      node: dns_pod0
       name: eth0
-    fault_type: link_fragmentation_disabled
-- scenario: dc_clos_bgp
+    fault_type: mtu_mismatch
+  - resource:
+      kind: interface
+      node: leaf_router_0_0
+      name: eth2
+    fault_type: mtu_mismatch
+- scenario: dc_clos
   topo_size: s
-  problem: link_high_packet_corruption
+  problem: link_packet_corruption
   inject:
-    host_name: pc_0_0
+    host_name: dns_pod0
     intf_name: eth0
     corruption_percentage: '60'
   root_causes:
   - resource:
-      kind: interface
-      node: pc_0_0
-      name: eth0
-    fault_type: link_high_packet_corruption
-- scenario: ospf_enterprise_dhcp
+      kind: link
+      name: dns_pod0:eth0--leaf_router_0_0:eth2
+    fault_type: link_packet_corruption
+- scenario: campus_lan
   topo_size: s
   problem: load_balancer_overload
   inject:
+    backend_cpu_host: backend_web_0
+    backend_probe_host: load_balancer
+    backend_url: http://20.200.0.2/small
+    client_host: pc_1_1_1_1
+    concurrency: '160'
+    control_url: http://web0.local/small
+    cpu_quota: '0.2'
+    duration_sec: '300'
     host_name: load_balancer
-    duration: '300'
+    load_client_hosts: pc_2_1_1_1
+    load_workers: '2'
+    probe_concurrency: '4'
+    probe_requests: '60'
+    vip_url: http://web99.local/small
+    warmup_sec: '5'
   root_causes:
   - resource:
       kind: node
       node: load_balancer
     fault_type: load_balancer_overload
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: mac_address_conflict
   inject:
@@ -456,7 +470,7 @@ cases:
       kind: node
       node: switch_7
     fault_type: mpls_label_limit_exceeded
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: ospf_acl_block
   inject:
@@ -466,7 +480,7 @@ cases:
       kind: node
       node: router_core_2
     fault_type: ospf_acl_block
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: ospf_area_misconfiguration
   inject:
@@ -476,7 +490,7 @@ cases:
       kind: node
       node: server_access_router
     fault_type: ospf_area_misconfiguration
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: ospf_neighbor_missing
   inject:
@@ -536,7 +550,7 @@ cases:
       kind: node
       node: switch_1
     fault_type: p4_table_entry_missing
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: receiver_resource_contention
   inject:
@@ -557,7 +571,7 @@ cases:
       kind: node
       node: controller
     fault_type: sdn_controller_crash
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: sender_application_delay
   inject:
@@ -567,12 +581,18 @@ cases:
       kind: node
       node: web_server_1
     fault_type: sender_application_delay
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: sender_resource_contention
   inject:
     host_name: web_server_3
     duration: '600'
+    client_host: pc_1_1_1_1
+    dst_ip: 10.200.0.6
+    small_url: http://10.200.0.6/small.bin
+    large_url: http://10.200.0.6/large.bin
+    cpu_quota: '0.05'
+    stress_cpus: '16'
   root_causes:
   - resource:
       kind: node
@@ -601,7 +621,7 @@ cases:
       kind: node
       node: controller
     fault_type: southbound_port_mismatch
-- scenario: ospf_enterprise_dhcp
+- scenario: campus_lan
   topo_size: s
   problem: web_dos_attack
   inject:

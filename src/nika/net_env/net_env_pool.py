@@ -426,9 +426,22 @@ del _topo_name, _scenario_id
 _CLASS_CACHE: dict[tuple[str, str], type[NetworkEnvBase]] = {}
 
 
+_LEGACY_010_SPECS: dict[str, NetEnvSpec] | None = None
+
+
+def legacy_010_specs() -> dict[str, NetEnvSpec]:
+    """Original 0.1.0 labs; resolvable by ID but never listed."""
+    global _LEGACY_010_SPECS
+    if _LEGACY_010_SPECS is None:
+        from nika.net_env.compat.v010 import scenario_specs
+
+        _LEGACY_010_SPECS = scenario_specs()
+    return _LEGACY_010_SPECS
+
+
 def resolve_scenario_id(scenario_name: str) -> str:
     """Validate and return a registered canonical scenario ID."""
-    if scenario_name in _NET_ENV_SPECS:
+    if scenario_name in _NET_ENV_SPECS or scenario_name in legacy_010_specs():
         return scenario_name
     raise ValueError(f"Network environment '{scenario_name}' not found in the pool.")
 
@@ -438,7 +451,8 @@ def is_enterprise_branch_scenario(scenario_name: str) -> bool:
 
 
 def _require_scenario(scenario_name: str) -> NetEnvSpec:
-    return _NET_ENV_SPECS[resolve_scenario_id(scenario_name)]
+    canonical = resolve_scenario_id(scenario_name)
+    return _NET_ENV_SPECS.get(canonical) or legacy_010_specs()[canonical]
 
 
 def _load_net_env_class(scenario_name: str, *, backend: str) -> type[NetworkEnvBase]:

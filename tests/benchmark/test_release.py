@@ -13,11 +13,8 @@ from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     ReleaseError,
     freeze_release,
-    is_deprecated_release,
     load_release,
-    parse_release_ref,
     preflight_release,
-    resolve_cases,
     verify_dev_test_isolation,
 )
 from nika.workflows.benchmark.run import run_benchmark_from_release
@@ -41,23 +38,7 @@ def _mini_cases_yaml(path: Path) -> Path:
     return path
 
 
-class TestDeprecatedRelease010:
-    def test_is_marked_deprecated(self) -> None:
-        assert is_deprecated_release("0.1.0")
-        assert is_deprecated_release(" 0.1.0 ")
-        assert not is_deprecated_release("mini")
-
-    def test_load_raises_deprecated(self) -> None:
-        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
-            load_release("0.1.0", split="dev")
-        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
-            resolve_cases("0.1.0", split="test")
-
-    def test_nika_alias_still_parses_but_load_rejects(self) -> None:
-        assert parse_release_ref("nika@0.1") == ("nika-bench", "0.1.0")
-        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
-            load_release("nika@0.1", split="test")
-
+class TestReleaseRefs:
     def test_sha256_ref_rejected(self) -> None:
         with pytest.raises(ReleaseError, match="Digest-based"):
             load_release(
@@ -293,16 +274,3 @@ class TestReleaseRunMetadata:
         assert run_trials.called
         assert run_trials.call_args.kwargs["case_timeout"] == 60
         assert "run_judge" not in run_trials.call_args.kwargs
-
-    def test_run_deprecated_release_rejected(self, tmp_path: Path) -> None:
-        with pytest.raises(ReleaseError, match="deprecated"):
-            run_benchmark_from_release(
-                release_ref="0.1.0",
-                split="test",
-                agent_type="mock",
-                llm_provider=None,
-                model="mock-v1",
-                max_steps=None,
-                result_dir=str(tmp_path / "results"),
-                check_images=False,
-            )

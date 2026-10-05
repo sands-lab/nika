@@ -33,7 +33,7 @@ Success prints both PR URLs. Maintainers still review and merge the two PRs befo
 Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
-# Use a current frozen release when published. 0.1.0 is deprecated; use 0.2.0.
+# Use the current frozen release.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission

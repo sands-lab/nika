@@ -28,7 +28,7 @@ _DOMAIN_OWNER = {
 }
 
 
-def owner_kind_for_fault(fault_type: str) -> str:
+def owner_kind_for_fault(fault_type: str, scenario_name: str | None = None) -> str:
     """Return the canonical owner kind used by ground truth and submissions.
 
     Controller-side cable faults (``link_down``, ``link_flap``,
@@ -39,7 +39,7 @@ def owner_kind_for_fault(fault_type: str) -> str:
     Remaining failures use their concrete mutated node/k8s resource, unless
     the class declares ``root_cause_owner`` (e.g. interface-owned host faults).
     """
-    cls = get_problem_class(fault_type)
+    cls = get_problem_class(fault_type, scenario_name)
     if cls is None:
         raise KeyError(f"Unknown fault type: {fault_type!r}")
     if cls.root_cause_owner:
@@ -52,10 +52,12 @@ def owner_kind_for_fault(fault_type: str) -> str:
     return _DOMAIN_OWNER.get(domain, "node_or_k8s")
 
 
-def ownership_entries(fault_types: list[str]) -> list[dict[str, str]]:
+def ownership_entries(
+    fault_types: list[str], scenario_name: str | None = None
+) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     for fault_type in sorted(set(fault_types)):
-        cls = get_problem_class(fault_type)
+        cls = get_problem_class(fault_type, scenario_name)
         if cls is None:
             raise KeyError(f"Unknown fault type: {fault_type!r}")
         # Prefer the explicit class description only. Do not fall back to
@@ -65,7 +67,7 @@ def ownership_entries(fault_types: list[str]) -> list[dict[str, str]]:
             {
                 "id": fault_type,
                 "description": description or fault_type,
-                "owner_kind": owner_kind_for_fault(fault_type),
+                "owner_kind": owner_kind_for_fault(fault_type, scenario_name),
             }
         )
     return entries
