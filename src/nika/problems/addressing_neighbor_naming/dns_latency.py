@@ -5,12 +5,12 @@ from nika.problems.base import (
     ProblemBase,
     build_verify_result,
 )
+from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import (
     all_device_names,
     choice_interface,
     prefer_named,
 )
-from nika.problems.rca.inventory import interface_on
 
 
 class DNSLookupLatencyParams(BaseModel):
@@ -24,7 +24,6 @@ class DNSLookupLatencyParams(BaseModel):
 class DNSLookupLatency(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     root_cause_name: str = "dns_lookup_latency"
-    root_cause_owner = "interface"
     description = "DNS lookups are abnormally slow."
     symptom_desc: str = "Users experience high latency when accessing web services."
     TAGS: str = ["dns", "http"]
@@ -56,7 +55,7 @@ class DNSLookupLatency(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def root_cause_resources(self, params: DNSLookupLatencyParams):
-        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+        return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSLookupLatencyParams):
         # Only the DNS server interface is mutated. Clients keep their own

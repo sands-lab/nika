@@ -223,9 +223,8 @@ cases:
   topo_size: m
   root_causes:
   - resource:
-      kind: interface
+      kind: node
       node: dns_server
-      name: eth0
     fault_type: dns_lookup_latency
 - scenario: campus_lan
   problem: dns_port_blocked

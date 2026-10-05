@@ -52,7 +52,7 @@ Rows follow [`dev.yaml`](dev.yaml) order. Labels such as `dev-001` locate rows i
 | `dev-014` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_dns`: DHCP distributes a spoofed DNS server option. | node `dhcp_server` |
 | `dev-015` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_spoofed_gateway`: DHCP distributes a spoofed default gateway. | node `dhcp_server` |
 | `dev-016` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dhcp_spoofed_subnet`: DHCP distributes a spoofed subnet mask to clients. | node `dhcp_server` |
-| `dev-017` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `dns_lookup_latency`: DNS lookups are abnormally slow. | interface `dns_pod0:eth0` |
+| `dev-017` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `dns_lookup_latency`: DNS lookups are abnormally slow. | node `dns_pod0` |
 | `dev-018` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `m` | `dns_port_blocked`: DNS service port is blocked. | node `dns_pod0` |
 | `dev-019` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `l` | `dns_record_error`: DNS returns an incorrect record for a name. | node `dns_pod0` |
 | `dev-020` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `dns_service_down`: DNS server process is down. | node `dns_pod0` |
@@ -143,7 +143,7 @@ Rows follow [`test.yaml`](test.yaml) order. Labels such as `test-001` locate row
 | `test-014` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_spoofed_dns`: DHCP distributes a spoofed DNS server option. | node `dhcp_server` |
 | `test-015` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_gateway`: DHCP distributes a spoofed default gateway. | node `dhcp_server` |
 | `test-016` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_subnet`: DHCP distributes a spoofed subnet mask to clients. | node `dhcp_server` |
-| `test-017` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_lookup_latency`: DNS lookups are abnormally slow. | interface `dns_server:eth0` |
+| `test-017` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_lookup_latency`: DNS lookups are abnormally slow. | node `dns_server` |
 | `test-018` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dns_port_blocked`: DNS service port is blocked. | node `dns_server` |
 | `test-019` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_record_error`: DNS returns an incorrect record for a name. | node `dns_server` |
 | `test-020` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_service_down`: DNS server process is down. | node `dns_server` |
