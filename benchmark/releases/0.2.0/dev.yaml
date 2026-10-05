@@ -242,9 +242,8 @@ cases:
   topo_size: s
   root_causes:
   - resource:
-      kind: interface
+      kind: node
       node: dns_pod0
-      name: eth0
     fault_type: dns_lookup_latency
 - scenario: dc_clos
   problem: dns_port_blocked
