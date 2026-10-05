@@ -8,7 +8,7 @@ from agent.protocols import PHASES, SUBMISSION
 from agent.sdk.claude_sdk.config import prepare_claude_sdk_env
 from agent.sdk.claude_sdk.transcript import ClaudeSdkTranscript, run_claude_sdk_query
 from agent.sdk.mcp import to_sdk_mcp_servers
-from agent.utils.loggers import MessageLogger
+from agent.utils.loggers import MessageLogger, render_prompt
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
 
@@ -80,6 +80,14 @@ class ClaudeSdkWorker:
             options_kwargs["cwd"] = str(skills_dir)
             options_kwargs["setting_sources"] = CLAUDE_SETTING_SOURCES
 
+        self._logger.log(
+            "prompt",
+            {
+                "text": render_prompt(
+                    [("system", self.system_prompt), ("human", prompt)]
+                )
+            },
+        )
         try:
             return await run_claude_sdk_query(
                 ClaudeAgentOptions(**options_kwargs),

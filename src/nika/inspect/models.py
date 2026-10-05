@@ -42,6 +42,8 @@ class CanonicalTraceEvent(BaseModel):
     event: str | None = None
     tool: ToolPayload | None = None
     duration_ms: float | None = None
+    # Start of the operation that ends at ``timestamp`` (e.g. one LLM block).
+    start_timestamp: str | None = None
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -82,6 +84,8 @@ class SessionSummary(BaseModel):
     session_key: str | None = None
     session_dir: str
     status: Literal["running", "finished", "aborted", "error"]
+    # Pipeline stage of a running session (``deploy``, ``agent: diagnosis``, …).
+    stage: str | None = None
     lab_name: str | None = None
     # Lab runtime backend: ``kathara`` | ``containerlab`` (from run.json).
     backend: str | None = None

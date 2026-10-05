@@ -47,12 +47,13 @@ def test_retry_inside_model_call_is_logged(tmp_path: Path, path: str) -> None:
         .splitlines()
     ]
     assert [event["event"] for event in events] == [
+        "prompt",
         "llm_start",
         "llm_retry",
         "llm_end",
     ]
-    retry = events[1]
-    assert retry["run_id"] == events[0]["run_id"]
+    retry = events[2]
+    assert retry["run_id"] == events[1]["run_id"]
     assert retry["failed_attempt"] == 1
     assert retry["next_attempt"] == 2
 

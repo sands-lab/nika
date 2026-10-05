@@ -663,6 +663,50 @@ class TestAdapters:
         # m1: init 12:00:00 → last block 12:00:07; m2 has no llm row;
         # m3: tool result 12:00:13 → 12:00:14.
         assert durations == {"agent-1": 7000.0, "agent-8": 1000.0}
+        # Each block starts where the previous block of its response ended.
+        starts = {e.id: e.start_timestamp for e in events if e.start_timestamp}
+        assert starts == {
+            "agent-1": "2026-01-01T12:00:00+00:00",
+            "agent-2": "2026-01-01T12:00:03+00:00",
+            "agent-4": "2026-01-01T12:00:05+00:00",
+            "agent-6": "2026-01-01T12:00:10+00:00",
+            "agent-8": "2026-01-01T12:00:13+00:00",
+        }
+
+    def test_phase_prompt_is_first_llm_turn_input(self, tmp_path: Path) -> None:
+        from nika.inspect.adapters import load_agent_events
+
+        prompts = {p: f"{p} instructions\n\nTask: " + "x" * 5000 for p in "abcd"}
+        tool_use = {
+            "event": "assistant",
+            "claude_event": {
+                "type": "assistant",
+                "message": {"content": [{"type": "tool_use", "name": "ping"}]},
+            },
+        }
+        rows: list[dict] = []
+        for phase, prompt in prompts.items():
+            rows.append({"phase": phase, "event": "prompt", "text": prompt})
+            if phase == "b":
+                continue  # failed before reaching the model
+            if phase == "c":
+                rows.append({"phase": phase, **tool_use})
+            rows += [
+                {"phase": phase, "event": "llm_start"},
+                {"phase": phase, "event": "llm_end", "text": "ok"},
+            ]
+        session = tmp_path / "sess"
+        session.mkdir()
+        _write_jsonl(session / "messages.jsonl", rows)
+
+        events = load_agent_events(session)
+        assert events[0].kind == "system"
+        # Full prompt (not slimmed) on the phase's first model output, and
+        # only when that output is an LLM turn of the same phase.
+        assert {e.id: e.raw["prompt"] for e in events if "prompt" in e.raw} == {
+            "agent-1": prompts["a"],
+            "agent-9": prompts["d"],
+        }
 
     def test_nika_lifecycle_event(self) -> None:
         event = adapt_nika_event(
@@ -795,6 +839,38 @@ class TestCatalog:
             s.session_id for s in list_sessions(results_root=tmp_path, status="error")
         ] == ["errored"]
 
+    def test_running_session_stage_follows_pipeline(self, tmp_path: Path) -> None:
+        session = tmp_path / "live"
+        session.mkdir()
+        run = {"session_id": "live", "status": "running"}
+        _write_json(session / "run.json", run)
+        nika: list[dict] = [{"event": "env_verify_progress"}]
+        agent: list[dict] = []
+
+        def stage() -> str | None:
+            _write_jsonl(session / "nika.jsonl", nika)
+            if agent:
+                _write_jsonl(session / "messages.jsonl", agent)
+            return summarize_session_dir(session).stage
+
+        assert stage() == "deploy"
+        nika += [{"event": "env_start"}, {"event": "failure_injected"}]
+        assert stage() == "inject"
+        nika.append({"event": "agent_start"})
+        assert stage() == "agent: starting"
+        agent += [
+            {"event": "agent_start", "phase": "diagnosis"},
+            {"event": "subprocess_start", "phase": "diagnosis"},
+        ]
+        assert stage() == "agent: diagnosis (starting)"
+        agent.append({"event": "assistant", "phase": "diagnosis"})
+        assert stage() == "agent: diagnosis"
+        nika += [{"event": "agent_end"}, {"event": "env_stop"}]
+        assert stage() == "teardown"
+
+        _write_json(session / "run.json", {**run, "status": "finished"})
+        assert summarize_session_dir(session).stage is None
+
     def test_deploy_failure_start_time_falls_back_to_created_at(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -810,11 +886,14 @@ class TestCatalog:
             },
         )
 
-        # start_time is naive server-local like end_time; created_at is UTC.
+        # end_time is naive server-local; created_at is UTC. Both reach the
+        # browser with the server offset so other time zones read them right.
         monkeypatch.setenv("TZ", "Europe/Helsinki")
         time.tzset()
         try:
-            assert summarize_session_dir(failed).start_time == "2026-01-01T14:00:00"
+            summary = summarize_session_dir(failed)
+            assert summary.start_time == "2026-01-01T14:00:00+02:00"
+            assert summary.end_time == "2026-01-01T14:00:30+02:00"
         finally:
             monkeypatch.undo()
             time.tzset()

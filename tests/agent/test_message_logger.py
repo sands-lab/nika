@@ -7,7 +7,7 @@ import pytest
 import json
 from pathlib import Path
 
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import (
@@ -173,3 +173,18 @@ def test_tool_end_logs_readable_output_and_structured_input(tmp_path: Path) -> N
     assert start["input"] == '{"host_name": "pc1"}'
     assert end["output"] == '{"host_name": "pc1"}'
     assert end["input"] == '{"host_name": "pc1"}'
+
+
+def test_chat_model_logs_phase_prompt_once(tmp_path: Path) -> None:
+    logger = AgentCallbackLogger(phase=DIAGNOSIS, session_dir=str(tmp_path))
+    first = [SystemMessage(content="You diagnose networks."), HumanMessage("Task: x")]
+    logger.on_chat_model_start({"id": ["ChatOpenAI"]}, [first], run_id="r1")
+    later = [*first, AIMessage("checking"), ToolMessage("ok", tool_call_id="c1")]
+    logger.on_chat_model_start({"id": ["ChatOpenAI"]}, [later], run_id="r2")
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "messages.jsonl").read_text("utf-8").splitlines()
+    ]
+    assert [r["event"] for r in rows] == ["prompt", "llm_start", "llm_start"]
+    assert rows[0]["text"] == "[system]\nYou diagnose networks.\n\n[human]\nTask: x"

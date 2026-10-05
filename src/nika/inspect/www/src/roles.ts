@@ -85,6 +85,8 @@ export interface OverviewSpan {
   startMs: number;
   endMs: number;
   error?: boolean;
+  /** ``false`` for later blocks of one Claude response (not a new LLM request). */
+  turnStart?: boolean;
 }
 
 const DEFAULT_MARK_MS = 250;
@@ -216,6 +218,7 @@ function isAgentNoiseEvent(ev: CanonicalTraceEvent): boolean {
   if (ev.source !== "agent") return false;
   return (
     ev.event === "mcp_config" ||
+    ev.event === "prompt" ||
     ev.event === "subprocess_start" ||
     ev.event === "thread.started"
   );
@@ -271,6 +274,14 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
   const pendingToolsByName = new Map<string, { ev: CanonicalTraceEvent; ms: number }[]>();
   const llmPairs = pairLlmEnds(events);
   const pairedLlmEnds = new Set([...llmPairs.values()].map((p) => p.end.id));
+  const seenClaudeMessages = new Set<string>();
+  const startsTurn = (ev: CanonicalTraceEvent): boolean => {
+    const id = claudeMessageId(ev);
+    if (!id) return true;
+    if (seenClaudeMessages.has(id)) return false;
+    seenClaudeMessages.add(id);
+    return true;
+  };
 
   const pushPendingTool = (ev: CanonicalTraceEvent, ms: number) => {
     const callId = ev.tool?.tool_call_id;
@@ -304,6 +315,20 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
     const lane = eventLane(ev);
 
     if (ev.kind === "tool_call") {
+      // Claude tool_use blocks: the model generates the call before it runs.
+      const genStartMs = parseTs(ev.start_timestamp);
+      if (genStartMs != null && genStartMs < ms) {
+        spans.push({
+          id: `span-${ev.id}-gen`,
+          eventId: ev.id,
+          lane: "model",
+          role: "assistant",
+          label: "llm",
+          startMs: genStartMs,
+          endMs: ms,
+          turnStart: startsTurn(ev),
+        });
+      }
       pushPendingTool(ev, ms);
       continue;
     }
@@ -411,10 +436,19 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
 
     // Logger timestamp is the end of the operation when duration_ms is an
     // operation elapsed (env_start, inject, …). Run-length bookends
-    // (agent_*/sandbox_*) stay as marks at the log timestamp.
-    const dur = usesDurationBackdate(ev) ? eventDurationMs(ev) : null;
-    const startMs = dur != null ? Math.max(0, ms - dur) : ms;
-    const endMs = dur != null ? Math.max(ms, startMs + 1) : ms + DEFAULT_MARK_MS;
+    // (agent_*/sandbox_*) stay as marks at the log timestamp. Claude blocks
+    // carry their own generation start instead.
+    const blockStartMs = parseTs(ev.start_timestamp);
+    let startMs: number;
+    let endMs: number;
+    if (blockStartMs != null && blockStartMs < ms) {
+      startMs = blockStartMs;
+      endMs = ms;
+    } else {
+      const dur = usesDurationBackdate(ev) ? eventDurationMs(ev) : null;
+      startMs = dur != null ? Math.max(0, ms - dur) : ms;
+      endMs = dur != null ? Math.max(ms, startMs + 1) : ms + DEFAULT_MARK_MS;
+    }
     spans.push({
       id: `span-${ev.id}`,
       eventId: ev.id,
@@ -429,6 +463,7 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
       startMs,
       endMs,
       error: ev.event === "agent_error",
+      turnStart: role === "assistant" ? startsTurn(ev) : undefined,
     });
   }
 
@@ -545,12 +580,12 @@ export function projectOverviewDomain(
   return { start, end: Math.max(end, start + 1), items };
 }
 
-/** Vertical markers at assistant (LLM) span starts, in layout %. */
+/** Vertical markers at LLM request starts, in layout %. */
 export function overviewTurnBoundaryPcts(
   laidOut: { span: OverviewSpan; leftPct: number; widthPct: number }[],
 ): number[] {
   const marks = laidOut
-    .filter(({ span }) => span.role === "assistant")
+    .filter(({ span }) => span.role === "assistant" && span.turnStart !== false)
     .map(({ leftPct }) => leftPct);
   return [...new Set(marks.map((p) => Math.round(p * 100) / 100))].sort(
     (a, b) => a - b,
@@ -665,14 +700,26 @@ export interface DisplayEvent {
   error: boolean;
 }
 
-/** Claude CLI stream-json nests message content under ``claude_event``. */
-function claudeMessageContent(raw: Record<string, unknown> | undefined): unknown {
+/** Claude CLI stream-json nests the API message under ``claude_event``. */
+function claudeMessage(
+  raw: Record<string, unknown> | undefined,
+): Record<string, unknown> | null {
   if (!raw) return null;
   const ce = raw.claude_event;
   if (!ce || typeof ce !== "object" || Array.isArray(ce)) return null;
   const message = (ce as Record<string, unknown>).message;
   if (!message || typeof message !== "object" || Array.isArray(message)) return null;
-  return (message as Record<string, unknown>).content ?? null;
+  return message as Record<string, unknown>;
+}
+
+function claudeMessageContent(raw: Record<string, unknown> | undefined): unknown {
+  return claudeMessage(raw)?.content ?? null;
+}
+
+/** Blocks of one Claude API response share this ID. */
+function claudeMessageId(ev: CanonicalTraceEvent): string | null {
+  const id = claudeMessage(ev.raw)?.id;
+  return typeof id === "string" && id ? id : null;
 }
 
 function llmMessageSource(raw: Record<string, unknown> | undefined): unknown {
@@ -1623,8 +1670,10 @@ export function buildLlmTurnDetail(
         ? parsed.text
         : "";
 
+  // Full phase prompt the backend attached to the phase's first turn.
+  const phasePrompt = typeof start.raw.prompt === "string" ? start.raw.prompt : "";
   return {
-    input: isLlmStart(start) ? parsed.text : "",
+    input: phasePrompt || (isLlmStart(start) ? parsed.text : ""),
     thinking,
     outputText,
     finishReason,

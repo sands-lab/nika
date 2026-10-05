@@ -148,21 +148,80 @@ def _load_parent_job(session_dir: Path) -> tuple[Path | None, dict[str, Any] | N
     return run_root, job
 
 
-def _start_time(run: dict[str, Any]) -> str | None:
-    """``start_time`` is set at injection; sessions that fail during deploy only have ``created_at``."""
-    if run.get("start_time"):
-        return run["start_time"]
-    created = run.get("created_at")
-    if not created:
+def _aware_iso(value: Any) -> str | None:
+    """ISO timestamp with an explicit offset for the browser.
+
+    ``start_time`` / ``end_time`` are written naive in server-local time; the
+    browser would read them in its own time zone, so attach the server's.
+    """
+    if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(str(created))
+        parsed = datetime.fromisoformat(str(value))
     except ValueError:
+        return str(value)
+    return parsed.astimezone().isoformat()
+
+
+def _start_time(run: dict[str, Any]) -> str | None:
+    """``start_time`` is set at injection; sessions that fail during deploy only have ``created_at``."""
+    return _aware_iso(run.get("start_time") or run.get("created_at"))
+
+
+# nika.jsonl milestones of env → inject → agent → close → eval, in order.
+_STAGE_MILESTONES = (
+    ("env_start", "inject"),
+    ("agent_start", "agent"),
+    ("agent_end", "teardown"),
+    ("agent_error", "teardown"),
+    ("env_stop", "teardown"),
+    ("session_cleared", "eval"),
+)
+_STAGE_RANK = {"deploy": 0, "inject": 1, "agent": 2, "teardown": 3, "eval": 4}
+# messages.jsonl rows written before the agent process emits anything.
+_AGENT_BOOT_EVENTS = frozenset(
+    {"agent_start", "mcp_config", "prompt", "subprocess_start"}
+)
+_MESSAGES_TAIL_BYTES = 64 * 1024
+
+
+def _last_agent_entry(path: Path) -> dict[str, Any] | None:
+    """Last complete JSON row of ``messages.jsonl`` (tail read; logs grow large)."""
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            handle.seek(max(0, size - _MESSAGES_TAIL_BYTES))
+            tail = handle.read().decode("utf-8", errors="replace")
+    except OSError:
         return None
-    # start_time / end_time are naive server-local; created_at is tz-aware UTC.
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone().replace(tzinfo=None)
-    return parsed.isoformat()
+    for line in reversed(tail.splitlines()):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            return row
+    return None
+
+
+def _running_stage(session_dir: Path) -> str:
+    stage = "deploy"
+    milestones = dict(_STAGE_MILESTONES)
+    for entry in iter_jsonl(session_dir / "nika.jsonl"):
+        reached = milestones.get(str(entry.get("event")))
+        if reached and _STAGE_RANK[reached] > _STAGE_RANK[stage]:
+            stage = reached
+    if stage != "agent":
+        return stage
+    last = _last_agent_entry(session_dir / "messages.jsonl")
+    if last is None:
+        return "agent: starting"
+    phase = last.get("phase")
+    label = f"agent: {phase}" if isinstance(phase, str) and phase else "agent"
+    if last.get("event") in _AGENT_BOOT_EVENTS:
+        return f"{label} (starting)"
+    return label
 
 
 def _inject_params(run: dict[str, Any]) -> dict[str, str]:
@@ -372,6 +431,7 @@ def _build_session_summary(
         session_key=_session_key(session_dir, results_root),
         session_dir=str(session_dir.resolve()),
         status=status,
+        stage=_running_stage(session_dir) if status == "running" else None,
         lab_name=run.get("lab_name"),
         backend=run.get("backend"),
         scenario_name=run.get("scenario_name"),
@@ -383,7 +443,7 @@ def _build_session_summary(
         failure_domain=run.get("failure_domain"),
         inject_params=_inject_params(run),
         start_time=_start_time(run),
-        end_time=run.get("end_time"),
+        end_time=_aware_iso(run.get("end_time")),
         outcome=run.get("outcome"),
         detection_score=_metric(metrics, "detection_score"),
         rca_f1=_metric(metrics, "rca_f1"),

@@ -30,6 +30,7 @@ export interface CanonicalTraceEvent {
   event?: string | null;
   tool?: ToolPayload | null;
   duration_ms?: number | null;
+  start_timestamp?: string | null;
   raw: Record<string, unknown>;
 }
 
@@ -61,6 +62,8 @@ export interface SessionSummary {
   session_key?: string | null;
   session_dir: string;
   status: "running" | "finished" | "aborted" | "error";
+  /** Pipeline stage of a running session (``deploy``, ``agent: diagnosis``, …). */
+  stage?: string | null;
   lab_name?: string | null;
   backend?: string | null;
   scenario_name?: string | null;

@@ -660,7 +660,16 @@ function SessionsTable({
   const renderCell = (col: SessionColumn, s: SessionSummary): ReactNode => {
     switch (col.id) {
       case "status":
-        return <span className={`chip ${s.status}`}>{s.status}</span>;
+        return (
+          <>
+            <span className={`chip ${s.status}`}>{s.status}</span>
+            {s.stage ? (
+              <div className="session-sub" title="Current pipeline stage">
+                {s.stage}
+              </div>
+            ) : null}
+          </>
+        );
       case "trial":
         return s.trial_index != null ? (
           <span className="chip">t{String(s.trial_index).padStart(2, "0")}</span>
@@ -1715,7 +1724,7 @@ function ViewShell({
   const [numericFilters, setNumericFilters] = useState<Record<string, string>>({});
   const [columns, setColumns] = useState<SessionSortKey[]>(loadColumns);
   const [sortKey, setSortKey] = useState<SessionSortKey | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [savedViews, setSavedViews] = useState<SavedView[]>(loadSavedViews);
   const [activeView, setActiveView] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -2019,7 +2028,7 @@ function ViewShell({
     setColumns(view.columns);
     saveColumns(view.columns);
     setSortKey(view.sortKey);
-    setSortDir(view.sortDir);
+    setSortDir(view.sortKey ? view.sortDir : "desc");
   };
 
   const saveCurrentView = () => {
@@ -2090,7 +2099,8 @@ function ViewShell({
   const showTrialCol =
     (facets.trial_indices?.length ?? 0) > 0 ||
     visibleSessions.some((s) => s.trial_index != null);
-  const defaultSortKey: SessionSortKey = showTrialCol ? "trial" : "failure";
+  // Newest first until the user picks a column.
+  const defaultSortKey: SessionSortKey = "time";
 
   const renderNode = (node: PathTreeNode, depth: number): ReactNode => {
     const hasKids = node.children.length > 0;
