@@ -14,10 +14,12 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import docker.errors
 import requests
 
 from nika.config import REPO_ROOT
 from nika.net_env.utils.kathara.docker_files.docker_images import (
+    _get_client,
     ensure_nika_docker_images,
     host_machine_arch,
 )
@@ -212,37 +214,64 @@ def _write_oci_archive(directory: Path, archive_path: Path, image: str) -> None:
             archive.add(blob, arcname=f"blobs/sha256/{value}", recursive=False)
 
 
+def _registry_auth() -> dict:
+    """Inline ``docker login`` credentials; credential helpers stay on the host."""
+    try:
+        config = json.loads((Path.home() / ".docker" / "config.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    auths = config.get("auths") if isinstance(config, dict) else None
+    if not isinstance(auths, dict):
+        return {}
+    return {
+        registry: {"auth": entry["auth"]}
+        for registry, entry in auths.items()
+        if isinstance(entry, dict) and entry.get("auth")
+    }
+
+
 def _skopeo(*args: str, mount: Path, timeout: float) -> bytes:
     """Run skopeo from ``nika/skopeo`` as the host user, sharing ``mount``.
 
-    Host networking and proxy settings match a host-installed skopeo.
+    Host networking, proxy settings, and inline ``docker login`` credentials
+    match a host-installed skopeo.
     """
-    from nika.runtime.shared.containers import docker_client
-
     environment = {"TMPDIR": str(mount)}
     environment.update(
         {key: os.environ[key] for key in _PROXY_ENV_KEYS if key in os.environ}
     )
-    container = docker_client().containers.create(
-        SKOPEO_IMAGE,
-        ["skopeo", *args],
-        user=f"{os.getuid()}:{os.getgid()}",
-        network_mode="host",
-        environment=environment,
-        volumes={str(mount): {"bind": str(mount), "mode": "rw"}},
-    )
+    auths = _registry_auth()
+    if auths:
+        auth_file = mount / "auth.json"
+        auth_file.touch(mode=0o600)
+        auth_file.write_text(json.dumps({"auths": auths}))
+        environment["REGISTRY_AUTH_FILE"] = str(auth_file)
+    try:
+        container = _get_client().containers.create(
+            SKOPEO_IMAGE,
+            ["skopeo", *args],
+            user=f"{os.getuid()}:{os.getgid()}",
+            network_mode="host",
+            environment=environment,
+            volumes={str(mount): {"bind": str(mount), "mode": "rw"}},
+        )
+    except docker.errors.DockerException as exc:
+        raise RuntimeError(f"could not create the skopeo container: {exc}") from exc
     try:
         container.start()
         try:
             status = container.wait(timeout=timeout).get("StatusCode", 1)
         except requests.exceptions.RequestException as exc:
             raise TimeoutError(
-                f"skopeo {args[0]} timed out after {timeout:.0f}s"
+                f"skopeo {args[0]} did not finish within {timeout:.0f}s "
+                f"or lost the Docker connection: {exc}"
             ) from exc
         if status:
             stderr = container.logs(stdout=False, stderr=True).decode(errors="replace")
             raise RuntimeError(stderr.strip()[-2000:])
         return container.logs(stdout=True, stderr=False)
+    except docker.errors.DockerException as exc:
+        raise RuntimeError(f"skopeo {args[0]} failed in Docker: {exc}") from exc
     finally:
         container.remove(force=True)
 
@@ -297,7 +326,7 @@ def ensure_cached(image: str) -> Path:
             )
             selected.write_bytes(root)
         except TimeoutError as exc:
-            raise RuntimeError(f"Image preparation timed out: {image}: {exc}") from exc
+            raise RuntimeError(f"Image preparation stopped: {image}: {exc}") from exc
         except RuntimeError as exc:
             raise RuntimeError(f"Could not cache {image}: {exc}") from exc
         _write_oci_archive(directory, staged, image)

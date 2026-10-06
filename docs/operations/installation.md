@@ -23,7 +23,7 @@ The installer does not use apt or other system package managers. It keeps what i
 | Runtime image caches and vendor downloads | `.nika_cache/` |
 | `.env` and `config/nika.yaml`, when missing | the repository root |
 
-NIKA finds `clab` and `gnmic` in `.venv/bin` once that directory is on `PATH`. To keep everything inside the repository, activate the environment and run `nika` directly:
+NIKA puts its environment's `bin` directory first on `PATH` at startup, so it finds `clab` and `gnmic` in `.venv/bin` even when you call `.venv/bin/nika` without activating the environment. To keep everything inside the repository, activate the environment and run `nika` directly:
 
 ```shell
 source .venv/bin/activate
@@ -35,10 +35,10 @@ nika env run dc_clos -s s
 Some parts still live outside the repository because they belong to the host:
 
 - Docker images and build cache, in Docker's data root (usually `/var/lib/docker`).
-- The `clab` binary in `.venv/bin` is owned by root and setuid, as in Containerlab's own installer. Members of the `clab_admins` group run it as root. The installer uses `sudo` once to set this up and to create the group and add you to it. Open a new login shell afterwards. `.venv` must not be on a `nosuid` mount.
+- The `clab` binary in `.venv/bin` is owned by root and setuid, as in Containerlab's own installer. Members of the `clab_admins` group run it as root. The installer uses `sudo` once to set this up and to create the group and add you to it. Open a new login shell afterwards. If `.venv` sits on a `nosuid` mount or a network home that refuses root-owned setuid files, the installer stops; install Containerlab system-wide with its [own installer](https://containerlab.dev/install/) and re-run, and NIKA uses that copy.
 - The inotify and `vrf` kernel settings described below, under `/etc`.
 
-The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. Containerlab link faults use the host's `tc`, `ip`, and `nsenter`, which most distributions ship by default; the installer warns if one is missing.
+The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Containerlab link faults use the host's `tc`, `ip`, and `nsenter`, which most distributions ship by default; the installer warns if one is missing.
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 

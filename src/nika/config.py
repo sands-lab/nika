@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -8,6 +10,14 @@ REPO_ROOT = _PKG_DIR.parent.parent
 
 # MCP servers are spawned as subprocesses with an unrelated cwd; load .env from repo root.
 load_dotenv(REPO_ROOT / ".env")
+
+# install.sh puts clab and gnmic next to this interpreter. Find them there,
+# ahead of older host copies, even when the venv is not activated.
+_ENV_BIN = Path(sys.prefix) / "bin"
+if sys.prefix != sys.base_prefix and str(_ENV_BIN) not in os.environ.get(
+    "PATH", ""
+).split(os.pathsep):
+    os.environ["PATH"] = os.pathsep.join([str(_ENV_BIN), os.environ.get("PATH", "")])
 
 RUNTIME_DIR = REPO_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"

@@ -264,7 +264,11 @@ install_containerlab() {
   else
     log "Installing Containerlab ${CLAB_VERSION} into ${VENV_BIN}"
   fi
-  need_cmd sudo
+  local sudo=""
+  if [[ "$(id -u)" -ne 0 ]]; then
+    need_cmd sudo
+    sudo=sudo
+  fi
   if findmnt -no OPTIONS -T "${VENV_BIN}" | tr , '\n' | grep -qx nosuid; then
     die "${VENV_BIN} is on a nosuid mount; Containerlab needs its setuid bit there"
   fi
@@ -275,17 +279,24 @@ install_containerlab() {
   fetch_release "https://github.com/srl-labs/containerlab/releases/download/v${CLAB_VERSION}" \
     "containerlab_${CLAB_VERSION}_linux_$(host_arch).tar.gz" "${tmp}"
   # clab runs as root through its setuid bit for members of clab_admins.
-  sudo install -o root -g root -m 4755 "${tmp}/containerlab" "${VENV_BIN}/containerlab"
+  # Network homes may refuse root-owned files (root_squash) or drop the bit.
+  ${sudo} install -o root -g root -m 4755 "${tmp}/containerlab" "${VENV_BIN}/containerlab" \
+    && [[ -u "${VENV_BIN}/containerlab" && "$(stat -c %u "${VENV_BIN}/containerlab")" == 0 ]] \
+    || {
+      # A leftover copy would shadow a system-wide clab on the next run.
+      ${sudo} rm -f "${VENV_BIN}/containerlab" 2>/dev/null || true
+      die "could not install a root-owned setuid clab in ${VENV_BIN} (network home?). Install Containerlab >= ${CLAB_MIN_VERSION} system-wide (https://containerlab.dev/install/), then re-run this script"
+    }
   rm -rf "${tmp}"
   trap - EXIT
   ln -sfn containerlab "${VENV_BIN}/clab"
   if ! getent group clab_admins >/dev/null 2>&1; then
-    sudo groupadd -r clab_admins
+    ${sudo} groupadd -r clab_admins
   fi
   local user
   user="$(id -un)"
   if [[ "$(id -u)" -ne 0 ]] && ! id -nG "${user}" | tr ' ' '\n' | grep -qx clab_admins; then
-    sudo usermod -aG clab_admins "${user}"
+    ${sudo} usermod -aG clab_admins "${user}"
     warn "Added ${user} to clab_admins; open a new login shell (or run 'newgrp clab_admins') before Containerlab labs"
   fi
   log "Containerlab ready: $(command -v clab)"
@@ -456,6 +467,8 @@ ensure_routeros_image() {
   # The build context is vrnetlab's docker/ dir plus its common/ helpers and
   # the CHR disk, as vrnetlab's 'make docker-image' assembles it.
   local context="${ros_dir}/docker"
+  # Drop disks a failed build or another RouterOS version left in the context.
+  rm -f "${context}"/chr-*.vmdk "${context}"/chr-*.vdi
   cp "${build_dir}"/common/*.py "${context}/"
   "${VENV_BIN}/python" -m zipfile -e "${chr_zip}" "${context}"
   [[ -f "${context}/${disk_name}" ]] || die "expected ${disk_name} in ${chr_zip}"
@@ -747,6 +760,7 @@ EOF
 main() {
   log "NIKA install root: ${ROOT}"
   check_prerequisites
+  ensure_vrf_module
   mkdir -p "${NIKA_CACHE}"
 
   checkout_track
@@ -764,7 +778,6 @@ main() {
   validate_config
   check_host_tools
   ensure_inotify_limits
-  ensure_vrf_module
   if [[ "${WITH_SBX}" -eq 1 ]]; then
     install_sbx
     ensure_kvm_access
