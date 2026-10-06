@@ -2,17 +2,33 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import shutil
 import subprocess
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 SBX_BIN = "sbx"
 _HUB_TOKEN_MARKERS = ("token is unverifiable", "jwks.json")
 _HUB_RETRY_DELAYS_S = (2.0, 4.0)
+
+
+@contextmanager
+def sbx_host_lock(name: str) -> Iterator[None]:
+    """Exclusive host-wide lock shared by every NIKA process and thread."""
+    path = Path.home() / f".local/state/sandboxes/nika-sbx-{name}.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def _sbx_env(env: dict[str, str] | None = None) -> dict[str, str]:
@@ -230,6 +246,7 @@ def run_sbx(
     text: bool = True,
     env: dict[str, str] | None = None,
     input_text: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not sbx_available():
         raise RuntimeError(
@@ -245,6 +262,7 @@ def run_sbx(
         text=text,
         env=_sbx_env(env),
         input=input_text,
+        timeout=timeout,
     )
 
 
@@ -258,6 +276,7 @@ def run_sbx_checked(
     *,
     env: dict[str, str] | None = None,
     input_text: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     proc: subprocess.CompletedProcess[str] | None = None
     for attempt, delay_s in enumerate((0.0, *_HUB_RETRY_DELAYS_S)):
@@ -270,6 +289,7 @@ def run_sbx_checked(
             text=True,
             env=env,
             input_text=input_text,
+            timeout=timeout,
         )
         if proc.returncode == 0:
             return proc

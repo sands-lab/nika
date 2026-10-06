@@ -119,7 +119,7 @@ def merge_cli(
     judge_provider: str | None = None,
     judge_model: str | None = None,
     sandbox_keep: bool | None = None,
-    sandbox_cpus: str | None = None,
+    sandbox_cpus: int | None = None,
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
     sandbox_upstream_proxy: str | None = None,

@@ -92,8 +92,8 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | `nika.remote.url` | `null` | Remote control-plane base URL. Required when remote mode is enabled. |
 | `nika.remote.artifact_root` | `null` | Reserved path carried in the remote client configuration. Current workflows do not consume it. |
 | `nika.sandbox.keep` | `false` | Keep the Docker Sandbox after the agent exits. |
-| `nika.sandbox.cpus` | `null` | Optional `sbx` CPU limit. |
-| `nika.sandbox.memory` | `null` | Optional `sbx` memory limit, such as `8g`. |
+| `nika.sandbox.cpus` | `2` | `sbx` vCPU count per sandbox. `null` lets sbx give each sandbox every host vCPU. |
+| `nika.sandbox.memory` | `4g` | `sbx` memory limit per sandbox. `null` lets sbx use half of host memory. |
 | `nika.sandbox.offline_sdk_wheels` | `true` | Stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox. |
 | `nika.sandbox.upstream_proxy` | `null` | Proxy used by the shared `sandboxd` process and host `sbx` commands. |
 | `nika.observability.langfuse_enabled` | `false` | Enable Langfuse callbacks for `byo.langgraph`. |

@@ -29,6 +29,7 @@ from agent.sandbox.sbx.client import (
     require_sbx_authenticated,
     run_sbx_checked,
     run_sbx_optional,
+    sbx_host_lock,
     stream_sbx,
 )
 from agent.sandbox.sbx.credentials import (
@@ -62,6 +63,8 @@ from nika.utils.session import Session
 logger = logging.getLogger(__name__)
 
 SDK_AGENT_TYPES = frozenset({"sdk.codex_sdk", "sdk.claude_sdk", "community.sade"})
+# Covers a first-run template image pull; a normal create takes under a minute.
+_SBX_CREATE_TIMEOUT_SEC = 600
 
 # Host-side CLI sandboxes read ``NIKA_SBX_SANDBOX_NAME`` / ``NIKA_SESSION_DIR``
 # from process env. Concurrent sessions in one process must not interleave
@@ -171,7 +174,7 @@ class SbxSandboxManager:
         # downloads inside the microVM are frequently SIGKILL'd (exit 137),
         # surfacing as sbx HTTP 500.
         if self.config.cpus:
-            cmd.extend(["--cpus", self.config.cpus])
+            cmd.extend(["--cpus", str(self.config.cpus)])
         if self.config.memory:
             cmd.extend(["-m", self.config.memory])
         return cmd
@@ -277,7 +280,11 @@ class SbxSandboxManager:
         prior_sbx_name = os.environ.get(ENV_SBX_SANDBOX_NAME)
         prior_runtime_env = {key: os.environ.get(key) for key in runtime_env}
         try:
-            run_sbx_checked(create_cmd)
+            # sbx fails a microVM that does not connect within a fixed 15s, and
+            # concurrent boots on a loaded host routinely exceed that. The
+            # timeout bounds how long a hung create can stall sibling trials.
+            with sbx_host_lock("create"):
+                run_sbx_checked(create_cmd, timeout=_SBX_CREATE_TIMEOUT_SEC)
             if agent_type in SDK_AGENT_TYPES:
                 if not self.config.offline_sdk_wheels:
                     ensure_pypi_network_policy()

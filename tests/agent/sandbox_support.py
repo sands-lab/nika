@@ -9,7 +9,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from agent.sandbox.config import sandbox_gateway_agent_host
+from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
     run_sbx_checked,
@@ -22,6 +22,7 @@ from agent.sandbox.sbx.policy import (
     deny_mcp_gateway,
     sanitize_sandbox_name,
 )
+from agent.sandbox.sbx.manager import SbxSandboxManager
 from agent.sandbox.sbx.workspace import prepare_workspace
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
@@ -138,13 +139,14 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
 
                 run_sbx_optional(["rm", "--force", sandbox_name])
                 try:
-                    create_cmd = [
-                        "create",
-                        "--name",
-                        sandbox_name,
-                        sbx_agent,
-                        str(workspace.workspace_dir),
-                    ]
+                    create_cmd = SbxSandboxManager(
+                        resolve_sandbox_config()
+                    ).build_create_command(
+                        sandbox_name=sandbox_name,
+                        sbx_agent=sbx_agent,
+                        workspace_dir=workspace.workspace_dir,
+                        agent_type=agent_type,
+                    )
                     run_sbx_checked(create_cmd)
                     allow_mcp_gateway(
                         sandbox_name=sandbox_name, port=gateway_manager.port
@@ -242,13 +244,12 @@ def run_cross_sandbox_isolation_probe() -> None:
             run_sbx_optional(["rm", "--force", sandbox_name])
             try:
                 run_sbx_checked(
-                    [
-                        "create",
-                        "--name",
-                        sandbox_name,
-                        "shell",
-                        str(workspace.workspace_dir),
-                    ]
+                    SbxSandboxManager(resolve_sandbox_config()).build_create_command(
+                        sandbox_name=sandbox_name,
+                        sbx_agent="shell",
+                        workspace_dir=workspace.workspace_dir,
+                        agent_type="cli.codex",
+                    )
                 )
                 allow_mcp_gateway(sandbox_name=sandbox_name, port=own_port)
 
