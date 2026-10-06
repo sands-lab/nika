@@ -21,8 +21,8 @@ _EXTRA_HINTS: dict[str, str] = {
 GNMIC_INSTALL_HINT = (
     "Nokia SR Linux Containerlab labs require the host `gnmic` binary "
     "(min3clos and isp_* with --backend containerlab / nokia_srlinux). "
-    "Install: https://gnmic.openconfig.net/install/ "
-    'or `bash -c "$(curl -sL https://get-gnmic.openconfig.net)"`'
+    "Run ./scripts/install.sh, which installs it into .venv/bin, and start NIKA "
+    "with `uv run` so .venv/bin is on PATH."
 )
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -111,7 +110,7 @@ def test_ensure_cached_skips_network_when_valid_archive_exists(tmp_path: Path) -
     tar_path = cache.cache_tar_path(image)
     tar_path.parent.mkdir(parents=True, exist_ok=True)
     tar_path.write_bytes(saved)
-    with patch.object(cache.subprocess, "run") as fetch:
+    with patch.object(cache, "_skopeo") as fetch:
         assert cache.ensure_cached(image) == tar_path
     fetch.assert_not_called()
 
@@ -132,12 +131,8 @@ def test_cache_upgrade_preserves_legacy_until_replacement_validates(
         target.write_bytes(saved)
     with (
         patch.object(cache, "workload_images_for_scenario", return_value=(image,)),
-        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
-        patch.object(
-            cache.subprocess,
-            "run",
-            side_effect=subprocess.CalledProcessError(1, ["skopeo"], stderr="denied"),
-        ),
+        patch.object(cache, "ensure_nika_docker_images"),
+        patch.object(cache, "_skopeo", side_effect=RuntimeError("denied")),
     ):
         if replacement_valid:
             assert cache.ensure_workload_cache("k8s_lab") == [target]
@@ -152,19 +147,15 @@ def test_cache_upgrade_preserves_legacy_until_replacement_validates(
 def test_ensure_cached_fetches_complete_graph_when_missing(tmp_path: Path) -> None:
     image, _ = _image_tar(tmp_path)
 
-    def fetch(command, **kwargs):
-        if command[1:] == ["copy", "--help"]:
-            return subprocess.CompletedProcess(command, 0, stdout="--preserve-digests")
-        if command[1] == "inspect":
-            return subprocess.CompletedProcess(
-                command, 0, stdout=(tmp_path / "source" / "manifest.json").read_bytes()
-            )
-        assert "--preserve-digests" in command
-        _image_directory(Path(command[-1].removeprefix("dir:")))
+    def fetch(*args, mount, timeout):
+        if args[0] == "inspect":
+            return (tmp_path / "source" / "manifest.json").read_bytes()
+        assert "--preserve-digests" in args
+        _image_directory(Path(args[-1].removeprefix("dir:")))
 
     with (
-        patch.object(cache.subprocess, "run", side_effect=fetch),
-        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
+        patch.object(cache, "_skopeo", side_effect=fetch),
+        patch.object(cache, "ensure_nika_docker_images"),
     ):
         path = cache.ensure_cached(image)
     assert cache._tar_is_complete(path, image)
@@ -187,20 +178,14 @@ def test_ensure_cached_rejects_archives_missing_layers(tmp_path: Path) -> None:
     tar_path.write_bytes(saved)
     assert not cache._tar_is_complete(tar_path, image)
 
-    def fetch(command, **kwargs):
-        if command[1:] == ["copy", "--help"]:
-            # skopeo < 1.6 has no --preserve-digests.
-            return subprocess.CompletedProcess(command, 0, stdout="--retry-times")
-        if command[1] == "inspect":
-            return subprocess.CompletedProcess(
-                command, 0, stdout=(tmp_path / "source" / "manifest.json").read_bytes()
-            )
-        assert "--preserve-digests" not in command
-        _image_directory(Path(command[-1].removeprefix("dir:")), complete=False)
+    def fetch(*args, mount, timeout):
+        if args[0] == "inspect":
+            return (tmp_path / "source" / "manifest.json").read_bytes()
+        _image_directory(Path(args[-1].removeprefix("dir:")), complete=False)
 
     with (
-        patch.object(cache.subprocess, "run", side_effect=fetch),
-        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
+        patch.object(cache, "_skopeo", side_effect=fetch),
+        patch.object(cache, "ensure_nika_docker_images"),
         pytest.raises(RuntimeError, match="Incomplete or corrupt"),
     ):
         cache.ensure_cached(image)
@@ -283,12 +268,8 @@ def test_preload_raises_without_cached_tars() -> None:
 def test_ensure_cached_reports_registry_failure(tmp_path: Path) -> None:
     image, _ = _image_tar(tmp_path)
     with (
-        patch.object(cache.shutil, "which", return_value="/usr/bin/skopeo"),
-        patch.object(
-            cache.subprocess,
-            "run",
-            side_effect=subprocess.CalledProcessError(1, ["skopeo"], stderr="denied"),
-        ),
+        patch.object(cache, "ensure_nika_docker_images"),
+        patch.object(cache, "_skopeo", side_effect=RuntimeError("denied")),
         pytest.raises(RuntimeError, match="denied"),
     ):
         cache.ensure_cached(image)

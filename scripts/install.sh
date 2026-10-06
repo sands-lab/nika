@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Install Docker, uv, lab deps (Kathará), Containerlab, gnmic, and fault-injection tools,
-# then build/pull every runtime image. Re-runs upgrade outdated parts and prune stale ones.
-# Optionally switch git track, install sbx with KVM access, and prepare vendor router
-# images (RouterOS CHR, Cisco XRd).
+# Install uv, lab deps (Kathará), Containerlab, and gnmic into the repo (.venv and
+# .nika_cache) without apt, then build/pull every runtime image. Re-runs upgrade
+# outdated parts and prune stale ones. Optionally switch git track, install sbx with
+# KVM access, and prepare vendor router images (RouterOS CHR, Cisco XRd).
 # Usage: ./scripts/install.sh [options]
 set -euo pipefail
 
 GNMIC_VERSION="${GNMIC_VERSION:-0.48.0}"
-# Older Containerlab releases are upgraded; newer ones are kept.
+# Installed when clab is missing or older than CLAB_MIN_VERSION; newer ones are kept.
+CLAB_VERSION="${CLAB_VERSION:-0.79.0}"
 CLAB_MIN_VERSION="${CLAB_MIN_VERSION:-0.79.0}"
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
 VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
@@ -31,12 +32,13 @@ usage() {
   cat <<EOF
 Usage: ./scripts/install.sh [options]
 
-Installs Docker (if needed), uv, lab Python deps (Kathará), Containerlab,
-gnmic, skopeo for Kubernetes image preparation, plus clang and iproute2
-for fault injection (via apt-get). Raises
-and persists host inotify limits for k3s and XRd labs, and loads the vrf
-kernel module for enterprise_branch. Creates .env and
-config/nika.yaml from examples when missing.
+Needs a usable Docker engine. Installs uv (when missing), lab Python deps
+(Kathará), Containerlab, and gnmic without apt: Python deps go to .venv,
+the clab and gnmic binaries to .venv/bin, and uv with its cache to
+.nika_cache/. Containerlab needs sudo once for its setuid bit and the
+clab_admins group. Raises and persists host inotify limits for k3s and XRd
+labs, and loads the vrf kernel module for enterprise_branch. Creates .env
+and config/nika.yaml from examples when missing.
 
 Then builds and pulls every Docker image the non-vendor scenarios use and
 caches the Kubernetes workload images and Helm charts, so benchmarks start
@@ -65,7 +67,8 @@ Options:
   --with-sbx
       Install Docker Sandboxes (sbx) for sandboxed agents (cli.*, sdk.*,
       community.sade) and give your user read/write access to /dev/kvm,
-      which the sbx microVMs need. Run 'sbx login' afterwards.
+      which the sbx microVMs need. sbx ships only as a package, so this is
+      the one step that uses apt. Run 'sbx login' afterwards.
 
   --skip-images
       Skip building/pulling runtime images (labs then prepare them on first deploy).
@@ -124,7 +127,17 @@ esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-VENDOR_CACHE="${NIKA_VENDOR_CACHE:-${ROOT}/.nika_cache/vendor}"
+NIKA_CACHE="${ROOT}/.nika_cache"
+VENDOR_CACHE="${NIKA_VENDOR_CACHE:-${NIKA_CACHE}/vendor}"
+# uv resolves a relative UV_PROJECT_ENVIRONMENT against the project root.
+VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
+[[ "${VENV_DIR}" == /* ]] || VENV_DIR="${ROOT}/${VENV_DIR}"
+VENV_BIN="${VENV_DIR}/bin"
+# Keep uv, its cache, and any uv-managed Python under the repo.
+export UV_CACHE_DIR="${UV_CACHE_DIR:-${NIKA_CACHE}/uv/cache}"
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-${NIKA_CACHE}/uv/python}"
+# Binaries in .venv/bin win over older host copies, as under 'uv run'.
+export PATH="${VENV_BIN}:${NIKA_CACHE}/bin:${PATH}"
 
 log() { printf '+ %s\n' "$*"; }
 warn() { printf '! %s\n' "$*" >&2; }
@@ -146,10 +159,6 @@ version_lt() {
   [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" == "$1" ]]
 }
 
-ensure_path_uv() {
-  export PATH="${HOME}/.local/bin:${PATH}"
-}
-
 ensure_docker_group() {
   if [[ "$(id -u)" -eq 0 ]]; then
     return
@@ -157,27 +166,6 @@ ensure_docker_group() {
   if getent group docker >/dev/null 2>&1; then
     sudo usermod -aG docker "$USER" || true
   fi
-}
-
-install_docker() {
-  log "Installing Docker (get.docker.com)"
-  need_cmd curl
-  need_cmd sudo
-  curl -fsSL https://get.docker.com | sudo sh
-  if command -v systemctl >/dev/null 2>&1; then
-    sudo systemctl enable --now docker >/dev/null 2>&1 || sudo systemctl start docker || true
-  fi
-  ensure_docker_group
-  log "Added ${USER} to the docker group (re-login or 'newgrp docker' if docker still fails)"
-  if docker_usable; then
-    log "Docker is ready"
-    return
-  fi
-  if command -v sg >/dev/null 2>&1 && sg docker -c 'docker info' >/dev/null 2>&1; then
-    log "Docker is ready (via docker group)"
-    return
-  fi
-  die "Docker installed but not usable yet. Run: newgrp docker   then re-run ./scripts/install.sh"
 }
 
 ensure_docker() {
@@ -199,29 +187,44 @@ ensure_docker() {
     fi
     die "Docker is installed but not usable in this shell. Run: newgrp docker"
   fi
-  install_docker
+  die "Docker is required. Install Docker Engine (https://docs.docker.com/engine/install/), then re-run ./scripts/install.sh"
 }
 
 install_uv() {
-  ensure_path_uv
   if command -v uv >/dev/null 2>&1; then
     log "uv already installed: $(command -v uv)"
     return
   fi
-  log "Installing uv"
+  log "Installing uv into ${NIKA_CACHE}/bin"
   need_cmd curl
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ensure_path_uv
-  command -v uv >/dev/null 2>&1 || die "uv installed but not on PATH; add ~/.local/bin to PATH"
+  curl -LsSf https://astral.sh/uv/install.sh \
+    | env UV_INSTALL_DIR="${NIKA_CACHE}/bin" UV_NO_MODIFY_PATH=1 sh
+  command -v uv >/dev/null 2>&1 || die "uv installed but not found in ${NIKA_CACHE}/bin"
   log "uv ready: $(command -v uv)"
 }
 
 sync_python() {
-  ensure_path_uv
   need_cmd uv
   log "Syncing Python deps (uv sync)"
   uv sync
+  # 'source .venv/bin/activate' then also provides a uv this script installed.
+  if [[ "$(command -v uv)" == "${NIKA_CACHE}/bin/uv" ]]; then
+    ln -sfn "${NIKA_CACHE}/bin/uv" "${VENV_BIN}/uv"
+  fi
   log "Python lab deps ready (Kathará via PyPI)"
+}
+
+# fetch_release URL ARCHIVE DEST: download a GitHub release archive into DEST
+# and check it against the release's checksums.txt.
+fetch_release() {
+  local base="$1" archive="$2" dest="$3"
+  need_cmd curl
+  log "Downloading ${base}/${archive}"
+  curl -fsSL -o "${dest}/${archive}" "${base}/${archive}"
+  curl -fsSL -o "${dest}/checksums.txt" "${base}/checksums.txt"
+  (cd "${dest}" && grep " ${archive}\$" checksums.txt | sha256sum -c --quiet -) \
+    || die "checksum mismatch for ${archive}"
+  tar -xzf "${dest}/${archive}" -C "${dest}"
 }
 
 install_containerlab() {
@@ -229,17 +232,32 @@ install_containerlab() {
     local current
     current="$(clab version 2>/dev/null | sed -n 's/^ *version: *//p' | head -n1)"
     if [[ -n "${current}" ]] && ! version_lt "${current}" "${CLAB_MIN_VERSION}"; then
-      log "Containerlab ${current} already installed"
+      log "Containerlab ${current} already installed: $(command -v clab)"
       return
     fi
-    log "Upgrading Containerlab ${current:-unknown} (need >= ${CLAB_MIN_VERSION})"
+    log "Upgrading Containerlab ${current:-unknown} to ${CLAB_VERSION} in ${VENV_BIN}"
   else
-    log "Installing Containerlab"
+    log "Installing Containerlab ${CLAB_VERSION} into ${VENV_BIN}"
   fi
-  need_cmd curl
-  need_cmd bash
-  bash -c "$(curl -fsSL https://get.containerlab.dev)"
-  command -v clab >/dev/null 2>&1 || die "Containerlab install finished but 'clab' not found on PATH"
+  need_cmd sudo
+  if findmnt -no OPTIONS -T "${VENV_BIN}" | tr , '\n' | grep -qx nosuid; then
+    die "${VENV_BIN} is on a nosuid mount; Containerlab needs its setuid bit there"
+  fi
+  local tmp
+  tmp="$(mktemp -d "${NIKA_CACHE}/clab.XXXXXX")"
+  fetch_release "https://github.com/srl-labs/containerlab/releases/download/v${CLAB_VERSION}" \
+    "containerlab_${CLAB_VERSION}_linux_$(host_arch).tar.gz" "${tmp}"
+  # clab runs as root through its setuid bit for members of clab_admins.
+  sudo install -o root -g root -m 4755 "${tmp}/containerlab" "${VENV_BIN}/containerlab"
+  rm -rf "${tmp}"
+  ln -sfn containerlab "${VENV_BIN}/clab"
+  if ! getent group clab_admins >/dev/null 2>&1; then
+    sudo groupadd -r clab_admins
+  fi
+  if [[ "$(id -u)" -ne 0 ]] && ! id -nG "${USER}" | tr ' ' '\n' | grep -qx clab_admins; then
+    sudo usermod -aG clab_admins "${USER}"
+    warn "Added ${USER} to clab_admins; open a new login shell (or run 'newgrp clab_admins') before Containerlab labs"
+  fi
   log "Containerlab ready: $(command -v clab)"
 }
 
@@ -248,21 +266,23 @@ install_gnmic() {
     local current
     current="$(gnmic version 2>/dev/null | sed -n 's/^ *version *: *//p' | head -n1)"
     if [[ "${current}" == "${GNMIC_VERSION}" ]]; then
-      log "gnmic ${current} already installed"
+      log "gnmic ${current} already installed: $(command -v gnmic)"
       return
     fi
-    log "Replacing gnmic ${current:-unknown} with pinned ${GNMIC_VERSION}"
+    log "Replacing gnmic ${current:-unknown} with pinned ${GNMIC_VERSION} in ${VENV_BIN}"
   else
-    log "Installing gnmic ${GNMIC_VERSION}"
+    log "Installing gnmic ${GNMIC_VERSION} into ${VENV_BIN}"
   fi
-  need_cmd curl
-  need_cmd bash
-  curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
-  # Official installer may place the binary in /usr/local/bin
-  if ! command -v gnmic >/dev/null 2>&1 && [[ -x /usr/local/bin/gnmic ]]; then
-    export PATH="/usr/local/bin:${PATH}"
-  fi
-  command -v gnmic >/dev/null 2>&1 || die "gnmic install finished but 'gnmic' not found on PATH"
+  local arch tmp
+  case "$(host_arch)" in
+    amd64) arch=x86_64 ;;
+    arm64) arch=aarch64 ;;
+  esac
+  tmp="$(mktemp -d "${NIKA_CACHE}/gnmic.XXXXXX")"
+  fetch_release "https://github.com/openconfig/gnmic/releases/download/v${GNMIC_VERSION}" \
+    "gnmic_${GNMIC_VERSION}_Linux_${arch}.tar.gz" "${tmp}"
+  install -m 755 "${tmp}/gnmic" "${VENV_BIN}/gnmic"
+  rm -rf "${tmp}"
   log "gnmic ready: $(command -v gnmic)"
 }
 
@@ -291,18 +311,15 @@ bootstrap_config() {
   fi
 }
 
-install_fault_injection_tools() {
-  if ! command -v apt-get >/dev/null 2>&1; then
-    log "apt-get not found; install skopeo, clang and iproute2 manually"
-    return
+check_host_tools() {
+  # Containerlab link faults run the host's tc, ip, and nsenter through sudo.
+  local cmd missing=()
+  for cmd in tc ip nsenter; do
+    command -v "${cmd}" >/dev/null 2>&1 || missing+=("${cmd}")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    warn "Containerlab link faults need ${missing[*]} on the host (iproute2, util-linux)"
   fi
-  need_cmd sudo
-  local pkgs=(clang iproute2 skopeo)
-  # make and unzip build the RouterOS image from the CHR download.
-  [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]] && pkgs+=(make unzip)
-  log "Installing host tools (skopeo for Kubernetes images, clang for eBPF, iproute2 for tc)"
-  sudo apt-get update
-  sudo apt-get install -y "${pkgs[@]}"
 }
 
 checkout_track() {
@@ -337,7 +354,7 @@ host_arch() {
   case "${m}" in
     x86_64|amd64) echo amd64 ;;
     aarch64|arm64) echo arm64 ;;
-    *) die "unsupported architecture for RouterOS CHR: ${m}" ;;
+    *) die "unsupported host architecture: ${m}" ;;
   esac
 }
 
@@ -368,8 +385,6 @@ ensure_routeros_image() {
 
   need_cmd docker
   need_cmd git
-  need_cmd make
-  need_cmd unzip
 
   if [[ ! -e /dev/kvm ]]; then
     warn "/dev/kvm not found; RouterOS/vrnetlab boot will be slow or may fail without KVM"
@@ -405,10 +420,12 @@ ensure_routeros_image() {
   local ros_dir="${build_dir}/mikrotik/routeros"
   [[ -d "${ros_dir}" ]] || die "vrnetlab checkout missing mikrotik/routeros"
 
-  # Clear prior CHR disks so make picks a single IMAGE_GLOB match.
-  rm -f "${ros_dir}"/chr-*.vmdk "${ros_dir}"/chr-*.vdi
-  unzip -o -d "${ros_dir}" "${chr_zip}"
-  [[ -f "${ros_dir}/${disk_name}" ]] || die "expected ${disk_name} after unzip"
+  # The build context is vrnetlab's docker/ dir plus its common/ helpers and
+  # the CHR disk, as vrnetlab's 'make docker-image' assembles it.
+  local context="${ros_dir}/docker"
+  cp "${build_dir}"/common/*.py "${context}/"
+  uv run --no-sync python -m zipfile -e "${chr_zip}" "${context}"
+  [[ -f "${context}/${disk_name}" ]] || die "expected ${disk_name} in ${chr_zip}"
 
   # vrnetlab-base already ships qemu, openssh-client, and sshpass (needed by
   # NIKA's docker-exec → SSH management path). Skip apt-get so builds work
@@ -425,23 +442,11 @@ EXPOSE 22 161/udp 830 5000 5678 8291 10000-10099
 DOCKERFILE
 
   log "Building ${ROUTEROS_IMAGE} via vrnetlab (this may take a few minutes)"
-  (
-    cd "${ros_dir}"
-    make docker-image
-  )
-
-  if docker_image_exists "${ROUTEROS_IMAGE}"; then
-    log "RouterOS image ready: ${ROUTEROS_IMAGE}"
-    return
-  fi
-
-  if docker_image_exists "vrnetlab/mikrotik_routeros:${ROUTEROS_VERSION}-${arch}"; then
-    docker tag "vrnetlab/mikrotik_routeros:${ROUTEROS_VERSION}-${arch}" "${ROUTEROS_IMAGE}"
-    log "Tagged ${ROUTEROS_IMAGE} from ${ROUTEROS_VERSION}-${arch}"
-    return
-  fi
-
-  die "RouterOS build finished but ${ROUTEROS_IMAGE} was not found (also looked for vrnetlab/mikrotik_routeros:${ROUTEROS_VERSION}-${arch})"
+  docker build --platform "linux/${arch}" --build-arg "IMAGE=${disk_name}" \
+    -t "${ROUTEROS_IMAGE}-${arch}" -t "${ROUTEROS_IMAGE}" "${context}"
+  rm -f "${context}/${disk_name}"
+  docker_image_exists "${ROUTEROS_IMAGE}" || die "RouterOS build finished but ${ROUTEROS_IMAGE} was not found"
+  log "RouterOS image ready: ${ROUTEROS_IMAGE}"
 }
 
 find_xrd_tarball() {
@@ -504,15 +509,11 @@ ensure_inotify_limits() {
 ensure_vrf_module() {
   # enterprise_branch Site Edges create Linux VRF devices; containers cannot
   # load modules, so the host must. Ubuntu cloud/virtual kernels ship vrf.ko
-  # only in linux-modules-extra.
+  # only in linux-modules-extra, which this script leaves to the host owner.
   local conf="${VRF_MODULES_CONF}"
   local sudo=""
   if [[ "$(id -u)" -ne 0 ]]; then
     sudo=sudo
-  fi
-  if ! ${sudo} modprobe vrf 2>/dev/null && command -v apt-get >/dev/null 2>&1; then
-    log "Installing linux-modules-extra-$(uname -r) for the vrf kernel module"
-    ${sudo} apt-get install -y "linux-modules-extra-$(uname -r)" || true
   fi
   if ${sudo} modprobe vrf 2>/dev/null \
     && printf 'vrf\n' | ${sudo} tee "${conf}" >/dev/null; then
@@ -688,6 +689,12 @@ print_next_steps() {
       ;;
   esac
 
+  local uv_note=""
+  if [[ "$(command -v uv)" == "${NIKA_CACHE}/bin/uv" ]]; then
+    uv_note="uv is in ${NIKA_CACHE}/bin; put it on PATH with: source ${VENV_BIN}/activate
+"
+  fi
+
   cat <<EOF
 
 Done.
@@ -703,7 +710,7 @@ Vendor labs (after --with-vendor-images):
      uv run nika env run iosxr_simple_bgp
      uv run nika env run routeros_simple_bgp
 
-New Docker install: open a new shell or run newgrp docker.
+${uv_note}New docker or clab_admins group membership: open a new login shell.
 Remote install: docs/operations/remote.md
 Sandboxed agents (after --with-sbx): sbx login, then see docs/operations/agent-sandbox.md
 Remove NIKA again: ./scripts/uninstall.sh
@@ -712,6 +719,7 @@ EOF
 
 main() {
   log "NIKA install root: ${ROOT}"
+  mkdir -p "${NIKA_CACHE}"
 
   checkout_track
   ensure_docker
@@ -726,7 +734,7 @@ main() {
   install_gnmic
   bootstrap_config
   validate_config
-  install_fault_injection_tools
+  check_host_tools
   ensure_inotify_limits
   ensure_vrf_module
   if [[ "${WITH_SBX}" -eq 1 ]]; then
