@@ -282,9 +282,11 @@ install_containerlab() {
   if ! getent group clab_admins >/dev/null 2>&1; then
     sudo groupadd -r clab_admins
   fi
-  if [[ "$(id -u)" -ne 0 ]] && ! id -nG "${USER}" | tr ' ' '\n' | grep -qx clab_admins; then
-    sudo usermod -aG clab_admins "${USER}"
-    warn "Added ${USER} to clab_admins; open a new login shell (or run 'newgrp clab_admins') before Containerlab labs"
+  local user
+  user="$(id -un)"
+  if [[ "$(id -u)" -ne 0 ]] && ! id -nG "${user}" | tr ' ' '\n' | grep -qx clab_admins; then
+    sudo usermod -aG clab_admins "${user}"
+    warn "Added ${user} to clab_admins; open a new login shell (or run 'newgrp clab_admins') before Containerlab labs"
   fi
   log "Containerlab ready: $(command -v clab)"
 }
@@ -455,7 +457,7 @@ ensure_routeros_image() {
   # the CHR disk, as vrnetlab's 'make docker-image' assembles it.
   local context="${ros_dir}/docker"
   cp "${build_dir}"/common/*.py "${context}/"
-  uv run --no-sync python -m zipfile -e "${chr_zip}" "${context}"
+  "${VENV_BIN}/python" -m zipfile -e "${chr_zip}" "${context}"
   [[ -f "${context}/${disk_name}" ]] || die "expected ${disk_name} in ${chr_zip}"
 
   # vrnetlab-base already ships qemu, openssh-client, and sshpass (needed by

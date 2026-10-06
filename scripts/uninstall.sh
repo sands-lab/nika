@@ -274,8 +274,14 @@ remove_files() {
     rm -f "${kathara_conf}"
     log "Removed ${kathara_conf}"
   fi
-  local path
-  for path in "${VENV_DIR}" "${ROOT}/.nika_cache" "${ROOT}/runtime"; do
+  local path paths=("${ROOT}/.nika_cache" "${ROOT}/runtime")
+  # Only a real virtualenv: UV_PROJECT_ENVIRONMENT may point anywhere.
+  if [[ -f "${VENV_DIR}/pyvenv.cfg" ]]; then
+    paths=("${VENV_DIR}" "${paths[@]}")
+  elif [[ -e "${VENV_DIR}" ]]; then
+    warn "${VENV_DIR} is not a virtualenv; leaving it"
+  fi
+  for path in "${paths[@]}"; do
     if [[ -e "${path}" ]]; then
       # Lab runs can leave root-owned files under runtime/.
       rm -rf "${path}" 2>/dev/null || ${SUDO} rm -rf "${path}"
