@@ -23,7 +23,14 @@ The installer does not use apt or other system package managers. It keeps what i
 | Runtime image caches and vendor downloads | `.nika_cache/` |
 | `.env` and `config/nika.yaml`, when missing | the repository root |
 
-`uv run` puts `.venv/bin` first on `PATH`, so NIKA finds `clab` and `gnmic` there. To use them, or a uv the installer added, in your own shell, run `source .venv/bin/activate`. The installer sets the uv locations only while it runs; uv cannot read a repository-relative cache path from the project config. Later `uv run` and `uv sync` calls use `~/.cache/uv` unless you export `UV_CACHE_DIR`, so the installer ends by printing the `export UV_CACHE_DIR=...` line to add to your shell profile.
+NIKA finds `clab` and `gnmic` in `.venv/bin` once that directory is on `PATH`. To keep everything inside the repository, activate the environment and run `nika` directly:
+
+```shell
+source .venv/bin/activate
+nika env run dc_clos -s s
+```
+
+`uv run nika ...` also works, but uv then checks the environment on every call and keeps its cache in `~/.cache/uv`. NIKA itself never calls uv. The installer points the uv cache and uv-managed Python at `.nika_cache/uv/` only while it runs, so re-run `./scripts/install.sh` after `git pull` to update dependencies without touching your home directory. It does not change uv settings for your other projects.
 
 Some parts still live outside the repository because they belong to the host:
 
