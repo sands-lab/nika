@@ -34,7 +34,7 @@ def start_agent(
     stream_output: bool = True,
     check_fault_presence: bool = False,
     sandbox_keep_container: bool | None = None,
-    sandbox_cpus: str | None = None,
+    sandbox_cpus: int | None = None,
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
 ) -> None:

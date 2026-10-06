@@ -33,7 +33,7 @@ def project_credentials_env_file() -> Path:
 class SandboxConfig:
     env_file: Path
     keep_container: bool
-    cpus: str | None
+    cpus: int | None
     memory: str | None
     offline_sdk_wheels: bool
 
@@ -59,7 +59,7 @@ def load_sandbox_env_values(*paths: Path) -> dict[str, str]:
 def resolve_sandbox_config(
     *,
     keep_container: bool | None = None,
-    cpus: str | None = None,
+    cpus: int | None = None,
     memory: str | None = None,
     offline_sdk_wheels: bool | None = None,
 ) -> SandboxConfig:

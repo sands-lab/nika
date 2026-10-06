@@ -36,6 +36,7 @@ from agent.sandbox.sbx.proxy import (
     sbx_process_env,
 )
 from agent.sandbox.sbx.workspace import collect_artifacts, prepare_workspace
+from nika.run_config import default_run_config, reset_run_config, set_run_config
 
 pytestmark = pytest.mark.unit
 
@@ -67,7 +68,11 @@ def test_required_sbx_template_images(agent_type: str, image: str) -> None:
     ],
 )
 def test_agent_mapping_and_create_command(agent_type: str, sbx_agent: str) -> None:
-    manager = SbxSandboxManager(resolve_sandbox_config())
+    set_run_config(default_run_config())
+    try:
+        manager = SbxSandboxManager(resolve_sandbox_config())
+    finally:
+        reset_run_config()
 
     assert native_sbx_agent(agent_type) == sbx_agent
     assert manager.build_create_command(
@@ -75,7 +80,17 @@ def test_agent_mapping_and_create_command(agent_type: str, sbx_agent: str) -> No
         sbx_agent=sbx_agent,
         workspace_dir=Path("/tmp/ws"),
         agent_type=agent_type,
-    ) == ["create", "--name", "nika-test", sbx_agent, "/tmp/ws"]
+    ) == [
+        "create",
+        "--name",
+        "nika-test",
+        sbx_agent,
+        "/tmp/ws",
+        "--cpus",
+        "2",
+        "-m",
+        "4g",
+    ]
 
 
 def test_exec_command_uses_sandbox_relative_paths() -> None:
@@ -1058,7 +1073,7 @@ def test_ensure_sbx_proxy_config_does_not_stop_running_daemon(
 ) -> None:
     import agent.sandbox.sbx.proxy as proxy_mod
 
-    monkeypatch.setattr(proxy_mod, "_proxy_lock_path", lambda: tmp_path / "lock")
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(proxy_mod, "_applied_proxy", None)
     with (
         patch("agent.sandbox.sbx.proxy.sbx_available", return_value=True),

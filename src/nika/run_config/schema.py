@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    field_validator,
+    model_validator,
+)
 
 from agent.utils.provider_env import validate_provider_for_agent
 
@@ -21,8 +28,9 @@ class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     keep: bool = False
-    cpus: str | None = None
-    memory: str | None = None
+    # Explicit null hands sizing to sbx: every host vCPU and half of host memory.
+    cpus: StrictInt | None = 2
+    memory: str | None = "4g"
     offline_sdk_wheels: bool = True
     upstream_proxy: str | None = None
 

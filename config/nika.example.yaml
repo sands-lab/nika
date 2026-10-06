@@ -56,10 +56,10 @@ nika:
   sandbox:
     # Keep the sandbox after a run for debugging.
     keep: false
-    # Limit sandbox CPU resources. Null uses the sandbox runtime default.
-    cpus: null
-    # Limit sandbox memory, such as 8g. Null uses the runtime default.
-    memory: null
+    # vCPUs per sandbox. Null lets sbx use every host vCPU.
+    cpus: 2
+    # Memory per sandbox. Null lets sbx use half of host memory.
+    memory: 4g
     # Install SDK agents from cached wheels instead of downloading packages.
     offline_sdk_wheels: true
     # Route sandboxd and sbx traffic through this proxy.

@@ -54,7 +54,7 @@ def _activate_run_config(
     access_role: str | None,
     base_url: str | None,
     sandbox_keep_container: bool,
-    sandbox_cpus: str | None,
+    sandbox_cpus: int | None,
     sandbox_memory: str | None,
     sandbox_offline_sdk_wheels: bool | None,
     sandbox_upstream_proxy: str | None,
@@ -178,7 +178,7 @@ def agent_run(
         "--sandbox-keep-container",
         help="Do not remove the sbx sandbox after the agent exits (debug).",
     ),
-    sandbox_cpus: str | None = typer.Option(
+    sandbox_cpus: int | None = typer.Option(
         None,
         "--sandbox-cpus",
         help="CPU limit for the sandbox.",
@@ -281,7 +281,7 @@ def _run_one_shot(
     result_dir: str | None,
     reasoning_effort: str | None,
     sandbox_keep_container: bool,
-    sandbox_cpus: str | None,
+    sandbox_cpus: int | None,
     sandbox_memory: str | None,
     sandbox_offline_sdk_wheels: bool | None,
 ) -> None:

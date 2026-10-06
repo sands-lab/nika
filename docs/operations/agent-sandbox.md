@@ -192,16 +192,18 @@ Credentials come from the repository-root `.env`; NIKA has no separate sandbox e
 
 `KVM error: Permission denied` in `~/.local/state/sandboxes/sandboxes/sandboxd/daemon.log` means your user cannot open `/dev/kvm`. Run `./scripts/install.sh --with-sbx`, open a new login shell, then run `sbx daemon stop` so the next NIKA run starts the daemon with the new group.
 
-`VM did not connect within 15s` can occur when the host is itself a VM (nested virtualization) and the sandbox gets every host vCPU, which is the sbx default. Cap the sandbox size:
+`VM did not connect within 15s` means the sandbox microVM took longer than the fixed sbx boot timeout. It happens when several microVMs boot at once on a loaded host, or when the host is itself a VM (nested virtualization) and the sandbox gets every host vCPU, which is the sbx default when `cpus` is `null`.
+
+NIKA serializes `sbx create` across all NIKA processes on the host, so parallel benchmark trials boot one microVM at a time. Agent runs still overlap. NIKA also sizes each sandbox at 2 vCPUs and 4 GiB by default. If boots still time out, check that `config/nika.yaml` does not set `cpus: null` or a large size:
 
 ```yaml
 nika:
   sandbox:
-    cpus: "4"
-    memory: 8g
+    cpus: 2
+    memory: 4g
 ```
 
-Or pass `--sandbox-cpus 4 --sandbox-memory 8g`.
+Or pass `--sandbox-cpus 2 --sandbox-memory 4g`.
 
 ### Sandbox cannot reach an LLM API
 
