@@ -8,6 +8,15 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     assetsDir: "assets",
+    // Stable names keep dist diffs small; the server sends no-cache so
+    // browsers revalidate instead of relying on hashed URLs.
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/[name].js",
+        chunkFileNames: "assets/[name].js",
+        assetFileNames: "assets/[name][extname]",
+      },
+    },
   },
   server: {
     proxy: {
