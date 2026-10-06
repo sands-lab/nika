@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import platform
 import subprocess
 import tarfile
 import tempfile
@@ -15,6 +16,8 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
 from nika.runtime.base import RuntimeCapabilityError
 
 TC_BPF_IMAGE = "nika/tc-bpf"
+# platform.machine() -> libbpf __TARGET_ARCH_* suffix.
+BPF_TARGET_ARCH = {"x86_64": "x86", "aarch64": "arm64"}
 
 
 class SwitchNamespaceBitflip:
@@ -79,6 +82,7 @@ class SwitchNamespaceBitflip:
     @staticmethod
     def _compile(seed: int) -> bytes:
         source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
+        machine = platform.machine()
         with tempfile.TemporaryDirectory(prefix="nika-bpf-") as directory:
             obj = Path(directory) / "bitflip.o"
             result = subprocess.run(
@@ -87,8 +91,8 @@ class SwitchNamespaceBitflip:
                     "-O2",
                     "-target",
                     "bpf",
-                    "-D__TARGET_ARCH_x86",
-                    "-I/usr/include/x86_64-linux-gnu",
+                    f"-D__TARGET_ARCH_{BPF_TARGET_ARCH.get(machine, machine)}",
+                    f"-I/usr/include/{machine}-linux-gnu",
                     f"-DSEED={seed}",
                     "-c",
                     str(source),
