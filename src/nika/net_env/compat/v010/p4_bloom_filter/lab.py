@@ -78,7 +78,7 @@ class P4BloomFilter(NetworkEnvBase):
                 "sysctl net.ipv4.conf.all.arp_announce=8",
                 "sysctl net.ipv4.conf.default.arp_announce=8",
                 "p4c bloom_filter.p4",
-                "simple_switch -i 1@eth0 -i 2@eth1 --log-console bloom_filter.json >> sw.log &",
+                "simple_switch -i 1@eth0 -i 2@eth1 bloom_filter.json >> sw.log &",
                 "while [[ $(pgrep simple_switch) -eq 0 ]]; do sleep 1; done",
                 "max_tries=5; count=0; "
                 'until simple_switch_CLI <<< "help"; do '
@@ -101,7 +101,7 @@ class P4BloomFilter(NetworkEnvBase):
                 "sysctl net.ipv4.conf.all.arp_announce=8",
                 "sysctl net.ipv4.conf.default.arp_announce=8",
                 "p4c bloom_filter.p4",
-                "simple_switch -i 1@eth0 -i 2@eth1 --log-console bloom_filter.json >> sw.log &",
+                "simple_switch -i 1@eth0 -i 2@eth1 bloom_filter.json >> sw.log &",
                 "while [[ $(pgrep simple_switch) -eq 0 ]]; do sleep 1; done",
                 "max_tries=5; count=0; "
                 'until simple_switch_CLI <<< "help"; do '
