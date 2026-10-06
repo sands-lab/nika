@@ -10,7 +10,7 @@ cd nika
 ./scripts/install.sh
 ```
 
-You need Linux, Python 3.12+, `curl`, `git`, `sudo`, a usable Docker Engine, and the host `vrf` kernel module. The installer installs neither. Follow [Install Docker Engine](https://docs.docker.com/engine/install/) first. Some scenarios, including `enterprise_branch` in the benchmark, create Linux VRF devices; on Ubuntu kernels that ship the module separately (cloud images and many servers), install it with `sudo apt-get install linux-modules-extra-$(uname -r)`. If your user cannot reach Docker yet, the installer adds it to the `docker` group and continues under that group.
+You need Linux, Python 3.12+, `curl`, `git`, `sudo`, a usable Docker Engine, and the host `vrf` kernel module. The installer installs neither: it checks both before changing anything and stops with an error that lists what is missing. Follow [Install Docker Engine](https://docs.docker.com/engine/install/) first. Some scenarios, including `enterprise_branch` in the benchmark, create Linux VRF devices; on Ubuntu kernels that ship the module separately (cloud images and many servers), install it with `sudo apt-get install linux-modules-extra-$(uname -r)`. If your user cannot reach Docker yet, the installer adds it to the `docker` group and continues under that group.
 
 The installer does not use apt or other system package managers. It keeps what it installs inside the repository:
 
@@ -42,7 +42,7 @@ The tools NIKA runs for fault injection and Kubernetes image preparation come in
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
-Scenarios with Linux VRF devices, such as `enterprise_branch`, need the host `vrf` kernel module, and the benchmark includes them. The installer loads the module and persists it in `/etc/modules-load.d/nika-vrf.conf`. When the module is missing, the installer warns, repeats the `linux-modules-extra` install command in its final summary, and continues; install the package and re-run the installer before running the benchmark. See [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch).
+Scenarios with Linux VRF devices, such as `enterprise_branch`, need the host `vrf` kernel module, and the benchmark includes them. The installer loads the module and persists it in `/etc/modules-load.d/nika-vrf.conf`. When the module is missing, the installer stops before changing anything and prints the `linux-modules-extra` install command. See [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch).
 
 Check that no other route on the host, such as one from a VPN or the host network, overlaps a subnet Docker uses (by default `172.17.0.0/16`–`172.31.0.0/16` and `192.168.0.0/16`). Overlapping routes break container networking and the Kubernetes API of `k8s_lab` and `llmd_lab`. See [Host routes overlap Docker subnets](troubleshooting.md#host-routes-overlap-docker-subnets).
 

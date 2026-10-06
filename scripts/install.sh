@@ -22,7 +22,6 @@ VRNETLAB_REPO_URL="${VRNETLAB_REPO_URL:-https://github.com/hellt/vrnetlab}"
 CHR_BASE_URL="${CHR_BASE_URL:-https://download.mikrotik.com/routeros/${ROUTEROS_VERSION}}"
 
 TRACK=""
-VRF_MISSING=0
 WITH_VENDOR_IMAGES=0
 WITH_SBX=0
 SKIP_IMAGES=0
@@ -33,9 +32,9 @@ usage() {
   cat <<EOF
 Usage: ./scripts/install.sh [options]
 
-Needs a usable Docker engine and the host vrf kernel module, because some
-scenarios (enterprise_branch, part of the benchmark) create Linux VRF
-devices. Installs uv (when missing), lab Python deps
+Needs Docker Engine and the host vrf kernel module, because some scenarios
+(enterprise_branch, part of the benchmark) create Linux VRF devices; stops
+with an error before changing anything when either is missing. Installs uv (when missing), lab Python deps
 (Kathará), Containerlab, and gnmic without apt: Python deps go to .venv,
 the clab and gnmic binaries to .venv/bin, and uv with its cache to
 .nika_cache/. Containerlab needs sudo once for its setuid bit and the
@@ -171,6 +170,26 @@ ensure_docker_group() {
   if getent group docker >/dev/null 2>&1; then
     sudo usermod -aG docker "$USER" || true
   fi
+}
+
+vrf_module_available() {
+  # Loaded or built in, or present for modprobe; -n resolves without root.
+  [[ -d /sys/module/vrf ]] || PATH="${PATH}:/usr/sbin:/sbin" modprobe -n vrf >/dev/null 2>&1
+}
+
+check_prerequisites() {
+  # Fail before changing anything when a host prerequisite is missing.
+  local missing=()
+  if ! command -v docker >/dev/null 2>&1; then
+    missing+=("Docker Engine: https://docs.docker.com/engine/install/ (for example: curl -fsSL https://get.docker.com | sudo sh)")
+  fi
+  if ! vrf_module_available; then
+    missing+=("vrf kernel module, needed by scenarios with Linux VRF devices such as enterprise_branch in the benchmark (on Ubuntu: sudo apt-get install linux-modules-extra-\$(uname -r))")
+  fi
+  [[ ${#missing[@]} -eq 0 ]] && return
+  printf 'error: missing host prerequisites; install them, then re-run ./scripts/install.sh:\n' >&2
+  printf '  - %s\n' "${missing[@]}" >&2
+  exit 1
 }
 
 ensure_docker() {
@@ -521,21 +540,15 @@ ensure_inotify_limits() {
 ensure_vrf_module() {
   # enterprise_branch Site Edges create Linux VRF devices; containers cannot
   # load modules, so the host must. Ubuntu cloud/virtual kernels ship vrf.ko
-  # only in linux-modules-extra, which this script leaves to the host owner.
+  # only in linux-modules-extra, which check_prerequisites requires up front.
   local conf="${VRF_MODULES_CONF}"
   local sudo=""
   if [[ "$(id -u)" -ne 0 ]]; then
     sudo=sudo
   fi
-  if ${sudo} modprobe vrf 2>/dev/null \
-    && printf 'vrf\n' | ${sudo} tee "${conf}" >/dev/null; then
-    log "Loaded vrf kernel module (persisted in ${conf})"
-    return
-  fi
-  VRF_MISSING=1
-  warn "Could not load the vrf kernel module, which scenarios with Linux VRF devices"
-  warn "(enterprise_branch, part of the benchmark) need. Install it, then re-run this script:"
-  warn "  sudo apt-get install linux-modules-extra-\$(uname -r)"
+  ${sudo} modprobe vrf || die "could not load the vrf kernel module"
+  printf 'vrf\n' | ${sudo} tee "${conf}" >/dev/null
+  log "Loaded vrf kernel module (persisted in ${conf})"
 }
 
 install_sbx() {
@@ -703,13 +716,6 @@ print_next_steps() {
       ;;
   esac
 
-  local vrf_note=""
-  if [[ "${VRF_MISSING}" -eq 1 ]]; then
-    vrf_note="Missing vrf kernel module: run 'sudo apt-get install linux-modules-extra-\$(uname -r)',
-then re-run ./scripts/install.sh before running the benchmark.
-
-"
-  fi
   local uv_note="Without uv: 'source ${VENV_BIN}/activate', then run 'nika ...' directly.
   This puts nika, clab, gnmic, and uv on PATH and writes nothing outside the repo.
 "
@@ -718,7 +724,7 @@ then re-run ./scripts/install.sh before running the benchmark.
 
 Done.
 
-${vrf_note}1) Set a provider API key in .env (or export it):
+1) Set a provider API key in .env (or export it):
      OPENAI_API_KEY=...
 
 2) Run:
@@ -738,6 +744,7 @@ EOF
 
 main() {
   log "NIKA install root: ${ROOT}"
+  check_prerequisites
   mkdir -p "${NIKA_CACHE}"
 
   checkout_track
