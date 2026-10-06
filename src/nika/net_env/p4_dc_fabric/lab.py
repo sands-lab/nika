@@ -68,7 +68,7 @@ def _switch_startup(
     cmds.append(f"ip link set eth{oob_eth} up")
     iface = " ".join(port_args)
     cmds.append(
-        f"simple_switch_grpc {iface} --device-id {device_id} --log-console "
+        f"simple_switch_grpc {iface} --device-id {device_id} "
         f"--no-p4 -- --grpc-server-addr 0.0.0.0:9559 >> sw.log 2>&1 &"
     )
     cmds.append(
