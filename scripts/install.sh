@@ -136,8 +136,9 @@ VENV_BIN="${VENV_DIR}/bin"
 # Keep uv, its cache, and any uv-managed Python under the repo.
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${NIKA_CACHE}/uv/cache}"
 export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-${NIKA_CACHE}/uv/python}"
-# Binaries in .venv/bin win over older host copies, as under 'uv run'.
-export PATH="${VENV_BIN}:${NIKA_CACHE}/bin:${PATH}"
+# Binaries in .venv/bin win over older host copies, as under 'uv run'. The
+# trailing ~/.local/bin finds a uv that older installers put there.
+export PATH="${VENV_BIN}:${NIKA_CACHE}/bin:${PATH}:${HOME}/.local/bin"
 
 log() { printf '+ %s\n' "$*"; }
 warn() { printf '! %s\n' "$*" >&2; }
@@ -197,8 +198,9 @@ install_uv() {
   fi
   log "Installing uv into ${NIKA_CACHE}/bin"
   need_cmd curl
+  # An unmanaged install writes no update receipt and leaves shell profiles alone.
   curl -LsSf https://astral.sh/uv/install.sh \
-    | env UV_INSTALL_DIR="${NIKA_CACHE}/bin" UV_NO_MODIFY_PATH=1 sh
+    | env UV_UNMANAGED_INSTALL="${NIKA_CACHE}/bin" sh
   command -v uv >/dev/null 2>&1 || die "uv installed but not found in ${NIKA_CACHE}/bin"
   log "uv ready: $(command -v uv)"
 }
@@ -245,11 +247,14 @@ install_containerlab() {
   fi
   local tmp
   tmp="$(mktemp -d "${NIKA_CACHE}/clab.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -rf '${tmp}'" EXIT
   fetch_release "https://github.com/srl-labs/containerlab/releases/download/v${CLAB_VERSION}" \
     "containerlab_${CLAB_VERSION}_linux_$(host_arch).tar.gz" "${tmp}"
   # clab runs as root through its setuid bit for members of clab_admins.
   sudo install -o root -g root -m 4755 "${tmp}/containerlab" "${VENV_BIN}/containerlab"
   rm -rf "${tmp}"
+  trap - EXIT
   ln -sfn containerlab "${VENV_BIN}/clab"
   if ! getent group clab_admins >/dev/null 2>&1; then
     sudo groupadd -r clab_admins
@@ -279,10 +284,13 @@ install_gnmic() {
     arm64) arch=aarch64 ;;
   esac
   tmp="$(mktemp -d "${NIKA_CACHE}/gnmic.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -rf '${tmp}'" EXIT
   fetch_release "https://github.com/openconfig/gnmic/releases/download/v${GNMIC_VERSION}" \
     "gnmic_${GNMIC_VERSION}_Linux_${arch}.tar.gz" "${tmp}"
   install -m 755 "${tmp}/gnmic" "${VENV_BIN}/gnmic"
   rm -rf "${tmp}"
+  trap - EXIT
   log "gnmic ready: $(command -v gnmic)"
 }
 
