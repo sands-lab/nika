@@ -134,6 +134,8 @@ VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
 [[ "${VENV_DIR}" == /* ]] || VENV_DIR="${ROOT}/${VENV_DIR}"
 VENV_BIN="${VENV_DIR}/bin"
 # Keep uv, its cache, and any uv-managed Python under the repo.
+UV_CACHE_DIR_DEFAULTED=0
+[[ -n "${UV_CACHE_DIR:-}" ]] || UV_CACHE_DIR_DEFAULTED=1
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${NIKA_CACHE}/uv/cache}"
 export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-${NIKA_CACHE}/uv/python}"
 # Binaries in .venv/bin win over older host copies, as under 'uv run'. The
@@ -700,6 +702,11 @@ print_next_steps() {
   local uv_note=""
   if [[ "$(command -v uv)" == "${NIKA_CACHE}/bin/uv" ]]; then
     uv_note="uv is in ${NIKA_CACHE}/bin; put it on PATH with: source ${VENV_BIN}/activate
+"
+  fi
+  if [[ "${UV_CACHE_DIR_DEFAULTED}" -eq 1 ]]; then
+    uv_note+="Later 'uv run' calls cache in ~/.cache/uv; to keep them in the repo, add to your shell profile:
+     export UV_CACHE_DIR=${UV_CACHE_DIR}
 "
   fi
 
