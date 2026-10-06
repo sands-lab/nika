@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Remove what scripts/install.sh and NIKA runs created: labs, Docker images,
 # caches, host settings, Containerlab, and gnmic.
-# Keeps Docker, uv, apt packages, the source tree, .env, config/, and results/.
+# Keeps Docker, a uv installed outside the repo, apt packages, the source tree,
+# .env, config/, and results/.
 # Usage: ./scripts/uninstall.sh [options]
 set -euo pipefail
 
@@ -25,12 +26,14 @@ Removes everything NIKA set up on this host:
     container still uses them, and the Kathara Docker network plugin
   - the inotify sysctl file (original values restored), ${SUDOERS_FILE},
     and ${VRF_MODULES_CONF}
-  - Containerlab (package, /etc/containerlab, clab_admins group) and gnmic
-  - ~/.config/kathara.conf and, in the repo, .venv, .nika_cache, runtime/
+  - Containerlab (clab_admins group, plus the package and /etc/containerlab
+    from older installers) and the ${GNMIC_BIN} older installers added
+  - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
+    .nika_cache (with uv and its cache when the installer added them), runtime/
 
-Keeps Docker and docker group membership, sbx and kvm group membership, uv,
-apt packages (clang, iproute2, skopeo), the source tree, .env, config/, and
-results/.
+Keeps Docker and docker group membership, sbx and kvm group membership, a uv
+installed outside the repo, apt packages that older installers added (clang,
+skopeo), the source tree, .env, config/, and results/.
 
 Options:
   -y, --yes             Do not ask for confirmation
@@ -55,7 +58,9 @@ done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-export PATH="${HOME}/.local/bin:${PATH}"
+VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
+[[ "${VENV_DIR}" == /* ]] || VENV_DIR="${ROOT}/${VENV_DIR}"
+export PATH="${VENV_DIR}/bin:${ROOT}/.nika_cache/bin:${HOME}/.local/bin:${PATH}"
 
 log() { printf '+ %s\n' "$*"; }
 warn() { printf '! %s\n' "$*" >&2; }
@@ -84,7 +89,7 @@ confirm() {
 }
 
 nika_cli_available() {
-  [[ -x .venv/bin/nika ]] && command -v uv >/dev/null 2>&1
+  [[ -x "${VENV_DIR}/bin/nika" ]] && command -v uv >/dev/null 2>&1
 }
 
 OWNED_IMAGES=()
@@ -100,7 +105,7 @@ stop_labs() {
       warn "Could not list NIKA images; only nika/* and NIKA-labeled images will be removed"
     fi
   elif command -v clab >/dev/null 2>&1; then
-    ${SUDO} clab destroy --all --cleanup --yes --log-level error || true
+    ${SUDO} "$(command -v clab)" destroy --all --cleanup --yes --log-level error || true
   fi
   docker_usable || return 0
 
@@ -244,8 +249,8 @@ remove_host_tools() {
   elif command -v rpm >/dev/null 2>&1 && rpm -q containerlab >/dev/null 2>&1; then
     log "Removing Containerlab package"
     ${SUDO} rpm -e containerlab
-  elif command -v clab >/dev/null 2>&1; then
-    warn "clab at $(command -v clab) was not installed from a package; remove it manually"
+  elif command -v clab >/dev/null 2>&1 && [[ "$(command -v clab)" != "${VENV_DIR}/bin/clab" ]]; then
+    warn "clab at $(command -v clab) was not installed by NIKA; leaving it"
   fi
   if [[ -d /etc/containerlab ]]; then
     ${SUDO} rm -rf /etc/containerlab
@@ -258,7 +263,7 @@ remove_host_tools() {
   if [[ -f "${GNMIC_BIN}" ]]; then
     ${SUDO} rm -f "${GNMIC_BIN}"
     log "Removed ${GNMIC_BIN}"
-  elif command -v gnmic >/dev/null 2>&1; then
+  elif command -v gnmic >/dev/null 2>&1 && [[ "$(command -v gnmic)" != "${VENV_DIR}/bin/gnmic" ]]; then
     warn "gnmic at $(command -v gnmic) was not installed by NIKA; leaving it"
   fi
 }
@@ -269,12 +274,18 @@ remove_files() {
     rm -f "${kathara_conf}"
     log "Removed ${kathara_conf}"
   fi
-  local path
-  for path in .venv .nika_cache runtime; do
+  local path paths=("${ROOT}/.nika_cache" "${ROOT}/runtime")
+  # Only a real virtualenv: UV_PROJECT_ENVIRONMENT may point anywhere.
+  if [[ -f "${VENV_DIR}/pyvenv.cfg" ]]; then
+    paths=("${VENV_DIR}" "${paths[@]}")
+  elif [[ -e "${VENV_DIR}" ]]; then
+    warn "${VENV_DIR} is not a virtualenv; leaving it"
+  fi
+  for path in "${paths[@]}"; do
     if [[ -e "${path}" ]]; then
       # Lab runs can leave root-owned files under runtime/.
       rm -rf "${path}" 2>/dev/null || ${SUDO} rm -rf "${path}"
-      log "Removed ${ROOT}/${path}"
+      log "Removed ${path}"
     fi
   done
 }
@@ -292,7 +303,7 @@ main() {
   restore_inotify
   remove_host_tools
   remove_files
-  log "NIKA removed. Kept: Docker, uv, apt packages, source tree, .env, config/, results/"
+  log "NIKA removed. Kept: Docker, apt packages, source tree, .env, config/, results/"
 }
 
 main

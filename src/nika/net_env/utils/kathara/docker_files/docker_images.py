@@ -34,6 +34,7 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
     "nika/onos": "Dockerfile.onos",
     "nika/fabric-controller": "Dockerfile.fabric-controller",
     "nika/tc-bpf": "Dockerfile.tc-bpf",
+    "nika/skopeo": "Dockerfile.skopeo",
     "nika/routinator:v0.14.2": "../isp/rpki/Dockerfile.routinator",
 }
 

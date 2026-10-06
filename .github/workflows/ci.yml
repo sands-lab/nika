@@ -52,22 +52,28 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v5
+      - name: Install host prerequisites
+        # Runners ship Docker; their Azure kernels keep vrf.ko in linux-modules-extra.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
       - name: Run one-shot installer
         run: ./scripts/install.sh
       - name: Verify installed user environment
         run: |
-          export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
+          source .venv/bin/activate
           docker info >/dev/null
-          uv run nika --help >/dev/null
-          uv run python -c 'import Kathara, docker, kubernetes'
+          uv --version
+          nika --help >/dev/null
+          python -c 'import Kathara, docker, kubernetes'
           clab version
           gnmic version
           cmp --silent .env .env.example
           cmp --silent config/nika.yaml config/nika.example.yaml
       - name: Run installed benchmark E2E
         run: |
-          export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
-          uv run pytest tests/ci/test_benchmark_startup.py -q
+          source .venv/bin/activate
+          pytest tests/ci/test_benchmark_startup.py -q
 
   unit-contract:
     name: unit+contract
@@ -111,6 +117,7 @@ jobs:
           - nika/onos
           - nika/fabric-controller
           - nika/tc-bpf
+          - nika/skopeo
           - nika/routinator:v0.14.2
     steps:
       - uses: actions/checkout@v5

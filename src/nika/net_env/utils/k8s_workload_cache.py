@@ -6,8 +6,7 @@ import hashlib
 import io
 import json
 import re
-import shutil
-import subprocess
+import os
 import sys
 import tarfile
 import tempfile
@@ -15,8 +14,12 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import docker.errors
+import requests
+
 from nika.config import REPO_ROOT
 from nika.net_env.utils.kathara.docker_files.docker_images import (
+    _get_client,
     ensure_nika_docker_images,
     host_machine_arch,
 )
@@ -38,6 +41,16 @@ K3S_SYSTEM_IMAGES = (
 
 K8S_SCENARIOS = frozenset(
     name for name, spec in list_all_net_envs().items() if spec.k8s_image_cache
+)
+
+SKOPEO_IMAGE = "nika/skopeo"
+_PROXY_ENV_KEYS = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
 )
 
 _PRELOAD_SIGNAL_PATH = "/var/run/nika-images-preloaded"
@@ -201,13 +214,66 @@ def _write_oci_archive(directory: Path, archive_path: Path, image: str) -> None:
             archive.add(blob, arcname=f"blobs/sha256/{value}", recursive=False)
 
 
-def _preserve_digests_flag() -> list[str]:
-    # skopeo < 1.6 (Ubuntu 22.04 apt) lacks the flag; the manifest digest and
-    # archive completeness checks still reject a converted image.
-    usage = subprocess.run(
-        ["skopeo", "copy", "--help"], capture_output=True, text=True, timeout=30
-    ).stdout
-    return ["--preserve-digests"] if "--preserve-digests" in usage else []
+def _registry_auth() -> dict:
+    """Inline ``docker login`` credentials; credential helpers stay on the host."""
+    try:
+        config = json.loads((Path.home() / ".docker" / "config.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    auths = config.get("auths") if isinstance(config, dict) else None
+    if not isinstance(auths, dict):
+        return {}
+    return {
+        registry: {"auth": entry["auth"]}
+        for registry, entry in auths.items()
+        if isinstance(entry, dict) and entry.get("auth")
+    }
+
+
+def _skopeo(*args: str, mount: Path, timeout: float) -> bytes:
+    """Run skopeo from ``nika/skopeo`` as the host user, sharing ``mount``.
+
+    Host networking, proxy settings, and inline ``docker login`` credentials
+    match a host-installed skopeo.
+    """
+    environment = {"TMPDIR": str(mount)}
+    environment.update(
+        {key: os.environ[key] for key in _PROXY_ENV_KEYS if key in os.environ}
+    )
+    auths = _registry_auth()
+    if auths:
+        auth_file = mount / "auth.json"
+        auth_file.touch(mode=0o600)
+        auth_file.write_text(json.dumps({"auths": auths}))
+        environment["REGISTRY_AUTH_FILE"] = str(auth_file)
+    try:
+        container = _get_client().containers.create(
+            SKOPEO_IMAGE,
+            ["skopeo", *args],
+            user=f"{os.getuid()}:{os.getgid()}",
+            network_mode="host",
+            environment=environment,
+            volumes={str(mount): {"bind": str(mount), "mode": "rw"}},
+        )
+    except docker.errors.DockerException as exc:
+        raise RuntimeError(f"could not create the skopeo container: {exc}") from exc
+    try:
+        container.start()
+        try:
+            status = container.wait(timeout=timeout).get("StatusCode", 1)
+        except requests.exceptions.RequestException as exc:
+            raise TimeoutError(
+                f"skopeo {args[0]} did not finish within {timeout:.0f}s "
+                f"or lost the Docker connection: {exc}"
+            ) from exc
+        if status:
+            stderr = container.logs(stdout=False, stderr=True).decode(errors="replace")
+            raise RuntimeError(stderr.strip()[-2000:])
+        return container.logs(stdout=True, stderr=False)
+    except docker.errors.DockerException as exc:
+        raise RuntimeError(f"skopeo {args[0]} failed in Docker: {exc}") from exc
+    finally:
+        container.remove(force=True)
 
 
 def ensure_cached(image: str) -> Path:
@@ -217,10 +283,7 @@ def ensure_cached(image: str) -> Path:
     tar_path = cache_tar_path(image)
     if cache_tar_exists(image) and _tar_is_complete(tar_path, image):
         return tar_path
-    if not shutil.which("skopeo"):
-        raise RuntimeError(
-            "Kubernetes image preparation requires skopeo; run scripts/install.sh or install skopeo"
-        )
+    ensure_nika_docker_images([SKOPEO_IMAGE])
     cache_root().mkdir(parents=True, exist_ok=True)
     _progress(f"fetching {image}")
     repository, digest = image.split("@", 1)
@@ -237,47 +300,35 @@ def ensure_cached(image: str) -> Path:
         directory = Path(tmp) / "image"
         staged = Path(tmp) / "image.tar"
         try:
-            subprocess.run(
-                [
-                    "skopeo",
-                    "copy",
-                    "--override-os",
-                    "linux",
-                    "--override-arch",
-                    host_machine_arch(),
-                    *_preserve_digests_flag(),
-                    "--retry-times",
-                    "2",
-                    f"docker://{source}",
-                    f"dir:{directory}",
-                ],
-                capture_output=True,
-                text=True,
+            _skopeo(
+                "copy",
+                "--override-os",
+                "linux",
+                "--override-arch",
+                host_machine_arch(),
+                "--preserve-digests",
+                "--retry-times",
+                "2",
+                f"docker://{source}",
+                f"dir:{directory}",
+                mount=Path(tmp),
                 timeout=600,
-                check=True,
             )
             # Keep the upstream index identity while including only the selected
             # platform's blobs. ctr --platform resolves this sparse index offline.
-            root = subprocess.run(
-                ["skopeo", "inspect", "--raw", f"docker://{source}"],
-                capture_output=True,
-                timeout=60,
-                check=True,
-            ).stdout
+            root = _skopeo(
+                "inspect", "--raw", f"docker://{source}", mount=Path(tmp), timeout=60
+            )
             selected = directory / "manifest.json"
             selected.replace(
                 directory
                 / (hashlib.sha256(selected.read_bytes()).hexdigest() + ".manifest.json")
             )
             selected.write_bytes(root)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(
-                f"Could not cache {image}: {exc.stderr.strip()[-2000:]}"
-            ) from exc
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                f"Image preparation timed out after {exc.timeout}s: {image}"
-            ) from exc
+        except TimeoutError as exc:
+            raise RuntimeError(f"Image preparation stopped: {image}: {exc}") from exc
+        except RuntimeError as exc:
+            raise RuntimeError(f"Could not cache {image}: {exc}") from exc
         _write_oci_archive(directory, staged, image)
         if not _tar_is_complete(staged, image):
             raise RuntimeError(f"Incomplete or corrupt image archive for {image}")

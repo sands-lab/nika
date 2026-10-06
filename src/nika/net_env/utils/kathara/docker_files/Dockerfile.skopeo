@@ -1,0 +1,6 @@
+FROM debian:bookworm-slim
+
+# skopeo copies digest-pinned Kubernetes workload images into .nika_cache.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates skopeo && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*

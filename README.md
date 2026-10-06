@@ -116,7 +116,7 @@ cd nika
 ./scripts/install.sh
 ```
 
-Prerequisites: Linux, Python 3.12+, `curl`, `sudo`. If Docker was just installed, open a new shell or run `newgrp docker`.
+Prerequisites: Linux, Python 3.12+, `curl`, `git`, `sudo`, [Docker Engine](https://docs.docker.com/engine/install/), and the host `vrf` kernel module, which benchmark scenarios such as `enterprise_branch` need (on Ubuntu: `sudo apt-get install linux-modules-extra-$(uname -r)`). The installer uses no apt and keeps NIKA's tools in `.venv/` and `.nika_cache/`.
 
 More install options: [Installation](docs/operations/installation.md).
 If containers lose network access or labs fail to start, see [Troubleshooting](docs/operations/troubleshooting.md).

@@ -5,9 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import platform
-import subprocess
 import tarfile
-import tempfile
 from pathlib import Path
 
 from nika.net_env.utils.kathara.docker_files.docker_images import (
@@ -30,15 +28,16 @@ class SwitchNamespaceBitflip:
         token = hashlib.blake2s(
             f"{self.runtime.lab_name}:{node}:{intf}:{seed}".encode(), digest_size=8
         ).hexdigest()
-        object_name = f".dp-{token}.o"
-        compiled = self._compile(seed)
+        object_name = f".dp-{token}"
+        source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as tar:
-            info = tarfile.TarInfo(object_name)
-            info.size = len(compiled)
-            tar.addfile(info, io.BytesIO(compiled))
-        # Lab images ship tc without libelf, so a short-lived loader container
-        # joins the node's network namespace to attach the object.
+            tar.add(source, arcname=f"{object_name}.c")
+        # nika/tc-bpf is built for the host architecture.
+        machine = platform.machine()
+        # Lab images ship tc without libelf or clang, so a short-lived loader
+        # container builds the object and joins the node's network namespace
+        # to attach it.
         ensure_nika_docker_images([TC_BPF_IMAGE])
         node_container = self.runtime.get_container(node)
         loader = node_container.client.containers.create(
@@ -46,9 +45,13 @@ class SwitchNamespaceBitflip:
             command=[
                 "sh",
                 "-c",
+                "clang -O2 -target bpf "
+                f"-D__TARGET_ARCH_{BPF_TARGET_ARCH.get(machine, machine)} "
+                f"-I/usr/include/{machine}-linux-gnu "
+                f"-DSEED={seed} -c /tmp/{object_name}.c -o /tmp/{object_name}.o && "
                 f"tc qdisc replace dev {intf} clsact && "
                 f"tc filter replace dev {intf} egress prio 10 "
-                f"bpf da obj /tmp/{object_name} sec classifier",
+                f"bpf da obj /tmp/{object_name}.o sec classifier",
             ],
             network_mode=f"container:{node_container.id}",
             privileged=True,
@@ -78,33 +81,3 @@ class SwitchNamespaceBitflip:
             node,
             f"tc filter del dev {intf} egress prio 10 2>/dev/null || true",
         )
-
-    @staticmethod
-    def _compile(seed: int) -> bytes:
-        source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
-        machine = platform.machine()
-        with tempfile.TemporaryDirectory(prefix="nika-bpf-") as directory:
-            obj = Path(directory) / "bitflip.o"
-            result = subprocess.run(
-                [
-                    "clang",
-                    "-O2",
-                    "-target",
-                    "bpf",
-                    f"-D__TARGET_ARCH_{BPF_TARGET_ARCH.get(machine, machine)}",
-                    f"-I/usr/include/{machine}-linux-gnu",
-                    f"-DSEED={seed}",
-                    "-c",
-                    str(source),
-                    "-o",
-                    str(obj),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode:
-                raise RuntimeCapabilityError(
-                    f"could not compile switch bitflip program: {result.stderr.strip()}"
-                )
-            return obj.read_bytes()
