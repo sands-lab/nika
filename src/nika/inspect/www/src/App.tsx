@@ -1361,6 +1361,9 @@ const RUN_MONITOR_TIPS = {
   llmMax: "Longest completed LLM request duration in this run.",
 } as const;
 
+/** Assistant rows of ended sessions; an ended attempt's log no longer changes. */
+const terminalLlmRowsCache = new Map<string, DisplayEvent[]>();
+
 function RunMonitor({
   progress,
   sessions,
@@ -1386,6 +1389,11 @@ function RunMonitor({
     [sessions, nowMs],
   );
   const [llmRows, setLlmRows] = useState<DisplayEvent[]>([]);
+  // The list poll hands over a new array every 3 s; refetch only when the
+  // member set or a status changes.
+  const sessionsKey = sessions
+    .map((s) => `${sessionOpenId(s)}:${s.status}:${s.end_time ?? ""}`)
+    .join("\n");
   useEffect(() => {
     let cancelled = false;
     if (!sessions.length) {
@@ -1396,6 +1404,10 @@ function RunMonitor({
       sessions.map((s) => {
         const id = sessionOpenId(s);
         const live = s.status === "running";
+        // Benchmark retries rerun aborted trials in the same session dir.
+        const cacheKey = `${root}\n${id}\n${s.status}\n${s.end_time ?? ""}`;
+        const cached = live ? undefined : terminalLlmRowsCache.get(cacheKey);
+        if (cached) return Promise.resolve(cached);
         return fetchTimeline(id, "agent", root)
           .then((t) => {
             // Match SessionView: freeze unpaired llm_start once the session is
@@ -1403,7 +1415,7 @@ function RunMonitor({
             const collapsed = collapsePairedEvents(t.events);
             const closed = closeSupersededOpenSpans(collapsed);
             if (live) return closed;
-            return closed.map((r) =>
+            const frozen = closed.map((r) =>
               isRunningSpan(r)
                 ? {
                     ...r,
@@ -1415,6 +1427,9 @@ function RunMonitor({
                   }
                 : r,
             );
+            const rows = frozen.filter((r) => r.role === "assistant");
+            terminalLlmRowsCache.set(cacheKey, rows);
+            return rows;
           })
           .catch(() => [] as DisplayEvent[]);
       }),
@@ -1424,7 +1439,7 @@ function RunMonitor({
     return () => {
       cancelled = true;
     };
-  }, [sessions, root]);
+  }, [sessionsKey, root]);
   const llmStats = useMemo(() => llmDurationStats(llmRows), [llmRows]);
   const label =
     progress?.benchmark_id != null
@@ -4720,6 +4735,7 @@ function SessionView({
   const [findHits, setFindHits] = useState<Set<string> | null>(null);
   const [annotations, setAnnotations] = useState<Annotations | null>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
+  const sawRunningRef = useRef(false);
   /** Jump to the first hit once per query when nothing is selected yet. */
   const autoJumpedForRef = useRef<string | null>(null);
   // A failed session load blocks every tab; tab fetch errors stay per tab.
@@ -4971,8 +4987,10 @@ function SessionView({
           );
         })
         .catch(() => undefined);
+    if (detail?.status === "running") sawRunningRef.current = true;
     if (detail?.status === "finished" || detail?.status === "aborted" || detail?.status === "error") {
-      void tick();
+      // The tab fetch above already has the full log unless the run ended while open.
+      if (sawRunningRef.current) void tick();
       return () => {
         cancelled = true;
       };

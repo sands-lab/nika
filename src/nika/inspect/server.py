@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
@@ -110,7 +111,11 @@ def create_inspect_app(
                     status=403,
                     error_type="Forbidden",
                 )
-        return await call_next(request)
+        response = await call_next(request)
+        # UI assets use fixed (unhashed) file names.
+        if not request.url.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-cache")
+        return response
 
     def _active_root(request: Request) -> Path | JSONResponse:
         try:
@@ -442,5 +447,9 @@ def create_inspect_app(
         routes.append(Route("/{path:path}", spa_index))
 
     return Starlette(
-        routes=routes, middleware=[Middleware(BaseHTTPMiddleware, dispatch=_guard)]
+        routes=routes,
+        middleware=[
+            Middleware(BaseHTTPMiddleware, dispatch=_guard),
+            Middleware(GZipMiddleware, minimum_size=1024),
+        ],
     )
