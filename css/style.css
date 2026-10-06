@@ -146,6 +146,7 @@ code {
 .btn-xs { padding: 4px 10px; font-size: 0.75rem; }
 
 .icon { width: 1.1em; height: 1.1em; flex-shrink: 0; }
+.icon-trophy { color: var(--yellow); }
 
 /* ── NAVBAR ──────────────────────────────────────────────────────────────── */
 .navbar {
