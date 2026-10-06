@@ -22,6 +22,7 @@ VRNETLAB_REPO_URL="${VRNETLAB_REPO_URL:-https://github.com/hellt/vrnetlab}"
 CHR_BASE_URL="${CHR_BASE_URL:-https://download.mikrotik.com/routeros/${ROUTEROS_VERSION}}"
 
 TRACK=""
+VRF_MISSING=0
 WITH_VENDOR_IMAGES=0
 WITH_SBX=0
 SKIP_IMAGES=0
@@ -32,12 +33,14 @@ usage() {
   cat <<EOF
 Usage: ./scripts/install.sh [options]
 
-Needs a usable Docker engine. Installs uv (when missing), lab Python deps
+Needs a usable Docker engine and the host vrf kernel module, because some
+scenarios (enterprise_branch, part of the benchmark) create Linux VRF
+devices. Installs uv (when missing), lab Python deps
 (Kathará), Containerlab, and gnmic without apt: Python deps go to .venv,
 the clab and gnmic binaries to .venv/bin, and uv with its cache to
 .nika_cache/. Containerlab needs sudo once for its setuid bit and the
 clab_admins group. Raises and persists host inotify limits for k3s and XRd
-labs, and loads the vrf kernel module for enterprise_branch. Creates .env
+labs, and loads and persists the vrf kernel module. Creates .env
 and config/nika.yaml from examples when missing.
 
 Then builds and pulls every Docker image the non-vendor scenarios use and
@@ -529,8 +532,10 @@ ensure_vrf_module() {
     log "Loaded vrf kernel module (persisted in ${conf})"
     return
   fi
-  warn "Could not load the vrf kernel module; enterprise_branch needs it:"
-  warn "  sudo apt-get install linux-modules-extra-\$(uname -r) && sudo modprobe vrf"
+  VRF_MISSING=1
+  warn "Could not load the vrf kernel module, which scenarios with Linux VRF devices"
+  warn "(enterprise_branch, part of the benchmark) need. Install it, then re-run this script:"
+  warn "  sudo apt-get install linux-modules-extra-\$(uname -r)"
 }
 
 install_sbx() {
@@ -698,6 +703,13 @@ print_next_steps() {
       ;;
   esac
 
+  local vrf_note=""
+  if [[ "${VRF_MISSING}" -eq 1 ]]; then
+    vrf_note="Missing vrf kernel module: run 'sudo apt-get install linux-modules-extra-\$(uname -r)',
+then re-run ./scripts/install.sh before running the benchmark.
+
+"
+  fi
   local uv_note="Without uv: 'source ${VENV_BIN}/activate', then run 'nika ...' directly.
   This puts nika, clab, gnmic, and uv on PATH and writes nothing outside the repo.
 "
@@ -706,7 +718,7 @@ print_next_steps() {
 
 Done.
 
-1) Set a provider API key in .env (or export it):
+${vrf_note}1) Set a provider API key in .env (or export it):
      OPENAI_API_KEY=...
 
 2) Run:
