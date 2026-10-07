@@ -51,6 +51,8 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_5_react",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [],
       "rank": 1
     },
     {
@@ -106,6 +108,10 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_6_27b_claudecode",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_react"
+      ],
       "rank": 2
     },
     {
@@ -165,6 +171,11 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_6_27b_claudecode_skills",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_6_27b_claudecode"
+      ],
       "rank": 3
     },
     {
@@ -218,6 +229,12 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_5_mini_react",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 4
     },
     {
@@ -273,6 +290,13 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_claudecode",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 5
     },
     {
@@ -328,6 +352,14 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_react",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_5_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 6
     },
     {
@@ -385,6 +417,15 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_react_gepa_d_s",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_5_27b_claudecode",
+        "0.1.0/20260910_qwen3_5_27b_react",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 7
     },
     {
@@ -442,6 +483,16 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_react_gepa_d",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_5_27b_claudecode",
+        "0.1.0/20260910_qwen3_5_27b_react",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d_s",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 8
     },
     {
@@ -495,6 +546,17 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_oss_20b_react",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_qwen3_5_27b_claudecode",
+        "0.1.0/20260910_qwen3_5_27b_react",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d_s",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 9
     },
     {
@@ -550,6 +612,18 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_oss_20b_react_replication",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_gpt_oss_20b_react",
+        "0.1.0/20260910_qwen3_5_27b_claudecode",
+        "0.1.0/20260910_qwen3_5_27b_react",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d_s",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 10
     },
     {
@@ -605,6 +679,19 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_oss_20b_claudecode",
       "official": false,
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.1.0/20260910_gpt_5_mini_react",
+        "0.1.0/20260910_gpt_5_react",
+        "0.1.0/20260910_gpt_oss_20b_react",
+        "0.1.0/20260910_gpt_oss_20b_react_replication",
+        "0.1.0/20260910_qwen3_5_27b_claudecode",
+        "0.1.0/20260910_qwen3_5_27b_react",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d",
+        "0.1.0/20260910_qwen3_5_27b_react_gepa_d_s",
+        "0.1.0/20260910_qwen3_6_27b_claudecode",
+        "0.1.0/20260910_qwen3_6_27b_claudecode_skills"
+      ],
       "rank": 11
     }
   ]

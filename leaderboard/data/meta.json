@@ -33,5 +33,11 @@
     ]
   },
   "primary_metric": "mean_rca_f1",
-  "generated_at": "2026-09-24T15:29:19+00:00"
+  "ranking": {
+    "method": "paired cluster bootstrap over cases",
+    "resamples": 10000,
+    "seed": 0,
+    "confidence": 0.95
+  },
+  "generated_at": "2026-10-07T10:42:33+00:00"
 }
