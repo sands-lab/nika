@@ -70,6 +70,11 @@ _INFRA_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
 )
 
 
+# Absolute filesystem paths embed case ids (e.g. ``campus_lan__dns_record_error``)
+# that would otherwise trip keyword patterns such as ``dns`` or ``kathara``.
+_PATH_RE = re.compile(r"(?<![\w:/])/[^\s'\"]+")
+
+
 def zero_scores() -> dict[str, float]:
     return {key: 0.0 for key in SCORE_KEYS}
 
@@ -90,7 +95,7 @@ def is_infra_error_evidence(error: BaseException | str | None) -> bool:
     """Return True only when the failure text clearly indicates infra / LLM / MCP."""
     if error is None:
         return False
-    text = str(error).strip()
+    text = _PATH_RE.sub(" ", str(error)).strip()
     if not text:
         return False
     return any(pat.search(text) for pat in _INFRA_PATTERNS)

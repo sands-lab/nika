@@ -87,6 +87,14 @@ class TestScoreStatusResolution:
         assert not is_infra_error_evidence("agent exceeded max_steps")
         assert not is_infra_error_evidence("wrong diagnosis")
 
+    def test_infra_patterns_ignore_case_ids_in_paths(self) -> None:
+        assert not is_infra_error_evidence(
+            "Agent completed without writing required submission: "
+            "/results/run/trials/campus_lan__dns_record_error__h139fe82d0c0f__t01/"
+            "submission.json"
+        )
+        assert is_infra_error_evidence("connection refused at http://localhost:8000/v1")
+
 
 class TestPrimaryAggregation:
     def test_healthy_no_submission_is_zero_not_one(self) -> None:
