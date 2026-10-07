@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shlex
-import sys
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -705,20 +704,14 @@ def frr_active_or_heal(
         already_healed=host in healed,
     ):
         healed.add(host)
-        from nika.utils.logger import system_logger
+        from nika.utils.logger import log_warning_event
 
-        message = (
+        log_warning_event(
+            "env_verify_frr_heal",
             f"frr unit not active on {host} while zebra is running "
-            f"(watchfrr exited); running '{_FRR_HEAL_COMMAND}' once"
-        )
-        print(f"[env-verify] {message}", file=sys.stderr, flush=True)
-        system_logger.warning(
-            message,
-            extra={
-                "event_type": "env_verify_frr_heal",
-                "data": {"host": host, "command": _FRR_HEAL_COMMAND},
-                "duration_ms": None,
-            },
+            f"(watchfrr exited); running '{_FRR_HEAL_COMMAND}' once",
+            host=host,
+            command=_FRR_HEAL_COMMAND,
         )
         exec_or_empty(runtime, host, _FRR_HEAL_COMMAND, timeout=60.0)
         if service_active(runtime, host, "frr", timeout=timeout):
@@ -921,7 +914,6 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
             f"Lab verification pending for {net_env.name} "
             f"({elapsed:.0f}s / {max_wait_sec:.0f}s): {summary}"
         )
-        print(f"[env-verify] {message}", file=sys.stderr, flush=True)
         log_event(
             "env_verify_progress",
             message,
@@ -954,13 +946,6 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
             last_result["checks"]["bootstrap_complete"] = complete
             last_result["verified"] = bool(last_result.get("verified") and complete)
         if last_result.get("verified", False):
-            elapsed = time.time() - started
-            print(
-                f"[env-verify] Lab verification passed for {net_env.name} "
-                f"after {elapsed:.0f}s",
-                file=sys.stderr,
-                flush=True,
-            )
             return last_result
         _emit_verify_progress()
         time.sleep(retry_delay_sec)

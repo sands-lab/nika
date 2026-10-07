@@ -186,6 +186,8 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   1. **Task mode (recommended):** `--problem LABEL` runs the complete task lifecycle: deploy the lab, inject the fault (using defaults from the benchmark resolver), run the agent, close the session, and write metrics.
   2. **Session mode:** omit `--problem` and run against an already injected session (`nika env run` → `nika failure inject` → `nika agent run`).
 
+  Both modes stream the agent's output. Interactive `nika` commands also print each lifecycle event to stderr as `[event] message (duration)`, such as `[env_start]`, `[failure_injected]`, and `[agent_end]`. The session's `nika.jsonl` stores the same rows, and `nika inspect` shows them with the same text. Batch `nika benchmark run` keeps these events in each trial's `nika.jsonl` and shows only its progress panel.
+
   ### Task labels
 
   | Scenario type | Label | Example |

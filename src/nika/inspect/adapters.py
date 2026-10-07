@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.inspect.models import CanonicalTraceEvent, EventKind, ToolPayload
+from nika.utils.logger import event_summary
 
 _LIFECYCLE_EVENTS = frozenset(
     {
@@ -553,7 +554,6 @@ def adapt_agent_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEve
 
 def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEvent:
     event = str(entry.get("event") or "system")
-    message = entry.get("message") or ""
     data = entry.get("data")
     if event in {"eval_metrics_saved", "eval_publish"}:
         kind: EventKind = "score"
@@ -563,16 +563,6 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
         kind = "system"
     else:
         kind = "lifecycle" if event else "other"
-
-    summary_parts = [str(message)] if message else []
-    if isinstance(data, dict) and data:
-        # Prefer short diagnostic keys for the ledger row.
-        for key in ("problem", "problem_name", "scenario", "host", "error"):
-            if key in data:
-                summary_parts.append(f"{key}={data[key]}")
-                break
-        else:
-            summary_parts.append(_truncate(data, 120))
 
     duration_ms = entry.get("duration_ms")
     if duration_ms is None and isinstance(data, dict):
@@ -587,8 +577,10 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
         timestamp=_timestamp(entry.get("timestamp")),
         source="nika",
         kind=kind,
-        title=event.replace("_", " "),
-        summary=_truncate(" · ".join(summary_parts)),
+        # Same text as the CLI line (nika.utils.logger.format_event_line);
+        # ``data`` stays in ``raw`` for the detail view.
+        title=event,
+        summary=event_summary(entry),
         event=event,
         duration_ms=duration_val,
         raw=_slim_raw(entry) if isinstance(entry, dict) else {},

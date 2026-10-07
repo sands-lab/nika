@@ -720,7 +720,10 @@ class TestAdapters:
         )
         assert event.source == "nika"
         assert event.kind == "lifecycle"
-        assert "mtu_mismatch" in event.summary
+        # Ledger row reads exactly like the CLI line; data stays in raw.
+        assert event.title == "failure_injected"
+        assert event.summary == "done"
+        assert event.raw["data"] == {"problem": "mtu_mismatch"}
 
 
 class TestTimelineMerge:
@@ -731,7 +734,7 @@ class TestTimelineMerge:
                 timestamp="2026-01-01T12:01:08",
                 source="nika",
                 kind="lifecycle",
-                title="failure injected",
+                title="failure_injected",
                 event="failure_injected",
             )
         ]
@@ -1317,7 +1320,7 @@ class TestTimelineMergeAware:
                 timestamp="2026-09-10T01:16:14+00:00",
                 source="nika",
                 kind="lifecycle",
-                title="agent start",
+                title="agent_start",
                 event="agent_start",
             )
         ]

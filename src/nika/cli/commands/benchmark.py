@@ -24,6 +24,7 @@ from nika.utils.agent_config import (
     resolve_llm_provider,
     resolve_max_steps,
 )
+from nika.utils.logger import set_console_events
 from nika.workflows.benchmark.isp_options import ISP_PROTOCOL_KEYS
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
@@ -680,6 +681,9 @@ def benchmark_run(
             "--problem without SCENARIO is invalid; pass SCENARIO or use "
             "--release / --config batch mode."
         )
+
+    # Batch trials report through the progress panel and per-trial nika.jsonl.
+    set_console_events(False)
 
     if config is None and resolved_release is None:
         config = Path(default_benchmark_yaml_path())
