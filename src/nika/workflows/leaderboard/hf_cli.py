@@ -85,6 +85,20 @@ def upload_folder_create_pr(
 
     pr_url = getattr(info, "pr_url", None) or ""
     pr_num = getattr(info, "pr_num", None)
+    if pr_num is not None:
+        # Hub PRs created through the API start as drafts; open it for review.
+        try:
+            api.change_discussion_status(
+                repo_id=repo_id,
+                discussion_num=int(pr_num),
+                new_status="open",
+                repo_type=repo_type,
+            )
+        except Exception as exc:  # noqa: BLE001 — Hub raises many types
+            raise HuggingFaceCliError(
+                f"HF PR {pr_url or pr_num} was created but is still a draft; "
+                f"open it for review on the Hub ({exc})"
+            ) from exc
     oid = getattr(info, "oid", None) or getattr(info, "commit_oid", None)
     if not pr_url and pr_num is not None:
         pr_url = f"https://huggingface.co/datasets/{repo_id}/discussions/{pr_num}"
