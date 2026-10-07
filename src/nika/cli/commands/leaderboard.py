@@ -135,7 +135,12 @@ def leaderboard_submit(
         LeaderboardSubmitError,
         submit_leaderboard_package,
     )
+    from nika.workflows.benchmark.display import quiet_third_party_logging
     from nika.workflows.leaderboard.validate import LeaderboardValidateError
+
+    # Importing the benchmark stack turns on INFO logging; keep Hub/httpx
+    # request lines out of the submit output.
+    quiet_third_party_logging()
 
     if not result_dir:
         raise typer.BadParameter(
