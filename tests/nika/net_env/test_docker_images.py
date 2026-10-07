@@ -14,6 +14,7 @@ pytestmark = pytest.mark.unit
 BASE = di.nika_image("base")
 ONOS = di.nika_image("onos")
 FABRIC = di.nika_image("fabric-controller")
+_tag_pinned_image = di._tag_pinned_image
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +24,7 @@ def _reset_client() -> None:
         patch.object(di, "_local_image_id", side_effect=lambda ref: f"id-{ref}"),
         patch.object(di, "_get_client", side_effect=AssertionError("no Docker")),
         patch.object(di, "_previous_builds", return_value=[]),
+        patch.object(di, "_tag_pinned_image"),
     ):
         yield
     di._client = None
@@ -275,3 +277,21 @@ def test_static_lab_confs_use_deployed_images() -> None:
         text = conf.read_text(encoding="utf-8")
         for image in re.findall(r'\[image\]="([^"]+)"', text):
             assert image in deployed, f"{conf.relative_to(REPO_ROOT)}: {image}"
+
+
+def test_tag_pinned_image_names_the_pinned_version() -> None:
+    """Kathara reads a machine's image tag; a digest pull leaves none."""
+    fake_client = MagicMock()
+    ids = {di.KATHARA_P4_IMAGE: "pinned", "kathara/p4:latest": None}
+    with (
+        patch.object(di, "_get_client", return_value=fake_client),
+        patch.object(di, "_local_image_id", side_effect=ids.get),
+    ):
+        _tag_pinned_image(di.KATHARA_P4_IMAGE)
+        ids["kathara/p4:latest"] = "pinned"
+        _tag_pinned_image(di.KATHARA_P4_IMAGE)
+
+    fake_client.images.get.assert_called_once_with(di.KATHARA_P4_IMAGE)
+    fake_client.images.get.return_value.tag.assert_called_once_with(
+        "kathara/p4", tag="latest"
+    )

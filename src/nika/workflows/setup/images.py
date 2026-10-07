@@ -154,7 +154,7 @@ def prune_stale_images() -> list[str]:
     """
     client = _get_client()
     owned = owned_images()
-    keep_tags = {_tag_ref(ref) for ref in owned if "@" not in ref}
+    keep_tags = {_tag_ref(ref) for ref in owned}
     keep_digests = {
         f"{image_repository(ref)}@{ref.split('@', 1)[1]}" for ref in owned if "@" in ref
     }

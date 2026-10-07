@@ -482,6 +482,24 @@ def pull_image(image: str, *, platform: str | None = None) -> None:
         _assert_image_architecture(image, _arch_from_platform(docker_platform))
 
 
+def _tag_pinned_image(image: str) -> None:
+    """Point the tag of a digest-pinned image (``repo:tag@sha256:…``) at it.
+
+    A pull by digest leaves the image untagged, but Kathara reads a machine's
+    image tag, so ``kathara/p4:latest`` must name the pinned version.
+    """
+    name = image.split("@", 1)[0]
+    if ":" not in name.rsplit("/", 1)[-1]:
+        return
+    pinned_id = _local_image_id(image)
+    if pinned_id is None or _local_image_id(name) == pinned_id:
+        return
+    repo, tag = _split_image_tag(name)
+    print(f"Tagging Docker image {image} as {name}...")
+    if not _get_client().images.get(image).tag(repo, tag=tag):
+        raise RuntimeError(f"Failed to tag Docker image {image} as {name}")
+
+
 def _ensure_built(image: str, *, force_rebuild: bool, ensured: set[str]) -> None:
     if image in ensured:
         return
@@ -524,7 +542,8 @@ def ensure_nika_docker_images(
     ``force_rebuild=True``, every buildable image is rebuilt.
 
     Images listed in ``NIKA_IMAGE_PLATFORMS`` are built/pulled for that
-    platform. ``nika/onos`` builds for the host architecture.
+    platform. ``nika/onos`` builds for the host architecture. A digest-pinned
+    image's tag (e.g. ``kathara/p4:latest``) is pointed at the pinned version.
     """
     required = {img for img in required_images if img}
     if not required:
@@ -549,6 +568,9 @@ def ensure_nika_docker_images(
             "Failed to ensure required Docker images: "
             + ", ".join(sorted(still_missing))
         )
+    for image in sorted(pullable):
+        if "@sha256:" in image:
+            _tag_pinned_image(image)
 
 
 def main() -> None:
