@@ -6,9 +6,11 @@
   "filters": {
     "framework": [
       "ClaudeCode",
+      "LangGraph",
       "ReACT"
     ],
     "llm_provider": [
+      "custom",
       "openai",
       "qwen"
     ],
@@ -17,7 +19,8 @@
       "GPT-5-mini",
       "GPT-OSS-20B",
       "Qwen3.5-27B",
-      "Qwen3.6-27B"
+      "Qwen3.6-27B",
+      "Qwen3.6-35B-A3B-FP8"
     ],
     "optimization_methods": [
       "GEPA",
@@ -39,5 +42,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-07T10:42:33+00:00"
+  "generated_at": "2026-10-07T10:43:56+00:00"
 }
