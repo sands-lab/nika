@@ -38,6 +38,15 @@
       "retrieved": "2026-09-22",
       "note": "No hosted quote published for this exact checkpoint; uses the Qwen3 27B rate as a stand-in."
     },
+    "Qwen3.6-35B-A3B-FP8": {
+      "input": 0.15,
+      "output": 1.0,
+      "basis": "hosted_open_weight",
+      "provider": "OpenRouter",
+      "source": "https://openrouter.ai/qwen/qwen3.6-35b-a3b",
+      "retrieved": "2026-10-07",
+      "note": "Quote for Qwen3.6-35B-A3B; the run used the vendor's FP8 checkpoint of the same weights."
+    },
     "Qwen3.6-27B": {
       "input": 0.6,
       "output": 3.0,
