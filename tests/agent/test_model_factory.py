@@ -219,3 +219,19 @@ def test_load_model_deepseek_ignores_reasoning_effort() -> None:
 def test_load_model_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unsupported llm provider"):
         load_model(llm_provider="nope", model="x")
+
+
+def test_streamed_reasoning_chunks_keep_whitespace() -> None:
+    from langchain_core.messages import AIMessageChunk
+
+    model = model_factory.ReasoningChatOpenAI(model="x", api_key="k")
+    merged = None
+    for delta in ({"reasoning": "Check"}, {"reasoning": " the"}, {"reasoning": " "}):
+        chunk = model._convert_chunk_to_generation_chunk(
+            {"choices": [{"index": 0, "delta": {"role": "assistant", **delta}}]},
+            AIMessageChunk,
+            None,
+        )
+        merged = chunk if merged is None else merged + chunk
+
+    assert merged.message.additional_kwargs["reasoning_content"] == "Check the "
