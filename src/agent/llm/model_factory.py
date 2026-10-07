@@ -54,15 +54,23 @@ def _openai_message_from_choice(choice: Any) -> Any | None:
 def _retryable_llm_error(exc: BaseException) -> bool:
     """Match OpenAI client retry policy for timeouts / connection / 5xx / 429."""
     try:
-        from openai import APIConnectionError, APIStatusError, APITimeoutError
+        import httpx
+        from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
     except ImportError:  # pragma: no cover - openai always present with ChatOpenAI
         return "Timeout" in type(exc).__name__ or "Connection" in type(exc).__name__
 
-    if isinstance(exc, (APITimeoutError, APIConnectionError)):
+    # A streamed body raises transport errors unwrapped (ReadError, ReadTimeout,
+    # RemoteProtocolError) where a buffered response raises APIConnectionError.
+    if isinstance(exc, (APITimeoutError, APIConnectionError, httpx.TransportError)):
         return True
     if isinstance(exc, APIStatusError):
         code = int(getattr(exc, "status_code", 0) or 0)
         return code in {408, 409, 429} or code >= 500
+    if type(exc) is APIError:
+        # Error event inside a stream; retry unless it carries a client error code.
+        body = exc.body if isinstance(exc.body, dict) else {}
+        code = str(body.get("code") or "")
+        return not code.isdigit() or int(code) in {408, 409, 429} or int(code) >= 500
     name = type(exc).__name__
     return "Timeout" in name or "Connection" in name
 

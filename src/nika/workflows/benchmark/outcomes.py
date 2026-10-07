@@ -67,6 +67,7 @@ _AGENT_ACTIVITY_EVENTS = frozenset(
 _ENDPOINT_TYPE_NAMES = frozenset(
     {
         "APIConnectionError",
+        "APIError",
         "APITimeoutError",
         "APIStatusError",
         "AuthenticationError",
