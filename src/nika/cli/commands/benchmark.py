@@ -6,7 +6,6 @@ from typing import Any, Literal
 import typer
 import yaml
 
-from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
 from nika.cli.utils import fmt_table
 from nika.cli.warning_capture import install_warning_capture
 from nika.net_env.net_env_pool import scenario_requires_topo_size
@@ -37,13 +36,6 @@ from nika.workflows.benchmark.release import (
     parse_release_ref,
     preflight_release,
     resolve_release_dir,
-)
-from nika.workflows.benchmark.run import (
-    default_benchmark_yaml_path,
-    run_benchmark_from_release,
-    run_benchmark_from_yaml,
-    run_single_case,
-    validate_inject_params,
 )
 
 benchmark_app = typer.Typer(
@@ -111,6 +103,8 @@ def load_catalog_rows(
     cfg = load_run_config(cfg_path)
     resolved_release = release if release is not None else cfg.benchmark.release
     if config is None and resolved_release is None:
+        from nika.workflows.benchmark.run import default_benchmark_yaml_path
+
         config = Path(default_benchmark_yaml_path())
     if config is not None:
         if split is not None:
@@ -176,6 +170,59 @@ def benchmark_releases(
         raise typer.Exit(code=1)
 
 
+def _echo_release_summary(*, as_json: bool) -> None:
+    """Print one row per frozen release from its ``RELEASE.yaml`` manifest."""
+    summaries: list[dict[str, Any]] = []
+    for version in list_releases():
+        manifest_path = resolve_release_dir(version) / "RELEASE.yaml"
+        data = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+        splits = data.get("splits") or {}
+        status = []
+        if version == DEFAULT_RELEASE_VERSION:
+            status.append("default")
+        if is_deprecated_release(version):
+            status.append("deprecated")
+        summaries.append(
+            {
+                "ref": f"{data.get('id') or 'nika-bench'}@{version}",
+                "version": version,
+                "default_split": _default_split_for_version(version),
+                "splits": {
+                    name: (spec or {}).get("case_count")
+                    for name, spec in splits.items()
+                },
+                "n_trials": (data.get("defaults") or {}).get("n_trials", 1),
+                "status": status,
+            }
+        )
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(summaries, indent=2))
+        return
+    if not summaries:
+        typer.echo("No releases found under benchmark/releases/")
+        return
+    table_rows = [
+        [
+            str(item["version"]),
+            str(item["default_split"]),
+            " ".join(f"{name}={count}" for name, count in item["splits"].items()),
+            str(item["n_trials"]),
+            ", ".join(item["status"]) or "-",
+        ]
+        for item in summaries
+    ]
+    typer.echo(
+        fmt_table(
+            ["VERSION", "DEFAULT_SPLIT", "CASES", "N_TRIALS", "STATUS"], table_rows
+        )
+    )
+    typer.echo(
+        "\nList task ids with: nika benchmark list --release <VERSION> [--split dev|test]"
+    )
+
+
 @benchmark_app.command("list")
 def benchmark_list(
     config: Path | None = typer.Option(
@@ -209,9 +256,14 @@ def benchmark_list(
         help="Print catalog entries as JSON.",
     ),
 ) -> None:
-    """List public task ids for a release or YAML matrix."""
+    """List frozen releases, or the task ids of one release split or YAML matrix."""
     from nika.workflows.benchmark.trials import catalog_entries
 
+    if config is None and release is None:
+        if split is not None:
+            raise typer.BadParameter("--split requires --release.")
+        _echo_release_summary(as_json=as_json)
+        return
     rows = load_catalog_rows(
         config=config, release=release, split=split, run_config=run_config
     )
@@ -491,6 +543,15 @@ def benchmark_run(
     With no explicit mode or configured release, batch mode runs the generated
     benchmark candidate catalog.
     """
+    from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
+    from nika.workflows.benchmark.run import (
+        default_benchmark_yaml_path,
+        run_benchmark_from_release,
+        run_benchmark_from_yaml,
+        run_single_case,
+        validate_inject_params,
+    )
+
     # Capture warnings into a post-run panel (also quiet noisy loggers).
     install_warning_capture()
 

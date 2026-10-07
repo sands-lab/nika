@@ -8,7 +8,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from nika.config import RESULTS_DIR
-from nika.evaluator.llm_judge import JudgeResponse
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.problems.registry import get_problem_class
 from nika.utils.session_artifacts import RUN_FILENAME, is_finished_session
@@ -129,6 +128,8 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
         (session_dir / EVAL_METRICS_FILENAME).read_text(encoding="utf-8")
     )
     taxonomy = resolve_failure_metadata(run_meta)
+
+    from nika.evaluator.llm_judge import JudgeResponse
 
     judge_response: JudgeResponse | None = None
     judge_path = session_dir / LLM_JUDGE_FILENAME

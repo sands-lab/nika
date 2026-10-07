@@ -169,7 +169,7 @@ Put options before `HOST`. `nika exec` passes every argument after `HOST` to the
 ## `nika config`
 
 - **`nika config show [--run-config PATH]`**: validate and print the effective non-secret run configuration. `--run-config` also accepts `NIKA_RUN_CONFIG`; the default path is `config/nika.yaml`.
-- **`nika config set KEY=VALUE... [--run-config PATH]`**: write important keys into the YAML file (sparse update). NIKA parses each value as a YAML scalar (bool, int, null, or string) and validates the merged file before writing. Allowed keys: `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, `agent.timeout_sec`, `agent.reasoning_effort`, `agent.custom.base_url`, `agent.enable_skills`, `nika.result_dir`, `nika.judge.provider`, `nika.judge.model`. Lab/MCP/k8s and other knobs stay YAML-only.
+- **`nika config set KEY=VALUE... [--run-config PATH]`**: overwrite scalar keys in the YAML file in place. Any key shown by `nika config show` works, such as `agent.model` or `benchmark.batch_size`. Comments and other lines stay unchanged; a missing key is added under its section. NIKA parses each value as a YAML scalar (bool, int, null, or string) and validates the file before writing. Edit the YAML file for lists and maps.
 
 The tracked template is `config/nika.example.yaml` (preferred for new setups). Precedence is CLI flags → YAML → built-in defaults. Use `--base-url` / `-m` / `-p` on `nika agent run` and `nika benchmark run` for one-shot overrides; use `nika config set` to persist. Provider API keys stay in the repo-root `.env`. Leftover operational keys in `.env` are ignored at runtime.
 
@@ -264,6 +264,7 @@ Each benchmark case has a public `task_id`. NIKA derives it from scenario, probl
 Use these commands when you need to look up a case or re-run one failed trial without rebuilding `--set` flags by hand:
 
 ```shell
+nika benchmark list
 nika benchmark list --release 0.2.0 --split test
 nika benchmark describe dc_clos__link_detach__m__h240c6b1dc30f \
   --release 0.2.0 --split test
@@ -274,7 +275,7 @@ nika benchmark run --release 0.2.0 --split test \
 
 | Command | What it does |
 |---------|----------------|
-| `nika benchmark list` | Prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for a `--release` split or `--config` YAML. Add `--json` for scripts. Source defaults match `nika benchmark run` (configured release, otherwise the candidate pool). |
+| `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
 | `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. |
 | `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
 

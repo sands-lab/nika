@@ -186,7 +186,7 @@ class CliSmokeTest:
 
     def test_benchmark_run_defaults_to_candidate_catalog(self) -> None:
         with patch(
-            "nika.cli.commands.benchmark.run_benchmark_from_yaml"
+            "nika.workflows.benchmark.run.run_benchmark_from_yaml"
         ) as run_from_yaml:
             result = _RUNNER.invoke(app, ["benchmark", "run", "-m", "mock-v1"])
         assert result.exit_code == 0, result.output
@@ -221,7 +221,7 @@ class CliSmokeTest:
 
     def test_benchmark_run_forwards_split(self) -> None:
         with patch(
-            "nika.cli.commands.benchmark.run_benchmark_from_release"
+            "nika.workflows.benchmark.run.run_benchmark_from_release"
         ) as run_from_release:
             result = _RUNNER.invoke(
                 app,
