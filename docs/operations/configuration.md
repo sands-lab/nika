@@ -59,8 +59,9 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
 | `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
 | `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. Set via YAML, `nika config set agent.custom.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
-| `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. |
+| `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. With streaming it bounds the wait between chunks, not the whole response. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
+| `agent.llm.stream` | `true` | Stream LLM responses in the `byo.langgraph` model factory. Set `false` for OpenAI-compatible servers that do not support streaming or `stream_options`. |
 | `agent.access.role` | `default` | Diagnosis access role for the run. `--role` on `agent run` / `benchmark run` overrides it. The role must exist in `agent.access.roles`. Benchmark runs record it in the run identity. |
 | `agent.access.roles.<role>.tools` | `["*"]` | MCP tools the agent may call during diagnosis. `*` allows every tool. Submission always allows only `submit`. |
 | `agent.access.roles.<role>.node_roles` | `["*"]` | Scenario node roles that node-targeted tools may address. `*` allows every role. |

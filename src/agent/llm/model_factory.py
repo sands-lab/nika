@@ -7,7 +7,11 @@ import uuid
 from typing import Any
 
 from dotenv import load_dotenv
-from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.language_models.chat_models import (
+    BaseChatModel,
+    agenerate_from_stream,
+    generate_from_stream,
+)
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
@@ -28,15 +32,15 @@ from agent.utils.reasoning_capture import attach_openai_reasoning
 load_dotenv()
 
 
-def _llm_client_settings() -> tuple[float, int]:
-    """Return LangGraph client timeout and retry settings."""
+def _llm_client_settings() -> tuple[float, int, bool]:
+    """Return LangGraph client timeout, retry and streaming settings."""
     try:
         from nika.run_config.loader import get_run_config
 
         llm = get_run_config().agent.llm
-        return float(llm.timeout_sec), int(llm.max_retries)
+        return float(llm.timeout_sec), int(llm.max_retries), bool(llm.stream)
     except Exception:  # noqa: BLE001 - sandbox / early import
-        return 480.0, 2
+        return 480.0, 2, True
 
 
 def _openai_message_from_choice(choice: Any) -> Any | None:
@@ -155,9 +159,19 @@ class ReasoningChatOpenAI(ChatOpenAI):
 
     HTTP retries are owned here (client ``max_retries=0``) so each failed
     attempt can emit ``llm_retry`` into ``messages.jsonl`` for inspect.
+
+    With ``_nika_stream`` each attempt streams and is aggregated here, so the
+    client timeout bounds the gap between chunks instead of the whole response.
+    ``streaming=True`` is not used: LangChain would then call ``_stream``
+    directly and skip these retries and the tool-call recovery.
     """
 
     _nika_max_retries: int = PrivateAttr(default=0)
+    _nika_stream: bool = PrivateAttr(default=False)
+
+    def _stream_attempt(self, kwargs: dict[str, Any]) -> bool:
+        # Structured output (response_format) stays on the parse endpoint.
+        return self._nika_stream and "response_format" not in kwargs
 
     def _create_chat_result(
         self,
@@ -198,9 +212,14 @@ class ReasoningChatOpenAI(ChatOpenAI):
         if not choices:
             return generation_chunk
         top = choices[0]
-        delta = top.get("delta") if isinstance(top, dict) else None
-        if isinstance(generation_chunk.message, AIMessageChunk):
-            attach_openai_reasoning(generation_chunk.message, delta or top)
+        delta = (top.get("delta") if isinstance(top, dict) else None) or {}
+        # Keep raw deltas: chunks are concatenated on merge, so stripping them
+        # (as attach_openai_reasoning does) would drop whitespace between tokens.
+        reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+        if isinstance(generation_chunk.message, AIMessageChunk) and isinstance(
+            reasoning, str
+        ):
+            generation_chunk.message.additional_kwargs["reasoning_content"] = reasoning
         return generation_chunk
 
     def _generate(
@@ -213,9 +232,19 @@ class ReasoningChatOpenAI(ChatOpenAI):
         retries = int(self._nika_max_retries or 0)
         for attempt in range(retries + 1):
             try:
-                result = super()._generate(
-                    messages, stop=stop, run_manager=run_manager, **kwargs
-                )
+                if self._stream_attempt(kwargs):
+                    result = generate_from_stream(
+                        self._stream(
+                            messages,
+                            stop=stop,
+                            run_manager=run_manager,
+                            **kwargs,
+                        )
+                    )
+                else:
+                    result = super()._generate(
+                        messages, stop=stop, run_manager=run_manager, **kwargs
+                    )
                 _recover_reasoning_tool_calls(result, kwargs.get("tools"))
                 return result
             except Exception as exc:
@@ -235,9 +264,19 @@ class ReasoningChatOpenAI(ChatOpenAI):
         retries = int(self._nika_max_retries or 0)
         for attempt in range(retries + 1):
             try:
-                result = await super()._agenerate(
-                    messages, stop=stop, run_manager=run_manager, **kwargs
-                )
+                if self._stream_attempt(kwargs):
+                    result = await agenerate_from_stream(
+                        self._astream(
+                            messages,
+                            stop=stop,
+                            run_manager=run_manager,
+                            **kwargs,
+                        )
+                    )
+                else:
+                    result = await super()._agenerate(
+                        messages, stop=stop, run_manager=run_manager, **kwargs
+                    )
                 _recover_reasoning_tool_calls(result, kwargs.get("tools"))
                 return result
             except Exception as exc:
@@ -248,11 +287,15 @@ class ReasoningChatOpenAI(ChatOpenAI):
         raise RuntimeError("unreachable")  # pragma: no cover
 
 
-def _openai_model(*, retries: int, **kwargs: Any) -> ReasoningChatOpenAI:
+def _openai_model(*, retries: int, stream: bool, **kwargs: Any) -> ReasoningChatOpenAI:
     """Build ReasoningChatOpenAI with client retries off; NIKA owns retry + logs."""
     kwargs["max_retries"] = 0
+    if stream:
+        # A custom base_url turns streamed usage off by default.
+        kwargs["stream_usage"] = True
     model = ReasoningChatOpenAI(**kwargs)
     model._nika_max_retries = int(retries)
+    model._nika_stream = bool(stream)
     return model
 
 
@@ -272,7 +315,7 @@ def load_model(
     timeout_sec: float | None = None,
     max_retries: int | None = None,
 ) -> BaseChatModel:
-    cfg_timeout, cfg_retries = _llm_client_settings()
+    cfg_timeout, cfg_retries, stream = _llm_client_settings()
     timeout = cfg_timeout if timeout_sec is None else float(timeout_sec)
     retries = cfg_retries if max_retries is None else int(max_retries)
 
@@ -289,19 +332,23 @@ def load_model(
         base = os.getenv(ENV_OPENAI_BASE_URL) or resolve_custom_base_url() or None
         if base:
             kwargs["base_url"] = base
-        return _openai_model(retries=retries, **kwargs)
+        return _openai_model(retries=retries, stream=stream, **kwargs)
 
     if llm_provider == "deepseek":
         from langchain_deepseek import ChatDeepSeek
 
-        return ChatDeepSeek(
-            model=model,
-            api_key=os.getenv(ENV_DEEPSEEK_API_KEY) or None,
-            base_url=DEEPSEEK_OPENAI_BASE_URL,
-            timeout=timeout,
-            max_retries=retries,
-            max_tokens=max_tokens,
-        )
+        kwargs = {
+            "model": model,
+            "api_key": os.getenv(ENV_DEEPSEEK_API_KEY) or None,
+            "base_url": DEEPSEEK_OPENAI_BASE_URL,
+            "timeout": timeout,
+            "max_retries": retries,
+            "max_tokens": max_tokens,
+        }
+        if stream:
+            # A custom base_url turns streamed usage off by default.
+            kwargs.update(streaming=True, stream_usage=True)
+        return ChatDeepSeek(**kwargs)
 
     if llm_provider == "custom":
         base_url = resolve_custom_base_url()
@@ -338,7 +385,7 @@ def load_model(
             extra_body["max_tokens"] = max_tokens
         if extra_body:
             kwargs["extra_body"] = extra_body
-        return _openai_model(retries=retries, **kwargs)
+        return _openai_model(retries=retries, stream=stream, **kwargs)
 
     if llm_provider == "anthropic":
         # Official Anthropic needs no base URL. Provider mapping supplies one for gateways.
@@ -353,6 +400,8 @@ def load_model(
             "default_request_timeout": timeout,
             "max_retries": retries,
         }
+        if stream:
+            kwargs["streaming"] = True
         if reasoning_effort is not None:
             kwargs["reasoning_effort"] = reasoning_effort
         if max_tokens is not None:

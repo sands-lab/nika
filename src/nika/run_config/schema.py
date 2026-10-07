@@ -181,12 +181,13 @@ class CustomModelSettings(BaseModel):
 
 
 class AgentLlmSettings(BaseModel):
-    """Control request timeout and retries for the LangGraph model factory."""
+    """Control request timeout, retries and streaming for the LangGraph model factory."""
 
     model_config = ConfigDict(extra="forbid")
 
     timeout_sec: float = 480.0
     max_retries: int = 2
+    stream: bool = True
 
     @field_validator("timeout_sec")
     @classmethod
