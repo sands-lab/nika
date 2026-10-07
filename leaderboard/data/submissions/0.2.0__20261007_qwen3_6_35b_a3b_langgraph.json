@@ -58,7 +58,7 @@
       "problem": "device_forwarding_packet_corruption",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "device_forwarding_packet_corruption"
       ],
@@ -81,7 +81,7 @@
       "problem": "device_forwarding_packet_corruption",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "device_forwarding_packet_corruption"
       ],
@@ -104,7 +104,7 @@
       "problem": "device_forwarding_packet_corruption",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "device_forwarding_packet_corruption"
       ],
@@ -127,7 +127,7 @@
       "problem": "dhcp_missing_subnet",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dhcp_missing_subnet"
       ],
@@ -150,7 +150,7 @@
       "problem": "dhcp_missing_subnet",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dhcp_missing_subnet"
       ],
@@ -173,7 +173,7 @@
       "problem": "dhcp_missing_subnet",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dhcp_missing_subnet"
       ],
@@ -196,7 +196,7 @@
       "problem": "dhcp_service_down",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dhcp_service_down"
       ],
@@ -219,7 +219,7 @@
       "problem": "dhcp_service_down",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dhcp_service_down"
       ],
@@ -242,14 +242,16 @@
       "problem": "dhcp_service_down",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dhcp_service_down"
       ],
       "predicted_root_cause_name": [
         "dhcp_service_down"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -267,7 +269,7 @@
       "problem": "dhcp_spoofed_dns",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_dns"
       ],
@@ -290,14 +292,16 @@
       "problem": "dhcp_spoofed_dns",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_dns"
       ],
       "predicted_root_cause_name": [
         "dhcp_spoofed_dns"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -315,14 +319,16 @@
       "problem": "dhcp_spoofed_dns",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_dns"
       ],
       "predicted_root_cause_name": [
         "dhcp_spoofed_dns"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -340,14 +346,16 @@
       "problem": "dhcp_spoofed_gateway",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_gateway"
       ],
       "predicted_root_cause_name": [
         "dhcp_spoofed_gateway"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -365,7 +373,7 @@
       "problem": "dhcp_spoofed_gateway",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_gateway"
       ],
@@ -388,7 +396,7 @@
       "problem": "dhcp_spoofed_gateway",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_gateway"
       ],
@@ -411,7 +419,7 @@
       "problem": "dhcp_spoofed_subnet",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_subnet"
       ],
@@ -434,7 +442,7 @@
       "problem": "dhcp_spoofed_subnet",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_subnet"
       ],
@@ -442,7 +450,10 @@
         "host_incorrect_netmask",
         "dhcp_spoofed_subnet"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming",
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
@@ -460,7 +471,7 @@
       "problem": "dhcp_spoofed_subnet",
       "outcome": "agent_failed",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "dhcp_spoofed_subnet"
       ],
@@ -483,14 +494,16 @@
       "problem": "dns_lookup_latency",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_lookup_latency"
       ],
       "predicted_root_cause_name": [
         "dns_lookup_latency"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -508,7 +521,7 @@
       "problem": "dns_lookup_latency",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_lookup_latency"
       ],
@@ -531,7 +544,7 @@
       "problem": "dns_lookup_latency",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_lookup_latency"
       ],
@@ -539,7 +552,9 @@
         "dns_lookup_latency",
         "dns_record_error"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.6667,
@@ -557,7 +572,7 @@
       "problem": "dns_port_blocked",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "dns_port_blocked"
       ],
@@ -580,7 +595,7 @@
       "problem": "dns_port_blocked",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "dns_port_blocked"
       ],
@@ -603,14 +618,16 @@
       "problem": "dns_port_blocked",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "dns_port_blocked"
       ],
       "predicted_root_cause_name": [
         "dns_port_blocked"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "forwarding_encapsulation_policy"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -628,7 +645,7 @@
       "problem": "dns_record_error",
       "outcome": "agent_failed",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_record_error"
       ],
@@ -651,7 +668,7 @@
       "problem": "dns_record_error",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_record_error"
       ],
@@ -674,7 +691,7 @@
       "problem": "dns_record_error",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_record_error"
       ],
@@ -697,7 +714,7 @@
       "problem": "dns_service_down",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_service_down"
       ],
@@ -720,7 +737,7 @@
       "problem": "dns_service_down",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_service_down"
       ],
@@ -743,14 +760,16 @@
       "problem": "dns_service_down",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "dns_service_down"
       ],
       "predicted_root_cause_name": [
         "dns_service_down"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -768,7 +787,7 @@
       "problem": "host_incorrect_dns",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_dns"
       ],
@@ -791,7 +810,7 @@
       "problem": "host_incorrect_dns",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_dns"
       ],
@@ -814,14 +833,16 @@
       "problem": "host_incorrect_dns",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_dns"
       ],
       "predicted_root_cause_name": [
         "host_incorrect_dns"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -839,7 +860,7 @@
       "problem": "load_balancer_overload",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "load_balancer_overload"
       ],
@@ -862,7 +883,7 @@
       "problem": "load_balancer_overload",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "load_balancer_overload"
       ],
@@ -885,7 +906,7 @@
       "problem": "load_balancer_overload",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "load_balancer_overload"
       ],
@@ -908,7 +929,7 @@
       "problem": "ospf_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "ospf_acl_block"
       ],
@@ -931,14 +952,16 @@
       "problem": "ospf_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "ospf_acl_block"
       ],
       "predicted_root_cause_name": [
         "ospf_neighbor_missing"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
@@ -956,7 +979,7 @@
       "problem": "ospf_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "ospf_acl_block"
       ],
@@ -979,7 +1002,7 @@
       "problem": "ospf_area_misconfiguration",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "ospf_area_misconfiguration"
       ],
@@ -1002,7 +1025,7 @@
       "problem": "ospf_area_misconfiguration",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "ospf_area_misconfiguration"
       ],
@@ -1025,7 +1048,7 @@
       "problem": "ospf_area_misconfiguration",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "ospf_area_misconfiguration"
       ],
@@ -1048,7 +1071,7 @@
       "problem": "ospf_neighbor_missing",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "ospf_neighbor_missing"
       ],
@@ -1071,7 +1094,7 @@
       "problem": "ospf_neighbor_missing",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "ospf_neighbor_missing"
       ],
@@ -1094,14 +1117,16 @@
       "problem": "ospf_neighbor_missing",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "ospf_neighbor_missing"
       ],
       "predicted_root_cause_name": [
         "ospf_neighbor_missing"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -1119,14 +1144,16 @@
       "problem": "arp_acl_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "arp_acl_block"
       ],
       "predicted_root_cause_name": [
         "link_down"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -1144,7 +1171,7 @@
       "problem": "arp_acl_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "arp_acl_block"
       ],
@@ -1167,7 +1194,7 @@
       "problem": "arp_acl_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "arp_acl_block"
       ],
@@ -1190,7 +1217,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1213,7 +1240,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1236,14 +1263,16 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -1261,7 +1290,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1284,7 +1313,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1307,7 +1336,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1330,7 +1359,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1353,7 +1382,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1376,7 +1405,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -1399,7 +1428,7 @@
       "problem": "host_incorrect_gateway",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_gateway"
       ],
@@ -1422,7 +1451,7 @@
       "problem": "host_incorrect_gateway",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_gateway"
       ],
@@ -1445,7 +1474,7 @@
       "problem": "host_incorrect_gateway",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_gateway"
       ],
@@ -1468,14 +1497,16 @@
       "problem": "link_detach",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_detach"
       ],
       "predicted_root_cause_name": [
         "link_detach"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -1493,14 +1524,16 @@
       "problem": "link_detach",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_detach"
       ],
       "predicted_root_cause_name": [
         "link_detach"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -1518,14 +1551,16 @@
       "problem": "link_detach",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_detach"
       ],
       "predicted_root_cause_name": [
         "link_detach"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -1543,7 +1578,7 @@
       "problem": "receiver_resource_contention",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "endpoint_application",
       "gt_root_cause_name": [
         "receiver_resource_contention"
       ],
@@ -1566,7 +1601,7 @@
       "problem": "receiver_resource_contention",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "endpoint_application",
       "gt_root_cause_name": [
         "receiver_resource_contention"
       ],
@@ -1589,7 +1624,7 @@
       "problem": "receiver_resource_contention",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "endpoint_application",
       "gt_root_cause_name": [
         "receiver_resource_contention"
       ],
@@ -1612,14 +1647,16 @@
       "problem": "bgp_hijacking",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "bgp_hijacking"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.2222,
       "rca_f1": 0.0,
@@ -1637,7 +1674,7 @@
       "problem": "bgp_hijacking",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "bgp_hijacking"
       ],
@@ -1660,7 +1697,7 @@
       "problem": "bgp_hijacking",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "bgp_hijacking"
       ],
@@ -1683,7 +1720,7 @@
       "problem": "bgp_missing_route_advertisement",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
@@ -1706,7 +1743,7 @@
       "problem": "bgp_missing_route_advertisement",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
@@ -1729,7 +1766,7 @@
       "problem": "bgp_missing_route_advertisement",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
@@ -1752,14 +1789,16 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -1777,14 +1816,16 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -1802,14 +1843,16 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -1827,14 +1870,16 @@
       "problem": "host_static_blackhole",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "host_static_blackhole"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.2,
       "rca_f1": 0.0,
@@ -1852,14 +1897,16 @@
       "problem": "host_static_blackhole",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "host_static_blackhole"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.2222,
       "rca_f1": 0.0,
@@ -1877,14 +1924,16 @@
       "problem": "host_static_blackhole",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "host_static_blackhole"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.1818,
       "rca_f1": 0.0,
@@ -1902,7 +1951,7 @@
       "problem": "link_down",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_down"
       ],
@@ -1925,7 +1974,7 @@
       "problem": "link_down",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_down"
       ],
@@ -1948,7 +1997,7 @@
       "problem": "link_down",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_down"
       ],
@@ -1971,14 +2020,16 @@
       "problem": "link_packet_corruption",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_packet_corruption"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -1996,7 +2047,7 @@
       "problem": "link_packet_corruption",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_packet_corruption"
       ],
@@ -2004,7 +2055,10 @@
         "link_packet_corruption",
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface",
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2022,7 +2076,7 @@
       "problem": "link_packet_corruption",
       "outcome": "agent_failed",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_packet_corruption"
       ],
@@ -2045,7 +2099,7 @@
       "problem": "nat_mapping_removed_without_drain",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "nat_mapping_removed_without_drain"
       ],
@@ -2068,7 +2122,7 @@
       "problem": "nat_mapping_removed_without_drain",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "nat_mapping_removed_without_drain"
       ],
@@ -2091,7 +2145,7 @@
       "problem": "nat_mapping_removed_without_drain",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "nat_mapping_removed_without_drain"
       ],
@@ -2114,7 +2168,7 @@
       "problem": "snat_port_pool_exhaustion",
       "outcome": "agent_failed",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "snat_port_pool_exhaustion"
       ],
@@ -2137,14 +2191,16 @@
       "problem": "snat_port_pool_exhaustion",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "snat_port_pool_exhaustion"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.4,
       "rca_f1": 0.0,
@@ -2162,14 +2218,16 @@
       "problem": "snat_port_pool_exhaustion",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "snat_port_pool_exhaustion"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.4,
       "rca_f1": 0.0,
@@ -2187,14 +2245,16 @@
       "problem": "tcp_receive_window_limited",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "tcp_receive_window_limited"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2212,14 +2272,16 @@
       "problem": "tcp_receive_window_limited",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "tcp_receive_window_limited"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2237,14 +2299,16 @@
       "problem": "tcp_receive_window_limited",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "tcp_receive_window_limited"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2262,14 +2326,16 @@
       "problem": "vrf_dscp_remarking",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "vrf_dscp_remarking"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2287,14 +2353,16 @@
       "problem": "vrf_dscp_remarking",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "vrf_dscp_remarking"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2312,7 +2380,7 @@
       "problem": "vrf_dscp_remarking",
       "outcome": "agent_failed",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "vrf_dscp_remarking"
       ],
@@ -2335,7 +2403,7 @@
       "problem": "wireguard_peer_key_misconfiguration",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "wireguard_peer_key_misconfiguration"
       ],
@@ -2358,14 +2426,16 @@
       "problem": "wireguard_peer_key_misconfiguration",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "wireguard_peer_key_misconfiguration"
       ],
       "predicted_root_cause_name": [
         "wireguard_allowed_ips_misconfiguration"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "forwarding_encapsulation_policy"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2383,7 +2453,7 @@
       "problem": "wireguard_peer_key_misconfiguration",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "wireguard_peer_key_misconfiguration"
       ],
@@ -2406,14 +2476,16 @@
       "problem": "wireguard_allowed_ips_misconfiguration",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "wireguard_allowed_ips_misconfiguration"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -2431,7 +2503,7 @@
       "problem": "wireguard_allowed_ips_misconfiguration",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "wireguard_allowed_ips_misconfiguration"
       ],
@@ -2454,7 +2526,7 @@
       "problem": "wireguard_allowed_ips_misconfiguration",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "wireguard_allowed_ips_misconfiguration"
       ],
@@ -2477,7 +2549,7 @@
       "problem": "bgp_max_prefix_exceeded",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_max_prefix_exceeded"
       ],
@@ -2500,7 +2572,7 @@
       "problem": "bgp_max_prefix_exceeded",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_max_prefix_exceeded"
       ],
@@ -2523,7 +2595,7 @@
       "problem": "bgp_max_prefix_exceeded",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_max_prefix_exceeded"
       ],
@@ -2546,14 +2618,16 @@
       "problem": "bgp_blackhole_community_leak",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_blackhole_community_leak"
       ],
       "predicted_root_cause_name": [
         "ospf_neighbor_missing"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.0,
@@ -2571,7 +2645,7 @@
       "problem": "bgp_blackhole_community_leak",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_blackhole_community_leak"
       ],
@@ -2594,7 +2668,7 @@
       "problem": "bgp_blackhole_community_leak",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_blackhole_community_leak"
       ],
@@ -2617,7 +2691,7 @@
       "problem": "link_capacity_bottleneck",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_capacity_bottleneck"
       ],
@@ -2640,7 +2714,7 @@
       "problem": "link_capacity_bottleneck",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_capacity_bottleneck"
       ],
@@ -2663,7 +2737,7 @@
       "problem": "link_capacity_bottleneck",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_capacity_bottleneck"
       ],
@@ -2686,7 +2760,7 @@
       "problem": "bgp_rpki_invalid_route_leak",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_rpki_invalid_route_leak"
       ],
@@ -2709,7 +2783,7 @@
       "problem": "bgp_rpki_invalid_route_leak",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_rpki_invalid_route_leak"
       ],
@@ -2732,7 +2806,7 @@
       "problem": "bgp_rpki_invalid_route_leak",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_rpki_invalid_route_leak"
       ],
@@ -2755,7 +2829,7 @@
       "problem": "mtu_mismatch",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "mtu_mismatch"
       ],
@@ -2778,7 +2852,7 @@
       "problem": "mtu_mismatch",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "mtu_mismatch"
       ],
@@ -2801,7 +2875,7 @@
       "problem": "mtu_mismatch",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "mtu_mismatch"
       ],
@@ -2824,7 +2898,7 @@
       "problem": "frr_service_down",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "frr_service_down"
       ],
@@ -2847,7 +2921,7 @@
       "problem": "frr_service_down",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "frr_service_down"
       ],
@@ -2870,7 +2944,7 @@
       "problem": "frr_service_down",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "frr_service_down"
       ],
@@ -2893,7 +2967,7 @@
       "problem": "bgp_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "bgp_acl_block"
       ],
@@ -2901,7 +2975,7 @@
         "bgp_acl_block"
       ],
       "predicted_root_cause_categories": [
-        "misconfiguration"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
@@ -2920,7 +2994,7 @@
       "problem": "bgp_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "bgp_acl_block"
       ],
@@ -2943,14 +3017,16 @@
       "problem": "bgp_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "bgp_acl_block"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
@@ -2968,7 +3044,7 @@
       "problem": "bgp_asn_misconfig",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_asn_misconfig"
       ],
@@ -2991,7 +3067,7 @@
       "problem": "bgp_asn_misconfig",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_asn_misconfig"
       ],
@@ -3014,7 +3090,7 @@
       "problem": "bgp_asn_misconfig",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "routing_control_plane",
       "gt_root_cause_name": [
         "bgp_asn_misconfig"
       ],
@@ -3037,7 +3113,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -3060,7 +3136,7 @@
       "problem": "healthy",
       "outcome": "agent_failed",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -3083,7 +3159,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -3106,7 +3182,7 @@
       "problem": "host_incorrect_netmask",
       "outcome": "agent_failed",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_netmask"
       ],
@@ -3129,7 +3205,7 @@
       "problem": "host_incorrect_netmask",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_netmask"
       ],
@@ -3152,7 +3228,7 @@
       "problem": "host_incorrect_netmask",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_netmask"
       ],
@@ -3175,7 +3251,7 @@
       "problem": "k8s_clusterip_routing_broken",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "k8s_clusterip_routing_broken"
       ],
@@ -3198,7 +3274,7 @@
       "problem": "k8s_clusterip_routing_broken",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "k8s_clusterip_routing_broken"
       ],
@@ -3221,7 +3297,7 @@
       "problem": "k8s_clusterip_routing_broken",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "k8s_clusterip_routing_broken"
       ],
@@ -3244,7 +3320,7 @@
       "problem": "k8s_networkpolicy_deny",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "k8s_networkpolicy_deny"
       ],
@@ -3267,7 +3343,7 @@
       "problem": "k8s_networkpolicy_deny",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "k8s_networkpolicy_deny"
       ],
@@ -3290,7 +3366,7 @@
       "problem": "k8s_networkpolicy_deny",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "k8s_networkpolicy_deny"
       ],
@@ -3313,7 +3389,7 @@
       "problem": "k8s_worker_apiserver_partition",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "k8s_worker_apiserver_partition"
       ],
@@ -3336,14 +3412,16 @@
       "problem": "k8s_worker_apiserver_partition",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "k8s_worker_apiserver_partition"
       ],
       "predicted_root_cause_name": [
         "k8s_clusterip_routing_broken"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "service_networking"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3361,14 +3439,16 @@
       "problem": "k8s_worker_apiserver_partition",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "k8s_worker_apiserver_partition"
       ],
       "predicted_root_cause_name": [
         "k8s_worker_apiserver_partition"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "management_orchestration_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -3386,7 +3466,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -3409,14 +3489,16 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
       "predicted_root_cause_name": [
         "host_incorrect_dns"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3434,7 +3516,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -3457,7 +3539,7 @@
       "problem": "host_ip_conflict",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_ip_conflict"
       ],
@@ -3480,14 +3562,16 @@
       "problem": "host_ip_conflict",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_ip_conflict"
       ],
       "predicted_root_cause_name": [
         "k8s_clusterip_routing_broken"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "service_networking"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3505,14 +3589,16 @@
       "problem": "host_ip_conflict",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_ip_conflict"
       ],
       "predicted_root_cause_name": [
         "host_ip_conflict"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
@@ -3530,14 +3616,16 @@
       "problem": "host_missing_ip",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_missing_ip"
       ],
       "predicted_root_cause_name": [
         "host_missing_ip"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -3555,14 +3643,16 @@
       "problem": "host_missing_ip",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_missing_ip"
       ],
       "predicted_root_cause_name": [
         "host_missing_ip"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -3580,14 +3670,16 @@
       "problem": "host_missing_ip",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_missing_ip"
       ],
       "predicted_root_cause_name": [
         "host_missing_ip"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -3605,7 +3697,7 @@
       "problem": "k8s_coredns_isolated",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "k8s_coredns_isolated"
       ],
@@ -3628,7 +3720,7 @@
       "problem": "k8s_coredns_isolated",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "k8s_coredns_isolated"
       ],
@@ -3651,7 +3743,7 @@
       "problem": "k8s_coredns_isolated",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "k8s_coredns_isolated"
       ],
@@ -3674,14 +3766,16 @@
       "problem": "sender_resource_contention",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "endpoint_application",
       "gt_root_cause_name": [
         "sender_resource_contention"
       ],
       "predicted_root_cause_name": [
         "bgp_missing_route_advertisement"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "routing_control_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3699,7 +3793,7 @@
       "problem": "sender_resource_contention",
       "outcome": "agent_failed",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "endpoint_application",
       "gt_root_cause_name": [
         "sender_resource_contention"
       ],
@@ -3722,14 +3816,16 @@
       "problem": "sender_resource_contention",
       "outcome": "success",
       "topo_size": null,
-      "root_cause_category": null,
+      "root_cause_category": "endpoint_application",
       "gt_root_cause_name": [
         "sender_resource_contention"
       ],
       "predicted_root_cause_name": [
         "web_dos_attack"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
@@ -3777,7 +3873,9 @@
       "predicted_root_cause_name": [
         "link_flap"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3802,7 +3900,9 @@
       "predicted_root_cause_name": [
         "link_flap"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "link_interface"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3820,7 +3920,7 @@
       "problem": "incast_traffic_network_limitation",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "incast_traffic_network_limitation"
       ],
@@ -3843,7 +3943,7 @@
       "problem": "incast_traffic_network_limitation",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "incast_traffic_network_limitation"
       ],
@@ -3866,7 +3966,7 @@
       "problem": "incast_traffic_network_limitation",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "incast_traffic_network_limitation"
       ],
@@ -3889,7 +3989,7 @@
       "problem": "p4_table_entry_missing",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "network_node_error",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_entry_missing"
       ],
@@ -3912,7 +4012,7 @@
       "problem": "p4_table_entry_missing",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "network_node_error",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_entry_missing"
       ],
@@ -3935,7 +4035,7 @@
       "problem": "p4_table_entry_missing",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "network_node_error",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_entry_missing"
       ],
@@ -3958,14 +4058,16 @@
       "problem": "bmv2_switch_down",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "link_failure",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "bmv2_switch_down"
       ],
       "predicted_root_cause_name": [
         "host_missing_ip"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -3983,7 +4085,7 @@
       "problem": "bmv2_switch_down",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "link_failure",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "bmv2_switch_down"
       ],
@@ -3992,8 +4094,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "link_failure",
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.5,
@@ -4012,7 +4113,7 @@
       "problem": "bmv2_switch_down",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "link_failure",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "bmv2_switch_down"
       ],
@@ -4035,7 +4136,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -4043,7 +4144,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
@@ -4062,7 +4163,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -4085,7 +4186,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -4094,7 +4195,8 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "addressing_neighbor_naming",
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 0.0,
       "localization_f1": 0.0,
@@ -4113,7 +4215,7 @@
       "problem": "host_incorrect_ip",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_ip"
       ],
@@ -4122,7 +4224,8 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "addressing_neighbor_naming",
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -4141,7 +4244,7 @@
       "problem": "host_incorrect_ip",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_ip"
       ],
@@ -4151,7 +4254,8 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "addressing_neighbor_naming",
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -4170,7 +4274,7 @@
       "problem": "host_incorrect_ip",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "host_incorrect_ip"
       ],
@@ -4193,7 +4297,7 @@
       "problem": "http_acl_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "http_acl_block"
       ],
@@ -4201,7 +4305,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -4220,7 +4324,7 @@
       "problem": "http_acl_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "http_acl_block"
       ],
@@ -4243,7 +4347,7 @@
       "problem": "http_acl_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "http_acl_block"
       ],
@@ -4266,7 +4370,7 @@
       "problem": "icmp_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "icmp_acl_block"
       ],
@@ -4289,7 +4393,7 @@
       "problem": "icmp_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "icmp_acl_block"
       ],
@@ -4312,7 +4416,7 @@
       "problem": "icmp_acl_block",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "misconfiguration",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "icmp_acl_block"
       ],
@@ -4335,7 +4439,7 @@
       "problem": "icmp_frag_needed_filter_misconfiguration",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "icmp_frag_needed_filter_misconfiguration"
       ],
@@ -4343,7 +4447,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.2222,
@@ -4362,7 +4466,7 @@
       "problem": "icmp_frag_needed_filter_misconfiguration",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "icmp_frag_needed_filter_misconfiguration"
       ],
@@ -4370,7 +4474,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.2222,
@@ -4389,7 +4493,7 @@
       "problem": "icmp_frag_needed_filter_misconfiguration",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "icmp_frag_needed_filter_misconfiguration"
       ],
@@ -4412,7 +4516,7 @@
       "problem": "int_insufficient_mtu_headroom",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "int_insufficient_mtu_headroom"
       ],
@@ -4435,7 +4539,7 @@
       "problem": "int_insufficient_mtu_headroom",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "int_insufficient_mtu_headroom"
       ],
@@ -4443,7 +4547,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -4462,14 +4566,16 @@
       "problem": "int_insufficient_mtu_headroom",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "int_insufficient_mtu_headroom"
       ],
       "predicted_root_cause_name": [
         "host_missing_ip"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "addressing_neighbor_naming"
+      ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
@@ -4487,7 +4593,7 @@
       "problem": "lb_connection_state_exhaustion",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "lb_connection_state_exhaustion"
       ],
@@ -4495,7 +4601,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -4514,7 +4620,7 @@
       "problem": "lb_connection_state_exhaustion",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "lb_connection_state_exhaustion"
       ],
@@ -4537,7 +4643,7 @@
       "problem": "lb_connection_state_exhaustion",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "lb_connection_state_exhaustion"
       ],
@@ -4560,7 +4666,7 @@
       "problem": "lb_pending_connection_update_race",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "lb_pending_connection_update_race"
       ],
@@ -4569,7 +4675,8 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "addressing_neighbor_naming",
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.1176,
@@ -4588,7 +4695,7 @@
       "problem": "lb_pending_connection_update_race",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "lb_pending_connection_update_race"
       ],
@@ -4596,7 +4703,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.2222,
@@ -4615,7 +4722,7 @@
       "problem": "lb_pending_connection_update_race",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "service_networking",
       "gt_root_cause_name": [
         "lb_pending_connection_update_race"
       ],
@@ -4638,7 +4745,7 @@
       "problem": "mac_address_conflict",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "mac_address_conflict"
       ],
@@ -4661,7 +4768,7 @@
       "problem": "mac_address_conflict",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "mac_address_conflict"
       ],
@@ -4684,7 +4791,7 @@
       "problem": "mac_address_conflict",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "addressing_neighbor_naming",
       "gt_root_cause_name": [
         "mac_address_conflict"
       ],
@@ -4707,7 +4814,7 @@
       "problem": "p4_action_selector_member_misconfig",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_action_selector_member_misconfig"
       ],
@@ -4730,7 +4837,7 @@
       "problem": "p4_action_selector_member_misconfig",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_action_selector_member_misconfig"
       ],
@@ -4753,7 +4860,7 @@
       "problem": "p4_action_selector_member_misconfig",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_action_selector_member_misconfig"
       ],
@@ -4776,7 +4883,7 @@
       "problem": "p4_ecmp_group_member_missing",
       "outcome": "agent_failed",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_ecmp_group_member_missing"
       ],
@@ -4799,7 +4906,7 @@
       "problem": "p4_ecmp_group_member_missing",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_ecmp_group_member_missing"
       ],
@@ -4807,7 +4914,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.2222,
@@ -4826,7 +4933,7 @@
       "problem": "p4_ecmp_group_member_missing",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_ecmp_group_member_missing"
       ],
@@ -4835,7 +4942,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.4,
@@ -4854,7 +4961,7 @@
       "problem": "p4_ecn_threshold_misconfiguration",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "p4_ecn_threshold_misconfiguration"
       ],
@@ -4877,7 +4984,7 @@
       "problem": "p4_ecn_threshold_misconfiguration",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "p4_ecn_threshold_misconfiguration"
       ],
@@ -4885,7 +4992,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -4904,7 +5011,7 @@
       "problem": "p4_ecn_threshold_misconfiguration",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "traffic_queueing_resource",
       "gt_root_cause_name": [
         "p4_ecn_threshold_misconfiguration"
       ],
@@ -4927,7 +5034,7 @@
       "problem": "p4_table_entry_misconfig",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "network_node_error",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_entry_misconfig"
       ],
@@ -4935,7 +5042,7 @@
         "p4_table_entry_misconfig"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
@@ -4954,7 +5061,7 @@
       "problem": "p4_table_entry_misconfig",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "network_node_error",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_entry_misconfig"
       ],
@@ -4977,7 +5084,7 @@
       "problem": "p4_table_entry_misconfig",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": "network_node_error",
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_entry_misconfig"
       ],
@@ -5000,7 +5107,7 @@
       "problem": "p4_table_resource_exhaustion",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_resource_exhaustion"
       ],
@@ -5008,7 +5115,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -5027,7 +5134,7 @@
       "problem": "p4_table_resource_exhaustion",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_resource_exhaustion"
       ],
@@ -5036,7 +5143,8 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "addressing_neighbor_naming",
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -5055,7 +5163,7 @@
       "problem": "p4_table_resource_exhaustion",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_table_resource_exhaustion"
       ],
@@ -5078,7 +5186,7 @@
       "problem": "p4_tcam_entry_corruption",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_tcam_entry_corruption"
       ],
@@ -5101,7 +5209,7 @@
       "problem": "p4_tcam_entry_corruption",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_tcam_entry_corruption"
       ],
@@ -5124,7 +5232,7 @@
       "problem": "p4_tcam_entry_corruption",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4_tcam_entry_corruption"
       ],
@@ -5147,7 +5255,7 @@
       "problem": "p4runtime_partial_write",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4runtime_partial_write"
       ],
@@ -5155,7 +5263,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
@@ -5174,7 +5282,7 @@
       "problem": "p4runtime_partial_write",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4runtime_partial_write"
       ],
@@ -5197,7 +5305,7 @@
       "problem": "p4runtime_partial_write",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4runtime_partial_write"
       ],
@@ -5220,7 +5328,7 @@
       "problem": "p4runtime_pipeline_mismatch",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4runtime_pipeline_mismatch"
       ],
@@ -5228,7 +5336,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
@@ -5247,7 +5355,7 @@
       "problem": "p4runtime_pipeline_mismatch",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4runtime_pipeline_mismatch"
       ],
@@ -5255,7 +5363,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
@@ -5274,7 +5382,7 @@
       "problem": "p4runtime_pipeline_mismatch",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "p4runtime_pipeline_mismatch"
       ],
@@ -5283,7 +5391,8 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "addressing_neighbor_naming",
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.6667,
@@ -5302,7 +5411,7 @@
       "problem": "silent_egress_packet_loss",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "silent_egress_packet_loss"
       ],
@@ -5310,7 +5419,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -5329,7 +5438,7 @@
       "problem": "silent_egress_packet_loss",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "silent_egress_packet_loss"
       ],
@@ -5337,7 +5446,7 @@
         "p4_table_entry_missing"
       ],
       "predicted_root_cause_categories": [
-        "network_node_error"
+        "forwarding_encapsulation_policy"
       ],
       "detection_score": 1.0,
       "localization_f1": 0.0,
@@ -5356,7 +5465,7 @@
       "problem": "silent_egress_packet_loss",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "silent_egress_packet_loss"
       ],
@@ -5379,7 +5488,7 @@
       "problem": "tcp_syn_flood_attack",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "tcp_syn_flood_attack"
       ],
@@ -5402,7 +5511,7 @@
       "problem": "tcp_syn_flood_attack",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "tcp_syn_flood_attack"
       ],
@@ -5425,7 +5534,7 @@
       "problem": "tcp_syn_flood_attack",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "tcp_syn_flood_attack"
       ],
@@ -5448,7 +5557,7 @@
       "problem": "arp_cache_poisoning",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "arp_cache_poisoning"
       ],
@@ -5471,14 +5580,16 @@
       "problem": "arp_cache_poisoning",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "arp_cache_poisoning"
       ],
       "predicted_root_cause_name": [
         "arp_cache_poisoning"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -5496,14 +5607,16 @@
       "problem": "arp_cache_poisoning",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "arp_cache_poisoning"
       ],
       "predicted_root_cause_name": [
         "arp_cache_poisoning"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "security"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -5521,7 +5634,7 @@
       "problem": "flow_rule_loop",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "flow_rule_loop"
       ],
@@ -5544,7 +5657,7 @@
       "problem": "flow_rule_loop",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "flow_rule_loop"
       ],
@@ -5567,7 +5680,7 @@
       "problem": "flow_rule_loop",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "flow_rule_loop"
       ],
@@ -5590,7 +5703,7 @@
       "problem": "flow_rule_shadowing",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "flow_rule_shadowing"
       ],
@@ -5613,7 +5726,7 @@
       "problem": "flow_rule_shadowing",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "flow_rule_shadowing"
       ],
@@ -5636,7 +5749,7 @@
       "problem": "flow_rule_shadowing",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "forwarding_encapsulation_policy",
       "gt_root_cause_name": [
         "flow_rule_shadowing"
       ],
@@ -5659,7 +5772,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -5682,7 +5795,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -5705,7 +5818,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -5728,7 +5841,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -5751,7 +5864,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -5774,7 +5887,7 @@
       "problem": "healthy",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "healthy",
       "gt_root_cause_name": [
         "healthy"
       ],
@@ -5797,7 +5910,7 @@
       "problem": "link_flap",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_flap"
       ],
@@ -5820,7 +5933,7 @@
       "problem": "link_flap",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_flap"
       ],
@@ -5843,7 +5956,7 @@
       "problem": "link_flap",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "link_interface",
       "gt_root_cause_name": [
         "link_flap"
       ],
@@ -5866,14 +5979,16 @@
       "problem": "sdn_controller_crash",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "sdn_controller_crash"
       ],
       "predicted_root_cause_name": [
         "sdn_controller_crash"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "management_orchestration_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -5891,7 +6006,7 @@
       "problem": "sdn_controller_crash",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "sdn_controller_crash"
       ],
@@ -5914,14 +6029,16 @@
       "problem": "sdn_controller_crash",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "sdn_controller_crash"
       ],
       "predicted_root_cause_name": [
         "sdn_controller_crash"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "management_orchestration_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
@@ -5939,14 +6056,16 @@
       "problem": "southbound_port_mismatch",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "southbound_port_mismatch"
       ],
       "predicted_root_cause_name": [
         "sdn_controller_crash"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "management_orchestration_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
@@ -5964,7 +6083,7 @@
       "problem": "southbound_port_mismatch",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "southbound_port_mismatch"
       ],
@@ -5987,14 +6106,16 @@
       "problem": "southbound_port_mismatch",
       "outcome": "success",
       "topo_size": "l",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "southbound_port_mismatch"
       ],
       "predicted_root_cause_name": [
         "sdn_controller_crash"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "management_orchestration_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
@@ -6012,7 +6133,7 @@
       "problem": "southbound_port_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "southbound_port_block"
       ],
@@ -6035,7 +6156,7 @@
       "problem": "southbound_port_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "southbound_port_block"
       ],
@@ -6058,14 +6179,16 @@
       "problem": "southbound_port_block",
       "outcome": "success",
       "topo_size": "m",
-      "root_cause_category": null,
+      "root_cause_category": "management_orchestration_plane",
       "gt_root_cause_name": [
         "southbound_port_block"
       ],
       "predicted_root_cause_name": [
         "sdn_controller_crash"
       ],
-      "predicted_root_cause_categories": [],
+      "predicted_root_cause_categories": [
+        "management_orchestration_plane"
+      ],
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
@@ -6083,7 +6206,7 @@
       "problem": "web_dos_attack",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "web_dos_attack"
       ],
@@ -6106,7 +6229,7 @@
       "problem": "web_dos_attack",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "web_dos_attack"
       ],
@@ -6129,7 +6252,7 @@
       "problem": "web_dos_attack",
       "outcome": "success",
       "topo_size": "s",
-      "root_cause_category": null,
+      "root_cause_category": "security",
       "gt_root_cause_name": [
         "web_dos_attack"
       ],
@@ -6651,13 +6774,94 @@
     ]
   },
   "name_to_category": {
-    "arp_acl_block": "misconfiguration",
-    "bgp_acl_block": "misconfiguration",
-    "bmv2_switch_down": "link_failure",
-    "http_acl_block": "misconfiguration",
-    "icmp_acl_block": "misconfiguration",
-    "ospf_acl_block": "misconfiguration",
-    "p4_table_entry_misconfig": "network_node_error",
-    "p4_table_entry_missing": "network_node_error"
+    "arp_acl_block": "forwarding_encapsulation_policy",
+    "arp_cache_poisoning": "security",
+    "bgp_acl_block": "forwarding_encapsulation_policy",
+    "bgp_asn_misconfig": "routing_control_plane",
+    "bgp_blackhole_community_leak": "routing_control_plane",
+    "bgp_blackhole_route_leak": "routing_control_plane",
+    "bgp_hijacking": "security",
+    "bgp_max_prefix_exceeded": "routing_control_plane",
+    "bgp_missing_route_advertisement": "routing_control_plane",
+    "bgp_rpki_invalid_route_leak": "routing_control_plane",
+    "bmv2_switch_down": "forwarding_encapsulation_policy",
+    "device_forwarding_packet_corruption": "forwarding_encapsulation_policy",
+    "dhcp_missing_subnet": "addressing_neighbor_naming",
+    "dhcp_service_down": "addressing_neighbor_naming",
+    "dhcp_spoofed_dns": "security",
+    "dhcp_spoofed_gateway": "security",
+    "dhcp_spoofed_subnet": "security",
+    "dns_lookup_latency": "addressing_neighbor_naming",
+    "dns_port_blocked": "forwarding_encapsulation_policy",
+    "dns_record_error": "addressing_neighbor_naming",
+    "dns_service_down": "addressing_neighbor_naming",
+    "faulty_egress_interface": "link_interface",
+    "flow_rule_loop": "forwarding_encapsulation_policy",
+    "flow_rule_shadowing": "forwarding_encapsulation_policy",
+    "frr_service_down": "routing_control_plane",
+    "healthy": "healthy",
+    "host_crash": "endpoint_application",
+    "host_incorrect_dns": "addressing_neighbor_naming",
+    "host_incorrect_gateway": "addressing_neighbor_naming",
+    "host_incorrect_ip": "addressing_neighbor_naming",
+    "host_incorrect_netmask": "addressing_neighbor_naming",
+    "host_ip_conflict": "addressing_neighbor_naming",
+    "host_missing_ip": "addressing_neighbor_naming",
+    "host_static_blackhole": "forwarding_encapsulation_policy",
+    "host_vpn_membership_missing": "forwarding_encapsulation_policy",
+    "http_acl_block": "forwarding_encapsulation_policy",
+    "icmp_acl_block": "forwarding_encapsulation_policy",
+    "icmp_frag_needed_filter_misconfiguration": "forwarding_encapsulation_policy",
+    "incast_traffic_network_limitation": "traffic_queueing_resource",
+    "int_insufficient_mtu_headroom": "forwarding_encapsulation_policy",
+    "k8s_clusterip_routing_broken": "service_networking",
+    "k8s_coredns_isolated": "addressing_neighbor_naming",
+    "k8s_networkpolicy_deny": "forwarding_encapsulation_policy",
+    "k8s_worker_apiserver_partition": "management_orchestration_plane",
+    "lb_connection_state_exhaustion": "service_networking",
+    "lb_pending_connection_update_race": "service_networking",
+    "link_bandwidth_throttling": "traffic_queueing_resource",
+    "link_capacity_bottleneck": "link_interface",
+    "link_detach": "link_interface",
+    "link_down": "link_interface",
+    "link_flap": "link_interface",
+    "link_fragmentation_disabled": "forwarding_encapsulation_policy",
+    "link_high_packet_corruption": "link_interface",
+    "link_packet_corruption": "link_interface",
+    "load_balancer_overload": "service_networking",
+    "mac_address_conflict": "addressing_neighbor_naming",
+    "mpls_label_limit_exceeded": "forwarding_encapsulation_policy",
+    "mtu_mismatch": "forwarding_encapsulation_policy",
+    "nat_mapping_removed_without_drain": "service_networking",
+    "ospf_acl_block": "forwarding_encapsulation_policy",
+    "ospf_area_misconfiguration": "routing_control_plane",
+    "ospf_neighbor_missing": "routing_control_plane",
+    "p4_action_selector_member_misconfig": "forwarding_encapsulation_policy",
+    "p4_aggressive_detection_thresholds": "forwarding_encapsulation_policy",
+    "p4_compilation_error_parser_state": "management_orchestration_plane",
+    "p4_ecmp_group_member_missing": "forwarding_encapsulation_policy",
+    "p4_ecn_threshold_misconfiguration": "traffic_queueing_resource",
+    "p4_header_definition_error": "management_orchestration_plane",
+    "p4_table_entry_misconfig": "forwarding_encapsulation_policy",
+    "p4_table_entry_missing": "forwarding_encapsulation_policy",
+    "p4_table_resource_exhaustion": "forwarding_encapsulation_policy",
+    "p4_tcam_entry_corruption": "forwarding_encapsulation_policy",
+    "p4runtime_partial_write": "forwarding_encapsulation_policy",
+    "p4runtime_pipeline_mismatch": "forwarding_encapsulation_policy",
+    "physical_link_corruption": "link_interface",
+    "receiver_resource_contention": "endpoint_application",
+    "sdn_controller_crash": "management_orchestration_plane",
+    "sender_application_delay": "endpoint_application",
+    "sender_resource_contention": "endpoint_application",
+    "silent_egress_packet_loss": "link_interface",
+    "snat_port_pool_exhaustion": "service_networking",
+    "southbound_port_block": "management_orchestration_plane",
+    "southbound_port_mismatch": "management_orchestration_plane",
+    "tcp_receive_window_limited": "traffic_queueing_resource",
+    "tcp_syn_flood_attack": "security",
+    "vrf_dscp_remarking": "forwarding_encapsulation_policy",
+    "web_dos_attack": "security",
+    "wireguard_allowed_ips_misconfiguration": "forwarding_encapsulation_policy",
+    "wireguard_peer_key_misconfiguration": "forwarding_encapsulation_policy"
   }
 }
