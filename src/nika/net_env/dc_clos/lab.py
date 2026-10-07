@@ -12,6 +12,7 @@ from Kathara.model.Lab import Lab
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 # P2P links use 172.16.0.0/16 with /31 per link.
 # Leaf access networks use 10.<pod>.<leaf>.0/24 with leaf .1 and endpoint .2
@@ -113,7 +114,7 @@ class DCClos(NetworkEnvBase):
         for ss in range(super_spine_count):
             ss_name = f"super_spine_router_{ss}"
             router_ss = self.lab.new_machine(
-                ss_name, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+                ss_name, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 ss_name,
@@ -136,7 +137,7 @@ class DCClos(NetworkEnvBase):
                 spine_name = f"spine_router_{pod}_{spine_id}"
                 router_spine = self.lab.new_machine(
                     spine_name,
-                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     spine_name,
@@ -158,7 +159,7 @@ class DCClos(NetworkEnvBase):
                 leaf_name = f"leaf_router_{pod}_{leaf_id}"
                 router_leaf = self.lab.new_machine(
                     leaf_name,
-                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     leaf_name,
@@ -327,7 +328,7 @@ class DCClos(NetworkEnvBase):
         for pod in range(super_spine_count):
             dns_name = f"dns_pod{pod}"
             dns_machine = self.lab.new_machine(
-                dns_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+                dns_name, **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 dns_name,
@@ -350,7 +351,7 @@ class DCClos(NetworkEnvBase):
                 web_name = f"webserver{host}_pod{pod}"
                 web_machine = self.lab.new_machine(
                     web_name,
-                    **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     web_name,
@@ -372,7 +373,7 @@ class DCClos(NetworkEnvBase):
             client_name = f"client_{client_id}"
             client_machine = self.lab.new_machine(
                 client_name,
-                **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
             )
             self.declare_machine(
                 client_name,

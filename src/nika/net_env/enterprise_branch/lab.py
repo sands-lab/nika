@@ -43,6 +43,7 @@ from nika.net_env.enterprise_branch.wireguard import (
     render_wg_conf,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 PROVIDER_DAEMONS = """\
 zebra=yes
@@ -290,7 +291,7 @@ class EnterpriseBranch(NetworkEnvBase):
         for site_name in self.spec.sites:
             ename = edge_name_for(site_name)
             machine = self.lab.new_machine(
-                ename, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+                ename, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 ename,
@@ -305,7 +306,7 @@ class EnterpriseBranch(NetworkEnvBase):
         for provider in self.spec.providers:
             iname = isp_name_for(provider)
             machine = self.lab.new_machine(
-                iname, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+                iname, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 iname,
@@ -322,7 +323,7 @@ class EnterpriseBranch(NetworkEnvBase):
                     machine = self.lab.new_machine(
                         host_name,
                         **{
-                            "image": "nika/base",
+                            "image": nika_image("base"),
                             "cpus": 0.5,
                             "mem": "256m",
                         },

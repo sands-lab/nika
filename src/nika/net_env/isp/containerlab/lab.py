@@ -54,9 +54,9 @@ from nika.runtime.spec import LabSpec, NodeRole
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
 
-SRL_IMAGE = "ghcr.io/nokia/srlinux:24.10"
+SRL_IMAGE = "ghcr.io/nokia/srlinux:24.10@sha256:20064faa8c2fbb2fa6d8812496c28bcfdad40a965da8831da43e55a1eccda14d"
 SRL_TYPE = "ixr-d2l"
-LINUX_IMAGE = "wbitt/network-multitool"
+LINUX_IMAGE = "wbitt/network-multitool:latest@sha256:db2810fe2c8d36db074eab5d98fbf861c8ed55e0786d648d3477b3de9135632e"
 SRL_PASSWORD = "NokiaSrl1!"
 
 

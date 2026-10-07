@@ -17,9 +17,10 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     dockerfile_parents,
     ensure_nika_docker_images,
     host_machine_arch,
+    image_repository,
 )
 
-VRNETLAB_BASE_IMAGE = "ghcr.io/srl-labs/vrnetlab-base:0.3.0"
+VRNETLAB_BASE_IMAGE = "ghcr.io/srl-labs/vrnetlab-base:0.3.0@sha256:57f36ae1cf44a78a6b2cad35a6276565c56edfd28e8160ae9a772929db28fd6d"
 
 # Repositories only NIKA uses: install prunes their local tags that the
 # current release no longer references.
@@ -46,13 +47,6 @@ NIKA_ONLY_REPO_PREFIXES = (
 
 def _strip_digest(ref: str) -> str:
     return ref.split("@", 1)[0]
-
-
-def _repository(ref: str) -> str:
-    name = _strip_digest(ref)
-    if ":" in name.rsplit("/", 1)[-1]:
-        name = name.rsplit(":", 1)[0]
-    return name
 
 
 def _tag_ref(ref: str) -> str:
@@ -160,9 +154,9 @@ def prune_stale_images() -> list[str]:
     """
     client = _get_client()
     owned = owned_images()
-    keep_tags = {_tag_ref(ref) for ref in owned if "@" not in ref}
+    keep_tags = {_tag_ref(ref) for ref in owned}
     keep_digests = {
-        f"{_repository(ref)}@{ref.split('@', 1)[1]}" for ref in owned if "@" in ref
+        f"{image_repository(ref)}@{ref.split('@', 1)[1]}" for ref in owned if "@" in ref
     }
     legacy = set(legacy_images())
     in_use = {
@@ -190,10 +184,10 @@ def prune_stale_images() -> list[str]:
             tag
             for tag in tags
             if tag not in keep_tags
-            and (tag in legacy or _is_nika_only_repo(_repository(tag)))
+            and (tag in legacy or _is_nika_only_repo(image_repository(tag)))
         ]
         if not tags and not kept and digests:
-            if all(_is_nika_only_repo(_repository(ref)) for ref in digests):
+            if all(_is_nika_only_repo(image_repository(ref)) for ref in digests):
                 remove(sorted(digests)[0], image.id)
             continue
         remaining = len(tags)
@@ -269,14 +263,16 @@ def prepare_all_images(*, force_rebuild: bool = False) -> None:
     from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
     from agent.sandbox.sbx.images import ensure_configured_sbx_template_images
 
-    actions = prune_stale_caches() + prune_stale_images()
-    for action in actions:
+    # Images are pruned only after ensure: it retags identical builds from
+    # other NIKA versions (e.g. nika/base:latest) instead of rebuilding them.
+    for action in prune_stale_caches():
         print(action)
-    if not actions:
-        print("No stale NIKA images or caches")
     ensure_nika_docker_images(runtime_images(), force_rebuild=force_rebuild)
     for scenario in sorted(K8S_SCENARIOS):
         cache_scenario(scenario)
     ensure_configured_sbx_template_images()
-    for action in prune_stale_images():
+    actions = prune_stale_images()
+    for action in actions:
         print(action)
+    if not actions:
+        print("No stale NIKA images")

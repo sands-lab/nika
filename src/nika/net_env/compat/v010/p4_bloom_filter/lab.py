@@ -5,6 +5,10 @@ from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_BASE_IMAGE,
+    KATHARA_P4_IMAGE,
+)
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,11 +26,11 @@ class P4BloomFilter(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = "A simple network with 2 bmv2 switches and 2 pcs implementing a bloom filter."
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": KATHARA_BASE_IMAGE})
+        pc2 = self.lab.new_machine("pc2", **{"image": KATHARA_BASE_IMAGE})
 
-        switch_1 = self.lab.new_machine("switch_1", **{"image": "kathara/p4"})
-        switch_2 = self.lab.new_machine("switch_2", **{"image": "kathara/p4"})
+        switch_1 = self.lab.new_machine("switch_1", **{"image": KATHARA_P4_IMAGE})
+        switch_2 = self.lab.new_machine("switch_2", **{"image": KATHARA_P4_IMAGE})
         for name in (pc1.name, pc2.name):
             self.declare_machine(name, role=NodeRole.HOST, capabilities=("linux",))
         for name in (switch_1.name, switch_2.name):

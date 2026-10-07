@@ -10,11 +10,12 @@ NATIVE_SBX_AGENTS: dict[str, str] = {
     "community.sade": "shell",
 }
 
-# Default images for ``sbx create <agent>`` (Docker Hub ``docker/sandbox-templates``).
+# Template images for ``sbx create <agent>`` (Docker Hub ``docker/sandbox-templates``),
+# pinned to the last verified digest and passed explicitly with ``--template``.
 NATIVE_SBX_TEMPLATE_IMAGES: dict[str, str] = {
-    "codex": "docker/sandbox-templates:codex-docker",
-    "claude": "docker/sandbox-templates:claude-code-docker",
-    "shell": "docker/sandbox-templates:shell-docker",
+    "codex": "docker/sandbox-templates:codex-docker@sha256:8b4cd0a46c8b600bc6b6a64af23c03d4c2807fbfc61f47568092a93fb9dc88b0",
+    "claude": "docker/sandbox-templates:claude-code-docker@sha256:549730947ed8a43182547bb5628245fe6d6c089564dd73d2194e899f791d970f",
+    "shell": "docker/sandbox-templates:shell-docker@sha256:1560168ac5fb9ce23d413c878349334c5845c07e264cd675d7867f0c78ad1761",
 }
 
 ENV_SBX_SANDBOX_NAME = "NIKA_SBX_SANDBOX_NAME"

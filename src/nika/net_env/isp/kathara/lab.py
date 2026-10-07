@@ -40,6 +40,7 @@ from nika.net_env.isp.contract import (
     build_isp_validation_contract,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
@@ -228,7 +229,7 @@ class Isp(NetworkEnvBase):
 
         large = len(self.plan.nodes) >= 40 or self.bgp_plan is not None
         machine_opts = {
-            "image": "nika/frr",
+            "image": nika_image("frr"),
             "cpus": 1.0 if large else 0.5,
             "mem": "512m" if large else "256m",
         }
@@ -256,7 +257,7 @@ class Isp(NetworkEnvBase):
             self.lab.connect_machine_to_link(link.endpoint_a, link.collision_domain)
             self.lab.connect_machine_to_link(link.endpoint_b, link.collision_domain)
 
-        host_opts = {"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+        host_opts = {"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
         for host in self.traffic.hosts:
             self.lab.new_machine(host.host_name, **host_opts)
             self.declare_machine(
@@ -382,7 +383,7 @@ class Isp(NetworkEnvBase):
         routinator = self.lab.new_machine(
             machine_name,
             **{
-                "image": "nika/routinator:v0.14.2",
+                "image": nika_image("routinator"),
                 "shell": "/bin/sh",
                 "entrypoint": "/bin/sh",
                 "args": ["-c", "while true; do sleep 3600; done"],

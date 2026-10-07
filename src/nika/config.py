@@ -25,6 +25,8 @@ SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"
 RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
+# Current nika-bench release. Locally built nika/* images are tagged with it.
+BENCHMARK_VERSION = "0.2.0"
 
 # Migration recognizes this legacy name. Runtime result paths come from YAML or CLI.
 ENV_RESULT_DIR = "NIKA_RESULT_DIR"

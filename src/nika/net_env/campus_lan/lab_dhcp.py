@@ -9,6 +9,7 @@ from Kathara.model.Lab import Lab
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -95,7 +96,7 @@ class CampusLanDhcp(NetworkEnvBase):
         for core_id in range(1, 4):
             router_core = self.lab.new_machine(
                 f"router_core_{core_id}",
-                **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
             )
             self.declare_machine(
                 router_core.name,
@@ -120,7 +121,7 @@ class CampusLanDhcp(NetworkEnvBase):
                 dist_name = f"router_dist_{core_id}_{dist_id}"
                 router_dist = self.lab.new_machine(
                     dist_name,
-                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     dist_name,
@@ -142,7 +143,7 @@ class CampusLanDhcp(NetworkEnvBase):
                     access_name = f"switch_access_{core_id}_{dist_id}_{access_id}"
                     router_access = self.lab.new_machine(
                         access_name,
-                        **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                        **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
                     )
                     self.declare_machine(
                         access_name,
@@ -165,7 +166,7 @@ class CampusLanDhcp(NetworkEnvBase):
                         host_machine = self.lab.new_machine(
                             host_name,
                             **{
-                                "image": "nika/base",
+                                "image": nika_image("base"),
                                 "cpus": 0.5,
                                 "mem": "256m",
                             },
@@ -196,7 +197,7 @@ class CampusLanDhcp(NetworkEnvBase):
         # dns
         host_name = "dns_server"
         host_machine = self.lab.new_machine(
-            host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+            host_name, **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
         )
         self.declare_machine(
             host_name,
@@ -217,7 +218,7 @@ class CampusLanDhcp(NetworkEnvBase):
         for web_idx in range(web_server_count):
             host_name = f"web_server_{web_idx}"
             host_machine = self.lab.new_machine(
-                host_name, **{"image": "nika/nginx", "cpus": 0.5, "mem": "256m"}
+                host_name, **{"image": nika_image("nginx"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 host_name,
@@ -238,7 +239,7 @@ class CampusLanDhcp(NetworkEnvBase):
         # load balancer and its backend servers
         lb_name = "load_balancer"
         lb_machine = self.lab.new_machine(
-            lb_name, **{"image": "nika/nginx", "cpus": 0.5, "mem": "256m"}
+            lb_name, **{"image": nika_image("nginx"), "cpus": 0.5, "mem": "256m"}
         )
         self.declare_machine(
             lb_name,
@@ -259,7 +260,7 @@ class CampusLanDhcp(NetworkEnvBase):
             backend_name = f"backend_web_{web_idx}"
             backend_machine = self.lab.new_machine(
                 backend_name,
-                **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
             )
             self.declare_machine(
                 backend_name,
@@ -277,7 +278,7 @@ class CampusLanDhcp(NetworkEnvBase):
         # dhcp
         host_name = "dhcp_server"
         host_machine = self.lab.new_machine(
-            host_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+            host_name, **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
         )
         self.declare_machine(
             host_name,
@@ -297,7 +298,7 @@ class CampusLanDhcp(NetworkEnvBase):
         # server access switch
         server_router = self.lab.new_machine(
             "server_access_router",
-            **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+            **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
         )
         self.declare_machine(
             server_router.name,

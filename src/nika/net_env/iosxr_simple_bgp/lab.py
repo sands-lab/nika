@@ -20,6 +20,7 @@ from nika.net_env.utils.iosxr.common import (
     require_xrd_image,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 LINK_IFACE = "GigabitEthernet0/0/0/0"
 PC_IFACE = "GigabitEthernet0/0/0/1"
@@ -118,8 +119,8 @@ class IosXrSimpleBGP(NetworkEnvBase):
                 f"{router_name}.startup",
             )
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "nika/base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "nika/base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": nika_image("base")})
+        pc2 = self.lab.new_machine("pc2", **{"image": nika_image("base")})
         self.declare_machine(
             pc1.name,
             role=NodeRole.HOST,

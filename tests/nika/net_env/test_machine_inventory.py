@@ -4,6 +4,7 @@ import pytest
 from nika.net_env.base import NetworkEnvBase
 from nika.net_env.isp.kathara.lab import Isp
 from nika.runtime.spec import MachineInventory, NodeIdentity, NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 pytestmark = pytest.mark.unit
 
@@ -35,7 +36,7 @@ def test_machine_classification_uses_declared_identity_only() -> None:
 def test_load_machines_rejects_undeclared_machine() -> None:
     env = NetworkEnvBase()
     env.lab = Lab("missing-identity")
-    env.lab.new_machine("mystery", image="nika/base")
+    env.lab.new_machine("mystery", image=nika_image("base"))
 
     with pytest.raises(ValueError, match=r"missing=\['mystery'\]"):
         env.load_machines()

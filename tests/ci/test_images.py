@@ -12,6 +12,8 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     host_machine_arch,
     image_architecture,
     image_exists,
+    image_repository,
+    nika_image,
 )
 from tests.ci.constants import CI_NIKA_IMAGES
 from tests.support.prerequisites import docker_available
@@ -24,18 +26,20 @@ pytestmark = [
 
 # Images whose Dockerfiles FROM another locally built nika/* tag.
 _NIKA_IMAGE_DEPS: dict[str, tuple[str, ...]] = {
-    "nika/fabric-controller": ("nika/base",),
+    nika_image("fabric-controller"): (nika_image("base"),),
 }
 
 
 def _selected_images() -> list[str]:
+    # The CI matrix names repositories; the tag follows the benchmark version.
     selected = os.environ.get("NIKA_CI_IMAGE", "").strip()
     if selected:
-        if selected not in CI_NIKA_IMAGES:
+        matches = [i for i in CI_NIKA_IMAGES if image_repository(i) == selected]
+        if not matches:
             raise ValueError(
                 f"Unknown NIKA_CI_IMAGE={selected!r}; expected one of {CI_NIKA_IMAGES}"
             )
-        return [selected]
+        return matches
     return list(CI_NIKA_IMAGES)
 
 

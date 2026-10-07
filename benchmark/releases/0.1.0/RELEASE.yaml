@@ -24,13 +24,13 @@ tools:
   - task_mcp_server
 images:
   required:
-  - kathara/base
-  - kathara/frr
-  - nika/base
-  - nika/frr
-  - nika/nginx
-  - nika/onos
-  - nika/pox
-  - nika/wireguard
-  - kathara/p4
-  - kathara/sdn
+  - kathara/base:latest@sha256:8a2e70ac8f51bb283b8549fd686f65f9a1ef4487fe2c81849cb74d301e61970b
+  - kathara/frr:latest@sha256:3b7a3f630d8ecd9efddd4586ba2f0a41e2c462f13bc81dee8e3c6ebac183f57c
+  - nika/base:0.2.0
+  - nika/frr:0.2.0
+  - nika/nginx:0.2.0
+  - nika/onos:0.2.0
+  - nika/pox:0.2.0
+  - nika/wireguard:0.2.0
+  - kathara/p4:latest@sha256:62d4511908530028e275420b644d05e45ed9b4f5d786b56a63b5fb287dcce6ef
+  - kathara/sdn:latest@sha256:19cb5b383367e1d204e76f7e6e65753fbc947647747879f24883558a5c3fd8c5

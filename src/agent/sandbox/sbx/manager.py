@@ -23,7 +23,11 @@ from agent.sandbox.env import format_env_for_log
 from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.sandbox.redact import redact_text
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME, native_sbx_agent
+from agent.sandbox.sbx.agents import (
+    ENV_SBX_SANDBOX_NAME,
+    native_sbx_agent,
+    sbx_template_image,
+)
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
     require_sbx_authenticated,
@@ -166,6 +170,8 @@ class SbxSandboxManager:
             "create",
             "--name",
             sandbox_name,
+            "--template",
+            sbx_template_image(sbx_agent),
             sbx_agent,
             str(workspace_dir),
         ]

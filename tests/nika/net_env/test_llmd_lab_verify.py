@@ -5,6 +5,7 @@ import pytest
 from nika.net_env.llmd_lab.lab import LLMDInferenceCluster
 from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE
 from tests.support.net_env import instantiate_with_mocked_kathara
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 pytestmark = pytest.mark.unit
 
@@ -44,7 +45,7 @@ class LLMDLabUnitTest:
 
         assert "web" in (inst.servers or {}).get("web", [])
         assert "web" in inst.lab.machines
-        assert inst.lab.machines["web"].get_image() == "nika/base"
+        assert inst.lab.machines["web"].get_image() == nika_image("base")
 
     def test_all_k3s_nodes_are_bridged(self) -> None:
         """All k3s nodes must have bridged=True for internet access."""
