@@ -107,6 +107,10 @@ class _ConsoleHandler(logging.Handler):
             self.handleError(record)
 
 
+def console_events_enabled() -> bool:
+    return _console_events
+
+
 def set_console_events(enabled: bool) -> None:
     """Show events on stderr (interactive CLI) or keep them file-only (batch)."""
     global _console_events

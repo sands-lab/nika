@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
-from nika.inspect.adapters import adapt_agent_event, adapt_nika_event
+from nika.inspect.adapters import (
+    adapt_agent_event,
+    adapt_nika_event,
+    load_nika_events,
+)
 from nika.inspect.catalog import discover_sessions, list_sessions, summarize_session_dir
 from nika.inspect.models import CanonicalTraceEvent
 from nika.inspect.server import create_inspect_app
@@ -724,6 +728,37 @@ class TestAdapters:
         assert event.title == "failure_injected"
         assert event.summary == "done"
         assert event.raw["data"] == {"problem": "mtu_mismatch"}
+
+    def test_nika_progress_runs_fold_into_one_row(self, tmp_path: Path) -> None:
+        rows = [
+            ("env_preload_progress", "importing images on node0", "12:00:00"),
+            ("env_preload_progress", "importing images on node1", "12:00:30"),
+            ("env_preload_progress", "preload complete", "12:01:30"),
+            ("env_start", "Started network environment", "12:02:00"),
+        ]
+        (tmp_path / "nika.jsonl").write_text(
+            "".join(
+                json.dumps(
+                    {
+                        "timestamp": f"2026-01-01T{ts}",
+                        "level": "INFO",
+                        "event": event,
+                        "message": message,
+                    }
+                )
+                + "\n"
+                for event, message, ts in rows
+            ),
+            encoding="utf-8",
+        )
+        events = load_nika_events(tmp_path)
+        assert [e.title for e in events] == ["env_preload_progress", "env_start"]
+        progress = events[0]
+        assert progress.summary == "preload complete"
+        assert progress.duration_ms == 90_000
+        assert [step["message"] for step in progress.raw["steps"]] == [
+            message for _, message, _ in rows[:3]
+        ]
 
 
 class TestTimelineMerge:

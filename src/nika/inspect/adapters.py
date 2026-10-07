@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from itertools import groupby
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -675,8 +676,41 @@ def load_agent_events(session_dir: Path) -> list[CanonicalTraceEvent]:
     return events
 
 
+def _span_ms(start: Any, end: Any) -> float | None:
+    try:
+        first = datetime.fromisoformat(str(_timestamp(start)))
+        last = datetime.fromisoformat(str(_timestamp(end)))
+        return round((last - first).total_seconds() * 1000, 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fold_progress(entries: list[dict[str, Any]]) -> list[tuple[int, dict[str, Any]]]:
+    """Collapse each run of the same ``*_progress`` event into one row.
+
+    The row keeps the last step (the final CLI line of that run), spans
+    first→last via ``duration_ms``, and lists every step under ``steps``.
+    """
+    out: list[tuple[int, dict[str, Any]]] = []
+    index = 0
+    for event, group in groupby(entries, key=lambda entry: entry.get("event")):
+        rows = list(group)
+        if len(rows) > 1 and str(event).endswith("_progress"):
+            folded = dict(rows[-1])
+            span = _span_ms(rows[0].get("timestamp"), rows[-1].get("timestamp"))
+            if span is not None:
+                folded["duration_ms"] = span
+            folded["steps"] = [
+                {"timestamp": row.get("timestamp"), "message": row.get("message")}
+                for row in rows
+            ]
+            out.append((index + len(rows) - 1, folded))
+        else:
+            out.extend(enumerate(rows, start=index))
+        index += len(rows)
+    return out
+
+
 def load_nika_events(session_dir: Path) -> list[CanonicalTraceEvent]:
-    path = session_dir / "nika.jsonl"
-    return [
-        adapt_nika_event(entry, index=i) for i, entry in enumerate(iter_jsonl(path))
-    ]
+    entries = list(iter_jsonl(session_dir / "nika.jsonl"))
+    return [adapt_nika_event(entry, index=i) for i, entry in _fold_progress(entries)]
