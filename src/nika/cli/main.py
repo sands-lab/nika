@@ -84,6 +84,11 @@ def main() -> None:
     )
 
     install_warning_capture(quiet_loggers=False)
+    # Interactive commands show lifecycle events as they land in nika.jsonl;
+    # batch ``benchmark run`` turns this off for its progress panel.
+    from nika.utils.logger import set_console_events
+
+    set_console_events(True)
     try:
         app()
     finally:

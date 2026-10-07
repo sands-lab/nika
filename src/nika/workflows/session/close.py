@@ -189,7 +189,10 @@ def wipe_all_containerlab_labs() -> None:
         )
 
         if result.returncode != 0:
-            print(f"Error wiping containerlab labs: {result.stderr or result.stdout}")
+            log_error_event(
+                "containerlab_cleanup_error",
+                f"Could not wipe Containerlab labs: {result.stderr or result.stdout}",
+            )
 
         result = subprocess.run(
             ["docker", "network", "prune", "--force", "--filter", "label=containerlab"],
@@ -198,9 +201,10 @@ def wipe_all_containerlab_labs() -> None:
             text=True,
         )
         if result.returncode != 0:
-            print(
-                "Error pruning orphaned Containerlab networks: "
-                f"{result.stderr or result.stdout}"
+            log_error_event(
+                "containerlab_cleanup_error",
+                "Could not prune orphaned Containerlab networks: "
+                f"{result.stderr or result.stdout}",
             )
     except FileNotFoundError:
         # Containerlab or Docker is not installed; nothing to clean up.
@@ -241,9 +245,11 @@ def remove_orphaned_containerlab_management_network(lab_name: str | None) -> Non
         text=True,
     )
     if result.returncode != 0:
-        print(
-            "Error removing orphaned Containerlab management network "
-            f"{network_name}: {result.stderr or result.stdout}"
+        log_error_event(
+            "containerlab_cleanup_error",
+            "Could not remove orphaned Containerlab management network "
+            f"{network_name}: {result.stderr or result.stdout}",
+            network=network_name,
         )
 
 

@@ -446,7 +446,7 @@ A fresh host needs registry access for this preparation and must support the ima
 
 Controller bootstrap has bounded API/component waits. Failed manifest applies, Helm installs, exited k3s containers, and terminal Pod configuration/process errors report the failed stage and abort startup; the session lifecycle removes that deployment's resources. Ordinary Pending/ContainerCreating transitions are allowed until their stage deadline. Watch progress with:
 
-- stderr: `[k8s-cache]` (host preparation + node import) and `[env-verify]` (readiness checks)
+- stderr: `[k8s-cache]` (host preparation + node import) and, for interactive commands, `[env_verify_progress]` / `[env_verify]` (readiness checks)
 - session `nika.jsonl` (`env_preload_progress`, `env_verify_progress`)
 - controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[nika-startup]` stages)
 

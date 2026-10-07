@@ -94,11 +94,16 @@ def cache_tar_exists(image: str) -> bool:
 
 
 def _progress(message: str) -> None:
-    """Emit preload progress to stderr (visible under Rich Live) and nika.jsonl."""
-    print(f"[k8s-cache] {message}", file=sys.stderr, flush=True)
-    try:
-        from nika.utils.logger import log_event
+    """Emit preload progress to nika.jsonl (and the CLI when console events are on).
 
+    Batch workers keep console events off, so they also print ``[k8s-cache]``
+    to stderr to stay visible under the Rich Live panel.
+    """
+    try:
+        from nika.utils.logger import console_events_enabled, log_event
+
+        if not console_events_enabled():
+            print(f"[k8s-cache] {message}", file=sys.stderr, flush=True)
         log_event("env_preload_progress", message)
     except Exception:  # noqa: BLE001 - logging must not break preload
         pass

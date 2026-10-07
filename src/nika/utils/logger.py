@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from contextvars import ContextVar
@@ -45,6 +46,37 @@ def current_events_path() -> str | None:
     return _bound_events_path.get() or _default_events_path
 
 
+def event_entry(record: logging.LogRecord) -> dict[str, Any]:
+    """The ``nika.jsonl`` row for ``record`` (single source for every renderer)."""
+    entry: dict[str, Any] = {
+        "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+        "level": record.levelname,
+        "event": getattr(record, "event_type", "system"),
+        "message": record.getMessage(),
+    }
+    duration_ms = getattr(record, "duration_ms", None)
+    if duration_ms is not None:
+        entry["duration_ms"] = duration_ms
+    extra = getattr(record, "data", None)
+    if extra:
+        entry["data"] = extra
+    return entry
+
+
+def event_summary(entry: dict[str, Any]) -> str:
+    """Human text of a ``nika.jsonl`` row: message, prefixed by WARNING/ERROR."""
+    level = str(entry.get("level") or "INFO")
+    prefix = f"{level} " if level in {"WARNING", "ERROR", "CRITICAL"} else ""
+    return f"{prefix}{entry.get('message') or ''}"
+
+
+def format_event_line(entry: dict[str, Any]) -> str:
+    """One console line for a ``nika.jsonl`` row: ``[event] summary (Ns)``."""
+    duration_ms = entry.get("duration_ms")
+    suffix = f" ({float(duration_ms) / 1000:.1f}s)" if duration_ms is not None else ""
+    return f"[{entry.get('event') or 'system'}] {event_summary(entry)}{suffix}"
+
+
 class _JsonlHandler(logging.Handler):
     """Appends a structured JSON line to the bound session's nika.jsonl."""
 
@@ -52,23 +84,43 @@ class _JsonlHandler(logging.Handler):
         path = current_events_path()
         if not path:
             return
-        entry: dict = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
-            "level": record.levelname,
-            "event": getattr(record, "event_type", "system"),
-            "message": record.getMessage(),
-        }
-        duration_ms = getattr(record, "duration_ms", None)
-        if duration_ms is not None:
-            entry["duration_ms"] = duration_ms
-        extra = getattr(record, "data", None)
-        if extra:
-            entry["data"] = extra
         try:
             with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+                f.write(
+                    json.dumps(event_entry(record), ensure_ascii=False, default=str)
+                    + "\n"
+                )
         except Exception:
             self.handleError(record)
+
+
+_console_events = False
+
+
+class _ConsoleHandler(logging.Handler):
+    """Prints each event to stderr exactly as its ``nika.jsonl`` row reads."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            print(format_event_line(event_entry(record)), file=sys.stderr, flush=True)
+        except Exception:
+            self.handleError(record)
+
+
+def console_events_enabled() -> bool:
+    return _console_events
+
+
+def set_console_events(enabled: bool) -> None:
+    """Show events on stderr (interactive CLI) or keep them file-only (batch)."""
+    global _console_events
+    with _logger_lock:
+        _console_events = enabled
+        logger = logging.getLogger("SystemLogger")
+        for h in [h for h in logger.handlers if isinstance(h, _ConsoleHandler)]:
+            logger.removeHandler(h)
+        if enabled:
+            logger.addHandler(_ConsoleHandler())
 
 
 def _build_logger() -> logging.Logger:
@@ -101,6 +153,8 @@ def refresh_logger() -> logging.Logger:
         system_logger = _build_logger()
         if current_events_path():
             _attach_jsonl_handler()
+        if _console_events:
+            logger.addHandler(_ConsoleHandler())
         return system_logger
 
 
@@ -159,6 +213,19 @@ def log_event(event_type: str, message: str, **data: Any) -> None:
     """
     duration_ms, payload = _split_duration(data)
     system_logger.info(
+        message,
+        extra={
+            "event_type": event_type,
+            "data": payload or None,
+            "duration_ms": duration_ms,
+        },
+    )
+
+
+def log_warning_event(event_type: str, message: str, **data: Any) -> None:
+    """Log a structured WARNING-level event to nika.jsonl when a session dir is bound."""
+    duration_ms, payload = _split_duration(data)
+    system_logger.warning(
         message,
         extra={
             "event_type": event_type,

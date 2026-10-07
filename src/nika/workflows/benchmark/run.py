@@ -821,7 +821,8 @@ def run_single_case(
             f"Running benchmark for Problem: {problem}, Scenario: {scenario}, "
             f"Topo Size: {topo_size}"
             + (f", {', '.join(isp_bits)}" if isp_bits else "")
-            + (f", Trial: {trial_id}" if trial_id else "")
+            + (f", Trial: {trial_id}" if trial_id else ""),
+            flush=True,
         )
 
     if not verbose:

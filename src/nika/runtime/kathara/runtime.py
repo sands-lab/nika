@@ -27,6 +27,7 @@ from nika.service.kathara.docker_utils import (
     list_lab_containers,
 )
 from nika.runtime.spec import MachineInventory
+from nika.utils.logger import log_error_event, log_event, log_warning_event
 
 if TYPE_CHECKING:
     from docker.models.containers import Container
@@ -131,7 +132,11 @@ class KatharaRuntime(LabRuntime):
         # Strict probe: a Docker/Kathara API error must surface here instead
         # of being mistaken for "lab exists" and silently skipping deploy.
         if self._lab_present():
-            print(f"Lab {self.lab_name} exists")
+            log_event(
+                "lab_deploy_skipped",
+                f"Lab {self.lab_name} already exists; skipping deploy",
+                lab_name=self.lab_name,
+            )
             return False
         self._net_env._ensure_docker_images()
 
@@ -145,9 +150,13 @@ class KatharaRuntime(LabRuntime):
                 return True
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc
-                print(
+                log_warning_event(
+                    "lab_deploy_retry",
                     f"Deploy of lab {self.lab_name} failed "
-                    f"(attempt {attempt}/{attempts}): {exc}"
+                    f"(attempt {attempt}/{attempts}): {exc}",
+                    lab_name=self.lab_name,
+                    attempt=attempt,
+                    attempts=attempts,
                 )
                 # Remove partial containers before the next deployment attempt.
                 self.destroy()
@@ -166,7 +175,11 @@ class KatharaRuntime(LabRuntime):
 
             KatharaVdeFaultProxy.cleanup_lab(self.lab_name)
         except Exception as exc:  # cleanup must not prevent normal teardown
-            print(f"Error cleaning VDE fault proxies: {exc}")
+            log_error_event(
+                "lab_undeploy_error",
+                f"Could not clean VDE fault proxies for {self.lab_name}: {exc}",
+                lab_name=self.lab_name,
+            )
         # undeploy_lab runs shutdown commands via an untimed docker exec in
         # each machine; under an injected CPU cap runc init starves forever.
         try:
@@ -174,11 +187,19 @@ class KatharaRuntime(LabRuntime):
                 if container.status == "running":
                     lift_cpu_cap(container)
         except Exception as exc:
-            print(f"Error lifting CPU caps before undeploy: {exc}")
+            log_error_event(
+                "lab_undeploy_error",
+                f"Could not lift CPU caps before undeploying {self.lab_name}: {exc}",
+                lab_name=self.lab_name,
+            )
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:
-            print(f"Error undeploying lab {self.lab_name}: {exc}")
+            log_error_event(
+                "lab_undeploy_error",
+                f"Could not undeploy lab {self.lab_name}: {exc}",
+                lab_name=self.lab_name,
+            )
 
         deadline = time.monotonic() + _lab_settings().undeploy_verify_timeout_sec
         retried = False
@@ -194,16 +215,22 @@ class KatharaRuntime(LabRuntime):
                 try:
                     self._instance.undeploy_lab(lab_name=self.lab_name)
                 except Exception as exc:
-                    print(f"Error re-undeploying lab {self.lab_name}: {exc}")
+                    log_error_event(
+                        "lab_undeploy_error",
+                        f"Could not re-undeploy lab {self.lab_name}: {exc}",
+                        lab_name=self.lab_name,
+                    )
             time.sleep(2.0)
         # `kathara wipe` would delete every lab on the host, including other
         # running sessions; point only at this lab's owning session.
-        print(
-            f"WARNING: lab {self.lab_name} still has "
+        log_warning_event(
+            "lab_undeploy_leaked",
+            f"Lab {self.lab_name} still has "
             f"{self._machine_count(running_only=False)} container(s) and "
             f"{self._link_count()} collision domain(s) after undeploy. It is "
             "leaked and keeps consuming resources. Clean it up with "
-            "`nika session close <session_id>` for the session that owns it."
+            "`nika session close <session_id>` for the session that owns it.",
+            lab_name=self.lab_name,
         )
 
     def _lab_present(self) -> bool:

@@ -49,6 +49,7 @@ from nika.utils.logger import (
     elapsed_ms,
     log_error_event,
     log_event,
+    log_warning_event,
     refresh_logger,
 )
 from nika.utils.session import Session
@@ -548,17 +549,21 @@ def start_net_env(
                 getattr(net_env, "name", None)
             )
         except Exception as cleanup_exc:  # noqa: BLE001 - best effort
-            print(
-                f"WARNING: could not close session {resolved_session_id} after "
-                f"failed start: {cleanup_exc}"
+            log_warning_event(
+                "env_start_cleanup_failed",
+                f"Could not close session {resolved_session_id} after "
+                f"failed start: {cleanup_exc}",
+                session_id=resolved_session_id,
             )
             try:
                 if net_env.lab_exists():
                     net_env.undeploy()
             except Exception as undeploy_exc:  # noqa: BLE001 - best effort
-                print(
-                    f"WARNING: could not undeploy lab {net_env.name} after "
-                    f"failed start: {undeploy_exc}"
+                log_warning_event(
+                    "env_start_cleanup_failed",
+                    f"Could not undeploy lab {net_env.name} after "
+                    f"failed start: {undeploy_exc}",
+                    lab_name=net_env.name,
                 )
             try:
                 from nika.workflows.session.close import (
