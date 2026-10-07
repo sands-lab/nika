@@ -118,7 +118,7 @@ jobs:
           - nika/fabric-controller
           - nika/tc-bpf
           - nika/skopeo
-          - nika/routinator:v0.14.2
+          - nika/routinator
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)

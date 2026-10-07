@@ -5,6 +5,10 @@ from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_BASE_IMAGE,
+    KATHARA_P4_IMAGE,
+)
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -26,15 +30,15 @@ class P4_MPLS(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = "A MPLS network using Bmv2 switches"
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
-        pc3 = self.lab.new_machine("pc3", **{"image": "kathara/base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": KATHARA_BASE_IMAGE})
+        pc2 = self.lab.new_machine("pc2", **{"image": KATHARA_BASE_IMAGE})
+        pc3 = self.lab.new_machine("pc3", **{"image": KATHARA_BASE_IMAGE})
 
         switches = {}
         for i in range(1, 8):
             switch = self.lab.new_machine(
                 f"switch_{i}",
-                **{"image": "kathara/p4", "cpus": 0.5, "mem": "256m"},
+                **{"image": KATHARA_P4_IMAGE, "cpus": 0.5, "mem": "256m"},
             )
             switches[f"switch_{i}"] = switch
         for name in (pc1.name, pc2.name, pc3.name):

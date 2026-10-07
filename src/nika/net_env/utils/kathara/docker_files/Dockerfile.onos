@@ -10,9 +10,9 @@ ARG ONOS_PLATFORM=linux/amd64
 FROM --platform=$ONOS_PLATFORM ${ONOS_IMAGE} AS onos-dist
 
 # Multi-arch OpenJDK 11 (amd64 + arm64); copy into Kathara base below.
-FROM eclipse-temurin:11-jre-jammy AS jre
+FROM eclipse-temurin:11-jre-jammy@sha256:68607af464c53b34d7dd3ee25697d53531ec46a80326be95129346ff74ae6f8f AS jre
 
-FROM kathara/base:latest
+FROM kathara/base:latest@sha256:8a2e70ac8f51bb283b8549fd686f65f9a1ef4487fe2c81849cb74d301e61970b
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends iproute2 iputils-ping curl nftables && \

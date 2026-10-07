@@ -13,11 +13,15 @@ from nika.net_env.compat.v010.sdn_verify import verify_sdn_lab
 from nika.net_env.base import NetworkEnvBase
 from nika.net_env.sdn_l3_clos.l3_clos_topo import _ovs_start_commands
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_SDN_IMAGE,
+    nika_image,
+)
 
 _SIZES = {"s": (1, 2, 2), "m": (2, 4, 4), "l": (4, 8, 8)}
-_SWITCH = {"image": "kathara/sdn", "cpus": 0.5, "mem": "256m"}
-_HOST = {"image": "nika/base", "cpus": 0.5, "mem": "256m"}
-_CONTROLLER = {"image": "nika/pox", "cpus": 0.5, "mem": "256m", "bridged": True}
+_SWITCH = {"image": KATHARA_SDN_IMAGE, "cpus": 0.5, "mem": "256m"}
+_HOST = {"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
+_CONTROLLER = {"image": nika_image("pox"), "cpus": 0.5, "mem": "256m", "bridged": True}
 
 
 class SDNClos(NetworkEnvBase):

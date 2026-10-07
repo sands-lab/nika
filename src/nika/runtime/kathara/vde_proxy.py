@@ -30,6 +30,7 @@ from nika.runtime.kathara.interface_snapshot import (
 )
 from nika.runtime.shared.containers import docker_client
 from nika.runtime.spec import NodeIdentity
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 _logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class KatharaVdeFaultProxy:
             lan_b = self._create_lan(f"nika-fp-{key}-b", labels, original)
             created.append(lan_b)
             proxy = self._client.containers.run(
-                "nika/base",
+                nika_image("base"),
                 command=["/bin/sh", "-c", "exec sleep infinity"],
                 cap_add=["NET_ADMIN"],
                 detach=True,

@@ -18,7 +18,10 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    image_exists,
+    nika_image,
+)
 from nika.runtime.spec import NodeRole
 
 IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
@@ -130,8 +133,8 @@ class RouterOsSimpleBGP(NetworkEnvBase):
             # by vrnetlab for its own mgmt bridge). Must be connected first.
             self.lab.connect_machine_to_link(router_name, f"{router_name}_reserved0")
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "nika/base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "nika/base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": nika_image("base")})
+        pc2 = self.lab.new_machine("pc2", **{"image": nika_image("base")})
         self.declare_machine(
             pc1.name,
             role=NodeRole.HOST,

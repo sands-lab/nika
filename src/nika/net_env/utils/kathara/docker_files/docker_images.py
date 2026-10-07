@@ -13,30 +13,51 @@ from typing import Iterable, Set
 import docker
 from docker.errors import APIError, BuildError, ImageNotFound
 
+from nika.config import BENCHMARK_VERSION
+
 NIKA_IMAGE_PREFIX = "nika/"
 DOCKER_FILES_DIR = Path(__file__).resolve().parent
+
+# Locally built nika/* images carry the benchmark version as their tag.
+# Dockerfiles reference other nika/* parents through this build arg.
+NIKA_IMAGE_TAG = BENCHMARK_VERSION
+NIKA_IMAGE_TAG_ARG = "NIKA_IMAGE_TAG"
+_BUILD_ARGS = {NIKA_IMAGE_TAG_ARG: NIKA_IMAGE_TAG}
 
 # Labels on locally built nika/* images. The build hash covers the Dockerfile,
 # its COPY/ADD sources, and the local parent image IDs, so a stale build is
 # rebuilt after a Dockerfile change or a newer upstream parent pull.
 IMAGE_LABEL = "io.nika.image"
 BUILD_HASH_LABEL = "io.nika.build-hash"
-_BUILD_HASH_VERSION = "1"
+_BUILD_HASH_VERSION = "2"
+
+
+def nika_image(name: str) -> str:
+    """Return the ``nika/<name>`` image reference for the current benchmark."""
+    return f"{NIKA_IMAGE_PREFIX}{name}:{NIKA_IMAGE_TAG}"
+
 
 # Scenario-local images required at deploy time. Upstream Kathara images
 # (kathara/base, kathara/frr, …) are pulled, not listed here.
 NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
-    "nika/frr": "Dockerfile.frr",
-    "nika/base": "Dockerfile.base",
-    "nika/nginx": "Dockerfile.nginx",
-    "nika/wireguard": "Dockerfile.wireguard",
-    "nika/pox": "Dockerfile.pox",
-    "nika/onos": "Dockerfile.onos",
-    "nika/fabric-controller": "Dockerfile.fabric-controller",
-    "nika/tc-bpf": "Dockerfile.tc-bpf",
-    "nika/skopeo": "Dockerfile.skopeo",
-    "nika/routinator:v0.14.2": "../isp/rpki/Dockerfile.routinator",
+    nika_image("frr"): "Dockerfile.frr",
+    nika_image("base"): "Dockerfile.base",
+    nika_image("nginx"): "Dockerfile.nginx",
+    nika_image("wireguard"): "Dockerfile.wireguard",
+    nika_image("pox"): "Dockerfile.pox",
+    nika_image("onos"): "Dockerfile.onos",
+    nika_image("fabric-controller"): "Dockerfile.fabric-controller",
+    nika_image("tc-bpf"): "Dockerfile.tc-bpf",
+    nika_image("skopeo"): "Dockerfile.skopeo",
+    nika_image("routinator"): "../isp/rpki/Dockerfile.routinator",
 }
+
+# Upstream images NIKA labs deploy directly, pinned to the last verified
+# multi-arch index digest. Dockerfile FROM lines pin build parents the same way.
+KATHARA_BASE_IMAGE = "kathara/base:latest@sha256:8a2e70ac8f51bb283b8549fd686f65f9a1ef4487fe2c81849cb74d301e61970b"
+KATHARA_FRR_IMAGE = "kathara/frr:latest@sha256:3b7a3f630d8ecd9efddd4586ba2f0a41e2c462f13bc81dee8e3c6ebac183f57c"
+KATHARA_P4_IMAGE = "kathara/p4:latest@sha256:62d4511908530028e275420b644d05e45ed9b4f5d786b56a63b5fb287dcce6ef"
+KATHARA_SDN_IMAGE = "kathara/sdn:latest@sha256:19cb5b383367e1d204e76f7e6e65753fbc947647747879f24883558a5c3fd8c5"
 
 # Images whose upstream base (or binaries) are single-arch. Builds and pulls
 # must target this platform so arm64 hosts do not produce mixed-arch layers.
@@ -45,16 +66,16 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
 NIKA_IMAGE_PLATFORMS: dict[str, str] = {}
 
 # Dockerfiles that COPY --from a foreign-arch stage need BuildKit.
-NIKA_IMAGE_BUILDKIT: frozenset[str] = frozenset({"nika/onos"})
+NIKA_IMAGE_BUILDKIT: frozenset[str] = frozenset({nika_image("onos")})
 
-# Old tags from before the nika/* rename. ensure retags these when the new
-# name is missing so local builds are not repeated.
+# Old tags from before the nika/* rename. Like other-version nika/* tags,
+# ensure retags these when they match the current build, else removes them.
 LEGACY_NIKA_IMAGE_NAMES: dict[str, tuple[str, ...]] = {
-    "nika/base": ("kathara/nika-base",),
-    "nika/frr": ("kathara/nika-frr",),
-    "nika/nginx": ("kathara/nika-nginx",),
-    "nika/wireguard": ("kathara/nika-wireguard",),
-    "nika/pox": ("kathara/nika-pox",),
+    nika_image("base"): ("kathara/nika-base",),
+    nika_image("frr"): ("kathara/nika-frr",),
+    nika_image("nginx"): ("kathara/nika-nginx",),
+    nika_image("wireguard"): ("kathara/nika-wireguard",),
+    nika_image("pox"): ("kathara/nika-pox",),
 }
 
 _QEMU_X86_64_BINFMT = Path("/proc/sys/fs/binfmt_misc/qemu-x86_64")
@@ -80,7 +101,7 @@ def image_exists(image: str) -> bool:
 def _dockerfile_for_image(image: str) -> Path:
     dockerfile_name = NIKA_IMAGE_DOCKERFILES.get(image)
     if dockerfile_name is None:
-        suffix = image.removeprefix(NIKA_IMAGE_PREFIX)
+        suffix = image_repository(image).removeprefix(NIKA_IMAGE_PREFIX)
         dockerfile_name = f"Dockerfile.{suffix}"
     dockerfile = (DOCKER_FILES_DIR / dockerfile_name).resolve()
     if not dockerfile.is_file():
@@ -98,6 +119,14 @@ def _is_locally_buildable(image: str) -> bool:
         return True
     except FileNotFoundError:
         return False
+
+
+def image_repository(ref: str) -> str:
+    """Return ``ref`` without its tag and digest."""
+    name = ref.split("@", 1)[0]
+    if ":" in name.rsplit("/", 1)[-1]:
+        name = name.rsplit(":", 1)[0]
+    return name
 
 
 def _split_image_tag(image: str) -> tuple[str, str | None]:
@@ -193,20 +222,47 @@ def retag_image(source: str, target: str) -> None:
         raise RuntimeError(f"Failed to remove legacy Docker image {source}") from exc
 
 
-def _migrate_legacy_image(image: str) -> bool:
-    """If a legacy tag exists for ``image``, retag it. Return True if migrated."""
-    for legacy in LEGACY_NIKA_IMAGE_NAMES.get(image, ()):
-        if image_exists(legacy):
-            retag_image(legacy, image)
+def _previous_builds(image: str) -> list[str]:
+    """Local tags of ``image`` from other NIKA versions or pre-rename names."""
+    repo = image_repository(image)
+    tags = {
+        tag
+        for found in _get_client().images.list(name=repo)
+        for tag in found.tags
+        if tag != image and image_repository(tag) == repo
+    }
+    tags.update(
+        name for name in LEGACY_NIKA_IMAGE_NAMES.get(image, ()) if image_exists(name)
+    )
+    return sorted(tags)
+
+
+def _adopt_previous_build(image: str, current_hashes: set[str]) -> bool:
+    """Retag a previous build identical to the current one, else remove them all.
+
+    Returns True when ``image`` was recovered from a previous tag.
+    """
+    previous = _previous_builds(image)
+    if not previous:
+        return False
+    for old in previous:
+        if _image_build_hash(old) in current_hashes:
+            retag_image(old, image)
             return True
+    for old in previous:
+        print(f"Removing outdated Docker image {old}...")
+        try:
+            _get_client().images.remove(old)
+        except APIError as exc:
+            print(f"Keeping {old}: {exc.explanation or exc}")
     return False
 
 
-def _dockerfile_instructions(dockerfile: Path) -> list[tuple[str, str]]:
+def _dockerfile_instructions(text: str) -> list[tuple[str, str]]:
     """Return ``(INSTRUCTION, arguments)`` pairs with continuations joined."""
     instructions: list[tuple[str, str]] = []
     pending = ""
-    for raw in dockerfile.read_text(encoding="utf-8").splitlines():
+    for raw in text.splitlines():
         line = raw.strip()
         if not pending and (not line or line.startswith("#")):
             continue
@@ -220,12 +276,11 @@ def _dockerfile_instructions(dockerfile: Path) -> list[tuple[str, str]]:
     return instructions
 
 
-def dockerfile_parents(image: str) -> list[str]:
-    """Return external ``FROM`` references of a buildable image (no stage names)."""
-    args: dict[str, str] = {}
+def _from_parents(text: str, build_args: dict[str, str]) -> list[str]:
+    args = dict(build_args)
     stages: set[str] = set()
     parents: list[str] = []
-    for keyword, rest in _dockerfile_instructions(_dockerfile_for_image(image)):
+    for keyword, rest in _dockerfile_instructions(text):
         if keyword == "ARG" and "=" in rest:
             name, _, default = rest.partition("=")
             args.setdefault(name.strip(), default.strip())
@@ -243,9 +298,17 @@ def dockerfile_parents(image: str) -> list[str]:
     return parents
 
 
+def dockerfile_parents(image: str) -> list[str]:
+    """Return external ``FROM`` references of a buildable image (no stage names)."""
+    text = _dockerfile_for_image(image).read_text(encoding="utf-8")
+    return _from_parents(text, _BUILD_ARGS)
+
+
 def _copy_sources(dockerfile: Path) -> list[Path]:
     files: list[Path] = []
-    for keyword, rest in _dockerfile_instructions(dockerfile):
+    for keyword, rest in _dockerfile_instructions(
+        dockerfile.read_text(encoding="utf-8")
+    ):
         if keyword not in ("COPY", "ADD"):
             continue
         tokens = rest.split()
@@ -277,22 +340,59 @@ def _image_build_hash(image: str) -> str | None:
     return labels.get(BUILD_HASH_LABEL)
 
 
-def build_hash(image: str) -> str:
-    """Hash of everything that determines a local nika/* build."""
+def _hash_build(
+    version: str, image: str, text: str, parents: list[tuple[str, str]]
+) -> str:
+    """Hash a build from its Dockerfile text, COPY sources, and parents.
+
+    ``parents`` pairs the name hashed for each parent with the local
+    reference whose image ID is hashed (skipped for digest-pinned parents).
+    """
     dockerfile = _dockerfile_for_image(image)
     digest = hashlib.sha256()
-    digest.update(
-        f"{_BUILD_HASH_VERSION}\0{_platform_for_image(image) or ''}\0".encode()
-    )
-    digest.update(dockerfile.read_bytes())
+    digest.update(f"{version}\0{_platform_for_image(image) or ''}\0".encode())
+    digest.update(text.encode())
     for path in _copy_sources(dockerfile):
         digest.update(f"\0{path.relative_to(dockerfile.parent)}\0".encode())
         digest.update(path.read_bytes())
-    for parent in dockerfile_parents(image):
-        digest.update(f"\0{parent}\0".encode())
-        if "@sha256:" not in parent:
-            digest.update((_local_image_id(parent) or "missing").encode())
+    for name, local_ref in parents:
+        digest.update(f"\0{name}\0".encode())
+        if "@sha256:" not in name:
+            digest.update((_local_image_id(local_ref) or "missing").encode())
     return digest.hexdigest()
+
+
+def build_hash(image: str) -> str:
+    """Hash of everything that determines a local nika/* build.
+
+    Local nika/* parents are hashed by repository and image ID, not tag, so
+    an unchanged build keeps its hash across benchmark versions.
+    """
+    text = _dockerfile_for_image(image).read_text(encoding="utf-8")
+    parents = [
+        (image_repository(parent) if _is_locally_buildable(parent) else parent, parent)
+        for parent in dockerfile_parents(image)
+    ]
+    return _hash_build(_BUILD_HASH_VERSION, image, text, parents)
+
+
+def _unversioned_build_hash(image: str) -> str:
+    """Hash the pre-versioning NIKA release gave the ``:latest`` build of ``image``.
+
+    Those Dockerfiles named parents without digests (``kathara/base:latest``)
+    and without the nika tag (``nika/base``). Undoing both edits and hashing
+    the current parents' image IDs matches the old label only when the old
+    build used the same Dockerfile, sources, and parent content.
+    """
+    text = _dockerfile_for_image(image).read_text(encoding="utf-8")
+    text = text.replace(f"ARG {NIKA_IMAGE_TAG_ARG}\n", "")
+    text = text.replace(f":${{{NIKA_IMAGE_TAG_ARG}}}", "")
+    text = re.sub(r"^(FROM\s.*?)@sha256:[0-9a-f]{64}", r"\1", text, flags=re.M)
+    old_parents = _from_parents(text, {})
+    current = dockerfile_parents(image)
+    if len(old_parents) != len(current):
+        return ""
+    return _hash_build("1", image, text, list(zip(old_parents, current)))
 
 
 def build_nika_image(image: str, *, expected_hash: str | None = None) -> None:
@@ -320,6 +420,7 @@ def build_nika_image(image: str, *, expected_hash: str | None = None) -> None:
             "-t",
             image,
             "--network=host",
+            *(f"--build-arg={key}={value}" for key, value in _BUILD_ARGS.items()),
             *(f"--label={key}={value}" for key, value in labels.items()),
             ".",
         ]
@@ -342,6 +443,7 @@ def build_nika_image(image: str, *, expected_hash: str | None = None) -> None:
             "tag": image,
             "network_mode": "host",
             "rm": True,
+            "buildargs": _BUILD_ARGS,
             "labels": labels,
         }
         if docker_platform:
@@ -390,14 +492,16 @@ def _ensure_built(image: str, *, force_rebuild: bool, ensured: set[str]) -> None
         elif "@sha256:" not in parent and not image_exists(parent):
             pull_image(parent)
 
-    if not image_exists(image):
-        _migrate_legacy_image(image)
     expected = build_hash(image)
+    # A build retagged from before versioning keeps its old-format label.
+    current_hashes = {expected, _unversioned_build_hash(image)}
+    if not force_rebuild and not image_exists(image):
+        _adopt_previous_build(image, current_hashes)
     if force_rebuild:
         reason = "force rebuild"
     elif not image_exists(image):
         reason = "missing"
-    elif _image_build_hash(image) != expected:
+    elif _image_build_hash(image) not in current_hashes:
         reason = "outdated"
     else:
         return
@@ -412,8 +516,10 @@ def ensure_nika_docker_images(
 
     Locally buildable ``nika/*`` images are built when missing or when their
     build-hash label does not match the current Dockerfile, sources, and
-    parent images. Missing images are first recovered from legacy
-    ``kathara/nika-*`` tags. Parent images are ensured before their children.
+    parent images. A missing image is first recovered by retagging an
+    identical build from another NIKA version (e.g. ``nika/base:latest``) or
+    a legacy ``kathara/nika-*`` name; non-matching old tags are removed before
+    the rebuild. Parent images are ensured before their children.
     Other images (e.g. upstream ``kathara/p4``) are pulled when missing. With
     ``force_rebuild=True``, every buildable image is rebuilt.
 

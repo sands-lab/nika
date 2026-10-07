@@ -36,6 +36,7 @@ Network environments implement `NetworkEnvBase` and bind to Kathara or Container
 2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, sets `self.name`, `self.desc`, and declares useful host lists through `load_machines()`.
 3. If the scenario has sizes, expose `TOPO_SIZE = ["s", "m", "l"]` and accept `topo_size` in `__init__`.
 4. Add import-safe metadata and a lazy module/class binding to `src/nika/net_env/net_env_pool.py`.
+5. Reference images by a pinned name: `nika_image("<name>")` for local `nika/*` builds (tagged with the benchmark version), and a `repo:tag@sha256:<digest>` reference for upstream images. Never use a floating tag such as `latest` on its own.
 
 Minimal shape:
 
@@ -44,6 +45,7 @@ from Kathara.model.Lab import Lab
 from Kathara.manager.Kathara import Kathara
 
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 
 class MyScenario(NetworkEnvBase):
@@ -56,8 +58,8 @@ class MyScenario(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.lab = Lab(self.name)
 
-        pc1 = self.lab.new_machine("pc1", image="nika/base")
-        pc2 = self.lab.new_machine("pc2", image="nika/base")
+        pc1 = self.lab.new_machine("pc1", image=nika_image("base"))
+        pc2 = self.lab.new_machine("pc2", image=nika_image("base"))
         self.lab.connect_machine_to_link(pc1.name, "A")
         self.lab.connect_machine_to_link(pc2.name, "A")
 

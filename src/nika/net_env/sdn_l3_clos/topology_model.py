@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_SDN_IMAGE,
+    nika_image,
+)
 
 TopoSize = Literal["s", "m", "l"]
 
 # Lab image is nika/onos (see Dockerfile.onos); built on deploy via
 # ensure_nika_docker_images for the host architecture.
-ONOS_IMAGE = "nika/onos"
-SWITCH_IMAGE = "kathara/sdn"
-BASE_IMAGE = "nika/base"
-NGINX_IMAGE = "nika/nginx"
+ONOS_IMAGE = nika_image("onos")
+SWITCH_IMAGE = KATHARA_SDN_IMAGE
+BASE_IMAGE = nika_image("base")
+NGINX_IMAGE = nika_image("nginx")
 
 VIRTUAL_ROUTER_MAC = "02:00:00:00:00:01"
 POD = 0

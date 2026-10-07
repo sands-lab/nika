@@ -22,6 +22,7 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     _get_client,
     ensure_nika_docker_images,
     host_machine_arch,
+    nika_image,
 )
 from nika.net_env.net_env_pool import list_all_net_envs
 
@@ -43,7 +44,7 @@ K8S_SCENARIOS = frozenset(
     name for name, spec in list_all_net_envs().items() if spec.k8s_image_cache
 )
 
-SKOPEO_IMAGE = "nika/skopeo"
+SKOPEO_IMAGE = nika_image("skopeo")
 _PROXY_ENV_KEYS = (
     "HTTP_PROXY",
     "HTTPS_PROXY",

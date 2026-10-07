@@ -13,10 +13,11 @@ from typing import Any, Literal
 
 import yaml
 
-from nika.config import BENCHMARK_DIR, REPO_ROOT
+from nika.config import BENCHMARK_DIR, BENCHMARK_VERSION, REPO_ROOT
 from nika.utils.session_artifacts import write_json_atomic
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
+    image_repository,
 )
 from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
 from nika.net_env.net_env_pool import (
@@ -44,7 +45,7 @@ from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 BENCHMARK_ID = "nika-bench"
 BENCHMARK_ID_ALIASES = frozenset({"nika-bench", "nika"})
-DEFAULT_RELEASE_VERSION = "0.2.0"
+DEFAULT_RELEASE_VERSION = BENCHMARK_VERSION
 RELEASES_DIR = BENCHMARK_DIR / "releases"
 JOB_FILENAME = "benchmark_job.json"
 RUN_CONFIG_FILENAME = "run.json"
@@ -526,10 +527,13 @@ def preflight_release(
             f"{licensed}; releases must only depend on openly available images"
         )
 
+    # The manifest lists images for every split, not only the selected one.
+    release_scenarios = set(scenarios)
     # Isolation requires both splits on disk (always true for 0.1.0).
     if "dev" in release.splits and "test" in release.splits:
         dev = load_release_from_dir(release.root, split="dev").cases
         test = load_release_from_dir(release.root, split="test").cases
+        release_scenarios.update(row["scenario"] for row in dev + test)
         if is_010:
             # 0.1.0 predates the distinct deployment-context split rule.
             verify_dev_test_isolation(
@@ -546,6 +550,13 @@ def preflight_release(
 
     required = list(release.images.get("required") or [])
     if check_images and required:
+        # Frozen manifests may name images without the pin NIKA now deploys
+        # (e.g. ``nika/base``, ``kathara/p4``); ensure the pinned references.
+        current = {
+            image_repository(ref): ref
+            for ref in collect_images_for_scenarios(release_scenarios)
+        }
+        required = [current.get(image_repository(ref), ref) for ref in required]
         try:
             # Same ensure/build/pull path as ordinary lab deploy.
             ensure_nika_docker_images(required)

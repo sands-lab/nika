@@ -19,12 +19,13 @@ from nika.net_env.utils.k8s_workload_cache import (
 )
 from nika.runtime.spec import NodeRole
 from nika.utils.net import pick_free_port
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-_FRR_IMAGE = "nika/frr"
+_FRR_IMAGE = nika_image("frr")
 _K3S_IMAGE = K3S_IMAGE
-_BASE_IMAGE = "nika/base"
+_BASE_IMAGE = nika_image("base")
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 

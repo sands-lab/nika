@@ -52,9 +52,10 @@ pytestmark = pytest.mark.unit
     ],
 )
 def test_required_sbx_template_images(agent_type: str, image: str) -> None:
-    assert required_sbx_template_images(agent_type) == [image]
-    assert required_sbx_template_images("byo.langgraph", agent_type) == [image]
-    assert sbx_template_image(native_sbx_agent(agent_type)) == image
+    [pinned] = required_sbx_template_images(agent_type)
+    assert pinned.startswith(f"{image}@sha256:")
+    assert required_sbx_template_images("byo.langgraph", agent_type) == [pinned]
+    assert sbx_template_image(native_sbx_agent(agent_type)) == pinned
 
 
 @pytest.mark.parametrize(
@@ -84,6 +85,8 @@ def test_agent_mapping_and_create_command(agent_type: str, sbx_agent: str) -> No
         "create",
         "--name",
         "nika-test",
+        "--template",
+        sbx_template_image(sbx_agent),
         sbx_agent,
         "/tmp/ws",
         "--cpus",

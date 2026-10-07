@@ -14,6 +14,7 @@ from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available, docker_image_available
+from nika.net_env.utils.kathara.docker_files.docker_images import KATHARA_P4_IMAGE
 
 pytestmark = pytest.mark.integration
 
@@ -197,7 +198,7 @@ class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 @pytest.mark.skipif(
-    not docker_image_available("kathara/p4"),
+    not docker_image_available(KATHARA_P4_IMAGE),
     reason="kathara/p4 image not available",
 )
 class TestP4McpLive(IntegrationTestCase):
@@ -234,7 +235,7 @@ class TestP4McpLive(IntegrationTestCase):
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 @pytest.mark.skipif(
-    not docker_image_available("kathara/p4"),
+    not docker_image_available(KATHARA_P4_IMAGE),
     reason="kathara/p4 image not available",
 )
 class TestTelemetryMcpLive(IntegrationTestCase):

@@ -5,6 +5,10 @@ from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_BASE_IMAGE,
+    KATHARA_P4_IMAGE,
+)
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,14 +26,14 @@ class P4Counter(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = "A simple network with 4 bmv2 switches and 3 pcs."
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "kathara/base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "kathara/base"})
-        pc3 = self.lab.new_machine("pc3", **{"image": "kathara/base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": KATHARA_BASE_IMAGE})
+        pc2 = self.lab.new_machine("pc2", **{"image": KATHARA_BASE_IMAGE})
+        pc3 = self.lab.new_machine("pc3", **{"image": KATHARA_BASE_IMAGE})
 
-        s1 = self.lab.new_machine("s1", **{"image": "kathara/p4"})
-        s2 = self.lab.new_machine("s2", **{"image": "kathara/p4"})
-        s3 = self.lab.new_machine("s3", **{"image": "kathara/p4"})
-        s4 = self.lab.new_machine("s4", **{"image": "kathara/p4"})
+        s1 = self.lab.new_machine("s1", **{"image": KATHARA_P4_IMAGE})
+        s2 = self.lab.new_machine("s2", **{"image": KATHARA_P4_IMAGE})
+        s3 = self.lab.new_machine("s3", **{"image": KATHARA_P4_IMAGE})
+        s4 = self.lab.new_machine("s4", **{"image": KATHARA_P4_IMAGE})
         for name in (pc1.name, pc2.name, pc3.name):
             self.declare_machine(name, role=NodeRole.HOST, capabilities=("linux",))
         for name in (s1.name, s2.name, s3.name, s4.name):

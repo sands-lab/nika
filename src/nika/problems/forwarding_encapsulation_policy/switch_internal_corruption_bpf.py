@@ -10,10 +10,11 @@ from pathlib import Path
 
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
+    nika_image,
 )
 from nika.runtime.base import RuntimeCapabilityError
 
-TC_BPF_IMAGE = "nika/tc-bpf"
+TC_BPF_IMAGE = nika_image("tc-bpf")
 # platform.machine() -> libbpf __TARGET_ARCH_* suffix.
 BPF_TARGET_ARCH = {"x86_64": "x86", "aarch64": "arm64"}
 

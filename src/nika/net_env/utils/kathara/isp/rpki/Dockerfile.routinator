@@ -1,3 +1,3 @@
 # nika/routinator: root-USER wrapper so Kathara startup can configure interfaces.
-FROM nlnetlabs/routinator:v0.14.2
+FROM nlnetlabs/routinator:v0.14.2@sha256:d9c30f11034fad3a93f8212069e89165842e4f727ba236b521ca820b8b3d12c5
 USER root

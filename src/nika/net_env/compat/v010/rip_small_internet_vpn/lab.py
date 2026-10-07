@@ -13,6 +13,10 @@ from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_FRR_IMAGE,
+    nika_image,
+)
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -32,8 +36,8 @@ log file /var/log/frr/frr.log
 """
 
 _SIZES = {"s": (2, 2, 1, 2), "m": (4, 4, 2, 4), "l": (8, 8, 4, 8)}
-_ROUTER = {"image": "kathara/frr", "cpus": 0.5, "mem": "256m"}
-_WG = {"image": "nika/wireguard", "cpus": 0.5, "mem": "256m"}
+_ROUTER = {"image": KATHARA_FRR_IMAGE, "cpus": 0.5, "mem": "256m"}
+_WG = {"image": nika_image("wireguard"), "cpus": 0.5, "mem": "256m"}
 
 
 @dataclass

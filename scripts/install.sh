@@ -475,9 +475,10 @@ ensure_routeros_image() {
 
   # vrnetlab-base already ships qemu, openssh-client, and sshpass (needed by
   # NIKA's docker-exec → SSH management path). Skip apt-get so builds work
-  # when Docker DNS cannot reach deb.debian.org.
+  # when Docker DNS cannot reach deb.debian.org. The FROM pin must match
+  # VRNETLAB_BASE_IMAGE in src/nika/workflows/setup/images.py.
   cat >"${ros_dir}/docker/Dockerfile" <<'DOCKERFILE'
-FROM ghcr.io/srl-labs/vrnetlab-base:0.3.0
+FROM ghcr.io/srl-labs/vrnetlab-base:0.3.0@sha256:57f36ae1cf44a78a6b2cad35a6276565c56edfd28e8160ae9a772929db28fd6d
 LABEL org.opencontainers.image.authors="roman@dodin.dev"
 
 ARG IMAGE

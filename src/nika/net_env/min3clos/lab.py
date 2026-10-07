@@ -40,6 +40,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             )
 
     def topology_replacements(self, lab_name: str) -> dict[str, str]:
+        from nika.net_env.isp.containerlab.lab import LINUX_IMAGE, SRL_IMAGE
         from nika.net_env.utils.containerlab.mgmt_subnet import (
             mgmt_ipv4_address,
             mgmt_ipv4_subnet,
@@ -57,6 +58,8 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         replacements = {
             "__MGMT_IPV4_SUBNET__": mgmt_ipv4_subnet(lab_name),
             "__MGMT_IPV6_SUBNET__": mgmt_ipv6_subnet(lab_name),
+            "__SRL_IMAGE__": SRL_IMAGE,
+            "__LINUX_IMAGE__": LINUX_IMAGE,
         }
         for name, index in hosts:
             replacements[f"__MGMT_IP_{name.upper()}__"] = mgmt_ipv4_address(
