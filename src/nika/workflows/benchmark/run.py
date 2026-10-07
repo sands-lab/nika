@@ -939,7 +939,9 @@ def run_single_case(
             model=model,
             max_steps=max_steps,
             session_id=session_id,
-            stream_output=False,
+            # Bare single-case CLI streams agent output like session-mode
+            # ``nika agent run``; batch trials stay quiet.
+            stream_output=not trial_id,
             check_fault_presence=True,
         )
         _require_submission(session_dir)

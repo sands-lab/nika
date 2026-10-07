@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from nika.cli.main import app
 from nika.run_config.loader import ENV_RUN_CONFIG, reset_run_config
-from nika.workflows.benchmark.release import load_release
+from nika.workflows.benchmark.release import DEFAULT_RELEASE_VERSION, load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import (
     catalog_entries,
@@ -218,6 +218,15 @@ class TestBenchmarkCatalogCli:
         payload = json.loads(result.output)
         assert [row["task_id"] for row in payload] == [TASK_A, TASK_B]
 
+    def test_list_without_source_summarizes_releases(self) -> None:
+        result = _RUNNER.invoke(app, ["benchmark", "list", "--json"])
+        assert result.exit_code == 0, result.output
+        payload = {item["version"]: item for item in json.loads(result.output)}
+        release = load_release(DEFAULT_RELEASE_VERSION)
+        summary = payload[DEFAULT_RELEASE_VERSION]
+        assert "default" in summary["status"]
+        assert summary["splits"][release.split] == release.case_count
+
     def test_describe_unknown_id(self, tmp_path: Path) -> None:
         path = mini_cases_yaml(tmp_path / "cases.yaml")
         result = _RUNNER.invoke(
@@ -230,7 +239,7 @@ class TestBenchmarkCatalogCli:
     def test_run_forwards_task_id(self, tmp_path: Path) -> None:
         path = mini_cases_yaml(tmp_path / "cases.yaml")
         with patch(
-            "nika.cli.commands.benchmark.run_benchmark_from_yaml"
+            "nika.workflows.benchmark.run.run_benchmark_from_yaml"
         ) as run_from_yaml:
             result = _RUNNER.invoke(
                 app,
@@ -280,7 +289,7 @@ class TestBenchmarkCatalogCli:
 
     def test_run_forwards_task_id_to_release(self) -> None:
         with patch(
-            "nika.cli.commands.benchmark.run_benchmark_from_release"
+            "nika.workflows.benchmark.run.run_benchmark_from_release"
         ) as run_from_release:
             result = _RUNNER.invoke(
                 app,

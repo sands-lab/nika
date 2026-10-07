@@ -28,7 +28,6 @@ from nika.workflows.benchmark.resume import (
     benchmark_row_identity,
     cleanup_benchmark_session,
 )
-from nika.workflows.eval.session import build_eval_metrics_payload
 
 TRIALS_DIRNAME = "trials"
 # Counted finished slots kept by --resume and packed into leaderboard scores.
@@ -419,6 +418,8 @@ def is_finalized_failure(session_dir: str | Path) -> bool:
 
 def _restore_success_eval_metrics(path: Path) -> bool:
     """Rebuild metrics for a solved trial interrupted before evaluation finished."""
+    from nika.workflows.eval.session import build_eval_metrics_payload
+
     metrics_path = path / "eval_metrics.json"
     if metrics_path.is_file():
         return True

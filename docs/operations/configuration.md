@@ -29,7 +29,7 @@ uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
   agent.custom.base_url=http://localhost:11434/v1
 ```
 
-`nika config set` accepts these 11 keys: `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, `agent.timeout_sec`, `agent.reasoning_effort`, `agent.custom.base_url`, `agent.enable_skills`, `nika.result_dir`, `nika.judge.provider`, and `nika.judge.model`. Edit the YAML file for every other key. The command rejects any other key and validates the merged file before it writes.
+`nika config set` accepts any scalar key that `nika config show` prints, such as `benchmark.batch_size` or `nika.lab.deploy_attempts`. It overwrites the value on the existing line, or adds the key under its section, and leaves comments and other lines unchanged. It rejects unknown keys and validates the file before it writes. Edit the YAML file for lists and maps.
 
 For a single run, override the same fields on `nika agent run` / `nika benchmark run` with `-p`, `-m`, and `--base-url` (CLI wins over YAML).
 

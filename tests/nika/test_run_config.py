@@ -192,6 +192,34 @@ def test_config_set_writes_sparse_yaml(tmp_path: Path) -> None:
     assert loaded.agent.model == "qwen2.5:7b"
 
 
+def test_config_set_overwrites_in_place_and_keeps_comments(tmp_path: Path) -> None:
+    out_path = tmp_path / "nika.yaml"
+    out_path.write_text(
+        "# header\nagent:\n  # pick a model\n  model: old\n"
+        "nika:\n  lab:\n    # retries\n    deploy_attempts: 3\n",
+        encoding="utf-8",
+    )
+    result = _RUNNER.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "agent.model=new",
+            "nika.lab.deploy_attempts=9",
+            "benchmark.batch_size=4",
+            "--run-config",
+            str(out_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    text = out_path.read_text(encoding="utf-8")
+    assert text.count("#") == 3
+    assert "  model: new\n" in text
+    cfg = load_run_config(out_path)
+    assert cfg.nika.lab.deploy_attempts == 9
+    assert cfg.benchmark.batch_size == 4
+
+
 def test_config_set_rejects_unknown_key(tmp_path: Path) -> None:
     out_path = tmp_path / "nika.yaml"
     result = _RUNNER.invoke(
@@ -199,13 +227,14 @@ def test_config_set_rejects_unknown_key(tmp_path: Path) -> None:
         [
             "config",
             "set",
-            "nika.lab.deploy_attempts=9",
+            "agent.bogus=9",
             "--run-config",
             str(out_path),
         ],
     )
     assert result.exit_code != 0
-    assert "Unsupported key" in result.output
+    assert "Unknown key" in result.output
+    assert not out_path.exists()
 
 
 def test_config_set_rejects_invalid_provider(tmp_path: Path) -> None:
