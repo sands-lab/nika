@@ -78,7 +78,19 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
             param_overrides=row["inject"],
             expected_root_causes=row.get("root_causes"),
         )
-    except BaseException:
-        close_session(session_id=session_id, status="error")
+    except BaseException as exc:
+        try:
+            close_session(
+                session_id=session_id,
+                status="error" if isinstance(exc, Exception) else "aborted",
+            )
+        except Exception as cleanup_exc:
+            from nika.utils.logger import log_warning_event
+
+            log_warning_event(
+                "case_cleanup_failed",
+                f"Could not close session {session_id} after failed injection: {cleanup_exc}",
+                session_id=session_id,
+            )
         raise
     return session_id

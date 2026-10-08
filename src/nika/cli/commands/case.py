@@ -44,31 +44,6 @@ def _preview(row: dict[str, Any]) -> str:
     )
 
 
-def _commands(row: dict[str, Any], catalog: Path) -> None:
-    typer.echo(
-        shlex.join(
-            [
-                "nika",
-                "case",
-                "run",
-                task_id_for_row(row),
-                "--catalog",
-                str(catalog),
-            ]
-        )
-    )
-
-
-def _export(row: dict[str, Any], path: Path) -> None:
-    # Exclusive creation protects user files; normalize strips pool-only metadata.
-    with path.open("x", encoding="utf-8") as output:
-        yaml.safe_dump(
-            {"cases": [normalize_benchmark_row(row)]}, output, sort_keys=False
-        )
-    typer.echo(f"Saved {path}")
-    typer.echo(shlex.join(["nika", "benchmark", "run", "--config", str(path)]))
-
-
 def _start(row: dict[str, Any], result_dir: str | None) -> None:
     from nika.workflows.case import start_example_case
 
@@ -269,13 +244,31 @@ def case_browse(
             path = output or Path(
                 typer.prompt("Output YAML path", default=f"{task_id_for_row(row)}.yaml")
             )
-            _export(row, path)
+            data = yaml.safe_dump(
+                {"cases": [normalize_benchmark_row(row)]}, sort_keys=False
+            )
+            # Serialize before creating the file; preserve existing user files.
+            with path.open("x", encoding="utf-8") as destination:
+                destination.write(data)
+            typer.echo(f"Saved {path}")
+            typer.echo(shlex.join(["nika", "benchmark", "run", "--config", str(path)]))
         else:
-            _commands(row, catalog)
+            typer.echo(
+                shlex.join(
+                    [
+                        "nika",
+                        "case",
+                        "run",
+                        task_id_for_row(row),
+                        "--catalog",
+                        str(catalog),
+                    ]
+                )
+            )
     except KeyboardInterrupt:
         typer.echo("Cancelled.")
         raise typer.Exit(130) from None
-    except (OSError, ValueError, RuntimeError) as exc:
+    except (OSError, ValueError, RuntimeError, yaml.YAMLError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
 
@@ -294,5 +287,5 @@ def case_run(
         row = resolve_catalog_row(load_example_cases(catalog), task_id)
         typer.echo(_preview(row))
         _start(row, result_dir)
-    except (OSError, ValueError, RuntimeError) as exc:
+    except (OSError, ValueError, RuntimeError, yaml.YAMLError) as exc:
         raise typer.BadParameter(str(exc)) from exc

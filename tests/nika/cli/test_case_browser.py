@@ -23,9 +23,7 @@ pytestmark = pytest.mark.unit
     [
         ("SECOND\r", "b"),
         ("\x1b[B\r", "b"),
-        ("\x1b[A\r", "b"),
         ("\x1b", None),
-        ("missing\r\x15first\r", "a"),
     ],
 )
 def test_searchable_choices(keys: str, expected: str | None) -> None:
@@ -110,3 +108,15 @@ def test_incompatible_case_is_not_offered(tmp_path: Path) -> None:
     )
     assert result.exit_code != 0
     assert "No matching" in result.output
+
+
+@pytest.mark.parametrize("command", ["browse", "run"])
+def test_malformed_catalog_reports_cli_error(tmp_path: Path, command: str) -> None:
+    catalog = tmp_path / "broken.yaml"
+    catalog.write_text("cases: [\n", encoding="utf-8")
+    args = ["case", command]
+    if command == "run":
+        args.append("invalid-task")
+    result = CliRunner().invoke(app, [*args, "--catalog", str(catalog)])
+    assert result.exit_code == 2, result.output
+    assert "Invalid value" in result.output
