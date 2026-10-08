@@ -1,19 +1,22 @@
-export type SessionTab = "overview" | "timeline" | "agent" | "nika" | "scores" | "raw";
+export type SessionTab = "overview" | "timeline" | "scores" | "raw";
 
-const SESSION_TABS: readonly SessionTab[] = [
-  "overview",
-  "timeline",
-  "agent",
-  "nika",
-  "scores",
-  "raw",
-];
+const SESSION_TABS: readonly SessionTab[] = ["overview", "timeline", "scores", "raw"];
+
+/** Timeline source filter; ``null`` shows the merged agent + NIKA trace. */
+export type TraceSource = "agent" | "nika";
+
+const TRACE_SOURCES: readonly TraceSource[] = ["agent", "nika"];
+
+function asTraceSource(value: string | null): TraceSource | null {
+  return TRACE_SOURCES.includes(value as TraceSource) ? (value as TraceSource) : null;
+}
 
 /** Viewer location encoded in the page query string (shareable deep link). */
 export interface UrlState {
   root: string | null;
   session: string | null;
   tab: SessionTab | null;
+  source: TraceSource | null;
   event: string | null;
   find: string | null;
 }
@@ -23,10 +26,19 @@ export function parseUrlState(search: string): UrlState {
   const text = (key: string) => params.get(key)?.trim() || null;
   const tab = text("tab");
   const session = text("session");
+  // Old ``?tab=agent`` / ``?tab=nika`` links: the timeline with that filter.
+  const legacySource = asTraceSource(tab);
   return {
     root: text("root"),
     session,
-    tab: session && SESSION_TABS.includes(tab as SessionTab) ? (tab as SessionTab) : null,
+    tab: !session
+      ? null
+      : legacySource
+        ? "timeline"
+        : SESSION_TABS.includes(tab as SessionTab)
+          ? (tab as SessionTab)
+          : null,
+    source: session ? (asTraceSource(text("source")) ?? legacySource) : null,
     event: session ? text("event") : null,
     find: session ? text("find") : null,
   };
@@ -39,6 +51,7 @@ export function buildUrlSearch(state: UrlState): string {
   if (state.session) {
     params.set("session", state.session);
     if (state.tab && state.tab !== "timeline") params.set("tab", state.tab);
+    if (state.source) params.set("source", state.source);
     if (state.event) params.set("event", state.event);
     if (state.find) params.set("find", state.find);
   }

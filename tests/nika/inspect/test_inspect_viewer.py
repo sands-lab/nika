@@ -311,6 +311,11 @@ class TestAdapters:
                 "event": "item.completed",
                 "codex_event": {"item": {"type": "agent_message", "text": "hello"}},
             },
+            {
+                "timestamp": "2026-01-01T12:00:03",
+                "event": "item.completed",
+                "codex_event": {"item": {"type": "reasoning", "text": "thinking"}},
+            },
         ]
         (session / "messages.jsonl").write_text(
             "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
@@ -320,12 +325,15 @@ class TestAdapters:
             "tool_start",
             "tool_end",
             "item.completed",
+            "item.completed",
         ]
         assert events[0].tool is not None
         assert events[0].tool.input == {"count": 1}
         assert events[1].tool is not None
         assert events[1].tool.output == {"ok": True}
         assert events[2].kind == "llm"
+        assert events[3].kind == "llm"
+        assert events[3].title == "reasoning"
 
     def test_codex_error_summarizes_without_embedded_transcript(self) -> None:
         """Provider errors that echo the full chat must not blow up the timeline."""
@@ -1243,6 +1251,43 @@ class TestViewApi:
         assert missing.status_code == 404
 
 
+class TestFullEventApi:
+    def test_truncated_event_loads_in_full(self, tmp_path: Path) -> None:
+        session = tmp_path / "20260101-120000-long01"
+        session.mkdir()
+        _write_json(
+            session / "run.json",
+            {"session_id": session.name, "status": "finished"},
+        )
+        long_text = "x" * 10_000
+        _write_jsonl(
+            session / "messages.jsonl",
+            [
+                {"timestamp": "2026-01-01T12:00:00", "event": "llm_end", "text": "ok"},
+                {
+                    "timestamp": "2026-01-01T12:00:01",
+                    "event": "llm_end",
+                    "text": long_text,
+                },
+            ],
+        )
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+
+        events = client.get(f"/api/sessions/{session.name}/messages").json()["events"]
+        assert [e["truncated"] for e in events] == [False, True]
+        assert "chars total" in events[1]["raw"]["text"]
+
+        full = client.get(f"/api/sessions/{session.name}/events/agent-1")
+        assert full.status_code == 200
+        assert full.json()["raw"]["text"] == long_text
+        assert full.json()["truncated"] is False
+
+        missing = client.get(f"/api/sessions/{session.name}/events/agent-9")
+        assert missing.status_code == 404
+        bad = client.get(f"/api/sessions/{session.name}/events/bogus")
+        assert bad.status_code == 404
+
+
 class TestBindHost:
     def test_allows_loopback_and_all_interfaces(self) -> None:
         from nika.inspect.serve import validate_bind_host
@@ -1507,8 +1552,8 @@ class TestTolerantParsing:
         assert client.get("/api/sessions/live/raw/eval_metrics.json").status_code == 200
 
 
-class TestRunningSessionSecrets:
-    def test_ground_truth_and_scores_hidden_until_session_stops(
+class TestRunningSessionArtifacts:
+    def test_ground_truth_and_scores_visible_while_running(
         self, tmp_path: Path
     ) -> None:
         trial = tmp_path / "live"
@@ -1518,16 +1563,58 @@ class TestRunningSessionSecrets:
         _write_json(trial / "eval_metrics.json", {"rca_f1": 1.0})
         client = TestClient(create_inspect_app(results_root=tmp_path))
 
-        assert client.get("/api/sessions/live/raw/ground_truth.json").status_code == 403
-        assert client.get("/api/sessions/live/raw/eval_metrics.json").status_code == 403
-        scores = client.get("/api/sessions/live/scores").json()
-        assert scores["ground_truth"] is None and scores["eval_metrics"] is None
-        assert client.get("/api/sessions/live").json()["rca_f1"] is None
-
-        _write_json(trial / "run.json", {"session_id": "live", "status": "finished"})
         raw = client.get("/api/sessions/live/raw/ground_truth.json")
         assert raw.json()["data"] == {"root_causes": ["secret"]}
+        scores = client.get("/api/sessions/live/scores").json()
+        assert scores["ground_truth"] == {"root_causes": ["secret"]}
+        assert scores["eval_metrics"] == {"rca_f1": 1.0}
         assert client.get("/api/sessions/live").json()["rca_f1"] == 1.0
+
+
+class TestRawFiles:
+    def test_lists_text_files_from_disk_known_first(self, tmp_path: Path) -> None:
+        trial = _finished_session(tmp_path / "s", "s")
+        _write_json(trial / "sandbox_manifest.json", {"image": "x"})
+        _write_jsonl(trial / "messages.jsonl", [{"event": "llm_end"}])
+        (trial / "notes.md").write_text("# hi\n", encoding="utf-8")
+        (trial / "capture.pcap").write_bytes(b"\x00")
+        (trial / ".hidden.json").write_text("{}", encoding="utf-8")
+        (trial / "sub").mkdir()
+        _write_json(trial / "sub" / "inner.json", {})
+        outside = tmp_path / "secret.json"
+        _write_json(outside, {"k": 1})
+        (trial / "escape.json").symlink_to(outside)
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+
+        files = client.get("/api/sessions/s/files").json()["files"]
+        names = [f["name"] for f in files]
+        assert names == [
+            "run.json",
+            "messages.jsonl",
+            "notes.md",
+            "sandbox_manifest.json",
+        ]
+        assert all(f["size"] > 0 for f in files)
+
+        md = client.get("/api/sessions/s/raw/notes.md").json()
+        assert md["data"] == "# hi\n" and md["truncated"] is False
+        for name in ("escape.json", "capture.pcap", ".hidden.json", "missing.json"):
+            assert client.get(f"/api/sessions/s/raw/{name}").status_code == 404
+
+    def test_large_jsonl_cut_on_a_line_boundary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from nika.inspect import catalog
+
+        trial = _finished_session(tmp_path / "s", "s")
+        _write_jsonl(trial / "messages.jsonl", [{"i": i} for i in range(100)])
+        monkeypatch.setattr(catalog, "RAW_MAX_BYTES", 50)
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+
+        body = client.get("/api/sessions/s/raw/messages.jsonl").json()
+        assert body["truncated"] is True
+        assert body["data"] == [{"i": i} for i in range(len(body["data"]))]
+        assert 0 < len(body["data"]) < 100
 
 
 class TestSymlinkedSessionKey:
@@ -1563,17 +1650,11 @@ class TestTrajectorySearch:
         nika = client.get(f"/api/sessions/{sid}/search", params={"q": "lab deployed"})
         assert nika.json()["event_ids"] == ["nika-0"]
 
-        listed = client.get("/api/sessions", params={"content": "packet loss"}).json()
-        assert [s["session_id"] for s in listed["sessions"]] == [sid]
-        assert listed["content_hits"] == {sid: 1}
-
     def test_search_never_reads_answer_key(self, fixture_root: Path) -> None:
         client = TestClient(create_inspect_app(results_root=fixture_root))
         sid = "20260101-120000-abc123"
         hidden = client.get(f"/api/sessions/{sid}/search", params={"q": "s1/eth1"})
         assert hidden.json()["event_ids"] == []
-        listed = client.get("/api/sessions", params={"content": "s1/eth1"}).json()
-        assert listed["sessions"] == [] and listed["content_hits"] == {}
 
 
 class TestAnnotations:
@@ -1583,11 +1664,9 @@ class TestAnnotations:
         trial = _finished_session(tmp_path / "done", "done")
         _finished_session(tmp_path / "other", "other")
         client = TestClient(create_inspect_app(results_root=tmp_path))
-        assert client.get("/api/sessions/done/annotations").json() == {
-            "tags": [],
-            "comments": [],
-        }
+        assert client.get("/api/sessions/done/annotations").json() == {"tags": []}
 
+        # Legacy files may still carry ``comments``; they are dropped on save.
         doc = {
             "tags": [" wrong-localization ", "wrong-localization", ""],
             "comments": [{"id": "c1", "event_id": "agent-3", "text": "missed BGP"}],
@@ -1596,7 +1675,7 @@ class TestAnnotations:
         assert saved.status_code == 200
         assert saved.json()["tags"] == ["wrong-localization"]
         on_disk = json.loads((trial / "annotations.json").read_text(encoding="utf-8"))
-        assert on_disk["comments"][0]["event_id"] == "agent-3"
+        assert on_disk == {"tags": ["wrong-localization"]}
 
         listed = client.get("/api/sessions").json()
         assert listed["facets"]["tags"] == ["wrong-localization"]
@@ -1615,7 +1694,7 @@ class TestAnnotations:
         live = tmp_path / "live"
         live.mkdir()
         _write_json(live / "run.json", {"session_id": "live", "status": "running"})
-        doc = {"tags": ["x"], "comments": []}
+        doc = {"tags": ["x"]}
 
         remote = TestClient(create_inspect_app(results_root=tmp_path, bind_host="::"))
         assert remote.put("/api/sessions/done/annotations", json=doc).status_code == 403

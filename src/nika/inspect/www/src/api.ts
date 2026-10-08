@@ -32,6 +32,8 @@ export interface CanonicalTraceEvent {
   duration_ms?: number | null;
   start_timestamp?: string | null;
   raw: Record<string, unknown>;
+  /** ``raw`` had long strings/lists cut; ``fetchEvent`` returns it in full. */
+  truncated?: boolean;
 }
 
 export interface ArtifactFlags {
@@ -45,16 +47,8 @@ export interface ArtifactFlags {
   annotations?: boolean;
 }
 
-export interface AnnotationComment {
-  id: string;
-  event_id: string;
-  text: string;
-  created_at?: string | null;
-}
-
 export interface Annotations {
   tags: string[];
-  comments: AnnotationComment[];
 }
 
 export interface SessionSummary {
@@ -157,8 +151,6 @@ export interface SessionListResponse {
   sessions: SessionSummary[];
   benchmarks: BenchmarkRunSummary[];
   facets?: SessionFacets;
-  /** Trajectory search hit counts keyed by session key. */
-  content_hits?: Record<string, number>;
   results_root: string;
   selected_root?: string;
   total: number;
@@ -325,8 +317,26 @@ export async function saveAnnotations(
   return res.json() as Promise<Annotations>;
 }
 
+export function fetchEvent(id: string, eventId: string, root?: string | null) {
+  return getJson<CanonicalTraceEvent>(
+    `/api/sessions/${encodeURIComponent(id)}/events/${encodeURIComponent(eventId)}${rootQuery(root)}`,
+  );
+}
+
+export interface RawArtifact {
+  name: string;
+  size: number;
+}
+
+/** Text artifacts in the session directory, known files first. */
+export function fetchRawFiles(id: string, root?: string | null) {
+  return getJson<{ files: RawArtifact[] }>(
+    `/api/sessions/${encodeURIComponent(id)}/files${rootQuery(root)}`,
+  );
+}
+
 export function fetchRaw(id: string, filename: string, root?: string | null) {
-  return getJson<{ filename: string; data: unknown }>(
+  return getJson<{ filename: string; data: unknown; size: number; truncated: boolean }>(
     `/api/sessions/${encodeURIComponent(id)}/raw/${encodeURIComponent(filename)}${rootQuery(root)}`,
   );
 }

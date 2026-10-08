@@ -200,7 +200,7 @@ def _summarize_subprocess_stderr(value: Any) -> str:
 def _slim_raw(value: Any, *, depth: int = 0) -> Any:
     """Truncate oversized strings/lists in event ``raw`` for the timeline API."""
     if depth > _RAW_DEPTH_LIMIT:
-        return "…"
+        return "… [nested value]"
     if isinstance(value, str):
         if len(value) <= _RAW_STR_LIMIT:
             return value
@@ -214,6 +214,16 @@ def _slim_raw(value: Any, *, depth: int = 0) -> Any:
             return head
         return [_slim_raw(v, depth=depth + 1) for v in value]
     return value
+
+
+def _raw_payload(entry: Any, *, slim: bool) -> tuple[dict[str, Any], bool]:
+    """``(raw, truncated)`` for an event; ``slim=False`` keeps the full entry."""
+    if not isinstance(entry, dict):
+        return {}, False
+    if not slim:
+        return entry, False
+    raw = _slim_raw(entry)
+    return raw, raw != entry
 
 
 def _maybe_json(value: Any) -> Any:
@@ -410,6 +420,9 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
             )
         if item_type == "agent_message":
             return "llm", "assistant", _truncate(item.get("text"))
+        if item_type == "reasoning":
+            # Folded into the surrounding turn as thinking by the viewer.
+            return "llm", "reasoning", _truncate(item.get("text"))
         if item_type == "error":
             return (
                 "system",
@@ -530,7 +543,9 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
     )
 
 
-def adapt_agent_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEvent:
+def adapt_agent_event(
+    entry: dict[str, Any], *, index: int, slim: bool = True
+) -> CanonicalTraceEvent:
     kind, title, summary = _agent_kind_and_title(entry)
     event = str(entry.get("event") or "other")
     tool = None
@@ -539,6 +554,7 @@ def adapt_agent_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEve
         if tool and (tool.input is not None or tool.output is not None or tool.error):
             summary = _truncate(tool.error or tool.output or tool.input) or summary
 
+    raw, truncated = _raw_payload(entry, slim=slim)
     return CanonicalTraceEvent(
         id=f"agent-{index}",
         timestamp=_timestamp(entry.get("timestamp")),
@@ -549,11 +565,14 @@ def adapt_agent_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEve
         phase=entry.get("phase") if isinstance(entry.get("phase"), str) else None,
         event=event,
         tool=tool,
-        raw=_slim_raw(entry) if isinstance(entry, dict) else {},
+        raw=raw,
+        truncated=truncated,
     )
 
 
-def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEvent:
+def adapt_nika_event(
+    entry: dict[str, Any], *, index: int, slim: bool = True
+) -> CanonicalTraceEvent:
     event = str(entry.get("event") or "system")
     data = entry.get("data")
     if event in {"eval_metrics_saved", "eval_publish"}:
@@ -573,6 +592,7 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
     except (TypeError, ValueError):
         duration_val = None
 
+    raw, truncated = _raw_payload(entry, slim=slim)
     return CanonicalTraceEvent(
         id=f"nika-{index}",
         timestamp=_timestamp(entry.get("timestamp")),
@@ -584,7 +604,8 @@ def adapt_nika_event(entry: dict[str, Any], *, index: int) -> CanonicalTraceEven
         summary=event_summary(entry),
         event=event,
         duration_ms=duration_val,
-        raw=_slim_raw(entry) if isinstance(entry, dict) else {},
+        raw=raw,
+        truncated=truncated,
     )
 
 
@@ -667,10 +688,14 @@ def _attach_phase_prompts(
             pending = None
 
 
-def load_agent_events(session_dir: Path) -> list[CanonicalTraceEvent]:
+def load_agent_events(
+    session_dir: Path, *, slim: bool = True
+) -> list[CanonicalTraceEvent]:
     path = session_dir / "messages.jsonl"
     entries = list(iter_jsonl(path))
-    events = [adapt_agent_event(entry, index=i) for i, entry in enumerate(entries)]
+    events = [
+        adapt_agent_event(entry, index=i, slim=slim) for i, entry in enumerate(entries)
+    ]
     _annotate_claude_request_durations(entries, events)
     _attach_phase_prompts(entries, events)
     return events
@@ -711,6 +736,11 @@ def _fold_progress(entries: list[dict[str, Any]]) -> list[tuple[int, dict[str, A
     return out
 
 
-def load_nika_events(session_dir: Path) -> list[CanonicalTraceEvent]:
+def load_nika_events(
+    session_dir: Path, *, slim: bool = True
+) -> list[CanonicalTraceEvent]:
     entries = list(iter_jsonl(session_dir / "nika.jsonl"))
-    return [adapt_nika_event(entry, index=i) for i, entry in _fold_progress(entries)]
+    return [
+        adapt_nika_event(entry, index=i, slim=slim)
+        for i, entry in _fold_progress(entries)
+    ]

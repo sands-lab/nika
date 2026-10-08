@@ -16,8 +16,6 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from nika.inspect.catalog import (
-    RAW_ALLOWLIST,
-    RUNNING_HIDDEN_ARTIFACTS,
     AmbiguousSessionError,
     aggregate_benchmark_runs,
     build_session_facets,
@@ -27,8 +25,8 @@ from nika.inspect.catalog import (
     filter_sessions,
     find_session_dir,
     list_browse_entries,
+    list_raw_artifacts,
     list_selectable_roots,
-    is_session_running,
     load_annotations,
     load_scores,
     read_raw_artifact,
@@ -36,6 +34,7 @@ from nika.inspect.catalog import (
     save_annotations,
     session_content_hits,
 )
+from nika.inspect.adapters import load_agent_events, load_nika_events
 from nika.inspect.live_progress import list_benchmark_progress
 from nika.inspect.models import (
     Annotations,
@@ -198,22 +197,11 @@ def create_inspect_app(
             has_score=has_score,
             tag=request.query_params.get("tag"),
         )
-        content_hits: dict[str, int] = {}
-        content = (request.query_params.get("content") or "").strip()
-        if content:
-            matched = []
-            for item in items:
-                hits = session_content_hits(Path(item.session_dir), content)
-                if hits:
-                    matched.append(item)
-                    content_hits[item.session_key or item.session_id] = len(hits)
-            items = matched
         selected = request.query_params.get("root") or "."
         body = SessionListResponse(
             sessions=items,
             benchmarks=aggregate_benchmark_runs(items),
             facets=facets,
-            content_hits=content_hits,
             results_root=str(active),
             selected_root=selected,
             total=len(items),
@@ -314,6 +302,21 @@ def create_inspect_app(
         body = TimelineResponse(session_id=session_id, events=events, total=len(events))
         return JSONResponse(body.model_dump())
 
+    def session_event(request: Request) -> JSONResponse:
+        """One timeline event with its untruncated ``raw`` (``Show more``)."""
+        session_id = request.path_params["session_id"]
+        event_id = request.path_params["event_id"]
+        resolved = _resolve(request, session_id)
+        if isinstance(resolved, JSONResponse):
+            return resolved
+        loaders = {"agent": load_agent_events, "nika": load_nika_events}
+        loader = loaders.get(event_id.split("-", 1)[0])
+        if loader is not None:
+            for event in loader(resolved, slim=False):
+                if event.id == event_id:
+                    return JSONResponse(event.model_dump())
+        return _error(f"Event not found: {event_id}", status=404, error_type="NotFound")
+
     def session_messages(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
@@ -378,28 +381,25 @@ def create_inspect_app(
             return _error(str(exc), status=409, error_type="Conflict")
         return JSONResponse(saved.model_dump())
 
-    def session_raw(request: Request) -> Response:
-        session_id = request.path_params["session_id"]
-        filename = request.path_params["filename"]
-        if filename not in RAW_ALLOWLIST:
-            return _error(f"Artifact not allowlisted: {filename}", status=404)
-        resolved = _resolve(request, session_id)
+    def session_files(request: Request) -> JSONResponse:
+        resolved = _resolve(request, request.path_params["session_id"])
         if isinstance(resolved, JSONResponse):
             return resolved
-        # Agents on the same host could read the answer key mid-run.
-        if filename in RUNNING_HIDDEN_ARTIFACTS and is_session_running(resolved):
-            return _error(
-                f"{filename} is hidden while the session is running",
-                status=403,
-                error_type="Forbidden",
-            )
+        files = list_raw_artifacts(resolved)
+        return JSONResponse({"files": [f.model_dump() for f in files]})
+
+    def session_raw(request: Request) -> Response:
+        filename = request.path_params["filename"]
+        resolved = _resolve(request, request.path_params["session_id"])
+        if isinstance(resolved, JSONResponse):
+            return resolved
         try:
-            data = read_raw_artifact(resolved, filename)
+            raw = read_raw_artifact(resolved, filename)
         except FileNotFoundError:
             return _error(
                 f"Missing artifact: {filename}", status=404, error_type="NotFound"
             )
-        return JSONResponse({"filename": filename, "data": data})
+        return JSONResponse(raw.model_dump())
 
     async def spa_index(_request: Request) -> Response:
         index = _WWW_DIST / "index.html"
@@ -418,6 +418,7 @@ def create_inspect_app(
         Route("/api/sessions", sessions),
         Route("/api/benchmark-progress", benchmark_progress),
         Route("/api/sessions/{session_id:path}/timeline", session_timeline),
+        Route("/api/sessions/{session_id:path}/events/{event_id}", session_event),
         Route("/api/sessions/{session_id:path}/messages", session_messages),
         Route("/api/sessions/{session_id:path}/nika", session_nika),
         Route("/api/sessions/{session_id:path}/scores", session_scores),
@@ -432,6 +433,7 @@ def create_inspect_app(
             session_annotations_put,
             methods=["PUT"],
         ),
+        Route("/api/sessions/{session_id:path}/files", session_files),
         Route("/api/sessions/{session_id:path}/raw/{filename}", session_raw),
         Route("/api/sessions/{session_id:path}", session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id:path}", session_delete, methods=["DELETE"]),

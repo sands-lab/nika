@@ -17,6 +17,8 @@ from nika.inspect.models import (
     Annotations,
     ArtifactFlags,
     BenchmarkRunSummary,
+    RawArtifact,
+    RawArtifactData,
     ScoresResponse,
     SessionDetail,
     SessionFacets,
@@ -47,13 +49,10 @@ ARTIFACT_FILES = {
 # key and score files are never scanned.
 _SEARCHABLE_LOGS = (("agent", "messages.jsonl"), ("nika", "nika.jsonl"))
 
-RAW_ALLOWLIST = frozenset(ARTIFACT_FILES.values())
-
-# Answer key and scores stay hidden until the session stops running, so an
-# agent that can reach the viewer cannot read them mid-run.
-RUNNING_HIDDEN_ARTIFACTS = frozenset(
-    {"ground_truth.json", "eval_metrics.json", "llm_judge.json"}
-)
+# Raw tab: text artifacts at the top of a session dir, listed from disk.
+RAW_EXTENSIONS = (".json", ".jsonl", ".txt", ".log", ".md")
+# Larger files are cut at this size (whole lines for JSONL / text).
+RAW_MAX_BYTES = 16 * 1024 * 1024
 
 # Summaries are rebuilt only when a session artifact changes; the viewer
 # polls the session list every few seconds.
@@ -418,9 +417,7 @@ def _build_session_summary(
         return None
     session_id = str(run.get("session_id") or session_dir.name)
     status = normalize_session_status(run)
-    metrics = (
-        None if status == "running" else _read_json(session_dir / "eval_metrics.json")
-    )
+    metrics = _read_json(session_dir / "eval_metrics.json")
     problem_names = run.get("problem_names") or []
     if not isinstance(problem_names, list):
         problem_names = []
@@ -834,11 +831,6 @@ def is_session_running(session_dir: Path) -> bool:
 def load_scores(session_dir: Path) -> ScoresResponse:
     run = _read_json(session_dir / RUN_FILENAME) or {}
     session_id = str(run.get("session_id") or session_dir.name)
-    if normalize_session_status(run) == "running":
-        return ScoresResponse(
-            session_id=session_id,
-            submission=_read_json(session_dir / "submission.json"),
-        )
     return ScoresResponse(
         session_id=session_id,
         eval_metrics=_read_json(session_dir / "eval_metrics.json"),
@@ -897,14 +889,70 @@ def save_annotations(session_dir: Path, annotations: Annotations) -> Annotations
     return annotations
 
 
-def read_raw_artifact(session_dir: Path, filename: str) -> Any:
-    if filename not in RAW_ALLOWLIST:
-        raise FileNotFoundError(f"Artifact not allowlisted: {filename}")
-    path = session_dir / filename
-    if not path.is_file():
+def _raw_artifact_path(session_dir: Path, filename: str) -> Path | None:
+    """Top-level text artifact in ``session_dir``; ``None`` if not servable.
+
+    No subdirectories, and a symlink must resolve to a file inside the session.
+    """
+    if (
+        not filename
+        or filename != Path(filename).name
+        or filename.startswith(".")
+        or not filename.endswith(RAW_EXTENSIONS)
+    ):
+        return None
+    base = session_dir.resolve()
+    path = (session_dir / filename).resolve()
+    if not path.is_file() or not path.is_relative_to(base):
+        return None
+    return path
+
+
+def list_raw_artifacts(session_dir: Path) -> list[RawArtifact]:
+    """Servable files in ``session_dir``: known artifacts first, then by name."""
+    order = {name: i for i, name in enumerate(ARTIFACT_FILES.values())}
+    files: list[RawArtifact] = []
+    try:
+        entries = list(session_dir.iterdir())
+    except OSError:
+        return []
+    for entry in entries:
+        path = _raw_artifact_path(session_dir, entry.name)
+        if path is None:
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        files.append(RawArtifact(name=entry.name, size=size))
+    files.sort(key=lambda f: (order.get(f.name, len(order)), f.name))
+    return files
+
+
+def read_raw_artifact(session_dir: Path, filename: str) -> RawArtifactData:
+    path = _raw_artifact_path(session_dir, filename)
+    if path is None:
         raise FileNotFoundError(filename)
+    size = path.stat().st_size
+    with path.open("rb") as handle:
+        blob = handle.read(RAW_MAX_BYTES)
+    truncated = size > len(blob)
+    if truncated and b"\n" in blob:
+        # Keep whole lines so the tail of a cut JSONL file still parses.
+        blob = blob[: blob.rfind(b"\n") + 1]
     # Live writers may leave a partial UTF-8 sequence or JSON document.
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = blob.decode("utf-8", errors="replace")
+    return RawArtifactData(
+        filename=filename,
+        data=_parse_raw_text(filename, text),
+        size=size,
+        truncated=truncated,
+    )
+
+
+def _parse_raw_text(filename: str, text: str) -> Any:
+    if filename.endswith((".txt", ".log", ".md")):
+        return text
     if filename.endswith(".jsonl"):
         lines: list[Any] = []
         for line in text.splitlines():
