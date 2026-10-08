@@ -83,7 +83,6 @@ from nika.workflows.benchmark.resume import (
 )
 from nika.workflows.benchmark.run_progress import (
     update_progress,
-    update_progress_from_scan,
     write_progress,
 )
 from nika.workflows.benchmark.trials import (
@@ -1457,9 +1456,10 @@ def run_benchmark_trials(
         return
     release_meta = dict(release_meta or {})
 
-    trials = expand_trials(rows, n_trials)
-    if task_ids:
-        trials = select_trials(trials, task_ids)
+    # ``all_trials`` is the job's full grid; ``trials`` is what this launch
+    # runs. ``--task-id`` only narrows the launch, never the job's scope.
+    all_trials = expand_trials(rows, n_trials)
+    trials = select_trials(all_trials, task_ids) if task_ids else all_trials
     case_count = len({trial.case_key for trial in trials})
 
     results_root = resolve_results_root(result_dir)
@@ -1484,12 +1484,9 @@ def run_benchmark_trials(
             },
         )
         job["case_count"] = len(rows)
-        if task_ids:
-            job["task_ids"] = list(task_ids)
-            job["planned_trial_count"] = len(trials)
-        else:
-            job.pop("task_ids", None)
-            job.pop("planned_trial_count", None)
+    # Legacy scoped-run fields: they shrank the job to one launch's selection.
+    job.pop("task_ids", None)
+    job.pop("planned_trial_count", None)
     run_id = None
     if release_meta:
         run_id = release_meta.get("run_id") or release_meta.get("job_id")
@@ -1510,7 +1507,7 @@ def run_benchmark_trials(
             report = build_summary_report(
                 iter_session_dirs(str(results_root)),
                 result_dir=results_root,
-                n_trials_expected=len(trials),
+                n_trials_expected=len(all_trials),
             )
             if report.n_trials_present:
                 summary_console = (
@@ -1528,14 +1525,44 @@ def run_benchmark_trials(
         print_inspect_hint(results_root, url=inspect_url, output_mode=output_mode)
         print_deferred_warnings(output_mode=output_mode)
 
+    selected_ids = {trial.trial_id for trial in trials}
+    unselected = [trial for trial in all_trials if trial.trial_id not in selected_ids]
+    unselected_pending: int | None = None
+
+    def _job_pending(pending: list[int]) -> int:
+        """Pending trials across the full grid, given this launch's ``pending``.
+
+        Trials outside a ``--task-id`` selection are not touched by this
+        launch, so they are scanned once and reused.
+        """
+        nonlocal unselected_pending
+        if unselected_pending is None:
+            unselected_pending = (
+                len(
+                    scan_trials(
+                        trials=unselected,
+                        result_dir=results_root,
+                        resume=True,
+                        announce=False,
+                        mutate=False,
+                    )[1]
+                )
+                if unselected
+                else 0
+            )
+        return len(pending) + unselected_pending
+
     def _refresh_progress(pending: list[int], *, status: str = "running") -> None:
         if not run_id:
             return
-        update_progress_from_scan(
+        total = len(all_trials)
+        job_pending = _job_pending(pending)
+        update_progress(
             str(run_id),
             result_dir=results_root,
-            total_trials=len(trials),
-            pending=pending,
+            total_trials=total,
+            completed_trials=max(0, total - job_pending),
+            pending_trials=job_pending,
             status=status,
             release_meta=release_meta,
         )
@@ -1567,8 +1594,10 @@ def run_benchmark_trials(
                 trial_dir(results_root, trial.case_key, trial.trial_index)
             ):
                 completed_ids.add(trial.trial_id)
-            completed = len(completed_ids)
-            total = len(trials)
+            total = len(all_trials)
+            # Unselected trials that are already done, plus this launch's.
+            done_elsewhere = len(unselected) - _job_pending([])
+            completed = done_elsewhere + len(completed_ids)
             update_progress(
                 str(run_id),
                 result_dir=results_root,
@@ -1650,9 +1679,9 @@ def run_benchmark_trials(
             str(run_id),
             result_dir=results_root,
             status="running",
-            total_trials=len(trials),
-            completed_trials=len(trials) - len(plan_pending),
-            pending_trials=len(plan_pending),
+            total_trials=len(all_trials),
+            completed_trials=len(all_trials) - _job_pending(plan_pending),
+            pending_trials=_job_pending(plan_pending),
             benchmark_id=job.get("benchmark_id"),
             version=job.get("version"),
             agent_type=job.get("agent_type"),
@@ -1765,14 +1794,7 @@ def run_benchmark_trials(
                     announce=False,
                     mutate=False,
                 )
-                update_progress_from_scan(
-                    str(run_id),
-                    result_dir=results_root,
-                    total_trials=len(trials),
-                    pending=pending,
-                    status="aborted",
-                    release_meta=release_meta,
-                )
+                _refresh_progress(pending, status="aborted")
             except Exception:  # noqa: BLE001 - progress is advisory
                 pass
         raise
@@ -1860,17 +1882,9 @@ def run_benchmark_from_release(
     existing = load_run_config(results_root)
     job = merge_run_config(existing=existing, proposed=proposed)
     if planned is not None:
-        total_trials = len(planned)
-        job["task_ids"] = list(task_ids or [])
-        job["planned_trial_count"] = total_trials
         case_count = len({trial.case_key for trial in planned})
-        scope = f"{case_count} cases, {total_trials} trials"
+        scope = f"{case_count} cases, {len(planned)} trials"
     else:
-        # A full run supersedes an earlier --task-id scope; a stale planned
-        # count would shrink offline score denominators.
-        job.pop("task_ids", None)
-        job.pop("planned_trial_count", None)
-        total_trials = int(resolved.case_count) * int(n_trials)
         scope = f"{resolved.case_count} cases × {n_trials} trials"
     job_path = results_root / RUN_CONFIG_FILENAME
     plan_header = (

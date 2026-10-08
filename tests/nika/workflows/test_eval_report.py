@@ -156,8 +156,8 @@ class TestEvalReportAggregation:
         assert report.expected_is_known is True
         assert report.mean_rca_f1 == pytest.approx(0.25)
 
-    def test_planned_trial_count_overrides_case_times_n_trials(self, tmp_path: Path):
-        """Scoped --task-id runs stamp planned_trial_count for the denominator."""
+    def test_legacy_planned_trial_count_is_ignored(self, tmp_path: Path):
+        """The denominator is always the job's full grid."""
         _write_json(
             tmp_path / "run.json",
             {"case_count": 85, "n_trials": 3, "planned_trial_count": 1},
@@ -167,9 +167,8 @@ class TestEvalReportAggregation:
 
         report = _report(tmp_path)
 
-        assert report.n_trials_expected == 1
+        assert report.n_trials_expected == 255
         assert report.expected_is_known is True
-        assert report.mean_rca_f1 == pytest.approx(1.0)
 
     def test_unknown_expected_count_falls_back_to_present(self, tmp_path: Path):
         trials = tmp_path / "trials"
