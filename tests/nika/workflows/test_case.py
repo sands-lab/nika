@@ -17,7 +17,7 @@ from nika.validation.presence import bound_injected_problem
 from nika.workflows.case import load_example_cases
 from nika.workflows.benchmark.trials import task_id_for_row
 from nika.workflows.session.close import close_session
-from tests.support.prerequisites import docker_available
+from tests.support.prerequisites import docker_available, docker_image_available
 
 pytestmark = [
     pytest.mark.e2e,
@@ -25,15 +25,29 @@ pytestmark = [
 ]
 
 
-def test_manual_case_launch_and_recovery(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "scenario,host", [("dc_clos", "client_0"), ("iosxr_simple_bgp", "pc1")]
+)
+def test_manual_case_launch_and_recovery(
+    tmp_path: Path, scenario: str, host: str
+) -> None:
     import docker
 
-    catalog = BENCHMARK_DIR / "working" / "pool" / "dc_clos" / "link_down.yaml"
+    if scenario == "iosxr_simple_bgp":
+        from nika.net_env.utils.iosxr.common import IMAGE
+
+        if not docker_image_available(IMAGE):
+            pytest.skip("Licensed XRd image required")
+    catalog = (
+        BENCHMARK_DIR / "working" / "pool" / scenario / "link_down.yaml"
+        if scenario == "dc_clos"
+        else None
+    )
     row = next(
         row
-        for row in load_example_cases(catalog)
-        if row["topo_size"] == "s"
-        and row["inject"] == {"host_name": "client_0", "intf_name": "eth0"}
+        for row in load_example_cases(catalog, env=scenario, failure="link_down")
+        if row["topo_size"] in ("s", "")
+        and row["inject"] == {"host_name": host, "intf_name": "eth0"}
     )
     runner = CliRunner()
     session_id = None
@@ -45,8 +59,7 @@ def test_manual_case_launch_and_recovery(tmp_path: Path) -> None:
                 "case",
                 "run",
                 task_id_for_row(row),
-                "--catalog",
-                str(catalog),
+                *(["--catalog", str(catalog)] if catalog else []),
                 "--result-dir",
                 str(tmp_path),
             ],
@@ -56,6 +69,7 @@ def test_manual_case_launch_and_recovery(tmp_path: Path) -> None:
             session_id = match.group(1)
         assert launched.exit_code == 0, launched.output
         assert session_id is not None, launched.output
+        assert f"nika agent run --session_id {session_id}" in launched.output
         session = Session()
         session.load_running_session(session_id=session_id)
         lab_name = session.lab_name
@@ -69,7 +83,7 @@ def test_manual_case_launch_and_recovery(tmp_path: Path) -> None:
                 "exec",
                 "--session_id",
                 session_id,
-                "client_0",
+                host,
                 "cat /sys/class/net/eth0/operstate",
             ],
         )
@@ -77,16 +91,21 @@ def test_manual_case_launch_and_recovery(tmp_path: Path) -> None:
         assert down.output.strip() == "down"
         endpoints = row["root_causes"][0]["resource"]["name"].split("--")
         peer = next(
-            endpoint for endpoint in endpoints if not endpoint.startswith("client_0:")
+            endpoint for endpoint in endpoints if not endpoint.startswith(f"{host}:")
         )
         peer_host, peer_intf = peer.split(":", 1)
-        destination = problem.runtime.get_host_ip(peer_host, peer_intf)
+        if scenario == "iosxr_simple_bgp":
+            from nika.net_env.iosxr_simple_bgp.lab import ROUTERS
+
+            destination = str(ROUTERS[peer_host]["pc_ip"].ip)
+        else:
+            destination = problem.runtime.get_host_ip(peer_host, peer_intf)
         assert destination
         ping_args = [
             "exec",
             "--session_id",
             session_id,
-            "client_0",
+            host,
             f"ping -c 1 -W 1 {destination}",
         ]
         failed_ping = runner.invoke(app, ping_args)

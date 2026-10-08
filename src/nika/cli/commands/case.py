@@ -11,8 +11,10 @@ import typer
 import yaml
 from rich.console import Console
 
-from nika.workflows.case import DEFAULT_CATALOG, DEPLOY_KEYS, load_example_cases
+from nika.net_env.net_env_pool import scenario_requires_topo_size
+from nika.workflows.case import DEPLOY_KEYS, load_example_cases
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
+from nika.workflows.benchmark.task_label import format_task_label
 from nika.workflows.benchmark.trials import (
     describe_task_payload,
     resolve_catalog_row,
@@ -34,13 +36,20 @@ def _deployment(row: dict[str, Any]) -> str:
 
 
 def _preview(row: dict[str, Any]) -> str:
+    label = format_task_label(
+        row["scenario"],
+        row["problem"],
+        row.get("topo_size") if scenario_requires_topo_size(row["scenario"]) else None,
+    )
     return (
         f"Environment: {row['scenario']}\n"
         f"Deployment:  {_deployment(row)}\n"
         f"Failure:     {row['problem']}\n"
         f"Injection:   {', '.join(f'{k}={v}' for k, v in row['inject'].items())}\n"
         f"Task ID:     {task_id_for_row(row)}\n"
-        "Source: catalog preset; E2E verification status is not recorded."
+        f"Task label:  {label}\n"
+        f"Source:      {row.get('case_source', 'catalog')}\n"
+        "Status:      experimental (E2E verification is not recorded)"
     )
 
 
@@ -50,6 +59,7 @@ def _start(row: dict[str, Any], result_dir: str | None) -> None:
     session_id = start_example_case(row, result_dir=result_dir)
     typer.echo(f"session_id={session_id}")
     typer.echo("The lab is running with the selected failure. No agent was started.")
+    typer.echo(shlex.join(["nika", "agent", "run", "--session_id", session_id]))
     host = row["inject"].get("host_name")
     if host:
         typer.echo(
@@ -109,13 +119,18 @@ def _browse(
                 description = " ".join(
                     str(getattr(cls, "description", "") or "").split()
                 )
-                choices.append((problem, f"{problem}  {description[:120]}"))
+                choices.append(
+                    (problem, f"{problem}  [experimental] {description[:120]}")
+                )
             title = "Choose a failure"
         elif step == 2:
             # Catalog order puts smaller topologies first. Keep full profiles intact.
             profiles = list(dict.fromkeys(_deployment(row) for row in candidates))
             choices = [
-                (profile, profile + ("  (default)" if i == 0 else ""))
+                (
+                    profile,
+                    profile + "  [experimental]" + ("  (default)" if i == 0 else ""),
+                )
                 for i, profile in enumerate(profiles)
             ]
             title = "Choose a deployment"
@@ -123,7 +138,8 @@ def _browse(
             choices = [
                 (
                     task_id_for_row(row),
-                    ", ".join(f"{k}={v}" for k, v in row["inject"].items()),
+                    ", ".join(f"{k}={v}" for k, v in row["inject"].items())
+                    + "  [experimental]",
                 )
                 for row in candidates
             ]
@@ -171,10 +187,10 @@ def _browse(
 def case_browse(
     env: str | None = typer.Option(None, "--env", help="Preselect an environment."),
     failure: str | None = typer.Option(None, "--failure", help="Preselect a failure."),
-    catalog: Path = typer.Option(
-        DEFAULT_CATALOG,
+    catalog: Path | None = typer.Option(
+        None,
         "--catalog",
-        help="Working pool, candidate YAML, or flat cases YAML.",
+        help="Restrict discovery to this pool or YAML. Default: working pool plus compatible registered cases.",
     ),
     task_id: str | None = typer.Option(
         None, "--task-id", help="Select a complete preset by task ID."
@@ -197,13 +213,7 @@ def case_browse(
             if interactive
             else nullcontext()
         ):
-            rows = load_example_cases(catalog)
-        rows = [
-            row
-            for row in rows
-            if (env is None or row["scenario"] == env)
-            and (failure is None or row["problem"] == failure)
-        ]
+            rows = load_example_cases(catalog, env=env, failure=failure)
         if task_id:
             rows = [resolve_catalog_row(rows, task_id)]
         if not rows:
@@ -216,6 +226,15 @@ def case_browse(
                     [
                         {
                             "e2e_verification": "not_recorded",
+                            "experimental": row["experimental"],
+                            "case_source": row["case_source"],
+                            "task_label": format_task_label(
+                                row["scenario"],
+                                row["problem"],
+                                row.get("topo_size")
+                                if scenario_requires_topo_size(row["scenario"])
+                                else None,
+                            ),
                             **describe_task_payload(row),
                         }
                         for row in rows
@@ -260,8 +279,7 @@ def case_browse(
                         "case",
                         "run",
                         task_id_for_row(row),
-                        "--catalog",
-                        str(catalog),
+                        *(["--catalog", str(catalog)] if catalog else []),
                     ]
                 )
             )
@@ -275,8 +293,10 @@ def case_browse(
 @case_app.command("run")
 def case_run(
     task_id: str = typer.Argument(..., help="Task ID from `nika case browse`."),
-    catalog: Path = typer.Option(
-        DEFAULT_CATALOG, "--catalog", help="Catalog containing this preset."
+    catalog: Path | None = typer.Option(
+        None,
+        "--catalog",
+        help="Restrict lookup to a pool or YAML. Default: full registered case matrix.",
     ),
     result_dir: str | None = typer.Option(
         None, "--result-dir", help="Results parent directory."

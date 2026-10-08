@@ -120,3 +120,38 @@ def test_malformed_catalog_reports_cli_error(tmp_path: Path, command: str) -> No
     result = CliRunner().invoke(app, [*args, "--catalog", str(catalog)])
     assert result.exit_code == 2, result.output
     assert "Invalid value" in result.output
+
+
+def test_experimental_cases_outside_pool_can_be_discovered_and_exported(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "case",
+            "browse",
+            "--env",
+            "iosxr_simple_bgp",
+            "--failure",
+            "bgp_asn_misconfig",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    entries = json.loads(result.output)
+    assert {row["inject"]["host_name"] for row in entries} == {"router1", "router2"}
+    assert all(
+        row["experimental"] and row["case_source"] == "generated" for row in entries
+    )
+    row = entries[0]
+    assert row["task_label"] == "iosxr_simple_bgp_bgp_asn_misconfig"
+    output = tmp_path / "experimental.yaml"
+    exported = runner.invoke(
+        app, ["case", "browse", "--task-id", row["task_id"], "--output", str(output)]
+    )
+    assert exported.exit_code == 0, exported.output
+    assert "experimental" in exported.output
+    reloaded = load_benchmark_input(output)[0]
+    assert task_id_for_row(reloaded) == row["task_id"]
+    assert reloaded["root_causes"] == row["root_causes"]
