@@ -564,6 +564,29 @@ class TestLeaderboardPackValidate:
         assert not report.ok
         assert any("identity.yaml" in e for e in report.errors)
 
+    def test_pack_redacts_private_keys_in_trajectories(self, mini_release_env) -> None:
+        _release, result_dir = mini_release_env
+        session = next(p for p in (result_dir / "trials").iterdir() if p.is_dir())
+        key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg+/kq=\n-----END PRIVATE KEY-----"
+        cut = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA"
+        records = [
+            {"event": "tool_end", "output": f"RSA key ok\n{key}\ndone"},
+            {"event": "tool_end", "output": f"{cut}"},
+        ]
+        original = "".join(json.dumps(r) + "\n" for r in records)
+        (session / "messages.jsonl").write_text(original, encoding="utf-8")
+
+        result = pack_leaderboard_submission(
+            result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+        )
+        packed = result.trajectories_dir / "trials" / session.name / "messages.jsonl"
+        lines = [json.loads(line) for line in packed.read_text().splitlines()]
+        assert lines[0]["output"] == "RSA key ok\n<REDACTED_PRIVATE_KEY>\ndone"
+        assert lines[1]["output"] == "<REDACTED_PRIVATE_KEY>"
+        assert "PRIVATE KEY-----" not in packed.read_text()
+        assert validate_leaderboard_submission(result.scores_dir).ok
+        assert (session / "messages.jsonl").read_text(encoding="utf-8") == original
+
     def test_pack_from_submission_dir(self, mini_release_env, tmp_path: Path) -> None:
         _release, result_dir = mini_release_env
         staging = write_submission_templates(tmp_path / "submission")

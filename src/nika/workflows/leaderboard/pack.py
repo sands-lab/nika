@@ -77,13 +77,34 @@ _ABS_PATH_REDACT = re.compile(
 )
 
 
+# Agents can print private keys found on lab devices (e.g. a lab's TLS key).
+# A JSONL record keeps the key's line breaks as literal ``\n`` escapes.
+_PEM_KIND = r"(?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY"
+_PEM_BLOCK_REDACT = re.compile(
+    rf"-----BEGIN ({_PEM_KIND})-----.*?-----END \1-----", re.DOTALL
+)
+# A key cut off before its END line: drop the base64 that follows BEGIN.
+_PEM_HEAD_REDACT = re.compile(
+    rf"-----BEGIN {_PEM_KIND}-----(?:\\[nr]|\s|[A-Za-z0-9+/=])*"
+)
+
+
 def _redact_absolute_paths(text: str) -> str:
     return _ABS_PATH_REDACT.sub("<REDACTED_PATH>", text)
 
 
+def _redact_private_keys(text: str) -> str:
+    text = _PEM_BLOCK_REDACT.sub("<REDACTED_PRIVATE_KEY>", text)
+    return _PEM_HEAD_REDACT.sub("<REDACTED_PRIVATE_KEY>", text)
+
+
+def _redact_text(text: str) -> str:
+    return _redact_absolute_paths(_redact_private_keys(text))
+
+
 def _sanitize_json_value(value: Any) -> Any:
     if isinstance(value, str):
-        return _redact_absolute_paths(value)
+        return _redact_text(value)
     if isinstance(value, dict):
         return {k: _sanitize_json_value(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -119,7 +140,7 @@ def _write_sanitized_trajectory_file(
         )
         return
     # JSONL / plain text
-    dest.write_text(_redact_absolute_paths(raw), encoding="utf-8")
+    dest.write_text(_redact_text(raw), encoding="utf-8")
 
 
 def _utc_now() -> datetime:
