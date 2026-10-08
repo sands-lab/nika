@@ -809,6 +809,78 @@
       ],
       "beaten_by": [],
       "rank": 1
+    },
+    {
+      "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
+      "dirname": "20261008_claude_cli_otel_2_0_llm_31b_it",
+      "name": "Claude CLI + OTel-2.0-LLM-31B-IT",
+      "authors": "zhihao1998",
+      "org": null,
+      "site": null,
+      "report": null,
+      "logo": null,
+      "github": "https://github.com/zhihao1998",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
+      "trajectories_relpath": "trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
+      "model": "OTel-2.0-LLM-31B-IT",
+      "framework": "cli.claude",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.037908627450980385,
+      "mean_localization_f1": 0.07715568627450979,
+      "mean_detection_score": 0.25098039215686274,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 89,
+      "n_agent_failed": 166,
+      "success_rate": 0.34902,
+      "token_totals": {
+        "in_tokens": 32892251,
+        "out_tokens": 947890
+      },
+      "steps_totals": {
+        "steps": 3237,
+        "tool_calls": 2766,
+        "tool_errors": 0
+      },
+      "mean_tokens": 132706.435,
+      "mean_steps": 12.694,
+      "total_tokens": 33840141,
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-08T09:09:26+00:00",
+      "run_id": "2fa068fe3714d386",
+      "official": true,
+      "rca_f1_ci": [
+        0.016994,
+        0.061438
+      ],
+      "beaten_by": [
+        "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
+        "0.2.0/20261007_qwen3_6_35b_a3b_langgraph"
+      ],
+      "rank": 3
     }
   ]
 }

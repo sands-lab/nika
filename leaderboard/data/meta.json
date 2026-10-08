@@ -7,7 +7,8 @@
     "framework": [
       "ClaudeCode",
       "LangGraph",
-      "ReACT"
+      "ReACT",
+      "cli.claude"
     ],
     "llm_provider": [
       "custom",
@@ -18,6 +19,7 @@
       "GPT-5",
       "GPT-5-mini",
       "GPT-OSS-20B",
+      "OTel-2.0-LLM-31B-IT",
       "Qwen3.5-27B",
       "Qwen3.6-27B",
       "Qwen3.6-35B-A3B-FP8"
@@ -42,5 +44,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-07T14:49:01+00:00"
+  "generated_at": "2026-10-08T09:11:55+00:00"
 }
