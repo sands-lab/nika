@@ -134,7 +134,7 @@ class TestReleaseTaskIdGate:
         runner.assert_not_called()
         assert not (result_dir / "run.json").exists()
 
-    def test_scoped_run_records_planned_trial_count(
+    def test_scoped_run_keeps_full_job_scope(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         release = load_release("0.2.0", split="test")
@@ -164,9 +164,15 @@ class TestReleaseTaskIdGate:
             )
         runner.assert_called_once()
         job = json.loads((result_dir / "run.json").read_text(encoding="utf-8"))
-        assert job["task_ids"] == [f"{task_id}__t02"]
-        assert job["planned_trial_count"] == 1
+        assert "task_ids" not in job
+        assert "planned_trial_count" not in job
         assert job["case_count"] == release.case_count
+        progress = json.loads(
+            (tmp_path / "benchmark_runs" / f"{job['run_id']}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert progress["total_trials"] == release.case_count * release.n_trials
         plan = " ".join(capsys.readouterr().out.split())
         assert "1/1 run(s) remaining" in plan
         assert "1 case(s), 1 of 3 trial(s) selected" in plan
