@@ -11,17 +11,25 @@ from nika.net_env.net_env_pool import (
 from nika.problems.registry import get_problem_class
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
-from nika.workflows.benchmark.load_config import load_benchmark_input
+from nika.workflows.benchmark.load_config import (
+    load_benchmark_input,
+    normalize_benchmark_row,
+)
+from nika.workflows.benchmark.candidate_context import pool_context_key
 from nika.workflows.benchmark.trials import task_id_for_row
 
 DEFAULT_CATALOG = BENCHMARK_DIR / "working" / "pool"
 DEPLOY_KEYS = ("topo_size", *ISP_DEPLOY_KEYS)
 
 
-def load_example_cases(catalog: Path) -> list[dict[str, Any]]:
-    """Return single-fault presets allowed by the current registry and backend."""
+def load_example_cases(
+    catalog: Path | None = None, *, env: str | None = None, failure: str | None = None
+) -> list[dict[str, Any]]:
+    """Use catalog presets and fill missing registered contexts for default browsing."""
     cases: dict[str, dict[str, Any]] = {}
-    for row in load_benchmark_input(catalog):
+    for row in load_benchmark_input(catalog or DEFAULT_CATALOG):
+        if (env and row["scenario"] != env) or (failure and row["problem"] != failure):
+            continue
         if is_healthy_case(row["problem"]) or len(row.get("problems", [])) > 1:
             continue
         cls = get_problem_class(row["problem"], row["scenario"])
@@ -34,7 +42,51 @@ def load_example_cases(catalog: Path) -> list[dict[str, Any]]:
         )
         if cls.supported_backends and backend not in cls.supported_backends:
             continue
-        cases[task_id_for_row(row)] = row
+        cases[task_id_for_row(row)] = {
+            **row,
+            "case_source": "catalog",
+            "experimental": True,
+        }
+    if catalog is None:
+        from nika.workflows.benchmark.generate import (
+            build_failure_cases,
+            iter_failure_case_specs,
+        )
+        from nika.utils.logger import log_warning_event
+
+        covered = {pool_context_key(row) for row in cases.values()}
+        for problem, scenario, size, options in iter_failure_case_specs(
+            include_benchmark_excluded=True
+        ):
+            if (env and scenario != env) or (failure and problem != failure):
+                continue
+            context = {
+                "scenario": scenario,
+                "problem": problem,
+                "topo_size": size,
+                **(options or {}),
+            }
+            if pool_context_key(context) in covered:
+                continue
+            generated, rejected = build_failure_cases(
+                problem=problem, scenario=scenario, topo_size=size, isp_options=options
+            )
+            for item in generated:
+                row = normalize_benchmark_row(
+                    {"scenario": scenario, "problem": problem, **item}
+                )
+                cases.setdefault(
+                    task_id_for_row(row),
+                    {**row, "case_source": "generated", "experimental": True},
+                )
+            if not generated:
+                log_warning_event(
+                    "case_unavailable",
+                    f"No legal injection preset for {scenario}/{problem}/{size or '-'}",
+                    scenario=scenario,
+                    problem=problem,
+                    rejected=rejected,
+                )
     return sorted(
         cases.values(),
         key=lambda row: (

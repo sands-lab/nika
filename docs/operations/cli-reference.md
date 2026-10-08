@@ -52,18 +52,27 @@ for manual diagnosis and prints the session ID and cleanup command. It does not
 start an agent. Starting requires the scenario's lab backend and Docker images,
 just as `nika env run` does.
 
-The default source is `benchmark/working/pool`. Use `--catalog PATH` for another
-pool directory, candidate YAML, or flat cases YAML. The browser offers
-single-fault catalog presets allowed by the registry and backend. Before
-launching, NIKA also checks injection parameters against the topology. Catalog
-membership does not establish E2E verification; the preview and JSON output
-state that verification status is not recorded. Deployment profiles and
-injection presets remain complete records throughout selection.
+The default browser combines `benchmark/working/pool` with compatible registered
+failure/scenario/size combinations missing from that pool. This includes labs
+excluded from benchmark generation, such as `iosxr_simple_bgp`. NIKA generates
+missing injection presets with the existing target enumerator and checks their
+parameters and ground truth offline. It reports combinations with no legal
+target rather than offering them as runnable. The browser does not change the
+working pool or published benchmarks. Use `--catalog PATH` to restrict discovery
+to a particular pool directory, candidate YAML, or flat cases YAML.
+
+The menus, preview, and JSON output label cases as `experimental` when NIKA has
+no recorded E2E validation for them. Catalog membership alone does not establish
+runtime validation, so current catalog presets also carry this label. The
+`case_source` JSON field distinguishes catalog presets from generated presets.
+Deployment profiles and injection presets remain complete records throughout
+selection. Launching checks injection parameters against the topology again.
 
 For scripts, list presets as JSON and select a returned task ID:
 
 ```shell
 uv run nika case browse --env dc_clos --failure host_missing_ip --json
+uv run nika case browse --env iosxr_simple_bgp --failure bgp_asn_misconfig --json
 uv run nika case browse --task-id TASK_ID --output my-case.yaml
 uv run nika case run TASK_ID
 ```
@@ -75,6 +84,19 @@ truth. Use `nika benchmark run --config my-case.yaml` to run the exported case
 with an agent. In a noninteractive shell, browsing requires `--json` or a filter
 that identifies exactly one preset. Both browse and run accept `--result-dir`
 for sessions they start.
+
+The preview and JSON also include the task label accepted by
+`nika agent run --problem LABEL`. That command uses the agent workflow's default
+deployment and injection settings; use `--set key=value` to override injection
+parameters. To run an agent on the exact profile and target selected in the
+browser, start the case, then use the printed session command:
+
+```shell
+uv run nika agent run --session_id SESSION_ID
+```
+
+Replace `SESSION_ID` with the ID printed by `nika case run`. IOS-XR execution
+requires the licensed XRd image even though case discovery and export do not.
 
 ## Global conventions
 
