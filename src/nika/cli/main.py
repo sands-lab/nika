@@ -7,6 +7,9 @@ from nika.cli.lazy_group import LAZY_COMMANDS, LazyCommandSpec, LazyTyperGroup
 
 LAZY_COMMANDS.update(
     {
+        "case": LazyCommandSpec(
+            "nika.cli.commands.case", "case_app", "Browse and try example cases."
+        ),
         "session": LazyCommandSpec(
             "nika.cli.commands.session", "session_app", "Session lifecycle."
         ),

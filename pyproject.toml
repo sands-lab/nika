@@ -34,6 +34,7 @@ dependencies = [
     "typer>=0.25.1,<0.26",
     "click>=8.5.0,<9",
     "rich>=14.3.4,<15",
+    "prompt-toolkit>=3.0.52,<4",
     "httpx>=0.28.1,<0.29",
     "func_timeout>=4.3.5,<5",
     "pyyaml>=6.0.3,<7",

@@ -15,6 +15,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika session` | List, inspect, and close active troubleshooting sessions |
 | `nika env` | List / deploy Kathará or Containerlab scenarios and create a session |
 | `nika failure` | List, describe, inject, and inspect faults for a running session |
+| `nika case` | Browse catalog presets, export a case, or start a manual troubleshooting lab |
 | `nika exec` | Run a shell command inside a lab host container |
 | `nika config` | Show the effective run config, set common keys, or migrate legacy `.env` ops into YAML |
 | `nika agent` | Run an end-to-end task, or run an agent on a selected session |
@@ -26,6 +27,54 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`, `burst`) against the running lab |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
+
+## Browse and try an example case
+
+Run the browser in an interactive terminal:
+
+```shell
+uv run nika case browse
+```
+
+Select an environment, failure, deployment profile, and injection preset. Type to
+search, use Up/Down to move, and press Enter to select. Escape returns to the
+previous choice; Ctrl+C exits. The browser skips steps with one option and lists
+smaller topology sizes first. You can preselect fields:
+
+```shell
+uv run nika case browse --env dc_clos --failure host_missing_ip
+```
+
+Review the task ID and injection parameters, then choose to start the lab,
+export a single-case YAML file, or show a reproduction command. Starting creates
+an isolated session and injects the selected failure. It leaves the lab running
+for manual diagnosis and prints the session ID and cleanup command. It does not
+start an agent. Starting requires the scenario's lab backend and Docker images,
+just as `nika env run` does.
+
+The default source is `benchmark/working/pool`. Use `--catalog PATH` for another
+pool directory, candidate YAML, or flat cases YAML. The browser offers
+single-fault catalog presets allowed by the registry and backend. Before
+launching, NIKA also checks injection parameters against the topology. Catalog
+membership does not establish E2E verification; the preview and JSON output
+state that verification status is not recorded. Deployment profiles and
+injection presets remain complete records throughout selection.
+
+For scripts, list presets as JSON and select a returned task ID:
+
+```shell
+uv run nika case browse --env dc_clos --failure host_missing_ip --json
+uv run nika case browse --task-id TASK_ID --output my-case.yaml
+uv run nika case run TASK_ID
+```
+
+Replace `TASK_ID` with an ID from the listing. Pass the same `--catalog` to
+subsequent commands when using a custom source. Export refuses to overwrite an
+existing file and preserves the case's task ID, injection parameters, and ground
+truth. Use `nika benchmark run --config my-case.yaml` to run the exported case
+with an agent. In a noninteractive shell, browsing requires `--json` or a filter
+that identifies exactly one preset. Both browse and run accept `--result-dir`
+for sessions they start.
 
 ## Global conventions
 

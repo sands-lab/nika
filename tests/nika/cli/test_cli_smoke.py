@@ -13,6 +13,7 @@ pytestmark = pytest.mark.unit
 
 _RUNNER = CliRunner()
 CLI_COMMAND_MODULES = [
+    "nika.cli.commands.case",
     "nika.cli.commands.agent",
     "nika.cli.commands.benchmark",
     "nika.cli.commands.config_cmd",
@@ -42,6 +43,9 @@ CLI_HANDLER_WORKFLOWS = [
 ]
 CLI_HELP_ARGS = [
     ["--help"],
+    ["case", "--help"],
+    ["case", "browse", "--help"],
+    ["case", "run", "--help"],
     ["agent", "--help"],
     ["agent", "list", "--help"],
     ["agent", "run", "--help"],

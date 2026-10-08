@@ -19,6 +19,10 @@ from nika.workflows.benchmark.isp_options import (
 from nika.workflows.benchmark.multi_fault import join_problem_label
 from nika.workflows.benchmark.resume import benchmark_option_id
 
+# The working pool contains many YAML files. LibYAML preserves safe-loader
+# semantics while keeping interactive catalog discovery responsive.
+_SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 
 def _row_problem_fields(row: dict[str, Any], scenario: str) -> tuple[list[str], str]:
     raw_problems = row.get("problems")
@@ -198,7 +202,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     is baked into the scenario ID). Named ISP specials omit protocol fields.
     Healthy (no-fault) cases use ``problem: healthy`` with an empty ``inject`` map.
     """
-    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    data = yaml.load(Path(path).read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
     if not isinstance(data, dict) or "cases" not in data:
         raise ValueError(f"Invalid benchmark YAML (missing top-level 'cases'): {path}")
     cases = data["cases"]
@@ -339,7 +343,9 @@ def load_candidate_catalog(path: str | Path) -> list[dict[str, Any]]:
         resolved = candidate_path.resolve()
         if not resolved.is_relative_to(root):
             raise ValueError(f"Candidate file escapes pool directory: {candidate_path}")
-        candidate_data = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        candidate_data = yaml.load(
+            resolved.read_text(encoding="utf-8"), Loader=_SAFE_LOADER
+        )
         for row in _load_candidate_file(candidate_data, resolved):
             option_id = row["candidate_option_id"]
             if option_id in seen_ids:
@@ -354,7 +360,7 @@ def load_benchmark_input(path: str | Path) -> list[dict[str, Any]]:
     target = Path(path)
     if target.is_dir():
         return load_candidate_catalog(target)
-    data = yaml.safe_load(target.read_text(encoding="utf-8"))
+    data = yaml.load(target.read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
     if not isinstance(data, dict):
         raise ValueError(f"Invalid benchmark YAML (expected a mapping): {path}")
     if "candidate_files" in data:
