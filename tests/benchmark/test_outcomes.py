@@ -337,6 +337,30 @@ class TestClassifyTrialFailure:
         )
         assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
 
+    def test_codex_turn_failed_on_endpoint_is_endpoint_failed(
+        self, tmp_path: Path
+    ) -> None:
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+
+        def turn_failed(message: str) -> dict:
+            event = {"type": "turn.failed", "error": {"message": message}}
+            return {"event": "turn.failed", "codex_event": event}
+
+        err = RuntimeError("ERROR: diagnosis phase exited with code 1.")
+        unavailable = "unexpected status 503 Service Unavailable: No healthy backend"
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [{"event": "tool_start"}, {"event": "tool_end"}, turn_failed(unavailable)],
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # A request the endpoint rejected is the agent's problem.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [{"event": "tool_start"}, turn_failed("unexpected status 400 Bad Request")],
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+
     def test_claude_retries_exhausted_is_endpoint_failed(self, tmp_path: Path) -> None:
         t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
         _write_agent_start(tmp_path, t0)
