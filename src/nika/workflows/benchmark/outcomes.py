@@ -23,6 +23,8 @@ Case wall-clock kills (``--case-timeout``) default to ``agent_failed``, but when
 the session was killed mid-LLM call and most of the budget was spent inside LLM
 calls (including the in-flight request), they classify as ``endpoint_failed``
 so a hung / retrying model endpoint does not permanently score as capability.
+Likewise, an agent CLI that stalls waiting for a model response or exhausts
+its API retries is ``endpoint_failed`` (see :func:`trace_shows_endpoint_failure`).
 """
 
 from __future__ import annotations
@@ -116,6 +118,9 @@ _ENDPOINT_MESSAGE_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+
+# Statuses agent CLIs retry; exhausting those retries is an endpoint failure.
+_RETRYABLE_HTTP_STATUS = frozenset({429, 500, 502, 503, 504, 529})
 
 _MISSING_SUBMISSION_RE = re.compile(
     r"without writing required submission",
@@ -291,6 +296,49 @@ def case_timeout_endpoint_dominated(
     return (llm_seconds / span) >= float(llm_fraction_threshold)
 
 
+def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
+    """True when the agent CLI gave up waiting on the model endpoint.
+
+    * Codex ``subprocess_stall`` after failed reconnects, or with no tool call
+      in flight: the CLI was waiting for a model response. A stall inside a
+      tool call stays a capability failure.
+    * Claude Code exhausting its API retries on 429/5xx with no real model
+      reply afterwards.
+    """
+    open_tools = 0
+    claude_gave_up = False
+    for event in _iter_jsonl_events(Path(session_dir) / _MESSAGES_FILENAME):
+        name = event.get("event")
+        if name == "thread.started":
+            open_tools = 0
+        elif name == "tool_start":
+            open_tools += 1
+        elif name in ("tool_end", "tool_error"):
+            open_tools = max(0, open_tools - 1)
+        elif name == "subprocess_stall":
+            if event.get("reconnect_failure") or open_tools == 0:
+                return True
+        elif name in ("system", "assistant"):
+            claude = event.get("claude_event")
+            if not isinstance(claude, dict):
+                continue
+            if claude.get("subtype") == "api_retry":
+                attempt, limit = claude.get("attempt"), claude.get("max_retries")
+                if (
+                    isinstance(attempt, int)
+                    and isinstance(limit, int)
+                    and attempt >= limit
+                    and claude.get("error_status") in _RETRYABLE_HTTP_STATUS
+                ):
+                    claude_gave_up = True
+            elif name == "assistant":
+                message = claude.get("message")
+                # Claude Code reports its give-up as a ``<synthetic>`` message.
+                if isinstance(message, dict) and message.get("model") != "<synthetic>":
+                    claude_gave_up = False
+    return claude_gave_up
+
+
 def agent_demonstrably_started(session_dir: str | Path) -> bool:
     """True when the agent got a turn: ``agent_start`` plus agent activity.
 
@@ -320,6 +368,9 @@ def classify_trial_failure(
     * With ``session_dir`` and no evidence that the agent started →
       ``endpoint_failed`` for endpoint signals, else ``infra_failed``
       (both retryable).
+    * The trajectory shows the agent CLI gave up on the model endpoint (Codex
+      stall while waiting for a response, Claude Code API retries exhausted)
+      → ``endpoint_failed``, even when the run then ends without a submission.
     * Missing submission after the agent returned → ``agent_failed`` (capability).
     * Case or agent (``agent.timeout_sec``) wall-clock budget exceeded →
       ``agent_failed``, unless ``session_dir``
@@ -336,6 +387,8 @@ def classify_trial_failure(
     """
     if session_dir is not None and not agent_demonstrably_started(session_dir):
         return ENDPOINT_FAILED if is_endpoint_exception(exc) else INFRA_FAILED
+    if session_dir is not None and trace_shows_endpoint_failure(session_dir):
+        return ENDPOINT_FAILED
     text = _exception_text(exc)
     if _MISSING_SUBMISSION_RE.search(text):
         return "agent_failed"
