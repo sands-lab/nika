@@ -753,6 +753,64 @@
       "rank": 1
     },
     {
+      "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
+      "dirname": "20261008_qwen3_6_35b_a3b_codex",
+      "name": "Qwen3.6-35B-A3B Codex",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": null,
+      "report": null,
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261008_qwen3_6_35b_a3b_codex",
+      "trajectories_relpath": "trajectories/0.2.0/20261008_qwen3_6_35b_a3b_codex",
+      "model": "Qwen3.6-35B-A3B-FP8",
+      "framework": "Codex",
+      "agent_type": "cli.codex",
+      "llm_provider": "custom",
+      "tools": [],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.20536431372549013,
+      "mean_localization_f1": 0.33833607843137253,
+      "mean_detection_score": 0.8666666666666667,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 246,
+      "n_agent_failed": 9,
+      "success_rate": 0.964706,
+      "token_totals": {
+        "in_tokens": 333228237,
+        "out_tokens": 3247277
+      },
+      "steps_totals": {
+        "steps": 9882,
+        "tool_calls": 9654,
+        "tool_errors": 38
+      },
+      "mean_tokens": 1319511.82,
+      "mean_steps": 38.753,
+      "total_tokens": 336475514,
+      "max_steps": 100,
+      "case_timeout_sec": 7800,
+      "created_at": "2026-10-08T10:45:47+00:00",
+      "run_id": "1afde5c43d6e5ec8",
+      "official": true,
+      "rca_f1_ci": [
+        0.144289,
+        0.270398
+      ],
+      "beaten_by": [],
+      "rank": 1
+    },
+    {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
       "dirname": "20261007_qwen3_6_35b_a3b_langgraph",
       "name": "Qwen3.6-35B-A3B LangGraph",
@@ -878,9 +936,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
-        "0.2.0/20261007_qwen3_6_35b_a3b_langgraph"
+        "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
+        "0.2.0/20261008_qwen3_6_35b_a3b_codex"
       ],
-      "rank": 3
+      "rank": 4
     }
   ]
 }
