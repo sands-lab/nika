@@ -196,13 +196,32 @@ def _iter_jsonl_events(path: Path):
             yield event
 
 
+def _claude_requests_tool(event: dict) -> bool:
+    claude = event.get("claude_event")
+    message = claude.get("message") if isinstance(claude, dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    return isinstance(content, list) and any(
+        isinstance(block, dict) and block.get("type") == "tool_use" for block in content
+    )
+
+
 def _llm_call_spans(
     root: Path,
 ) -> tuple[float, list[datetime], datetime | None]:
-    """Return completed LLM seconds, unpaired ``llm_start`` times, first event."""
+    """Return completed LLM seconds, start times of unfinished calls, first event.
+
+    Agents that log ``llm_start`` / ``llm_end`` are timed from those. Claude
+    Code streams ``assistant`` content blocks and ``user`` tool results
+    instead, so a model call runs from the prompt or a tool result until the
+    ``assistant`` block that requests a tool, or the final ``result``.
+    """
     llm_seconds = 0.0
     open_starts: list[datetime] = []
     first_ts: datetime | None = None
+    saw_llm_events = saw_claude = False
+    claude_seconds = 0.0
+    claude_start: datetime | None = None
+    claude_last: datetime | None = None
 
     for event in _iter_jsonl_events(root / _MESSAGES_FILENAME):
         ts = _parse_event_timestamp(event.get("timestamp"))
@@ -214,15 +233,33 @@ def _llm_call_spans(
             first_ts = ts
         name = event.get("event")
         if name == "llm_start":
+            saw_llm_events = True
             open_starts.append(ts)
         elif name == "llm_end" and open_starts:
             start = open_starts.pop(0)
             llm_seconds += max(0.0, (ts - start).total_seconds())
-    return llm_seconds, open_starts, first_ts
+        elif name == "prompt" or (name == "user" and "claude_event" in event):
+            if claude_start is not None and claude_last is not None:
+                claude_seconds += max(0.0, (claude_last - claude_start).total_seconds())
+            claude_start, claude_last = ts, None
+        elif name == "assistant" and "claude_event" in event:
+            saw_claude = True
+            claude_last = ts
+            if claude_start is not None and _claude_requests_tool(event):
+                claude_seconds += max(0.0, (ts - claude_start).total_seconds())
+                claude_start = None
+        elif name == "result" and "claude_event" in event and claude_start is not None:
+            end = claude_last or ts
+            claude_seconds += max(0.0, (end - claude_start).total_seconds())
+            claude_start = None
+    if saw_llm_events or not saw_claude:
+        return llm_seconds, open_starts, first_ts
+    # No llm_* markers but Claude Code output: an open call is in flight.
+    return claude_seconds, [claude_start] if claude_start else [], first_ts
 
 
 def trace_ends_in_llm_call(session_dir: str | Path) -> bool:
-    """True when ``messages.jsonl`` ends with an unpaired ``llm_start``."""
+    """True when ``messages.jsonl`` ends inside a model call (see :func:`_llm_call_spans`)."""
     return bool(_llm_call_spans(Path(session_dir))[1])
 
 
@@ -304,8 +341,9 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
       tool call stays a capability failure.
     * Codex ``turn.failed`` with an endpoint error (e.g. HTTP 503 after its
       reconnect attempts).
-    * Claude Code exhausting its API retries on 429/5xx with no real model
-      reply afterwards.
+    * Claude Code exhausting its API retries on 429/5xx, or ending on an API
+      error without an HTTP status (e.g. "The response stopped arriving"),
+      with no real model reply afterwards.
     """
     open_tools = 0
     claude_gave_up = False
@@ -326,7 +364,7 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
             message = error.get("message") if isinstance(error, dict) else None
             if isinstance(message, str) and _ENDPOINT_MESSAGE_RE.search(message):
                 return True
-        elif name in ("system", "assistant"):
+        elif name in ("system", "assistant", "result"):
             claude = event.get("claude_event")
             if not isinstance(claude, dict):
                 continue
@@ -337,6 +375,12 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
                     and isinstance(limit, int)
                     and attempt >= limit
                     and claude.get("error_status") in _RETRYABLE_HTTP_STATUS
+                ):
+                    claude_gave_up = True
+            elif name == "result":
+                status = claude.get("api_error_status")
+                if claude.get("terminal_reason") == "api_error" and (
+                    status is None or status in _RETRYABLE_HTTP_STATUS
                 ):
                     claude_gave_up = True
             elif name == "assistant":

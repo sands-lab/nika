@@ -361,6 +361,88 @@ class TestClassifyTrialFailure:
         )
         assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
 
+    def test_claude_api_error_result_is_endpoint_failed(self, tmp_path: Path) -> None:
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+
+        def result(status: int | None) -> dict:
+            event = {
+                "subtype": "success",
+                "is_error": True,
+                "terminal_reason": "api_error",
+                "api_error_status": status,
+                "result": "API Error: The response stopped arriving.",
+            }
+            return {"event": "result", "claude_event": event}
+
+        reply = {"event": "assistant", "claude_event": {"message": {"model": "m"}}}
+        err = RuntimeError("ERROR: diagnosis phase exited with code 1.")
+        # The stream stopped mid-response (no HTTP status).
+        _write_jsonl(tmp_path / "messages.jsonl", [reply, result(None)])
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # A request the API rejected stays the agent's failure.
+        _write_jsonl(tmp_path / "messages.jsonl", [reply, result(400)])
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+
+    def test_claude_timeout_mid_model_call_is_endpoint_failed(
+        self, tmp_path: Path
+    ) -> None:
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+
+        def at(minutes: float, event: str, *, tool: bool = False) -> dict:
+            row = {"timestamp": (t0 + timedelta(minutes=minutes)).isoformat()}
+            if event == "prompt":
+                return {**row, "event": "prompt"}
+            if event == "user":
+                return {**row, "event": "user", "claude_event": {"type": "user"}}
+            content = [{"type": "tool_use" if tool else "thinking"}]
+            message = {"model": "m", "content": content}
+            return {**row, "event": "assistant", "claude_event": {"message": message}}
+
+        # Claude Code logs no llm_start/llm_end: model calls run from the prompt
+        # or a tool result to the block that requests the next tool.
+        turns = [
+            at(0, "prompt"),
+            at(50, "assistant", tool=True),
+            at(51, "user"),
+            at(100, "assistant", tool=True),
+            at(101, "user"),
+        ]
+        err = RuntimeError("agent run exceeded agent.timeout_sec (7200s)")
+        kill = t0 + timedelta(minutes=120)
+        # Killed while waiting for the model after a tool result.
+        _write_jsonl(tmp_path / "messages.jsonl", turns)
+        assert (
+            classify_trial_failure(err, session_dir=tmp_path, until=kill)
+            == "endpoint_failed"
+        )
+        # Streaming thinking, no tool requested yet: still inside the call.
+        _write_jsonl(tmp_path / "messages.jsonl", [*turns, at(110, "assistant")])
+        assert (
+            classify_trial_failure(err, session_dir=tmp_path, until=kill)
+            == "endpoint_failed"
+        )
+        # Killed while the requested tool runs.
+        _write_jsonl(
+            tmp_path / "messages.jsonl", [*turns, at(110, "assistant", tool=True)]
+        )
+        assert (
+            classify_trial_failure(err, session_dir=tmp_path, until=kill)
+            == "agent_failed"
+        )
+        # Tool-heavy run: model calls are a small share of the budget.
+        tool_heavy = [
+            at(0, "prompt"),
+            at(5, "assistant", tool=True),
+            at(100, "user"),
+        ]
+        _write_jsonl(tmp_path / "messages.jsonl", tool_heavy)
+        assert (
+            classify_trial_failure(err, session_dir=tmp_path, until=kill)
+            == "agent_failed"
+        )
+
     def test_claude_retries_exhausted_is_endpoint_failed(self, tmp_path: Path) -> None:
         t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
         _write_agent_start(tmp_path, t0)
