@@ -1290,6 +1290,62 @@ class TestBackgroundInspect:
             serve._background_server = None
 
 
+class TestSingletonLock:
+    def test_second_acquire_fails_with_running_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import nika.inspect.serve as serve
+
+        monkeypatch.setattr(serve, "_SINGLETON_LOCK_PATH", tmp_path / "inspect.lock")
+
+        handle = serve._acquire_singleton_lock()
+        serve._write_lock_info(
+            handle,
+            host="127.0.0.1",
+            port=7580,
+            url="http://127.0.0.1:7580/",
+            results_root=tmp_path,
+        )
+
+        with pytest.raises(ValueError, match=r"already running at http://127\.0\.0\.1:7580/"):
+            serve._acquire_singleton_lock()
+
+        serve._release_singleton_lock(handle)
+
+    def test_lock_is_reusable_after_release(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import nika.inspect.serve as serve
+
+        monkeypatch.setattr(serve, "_SINGLETON_LOCK_PATH", tmp_path / "inspect.lock")
+
+        first = serve._acquire_singleton_lock()
+        serve._release_singleton_lock(first)
+
+        second = serve._acquire_singleton_lock()
+        serve._release_singleton_lock(second)
+
+    def test_serve_inspect_errors_when_already_locked(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import nika.inspect.serve as serve
+
+        monkeypatch.setattr(serve, "_SINGLETON_LOCK_PATH", tmp_path / "inspect.lock")
+        held = serve._acquire_singleton_lock()
+        serve._write_lock_info(
+            held,
+            host="127.0.0.1",
+            port=7580,
+            url="http://127.0.0.1:7580/",
+            results_root=tmp_path,
+        )
+
+        with pytest.raises(ValueError, match="Another nika inspect dashboard"):
+            serve.serve_inspect(result_dir=tmp_path, port=0, open_browser=False)
+
+        serve._release_singleton_lock(held)
+
+
 class TestCatalogSafety:
     def test_find_session_dir_rejects_path_escape(self, tmp_path: Path) -> None:
         from nika.inspect.catalog import find_session_dir

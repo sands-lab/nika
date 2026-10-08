@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fcntl
+import json
 import os
 import socket
 import sys
@@ -9,10 +11,11 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+from typing import IO
 
 import uvicorn
 
-from nika.config import resolve_results_root
+from nika.config import RUNTIME_DIR, resolve_results_root
 from nika.inspect.server import create_inspect_app
 
 DEFAULT_HOST = "127.0.0.1"
@@ -25,6 +28,11 @@ _ALLOWED_BIND_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "0.0.0.0", "::
 _background_lock = threading.Lock()
 _background_url: str | None = None
 _background_server: uvicorn.Server | None = None
+
+# Cross-process singleton: only one foreground `nika inspect` dashboard may
+# run at a time. The flock is held for the life of the process, so a crash
+# (not just a clean exit) still releases it automatically.
+_SINGLETON_LOCK_PATH = RUNTIME_DIR / "inspect.lock"
 
 
 def validate_bind_host(host: str) -> str:
@@ -140,6 +148,64 @@ def _print_startup(
         )
 
 
+def _read_lock_info() -> dict:
+    try:
+        raw = _SINGLETON_LOCK_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return {}
+    try:
+        return json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _acquire_singleton_lock() -> IO:
+    """Return an open, exclusively-locked handle, or raise ``ValueError``.
+
+    Advisory ``flock`` is released by the OS when the holding process exits
+    for any reason (including a crash), so a stale lock file left behind by
+    a killed process never blocks a later start.
+    """
+    _SINGLETON_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(_SINGLETON_LOCK_PATH, "a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        handle.close()
+        url = _read_lock_info().get("url")
+        detail = f" at {url}" if url else ""
+        raise ValueError(
+            f"Another nika inspect dashboard is already running{detail}. "
+            "Stop it first, or open the link above to use it."
+        ) from exc
+    return handle
+
+
+def _write_lock_info(
+    handle: IO, *, host: str, port: int, url: str, results_root: Path
+) -> None:
+    payload = {
+        "pid": os.getpid(),
+        "host": host,
+        "port": port,
+        "url": url,
+        "results_root": str(results_root),
+        "started_at": time.time(),
+    }
+    handle.seek(0)
+    handle.truncate()
+    handle.write(json.dumps(payload))
+    handle.flush()
+
+
+def _release_singleton_lock(handle: IO) -> None:
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+    handle.close()
+
+
 def serve_inspect(
     *,
     result_dir: str | Path | None = None,
@@ -150,23 +216,31 @@ def serve_inspect(
     """Start the session viewer (blocking).
 
     Default bind is loopback. ``0.0.0.0`` / ``::`` listen on all interfaces;
-    specific interface IPs are rejected.
+    specific interface IPs are rejected. Only one instance may run at a time;
+    a second invocation errors out with the running instance's URL.
     """
     host = validate_bind_host(host)
 
     results_root = resolve_results_root(result_dir)
-    bind_port = _pick_port(host, port)
-    app = create_inspect_app(results_root=results_root, bind_host=host)
-    url = _browse_url(host, bind_port)
-    _print_startup(
-        results_root=results_root,
-        host=host,
-        bind_port=bind_port,
-        url=url,
-        open_browser=open_browser,
-    )
+    lock_handle = _acquire_singleton_lock()
+    try:
+        bind_port = _pick_port(host, port)
+        app = create_inspect_app(results_root=results_root, bind_host=host)
+        url = _browse_url(host, bind_port)
+        _write_lock_info(
+            lock_handle, host=host, port=bind_port, url=url, results_root=results_root
+        )
+        _print_startup(
+            results_root=results_root,
+            host=host,
+            bind_port=bind_port,
+            url=url,
+            open_browser=open_browser,
+        )
 
-    uvicorn.run(app, host=host, port=bind_port, log_level="warning")
+        uvicorn.run(app, host=host, port=bind_port, log_level="warning")
+    finally:
+        _release_singleton_lock(lock_handle)
 
 
 def start_inspect_background(
