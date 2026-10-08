@@ -302,6 +302,8 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
     * Codex ``subprocess_stall`` after failed reconnects, or with no tool call
       in flight: the CLI was waiting for a model response. A stall inside a
       tool call stays a capability failure.
+    * Codex ``turn.failed`` with an endpoint error (e.g. HTTP 503 after its
+      reconnect attempts).
     * Claude Code exhausting its API retries on 429/5xx with no real model
       reply afterwards.
     """
@@ -317,6 +319,12 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
             open_tools = max(0, open_tools - 1)
         elif name == "subprocess_stall":
             if event.get("reconnect_failure") or open_tools == 0:
+                return True
+        elif name == "turn.failed":
+            codex = event.get("codex_event")
+            error = codex.get("error") if isinstance(codex, dict) else None
+            message = error.get("message") if isinstance(error, dict) else None
+            if isinstance(message, str) and _ENDPOINT_MESSAGE_RE.search(message):
                 return True
         elif name in ("system", "assistant"):
             claude = event.get("claude_event")
@@ -369,7 +377,8 @@ def classify_trial_failure(
       ``endpoint_failed`` for endpoint signals, else ``infra_failed``
       (both retryable).
     * The trajectory shows the agent CLI gave up on the model endpoint (Codex
-      stall while waiting for a response, Claude Code API retries exhausted)
+      stall while waiting for a response or endpoint ``turn.failed``, Claude
+      Code API retries exhausted)
       → ``endpoint_failed``, even when the run then ends without a submission.
     * Missing submission after the agent returned → ``agent_failed`` (capability).
     * Case or agent (``agent.timeout_sec``) wall-clock budget exceeded →
