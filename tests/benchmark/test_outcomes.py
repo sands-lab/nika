@@ -295,6 +295,78 @@ class TestClassifyTrialFailure:
         err = RuntimeError("[t01] trial worker exited with code 1")
         assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
 
+    def test_codex_stall_waiting_on_model_is_endpoint_failed(
+        self, tmp_path: Path
+    ) -> None:
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+        diagnosis = [
+            {"event": "thread.started"},
+            {"event": "tool_start"},
+            {"event": "tool_end"},
+        ]
+        stall = {
+            "event": "subprocess_stall",
+            "stall_s": 300,
+            "reconnect_failure": False,
+        }
+        err = RuntimeError(
+            "Agent completed without writing required submission: /tmp/x/submission.json"
+        )
+        # A failed tool call closes the tool; the stall that follows is the model's.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [*diagnosis, {"event": "tool_start"}, {"event": "tool_error"}, stall],
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # Submission phase stalled before the model answered.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [*diagnosis, {"event": "thread.started"}, stall],
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # Stalled inside a tool call: the tool hung, not the model.
+        _write_jsonl(
+            tmp_path / "messages.jsonl", [*diagnosis, {"event": "tool_start"}, stall]
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+        # Reconnect failures are transport errors even mid-tool.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [*diagnosis, {"event": "tool_start"}, dict(stall, reconnect_failure=True)],
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+
+    def test_claude_retries_exhausted_is_endpoint_failed(self, tmp_path: Path) -> None:
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+
+        def retry(attempt: int, status: int = 503) -> dict:
+            event = {
+                "subtype": "api_retry",
+                "attempt": attempt,
+                "max_retries": 10,
+                "error_status": status,
+            }
+            return {"event": "system", "claude_event": event}
+
+        def reply(model: str) -> dict:
+            return {"event": "assistant", "claude_event": {"message": {"model": model}}}
+
+        err = RuntimeError("ERROR: diagnosis phase exited with code 1.")
+        gave_up = [reply("Qwen3.8-27B-FP8"), retry(9), retry(10), reply("<synthetic>")]
+        _write_jsonl(tmp_path / "messages.jsonl", gave_up)
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # The model answered again after the retries ran out.
+        _write_jsonl(tmp_path / "messages.jsonl", [*gave_up, reply("Qwen3.8-27B-FP8")])
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+        # Retries still left, or a non-retryable status: not an endpoint give-up.
+        for events in ([retry(9)], [retry(10, status=400)]):
+            _write_jsonl(
+                tmp_path / "messages.jsonl", [reply("Qwen3.8-27B-FP8"), *events]
+            )
+            assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+
 
 @pytest.mark.parametrize("retryable", ["endpoint_failed", "infra_failed"])
 class TestRetryableResume:
