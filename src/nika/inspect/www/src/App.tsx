@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  AnnotationComment,
   Annotations,
   CanonicalTraceEvent,
   BrowseEntry,
@@ -13,7 +12,10 @@ import {
   fetchAnnotations,
   fetchBenchmarkProgress,
   fetchBrowse,
+  fetchEvent,
   fetchRaw,
+  fetchRawFiles,
+  RawArtifact,
   fetchRoots,
   fetchScores,
   fetchSession,
@@ -61,29 +63,30 @@ import {
   parseNumericFilter,
   parseUrlState,
   type SessionTab,
+  type TraceSource,
   type UrlState,
 } from "./viewState";
 
 type Tab = SessionTab;
 
 /** Per-session location mirrored into the URL (see ``viewState.ts``). */
-type SessionNav = { tab: Tab | null; event: string | null; find: string | null };
+type SessionNav = {
+  tab: Tab | null;
+  source: TraceSource | null;
+  event: string | null;
+  find: string | null;
+};
 
-const EMPTY_NAV: SessionNav = { tab: null, event: null, find: null };
+const EMPTY_NAV: SessionNav = { tab: null, source: null, event: null, find: null };
 
 function navFromUrl(url: UrlState): SessionNav {
-  return { tab: url.tab, event: url.event, find: url.find };
+  return { tab: url.tab, source: url.source, event: url.event, find: url.find };
 }
 
-const RAW_FILES = [
-  "run.json",
-  "messages.jsonl",
-  "nika.jsonl",
-  "ground_truth.json",
-  "submission.json",
-  "eval_metrics.json",
-  "llm_judge.json",
-  "annotations.json",
+const TRACE_SOURCE_OPTIONS: readonly [TraceSource | null, string][] = [
+  [null, "All"],
+  ["agent", "Agent"],
+  ["nika", "NIKA"],
 ];
 
 /** Single-key shortcuts must not fire while the user types in a field. */
@@ -367,7 +370,6 @@ const DEFAULT_COLUMNS: SessionSortKey[] = [
 ];
 
 const COLUMNS_KEY = "nika-inspect-columns";
-const SAVED_VIEWS_KEY = "nika-inspect-saved-views";
 
 function loadColumns(): SessionSortKey[] {
   try {
@@ -386,41 +388,6 @@ function loadColumns(): SessionSortKey[] {
 function saveColumns(columns: SessionSortKey[]) {
   try {
     localStorage.setItem(COLUMNS_KEY, JSON.stringify(columns));
-  } catch {
-    /* ignore quota / private mode */
-  }
-}
-
-type SavedView = {
-  name: string;
-  status: string;
-  trial: string;
-  scenario: string;
-  problem: string;
-  topoSize: string;
-  agent: string;
-  model: string;
-  tag: string;
-  numeric: Record<string, string>;
-  columns: SessionSortKey[];
-  sortKey: SessionSortKey | null;
-  sortDir: "asc" | "desc";
-};
-
-function loadSavedViews(): SavedView[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(SAVED_VIEWS_KEY) || "[]");
-    return Array.isArray(raw)
-      ? raw.filter((v): v is SavedView => typeof v?.name === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function storeSavedViews(views: SavedView[]) {
-  try {
-    localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
   } catch {
     /* ignore quota / private mode */
   }
@@ -548,31 +515,113 @@ function enumFilters(cf: SessionColumnFilters): Partial<Record<SessionSortKey, E
   };
 }
 
+/**
+ * Column chooser. Opens from a right-click on the table header (like Finder /
+ * Explorer) or the ``⋯`` button that ends the header row (like data grids).
+ */
+function ColumnMenu({
+  at,
+  columns,
+  onToggle,
+  onClose,
+}: {
+  at: { x: number; y: number };
+  columns: SessionSortKey[];
+  onToggle: (id: SessionSortKey) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState(at);
+  useLayoutEffect(() => {
+    // Keep the menu on screen near the right / bottom edge.
+    const el = ref.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    setPos({
+      x: Math.max(8, Math.min(at.x, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(at.y, window.innerHeight - height - 8)),
+    });
+  }, [at]);
+  useEffect(() => {
+    const onPointer = (e: PointerEvent) => {
+      const target = e.target as Element;
+      // The ``⋯`` button toggles the menu itself.
+      if (target.closest?.(".col-menu-btn")) return;
+      if (!ref.current?.contains(target)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onClose);
+    window.addEventListener("scroll", onClose, true);
+    return () => {
+      window.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onClose);
+      window.removeEventListener("scroll", onClose, true);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="col-menu"
+      role="menu"
+      aria-label="Columns"
+      style={{ left: pos.x, top: pos.y }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className="col-menu-title">Columns</div>
+      {SESSION_COLUMNS.map((col) => {
+        const checked = columns.includes(col.id);
+        return (
+          <label key={col.id} role="menuitemcheckbox" aria-checked={checked}>
+            <input
+              type="checkbox"
+              checked={checked}
+              // At least one column stays visible.
+              disabled={checked && columns.length === 1}
+              onChange={() => onToggle(col.id)}
+            />
+            {col.label}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 function SessionsTable({
   sessions,
   columns,
   sortKey,
   sortDir,
   onSort,
-  contentHits,
   onOpen,
   onDelete,
   showTrial,
   columnFilters,
+  onToggleColumn,
 }: {
   sessions: SessionSummary[];
   columns: SessionSortKey[];
   sortKey: SessionSortKey;
   sortDir: "asc" | "desc";
   onSort: (key: SessionSortKey) => void;
-  /** Trajectory search hit counts by session key, while a search is active. */
-  contentHits?: Record<string, number>;
   onOpen: (id: string) => void;
   onDelete?: (session: SessionSummary) => void | Promise<void>;
   showTrial?: boolean;
   columnFilters?: SessionColumnFilters;
+  onToggleColumn?: (id: SessionSortKey) => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [columnMenuAt, setColumnMenuAt] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const closeColumnMenu = useCallback(() => setColumnMenuAt(null), []);
+  const hasEndColumn = Boolean(onDelete || onToggleColumn);
   const hasRunning = useMemo(
     () => sessions.some((s) => s.status === "running"),
     [sessions],
@@ -677,16 +726,10 @@ function SessionsTable({
           "—"
         );
       case "failure": {
-        const hits = contentHits?.[sessionOpenId(s)];
         return (
           <>
             <div className="session-title" title={s.session_id}>
               {sessionTitle(s)}
-              {hits ? (
-                <span className="chip hit-chip" title="Trajectory search hits">
-                  {hits} {hits === 1 ? "hit" : "hits"}
-                </span>
-              ) : null}
             </div>
             {s.failure_domain ? (
               <div className="session-sub">{s.failure_domain}</div>
@@ -761,22 +804,48 @@ function SessionsTable({
   return (
     <div className="table-wrap">
       <table className="sessions">
-        <thead>
+        <thead
+          onContextMenu={(e) => {
+            if (!onToggleColumn) return;
+            e.preventDefault();
+            setColumnMenuAt({ x: e.clientX, y: e.clientY });
+          }}
+        >
           <tr className="th-sort-row">
             {shown.map((col) => sortTh(col.id, col.label))}
-            {onDelete ? <th className="th-actions">Actions</th> : null}
+            {hasEndColumn ? (
+              <th className="th-actions">
+                {onToggleColumn ? (
+                  <button
+                    type="button"
+                    className="col-menu-btn"
+                    title="Choose columns (or right-click a header)"
+                    aria-label="Choose columns"
+                    aria-haspopup="menu"
+                    onClick={(e) => {
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setColumnMenuAt((open) =>
+                        open ? null : { x: r.right - 200, y: r.bottom + 4 },
+                      );
+                    }}
+                  >
+                    ⋯
+                  </button>
+                ) : null}
+              </th>
+            ) : null}
           </tr>
           {columnFilters ? (
             <tr className="th-filter-row">
               {shown.map(filterCell)}
-              {onDelete ? <th className="th-filter-cell" /> : null}
+              {hasEndColumn ? <th className="th-filter-cell" /> : null}
             </tr>
           ) : null}
         </thead>
         <tbody>
           {sorted.length === 0 && (
             <tr className="sessions-empty-row">
-              <td colSpan={shown.length + (onDelete ? 1 : 0)}>
+              <td colSpan={shown.length + (hasEndColumn ? 1 : 0)}>
                 No sessions match the column filters
               </td>
             </tr>
@@ -814,12 +883,22 @@ function SessionsTable({
                       {busy ? "…" : "Delete"}
                     </button>
                   </td>
+                ) : hasEndColumn ? (
+                  <td className="td-actions" />
                 ) : null}
               </tr>
             );
           })}
         </tbody>
       </table>
+      {columnMenuAt && onToggleColumn && (
+        <ColumnMenu
+          at={columnMenuAt}
+          columns={columns}
+          onToggle={onToggleColumn}
+          onClose={closeColumnMenu}
+        />
+      )}
     </div>
   );
 }
@@ -1706,7 +1785,7 @@ function ViewShell({
   sessionId: string | null;
   sessionNav: SessionNav;
   root: string;
-  onOpenSession: (id: string, find?: string) => void;
+  onOpenSession: (id: string) => void;
   onClearSession: () => void;
   onSessionNavChange: (nav: SessionNav) => void;
 }) {
@@ -1733,15 +1812,10 @@ function ViewShell({
   const [tag, setTag] = useState("");
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
-  const [content, setContent] = useState("");
-  const [debouncedContent, setDebouncedContent] = useState("");
-  const [contentHits, setContentHits] = useState<Record<string, number>>({});
   const [numericFilters, setNumericFilters] = useState<Record<string, string>>({});
   const [columns, setColumns] = useState<SessionSortKey[]>(loadColumns);
   const [sortKey, setSortKey] = useState<SessionSortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [savedViews, setSavedViews] = useState<SavedView[]>(loadSavedViews);
-  const [activeView, setActiveView] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   /** Bumped on delete so an in-flight poll cannot bring the row back. */
@@ -1793,11 +1867,6 @@ function ViewShell({
     return () => window.clearTimeout(id);
   }, [q]);
 
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebouncedContent(content.trim()), 400);
-    return () => window.clearTimeout(id);
-  }, [content]);
-
   // A different results root is a different list: show loading once.
   useEffect(() => {
     setLoading(true);
@@ -1816,14 +1885,12 @@ function ViewShell({
     if (trial) params.set("trial_index", trial);
     if (tag) params.set("tag", tag);
     if (debouncedQ.trim()) params.set("q", debouncedQ.trim());
-    if (debouncedContent) params.set("content", debouncedContent);
     const load = (background: boolean) => {
       const gen = listGenRef.current;
       fetchSessions(params, root)
         .then((data) => {
           if (cancelled || gen !== listGenRef.current) return;
           setSessions(data.sessions);
-          setContentHits(data.content_hits ?? {});
           if (data.facets) setFacets(data.facets);
           setResultsRoot(data.results_root);
           setError(null);
@@ -1836,11 +1903,9 @@ function ViewShell({
         });
     };
     load(false);
-    // Trajectory search scans every log, so it runs once per query, not per poll.
-    const poll =
-      viewingSession || debouncedContent
-        ? undefined
-        : window.setInterval(() => load(true), 3000);
+    const poll = viewingSession
+      ? undefined
+      : window.setInterval(() => load(true), 3000);
     return () => {
       cancelled = true;
       window.clearInterval(poll);
@@ -1856,7 +1921,6 @@ function ViewShell({
     topoSize,
     tag,
     debouncedQ,
-    debouncedContent,
     viewingSession,
   ]);
 
@@ -2013,56 +2077,6 @@ function ViewShell({
     status !== "all" ||
     Boolean(trial || scenario || problem || topoSize || agent || model || tag) ||
     Object.keys(numericFilters).length > 0;
-
-  const currentView = (name: string): SavedView => ({
-    name,
-    status,
-    trial,
-    scenario,
-    problem,
-    topoSize,
-    agent,
-    model,
-    tag,
-    numeric: numericFilters,
-    columns,
-    sortKey,
-    sortDir,
-  });
-
-  const applyView = (view: SavedView) => {
-    setStatus(view.status);
-    setTrial(view.trial);
-    setScenario(view.scenario);
-    setProblem(view.problem);
-    setTopoSize(view.topoSize);
-    setAgent(view.agent);
-    setModel(view.model);
-    setTag(view.tag);
-    setNumericFilters(view.numeric);
-    setColumns(view.columns);
-    saveColumns(view.columns);
-    setSortKey(view.sortKey);
-    setSortDir(view.sortKey ? view.sortDir : "desc");
-  };
-
-  const saveCurrentView = () => {
-    const name = window.prompt("Save the current filters, columns, and sort as:", activeView)?.trim();
-    if (!name) return;
-    const next = [...savedViews.filter((v) => v.name !== name), currentView(name)];
-    next.sort((a, b) => a.name.localeCompare(b.name));
-    setSavedViews(next);
-    storeSavedViews(next);
-    setActiveView(name);
-  };
-
-  const deleteActiveView = () => {
-    if (!activeView) return;
-    const next = savedViews.filter((v) => v.name !== activeView);
-    setSavedViews(next);
-    storeSavedViews(next);
-    setActiveView("");
-  };
 
   const toggleColumn = (id: SessionSortKey) => {
     setColumns((prev) => {
@@ -2232,59 +2246,10 @@ function ViewShell({
                 className="home-search"
                 type="search"
                 placeholder="Search sessions…"
+                title="Match session id, scenario, agent, model, fault, case, benchmark, and tags"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
-              <input
-                className="home-search"
-                type="search"
-                placeholder="Search trajectories…"
-                title="Full-text search over agent messages, tool calls, and NIKA events"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
-            </div>
-            <div className="home-view-bar">
-              <details className="col-picker">
-                <summary>Columns</summary>
-                <div className="col-picker-menu">
-                  {SESSION_COLUMNS.map((col) => (
-                    <label key={col.id}>
-                      <input
-                        type="checkbox"
-                        checked={columns.includes(col.id)}
-                        onChange={() => toggleColumn(col.id)}
-                      />
-                      {col.label}
-                    </label>
-                  ))}
-                </div>
-              </details>
-              <select
-                className="view-select"
-                aria-label="Saved views"
-                value={activeView}
-                onChange={(e) => {
-                  const view = savedViews.find((v) => v.name === e.target.value);
-                  setActiveView(e.target.value);
-                  if (view) applyView(view);
-                }}
-              >
-                <option value="">Views…</option>
-                {savedViews.map((v) => (
-                  <option key={v.name} value={v.name}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="view-btn" onClick={saveCurrentView}>
-                Save view
-              </button>
-              {activeView && (
-                <button type="button" className="view-btn" onClick={deleteActiveView}>
-                  Delete view
-                </button>
-              )}
             </div>
             {loading ? (
               <div className="empty">Loading sessions…</div>
@@ -2300,11 +2265,11 @@ function ViewShell({
               <SessionsTable
                 sessions={tableSessions}
                 columns={columns}
+                onToggleColumn={toggleColumn}
                 sortKey={sortKey ?? defaultSortKey}
                 sortDir={sortDir}
                 onSort={onSort}
-                contentHits={debouncedContent ? contentHits : undefined}
-                onOpen={(id) => onOpenSession(id, debouncedContent || undefined)}
+                onOpen={onOpenSession}
                 onDelete={async (s) => {
                   const id = sessionOpenId(s);
                   try {
@@ -3206,14 +3171,12 @@ function Ledger({
   rows,
   selectedId,
   matchedIds,
-  commentCounts,
   onSelect,
 }: {
   rows: DisplayEvent[];
   selectedId: string | null;
   /** Rows hit by the trajectory find box. */
   matchedIds: Set<string>;
-  commentCounts: Map<string, number>;
   onSelect: (row: DisplayEvent) => void;
 }) {
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -3275,14 +3238,6 @@ function Ledger({
                   <span className="name-label" title={nameBadgeLabel(row)}>
                     {nameBadgeLabel(row)}
                   </span>
-                  {commentCounts.has(row.id) && (
-                    <span
-                      className="comment-mark"
-                      title={`${commentCounts.get(row.id)} comment(s)`}
-                    >
-                      ✎{commentCounts.get(row.id)}
-                    </span>
-                  )}
                 </td>
                 <td className="time-cell">{formatTs(row.timestamp)}</td>
                 <td className="dur-cell">
@@ -3327,8 +3282,48 @@ function clipDisplayString(text: string, limit = DISPLAY_STR_LIMIT): string {
   return `${text.slice(0, limit)}… [${text.length} chars total]`;
 }
 
+/** Marker left by the API (``_slim_raw``) or ``clipDisplayString`` on cut text. */
+const CLIP_MARKER = /… \[(?:\d+ chars total|\d+ more items|nested value)\]/;
+
+/**
+ * ``Show more`` for clipped values. ``full`` lifts the display caps;
+ * ``showMore`` also fetches untruncated events where the API cut them.
+ */
+interface ShowMoreState {
+  full: boolean;
+  loading: boolean;
+  error: string | null;
+  showMore: () => void;
+}
+
+const ShowMoreContext = createContext<ShowMoreState | null>(null);
+
+function ShowMoreButton({ text }: { text: string }) {
+  const ctx = useContext(ShowMoreContext);
+  if (!ctx || !CLIP_MARKER.test(text)) return null;
+  if (ctx.full && !ctx.error) return null;
+  return (
+    <div className="show-more">
+      <button type="button" disabled={ctx.loading} onClick={ctx.showMore}>
+        {ctx.loading ? "Loading…" : "Show more"}
+      </button>
+      {ctx.error && <span className="show-more-error">{ctx.error}</span>}
+    </div>
+  );
+}
+
+/** Local ``Show more`` for values that are already complete client-side. */
+function useLocalShowMore(resetKey: unknown): ShowMoreState {
+  const [full, setFull] = useState(false);
+  useEffect(() => setFull(false), [resetKey]);
+  return useMemo(
+    () => ({ full, loading: false, error: null, showMore: () => setFull(true) }),
+    [full],
+  );
+}
+
 /** Unwrap LangChain tool blobs and nested JSON into a display value. */
-function normalizeDisplayValue(value: unknown, depth = 0): unknown {
+function normalizeDisplayValue(value: unknown, depth = 0, full = false): unknown {
   if (value == null || depth > 6) return value;
 
   if (typeof value === "object") {
@@ -3340,13 +3335,12 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
         !Array.isArray(value[0]) &&
         typeof (value[0] as { text?: unknown }).text === "string"
       ) {
-        return normalizeDisplayValue((value[0] as { text: string }).text, depth + 1);
+        return normalizeDisplayValue((value[0] as { text: string }).text, depth + 1, full);
       }
-      const items = value.length > DISPLAY_ARRAY_LIMIT
-        ? value.slice(0, DISPLAY_ARRAY_LIMIT)
-        : value;
-      const mapped = items.map((item) => normalizeDisplayValue(item, depth + 1));
-      if (value.length > DISPLAY_ARRAY_LIMIT) {
+      const clip = !full && value.length > DISPLAY_ARRAY_LIMIT;
+      const items = clip ? value.slice(0, DISPLAY_ARRAY_LIMIT) : value;
+      const mapped = items.map((item) => normalizeDisplayValue(item, depth + 1, full));
+      if (clip) {
         mapped.push(`… [${value.length - DISPLAY_ARRAY_LIMIT} more items]`);
       }
       return mapped;
@@ -3354,11 +3348,11 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
     const obj = value as Record<string, unknown>;
     if (typeof obj.content === "string" || Array.isArray(obj.content)) {
       const parsed = parseLlmMessageContent(obj);
-      if (parsed.text.trim()) return normalizeDisplayValue(parsed.text, depth + 1);
+      if (parsed.text.trim()) return normalizeDisplayValue(parsed.text, depth + 1, full);
     }
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
-      out[k] = normalizeDisplayValue(v, depth + 1);
+      out[k] = normalizeDisplayValue(v, depth + 1, full);
     }
     return out;
   }
@@ -3366,7 +3360,7 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
   if (typeof value !== "string") return value;
   // Do not JSON-unwrap multi-MB provider error dumps that embed full transcripts.
   if (value.length > DISPLAY_STR_LIMIT) {
-    return clipDisplayString(value);
+    return full ? value : clipDisplayString(value);
   }
   const trimmed = value.trim();
   if (!trimmed) return value;
@@ -3374,13 +3368,13 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
   if (trimmed.startsWith("content=")) {
     const parsed = parseLlmMessageContent(trimmed);
     if (parsed.text.trim() && parsed.text.trim() !== trimmed) {
-      return normalizeDisplayValue(parsed.text, depth + 1);
+      return normalizeDisplayValue(parsed.text, depth + 1, full);
     }
   }
 
   const asJson = tryParseJsonish(trimmed);
   if (asJson !== undefined) {
-    return normalizeDisplayValue(asJson, depth + 1);
+    return normalizeDisplayValue(asJson, depth + 1, full);
   }
 
   // Logged strings often keep literal \n sequences.
@@ -3391,24 +3385,25 @@ function normalizeDisplayValue(value: unknown, depth = 0): unknown {
 }
 
 /** Pretty-print objects, JSON strings, and simple Python dict/list literals. */
-function formatPretty(value: unknown): string {
-  return formatNormalized(normalizeDisplayValue(value));
+function formatPretty(value: unknown, full = false): string {
+  return formatNormalized(normalizeDisplayValue(value, 0, full), full);
 }
 
 /** Format an already-normalized value (normalizing twice re-clips the text). */
-function formatNormalized(normalized: unknown): string {
+function formatNormalized(normalized: unknown, full = false): string {
   if (normalized === null || normalized === undefined) return "—";
   if (typeof normalized === "number" || typeof normalized === "boolean") {
     return String(normalized);
   }
+  const limit = full ? Infinity : DISPLAY_PRETTY_LIMIT;
   if (typeof normalized === "string") {
     const text = normalized.trim() ? normalized : "—";
-    return text === "—" ? text : clipDisplayString(text, DISPLAY_PRETTY_LIMIT);
+    return text === "—" ? text : clipDisplayString(text, limit);
   }
   try {
-    return clipDisplayString(JSON.stringify(normalized, null, 2), DISPLAY_PRETTY_LIMIT);
+    return clipDisplayString(JSON.stringify(normalized, null, 2), limit);
   } catch {
-    return clipDisplayString(String(normalized), DISPLAY_PRETTY_LIMIT);
+    return clipDisplayString(String(normalized), limit);
   }
 }
 
@@ -3508,9 +3503,8 @@ function isIdentBoundary(source: string, index: number, len: number): boolean {
 
 function highlightJson(text: string): ReactNode {
   // Regex tokenization on huge blobs freezes the inspector; plain text is enough.
-  if (text.length > DISPLAY_PRETTY_LIMIT) {
-    return clipDisplayString(text, DISPLAY_PRETTY_LIMIT);
-  }
+  // Callers already clipped ``text`` (or asked for it in full).
+  if (text.length > DISPLAY_PRETTY_LIMIT) return text;
   const parts: ReactNode[] = [];
   const re =
     /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(\btrue\b|\bfalse\b|\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],])/g;
@@ -3576,20 +3570,25 @@ function shouldRenderHumanSections(value: unknown): value is Record<string, unkn
 
 /** Payload tab: full event as one pretty-printed JSON block (no field grid). */
 function EventPayloadView({ raw }: { raw: Record<string, unknown> }) {
-  const text = formatPretty(raw);
+  const full = useContext(ShowMoreContext)?.full ?? false;
+  const text = formatPretty(raw, full);
   const trimmed = text.trim();
   const looksJson =
     (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
     (trimmed.startsWith("[") && trimmed.endsWith("]"));
   return (
-    <pre className={`pretty-block${looksJson ? " is-json" : ""}`}>
-      {looksJson ? highlightJson(text) : text}
-    </pre>
+    <>
+      <pre className={`pretty-block${looksJson ? " is-json" : ""}`}>
+        {looksJson ? highlightJson(text) : text}
+      </pre>
+      <ShowMoreButton text={text} />
+    </>
   );
 }
 
 function PrettyValue({ value }: { value: unknown }) {
-  const normalized = normalizeDisplayValue(value);
+  const full = useContext(ShowMoreContext)?.full ?? false;
+  const normalized = normalizeDisplayValue(value, 0, full);
 
   // Results / Parameters may still use section cards for multi-line dumps;
   // Payload tab never goes through this path.
@@ -3608,19 +3607,23 @@ function PrettyValue({ value }: { value: unknown }) {
             </pre>
           </section>
         ))}
+        <ShowMoreButton text={JSON.stringify(normalized)} />
       </div>
     );
   }
 
-  const text = formatNormalized(normalized);
+  const text = formatNormalized(normalized, full);
   const trimmed = text.trim();
   const looksJson =
     (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
     (trimmed.startsWith("[") && trimmed.endsWith("]"));
   return (
-    <pre className={`pretty-block${looksJson ? " is-json" : ""}`}>
-      {looksJson ? highlightJson(text) : text}
-    </pre>
+    <>
+      <pre className={`pretty-block${looksJson ? " is-json" : ""}`}>
+        {looksJson ? highlightJson(text) : text}
+      </pre>
+      <ShowMoreButton text={text} />
+    </>
   );
 }
 
@@ -3756,7 +3759,10 @@ function LlmTurnPreview({
           {turn.model && <span className="llm-section-meta">{turn.model}</span>}
         </header>
         {turn.input.trim() ? (
-          <pre className="llm-block">{turn.input}</pre>
+          <>
+            <pre className="llm-block">{turn.input}</pre>
+            <ShowMoreButton text={turn.input} />
+          </>
         ) : (
           <div className="llm-empty">No input message recorded for this call.</div>
         )}
@@ -3768,6 +3774,7 @@ function LlmTurnPreview({
             <h3>Thinking</h3>
           </header>
           <pre className="llm-block thinking">{turn.thinking}</pre>
+          <ShowMoreButton text={turn.thinking} />
         </section>
       ) : null}
 
@@ -3789,7 +3796,10 @@ function LlmTurnPreview({
           </div>
         )}
         {turn.outputText.trim() ? (
-          <pre className="llm-block">{turn.outputText}</pre>
+          <>
+            <pre className="llm-block">{turn.outputText}</pre>
+            <ShowMoreButton text={turn.outputText} />
+          </>
         ) : null}
         {turn.tools.length > 0 && (
           <div className="llm-tools">
@@ -3886,90 +3896,40 @@ function TagEditor({
   );
 }
 
-function CommentsPanel({
-  comments,
-  readOnly,
-  onAdd,
-  onDelete,
-}: {
-  comments: AnnotationComment[];
-  readOnly: boolean;
-  onAdd: (text: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const submit = () => {
-    const text = draft.trim();
-    if (!text) return;
-    onAdd(text);
-    setDraft("");
+/** Swap in untruncated copies of a row's events once ``Show more`` loaded them. */
+function withFullEvents(
+  row: DisplayEvent,
+  full: Map<string, CanonicalTraceEvent>,
+): DisplayEvent {
+  if (!full.size) return row;
+  const pick = (ev: CanonicalTraceEvent) => full.get(ev.id) ?? ev;
+  return {
+    ...row,
+    start: pick(row.start),
+    end: row.end ? pick(row.end) : row.end,
+    interiors: row.interiors?.map(pick),
   };
-  return (
-    <section className="inspector-comments">
-      <div className="inspector-pane-label">Comments ({comments.length})</div>
-      {comments.map((c) => (
-        <div key={c.id} className="comment">
-          <div className="comment-text">{c.text}</div>
-          <div className="comment-meta">
-            {c.created_at ? formatTs(c.created_at) : ""}
-            {!readOnly && (
-              <button type="button" className="comment-delete" onClick={() => onDelete(c.id)}>
-                Delete
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
-      {readOnly ? (
-        comments.length === 0 && (
-          <div className="comment-meta">Comments are read-only while the session runs.</div>
-        )
-      ) : (
-        <div className="comment-form">
-          <textarea
-            rows={2}
-            placeholder="Add a review note for this event (Ctrl+Enter)"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-          />
-          <button type="button" disabled={!draft.trim()} onClick={submit}>
-            Add
-          </button>
-        </div>
-      )}
-    </section>
-  );
 }
 
 function Inspector({
-  row,
+  sessionId,
+  root,
+  row: baseRow,
   rows,
   sessionModel,
   onClose,
   onOpenEvent,
-  comments,
-  commentsReadOnly,
-  onAddComment,
-  onDeleteComment,
 }: {
+  sessionId: string;
+  root: string;
   row: DisplayEvent | null;
   rows: DisplayEvent[];
   sessionModel?: string | null;
   onClose: () => void;
   onOpenEvent: (id: string) => void;
-  comments: AnnotationComment[];
-  commentsReadOnly: boolean;
-  onAddComment: (text: string) => void;
-  onDeleteComment: (id: string) => void;
 }) {
-  const role: Role | null = row?.role ?? null;
-  const isTool = row ? isToolDisplay(row) : false;
+  const role: Role | null = baseRow?.role ?? null;
+  const isTool = baseRow ? isToolDisplay(baseRow) : false;
   const isAssistant = role === "assistant";
   const tabs = isTool
     ? (["call", "overview", "raw"] as const)
@@ -3978,11 +3938,65 @@ function Inspector({
       : (["overview", "payload", "raw"] as const);
   const defaultTab = isAssistant ? "messages" : isTool ? "call" : "overview";
   const [tab, setTab] = useState<string>(defaultTab);
-  const nowMs = useNow(row ? isRunningSpan(row) : false);
+  const nowMs = useNow(baseRow ? isRunningSpan(baseRow) : false);
 
   useEffect(() => {
     setTab(defaultTab);
-  }, [row?.id, defaultTab]);
+  }, [baseRow?.id, defaultTab]);
+
+  const [fullEvents, setFullEvents] = useState<Map<string, CanonicalTraceEvent>>(
+    () => new Map(),
+  );
+  const [showFull, setShowFull] = useState(false);
+  const [loadingFull, setLoadingFull] = useState(false);
+  const [fullError, setFullError] = useState<string | null>(null);
+  const currentRowId = useRef(baseRow?.id);
+  useEffect(() => {
+    currentRowId.current = baseRow?.id;
+    setFullEvents(new Map());
+    setShowFull(false);
+    setLoadingFull(false);
+    setFullError(null);
+  }, [baseRow?.id]);
+
+  const showMore = useCallback(() => {
+    if (!baseRow) return;
+    const rowId = baseRow.id;
+    const pending = [baseRow.start, ...(baseRow.interiors ?? []), baseRow.end]
+      .filter((ev): ev is CanonicalTraceEvent => Boolean(ev?.truncated))
+      .filter((ev) => !fullEvents.has(ev.id));
+    if (!pending.length) {
+      setShowFull(true);
+      return;
+    }
+    setLoadingFull(true);
+    setFullError(null);
+    Promise.all(pending.map((ev) => fetchEvent(sessionId, ev.id, root)))
+      .then((loaded) => {
+        if (currentRowId.current !== rowId) return;
+        setFullEvents((prev) => {
+          const next = new Map(prev);
+          for (const ev of loaded) next.set(ev.id, ev);
+          return next;
+        });
+        setShowFull(true);
+      })
+      .catch((err: Error) => {
+        if (currentRowId.current === rowId) setFullError(err.message);
+      })
+      .finally(() => {
+        if (currentRowId.current === rowId) setLoadingFull(false);
+      });
+  }, [baseRow, fullEvents, sessionId, root]);
+
+  const showMoreState = useMemo<ShowMoreState>(
+    () => ({ full: showFull, loading: loadingFull, error: fullError, showMore }),
+    [showFull, loadingFull, fullError, showMore],
+  );
+  const row = useMemo(
+    () => (baseRow ? withFullEvents(baseRow, fullEvents) : null),
+    [baseRow, fullEvents],
+  );
 
   if (!row || !role) {
     return null;
@@ -4074,6 +4088,7 @@ function Inspector({
         ))}
       </div>
 
+      <ShowMoreContext.Provider value={showMoreState}>
       <div className="inspector-body">
         {tab === "overview" && (
           <dl className="kv">
@@ -4203,12 +4218,7 @@ function Inspector({
           />
         )}
       </div>
-      <CommentsPanel
-        comments={comments}
-        readOnly={commentsReadOnly}
-        onAdd={onAddComment}
-        onDelete={onDeleteComment}
-      />
+      </ShowMoreContext.Provider>
     </div>
   );
 }
@@ -4658,6 +4668,146 @@ function SessionOverviewPanel({ detail }: { detail: SessionDetail | null }) {
   );
 }
 
+const RAW_LINES_PAGE = 200;
+
+/** Short label fields for one JSONL record header. */
+function rawLineHeader(line: unknown): { ts: string; kind: string; preview: string } {
+  const rec = asRecord(line);
+  if (!rec) return { ts: "", kind: "", preview: String(line ?? "") };
+  const nested = asRecord(rec.codex_event) ?? asRecord(rec.claude_event);
+  const kind = [rec.event, rec.type, nested?.type, rec.level].find(
+    (v): v is string => typeof v === "string" && v.trim() !== "",
+  );
+  const item = asRecord(nested?.item);
+  const preview = [
+    rec.message,
+    rec.text,
+    rec.summary,
+    rec.error,
+    item?.text,
+    item?.tool,
+    rec._raw,
+  ].find((v): v is string => typeof v === "string" && v.trim() !== "");
+  return {
+    ts: typeof rec.timestamp === "string" ? formatTs(rec.timestamp) : "",
+    kind: kind ?? "",
+    preview: (preview ?? "").replace(/\s+/g, " ").slice(0, 200),
+  };
+}
+
+function RawJsonlLine({
+  index,
+  line,
+  open,
+  onToggle,
+}: {
+  index: number;
+  line: unknown;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const header = useMemo(() => rawLineHeader(line), [line]);
+  const showMore = useLocalShowMore(line);
+  return (
+    <div className={`raw-line${open ? " open" : ""}`}>
+      <button type="button" className="raw-line-head" onClick={onToggle}>
+        <span className="raw-line-caret" aria-hidden>
+          {open ? "▾" : "▸"}
+        </span>
+        <span className="raw-line-no">{index + 1}</span>
+        {header.ts && <span className="raw-line-ts">{header.ts}</span>}
+        {header.kind && <span className="raw-line-kind">{header.kind}</span>}
+        <span className="raw-line-preview">{header.preview}</span>
+      </button>
+      {open && (
+        <div className="raw-line-body">
+          <ShowMoreContext.Provider value={showMore}>
+            <PrettyValue value={line} />
+          </ShowMoreContext.Provider>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** JSONL artifacts: one collapsible record per line instead of one huge array. */
+function RawJsonlView({ lines }: { lines: unknown[] }) {
+  const [query, setQuery] = useState("");
+  const [limit, setLimit] = useState(RAW_LINES_PAGE);
+  const [openLines, setOpenLines] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    setLimit(RAW_LINES_PAGE);
+    setOpenLines(new Set());
+  }, [lines]);
+  useEffect(() => setLimit(RAW_LINES_PAGE), [query]);
+
+  const searchable = useMemo(
+    () => lines.map((line) => JSON.stringify(line).toLowerCase()),
+    [lines],
+  );
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const all = lines.map((_, i) => i);
+    return q ? all.filter((i) => searchable[i]!.includes(q)) : all;
+  }, [lines, searchable, query]);
+  const shown = matches.slice(0, limit);
+
+  const toggle = (i: number) =>
+    setOpenLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+
+  return (
+    <div className="raw-jsonl">
+      <div className="raw-jsonl-bar">
+        <input
+          type="search"
+          placeholder="Filter lines"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <span className="raw-jsonl-count">
+          {matches.length === lines.length
+            ? `${lines.length} lines`
+            : `${matches.length} of ${lines.length} lines`}
+        </span>
+        <button type="button" onClick={() => setOpenLines(new Set(shown))}>
+          Expand shown
+        </button>
+        <button type="button" onClick={() => setOpenLines(new Set())}>
+          Collapse all
+        </button>
+      </div>
+      {shown.map((i) => (
+        <RawJsonlLine
+          key={i}
+          index={i}
+          line={lines[i]}
+          open={openLines.has(i)}
+          onToggle={() => toggle(i)}
+        />
+      ))}
+      {matches.length > shown.length && (
+        <div className="show-more">
+          <button type="button" onClick={() => setLimit((n) => n + RAW_LINES_PAGE)}>
+            Show {Math.min(RAW_LINES_PAGE, matches.length - shown.length)} more lines (
+            {matches.length - shown.length} left)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function RawPanel({
   sessionId,
   root,
@@ -4665,16 +4815,45 @@ function RawPanel({
   sessionId: string;
   root: string;
 }) {
-  const [filename, setFilename] = useState("run.json");
+  const [files, setFiles] = useState<RawArtifact[] | null>(null);
+  const [filename, setFilename] = useState<string | null>(null);
   const [data, setData] = useState<unknown>(null);
+  const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const showMore = useLocalShowMore(`${sessionId}/${filename}`);
 
   useEffect(() => {
     let cancelled = false;
+    fetchRawFiles(sessionId, root)
+      .then((res) => {
+        if (cancelled) return;
+        setFiles(res.files);
+        setFilename((prev) =>
+          prev && res.files.some((f) => f.name === prev)
+            ? prev
+            : (res.files[0]?.name ?? null),
+        );
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, root]);
+
+  useEffect(() => {
+    if (!filename) return;
+    let cancelled = false;
+    // Drop the previous file so it never shows under the new name.
+    setData(null);
+    setTruncated(false);
+    setError(null);
     fetchRaw(sessionId, filename, root)
       .then((res) => {
         if (!cancelled) {
           setData(res.data);
+          setTruncated(res.truncated);
           setError(null);
         }
       })
@@ -4692,16 +4871,35 @@ function RawPanel({
   return (
     <div className="raw">
       <div className="raw-bar">
-        <select value={filename} onChange={(e) => setFilename(e.target.value)}>
-          {RAW_FILES.map((f) => (
-            <option key={f} value={f}>
-              {f}
+        <select
+          value={filename ?? ""}
+          disabled={!files?.length}
+          onChange={(e) => setFilename(e.target.value)}
+        >
+          {(files ?? []).map((f) => (
+            <option key={f.name} value={f.name}>
+              {f.name} ({formatFileSize(f.size)})
             </option>
           ))}
         </select>
+        {truncated && (
+          <span className="raw-truncated">
+            Showing the first part of a large file; open it on disk for the rest.
+          </span>
+        )}
       </div>
       {error && <div className="empty">{error}</div>}
-      {!error && <PrettyValue value={data} />}
+      {!error && files?.length === 0 && (
+        <div className="empty">No viewable files in this session.</div>
+      )}
+      {!error && filename?.endsWith(".jsonl") && Array.isArray(data) && (
+        <RawJsonlView lines={data} />
+      )}
+      {!error && filename && !(filename.endsWith(".jsonl") && Array.isArray(data)) && (
+        <ShowMoreContext.Provider value={showMore}>
+          <PrettyValue value={data} />
+        </ShowMoreContext.Provider>
+      )}
     </div>
   );
 }
@@ -4723,8 +4921,13 @@ function SessionView({
   onBack: () => void;
 }) {
   const [tab, setTab] = useState<Tab>(initialNav.tab ?? "timeline");
+  const [source, setSource] = useState<TraceSource | null>(initialNav.source);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
-  const [events, setEvents] = useState<CanonicalTraceEvent[]>([]);
+  const [allEvents, setEvents] = useState<CanonicalTraceEvent[]>([]);
+  const events = useMemo(
+    () => (source ? allEvents.filter((ev) => ev.source === source) : allEvents),
+    [allEvents, source],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(initialNav.event);
   const [brush, setBrush] = useState<TimeBrush | null>(null);
   const [scores, setScores] = useState<ScoresResponse | null>(null);
@@ -4740,11 +4943,11 @@ function SessionView({
   const autoJumpedForRef = useRef<string | null>(null);
   // A failed session load blocks every tab; tab fetch errors stay per tab.
   const shownError = detailError ?? error;
-  const isTraceTab = tab === "timeline" || tab === "agent" || tab === "nika";
+  const isTraceTab = tab === "timeline";
 
   useEffect(() => {
-    onNavChange({ tab, event: selectedId, find: find.trim() || null });
-  }, [tab, selectedId, find, onNavChange]);
+    onNavChange({ tab, source, event: selectedId, find: find.trim() || null });
+  }, [tab, source, selectedId, find, onNavChange]);
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedFind(find.trim()), 250);
@@ -4768,7 +4971,7 @@ function SessionView({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, root, debouncedFind, events.length]);
+  }, [sessionId, root, debouncedFind, allEvents.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4777,7 +4980,7 @@ function SessionView({
         if (!cancelled) setAnnotations(data);
       })
       .catch(() => {
-        if (!cancelled) setAnnotations({ tags: [], comments: [] });
+        if (!cancelled) setAnnotations({ tags: [] });
       });
     return () => {
       cancelled = true;
@@ -4792,13 +4995,6 @@ function SessionView({
       window.alert(err instanceof Error ? err.message : String(err));
     }
   };
-  const commentCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of annotations?.comments ?? []) {
-      counts.set(c.event_id, (counts.get(c.event_id) ?? 0) + 1);
-    }
-    return counts;
-  }, [annotations]);
 
   // Until the session detail loads, assume live so open spans keep ticking.
   const sessionLive = detail == null || detail.status === "running";
@@ -4949,19 +5145,12 @@ function SessionView({
   }, [tab]);
 
   useEffect(() => {
-    if (tab === "overview" || tab === "scores" || tab === "raw") return;
+    if (!isTraceTab) return;
     let cancelled = false;
-    const source =
-      tab === "agent" ? "agent" : tab === "nika" ? "nika" : "merged";
-    fetchTimeline(sessionId, source, root)
+    fetchTimeline(sessionId, "merged", root)
       .then((data) => {
         if (cancelled) return;
         setEvents(data.events);
-        const collapsed = collapsePairedEvents(data.events);
-        setSelectedId((prev) => {
-          if (prev && collapsed.some((r) => r.id === prev)) return prev;
-          return null;
-        });
         setError(null);
       })
       .catch((err: Error) => {
@@ -4970,15 +5159,13 @@ function SessionView({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, tab, root]);
+  }, [sessionId, isTraceTab, root]);
 
   useEffect(() => {
-    if (tab === "overview" || tab === "scores" || tab === "raw") return;
-    const source =
-      tab === "agent" ? "agent" : tab === "nika" ? "nika" : "merged";
+    if (!isTraceTab) return;
     let cancelled = false;
     const tick = () =>
-      fetchTimeline(sessionId, source, root)
+      fetchTimeline(sessionId, "merged", root)
         .then((data) => {
           if (cancelled) return;
           // Logs are append-only: same length means nothing new to lay out.
@@ -5001,7 +5188,7 @@ function SessionView({
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [sessionId, tab, detail?.status, root]);
+  }, [sessionId, isTraceTab, detail?.status, root]);
 
   useEffect(() => {
     if (tab !== "scores") return;
@@ -5075,6 +5262,19 @@ function SessionView({
         )}
         {isTraceTab && (
           <div className="stat-row">
+            <span className="source-filter" role="group" aria-label="Event source">
+              {TRACE_SOURCE_OPTIONS.map(([value, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  className={source === value ? "active" : ""}
+                  aria-pressed={source === value}
+                  onClick={() => setSource(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </span>
             <span>{stats.total} events</span>
             <span className="role-nika">{stats.nika} nika</span>
             <span className="role-assistant">{stats.model} agent</span>
@@ -5117,8 +5317,6 @@ function SessionView({
         {(
           [
             ["timeline", "Timeline"],
-            ["agent", "Agent"],
-            ["nika", "NIKA"],
             ["scores", "Scores"],
             ["overview", "Overview"],
             ["raw", "Raw"],
@@ -5137,7 +5335,7 @@ function SessionView({
       {!shownError && tab === "overview" && <SessionOverviewPanel detail={detail} />}
       {!shownError && isTraceTab && (
         <div className="trace-layout">
-          {tab === "timeline" && (
+          {isTraceTab && (
             <OverviewTimeline
               events={events}
               selectedId={selectedId}
@@ -5155,7 +5353,6 @@ function SessionView({
                 rows={visibleRows}
                 selectedId={selectedId}
                 matchedIds={matchedIds}
-                commentCounts={commentCounts}
                 onSelect={(row) =>
                   setSelectedId((prev) => (prev === row.id ? null : row.id))
                 }
@@ -5164,37 +5361,13 @@ function SessionView({
             right={
               selected ? (
                 <Inspector
+                  sessionId={sessionId}
+                  root={root}
                   row={selected}
                   rows={rows}
                   sessionModel={detail?.model}
                   onClose={() => setSelectedId(null)}
                   onOpenEvent={setSelectedId}
-                  comments={(annotations?.comments ?? []).filter(
-                    (c) => c.event_id === selected.id,
-                  )}
-                  commentsReadOnly={annotations == null || annotationsReadOnly}
-                  onAddComment={(text) =>
-                    annotations &&
-                    void persistAnnotations({
-                      ...annotations,
-                      comments: [
-                        ...annotations.comments,
-                        {
-                          id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-                          event_id: selected.id,
-                          text,
-                          created_at: new Date().toISOString(),
-                        },
-                      ],
-                    })
-                  }
-                  onDeleteComment={(id) =>
-                    annotations &&
-                    void persistAnnotations({
-                      ...annotations,
-                      comments: annotations.comments.filter((c) => c.id !== id),
-                    })
-                  }
                 />
               ) : null
             }
@@ -5348,9 +5521,9 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, [applyRoot]);
 
-  const openSession = useCallback((id: string, find?: string) => {
+  const openSession = useCallback((id: string) => {
     pushHistoryRef.current = true;
-    setSessionNav({ ...EMPTY_NAV, find: find || null });
+    setSessionNav(EMPTY_NAV);
     setSessionId(id);
   }, []);
 

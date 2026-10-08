@@ -44,17 +44,21 @@ ssh -L 7580:127.0.0.1:7580 <host>
 
 Success: stderr prints `url: http://127.0.0.1:<port>/` and the browser shows the session list for that results root.
 
-While a session has status `running`, the viewer hides its answer key and scores. Requests for `ground_truth.json`, `eval_metrics.json`, or `llm_judge.json` return `403`, and the scores view shows only the submission. The files appear once the session stops.
+The Raw tab lists the `.json`, `.jsonl`, `.txt`, `.log`, and `.md` files at the top of the session directory, with the standard artifacts first. It does not open subdirectories or symlinks that point outside the session. Files over 16 MB show only their first 16 MB.
 
 ## Review sessions
 
 ### Share a view
 
-The address bar tracks the results root, open session, tab, selected event, and in-session search, for example `/?session=<id>&tab=timeline&event=agent-61&find=traceroute`. Copy the URL to share the exact event, or reload to restore it. Browser back and forward move between the list and sessions.
+The address bar tracks the results root, open session, tab, source filter, selected event, and in-session search, for example `/?session=<id>&source=agent&event=agent-61&find=traceroute`. Copy the URL to share the exact event, or reload to restore it. Browser back and forward move between the list and sessions.
 
 ### Navigate a trajectory
 
-On the Timeline, Agent, and NIKA tabs:
+The Timeline tab shows the agent and NIKA logs merged in time order. **All**, **Agent**, and **NIKA** in the session header narrow it to one source.
+
+Long values in the inspector end with a `… [N chars total]` marker. **Show more** loads the full event from the log.
+
+On the Timeline tab:
 
 | Key | Action |
 |-----|--------|
@@ -67,19 +71,19 @@ Find matches the full agent and NIKA log records, including tool inputs and outp
 
 ### Search across sessions
 
-**Search sessions** filters on summary fields and tags. **Search trajectories** scans each session's `messages.jsonl` and `nika.jsonl`, keeps sessions with hits, and shows the hit count in the Failure cell. Opening a session from those results carries the query into Find. Neither search reads `ground_truth.json` or score files.
+**Search sessions** filters on the session id, scenario, agent, model, fault, case, benchmark fields, and tags. It does not read `ground_truth.json` or score files.
 
-### Choose columns and save views
+### Choose columns
 
-**Columns** toggles table columns, including detection, localization F1, steps, tool calls, token counts, backend, and tags. Score and count columns accept numeric filters such as `>=0.5`, `<10`, or `=0`. A bare number means `=`.
+Right-click the table header, or click **⋯** at the end of the header row, to choose columns, including detection, localization F1, steps, tool calls, token counts, backend, and tags. Score and count columns accept numeric filters such as `>=0.5`, `<10`, or `=0`. A bare number means `=`.
 
-**Save view** stores the current filters, columns, and sort under a name. **Views** restores a saved view. The browser keeps columns and views in `localStorage`, so they stay local to that browser.
+The browser keeps the column choice in `localStorage`, so it stays local to that browser.
 
-### Tag sessions and comment on events
+### Tag sessions
 
-Add free-form tags in the session header and filter the list by them in the Tags column. Select an event to add or delete review comments in the inspector; the timeline marks commented events with `✎`.
+Add free-form tags in the session header and filter the list by them in the Tags column.
 
-The server writes tags and comments to `annotations.json` in the session directory. Edits require a loopback `--host` and a session that has stopped running; otherwise the server refuses the write.
+The server writes tags to `annotations.json` in the session directory. Edits require a loopback `--host` and a session that has stopped running; otherwise the server refuses the write.
 
 ## Change the UI
 

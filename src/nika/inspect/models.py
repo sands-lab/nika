@@ -45,6 +45,8 @@ class CanonicalTraceEvent(BaseModel):
     # Start of the operation that ends at ``timestamp`` (e.g. one LLM block).
     start_timestamp: str | None = None
     raw: dict[str, Any] = Field(default_factory=dict)
+    # ``raw`` had long strings/lists cut; fetch the full event on demand.
+    truncated: bool = False
 
 
 class ArtifactFlags(BaseModel):
@@ -58,18 +60,10 @@ class ArtifactFlags(BaseModel):
     annotations: bool = False
 
 
-class AnnotationComment(BaseModel):
-    id: str
-    event_id: str
-    text: str
-    created_at: str | None = None
-
-
 class Annotations(BaseModel):
     """Human review notes kept beside the session artifacts (``annotations.json``)."""
 
     tags: list[str] = Field(default_factory=list)
-    comments: list[AnnotationComment] = Field(default_factory=list)
 
     @field_validator("tags")
     @classmethod
@@ -188,8 +182,6 @@ class SessionListResponse(BaseModel):
     sessions: list[SessionSummary]
     benchmarks: list[BenchmarkRunSummary] = Field(default_factory=list)
     facets: SessionFacets = Field(default_factory=SessionFacets)
-    # Trajectory search hit counts keyed by ``session_key`` (``content`` query).
-    content_hits: dict[str, int] = Field(default_factory=dict)
     results_root: str
     selected_root: str = "."
     total: int
@@ -231,6 +223,21 @@ class ContentSearchResponse(BaseModel):
     session_id: str
     query: str
     event_ids: list[str] = Field(default_factory=list)
+
+
+class RawArtifact(BaseModel):
+    """One file the Raw tab can open."""
+
+    name: str
+    size: int
+
+
+class RawArtifactData(BaseModel):
+    filename: str
+    data: Any = None
+    size: int
+    # Only the first ``RAW_MAX_BYTES`` were read.
+    truncated: bool = False
 
 
 class ScoresResponse(BaseModel):

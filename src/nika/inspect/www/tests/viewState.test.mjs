@@ -7,11 +7,12 @@ import {
   parseUrlState,
 } from "../src/viewState.ts";
 
-test("deep link round-trips root, session, tab, event, and find", () => {
+test("deep link round-trips root, session, tab, source, event, and find", () => {
   const state = {
     root: "bench run/trials",
     session: "run-a/trials/t01",
-    tab: "agent",
+    tab: "raw",
+    source: "agent",
     event: "agent-12",
     find: "show bgp",
   };
@@ -20,24 +21,47 @@ test("deep link round-trips root, session, tab, event, and find", () => {
 
 test("default tab and root are omitted from the URL", () => {
   assert.equal(
-    buildUrlSearch({ root: ".", session: "s1", tab: "timeline", event: null, find: null }),
+    buildUrlSearch({
+      root: ".",
+      session: "s1",
+      tab: "timeline",
+      source: null,
+      event: null,
+      find: null,
+    }),
     "?session=s1",
   );
   assert.equal(
-    buildUrlSearch({ root: null, session: null, tab: "raw", event: "x", find: "y" }),
+    buildUrlSearch({
+      root: null,
+      session: null,
+      tab: "raw",
+      source: "nika",
+      event: "x",
+      find: "y",
+    }),
     "",
   );
 });
 
 test("session-only fields and unknown tabs are dropped when parsing", () => {
-  assert.deepEqual(parseUrlState("?tab=raw&event=agent-1&find=x"), {
+  assert.deepEqual(parseUrlState("?tab=raw&source=agent&event=agent-1&find=x"), {
     root: null,
     session: null,
     tab: null,
+    source: null,
     event: null,
     find: null,
   });
   assert.equal(parseUrlState("?session=s&tab=bogus").tab, null);
+  assert.equal(parseUrlState("?session=s&source=bogus").source, null);
+});
+
+test("legacy agent / nika tabs open the timeline with that source", () => {
+  const nika = parseUrlState("?session=s&tab=nika");
+  assert.equal(nika.tab, "timeline");
+  assert.equal(nika.source, "nika");
+  assert.equal(parseUrlState("?session=s&tab=agent").source, "agent");
 });
 
 test("numeric filter expressions", () => {
