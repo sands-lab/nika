@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.middleware.gzip import GZipMiddleware
@@ -267,15 +268,21 @@ def create_inspect_app(
         keys = body.get("keys") if isinstance(body, dict) else None
         if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
             return _error("keys must be a list of session ids")
-        stats: dict[str, Any] = {}
-        for key in keys:
-            try:
-                session_dir = find_session_dir(key, results_root=active)
-            except AmbiguousSessionError:
-                continue
-            if session_dir is None:
-                continue
-            stats[key] = llm_request_stats(session_dir)
+
+        def collect() -> dict[str, Any]:
+            stats: dict[str, Any] = {}
+            for key in keys:
+                try:
+                    session_dir = find_session_dir(key, results_root=active)
+                except AmbiguousSessionError:
+                    continue
+                if session_dir is None:
+                    continue
+                stats[key] = llm_request_stats(session_dir)
+            return stats
+
+        # Cold caches parse every log in the folder; keep the loop responsive.
+        stats = await run_in_threadpool(collect)
         return JSONResponse(LlmStatsResponse(stats=stats).model_dump())
 
     def session_detail(request: Request) -> JSONResponse:

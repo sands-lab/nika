@@ -144,6 +144,37 @@ test("live session counts open llm request and agent run up to now", () => {
   assert.equal(bd.agent.find((s) => s.key === "overhead"), undefined);
 });
 
+test("overlapping phases (teardown logged inside a live agent window) still sum to 100%", () => {
+  seq = 0;
+  const events = [
+    nika("env_start", 60_000, 60_000),
+    nika("agent_start", 61_000),
+    // Watchdog tore the lab down while the agent window is still open.
+    nika("env_stop", 100_000, 5_000),
+  ];
+  const bd = sessionTimeBreakdown(events, { live: true, nowMs: T0 + 120_000 });
+  assert.equal(bd.totalMs, 120_000);
+  assert.equal(bd.session.reduce((a, s) => a + s.ms, 0), bd.totalMs);
+  const session = Object.fromEntries(bd.session.map((s) => [s.key, s.ms]));
+  assert.deepEqual(session, { setup: 60_000, agent: 59_000, other: 1_000 });
+  assert.equal(bd.agentMs, 59_000);
+});
+
+test("live: an abandoned llm_start ends where the next request starts", () => {
+  seq = 0;
+  const events = [
+    nika("agent_start", 0),
+    agent("llm_start", 0, { run_id: "r1" }),
+    agent("llm_start", 5_000, { run_id: "r2" }),
+    agent("llm_end", 8_000, { run_id: "r2" }),
+    toolCall("ping", 8_000, "c1"),
+    toolEnd("ping", 9_000, "c1"),
+  ];
+  const bd = sessionTimeBreakdown(events, { live: true, nowMs: T0 + 20_000 });
+  const agentShares = Object.fromEntries(bd.agent.map((s) => [s.key, s.ms]));
+  assert.deepEqual(agentShares, { llm: 8_000, tools: 1_000, overhead: 11_000 });
+});
+
 test("tool calls inside an llm turn (Codex) count as tool time, not llm time", () => {
   seq = 0;
   const events = [

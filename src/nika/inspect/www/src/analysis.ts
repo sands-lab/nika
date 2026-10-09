@@ -210,31 +210,51 @@ export function sessionTimeBreakdown(
   if (totalMs <= 0) return null;
   const window: Interval = { start: sessionStart, end: sessionEnd };
 
-  const setupMs = setup ? unionMs([setup], window) : 0;
-  const injectMs = inject ? unionMs([inject], window) : 0;
-  const agentMs = agentWindow ? unionMs([agentWindow], window) : 0;
-  const teardownMs = teardown ? unionMs([teardown], window) : 0;
-  const known = unionMs(
-    [setup, inject, agentWindow, teardown].filter((iv): iv is Interval => iv != null),
-    window,
-  );
+  // Phases are sequential in a clean run, but a retried slot logs two
+  // lifecycles into one nika.jsonl; earlier phases win where they overlap so
+  // the shares always sum to the total.
+  const phases: Interval[] = [];
+  const grow = (iv: Interval | null): number => {
+    const before = unionMs(phases, window);
+    if (iv) phases.push(iv);
+    return unionMs(phases, window) - before;
+  };
+  const setupMs = grow(setup);
+  const injectMs = grow(inject);
+  const agentShareMs = grow(agentWindow);
+  const teardownMs = grow(teardown);
+  const known = unionMs(phases, window);
   const sessionParts = shares<SessionShareKey>(
     [
       { key: "setup", ms: setupMs, ...SESSION_SHARES.setup },
       { key: "inject", ms: injectMs, ...SESSION_SHARES.inject },
-      { key: "agent", ms: agentMs, ...SESSION_SHARES.agent },
+      { key: "agent", ms: agentShareMs, ...SESSION_SHARES.agent },
       { key: "teardown", ms: teardownMs, ...SESSION_SHARES.teardown },
       { key: "other", ms: totalMs - known, ...SESSION_SHARES.other },
     ],
     totalMs,
   );
+  const agentMs = agentWindow ? unionMs([agentWindow], window) : 0;
 
   let agentParts: TimeShare<AgentShareKey>[] = [];
   if (agentWindow) {
     const llm: Interval[] = [];
     const tools: Interval[] = [];
+    // An open span still runs until now, unless a later span in the same lane
+    // superseded it (an abandoned llm_start followed by a new request).
+    const nextStart = (lane: OverviewSpan["lane"], after: number): number | null => {
+      let best: number | null = null;
+      for (const s of spans) {
+        if (s.lane !== lane || s.startMs <= after) continue;
+        if (best == null || s.startMs < best) best = s.startMs;
+      }
+      return best;
+    };
     for (const span of spans) {
-      const end = opts.live && span.id.endsWith("-open") ? nowMs : span.endMs;
+      const end =
+        opts.live && span.id.endsWith("-open")
+          ? (nextStart(span.lane, span.startMs) ?? nowMs)
+          : span.endMs;
       const iv = { start: span.startMs, end };
       if (span.lane === "model") llm.push(iv);
       else if (span.lane === "tools") tools.push(iv);

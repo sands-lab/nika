@@ -208,13 +208,18 @@ export interface ScoresResponse {
   llm_judge?: Record<string, unknown> | null;
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+/** ``fetch`` + JSON, surfacing the server's ``error`` message on failure. */
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
+}
+
+function getJson<T>(url: string): Promise<T> {
+  return requestJson<T>(url);
 }
 
 function withRoot(params: URLSearchParams, root?: string | null) {
@@ -260,22 +265,17 @@ export function fetchBenchmarkProgress(opts?: {
 }
 
 /** One round trip for the run monitor instead of every session's timeline. */
-export async function fetchLlmStats(
+export function fetchLlmStats(
   keys: string[],
   root?: string | null,
   signal?: AbortSignal,
 ) {
-  const res = await fetch(`/api/llm-stats${rootQuery(root)}`, {
+  return requestJson<LlmStatsResponse>(`/api/llm-stats${rootQuery(root)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ keys }),
     signal,
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<LlmStatsResponse>;
 }
 
 export function fetchSession(id: string, root?: string | null) {
@@ -284,20 +284,14 @@ export function fetchSession(id: string, root?: string | null) {
   );
 }
 
-export async function deleteSession(id: string, root?: string | null) {
-  const res = await fetch(
-    `/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`,
-    { method: "DELETE" },
-  );
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<{
+export function deleteSession(id: string, root?: string | null) {
+  return requestJson<{
     deleted: boolean;
     session_id: string;
     session_dir: string;
-  }>;
+  }>(`/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`, {
+    method: "DELETE",
+  });
 }
 
 export function fetchTimeline(id: string, source?: string, root?: string | null) {
@@ -328,12 +322,12 @@ export function fetchAnnotations(id: string, root?: string | null) {
   );
 }
 
-export async function saveAnnotations(
+export function saveAnnotations(
   id: string,
   annotations: Annotations,
   root?: string | null,
 ) {
-  const res = await fetch(
+  return requestJson<Annotations>(
     `/api/sessions/${encodeURIComponent(id)}/annotations${rootQuery(root)}`,
     {
       method: "PUT",
@@ -341,11 +335,6 @@ export async function saveAnnotations(
       body: JSON.stringify(annotations),
     },
   );
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<Annotations>;
 }
 
 export function fetchEvent(id: string, eventId: string, root?: string | null) {

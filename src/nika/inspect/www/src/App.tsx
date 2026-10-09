@@ -1496,7 +1496,10 @@ function RunMonitor({
           setLlmStats(mergeLlmStats(Object.values(data.stats)));
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        // Never keep another folder's numbers on screen after a failed fetch.
+        if (!controller.signal.aborted) setLlmStats(mergeLlmStats([]));
+      });
     return () => controller.abort();
   }, [sessionsKey, root]);
   const label =
@@ -5290,11 +5293,15 @@ function SessionView({
 
   // Until the session detail loads, assume live so open spans keep ticking.
   const sessionLive = detail == null || detail.status === "running";
-  const rows = useMemo(() => buildLedgerRows(events, sessionLive), [events, sessionLive]);
-  // The Overview tab analyses every source, whatever the timeline filter.
+  // Timeline rows follow the source filter; the Overview tab analyses every
+  // source. Only the tab on screen builds its ledger.
+  const rows = useMemo(
+    () => (isTraceTab ? buildLedgerRows(events, sessionLive) : []),
+    [isTraceTab, events, sessionLive],
+  );
   const overviewRows = useMemo(
-    () => (tab !== "overview" ? [] : source ? buildLedgerRows(allEvents, sessionLive) : rows),
-    [tab, source, allEvents, rows, sessionLive],
+    () => (tab === "overview" ? buildLedgerRows(allEvents, sessionLive) : []),
+    [tab, allEvents, sessionLive],
   );
   const visibleRows = useMemo(
     () => (brush ? rows.filter((r) => rowInBrush(r, brush)) : rows),
