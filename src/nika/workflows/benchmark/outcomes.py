@@ -23,8 +23,10 @@ Case wall-clock kills (``--case-timeout``) default to ``agent_failed``, but when
 the session was killed mid-LLM call and most of the budget was spent inside LLM
 calls (including the in-flight request), they classify as ``endpoint_failed``
 so a hung / retrying model endpoint does not permanently score as capability.
-Likewise, an agent CLI that stalls waiting for a model response or exhausts
-its API retries is ``endpoint_failed`` (see :func:`trace_shows_endpoint_failure`).
+Likewise, an agent CLI that stalls waiting for a model response, exhausts
+its API retries, or is handed an unusable model response (Claude Code ending a
+run on ``stop_reason: tool_use`` with no tool call and no text) is
+``endpoint_failed`` (see :func:`trace_shows_endpoint_failure`).
 """
 
 from __future__ import annotations
@@ -344,9 +346,15 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
     * Claude Code exhausting its API retries on 429/5xx, or ending on an API
       error without an HTTP status (e.g. "The response stopped arriving"),
       with no real model reply afterwards.
+    * Claude Code ending a run successfully on ``stop_reason: tool_use`` with
+      an empty result right after an assistant message that holds no
+      ``tool_use`` block: the endpoint claimed a tool call it never produced
+      (e.g. a serving-side tool-call parse failure), so the agent got no turn
+      to act on.
     """
     open_tools = 0
     claude_gave_up = False
+    last_claude_reply_requests_tool: bool | None = None
     for event in _iter_jsonl_events(Path(session_dir) / _MESSAGES_FILENAME):
         name = event.get("event")
         if name == "thread.started":
@@ -364,11 +372,17 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
             message = error.get("message") if isinstance(error, dict) else None
             if isinstance(message, str) and _ENDPOINT_MESSAGE_RE.search(message):
                 return True
+        elif name == "user":
+            # Tool results / continuation turns consume the pending reply.
+            last_claude_reply_requests_tool = False
         elif name in ("system", "assistant", "result"):
             claude = event.get("claude_event")
             if not isinstance(claude, dict):
                 continue
-            if claude.get("subtype") == "api_retry":
+            if name == "system" and claude.get("subtype") == "init":
+                # New ``claude -p`` run (next phase): forget the previous one.
+                last_claude_reply_requests_tool = None
+            elif claude.get("subtype") == "api_retry":
                 attempt, limit = claude.get("attempt"), claude.get("max_retries")
                 if (
                     isinstance(attempt, int)
@@ -383,12 +397,37 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
                     status is None or status in _RETRYABLE_HTTP_STATUS
                 ):
                     claude_gave_up = True
+                elif _claude_result_without_tool_call(
+                    claude, last_reply_requests_tool=last_claude_reply_requests_tool
+                ):
+                    claude_gave_up = True
             elif name == "assistant":
                 message = claude.get("message")
                 # Claude Code reports its give-up as a ``<synthetic>`` message.
                 if isinstance(message, dict) and message.get("model") != "<synthetic>":
                     claude_gave_up = False
+                    last_claude_reply_requests_tool = _claude_requests_tool(event)
     return claude_gave_up
+
+
+def _claude_result_without_tool_call(
+    result: dict, *, last_reply_requests_tool: bool | None
+) -> bool:
+    """True for a successful Claude Code result that ends on a phantom tool call.
+
+    The endpoint answered ``stop_reason: tool_use`` but the preceding assistant
+    message carries no ``tool_use`` block and the result text is empty, so the
+    CLI exits without the agent ever acting on that turn.
+    """
+    if result.get("subtype") != "success" or result.get("is_error"):
+        return False
+    if result.get("stop_reason") != "tool_use":
+        return False
+    text = result.get("result")
+    if isinstance(text, str) and text.strip():
+        return False
+    # ``None``: no assistant message at all in this run, so no tool call either.
+    return last_reply_requests_tool is not True
 
 
 def agent_demonstrably_started(session_dir: str | Path) -> bool:
@@ -422,7 +461,7 @@ def classify_trial_failure(
       (both retryable).
     * The trajectory shows the agent CLI gave up on the model endpoint (Codex
       stall while waiting for a response or endpoint ``turn.failed``, Claude
-      Code API retries exhausted)
+      Code API retries exhausted or a phantom ``tool_use`` result)
       → ``endpoint_failed``, even when the run then ends without a submission.
     * Missing submission after the agent returned → ``agent_failed`` (capability).
     * Case or agent (``agent.timeout_sec``) wall-clock budget exceeded →
