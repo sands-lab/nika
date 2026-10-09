@@ -167,20 +167,47 @@ def test_pick_admissible_drains_host_for_blocked_exclusive() -> None:
     # Exclusive head waits for peers: stop admitting lights behind it.
     in_flight = {CLASS_LIGHT: 1}
     assert pick_admissible([k8s, light_b], in_flight=in_flight, limits=limits) is None
+    assert (
+        pick_admissible(
+            [k8s, light_b],
+            in_flight=in_flight,
+            limits=limits,
+            allow_light_backfill=True,
+        )
+        == 1
+    )
+    assert (
+        pick_admissible(
+            [k8s, light_b],
+            in_flight={CLASS_LIGHT: 2},
+            limits=limits,
+            allow_light_backfill=True,
+        )
+        is None
+    )
     assert pick_admissible([k8s, light_b], in_flight={}, limits=limits) == 0
 
 
-def test_run_trials_batch_exclusive_not_starved_by_lights(tmp_path: Path) -> None:
-    """A k8s trial queued before lights runs before those lights."""
+def test_run_trials_batch_bounded_light_backfill(tmp_path: Path) -> None:
+    """Backfill a straggling light, then drain after one batch of bypasses."""
     from nika.workflows.benchmark.run import _run_trials_batch
 
     order: list[str] = []
     lock = threading.Lock()
+    backfilled = threading.Event()
+    light_finished = 0
 
     def _fake_run(trial: Trial, **_kwargs: object) -> None:
+        nonlocal light_finished
         with lock:
             order.append(trial.row["scenario"])
-        time.sleep(0.05)
+        if trial.case_index == 0:
+            assert backfilled.wait(timeout=5)
+        elif trial.row["scenario"] == "dc_clos":
+            with lock:
+                light_finished += 1
+                if light_finished == 2:
+                    backfilled.set()
 
     trials = [
         _trial(scenario="dc_clos", trial_index=1, case_index=0),
@@ -210,7 +237,7 @@ def test_run_trials_batch_exclusive_not_starved_by_lights(tmp_path: Path) -> Non
         )
 
     assert failures == []
-    assert order.index("k8s_lab") == 1
+    assert order.index("k8s_lab") == 3
 
 
 def test_run_trials_batch_serializes_two_clab(tmp_path: Path) -> None:
