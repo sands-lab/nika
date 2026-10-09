@@ -19,6 +19,7 @@
   "skills": [],
   "optimization_methods": [],
   "tags": [],
+  "extra": {},
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,
@@ -49,6 +50,8 @@
   "created_at": "2026-10-08T10:45:47+00:00",
   "run_id": "1afde5c43d6e5ec8",
   "official": true,
+  "nika_git_commit": "2ad19b638907564c29452117e82ed32298293056",
+  "readme": "# Qwen3.6-35B-A3B Codex\n\nCodex CLI agent (NIKA `cli.codex` harness, MCP tools) driven by Qwen3.6-35B-A3B (FP8 weights, served through an OpenAI-compatible endpoint).\n\n- Benchmark: nika-bench 0.2.0, test split, 85 cases × 3 trials\n- Limits: max 100 steps, 7200 s agent timeout per trial\n- Harness: stock NIKA agent `cli.codex`, no prompt optimization, skills, or fine-tuning\n\nAuthors: NIKA Team. Code: https://github.com/sands-lab/nika",
   "trials": [
     {
       "trial_id": "campus_lan__device_forwardin__h0b9011ea426b__t01",

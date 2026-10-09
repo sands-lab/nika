@@ -21,6 +21,7 @@
   "tags": [
     "slides"
   ],
+  "extra": {},
   "benchmark_version": "0.1.0",
   "split": "test",
   "case_count": 150,
@@ -51,6 +52,8 @@
   "created_at": "2026-09-10T12:00:00+00:00",
   "run_id": "preview-qwen3_6_27b_claudecode",
   "official": false,
+  "nika_git_commit": null,
+  "readme": "# Qwen3.6-27B ClaudeCode\n\nSlide-reported results on NIKA release 0.1.0. Aggregate metrics only; no per-trial results.",
   "trials": [],
   "rca_confusion": {
     "labeling": "multi_label_edges",

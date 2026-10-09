@@ -21,6 +21,7 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -51,6 +52,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_5_react",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [],
       "rank": 1
@@ -78,6 +80,7 @@
       "tags": [
         "slides"
       ],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -108,6 +111,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_6_27b_claudecode",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_react"
@@ -141,6 +145,7 @@
       "tags": [
         "slides"
       ],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -171,6 +176,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_6_27b_claudecode_skills",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_react",
@@ -199,6 +205,7 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -229,6 +236,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_5_mini_react",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_react",
@@ -260,6 +268,7 @@
       "tags": [
         "slides"
       ],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -290,6 +299,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_claudecode",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -322,6 +332,7 @@
       "tags": [
         "slides"
       ],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -352,6 +363,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_react",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -387,6 +399,9 @@
       "tags": [
         "slides"
       ],
+      "extra": {
+        "gepa_variant": "d+s"
+      },
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -417,6 +432,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_react_gepa_d_s",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -453,6 +469,9 @@
       "tags": [
         "slides"
       ],
+      "extra": {
+        "gepa_variant": "d"
+      },
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -483,6 +502,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-qwen3_5_27b_react_gepa_d",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -516,6 +536,7 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -546,6 +567,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_oss_20b_react",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -582,6 +604,7 @@
       "tags": [
         "replication"
       ],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -612,6 +635,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_oss_20b_react_replication",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -649,6 +673,7 @@
       "tags": [
         "slides"
       ],
+      "extra": {},
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -679,6 +704,7 @@
       "created_at": "2026-09-10T12:00:00+00:00",
       "run_id": "preview-gpt_oss_20b_claudecode",
       "official": false,
+      "nika_git_commit": null,
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -715,6 +741,7 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {},
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -745,6 +772,7 @@
       "created_at": "2026-10-07T10:33:38+00:00",
       "run_id": "7ff2f0b4fe0f4e9b",
       "official": true,
+      "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
       "rca_f1_ci": [
         0.170803,
         0.309107
@@ -773,6 +801,7 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {},
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -803,6 +832,7 @@
       "created_at": "2026-10-08T10:45:47+00:00",
       "run_id": "1afde5c43d6e5ec8",
       "official": true,
+      "nika_git_commit": "2ad19b638907564c29452117e82ed32298293056",
       "rca_f1_ci": [
         0.144289,
         0.270398
@@ -831,6 +861,7 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {},
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -861,6 +892,7 @@
       "created_at": "2026-10-07T10:34:58+00:00",
       "run_id": "7eae0e3cd26588d2",
       "official": true,
+      "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
       "rca_f1_ci": [
         0.111095,
         0.237909
@@ -900,6 +932,20 @@
       "skills": [],
       "optimization_methods": [],
       "tags": [],
+      "extra": {
+        "model_repository": "farbodtavakkoli/OTel-2.0-LLM-31B-IT",
+        "model_revision": "de9c87a5681a4d6dce4ea2419eec8a2aadd5e071",
+        "max_steps": 100,
+        "max_tokens": 8192,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "serving_context_tokens": 65536,
+        "serving_precision": "BF16",
+        "serving_tensor_parallel_size": 4,
+        "serving_hardware": "4 x A100 40GB",
+        "thinking_configuration": "Explicit enable_thinking=true set during the run; earlier trials used the prior serving defaults.",
+        "retry_policy": "Targeted replacement of one deployment error and 14 endpoint/long-wait failures; two of those trials repeated after backend preemption. Model no-output failures retained; no best-of score selection."
+      },
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -930,6 +976,7 @@
       "created_at": "2026-10-08T09:09:26+00:00",
       "run_id": "2fa068fe3714d386",
       "official": true,
+      "nika_git_commit": "85b05ea169631c3f658bde5b9fb1c631c8bd5a2c",
       "rca_f1_ci": [
         0.016994,
         0.061438
