@@ -27,6 +27,7 @@ from nika.utils.session_artifacts import (
 from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
 from nika.workflows.benchmark.admit import (
+    CLASS_LIGHT,
     pick_admissible,
     resource_class,
     tier_limits,
@@ -1255,7 +1256,9 @@ def _run_trials_batch(
     starts immediately — slots are not held empty until a fixed wave drains.
     Light and heavy trials never run at the same time; with the default
     ``heavy_batch_size=1`` each heavy trial has the host to itself. Parallel
-    work uses spawn processes for isolation.
+    work uses spawn processes for isolation. Each light phase may backfill
+    at most one light batch past waiting heavy trials before
+    draining for the heavy tier.
     """
     failures: list[str] = []
     if not trials_batch:
@@ -1364,14 +1367,29 @@ def _run_trials_batch(
     # future -> (trial, resource_class)
     futures: dict[Any, tuple[Trial, str]] = {}
     in_flight: dict[str, int] = {}
+    # Each light phase may bypass waiting heavy trials at most one batch.
+    # Once spent, drain the light tier so heavy trials cannot be starved.
+    backfill_remaining = limits["light"]
 
     def _admit_available() -> None:
+        nonlocal backfill_remaining
+        if not futures:
+            backfill_remaining = limits["light"]
         while len(futures) < workers and pending:
-            index = pick_admissible(pending, in_flight=in_flight, limits=limits)
+            index = pick_admissible(
+                pending,
+                in_flight=in_flight,
+                limits=limits,
+                allow_light_backfill=backfill_remaining > 0,
+            )
             if index is None:
                 break
+            cls = resource_class(pending[index])
+            if cls == CLASS_LIGHT and any(
+                resource_class(trial) != CLASS_LIGHT for trial in pending[:index]
+            ):
+                backfill_remaining -= 1
             trial = pending.pop(index)
-            cls = resource_class(trial)
             in_flight[cls] = in_flight.get(cls, 0) + 1
             future = pool.submit(_run_one, trial)
             futures[future] = (trial, cls)

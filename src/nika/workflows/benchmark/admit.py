@@ -104,13 +104,16 @@ def pick_admissible(
     in_flight: Mapping[ResourceClass, int],
     limits: Mapping[str, int],
     classify: Callable[[Any], ResourceClass] = resource_class,
+    allow_light_backfill: bool = False,
 ) -> int | None:
     """Return the index of the next pending trial to start, or ``None``.
 
     Scans in order and admits the first trial that ``can_admit``. Once the
     scan reaches a heavy trial that cannot start, it stops: admitting later
     light trials would keep the host busy and starve the heavy trial until
-    every light trial had run. Light trials drain, then heavy trials start.
+    every light trial had run. Callers may set ``allow_light_backfill`` while
+    a bounded backfill budget remains; tier exclusion and caps still apply.
+    Otherwise light trials drain, then heavy trials start.
     While heavy trials run, the scan skips blocked light trials so later heavy
     trials can fill the heavy slots. ``classify`` maps a pending item to its
     class (``Trial`` by default; pass ``resource_class_for_row`` for case rows).
@@ -119,6 +122,6 @@ def pick_admissible(
         cls = classify(trial)
         if can_admit(cls, in_flight=in_flight, limits=limits):
             return index
-        if tier(cls) == TIER_HEAVY:
+        if tier(cls) == TIER_HEAVY and not allow_light_backfill:
             return None
     return None
