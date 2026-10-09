@@ -154,7 +154,7 @@ agent:
   provider: openai          # or anthropic / deepseek
 ```
 
-**Custom** — use any OpenAI-compatible endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `base_url` (and optional `model`) under `agent.custom` in YAML:
+**Custom** — use any OpenAI-compatible endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `agent.base_url` next to `agent.model` in YAML. Only `provider: custom` reads `base_url`. Set it to the OpenAI-style API root, which usually ends in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port:
 
 ```shell
 # .env
@@ -163,9 +163,8 @@ NIKA_CUSTOM_API_KEY=...     # optional if the endpoint needs no auth
 # config/nika.yaml
 agent:
   provider: custom
-  custom:
-    base_url: https://openrouter.ai/api/v1
-    model: null
+  model: deepseek/deepseek-v4-flash
+  base_url: https://openrouter.ai/api/v1
 ```
 
 For repeatable evaluations, copy a per-agent template from `config/*.example.yaml` (for example `cli.codex.example.yaml` → `cli.codex.yaml`) and select it with `--run-config`.

@@ -224,7 +224,7 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
         return (
             "Missing Docker Sandboxes credential for Codex.\n"
             "API key: set OPENAI_API_KEY or DEEPSEEK_API_KEY in the repository-root "
-            ".env. For a custom endpoint, set agent.custom.base_url and optional "
+            ".env. For a custom endpoint, set agent.base_url and optional "
             "NIKA_CUSTOM_API_KEY. Set agent.provider to "
             f"{provider or 'openai|deepseek|custom'} in config/nika.yaml.\n"
             "ChatGPT / Codex subscription: run "
@@ -238,7 +238,7 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
             "Native Anthropic: set ANTHROPIC_API_KEY and agent.provider: anthropic.\n"
             "DeepSeek: set DEEPSEEK_API_KEY and agent.provider: deepseek.\n"
             "Custom proxy: set NIKA_CUSTOM_API_KEY (optional) with "
-            "agent.custom.base_url and agent.provider: custom in config/nika.yaml.\n"
+            "agent.base_url and agent.provider: custom in config/nika.yaml.\n"
             "Claude subscription: authenticate with `/login` inside Claude Code "
             "so the anthropic secret is stored on the host "
             "(see https://docs.docker.com/ai/sandboxes/agents/claude-code/).\n"

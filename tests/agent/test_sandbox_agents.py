@@ -40,7 +40,7 @@ _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
 
 
 def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> None:
-    """Avoid host config/nika.yaml custom.base_url leaking into provider env."""
+    """Avoid host config/nika.yaml base_url leaking into provider env."""
     reset_run_config()
     set_run_config(
         RunConfig.model_validate(
@@ -57,7 +57,7 @@ def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> 
                     "provider": provider,
                     "model": model,
                     "max_steps": MAX_STEPS,
-                    "custom": {"base_url": None, "model": None},
+                    "base_url": None,
                 },
             }
         )

@@ -439,8 +439,9 @@ def benchmark_run(
         None,
         "--base-url",
         help=(
-            "Inference endpoint URL (default: agent.custom.base_url). "
-            "Required for provider=custom; also overrides OpenAI/Anthropic base URL."
+            "Inference endpoint URL (default: agent.base_url). "
+            "OpenAI-style API root, usually ending in /v1. "
+            "Used only with provider=custom, where it is required."
         ),
     ),
     run_config: str | None = typer.Option(

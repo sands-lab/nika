@@ -152,7 +152,7 @@ def merge_cli(
     if access_role is not None:
         agent_overlay["access"] = {"role": access_role}
     if base_url is not None:
-        agent_overlay["custom"] = {"base_url": base_url}
+        agent_overlay["base_url"] = base_url
     if enable_skills is not None:
         agent_overlay["enable_skills"] = enable_skills
     if agent_overlay:

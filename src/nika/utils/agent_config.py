@@ -131,17 +131,17 @@ def resolve_judge_model(
 
 
 def apply_custom_provider_env(config: RunConfig | None = None) -> None:
-    """Export YAML ``agent.custom.base_url`` / ``model`` into ``NIKA_CUSTOM_*``.
+    """Export YAML ``agent.base_url`` / ``model`` into ``NIKA_CUSTOM_*``.
 
-    Used when ``provider: custom``, and as an optional Anthropic/OpenAI-compatible
-    endpoint override when those providers are selected. Codex/Claude
-    ``prepare_*_env`` helpers still read ``NIKA_CUSTOM_*`` from the process
-    environment when mapping credentials. BYO factories prefer
-    ``RunConfig.agent.custom`` or the mapped ``*_BASE_URL``. API keys stay in
-    ``.env``. Empty YAML values clear leftover process env so ops env cannot win.
+    Only ``provider: custom`` uses ``agent.base_url``; other providers have
+    built-in endpoints, so the value is cleared for them. Codex/Claude
+    ``prepare_*_env`` helpers read ``NIKA_CUSTOM_*`` from the process
+    environment when mapping credentials. API keys stay in ``.env``. Empty
+    YAML values clear leftover process env so ops env cannot win.
     """
     cfg = _cfg(config)
-    base = (cfg.agent.custom.base_url or "").strip()
+    is_custom = cfg.agent.provider.strip().lower() == "custom"
+    base = (cfg.agent.base_url or "").strip() if is_custom else ""
     model = (cfg.agent.model or "").strip()
     if base:
         os.environ["NIKA_CUSTOM_BASE_URL"] = base

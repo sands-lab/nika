@@ -26,7 +26,7 @@ Persist important agent settings without hand-editing YAML:
 
 ```shell
 uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
-  agent.custom.base_url=http://localhost:11434/v1
+  agent.base_url=http://localhost:11434/v1
 ```
 
 `nika config set` accepts any scalar key that `nika config show` prints, such as `benchmark.batch_size` or `nika.lab.deploy_attempts`. It overwrites the value on the existing line, or adds the key under its section, and leaves comments and other lines unchanged. It rejects unknown keys and validates the file before it writes. Edit the YAML file for lists and maps.
@@ -52,13 +52,13 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.type` | `byo.langgraph` | Agent registry name. Run `uv run nika agent list` for available names. |
 | `agent.provider` | `openai` | Provider name. The selected agent must support it. |
 | `agent.model` | `null` | Canonical model id for the active agent type. |
+| `agent.base_url` | `null` | Required for `provider: custom`. Use the OpenAI-style API root, usually ending in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. Other providers ignore it; set `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` in `.env` to route them through a gateway. Set via YAML, `nika config set agent.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
 | `agent.max_steps` | `20` | Max LLM turns per phase for agents that support it (same unit as eval `steps` / `llm_end`). `byo.langgraph` enforces it with model-call limits and `cli.claude` with `claude --max-turns`. `cli.codex` and `sdk.codex_sdk` have no turn limit. Must be at least `1`. |
 | `agent.timeout_sec` | `1800` | Wall-clock budget in seconds for one agent run (diagnosis plus submission). Applies to every agent type. When it expires, NIKA stops the agent and cleans up its sandbox. Benchmark batch runs record the trial as counted `agent_failed`, or as `success` when the agent already wrote a valid `submission.json`. Keep it below `benchmark.case_timeout_sec`. Set `0` to disable it. |
 | `agent.enable_skills` | `true` | Load the shared skill library for Claude and Codex agents. |
 | `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
 | `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
 | `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
-| `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. Set via YAML, `nika config set agent.custom.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
 | `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. With streaming it bounds the wait between chunks, not the whole response. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.stream` | `true` | Stream LLM responses in the `byo.langgraph` model factory. Set `false` for OpenAI-compatible servers that do not support streaming or `stream_options`. |

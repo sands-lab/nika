@@ -254,11 +254,8 @@ def map_provider_credentials(
         key = _env_get(ENV_OPENAI_API_KEY, sources)
         if key:
             out[ENV_OPENAI_API_KEY] = key
-        # agent.custom.base_url can redirect the OpenAI provider to a compatible gateway.
-        base = _env_get(ENV_OPENAI_BASE_URL, sources) or resolve_custom_base_url(
-            sources
-        )
-        if base:
+        # OPENAI_BASE_URL can redirect the OpenAI provider to a compatible gateway.
+        if base := _env_get(ENV_OPENAI_BASE_URL, sources):
             out[ENV_OPENAI_BASE_URL] = base
         return out
 
@@ -266,12 +263,9 @@ def map_provider_credentials(
         key = _compat_anthropic_token(sources)
         if key:
             out[ENV_ANTHROPIC_API_KEY] = key
-        # Official Anthropic needs no base URL. agent.custom.base_url selects a gateway.
-        # Prefer an explicit Anthropic URL; otherwise adapt OpenAI-compat custom URLs.
+        # Official Anthropic needs no base URL. ANTHROPIC_BASE_URL selects a gateway.
         if explicit := _env_get(ENV_ANTHROPIC_BASE_URL, sources):
             out[ENV_ANTHROPIC_BASE_URL] = explicit
-        elif custom := resolve_custom_base_url(sources):
-            out[ENV_ANTHROPIC_BASE_URL] = openai_compat_to_anthropic_base_url(custom)
         return out
 
     if provider == "deepseek":
