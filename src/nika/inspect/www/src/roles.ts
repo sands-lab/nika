@@ -1266,6 +1266,7 @@ export interface DurationStats {
   avgMs: number | null;
   maxMs: number | null;
   sumMs: number | null;
+  p50Ms: number | null;
 }
 
 /**
@@ -1283,15 +1284,18 @@ export function llmDurationStats(rows: DisplayEvent[]): DurationStats {
     values.push(row.durationMs);
   }
   if (!values.length) {
-    return { n: 0, minMs: null, avgMs: null, maxMs: null, sumMs: null };
+    return { n: 0, minMs: null, avgMs: null, maxMs: null, sumMs: null, p50Ms: null };
   }
   const sumMs = values.reduce((a, b) => a + b, 0);
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
   return {
     n: values.length,
-    minMs: Math.min(...values),
+    minMs: sorted[0]!,
     avgMs: sumMs / values.length,
-    maxMs: Math.max(...values),
+    maxMs: sorted[sorted.length - 1]!,
     sumMs,
+    p50Ms: sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2,
   };
 }
 
