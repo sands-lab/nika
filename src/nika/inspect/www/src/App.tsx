@@ -5356,9 +5356,9 @@ function SessionView({
       const actions = keyActionsRef.current;
       if (!actions.isTraceTab || e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
-      if (e.key === "j" || e.key === "k") {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "j" || e.key === "k") {
         e.preventDefault();
-        actions.moveSelection(e.key === "j" ? 1 : -1);
+        actions.moveSelection(e.key === "ArrowDown" || e.key === "j" ? 1 : -1);
       } else if (e.key === "/") {
         e.preventDefault();
         findInputRef.current?.focus();
@@ -5540,11 +5540,11 @@ function SessionView({
             <span className="role-assistant">{stats.model} agent</span>
             <span className="role-tool">{stats.tools} tools</span>
             <span className="event-nav">
-              <button type="button" title="Previous event (K)" onClick={() => moveSelection(-1)}>
-                ↑ K
+              <button type="button" title="Previous event (↑ or K)" onClick={() => moveSelection(-1)}>
+                ↑
               </button>
-              <button type="button" title="Next event (J)" onClick={() => moveSelection(1)}>
-                ↓ J
+              <button type="button" title="Next event (↓ or J)" onClick={() => moveSelection(1)}>
+                ↓
               </button>
             </span>
             <span className="find-box">

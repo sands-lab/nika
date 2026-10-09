@@ -62,10 +62,10 @@ On the Timeline tab:
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` | Select the next or previous event |
+| `↓` / `↑` (or `j` / `k`) | Select the next or previous event |
 | `/` | Focus **Find in trajectory** |
 | `Enter` / `Shift+Enter` | Jump to the next or previous match |
-| `Esc` | Leave the find box so `j` / `k` work again |
+| `Esc` | Leave the find box so the arrow keys work again |
 
 Find matches the full agent and NIKA log records, including tool inputs and outputs, case-insensitively. The viewer highlights matching rows and shows the match count.
 
