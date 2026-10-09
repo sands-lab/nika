@@ -372,11 +372,17 @@ def trace_shows_endpoint_failure(session_dir: str | Path) -> bool:
             message = error.get("message") if isinstance(error, dict) else None
             if isinstance(message, str) and _ENDPOINT_MESSAGE_RE.search(message):
                 return True
+        elif name == "user":
+            # Tool results / continuation turns consume the pending reply.
+            last_claude_reply_requests_tool = False
         elif name in ("system", "assistant", "result"):
             claude = event.get("claude_event")
             if not isinstance(claude, dict):
                 continue
-            if claude.get("subtype") == "api_retry":
+            if name == "system" and claude.get("subtype") == "init":
+                # New ``claude -p`` run (next phase): forget the previous one.
+                last_claude_reply_requests_tool = None
+            elif claude.get("subtype") == "api_retry":
                 attempt, limit = claude.get("attempt"), claude.get("max_retries")
                 if (
                     isinstance(attempt, int)
@@ -420,7 +426,8 @@ def _claude_result_without_tool_call(
     text = result.get("result")
     if isinstance(text, str) and text.strip():
         return False
-    return last_reply_requests_tool is False
+    # ``None``: no assistant message at all in this run, so no tool call either.
+    return last_reply_requests_tool is not True
 
 
 def agent_demonstrably_started(session_dir: str | Path) -> bool:
@@ -454,7 +461,7 @@ def classify_trial_failure(
       (both retryable).
     * The trajectory shows the agent CLI gave up on the model endpoint (Codex
       stall while waiting for a response or endpoint ``turn.failed``, Claude
-      Code API retries exhausted)
+      Code API retries exhausted or a phantom ``tool_use`` result)
       → ``endpoint_failed``, even when the run then ends without a submission.
     * Missing submission after the agent returned → ``agent_failed`` (capability).
     * Case or agent (``agent.timeout_sec``) wall-clock budget exceeded →

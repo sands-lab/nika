@@ -422,6 +422,25 @@ class TestClassifyTrialFailure:
             tmp_path / "messages.jsonl", [reply(thinking), result(text="done")]
         )
         assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+        # A tool result consumes the pending call; an empty final model turn
+        # emits no assistant event at all before the phantom result.
+        tool_result = {
+            "event": "user",
+            "claude_event": {
+                "message": {"content": [{"type": "tool_result", "tool_use_id": "t"}]}
+            },
+        }
+        _write_jsonl(
+            tmp_path / "messages.jsonl", [reply(tool_use), tool_result, result()]
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # Each ``claude -p`` run starts fresh: a later phase is judged on its own.
+        init = {"event": "system", "claude_event": {"subtype": "init"}}
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [reply(tool_use), result("end_turn", "report"), init, result()],
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
 
     def test_claude_timeout_mid_model_call_is_endpoint_failed(
         self, tmp_path: Path
