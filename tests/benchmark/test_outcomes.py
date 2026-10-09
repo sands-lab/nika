@@ -384,6 +384,45 @@ class TestClassifyTrialFailure:
         _write_jsonl(tmp_path / "messages.jsonl", [reply, result(400)])
         assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
 
+    def test_claude_phantom_tool_use_result_is_endpoint_failed(
+        self, tmp_path: Path
+    ) -> None:
+        t0 = datetime(2026, 10, 9, 16, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+
+        def reply(*blocks: dict) -> dict:
+            return {
+                "event": "assistant",
+                "claude_event": {"message": {"model": "m", "content": list(blocks)}},
+            }
+
+        def result(stop_reason: str = "tool_use", text: str = "") -> dict:
+            event = {
+                "subtype": "success",
+                "is_error": False,
+                "terminal_reason": "completed",
+                "stop_reason": stop_reason,
+                "result": text,
+            }
+            return {"event": "result", "claude_event": event}
+
+        thinking = {"type": "thinking", "thinking": "let me check"}
+        tool_use = {"type": "tool_use", "id": "t", "name": "exec", "input": {}}
+        err = RuntimeError("ERROR: diagnosis phase produced no output")
+        # Endpoint claimed a tool call it never produced: nothing to act on.
+        _write_jsonl(tmp_path / "messages.jsonl", [reply(thinking), result()])
+        assert classify_trial_failure(err, session_dir=tmp_path) == "endpoint_failed"
+        # A real tool call before the result is the agent's own run.
+        _write_jsonl(tmp_path / "messages.jsonl", [reply(tool_use), result()])
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+        # A model that simply stopped talking stays a capability failure.
+        _write_jsonl(tmp_path / "messages.jsonl", [reply(thinking), result("end_turn")])
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+        _write_jsonl(
+            tmp_path / "messages.jsonl", [reply(thinking), result(text="done")]
+        )
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+
     def test_claude_timeout_mid_model_call_is_endpoint_failed(
         self, tmp_path: Path
     ) -> None:
