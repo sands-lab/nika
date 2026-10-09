@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
+import httpx
+
 from agent.sandbox.config import load_sandbox_env_values
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.sandbox.sbx.client import (
@@ -219,6 +221,34 @@ def _openai_secret_value(sources: dict[str, str]) -> str:
     )
 
 
+def require_anthropic_messages_route(base_url: str, *, api_key: str = "") -> None:
+    """Fail fast when a custom endpoint has no Anthropic ``/v1/messages`` route.
+
+    Claude-family agents only speak the Anthropic Messages API. The probe sends
+    an empty body, so a server with the route rejects it (4xx) without running
+    the model; only HTTP 404 means the route is missing. Network errors are
+    left to the agent run.
+    """
+    url = base_url.rstrip("/") + "/v1/messages"
+    headers = {"anthropic-version": "2023-06-01"}
+    if api_key and api_key != CUSTOM_UNAUTHENTICATED_API_KEY:
+        headers["x-api-key"] = api_key
+        headers["authorization"] = f"Bearer {api_key}"
+    try:
+        status = httpx.post(url, json={}, headers=headers, timeout=10.0).status_code
+    except httpx.HTTPError:
+        return
+    if status == 404:
+        raise RuntimeError(
+            f"Custom endpoint {base_url} has no Anthropic Messages route "
+            f"(POST {url} returned 404).\n"
+            "Claude-family agents (cli.claude, sdk.claude_sdk, community.sade) "
+            "need /v1/messages: upgrade Ollama to 0.14 or later, use vLLM, or "
+            "run an OpenAI-family agent (byo.*, cli.codex, sdk.codex_sdk) "
+            "against this endpoint."
+        )
+
+
 def missing_credential_message(service: str, *, provider: str = "") -> str:
     if service == SERVICE_OPENAI:
         return (
@@ -377,6 +407,8 @@ def ensure_sbx_credentials(
     anthropic_key = _anthropic_secret_value(sources) if need_anthropic else ""
     if need_anthropic:
         if third_party_anth and base_url:
+            if prov == "custom" and SERVICE_ANTHROPIC in required:
+                require_anthropic_messages_route(base_url, api_key=anthropic_key)
             if anthropic_key and anthropic_key != CUSTOM_UNAUTHENTICATED_API_KEY:
                 host = urlparse(base_url).hostname or DEEPSEEK_HOST
                 placeholders["ANTHROPIC_API_KEY"] = _ensure_custom_secret(

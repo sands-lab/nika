@@ -154,7 +154,7 @@ agent:
   provider: openai          # or anthropic / deepseek
 ```
 
-**Custom** — use any OpenAI-compatible endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `agent.base_url` next to `agent.model` in YAML. Only `provider: custom` reads `base_url`. Set it to the OpenAI-style API root, which usually ends in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port:
+**Custom** — use a self-hosted or third-party endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `agent.base_url` next to `agent.model` in YAML. Only `provider: custom` reads `base_url`. Set it to the OpenAI-style API root, which usually ends in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. OpenAI-family agents call `/v1/chat/completions`. Claude-family agents (`cli.claude`, `sdk.claude_sdk`, `community.sade`) call the Anthropic `/v1/messages` route instead, so the endpoint must serve it (vLLM, Ollama 0.14 or later):
 
 ```shell
 # .env

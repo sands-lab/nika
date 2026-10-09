@@ -1,9 +1,10 @@
 """Host-side shim between Claude Code and a vLLM ``/v1/messages`` endpoint.
 
 Claude Code treats any non-Anthropic ``ANTHROPIC_BASE_URL`` as first-party and
-may send mid-conversation ``role: "system"`` turns (e.g. reminders carried over
-by auto-compaction). vLLM only accepts ``user``/``assistant`` roles there and
-rejects the request with HTTP 400, which ends the agent run.
+sends mid-conversation ``role: "system"`` turns from the first request on
+(e.g. the "Today's date is ..." reminder). vLLM only accepts
+``user``/``assistant`` roles there and rejects the request with HTTP 400,
+which ends the agent run.
 
 The shim folds each such turn into the neighbouring user turn as a
 ``<system-reminder>`` text block, which is how Claude Code itself renders
