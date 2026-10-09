@@ -159,6 +159,21 @@ class BenchmarkProgressResponse(BaseModel):
     total: int = 0
 
 
+class LlmRequestStats(BaseModel):
+    """Completed LLM request wall times of one session (see ``llm_request_durations``)."""
+
+    n: int = 0
+    sum_ms: float = 0.0
+    min_ms: float | None = None
+    max_ms: float | None = None
+
+
+class LlmStatsResponse(BaseModel):
+    """Per-session LLM request stats, keyed by the requested session id."""
+
+    stats: dict[str, LlmRequestStats] = Field(default_factory=dict)
+
+
 class SessionDetail(SessionSummary):
     run: dict[str, Any] = Field(default_factory=dict)
     task_description: str | None = None

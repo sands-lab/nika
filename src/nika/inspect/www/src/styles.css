@@ -2290,6 +2290,250 @@ body.is-resizing * {
   border-radius: 0;
 }
 
+.session-overview-empty {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.session-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .session-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Time breakdown */
+.session-timing {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px 14px;
+}
+
+.session-timing-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 -10px;
+}
+
+.tshare {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tshare-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.tshare-title {
+  font-weight: 550;
+  color: var(--text);
+}
+
+.tshare-total {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tshare-bar {
+  display: flex;
+  height: 18px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.tshare-seg {
+  display: block;
+  height: 100%;
+  min-width: 1px;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+.tshare-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.tshare-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.tshare-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tshare-label {
+  color: var(--text);
+}
+
+.tshare-value,
+.tshare-pct {
+  font-variant-numeric: tabular-nums;
+}
+
+.tshare-pct {
+  color: var(--text);
+  font-weight: 550;
+}
+
+/* Session level: NIKA lifecycle phases vs the agent run. */
+.tshare-setup {
+  background: var(--role-nika);
+}
+.tshare-inject {
+  background: #5eead4;
+}
+.tshare-agent {
+  background: var(--role-assistant);
+}
+.tshare-teardown {
+  background: var(--role-system);
+}
+/* Inside the agent run: model vs tools vs sandbox vs the rest. */
+.tshare-llm {
+  background: var(--role-assistant);
+}
+.tshare-tools {
+  background: var(--role-tool);
+}
+.tshare-sandbox {
+  background: var(--role-nika);
+}
+.tshare-other,
+.tshare-overhead {
+  background: #cbd5e1;
+}
+
+/* Tool usage table */
+.session-tool-table th.num,
+.session-tool-table td.num {
+  text-align: right;
+  width: 5.5rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-tool-table thead th {
+  width: auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.session-tool-name {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tool-errors {
+  color: var(--bad);
+  font-weight: 550;
+}
+
+/* Slowest operations */
+.slow-ops {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slow-ops li + li {
+  border-top: 1px solid var(--border);
+}
+
+.slow-op {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(6rem, auto) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.slow-op:hover {
+  background: var(--bg-row-hover);
+}
+
+.slow-op-role {
+  font-size: 11px;
+  font-weight: 550;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.slow-op-role.role-nika {
+  color: var(--role-nika);
+}
+.slow-op-role.role-assistant {
+  color: var(--role-assistant);
+}
+.slow-op-role.role-tool {
+  color: var(--role-tool);
+}
+.slow-op-role.role-system {
+  color: var(--role-system);
+}
+
+.slow-op-label {
+  white-space: nowrap;
+}
+
+.slow-op-error {
+  color: var(--bad);
+}
+
+.slow-op-summary {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slow-op-time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.slow-op-duration {
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
 .session-overview-task {
   padding: 12px 14px;
   font-size: 13px;

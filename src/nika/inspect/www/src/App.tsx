@@ -13,6 +13,7 @@ import {
   fetchBenchmarkProgress,
   fetchBrowse,
   fetchEvent,
+  fetchLlmStats,
   fetchRaw,
   fetchRawFiles,
   RawArtifact,
@@ -31,6 +32,7 @@ import {
 import {
   OverviewLane,
   DisplayEvent,
+  type DurationStats,
   buildOverviewSpans,
   collapsePairedEvents,
   annotateLlmRetryAttempts,
@@ -44,6 +46,7 @@ import {
   isRunningSpan,
   llmDurationStats,
   llmTokenUsage,
+  mergeLlmStats,
   OverviewLayoutMode,
   overviewLaneHeightPx,
   overviewStackBarGeometry,
@@ -57,6 +60,12 @@ import {
   Role,
   isToolDisplay,
 } from "./roles";
+import {
+  sessionTimeBreakdown,
+  slowestOperations,
+  toolUsage,
+  type TimeShare,
+} from "./analysis";
 import {
   buildUrlSearch,
   matchesNumericFilter,
@@ -1440,9 +1449,6 @@ const RUN_MONITOR_TIPS = {
   llmMax: "Longest completed LLM request duration in this run.",
 } as const;
 
-/** Assistant rows of ended sessions; an ended attempt's log no longer changes. */
-const terminalLlmRowsCache = new Map<string, DisplayEvent[]>();
-
 function RunMonitor({
   progress,
   sessions,
@@ -1467,59 +1473,35 @@ function RunMonitor({
     () => suiteElapsedMs(sessions, nowMs),
     [sessions, nowMs],
   );
-  const [llmRows, setLlmRows] = useState<DisplayEvent[]>([]);
+  const [llmStats, setLlmStats] = useState<DurationStats>(() => mergeLlmStats([]));
   // The list poll hands over a new array every 3 s; refetch only when the
-  // member set or a status changes.
+  // member set or a status changes. One POST returns every session's stats
+  // (the server caches finished logs), so leaving the list aborts cheaply.
   const sessionsKey = sessions
     .map((s) => `${sessionOpenId(s)}:${s.status}:${s.end_time ?? ""}`)
     .join("\n");
   useEffect(() => {
-    let cancelled = false;
     if (!sessions.length) {
-      setLlmRows([]);
+      setLlmStats(mergeLlmStats([]));
       return;
     }
-    void Promise.all(
-      sessions.map((s) => {
-        const id = sessionOpenId(s);
-        const live = s.status === "running";
-        // Benchmark retries rerun aborted trials in the same session dir.
-        const cacheKey = `${root}\n${id}\n${s.status}\n${s.end_time ?? ""}`;
-        const cached = live ? undefined : terminalLlmRowsCache.get(cacheKey);
-        if (cached) return Promise.resolve(cached);
-        return fetchTimeline(id, "agent", root)
-          .then((t) => {
-            // Match SessionView: freeze unpaired llm_start once the session is
-            // done, otherwise LLM max keeps ticking past the lab timeline.
-            const collapsed = collapsePairedEvents(t.events);
-            const closed = closeSupersededOpenSpans(collapsed);
-            if (live) return closed;
-            const frozen = closed.map((r) =>
-              isRunningSpan(r)
-                ? {
-                    ...r,
-                    stale: true,
-                    summary:
-                      r.summary === "in progress"
-                        ? "no end logged"
-                        : r.summary,
-                  }
-                : r,
-            );
-            const rows = frozen.filter((r) => r.role === "assistant");
-            terminalLlmRowsCache.set(cacheKey, rows);
-            return rows;
-          })
-          .catch(() => [] as DisplayEvent[]);
-      }),
-    ).then((parts) => {
-      if (!cancelled) setLlmRows(parts.flat());
-    });
-    return () => {
-      cancelled = true;
-    };
+    const controller = new AbortController();
+    fetchLlmStats(
+      sessions.map((s) => sessionOpenId(s)),
+      root,
+      controller.signal,
+    )
+      .then((data) => {
+        if (!controller.signal.aborted) {
+          setLlmStats(mergeLlmStats(Object.values(data.stats)));
+        }
+      })
+      .catch(() => {
+        // Never keep another folder's numbers on screen after a failed fetch.
+        if (!controller.signal.aborted) setLlmStats(mergeLlmStats([]));
+      });
+    return () => controller.abort();
   }, [sessionsKey, root]);
-  const llmStats = useMemo(() => llmDurationStats(llmRows), [llmRows]);
   const label =
     progress?.benchmark_id != null
       ? `${progress.benchmark_id}${progress.version ? `@${progress.version}` : ""}`
@@ -1533,10 +1515,9 @@ function RunMonitor({
     progress?.completed_trials ??
     sessions.filter((s) => s.outcome === "success" || s.outcome === "agent_failed")
       .length;
-  const total =
-    progress?.total_trials ||
-    sessions.find((s) => s.benchmark_n_trials)?.benchmark_n_trials ||
-    sessions.length;
+  // Without a progress doc (results copied elsewhere, runtime/ missing) the
+  // session dirs are the best total; benchmark_n_trials is per case, not per run.
+  const total = progress?.total_trials || sessions.length;
   const pending =
     progress?.pending_trials ?? Math.max(0, total - completed);
   const status =
@@ -1872,8 +1853,9 @@ function ViewShell({
     setLoading(true);
   }, [root]);
 
-  // Poll the list only while it is on screen; filter changes keep the old
-  // table visible (only the very first load shows "Loading sessions…").
+  // Filter changes keep the old table visible (only the very first load
+  // shows "Loading sessions…"). The poll below reuses the latest loader.
+  const loadSessionsRef = useRef<(background: boolean) => void>(() => {});
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ status });
@@ -1903,12 +1885,9 @@ function ViewShell({
         });
     };
     load(false);
-    const poll = viewingSession
-      ? undefined
-      : window.setInterval(() => load(true), 3000);
+    loadSessionsRef.current = load;
     return () => {
       cancelled = true;
-      window.clearInterval(poll);
     };
   }, [
     root,
@@ -1921,8 +1900,15 @@ function ViewShell({
     topoSize,
     tag,
     debouncedQ,
-    viewingSession,
   ]);
+
+  // Poll only while the list is on screen; opening a session must not
+  // refetch the whole list (1–2 MB on large roots).
+  useEffect(() => {
+    if (viewingSession) return;
+    const poll = window.setInterval(() => loadSessionsRef.current(true), 3000);
+    return () => window.clearInterval(poll);
+  }, [viewingSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1945,17 +1931,25 @@ function ViewShell({
 
   const tree = useMemo(() => buildPathTree(sessions), [sessions]);
 
+  // First load (or a root change): open the folder with a running session,
+  // so an active benchmark is on screen without hunting through the tree.
   useEffect(() => {
     if (loading || !tree.length) return;
     if (selectedPath != null && findPathNode(tree, selectedPath)) return;
-    setSelectedPath(tree[0].path);
+    const first =
+      tree.find((node) =>
+        sessionsUnderSelection(sessions, node.path, node.memberKeys).some(
+          (s) => s.status === "running",
+        ),
+      ) ?? tree[0];
+    setSelectedPath(first.path);
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.add(tree[0].path);
+      next.add(first.path);
       saveTreeExpanded(next);
       return next;
     });
-  }, [selectedPath, loading, tree]);
+  }, [selectedPath, loading, tree, sessions]);
 
   const selectedNode = useMemo(
     () => (selectedPath == null ? null : findPathNode(tree, selectedPath)),
@@ -3931,12 +3925,14 @@ function Inspector({
   const role: Role | null = baseRow?.role ?? null;
   const isTool = baseRow ? isToolDisplay(baseRow) : false;
   const isAssistant = role === "assistant";
+  // NIKA / system rows have no paired end event, so their Raw view would
+  // repeat the payload; one Payload tab, opened by default.
   const tabs = isTool
     ? (["call", "overview", "raw"] as const)
     : isAssistant
       ? (["overview", "messages", "raw"] as const)
-      : (["overview", "payload", "raw"] as const);
-  const defaultTab = isAssistant ? "messages" : isTool ? "call" : "overview";
+      : (["payload", "overview"] as const);
+  const defaultTab = isAssistant ? "messages" : isTool ? "call" : "payload";
   const [tab, setTab] = useState<string>(defaultTab);
   const nowMs = useNow(baseRow ? isRunningSpan(baseRow) : false);
 
@@ -4528,7 +4524,267 @@ function ScoresPanel({ scores }: { scores: ScoresResponse | null }) {
   );
 }
 
-function SessionOverviewPanel({ detail }: { detail: SessionDetail | null }) {
+function formatPct(pct: number): string {
+  const value = pct * 100;
+  if (value >= 99.95) return "100%";
+  if (value < 0.05) return "<0.1%";
+  return value < 10 ? `${value.toFixed(1)}%` : `${Math.round(value)}%`;
+}
+
+/** Stacked share bar with a legend; shares must already sum to ``totalMs``. */
+function TimeShareBar({
+  title,
+  totalMs,
+  shares,
+  live,
+}: {
+  title: string;
+  totalMs: number;
+  shares: TimeShare[];
+  live?: boolean;
+}) {
+  return (
+    <div className="tshare">
+      <div className="tshare-head">
+        <span className="tshare-title">{title}</span>
+        <span className="tshare-total mono">
+          {formatDuration(totalMs)}
+          {live ? " · live" : ""}
+        </span>
+      </div>
+      <div className="tshare-bar" role="img" aria-label={`${title} time shares`}>
+        {shares.map((s) => (
+          <span
+            key={s.key}
+            className={`tshare-seg tshare-${s.key}`}
+            style={{ width: `${s.pct * 100}%` }}
+            title={`${s.label} · ${formatDuration(s.ms)} · ${formatPct(s.pct)}\n${s.hint}`}
+          />
+        ))}
+      </div>
+      <ul className="tshare-legend">
+        {shares.map((s) => (
+          <li key={s.key} title={s.hint}>
+            <span className={`tshare-swatch tshare-${s.key}`} />
+            <span className="tshare-label">{s.label}</span>
+            <span className="tshare-value mono">{formatDuration(s.ms)}</span>
+            <span className="tshare-pct mono">{formatPct(s.pct)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SessionTimingBlocks({
+  detail,
+  events,
+  rows,
+  live,
+  onOpenEvent,
+}: {
+  detail: SessionDetail;
+  events: CanonicalTraceEvent[];
+  rows: DisplayEvent[];
+  live: boolean;
+  onOpenEvent: (rowId: string) => void;
+}) {
+  // Recomputed when the timeline poll brings new rows (every 3 s while
+  // running), not on a timer of its own: ``now`` is read at that moment.
+  const breakdown = useMemo(
+    () =>
+      sessionTimeBreakdown(events, {
+        live,
+        nowMs: Date.now(),
+        startMs: parseTs(detail.start_time),
+        endMs: parseTs(detail.end_time),
+      }),
+    [events, live, detail.start_time, detail.end_time],
+  );
+  const llmStats = useMemo(() => llmDurationStats(rows), [rows]);
+  const tools = useMemo(() => toolUsage(rows), [rows]);
+  const slow = useMemo(() => slowestOperations(rows), [rows]);
+
+  if (events.length === 0) {
+    return (
+      <section className="session-overview-block">
+        <header className="session-overview-block-head">Time breakdown</header>
+        <div className="session-overview-empty">
+          {detail.artifacts.nika || detail.artifacts.messages
+            ? "Loading timeline…"
+            : "No nika.jsonl or messages.jsonl in this session."}
+        </div>
+      </section>
+    );
+  }
+
+  const llmShare = breakdown?.agent.find((s) => s.key === "llm");
+  const toolShare = breakdown?.agent.find((s) => s.key === "tools");
+  const agentShare = breakdown?.session.find((s) => s.key === "agent");
+  const outTokPerSec =
+    detail.out_tokens != null && llmStats.sumMs != null && llmStats.sumMs > 0
+      ? detail.out_tokens / (llmStats.sumMs / 1000)
+      : null;
+  const toolCalls = tools.reduce((n, t) => n + t.calls, 0);
+  const toolErrors = tools.reduce((n, t) => n + t.errors, 0);
+
+  return (
+    <>
+      <section className="session-overview-block">
+        <header className="session-overview-block-head">Time breakdown</header>
+        {breakdown ? (
+          <div className="session-timing">
+            <div className="session-timing-stats">
+              <AgentStat
+                label="Session"
+                value={formatDuration(breakdown.totalMs)}
+                tip="Wall clock from the first logged activity to the end (or now)"
+              />
+              <AgentStat
+                label="Agent run"
+                value={
+                  breakdown.agentMs != null
+                    ? `${formatDuration(breakdown.agentMs)} · ${formatPct(agentShare?.pct ?? 0)}`
+                    : "—"
+                }
+                tip="agent_start → agent_end, and its share of the session"
+              />
+              <AgentStat
+                label="LLM share"
+                value={llmShare ? formatPct(llmShare.pct) : "—"}
+                tip="Share of the agent run spent waiting on the model"
+              />
+              <AgentStat
+                label="Tool share"
+                value={toolShare ? formatPct(toolShare.pct) : "—"}
+                tip="Share of the agent run spent executing tools"
+              />
+              <AgentStat
+                label="LLM requests"
+                value={String(llmStats.n)}
+                tip="Completed model requests (retries count separately)"
+              />
+              <AgentStat
+                label="LLM avg / p50 / max"
+                value={
+                  llmStats.n
+                    ? `${formatDuration(llmStats.avgMs)} / ${formatDuration(llmStats.p50Ms)} / ${formatDuration(llmStats.maxMs)}`
+                    : "—"
+                }
+                tip="Request latency across completed model requests"
+              />
+              <AgentStat
+                label="Output tok/s"
+                value={outTokPerSec != null ? outTokPerSec.toFixed(1) : "—"}
+                tip="Output tokens divided by total LLM request time"
+              />
+            </div>
+            <TimeShareBar
+              title="Session wall clock"
+              totalMs={breakdown.totalMs}
+              shares={breakdown.session}
+              live={breakdown.live}
+            />
+            {breakdown.agentMs != null && breakdown.agent.length > 0 && (
+              <TimeShareBar
+                title="Inside the agent run"
+                totalMs={breakdown.agentMs}
+                shares={breakdown.agent}
+                live={breakdown.live}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="session-overview-empty">No timestamps to analyse.</div>
+        )}
+      </section>
+
+      <div className="session-overview-grid">
+        <section className="session-overview-block">
+          <header className="session-overview-block-head">
+            Tools · {toolCalls} calls
+            {toolErrors ? ` · ${toolErrors} errors` : ""}
+          </header>
+          {tools.length ? (
+            <table className="session-overview-table session-tool-table">
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th className="num">Calls</th>
+                  <th className="num">Errors</th>
+                  <th className="num">Total</th>
+                  <th className="num">Avg</th>
+                  <th className="num">Max</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tools.map((t) => (
+                  <tr key={t.name}>
+                    <td className="mono session-tool-name" title={t.name}>
+                      {t.name}
+                    </td>
+                    <td className="num">{t.calls}</td>
+                    <td className={`num${t.errors ? " session-tool-errors" : ""}`}>
+                      {t.errors || "—"}
+                    </td>
+                    <td className="num">{formatDuration(t.totalMs)}</td>
+                    <td className="num">{formatDuration(t.avgMs)}</td>
+                    <td className="num">{formatDuration(t.maxMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="session-overview-empty">No tool calls logged.</div>
+          )}
+        </section>
+
+        <section className="session-overview-block">
+          <header className="session-overview-block-head">Slowest operations</header>
+          {slow.length ? (
+            <ul className="slow-ops">
+              {slow.map((op) => (
+                <li key={op.rowId}>
+                  <button
+                    type="button"
+                    className="slow-op"
+                    title={`${op.summary || op.label}\nOpen on the Timeline tab`}
+                    onClick={() => onOpenEvent(op.rowId)}
+                  >
+                    <span className={`slow-op-role role-${op.role}`}>{roleLabel(op.role)}</span>
+                    <span className="slow-op-label">
+                      {op.label}
+                      {op.error ? <span className="slow-op-error"> · error</span> : null}
+                    </span>
+                    <span className="slow-op-summary">{op.summary}</span>
+                    <span className="slow-op-time mono">{formatTs(op.timestamp)}</span>
+                    <span className="slow-op-duration mono">{formatDuration(op.durationMs)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="session-overview-empty">No finished operations yet.</div>
+          )}
+        </section>
+      </div>
+    </>
+  );
+}
+
+function SessionOverviewPanel({
+  detail,
+  events,
+  ledgerRows,
+  live,
+  onOpenEvent,
+}: {
+  detail: SessionDetail | null;
+  events: CanonicalTraceEvent[];
+  ledgerRows: DisplayEvent[];
+  live: boolean;
+  onOpenEvent: (rowId: string) => void;
+}) {
   if (!detail) return <div className="empty">Loading overview…</div>;
 
   const injectEntries = Object.entries(detail.inject_params || {});
@@ -4628,6 +4884,13 @@ function SessionOverviewPanel({ detail }: { detail: SessionDetail | null }) {
 
   return (
     <div className="session-overview">
+      <SessionTimingBlocks
+        detail={detail}
+        events={events}
+        rows={ledgerRows}
+        live={live}
+        onOpenEvent={onOpenEvent}
+      />
       <section className="session-overview-block">
         <header className="session-overview-block-head">Session</header>
         <table className="session-overview-table">
@@ -4904,6 +5167,36 @@ function RawPanel({
   );
 }
 
+/** Ledger rows: paired spans in time order, open spans frozen once the session ends. */
+function buildLedgerRows(events: CanonicalTraceEvent[], sessionLive: boolean): DisplayEvent[] {
+  const collapsed = collapsePairedEvents(events);
+  const sorted = [...collapsed].sort((a, b) => {
+    const ta = parseTs(a.timestamp);
+    const tb = parseTs(b.timestamp);
+    if (ta == null && tb == null) return a.id.localeCompare(b.id);
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    if (ta !== tb) return ta - tb;
+    const ea = parseTs(a.endTimestamp) ?? ta;
+    const eb = parseTs(b.endTimestamp) ?? tb;
+    if (ea !== eb) return ea - eb;
+    return a.id.localeCompare(b.id);
+  });
+  const withSuperseded = closeSupersededOpenSpans(sorted);
+  const withStale = sessionLive
+    ? withSuperseded
+    : withSuperseded.map((r) =>
+        isRunningSpan(r)
+          ? {
+              ...r,
+              stale: true,
+              summary: r.summary === "in progress" ? "no end logged" : r.summary,
+            }
+          : r,
+      );
+  return annotateLlmRetryAttempts(withStale);
+}
+
 function SessionView({
   sessionId,
   root,
@@ -4944,6 +5237,8 @@ function SessionView({
   // A failed session load blocks every tab; tab fetch errors stay per tab.
   const shownError = detailError ?? error;
   const isTraceTab = tab === "timeline";
+  // The Overview tab derives its timing analysis from the same merged log.
+  const needsEvents = isTraceTab || tab === "overview";
 
   useEffect(() => {
     onNavChange({ tab, source, event: selectedId, find: find.trim() || null });
@@ -4998,34 +5293,16 @@ function SessionView({
 
   // Until the session detail loads, assume live so open spans keep ticking.
   const sessionLive = detail == null || detail.status === "running";
-  const rows = useMemo(() => {
-    const collapsed = collapsePairedEvents(events);
-    const sorted = [...collapsed].sort((a, b) => {
-      const ta = parseTs(a.timestamp);
-      const tb = parseTs(b.timestamp);
-      if (ta == null && tb == null) return a.id.localeCompare(b.id);
-      if (ta == null) return 1;
-      if (tb == null) return -1;
-      if (ta !== tb) return ta - tb;
-      const ea = parseTs(a.endTimestamp) ?? ta;
-      const eb = parseTs(b.endTimestamp) ?? tb;
-      if (ea !== eb) return ea - eb;
-      return a.id.localeCompare(b.id);
-    });
-    const withSuperseded = closeSupersededOpenSpans(sorted);
-    const withStale = sessionLive
-      ? withSuperseded
-      : withSuperseded.map((r) =>
-          isRunningSpan(r)
-            ? {
-                ...r,
-                stale: true,
-                summary: r.summary === "in progress" ? "no end logged" : r.summary,
-              }
-            : r,
-        );
-    return annotateLlmRetryAttempts(withStale);
-  }, [events, sessionLive]);
+  // Timeline rows follow the source filter; the Overview tab analyses every
+  // source. Only the tab on screen builds its ledger.
+  const rows = useMemo(
+    () => (isTraceTab ? buildLedgerRows(events, sessionLive) : []),
+    [isTraceTab, events, sessionLive],
+  );
+  const overviewRows = useMemo(
+    () => (tab === "overview" ? buildLedgerRows(allEvents, sessionLive) : []),
+    [tab, allEvents, sessionLive],
+  );
   const visibleRows = useMemo(
     () => (brush ? rows.filter((r) => rowInBrush(r, brush)) : rows),
     [rows, brush],
@@ -5096,9 +5373,9 @@ function SessionView({
       const actions = keyActionsRef.current;
       if (!actions.isTraceTab || e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
-      if (e.key === "j" || e.key === "k") {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "j" || e.key === "k") {
         e.preventDefault();
-        actions.moveSelection(e.key === "j" ? 1 : -1);
+        actions.moveSelection(e.key === "ArrowDown" || e.key === "j" ? 1 : -1);
       } else if (e.key === "/") {
         e.preventDefault();
         findInputRef.current?.focus();
@@ -5145,7 +5422,7 @@ function SessionView({
   }, [tab]);
 
   useEffect(() => {
-    if (!isTraceTab) return;
+    if (!needsEvents) return;
     let cancelled = false;
     fetchTimeline(sessionId, "merged", root)
       .then((data) => {
@@ -5159,10 +5436,10 @@ function SessionView({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, isTraceTab, root]);
+  }, [sessionId, needsEvents, root]);
 
   useEffect(() => {
-    if (!isTraceTab) return;
+    if (!needsEvents) return;
     let cancelled = false;
     const tick = () =>
       fetchTimeline(sessionId, "merged", root)
@@ -5188,7 +5465,7 @@ function SessionView({
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [sessionId, isTraceTab, detail?.status, root]);
+  }, [sessionId, needsEvents, detail?.status, root]);
 
   useEffect(() => {
     if (tab !== "scores") return;
@@ -5280,11 +5557,11 @@ function SessionView({
             <span className="role-assistant">{stats.model} agent</span>
             <span className="role-tool">{stats.tools} tools</span>
             <span className="event-nav">
-              <button type="button" title="Previous event (K)" onClick={() => moveSelection(-1)}>
-                ↑ K
+              <button type="button" title="Previous event (↑ or K)" onClick={() => moveSelection(-1)}>
+                ↑
               </button>
-              <button type="button" title="Next event (J)" onClick={() => moveSelection(1)}>
-                ↓ J
+              <button type="button" title="Next event (↓ or J)" onClick={() => moveSelection(1)}>
+                ↓
               </button>
             </span>
             <span className="find-box">
@@ -5332,7 +5609,20 @@ function SessionView({
         ))}
       </div>
       {shownError && <div className="empty">{shownError}</div>}
-      {!shownError && tab === "overview" && <SessionOverviewPanel detail={detail} />}
+      {!shownError && tab === "overview" && (
+        <SessionOverviewPanel
+          detail={detail}
+          events={allEvents}
+          ledgerRows={overviewRows}
+          live={sessionLive}
+          onOpenEvent={(rowId) => {
+            setBrush(null);
+            setSource(null);
+            setSelectedId(rowId);
+            setTab("timeline");
+          }}
+        />
+      )}
       {!shownError && isTraceTab && (
         <div className="trace-layout">
           {isTraceTab && (
