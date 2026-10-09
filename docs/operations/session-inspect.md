@@ -76,7 +76,7 @@ The Overview tab opens with a **Time breakdown** block built from the same merge
 - **Session wall clock**: lab setup (`env_start`), fault inject, the agent run (`agent_start` to `agent_end`), lab teardown (`env_stop`), and the gaps between them.
 - **Inside the agent run**: LLM requests, tool execution, sandbox setup, and the remaining agent overhead (CLI startup, MCP attach, parsing, idle).
 
-Tool time takes priority over LLM time where the two overlap, so a Codex turn that runs tools reports the tool part as tool execution. The headline chips add the LLM share, the request count, average / median / max request latency, and output tokens per second of LLM time. Running sessions tick every second and mark both bars `live`.
+Tool time takes priority over LLM time where the two overlap, so a Codex turn that runs tools reports the tool part as tool execution. The headline chips add the LLM share, the request count, average / median / max request latency, and output tokens per second of LLM time. Running sessions mark both bars `live` and refresh whenever the timeline poll brings new log rows.
 
 Below the bars, **Tools** lists calls, errors, and total / average / max time per tool, and **Slowest operations** ranks the longest LLM requests, tool calls, and NIKA steps. Click an operation to open it on the Timeline tab.
 

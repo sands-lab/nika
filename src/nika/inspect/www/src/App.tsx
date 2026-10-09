@@ -4598,16 +4598,17 @@ function SessionTimingBlocks({
   live: boolean;
   onOpenEvent: (rowId: string) => void;
 }) {
-  const nowMs = useNow(live);
+  // Recomputed when the timeline poll brings new rows (every 3 s while
+  // running), not on a timer of its own: ``now`` is read at that moment.
   const breakdown = useMemo(
     () =>
       sessionTimeBreakdown(events, {
         live,
-        nowMs,
+        nowMs: Date.now(),
         startMs: parseTs(detail.start_time),
         endMs: parseTs(detail.end_time),
       }),
-    [events, live, nowMs, detail.start_time, detail.end_time],
+    [events, live, detail.start_time, detail.end_time],
   );
   const llmStats = useMemo(() => llmDurationStats(rows), [rows]);
   const tools = useMemo(() => toolUsage(rows), [rows]);
