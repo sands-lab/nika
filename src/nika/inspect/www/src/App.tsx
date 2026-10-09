@@ -1539,10 +1539,9 @@ function RunMonitor({
     progress?.completed_trials ??
     sessions.filter((s) => s.outcome === "success" || s.outcome === "agent_failed")
       .length;
-  const total =
-    progress?.total_trials ||
-    sessions.find((s) => s.benchmark_n_trials)?.benchmark_n_trials ||
-    sessions.length;
+  // Without a progress doc (results copied elsewhere, runtime/ missing) the
+  // session dirs are the best total; benchmark_n_trials is per case, not per run.
+  const total = progress?.total_trials || sessions.length;
   const pending =
     progress?.pending_trials ?? Math.max(0, total - completed);
   const status =
