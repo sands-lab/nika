@@ -3922,12 +3922,14 @@ function Inspector({
   const role: Role | null = baseRow?.role ?? null;
   const isTool = baseRow ? isToolDisplay(baseRow) : false;
   const isAssistant = role === "assistant";
+  // NIKA / system rows have no paired end event, so their Raw view would
+  // repeat the payload; one Payload tab, opened by default.
   const tabs = isTool
     ? (["call", "overview", "raw"] as const)
     : isAssistant
       ? (["overview", "messages", "raw"] as const)
-      : (["overview", "payload", "raw"] as const);
-  const defaultTab = isAssistant ? "messages" : isTool ? "call" : "overview";
+      : (["payload", "overview"] as const);
+  const defaultTab = isAssistant ? "messages" : isTool ? "call" : "payload";
   const [tab, setTab] = useState<string>(defaultTab);
   const nowMs = useNow(baseRow ? isRunningSpan(baseRow) : false);
 
