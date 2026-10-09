@@ -1928,17 +1928,25 @@ function ViewShell({
 
   const tree = useMemo(() => buildPathTree(sessions), [sessions]);
 
+  // First load (or a root change): open the folder with a running session,
+  // so an active benchmark is on screen without hunting through the tree.
   useEffect(() => {
     if (loading || !tree.length) return;
     if (selectedPath != null && findPathNode(tree, selectedPath)) return;
-    setSelectedPath(tree[0].path);
+    const first =
+      tree.find((node) =>
+        sessionsUnderSelection(sessions, node.path, node.memberKeys).some(
+          (s) => s.status === "running",
+        ),
+      ) ?? tree[0];
+    setSelectedPath(first.path);
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.add(tree[0].path);
+      next.add(first.path);
       saveTreeExpanded(next);
       return next;
     });
-  }, [selectedPath, loading, tree]);
+  }, [selectedPath, loading, tree, sessions]);
 
   const selectedNode = useMemo(
     () => (selectedPath == null ? null : findPathNode(tree, selectedPath)),
