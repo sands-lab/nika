@@ -46,28 +46,22 @@ def test_anthropic_maps_credentials_for_byo_agents() -> None:
         assert mapped["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
 
 
-def test_anthropic_uses_yaml_custom_base_url_when_unset() -> None:
+@pytest.mark.parametrize(
+    ("agent_type", "provider", "key"),
+    [
+        ("byo.mcp_agent", "anthropic", "ANTHROPIC_API_KEY"),
+        ("byo.langgraph", "openai", "OPENAI_API_KEY"),
+    ],
+)
+def test_builtin_providers_ignore_custom_base_url(
+    agent_type: str, provider: str, key: str
+) -> None:
     mapped = map_provider_credentials(
-        agent_type="byo.mcp_agent",
-        provider="anthropic",
-        sources={
-            "ANTHROPIC_API_KEY": "sk-ant",
-            "NIKA_CUSTOM_BASE_URL": "https://gateway.example/anthropic",
-        },
+        agent_type=agent_type,
+        provider=provider,
+        sources={key: "sk-test", "NIKA_CUSTOM_BASE_URL": "https://gateway.example/v1"},
     )
-    assert mapped["ANTHROPIC_BASE_URL"] == "https://gateway.example/anthropic"
-
-
-def test_openai_uses_yaml_custom_base_url_when_unset() -> None:
-    mapped = map_provider_credentials(
-        agent_type="byo.langgraph",
-        provider="openai",
-        sources={
-            "OPENAI_API_KEY": "sk-openai",
-            "NIKA_CUSTOM_BASE_URL": "https://openrouter.ai/api/v1",
-        },
-    )
-    assert mapped["OPENAI_BASE_URL"] == "https://openrouter.ai/api/v1"
+    assert not any(name.endswith("_BASE_URL") for name in mapped)
 
 
 def test_anthropic_official_omits_base_url() -> None:
@@ -144,18 +138,6 @@ def test_custom_openai_compat_strips_v1_for_claude() -> None:
         agent_type="cli.claude",
         provider="custom",
         sources={"NIKA_CUSTOM_BASE_URL": "http://gateway.example:8000/v1"},
-    )
-    assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example:8000"
-
-
-def test_anthropic_provider_adapts_custom_openai_compat_url() -> None:
-    mapped = map_provider_credentials(
-        agent_type="sdk.claude_sdk",
-        provider="anthropic",
-        sources={
-            "ANTHROPIC_API_KEY": "sk-ant",
-            "NIKA_CUSTOM_BASE_URL": "http://gateway.example:8000/v1",
-        },
     )
     assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example:8000"
 

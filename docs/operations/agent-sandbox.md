@@ -33,7 +33,7 @@ NIKA adapts each agent phase to the custom server:
 
 | Adaptation | What NIKA does | Why |
 |------------|----------------|-----|
-| Context window | Reads `max_model_len` for `agent.model` from `{agent.custom.base_url}/models`. Sets `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to that value and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `min(32000, max_model_len / 8)`. | Claude Code assumes a 200k-token window for models it does not know. Without the real limit, it does not auto-compact before the server rejects a long request. |
+| Context window | Reads `max_model_len` for `agent.model` from `{agent.base_url}/models`. Sets `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to that value and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `min(32000, max_model_len / 8)`. | Claude Code assumes a 200k-token window for models it does not know. Without the real limit, it does not auto-compact before the server rejects a long request. |
 | Message roles | Starts a host-side shim for the phase, points `ANTHROPIC_BASE_URL` at `http://host.docker.internal:<port>`, and allows that port for the phase's sandbox only. The shim merges mid-conversation `role: "system"` turns into the adjacent user turn as `<system-reminder>` text and forwards all other traffic unchanged, including streamed responses. | Claude Code sends `role: "system"` entries inside `messages`, for example after auto-compaction. vLLM `/v1/messages` rejects them with HTTP 400 (`Input should be 'user' or 'assistant'`). |
 | Authentication | Gives Claude Code a random per-phase token as its API key. The shim rejects requests without that token and sends `NIKA_CUSTOM_API_KEY` upstream when you set it. | The real endpoint key stays on the host, and other clients on the host bridge cannot use the shim. |
 
@@ -156,8 +156,7 @@ Select the matching provider in the run config:
 # config/nika.yaml
 agent:
   provider: openai  # anthropic, deepseek, or custom
-  custom:
-    base_url: null  # required when provider is custom
+  base_url: null  # custom only: API root ending in /v1, e.g. http://host:8000/v1
 ```
 
 | Agent | Credential path |

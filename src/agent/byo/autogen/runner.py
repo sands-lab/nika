@@ -129,7 +129,7 @@ def create_model_client(
                 "and set agent.provider to anthropic in config/nika.yaml. "
                 "For DeepSeek Anthropic-compat (Claude agents), use "
                 "agent.provider: deepseek. For other Anthropic-compatible "
-                "gateways, set agent.custom.base_url (same field as custom)."
+                "gateways, set ANTHROPIC_BASE_URL in .env."
             )
         kwargs: dict = {
             "model": model,
@@ -138,10 +138,7 @@ def create_model_client(
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
-        base = (
-            os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
-            or resolve_custom_base_url()
-        )
+        base = os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
         if base:
             kwargs["base_url"] = base
         client = AnthropicChatCompletionClient(**kwargs)
@@ -172,13 +169,12 @@ def create_model_client(
             try:
                 from nika.run_config.loader import get_run_config
 
-                base_url = (get_run_config().agent.custom.base_url or "").strip()
+                base_url = (get_run_config().agent.base_url or "").strip()
             except Exception:  # noqa: BLE001
                 base_url = ""
         if not base_url:
             raise ValueError(
-                "agent.custom.base_url required for custom provider "
-                "in config/nika.yaml."
+                "agent.base_url required for custom provider in config/nika.yaml."
             )
         api_key = (
             resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or "no-key"

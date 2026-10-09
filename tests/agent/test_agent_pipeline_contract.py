@@ -71,8 +71,8 @@ def _set_yaml_agent_config(
                     "provider": provider,
                     "model": model,
                     "max_steps": max_steps,
-                    # Keep host config/nika.yaml custom.base_url from hijacking providers.
-                    "custom": {"base_url": None, "model": None},
+                    # Keep host config/nika.yaml base_url from hijacking providers.
+                    "base_url": None,
                 }
             }
         )

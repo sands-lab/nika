@@ -42,7 +42,7 @@ Configure shared values in `config/nika.yaml` or override them on `nika agent ru
 | (run config only) | `agent.timeout_sec` | `1800`; wall-clock budget for the whole agent run, for every agent |
 | (run config only) | `agent.max_tokens` | `8192`; output-token cap per model response, for every LLM agent except `cli.codex`, `sdk.codex_sdk`, and `community.sade` |
 | `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
-| `--base-url` | `agent.custom.base_url` | None |
+| `--base-url` | `agent.base_url` | None |
 
 See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules.
 
@@ -63,7 +63,7 @@ When diagnosis uses all `max_steps` turns, the agent stops, logs `max_steps_reac
 | `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
 | `mock` | Not applicable (no LLM) |
 
-`codex exec` reports no event per model response. `cli.codex` starts a new step at the first item after all tool calls of the previous response finished. Tool calls that Codex runs one after another from a single response therefore count as separate steps, so `cli.codex` can report more steps than the model made. `codex exec` also reports token usage once per run, so `cli.codex` puts all tokens on the last `llm_end` of the phase. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.custom.base_url=...`, or YAML.
+`codex exec` reports no event per model response. `cli.codex` starts a new step at the first item after all tool calls of the previous response finished. Tool calls that Codex runs one after another from a single response therefore count as separate steps, so `cli.codex` can report more steps than the model made. `codex exec` also reports token usage once per run, so `cli.codex` puts all tokens on the last `llm_end` of the phase. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.base_url=...`, or YAML.
 
 | Agent family | Providers |
 | --- | --- |
@@ -100,22 +100,21 @@ uv run nika agent run -a byo.mcp_agent -p deepseek -m deepseek-v4-flash -e low
 
 ### OpenAI-compatible endpoints
 
-Use the `custom` provider for Ollama, vLLM, OpenRouter, or another OpenAI-compatible server:
+Use the `custom` provider for Ollama, vLLM, OpenRouter, or another OpenAI-compatible server. Set `base_url` to the OpenAI-style root ending in `/v1`.
 
 ```yaml
 agent:
   type: byo.langgraph
   provider: custom
   model: qwen2.5:7b
-  custom:
-    base_url: http://localhost:11434/v1
+  base_url: http://localhost:11434/v1
 ```
 
 ```shell
 uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b \
   --base-url http://localhost:11434/v1 --problem dc_clos_s_link_down
 uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
-  agent.custom.base_url=http://localhost:11434/v1
+  agent.base_url=http://localhost:11434/v1
 ```
 
 Set `NIKA_CUSTOM_API_KEY` in `.env` only when the endpoint requires authentication.

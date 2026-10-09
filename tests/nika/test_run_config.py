@@ -149,7 +149,7 @@ def test_merge_cli_base_url_overrides_yaml(tmp_path: Path) -> None:
             {
                 "agent": {
                     "provider": "custom",
-                    "custom": {"base_url": "http://yaml-endpoint/v1"},
+                    "base_url": "http://yaml-endpoint/v1",
                 },
             }
         ),
@@ -157,10 +157,10 @@ def test_merge_cli_base_url_overrides_yaml(tmp_path: Path) -> None:
     )
     cfg = load_run_config(path)
     merged = merge_cli(cfg, base_url="http://cli-endpoint/v1")
-    assert merged.agent.custom.base_url == "http://cli-endpoint/v1"
+    assert merged.agent.base_url == "http://cli-endpoint/v1"
     snapshot = persist_effective_run_config(merged)
     reloaded = load_run_config(snapshot)
-    assert reloaded.agent.custom.base_url == "http://cli-endpoint/v1"
+    assert reloaded.agent.base_url == "http://cli-endpoint/v1"
 
 
 def test_config_set_writes_sparse_yaml(tmp_path: Path) -> None:
@@ -176,7 +176,7 @@ def test_config_set_writes_sparse_yaml(tmp_path: Path) -> None:
             "set",
             "agent.provider=custom",
             "agent.model=qwen2.5:7b",
-            "agent.custom.base_url=http://localhost:11434/v1",
+            "agent.base_url=http://localhost:11434/v1",
             "--run-config",
             str(out_path),
         ],
@@ -186,9 +186,9 @@ def test_config_set_writes_sparse_yaml(tmp_path: Path) -> None:
     assert data["agent"]["type"] == "byo.langgraph"
     assert data["agent"]["provider"] == "custom"
     assert data["agent"]["model"] == "qwen2.5:7b"
-    assert data["agent"]["custom"]["base_url"] == "http://localhost:11434/v1"
+    assert data["agent"]["base_url"] == "http://localhost:11434/v1"
     loaded = load_run_config(out_path)
-    assert loaded.agent.custom.base_url == "http://localhost:11434/v1"
+    assert loaded.agent.base_url == "http://localhost:11434/v1"
     assert loaded.agent.model == "qwen2.5:7b"
 
 
@@ -361,8 +361,7 @@ agent:
   provider: custom
   model: deepseek/deepseek-v4-flash
   max_steps: 20
-  custom:
-    base_url: https://openrouter.ai/api/v1
+  base_url: https://openrouter.ai/api/v1
 """,
             {
                 "type": "byo.langgraph",
@@ -373,8 +372,28 @@ agent:
                 "base_url": "https://openrouter.ai/api/v1",
             },
         ),
+        (
+            "legacy-custom-block.yaml",
+            """
+agent:
+  type: byo.langgraph
+  provider: custom
+  model: qwen
+  custom:
+    base_url: http://localhost:8000/v1
+""",
+            {
+                "type": "byo.langgraph",
+                "provider": "custom",
+                "model": "qwen",
+                "max_steps": 20,
+                "reasoning_effort": None,
+                "base_url": "http://localhost:8000/v1",
+            },
+        ),
     ],
 )
+@pytest.mark.filterwarnings("ignore:agent.custom.base_url is deprecated")
 def test_profile_yaml_loads(
     tmp_path: Path, name: str, yaml_text: str, expected: dict
 ) -> None:
@@ -386,7 +405,7 @@ def test_profile_yaml_loads(
     assert cfg.agent.model == expected["model"]
     assert cfg.agent.max_steps == expected["max_steps"]
     assert cfg.agent.reasoning_effort == expected["reasoning_effort"]
-    assert cfg.agent.custom.base_url == expected["base_url"]
+    assert cfg.agent.base_url == expected["base_url"]
 
 
 def test_profile_cli_config_show_accepts_run_config(tmp_path: Path) -> None:
@@ -407,7 +426,7 @@ def test_profile_merge_cli_base_url_and_model(tmp_path: Path) -> None:
     path.write_text(
         "agent:\n  type: byo.langgraph\n  provider: custom\n"
         "  model: deepseek/deepseek-v4-flash\n  max_steps: 20\n"
-        "  custom:\n    base_url: https://openrouter.ai/api/v1\n",
+        "  base_url: https://openrouter.ai/api/v1\n",
         encoding="utf-8",
     )
     cfg = load_run_config(path)
@@ -418,7 +437,7 @@ def test_profile_merge_cli_base_url_and_model(tmp_path: Path) -> None:
         reasoning_effort="low",
     )
     assert merged.agent.model == "other/model"
-    assert merged.agent.custom.base_url == "http://localhost:11434/v1"
+    assert merged.agent.base_url == "http://localhost:11434/v1"
     assert merged.agent.reasoning_effort == "low"
     assert merged.agent.provider == "custom"
 
