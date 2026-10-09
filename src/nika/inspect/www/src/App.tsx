@@ -13,6 +13,7 @@ import {
   fetchBenchmarkProgress,
   fetchBrowse,
   fetchEvent,
+  fetchLlmStats,
   fetchRaw,
   fetchRawFiles,
   RawArtifact,
@@ -31,6 +32,7 @@ import {
 import {
   OverviewLane,
   DisplayEvent,
+  type DurationStats,
   buildOverviewSpans,
   collapsePairedEvents,
   annotateLlmRetryAttempts,
@@ -44,6 +46,7 @@ import {
   isRunningSpan,
   llmDurationStats,
   llmTokenUsage,
+  mergeLlmStats,
   OverviewLayoutMode,
   overviewLaneHeightPx,
   overviewStackBarGeometry,
@@ -1446,9 +1449,6 @@ const RUN_MONITOR_TIPS = {
   llmMax: "Longest completed LLM request duration in this run.",
 } as const;
 
-/** Assistant rows of ended sessions; an ended attempt's log no longer changes. */
-const terminalLlmRowsCache = new Map<string, DisplayEvent[]>();
-
 function RunMonitor({
   progress,
   sessions,
@@ -1473,59 +1473,32 @@ function RunMonitor({
     () => suiteElapsedMs(sessions, nowMs),
     [sessions, nowMs],
   );
-  const [llmRows, setLlmRows] = useState<DisplayEvent[]>([]);
+  const [llmStats, setLlmStats] = useState<DurationStats>(() => mergeLlmStats([]));
   // The list poll hands over a new array every 3 s; refetch only when the
-  // member set or a status changes.
+  // member set or a status changes. One POST returns every session's stats
+  // (the server caches finished logs), so leaving the list aborts cheaply.
   const sessionsKey = sessions
     .map((s) => `${sessionOpenId(s)}:${s.status}:${s.end_time ?? ""}`)
     .join("\n");
   useEffect(() => {
-    let cancelled = false;
     if (!sessions.length) {
-      setLlmRows([]);
+      setLlmStats(mergeLlmStats([]));
       return;
     }
-    void Promise.all(
-      sessions.map((s) => {
-        const id = sessionOpenId(s);
-        const live = s.status === "running";
-        // Benchmark retries rerun aborted trials in the same session dir.
-        const cacheKey = `${root}\n${id}\n${s.status}\n${s.end_time ?? ""}`;
-        const cached = live ? undefined : terminalLlmRowsCache.get(cacheKey);
-        if (cached) return Promise.resolve(cached);
-        return fetchTimeline(id, "agent", root)
-          .then((t) => {
-            // Match SessionView: freeze unpaired llm_start once the session is
-            // done, otherwise LLM max keeps ticking past the lab timeline.
-            const collapsed = collapsePairedEvents(t.events);
-            const closed = closeSupersededOpenSpans(collapsed);
-            if (live) return closed;
-            const frozen = closed.map((r) =>
-              isRunningSpan(r)
-                ? {
-                    ...r,
-                    stale: true,
-                    summary:
-                      r.summary === "in progress"
-                        ? "no end logged"
-                        : r.summary,
-                  }
-                : r,
-            );
-            const rows = frozen.filter((r) => r.role === "assistant");
-            terminalLlmRowsCache.set(cacheKey, rows);
-            return rows;
-          })
-          .catch(() => [] as DisplayEvent[]);
-      }),
-    ).then((parts) => {
-      if (!cancelled) setLlmRows(parts.flat());
-    });
-    return () => {
-      cancelled = true;
-    };
+    const controller = new AbortController();
+    fetchLlmStats(
+      sessions.map((s) => sessionOpenId(s)),
+      root,
+      controller.signal,
+    )
+      .then((data) => {
+        if (!controller.signal.aborted) {
+          setLlmStats(mergeLlmStats(Object.values(data.stats)));
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
   }, [sessionsKey, root]);
-  const llmStats = useMemo(() => llmDurationStats(llmRows), [llmRows]);
   const label =
     progress?.benchmark_id != null
       ? `${progress.benchmark_id}${progress.version ? `@${progress.version}` : ""}`
@@ -1877,8 +1850,9 @@ function ViewShell({
     setLoading(true);
   }, [root]);
 
-  // Poll the list only while it is on screen; filter changes keep the old
-  // table visible (only the very first load shows "Loading sessions…").
+  // Filter changes keep the old table visible (only the very first load
+  // shows "Loading sessions…"). The poll below reuses the latest loader.
+  const loadSessionsRef = useRef<(background: boolean) => void>(() => {});
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ status });
@@ -1908,12 +1882,9 @@ function ViewShell({
         });
     };
     load(false);
-    const poll = viewingSession
-      ? undefined
-      : window.setInterval(() => load(true), 3000);
+    loadSessionsRef.current = load;
     return () => {
       cancelled = true;
-      window.clearInterval(poll);
     };
   }, [
     root,
@@ -1926,8 +1897,15 @@ function ViewShell({
     topoSize,
     tag,
     debouncedQ,
-    viewingSession,
   ]);
+
+  // Poll only while the list is on screen; opening a session must not
+  // refetch the whole list (1–2 MB on large roots).
+  useEffect(() => {
+    if (viewingSession) return;
+    const poll = window.setInterval(() => loadSessionsRef.current(true), 3000);
+    return () => window.clearInterval(poll);
+  }, [viewingSession]);
 
   useEffect(() => {
     let cancelled = false;

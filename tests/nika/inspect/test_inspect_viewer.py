@@ -1352,7 +1352,9 @@ class TestSingletonLock:
             results_root=tmp_path,
         )
 
-        with pytest.raises(ValueError, match=r"already running at http://127\.0\.0\.1:7580/"):
+        with pytest.raises(
+            ValueError, match=r"already running at http://127\.0\.0\.1:7580/"
+        ):
             serve._acquire_singleton_lock()
 
         serve._release_singleton_lock(handle)
@@ -1708,3 +1710,100 @@ class TestAnnotations:
         assert local.put("/api/sessions/live/annotations", json=doc).status_code == 409
         assert not (tmp_path / "done" / "annotations.json").exists()
         assert not (live / "annotations.json").exists()
+
+
+class TestLlmRequestStats:
+    """Server-side LLM request wall times mirror the Timeline ledger."""
+
+    @staticmethod
+    def _agent(ts: str, event: str, **extra: object) -> dict:
+        return {
+            "timestamp": f"2026-01-01T12:{ts}+00:00",
+            "phase": "diagnosis",
+            "event": event,
+            **extra,
+        }
+
+    def test_pairs_retries_and_superseded_starts(self) -> None:
+        from nika.inspect.adapters import adapt_agent_event, llm_request_durations
+
+        rows = [
+            # run_id pairing: 10 s request.
+            self._agent("00:00", "llm_start", run_id="a"),
+            self._agent("00:10", "llm_end", run_id="a"),
+            # HTTP retry inside one run: two attempts (5 s failed, 7 s ok).
+            self._agent("00:10", "llm_start", run_id="b"),
+            self._agent("00:15", "llm_retry", run_id="b", error="timeout"),
+            self._agent("00:22", "llm_end", run_id="b"),
+            # Start without an end, superseded by the next start 3 s later.
+            self._agent("00:22", "llm_start"),
+            self._agent("00:25", "llm_start"),
+            self._agent("00:31", "llm_end"),
+            # Codex turn bookends: 4 s.
+            self._agent("00:31", "turn.started"),
+            self._agent("00:35", "turn.completed"),
+            # Trailing unfinished request contributes nothing.
+            self._agent("00:35", "llm_start", run_id="z"),
+        ]
+        events = [adapt_agent_event(r, index=i) for i, r in enumerate(rows)]
+        assert llm_request_durations(events) == [
+            10_000,
+            5_000,
+            7_000,
+            3_000,
+            6_000,
+            4_000,
+        ]
+
+    def test_claude_response_counts_once(self, tmp_path: Path) -> None:
+        from nika.inspect.adapters import llm_request_durations, load_agent_events
+
+        def assistant(ts: str, block: dict) -> dict:
+            return {
+                "timestamp": f"2026-01-01T12:{ts}+00:00",
+                "event": "assistant",
+                "claude_event": {
+                    "type": "assistant",
+                    "message": {"id": "m1", "content": [block]},
+                },
+            }
+
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [
+                {
+                    "timestamp": "2026-01-01T12:00:00+00:00",
+                    "event": "system",
+                    "claude_event": {"type": "system", "subtype": "init"},
+                },
+                assistant("00:03", {"type": "thinking", "thinking": "plan"}),
+                assistant("00:05", {"type": "text", "text": "done"}),
+            ],
+        )
+        assert llm_request_durations(load_agent_events(tmp_path)) == [5_000]
+
+    def test_endpoint_returns_stats_per_key(self, tmp_path: Path) -> None:
+        session = _finished_session(tmp_path / "s1", "s1")
+        _write_jsonl(
+            session / "messages.jsonl",
+            [
+                self._agent("00:00", "llm_start", run_id="a"),
+                self._agent("00:10", "llm_end", run_id="a"),
+                self._agent("00:10", "llm_start", run_id="b"),
+                self._agent("00:12", "llm_end", run_id="b"),
+            ],
+        )
+        client = TestClient(create_inspect_app(results_root=tmp_path))
+        res = client.post("/api/llm-stats", json={"keys": ["s1", "missing"]})
+        assert res.status_code == 200
+        assert res.json() == {
+            "stats": {
+                "s1": {
+                    "n": 2,
+                    "sum_ms": 12_000.0,
+                    "min_ms": 2_000.0,
+                    "max_ms": 10_000.0,
+                }
+            }
+        }
+        assert client.post("/api/llm-stats", json={"keys": "s1"}).status_code == 400

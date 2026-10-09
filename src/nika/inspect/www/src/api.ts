@@ -130,6 +130,18 @@ export interface BenchmarkProgressResponse {
   total: number;
 }
 
+/** Completed LLM request wall times of one session (server-side ledger port). */
+export interface LlmRequestStats {
+  n: number;
+  sum_ms: number;
+  min_ms?: number | null;
+  max_ms?: number | null;
+}
+
+export interface LlmStatsResponse {
+  stats: Record<string, LlmRequestStats>;
+}
+
 export interface SessionDetail extends SessionSummary {
   run: Record<string, unknown>;
   task_description?: string | null;
@@ -245,6 +257,25 @@ export function fetchBenchmarkProgress(opts?: {
   return getJson<BenchmarkProgressResponse>(
     `/api/benchmark-progress${q ? `?${q}` : ""}`,
   );
+}
+
+/** One round trip for the run monitor instead of every session's timeline. */
+export async function fetchLlmStats(
+  keys: string[],
+  root?: string | null,
+  signal?: AbortSignal,
+) {
+  const res = await fetch(`/api/llm-stats${rootQuery(root)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+    signal,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<LlmStatsResponse>;
 }
 
 export function fetchSession(id: string, root?: string | null) {

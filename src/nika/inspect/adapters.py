@@ -701,6 +701,113 @@ def load_agent_events(
     return events
 
 
+def _is_llm_start(ev: CanonicalTraceEvent) -> bool:
+    return ev.event in {"llm_start", "turn.started"}
+
+
+def _is_llm_end(ev: CanonicalTraceEvent) -> bool:
+    return ev.event in {"llm_end", "llm_end_error", "turn.completed", "turn.failed"}
+
+
+def _llm_run_id(ev: CanonicalTraceEvent) -> str | None:
+    run_id = ev.raw.get("run_id")
+    return run_id if isinstance(run_id, str) and run_id else None
+
+
+def _event_ms(ev: CanonicalTraceEvent) -> float | None:
+    if not ev.timestamp:
+        return None
+    try:
+        return datetime.fromisoformat(ev.timestamp).timestamp() * 1000
+    except ValueError:
+        return None
+
+
+def _pair_llm_ends(events: list[CanonicalTraceEvent]) -> dict[str, int]:
+    """``start.id -> index of its end``; mirrors ``pairLlmEnds`` in roles.ts.
+
+    Logged LangChain ``run_id``s pair concurrent calls exactly; without them
+    the end must come before the next start, and must share the phase.
+    """
+    pairs: dict[str, int] = {}
+    used: set[str] = set()
+    for i, start in enumerate(events):
+        if not _is_llm_start(start):
+            continue
+        run_id = _llm_run_id(start)
+        for j in range(i + 1, len(events)):
+            ev = events[j]
+            if ev.id in used or ev.event == "llm_retry":
+                continue
+            if run_id:
+                if _is_llm_end(ev) and _llm_run_id(ev) == run_id:
+                    pairs[start.id] = j
+                    used.add(ev.id)
+                    break
+                continue
+            if not _is_llm_end(ev):
+                if _is_llm_start(ev):
+                    break
+                continue
+            if _llm_run_id(ev):
+                continue
+            if start.phase and ev.phase and ev.phase != start.phase:
+                continue
+            pairs[start.id] = j
+            used.add(ev.id)
+            break
+    return pairs
+
+
+def llm_request_durations(events: list[CanonicalTraceEvent]) -> list[float]:
+    """Completed LLM request wall times (ms) from agent events, in log order.
+
+    Same rows the Timeline ledger counts (``llmDurationStats`` in roles.ts):
+    ``llm_start``/Codex ``turn.started`` paired with their end, split at HTTP
+    ``llm_retry`` markers into one duration per attempt; Claude responses,
+    whose request elapsed sits on the first block (``duration_ms``); and a
+    start that never ended but was superseded by a later start (closed at
+    that start). Unfinished trailing requests contribute nothing.
+    """
+    pairs = _pair_llm_ends(events)
+    durations: list[float] = []
+    starts = [(i, ev) for i, ev in enumerate(events) if _is_llm_start(ev)]
+    next_start_ms: dict[str, float | None] = {}
+    for k, (_, ev) in enumerate(starts):
+        later = starts[k + 1][1] if k + 1 < len(starts) else None
+        next_start_ms[ev.id] = _event_ms(later) if later is not None else None
+    for i, ev in enumerate(events):
+        if ev.source != "agent":
+            continue
+        if ev.kind == "llm" and not _is_llm_start(ev) and not _is_llm_end(ev):
+            if ev.duration_ms is not None and ev.duration_ms > 0:
+                durations.append(float(ev.duration_ms))
+            continue
+        if not _is_llm_start(ev):
+            continue
+        end_index = pairs.get(ev.id)
+        run_id = _llm_run_id(ev)
+        until = end_index if end_index is not None else len(events)
+        points: list[float | None] = [_event_ms(ev)]
+        for j in range(i + 1, until):
+            retry = events[j]
+            if retry.event != "llm_retry":
+                continue
+            retry_run = _llm_run_id(retry)
+            if run_id and retry_run and retry_run != run_id:
+                continue
+            points.append(_event_ms(retry))
+        if end_index is not None:
+            points.append(_event_ms(events[end_index]))
+        else:
+            # Superseded by the next request: closed at that start.
+            points.append(next_start_ms.get(ev.id))
+        for a, b in zip(points, points[1:]):
+            if a is not None and b is not None and b >= a:
+                durations.append(b - a)
+    return durations
+
+
 def _span_ms(start: Any, end: Any) -> float | None:
     try:
         first = datetime.fromisoformat(str(_timestamp(start)))
