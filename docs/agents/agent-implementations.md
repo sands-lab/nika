@@ -119,6 +119,8 @@ uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
 
 Set `NIKA_CUSTOM_API_KEY` in `.env` only when the endpoint requires authentication.
 
+Claude-family agents (`cli.claude`, `sdk.claude_sdk`, `community.sade`) send Anthropic Messages requests to `/v1/messages` on the same host, so the endpoint must serve that route. vLLM and Ollama 0.14 or later do. Before it creates the sandbox, NIKA sends an empty `POST /v1/messages` to the endpoint. If the endpoint returns 404, the run stops with an error that names the endpoint.
+
 ## CLI agents
 
 | Agent | Sandbox command | Model | Authentication |
