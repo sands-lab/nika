@@ -1,18 +1,18 @@
 {
   "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
   "dirname": "20261008_claude_cli_otel_2_0_llm_31b_it",
-  "name": "Claude CLI + OTel-2.0-LLM-31B-IT",
+  "submission_name": "Claude CLI + OTel-2.0-LLM-31B-IT",
   "authors": "zhihao1998",
   "org": null,
-  "site": null,
-  "report": null,
+  "site": "https://sands-lab.github.io/nika/",
+  "report": "https://arxiv.org/abs/2512.16381",
   "logo": null,
-  "github": "https://github.com/zhihao1998",
+  "github": "https://github.com/sands-lab/nika",
   "email": null,
   "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
   "trajectories_relpath": "trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
   "model": "OTel-2.0-LLM-31B-IT",
-  "framework": "cli.claude",
+  "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
   "tools": [
@@ -75,7 +75,8 @@
   "run_id": "2fa068fe3714d386",
   "official": true,
   "nika_git_commit": "85b05ea169631c3f658bde5b9fb1c631c8bd5a2c",
-  "readme": "# Claude CLI + OTel-2.0-LLM-31B-IT\n\nAuthors: zhihao1998\n\nThis entry runs NIKA's `cli.claude` agent with the self-hosted\n`farbodtavakkoli/OTel-2.0-LLM-31B-IT` model and NIKA's standard MCP tools.\nThe model endpoint uses the OpenAI-compatible API; the agent framework is\nClaude CLI, not a Claude model.\n\n## Evaluation\n\n- Frozen release: nika-bench 0.2.0, test split, 85 cases with 3 trials each.\n- Agent budget: 100 steps, 8192 maximum output tokens, 1800-second agent timeout.\n- Case timeout: 2400 seconds. Final scheduling used light batch 6 and heavy batch 2.\n- Serving: vLLM, BF16 weights, tensor parallel size 4 on A100 40GB GPUs,\n  65536-token context, Gemma 4 reasoning and tool-call parsers.\n- Model revision: `de9c87a5681a4d6dce4ea2419eec8a2aadd5e071`.\n\n## Run history and failures\n\nThe serving configuration was adjusted during this run. In particular,\n`enable_thinking=true` was set explicitly after initial trials; earlier trials\nused the prior serving defaults. The trajectories retain the recorded run history.\n\nThe backend ran as preemptible Slurm jobs. We replaced one deployment-error\ntrial and 14 trials selected for terminal backend 503 errors or timeouts with\nlong model-response waits. Two of those trials were repeated after another\nbackend interruption. Each targeted replacement overwrote its previous slot;\nwe did not select the highest-scoring attempt. These results describe this\noperational run and are not a uniform-configuration comparison.\n\nAll 255 slots are finished: 89 have scored submissions and 166 have no\nsubmission. Model empty-output failures remain in the submitted results and\ncount as zero in the primary mean. No residual infrastructure or grading errors\nremain. The primary mean RCA F1 is 0.037908627450980385 (3.79%).\n\n## Links\n\n- Agent and benchmark: https://github.com/sands-lab/nika\n- Model: https://huggingface.co/farbodtavakkoli/OTel-2.0-LLM-31B-IT\n- Submitter: https://github.com/zhihao1998",
+  "name": "OTel-2.0-LLM-31B-IT · Claude Code",
+  "readme": "# Claude CLI + OTel-2.0-LLM-31B-IT\n\nAuthors: zhihao1998\n\nThis entry runs NIKA's `cli.claude` agent with the self-hosted\n`farbodtavakkoli/OTel-2.0-LLM-31B-IT` model and NIKA's standard MCP tools.\nThe model endpoint uses the OpenAI-compatible API; the agent harness is Claude Code.\n\n## Evaluation\n\n- Frozen release: nika-bench 0.2.0, test split, 85 cases with 3 trials each.\n- Agent budget: 100 steps, 8192 maximum output tokens, 1800-second agent timeout.\n- Case timeout: 2400 seconds. Final scheduling used light batch 6 and heavy batch 2.\n- Serving: vLLM, BF16 weights, tensor parallel size 4 on A100 40GB GPUs,\n  65536-token context, Gemma 4 reasoning and tool-call parsers.\n- Model revision: `de9c87a5681a4d6dce4ea2419eec8a2aadd5e071`.\n\n## Run history and failures\n\nThe serving configuration was adjusted during this run. In particular,\n`enable_thinking=true` was set explicitly after initial trials; earlier trials\nused the prior serving defaults. The trajectories retain the recorded run history.\n\nThe backend ran as preemptible Slurm jobs. We replaced one deployment-error\ntrial and 14 trials selected for terminal backend 503 errors or timeouts with\nlong model-response waits. Two of those trials were repeated after another\nbackend interruption. Each targeted replacement overwrote its previous slot;\nwe did not select the highest-scoring attempt. These results describe this\noperational run and are not a uniform-configuration comparison.\n\nAll 255 slots are finished: 89 have scored submissions and 166 have no\nsubmission. Model empty-output failures remain in the submitted results and\ncount as zero in the primary mean. No residual infrastructure or grading errors\nremain. The primary mean RCA F1 is 0.037908627450980385 (3.79%).\n\n## Links\n\n- Agent and benchmark: https://github.com/sands-lab/nika\n- Model: https://huggingface.co/farbodtavakkoli/OTel-2.0-LLM-31B-IT\n- Submitter: https://github.com/zhihao1998\n\n- Project site: https://sands-lab.github.io/nika/\n- Benchmark paper: https://arxiv.org/abs/2512.16381\n- Trajectories: https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it\n\n## Model release and reference price\n\n- Released weights: 2026-07-23. Source: https://huggingface.co/farbodtavakkoli/OTel-2.0-LLM-31B-IT/commit/2d474f02c3a4f8d98254c0574e0f085e8e19e1fc\n- Reference quote, retrieved 2026-10-10: Featherless AI: $0.12 input / $0.36 output per million tokens. Source: https://featherless.ai/models/farbodtavakkoli/OTel-2.0-LLM-31B-IT. The quote serves FP8; the run used BF16.\n\nThe leaderboard derives a hosted reference estimate from recorded token counts.\nIt does not measure this self-hosted run's GPU bill or apply cache discounts.",
   "trials": [
     {
       "trial_id": "campus_lan__device_forwardin__h0b9011ea426b__t01",

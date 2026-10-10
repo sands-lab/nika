@@ -1,7 +1,7 @@
 {
   "id": "0.1.0/20260910_gpt_oss_20b_react",
   "dirname": "20260910_gpt_oss_20b_react",
-  "name": "GPT-OSS-20B ReACT",
+  "submission_name": "GPT-OSS-20B ReACT",
   "authors": "",
   "org": null,
   "site": null,
@@ -51,6 +51,7 @@
   "run_id": "preview-gpt_oss_20b_react",
   "official": false,
   "nika_git_commit": null,
+  "name": "GPT-OSS-20B · ReACT · test · preview-gpt_oss_20b_react",
   "readme": "# GPT-OSS-20B ReACT\n\nNIKA release 0.1.0 results. Aggregate metrics only; no per-trial results.\n\nPaper: https://arxiv.org/abs/2512.16381\n\nOperational metrics (success/tokens/steps) derived from local `merged_results.zip` evaluation_summary (289 trials / 150 cases).",
   "trials": [],
   "rca_confusion": {

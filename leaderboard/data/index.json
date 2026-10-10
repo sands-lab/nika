@@ -3,7 +3,7 @@
     {
       "id": "0.1.0/20260910_gpt_5_react",
       "dirname": "20260910_gpt_5_react",
-      "name": "GPT-5 ReACT",
+      "submission_name": "GPT-5 ReACT",
       "authors": "",
       "org": null,
       "site": null,
@@ -53,6 +53,7 @@
       "run_id": "preview-gpt_5_react",
       "official": false,
       "nika_git_commit": null,
+      "name": "GPT-5 · ReACT",
       "rca_f1_ci": null,
       "beaten_by": [],
       "rank": 1
@@ -60,7 +61,7 @@
     {
       "id": "0.1.0/20260910_qwen3_6_27b_claudecode",
       "dirname": "20260910_qwen3_6_27b_claudecode",
-      "name": "Qwen3.6-27B ClaudeCode",
+      "submission_name": "Qwen3.6-27B ClaudeCode",
       "authors": "",
       "org": null,
       "site": null,
@@ -71,7 +72,7 @@
       "trajectories_url": null,
       "trajectories_relpath": null,
       "model": "Qwen3.6-27B",
-      "framework": "ClaudeCode",
+      "framework": "Claude Code",
       "agent_type": "ClaudeCode",
       "llm_provider": "qwen",
       "tools": [],
@@ -112,6 +113,7 @@
       "run_id": "preview-qwen3_6_27b_claudecode",
       "official": false,
       "nika_git_commit": null,
+      "name": "Qwen3.6-27B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_react"
@@ -121,7 +123,7 @@
     {
       "id": "0.1.0/20260910_qwen3_6_27b_claudecode_skills",
       "dirname": "20260910_qwen3_6_27b_claudecode_skills",
-      "name": "Qwen3.6-27B ClaudeCode + Skills",
+      "submission_name": "Qwen3.6-27B ClaudeCode + Skills",
       "authors": "",
       "org": null,
       "site": null,
@@ -132,7 +134,7 @@
       "trajectories_url": null,
       "trajectories_relpath": null,
       "model": "Qwen3.6-27B",
-      "framework": "ClaudeCode",
+      "framework": "Claude Code",
       "agent_type": "ClaudeCode",
       "llm_provider": "qwen",
       "tools": [],
@@ -177,6 +179,7 @@
       "run_id": "preview-qwen3_6_27b_claudecode_skills",
       "official": false,
       "nika_git_commit": null,
+      "name": "Qwen3.6-27B · Claude Code · skills",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_react",
@@ -187,7 +190,7 @@
     {
       "id": "0.1.0/20260910_gpt_5_mini_react",
       "dirname": "20260910_gpt_5_mini_react",
-      "name": "GPT-5-mini ReACT",
+      "submission_name": "GPT-5-mini ReACT",
       "authors": "",
       "org": null,
       "site": null,
@@ -237,6 +240,7 @@
       "run_id": "preview-gpt_5_mini_react",
       "official": false,
       "nika_git_commit": null,
+      "name": "GPT-5-mini · ReACT",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_react",
@@ -248,7 +252,7 @@
     {
       "id": "0.1.0/20260910_qwen3_5_27b_claudecode",
       "dirname": "20260910_qwen3_5_27b_claudecode",
-      "name": "Qwen3.5-27B ClaudeCode",
+      "submission_name": "Qwen3.5-27B ClaudeCode",
       "authors": "",
       "org": null,
       "site": null,
@@ -259,7 +263,7 @@
       "trajectories_url": null,
       "trajectories_relpath": null,
       "model": "Qwen3.5-27B",
-      "framework": "ClaudeCode",
+      "framework": "Claude Code",
       "agent_type": "ClaudeCode",
       "llm_provider": "qwen",
       "tools": [],
@@ -300,6 +304,7 @@
       "run_id": "preview-qwen3_5_27b_claudecode",
       "official": false,
       "nika_git_commit": null,
+      "name": "Qwen3.5-27B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -312,7 +317,7 @@
     {
       "id": "0.1.0/20260910_qwen3_5_27b_react",
       "dirname": "20260910_qwen3_5_27b_react",
-      "name": "Qwen3.5-27B ReACT",
+      "submission_name": "Qwen3.5-27B ReACT",
       "authors": "",
       "org": null,
       "site": null,
@@ -364,6 +369,7 @@
       "run_id": "preview-qwen3_5_27b_react",
       "official": false,
       "nika_git_commit": null,
+      "name": "Qwen3.5-27B · ReACT",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -377,7 +383,7 @@
     {
       "id": "0.1.0/20260910_qwen3_5_27b_react_gepa_d_s",
       "dirname": "20260910_qwen3_5_27b_react_gepa_d_s",
-      "name": "Qwen3.5-27B ReACT+GEPA (d+s)",
+      "submission_name": "Qwen3.5-27B ReACT+GEPA (d+s)",
       "authors": "",
       "org": null,
       "site": null,
@@ -433,6 +439,7 @@
       "run_id": "preview-qwen3_5_27b_react_gepa_d_s",
       "official": false,
       "nika_git_commit": null,
+      "name": "Qwen3.5-27B · ReACT · GEPA (d+s)",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -447,7 +454,7 @@
     {
       "id": "0.1.0/20260910_qwen3_5_27b_react_gepa_d",
       "dirname": "20260910_qwen3_5_27b_react_gepa_d",
-      "name": "Qwen3.5-27B ReACT+GEPA (d)",
+      "submission_name": "Qwen3.5-27B ReACT+GEPA (d)",
       "authors": "",
       "org": null,
       "site": null,
@@ -503,6 +510,7 @@
       "run_id": "preview-qwen3_5_27b_react_gepa_d",
       "official": false,
       "nika_git_commit": null,
+      "name": "Qwen3.5-27B · ReACT · GEPA (d)",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -518,7 +526,7 @@
     {
       "id": "0.1.0/20260910_gpt_oss_20b_react",
       "dirname": "20260910_gpt_oss_20b_react",
-      "name": "GPT-OSS-20B ReACT",
+      "submission_name": "GPT-OSS-20B ReACT",
       "authors": "",
       "org": null,
       "site": null,
@@ -568,6 +576,7 @@
       "run_id": "preview-gpt_oss_20b_react",
       "official": false,
       "nika_git_commit": null,
+      "name": "GPT-OSS-20B · ReACT · test · preview-gpt_oss_20b_react",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -584,7 +593,7 @@
     {
       "id": "0.1.0/20260910_gpt_oss_20b_react_replication",
       "dirname": "20260910_gpt_oss_20b_react_replication",
-      "name": "GPT-OSS-20B ReACT (replication)",
+      "submission_name": "GPT-OSS-20B ReACT (replication)",
       "authors": "",
       "org": null,
       "site": null,
@@ -636,6 +645,7 @@
       "run_id": "preview-gpt_oss_20b_react_replication",
       "official": false,
       "nika_git_commit": null,
+      "name": "GPT-OSS-20B · ReACT · test · preview-gpt_oss_20b_react_replication",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -653,7 +663,7 @@
     {
       "id": "0.1.0/20260910_gpt_oss_20b_claudecode",
       "dirname": "20260910_gpt_oss_20b_claudecode",
-      "name": "GPT-OSS-20B ClaudeCode",
+      "submission_name": "GPT-OSS-20B ClaudeCode",
       "authors": "",
       "org": null,
       "site": null,
@@ -664,7 +674,7 @@
       "trajectories_url": null,
       "trajectories_relpath": null,
       "model": "GPT-OSS-20B",
-      "framework": "ClaudeCode",
+      "framework": "Claude Code",
       "agent_type": "ClaudeCode",
       "llm_provider": "openai",
       "tools": [],
@@ -705,6 +715,7 @@
       "run_id": "preview-gpt_oss_20b_claudecode",
       "official": false,
       "nika_git_commit": null,
+      "name": "GPT-OSS-20B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -723,25 +734,42 @@
     {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
       "dirname": "20261010_claude_code_qwen3_8_27b_fp8",
-      "name": "Claude Code + Qwen3.8-27B-FP8",
+      "submission_name": "Claude Code + Qwen3.8-27B-FP8",
       "authors": "NIKA Team",
       "org": null,
-      "site": null,
-      "report": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
       "logo": null,
-      "github": null,
+      "github": "https://github.com/sands-lab/nika",
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
       "trajectories_relpath": "trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
       "model": "Qwen3.8-27B-FP8",
-      "framework": "cli.claude",
+      "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
-      "tools": [],
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
       "skills": [],
       "optimization_methods": [],
       "tags": [],
-      "extra": {},
+      "extra": {
+        "model_repository": "Qwen/Qwen3.8-27B-FP8",
+        "max_steps": 100,
+        "max_tokens": 8192,
+        "agent_timeout_sec": 14400,
+        "case_timeout_sec": 15000
+      },
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -773,6 +801,7 @@
       "run_id": "556fb10a0340dcfd",
       "official": true,
       "nika_git_commit": "2d745c6a1fd40b0c97c6445c07400608c4a8ec1d",
+      "name": "Qwen3.8-27B-FP8 · Claude Code",
       "rca_f1_ci": [
         0.466328,
         0.635916
@@ -783,7 +812,7 @@
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
       "dirname": "20261007_qwen3_6_35b_a3b_claudecode",
-      "name": "Qwen3.6-35B-A3B ClaudeCode",
+      "submission_name": "Qwen3.6-35B-A3B ClaudeCode",
       "authors": "NIKA Team",
       "org": null,
       "site": null,
@@ -794,7 +823,7 @@
       "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
       "trajectories_relpath": "trajectories/0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
       "model": "Qwen3.6-35B-A3B-FP8",
-      "framework": "ClaudeCode",
+      "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
       "tools": [],
@@ -833,6 +862,7 @@
       "run_id": "7ff2f0b4fe0f4e9b",
       "official": true,
       "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
+      "name": "Qwen3.6-35B-A3B-FP8 · Claude Code",
       "rca_f1_ci": [
         0.170803,
         0.309107
@@ -845,7 +875,7 @@
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
       "dirname": "20261008_qwen3_6_35b_a3b_codex",
-      "name": "Qwen3.6-35B-A3B Codex",
+      "submission_name": "Qwen3.6-35B-A3B Codex",
       "authors": "NIKA Team",
       "org": null,
       "site": null,
@@ -895,6 +925,7 @@
       "run_id": "1afde5c43d6e5ec8",
       "official": true,
       "nika_git_commit": "2ad19b638907564c29452117e82ed32298293056",
+      "name": "Qwen3.6-35B-A3B-FP8 · Codex",
       "rca_f1_ci": [
         0.144289,
         0.270398
@@ -907,7 +938,7 @@
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
       "dirname": "20261007_qwen3_6_35b_a3b_langgraph",
-      "name": "Qwen3.6-35B-A3B LangGraph",
+      "submission_name": "Qwen3.6-35B-A3B LangGraph",
       "authors": "NIKA Team",
       "org": null,
       "site": null,
@@ -957,6 +988,7 @@
       "run_id": "7eae0e3cd26588d2",
       "official": true,
       "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
+      "name": "Qwen3.6-35B-A3B-FP8 · LangGraph",
       "rca_f1_ci": [
         0.111095,
         0.237909
@@ -969,18 +1001,18 @@
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
       "dirname": "20261008_claude_cli_otel_2_0_llm_31b_it",
-      "name": "Claude CLI + OTel-2.0-LLM-31B-IT",
+      "submission_name": "Claude CLI + OTel-2.0-LLM-31B-IT",
       "authors": "zhihao1998",
       "org": null,
-      "site": null,
-      "report": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
       "logo": null,
-      "github": "https://github.com/zhihao1998",
+      "github": "https://github.com/sands-lab/nika",
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
       "trajectories_relpath": "trajectories/0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
       "model": "OTel-2.0-LLM-31B-IT",
-      "framework": "cli.claude",
+      "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
       "tools": [
@@ -1043,6 +1075,7 @@
       "run_id": "2fa068fe3714d386",
       "official": true,
       "nika_git_commit": "85b05ea169631c3f658bde5b9fb1c631c8bd5a2c",
+      "name": "OTel-2.0-LLM-31B-IT · Claude Code",
       "rca_f1_ci": [
         0.016994,
         0.061438

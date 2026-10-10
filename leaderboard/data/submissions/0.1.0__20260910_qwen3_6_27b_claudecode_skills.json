@@ -1,7 +1,7 @@
 {
   "id": "0.1.0/20260910_qwen3_6_27b_claudecode_skills",
   "dirname": "20260910_qwen3_6_27b_claudecode_skills",
-  "name": "Qwen3.6-27B ClaudeCode + Skills",
+  "submission_name": "Qwen3.6-27B ClaudeCode + Skills",
   "authors": "",
   "org": null,
   "site": null,
@@ -12,7 +12,7 @@
   "trajectories_url": null,
   "trajectories_relpath": null,
   "model": "Qwen3.6-27B",
-  "framework": "ClaudeCode",
+  "framework": "Claude Code",
   "agent_type": "ClaudeCode",
   "llm_provider": "qwen",
   "tools": [],
@@ -57,6 +57,7 @@
   "run_id": "preview-qwen3_6_27b_claudecode_skills",
   "official": false,
   "nika_git_commit": null,
+  "name": "Qwen3.6-27B · Claude Code · skills",
   "readme": "# Qwen3.6-27B ClaudeCode + Skills\n\nSlide-reported results on NIKA release 0.1.0. Aggregate metrics only; no per-trial results.",
   "trials": [],
   "rca_confusion": {

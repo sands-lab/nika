@@ -1,7 +1,7 @@
 {
   "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
   "dirname": "20261008_qwen3_6_35b_a3b_codex",
-  "name": "Qwen3.6-35B-A3B Codex",
+  "submission_name": "Qwen3.6-35B-A3B Codex",
   "authors": "NIKA Team",
   "org": null,
   "site": null,
@@ -51,6 +51,7 @@
   "run_id": "1afde5c43d6e5ec8",
   "official": true,
   "nika_git_commit": "2ad19b638907564c29452117e82ed32298293056",
+  "name": "Qwen3.6-35B-A3B-FP8 · Codex",
   "readme": "# Qwen3.6-35B-A3B Codex\n\nCodex CLI agent (NIKA `cli.codex` harness, MCP tools) driven by Qwen3.6-35B-A3B (FP8 weights, served through an OpenAI-compatible endpoint).\n\n- Benchmark: nika-bench 0.2.0, test split, 85 cases × 3 trials\n- Limits: max 100 steps, 7200 s agent timeout per trial\n- Harness: stock NIKA agent `cli.codex`, no prompt optimization, skills, or fine-tuning\n\nAuthors: NIKA Team. Code: https://github.com/sands-lab/nika",
   "trials": [
     {

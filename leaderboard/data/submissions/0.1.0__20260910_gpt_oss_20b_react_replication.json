@@ -1,7 +1,7 @@
 {
   "id": "0.1.0/20260910_gpt_oss_20b_react_replication",
   "dirname": "20260910_gpt_oss_20b_react_replication",
-  "name": "GPT-OSS-20B ReACT (replication)",
+  "submission_name": "GPT-OSS-20B ReACT (replication)",
   "authors": "",
   "org": null,
   "site": null,
@@ -53,6 +53,7 @@
   "run_id": "preview-gpt_oss_20b_react_replication",
   "official": false,
   "nika_git_commit": null,
+  "name": "GPT-OSS-20B · ReACT · test · preview-gpt_oss_20b_react_replication",
   "readme": "# GPT-OSS-20B ReACT (replication)\n\nReplication of the NIKA arXiv GPT-OSS-20B ReACT baseline (release 0.1.0). Aggregate metrics only; no per-trial results.",
   "trials": [],
   "rca_confusion": {

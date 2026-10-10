@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-08",
+  "as_of": "2026-10-10",
   "currency": "USD",
   "unit": "per_million_tokens",
   "notes": "Reference token prices used to turn a submission's token counts into a monetary cost on the leaderboard's cost-performance chart. Proprietary models use the vendor's list API price. Open-weight models have no vendor price, so they carry a public hosted-inference quote for the same weights as a reference rate; that is a market price for someone else's serving, not the submitter's own cost. Every entry records the date its quote was collected in `retrieved`; vendor and hosted prices both move, so re-check before citing. Prices are editable in the UI without changing this file.",
@@ -53,6 +53,24 @@
       "provider": "OpenRouter",
       "source": "https://openrouter.ai/qwen/qwen3.6-27b",
       "retrieved": "2026-10-08"
+    },
+    "Qwen3.8-27B-FP8": {
+      "input": 0.425,
+      "output": 2.55,
+      "basis": "hosted_open_weight",
+      "provider": "OpenRouter",
+      "source": "https://openrouter.ai/qwen/qwen3.8-27b",
+      "retrieved": "2026-10-10",
+      "note": "Quote for Qwen3.8-27B; the run used the vendor's FP8 checkpoint. This is a hosted reference estimate, not the self-hosted run's GPU bill."
+    },
+    "OTel-2.0-LLM-31B-IT": {
+      "input": 0.12,
+      "output": 0.36,
+      "basis": "hosted_open_weight",
+      "provider": "Featherless AI",
+      "source": "https://featherless.ai/models/farbodtavakkoli/OTel-2.0-LLM-31B-IT",
+      "retrieved": "2026-10-10",
+      "note": "Developer API quote for the FP8 deployment of this model; the submitted run used self-hosted BF16 weights. This is a hosted reference estimate, not the run's GPU bill. Cached-input discounts are not applied."
     }
   }
 }

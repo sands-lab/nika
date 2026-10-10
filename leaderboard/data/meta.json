@@ -5,11 +5,10 @@
   ],
   "filters": {
     "framework": [
-      "ClaudeCode",
+      "Claude Code",
       "Codex",
       "LangGraph",
-      "ReACT",
-      "cli.claude"
+      "ReACT"
     ],
     "llm_provider": [
       "custom",
@@ -46,5 +45,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-10T08:54:45+00:00"
+  "generated_at": "2026-10-10T09:10:34+00:00"
 }
