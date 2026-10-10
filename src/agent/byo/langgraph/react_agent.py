@@ -33,7 +33,7 @@ logging.basicConfig(level=logging.INFO)
 # Binding LLM-turn limit is ModelCallLimitMiddleware(run_limit=max_steps).
 # create_agent may count before_model/model/after_model/tools as separate
 # recursion steps, so keep recursion_limit as a loose backstop only.
-_RECURSION_STEPS_PER_LLM_TURN = 4
+_RECURSION_STEPS_PER_LLM_TURN = 5
 _RECURSION_LIMIT_SLACK = 10
 
 

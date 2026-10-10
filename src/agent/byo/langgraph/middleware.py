@@ -24,10 +24,6 @@ def _is_truncated(message: Any) -> bool:
     return message.response_metadata.get("finish_reason") == "length"
 
 
-def _is_nudge(message: Any) -> bool:
-    return isinstance(message, HumanMessage) and message.content == TRUNCATION_NUDGE
-
-
 class TruncationRetryMiddleware(AgentMiddleware):
     """Re-prompt the model when a turn hits ``max_tokens`` with no tool call.
 
@@ -44,7 +40,11 @@ class TruncationRetryMiddleware(AgentMiddleware):
             return None
         retries = 0
         for prev, message in zip(messages[-3::-2], messages[-2::-2]):
-            if not (_is_nudge(message) and _is_truncated(prev)):
+            if not (
+                isinstance(message, HumanMessage)
+                and message.content == TRUNCATION_NUDGE
+                and _is_truncated(prev)
+            ):
                 break
             retries += 1
         if retries >= MAX_TRUNCATION_RETRIES:
