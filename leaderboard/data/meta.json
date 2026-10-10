@@ -7,8 +7,7 @@
     "framework": [
       "Claude Code",
       "Codex",
-      "LangGraph",
-      "ReACT"
+      "ReAct"
     ],
     "llm_provider": [
       "att",
@@ -45,5 +44,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-10T09:21:49+00:00"
+  "generated_at": "2026-10-10T09:25:58+00:00"
 }

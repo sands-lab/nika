@@ -12,7 +12,7 @@
   "trajectories_url": null,
   "trajectories_relpath": null,
   "model": "GPT-5",
-  "framework": "ReACT",
+  "framework": "ReAct",
   "agent_type": "ReACT",
   "llm_provider": "openai",
   "tools": [],
@@ -51,7 +51,7 @@
   "run_id": "preview-gpt_5_react",
   "official": false,
   "nika_git_commit": null,
-  "name": "GPT-5 · ReACT",
+  "name": "GPT-5 · ReAct",
   "readme": "# GPT-5 ReACT\n\nNIKA release 0.1.0 results. Aggregate metrics only; no per-trial results.\n\nPaper: https://arxiv.org/abs/2512.16381\n\nOperational metrics (success/tokens/steps) derived from local `merged_results.zip` evaluation_summary (300 trials / 150 cases).",
   "trials": [],
   "rca_confusion": {

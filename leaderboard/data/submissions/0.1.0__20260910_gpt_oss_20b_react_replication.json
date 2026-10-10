@@ -12,7 +12,7 @@
   "trajectories_url": null,
   "trajectories_relpath": null,
   "model": "GPT-OSS-20B",
-  "framework": "ReACT",
+  "framework": "ReAct",
   "agent_type": "ReACT",
   "llm_provider": "openai",
   "tools": [],
@@ -53,7 +53,7 @@
   "run_id": "preview-gpt_oss_20b_react_replication",
   "official": false,
   "nika_git_commit": null,
-  "name": "GPT-OSS-20B · ReACT · test · preview-gpt_oss_20b_react_replication",
+  "name": "GPT-OSS-20B · ReAct · test · preview-gpt_oss_20b_react_replication",
   "readme": "# GPT-OSS-20B ReACT (replication)\n\nReplication of the NIKA arXiv GPT-OSS-20B ReACT baseline (release 0.1.0). Aggregate metrics only; no per-trial results.",
   "trials": [],
   "rca_confusion": {

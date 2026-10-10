@@ -12,7 +12,7 @@
   "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
   "trajectories_relpath": "trajectories/0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
   "model": "Qwen3.6-35B-A3B-FP8",
-  "framework": "LangGraph",
+  "framework": "ReAct",
   "agent_type": "byo.langgraph",
   "llm_provider": "custom",
   "tools": [],
@@ -51,7 +51,7 @@
   "run_id": "7eae0e3cd26588d2",
   "official": true,
   "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
-  "name": "Qwen3.6-35B-A3B-FP8 · LangGraph",
+  "name": "Qwen3.6-35B-A3B-FP8 · ReAct",
   "readme": "# Qwen3.6-35B-A3B LangGraph\n\nLangGraph ReAct-style agent (NIKA `byo.langgraph` harness) driven by Qwen3.6-35B-A3B (FP8 weights, served through an OpenAI-compatible endpoint).\n\n- Benchmark: nika-bench 0.2.0, test split, 85 cases × 3 trials\n- Limits: max 100 steps, 8192 max output tokens, 7200 s agent timeout per trial\n- Harness: stock NIKA agent `byo.langgraph`, no prompt optimization, skills, or fine-tuning\n\nAuthors: NIKA Team. Code: https://github.com/sands-lab/nika",
   "trials": [
     {

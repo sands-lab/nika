@@ -12,7 +12,7 @@
   "trajectories_url": null,
   "trajectories_relpath": null,
   "model": "Qwen3.5-27B",
-  "framework": "ReACT",
+  "framework": "ReAct",
   "agent_type": "ReACT",
   "llm_provider": "qwen",
   "tools": [],
@@ -57,7 +57,7 @@
   "run_id": "preview-qwen3_5_27b_react_gepa_d_s",
   "official": false,
   "nika_git_commit": null,
-  "name": "Qwen3.5-27B · ReACT · GEPA (d+s)",
+  "name": "Qwen3.5-27B · ReAct · GEPA (d+s)",
   "readme": "# Qwen3.5-27B ReACT+GEPA (d+s)\n\nSlide-reported results on NIKA release 0.1.0. Aggregate metrics only; no per-trial results.",
   "trials": [],
   "rca_confusion": {
