@@ -23,7 +23,8 @@
       "OTel-2.0-LLM-31B-IT",
       "Qwen3.5-27B",
       "Qwen3.6-27B",
-      "Qwen3.6-35B-A3B-FP8"
+      "Qwen3.6-35B-A3B-FP8",
+      "Qwen3.8-27B-FP8"
     ],
     "optimization_methods": [
       "GEPA",
@@ -45,5 +46,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-09T15:30:08+00:00"
+  "generated_at": "2026-10-10T08:54:45+00:00"
 }

@@ -721,6 +721,66 @@
       "rank": 11
     },
     {
+      "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+      "dirname": "20261010_claude_code_qwen3_8_27b_fp8",
+      "name": "Claude Code + Qwen3.8-27B-FP8",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": null,
+      "report": null,
+      "logo": null,
+      "github": null,
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+      "trajectories_relpath": "trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+      "model": "Qwen3.8-27B-FP8",
+      "framework": "cli.claude",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {},
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.5529968627450983,
+      "mean_localization_f1": 0.6349603921568631,
+      "mean_detection_score": 0.8549019607843137,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 252,
+      "n_agent_failed": 3,
+      "success_rate": 0.988235,
+      "token_totals": {
+        "in_tokens": 509716994,
+        "out_tokens": 11352909
+      },
+      "steps_totals": {
+        "steps": 16515,
+        "tool_calls": 16466,
+        "tool_errors": 0
+      },
+      "mean_tokens": 2043411.384,
+      "mean_steps": 64.765,
+      "total_tokens": 521069903,
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-10-10T08:52:41+00:00",
+      "run_id": "556fb10a0340dcfd",
+      "official": true,
+      "nika_git_commit": "2d745c6a1fd40b0c97c6445c07400608c4a8ec1d",
+      "rca_f1_ci": [
+        0.466328,
+        0.635916
+      ],
+      "beaten_by": [],
+      "rank": 1
+    },
+    {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
       "dirname": "20261007_qwen3_6_35b_a3b_claudecode",
       "name": "Qwen3.6-35B-A3B ClaudeCode",
@@ -777,8 +837,10 @@
         0.170803,
         0.309107
       ],
-      "beaten_by": [],
-      "rank": 1
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+      ],
+      "rank": 2
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -837,8 +899,10 @@
         0.144289,
         0.270398
       ],
-      "beaten_by": [],
-      "rank": 1
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+      ],
+      "rank": 2
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -897,8 +961,10 @@
         0.111095,
         0.237909
       ],
-      "beaten_by": [],
-      "rank": 1
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+      ],
+      "rank": 2
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -984,9 +1050,10 @@
       "beaten_by": [
         "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
         "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
-        "0.2.0/20261008_qwen3_6_35b_a3b_codex"
+        "0.2.0/20261008_qwen3_6_35b_a3b_codex",
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
       ],
-      "rank": 4
+      "rank": 5
     }
   ]
 }
