@@ -35,14 +35,23 @@ def _events(trace_dir: Path) -> list[tuple[str, str]]:
     return [(json.loads(r)["phase"], json.loads(r)["event"]) for r in rows]
 
 
-def test_error_report_fails_before_submission(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("report", "match"),
+    [
+        ("ERROR: diagnosis phase exited with code 1", "exited with code 1"),
+        ("  \n", "empty report"),
+    ],
+)
+def test_error_report_fails_before_submission(
+    tmp_path: Path, monkeypatch, report: str, match: str
+) -> None:
     advanced: list[str] = []
     monkeypatch.setattr(
         "agent.utils.mcp_client.begin_submission_mcp_phase",
         lambda sid, report: advanced.append(report) or {},
     )
-    agent = _Agent(tmp_path, "ERROR: diagnosis phase exited with code 1")
-    with pytest.raises(RuntimeError, match="exited with code 1"):
+    agent = _Agent(tmp_path, report)
+    with pytest.raises(RuntimeError, match=match):
         asyncio.run(agent.run("task"))
     assert not advanced and not agent.submitted
     assert _events(tmp_path) == [
