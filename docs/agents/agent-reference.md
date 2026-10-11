@@ -29,7 +29,9 @@ Every agent runs the same pipeline:
 
 A completed run writes `messages.jsonl` and `submission.json` under the session result directory. The [root-cause scoring reference](../benchmarks/root-cause-evaluation.md) defines the submission schema.
 
-An empty diagnosis report, or one that starts with `ERROR:`, fails the run; the submission phase does not start.
+> **Failed diagnosis:** an empty report, or one starting with `ERROR:`, fails the run before submission.
+
+## Run settings
 
 Configure shared values in `config/nika.yaml` or override them on `nika agent run`:
 
@@ -63,7 +65,12 @@ When diagnosis uses all `max_steps` turns, the agent stops, logs `max_steps_reac
 | `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
 | `mock` | Not applicable (no LLM) |
 
+<details>
+<summary>Codex CLI step and token accounting</summary>
+
 `codex exec` reports no event per model response. `cli.codex` starts a new step at the first item after all tool calls of the previous response finished. Tool calls that Codex runs one after another from a single response therefore count as separate steps, so `cli.codex` can report more steps than the model made. `codex exec` also reports token usage once per run, so `cli.codex` puts all tokens on the last `llm_end` of the phase.
+
+</details>
 
 ## Providers
 
@@ -132,7 +139,7 @@ Workers enforce the [step limit](#step-limit) and record calls using the [trace 
 
 ## Custom agent registration
 
-The [integration guide](custom-agents.md#register-your-harness) explains where to register a harness. Explicit CLI/YAML models already pass through `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py). Extend it only if the agent needs model-default behavior.
+The [integration guide](custom-agents.md#2-register-your-harness) explains where to register a harness. Explicit CLI/YAML models already pass through `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py). Extend it only if the agent needs model-default behavior.
 
 Declare supported providers in `AGENT_PROVIDERS` so CLI provider validation accepts the new ID. For NIKA provider routing, map credentials for its model client in [`provider_env.py`](../../src/agent/utils/provider_env.py). Add it to the registry's provider requirement list when its constructor requires `llm_provider`, and pass the relevant settings through the factory.
 

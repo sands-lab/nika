@@ -17,30 +17,42 @@ uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
 
 NIKA creates the lab, injects the failure, runs the agent, evaluates its answer, and closes the lab. Keep the printed session ID.
 
-Prefer an interactive setup? Run `uv run nika` to [choose a task and agent](../operations/tui.md).
+> **Interactive setup:** run `uv run nika` to [choose a task and agent](../operations/tui.md).
 
 ## Available harnesses
 
-Example configurations for the built-in harnesses:
+Each harness name links to its example configuration.
+
+### On the host
 
 - [LangGraph](../../config/byo.langgraph.example.yaml) (`byo.langgraph`)
 - [mcp-agent](../../config/byo.mcp_agent.example.yaml) (`byo.mcp_agent`)
 - [AutoGen](../../config/byo.autogen.example.yaml) (`byo.autogen`)
+
+### In Docker Sandbox
+
+Complete [Docker Sandbox setup](../operations/agent-sandbox.md#prerequisites), then choose a CLI or SDK harness:
+
 - [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
 - [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)
 - [Codex SDK](../../config/sdk.codex_sdk.example.yaml) (`sdk.codex_sdk`)
 - [Claude Agent SDK](../../config/sdk.claude_sdk.example.yaml) (`sdk.claude_sdk`)
 
-NIKA also includes [SADE](community/sade.md), a community agent with a structured troubleshooting workflow and skill library. See the [SADE paper](https://arxiv.org/abs/2605.04530). The deterministic `mock` harness checks the pipeline without an LLM.
-
-BYO agents run on the host. CLI, SDK, and SADE agents require [Docker Sandbox setup](../operations/agent-sandbox.md#prerequisites). For example:
+For example:
 
 ```shell
 uv run nika agent run -a cli.codex -p openai -m gpt-5-mini \
   --problem dc_clos_s_link_down
 ```
 
-SDK agents also need `uv sync --extra sdk --prerelease=allow`. See the [agent reference](agent-reference.md) for supported providers and options, or [custom agents](custom-agents.md) to add your own investigation loop.
+SDK harnesses also need `uv sync --extra sdk --prerelease=allow`.
+
+### Community and testing
+
+- [SADE](community/sade.md) combines a structured troubleshooting workflow with a skill library. Read the [SADE paper](https://arxiv.org/abs/2605.04530).
+- `mock` checks the pipeline without an LLM.
+
+See the [agent reference](agent-reference.md) for provider support and options, or [custom agents](custom-agents.md) to add your own investigation loop.
 
 ## Use a self-hosted model
 
@@ -87,6 +99,8 @@ uv run nika inspect
 ```
 
 ![NIKA Inspect showing an agent's tool calls and router output](../../assets/images/nika-inspect-timeline.png)
+
+*A Claude Code investigation, with a selected tool call and its router output.*
 
 Open your session to follow the investigation in **Timeline**, inspect tool inputs and outputs, and compare the answer with ground truth in **Scores**. See [Inspect](../operations/session-inspect.md) for dashboard details and [root-cause scoring](../benchmarks/root-cause-evaluation.md) for how answers are evaluated.
 
