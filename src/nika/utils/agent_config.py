@@ -9,7 +9,7 @@ import os
 
 from nika.run_config.loader import get_run_config
 from nika.run_config.schema import RunConfig
-from agent.registry import get_agent_spec
+from agent.registry import find_agent_spec, get_agent_spec
 from agent.utils.provider_env import validate_provider_for_agent
 
 
@@ -32,7 +32,8 @@ def resolve_llm_provider(
     config: RunConfig | None = None,
 ) -> str | None:
     cfg = _cfg(config)
-    if not get_agent_spec(agent_type).requires_provider:
+    spec = find_agent_spec(agent_type)
+    if spec is not None and not spec.requires_provider:
         if value:
             return validate_provider_for_agent(agent_type, value)
         return None
@@ -68,7 +69,8 @@ def resolve_max_tokens(
     agent_type: str, *, config: RunConfig | None = None
 ) -> int | None:
     """Effective ``agent.max_tokens`` for *agent_type* (None when not applied)."""
-    if not get_agent_spec(agent_type).supports_max_tokens:
+    spec = find_agent_spec(agent_type)
+    if spec is not None and not spec.supports_max_tokens:
         return None
     return _cfg(config).agent.max_tokens
 
