@@ -11,6 +11,9 @@ Help readers understand the purpose, essential contract, and next action with mi
 
 * **Lead with purpose.** Make the reason clear before the action or mechanism. Apply this to document structure, section introductions, and sentence construction: organize around reader goals, establish the need a section addresses, and connect instructions to their intended outcome. Convey purpose naturally; avoid formulaic “Why?” headings and extra preamble when context already supplies the reason.
 * **Lead with the shortest useful path.** Once the purpose is clear, give readers the essential steps. Put alternatives and secondary details later or in linked references. Cut repetition rather than merely moving it into more headings.
+* **State the problem before the solution.** For an optional or extra step, first describe what goes wrong without it, then what the step gives the reader. “To run it by name” states the result, not the reason.
+* **Name sections after what the reader builds.** Use precise nouns for the thing the reader is creating, such as “Write your agent.” Avoid a nearby activity (“Write the investigation”) or internal jargon.
+* **Keep sections in proportion.** Secondary mechanics, such as registration internals or dependency caveats, should not outweigh the main path. Write plain, complete sentences. Rewrite compressed, clause-packed sentences, and cut prose that a code example already shows.
 * **Keep essential contracts visible.** Show the smallest accurate code snippet that communicates what readers must implement. Preserve required inputs, outputs, and behavior; brevity should not erase the interface.
 * **Keep plumbing out of introductory guides.** Explain constructors, logging, orchestration, and submission only when readers must handle them. Otherwise rely on existing abstractions and link to implementation references.
 * **Respect configured defaults.** Include command options and configuration fields only when the example needs them. Avoid model, step-limit, or other overrides that add no value to the reader's task.
@@ -19,7 +22,7 @@ Help readers understand the purpose, essential contract, and next action with mi
 * **Choose structure for readability.** Use tables when readers need to compare meaningful attributes, lists for simple catalogs, and reference sections for detail. Do not impose a fixed document template.
 * **Prefer concrete evidence to dense explanation.** When an output excerpt makes behavior clearer, use a short, verified example and identify its source accurately. Distinguish terminal output from recorded logs; do not fabricate observations or add transcripts without a reader benefit.
 * **Keep simplification accurate.** Check the current implementation before describing an interface. If the desired simpler contract requires runtime changes, explain the limitation briefly and track the proposed change in an issue when authorized.
-* **Use consistent, human-readable terminology.** Use established NIKA terms, including “harness” for agent harnesses, and readable names such as “LangGraph.” Link relevant research when it helps readers understand the approach.
+* **Use consistent, human-readable terminology.** Use the terms defined in the [glossary](../../../GLOSSARY.md), choosing the one that fits what the reader is doing, and readable names such as “LangGraph.” Add a term to the glossary when a document introduces it. Link relevant research when it helps readers understand the approach.
 
 For example, “To investigate incidents with your own agent, implement the diagnosis contract” makes the purpose clear before the instruction.
 
