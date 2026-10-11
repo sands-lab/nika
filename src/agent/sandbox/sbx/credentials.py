@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from agent.registry import BUILTIN_AGENTS
 from agent.sandbox.config import load_sandbox_env_values
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.sandbox.sbx.client import (
@@ -49,12 +50,11 @@ SERVICE_ANTHROPIC = "anthropic"
 
 DEEPSEEK_HOST = "api.deepseek.com"
 
+# Sandbox agents need the credential service of their client family.
 _AGENT_REQUIRED_SERVICES: dict[str, frozenset[str]] = {
-    "cli.codex": frozenset({SERVICE_OPENAI}),
-    "sdk.codex_sdk": frozenset({SERVICE_OPENAI}),
-    "cli.claude": frozenset({SERVICE_ANTHROPIC}),
-    "sdk.claude_sdk": frozenset({SERVICE_ANTHROPIC}),
-    "community.sade": frozenset({SERVICE_ANTHROPIC}),
+    spec.id: frozenset({spec.credential_family})
+    for spec in BUILTIN_AGENTS
+    if spec.sbx is not None
 }
 
 _OFFICIAL_ANTHROPIC_HOST_SUFFIXES = (

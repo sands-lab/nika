@@ -22,19 +22,35 @@ The [diagnosis worker](../../src/agent/byo/langgraph/phases/diagnosis.py) shows 
 
 > **Current contract:** setup and submission are inherited from LangGraph. A framework-independent base is tracked in [#172](https://github.com/sands-lab/nika/issues/172); see the [integration reference](agent-reference.md#custom-agent-integration).
 
-## 2. Register your harness
+## 2. Add it to NIKA
 
-Place it under `src/agent/community/my_agent/`. Add it to the [agent factory](../../src/agent/registry.py) and declare its supported providers in the [provider registry](../../src/agent/utils/provider_env.py). See [registration details](agent-reference.md#custom-agent-registration).
+Keep the harness in its own project, which depends on your framework. To let NIKA run it by name, describe it in a `nika-agent.yaml` at the project root:
 
-Set the provider, model, and limits in `config/nika.yaml`, following an [example configuration](../../config/byo.langgraph.example.yaml). Keep credentials in `.env`.
+```yaml
+id: my_agent
+factory: my_agent.agent:MyAgent
+providers: [openai, custom]   # providers your model client supports
+```
+
+Then register it from NIKA's checkout:
+
+```shell
+uv run nika agent add ../my-agent
+```
+
+`nika agent add` installs the project into NIKA's environment, checks that NIKA can import `factory`, and records the agent in `config/agents.yaml`. `nika agent list` shows it next to the built-in harnesses, and `nika agent remove my_agent` undoes the registration. If `uv sync` later removes the package, run `nika agent add` again.
+
+Set the provider, model, and limits in `config/nika.yaml`, following an [example configuration](../../config/byo.langgraph.example.yaml). Keep credentials in `.env`. Other manifest fields, including a sandbox definition, are described in the [registration reference](agent-reference.md#custom-agent-registration).
 
 ## 3. Run and check the result
 
 ```shell
-uv run nika agent run -a community.my_agent --problem dc_clos_s_link_down
+uv run nika agent run -a my_agent --problem dc_clos_s_link_down
 ```
 
 NIKA runs the incident, evaluates the answer, and closes the lab. The LangGraph harness prints progress in the terminal and records model output and tool calls in `messages.jsonl`.
+
+To try a harness before writing a manifest, pass its import path instead: `-a my_agent.agent:MyAgent`. The class must be importable from NIKA's environment.
 
 <details>
 <summary>Example investigation from a real run</summary>

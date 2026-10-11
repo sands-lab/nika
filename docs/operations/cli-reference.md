@@ -252,7 +252,8 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
 ## `nika agent`
 
-- **`nika agent list`**: supported agent types (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), LLM providers, and reasoning-effort levels.
+- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`) and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
+- **`nika agent add PATH`** / **`nika agent remove ID`**: register or unregister an agent developed outside NIKA from its `nika-agent.yaml`. See [Integrate a custom agent](../agents/custom-agents.md#2-add-it-to-nika).
 - **`nika agent check`**: lists models at the configured LLM endpoint and reports whether it is reachable, accepts the credentials, and serves `agent.model`. Takes `--run-config`, `-p`, `-m`, `--base-url`, and `--json`; exits non-zero when the endpoint is not usable. No tokens are spent.
 - **`nika agent run`**: two modes:
 

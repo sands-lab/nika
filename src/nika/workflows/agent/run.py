@@ -3,7 +3,7 @@
 import logging
 import time
 
-from agent.registry import create_agent, run_agent
+from agent.registry import create_agent, get_agent_spec, run_agent
 from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
 from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
 from agent.utils.provider_env import provider_env_context
@@ -63,6 +63,12 @@ def start_agent(
         offline_sdk_wheels=sandbox_offline_sdk_wheels,
     )
     use_sandbox = agent_type in SANDBOX_SUPPORTED_AGENTS
+    if not use_sandbox and get_agent_spec(agent_type).sandbox_definition:
+        logging.getLogger(__name__).warning(
+            "Agent %s declares a sandbox; external agents run on the host until "
+            "sandbox backends support them.",
+            agent_type,
+        )
     if use_sandbox:
         from agent.sandbox.sbx.images import ensure_sbx_template_images
 

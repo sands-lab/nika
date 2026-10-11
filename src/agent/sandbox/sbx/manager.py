@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from agent.registry import BUILTIN_AGENTS
 from agent.sandbox.config import ENV_SESSION_DIR, SandboxConfig
 from agent.sandbox.constants import (
     DIAGNOSIS_REPORT_FILENAME,
@@ -66,7 +67,9 @@ from nika.utils.session import Session
 
 logger = logging.getLogger(__name__)
 
-SDK_AGENT_TYPES = frozenset({"sdk.codex_sdk", "sdk.claude_sdk", "community.sade"})
+SDK_AGENT_TYPES = frozenset(
+    spec.id for spec in BUILTIN_AGENTS if spec.sbx is not None and spec.sbx.sdk
+)
 # Covers a first-run template image pull; a normal create takes under a minute.
 _SBX_CREATE_TIMEOUT_SEC = 600
 
