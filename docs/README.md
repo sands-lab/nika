@@ -11,6 +11,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Install NIKA and use installer options | [Installation](operations/installation.md) | How-to |
 | Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](operations/configuration.md) | Reference |
 | Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
+| Pick tasks, agents, and sessions interactively instead of typing flags | [Interactive shell (`nika tui`)](operations/tui.md) | How-to |
 | Browse finished or running session trajectories in a browser | [Browse sessions with `nika inspect`](operations/session-inspect.md) | How-to |
 | Compare network types, scenarios, backends, and prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
 | Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |
