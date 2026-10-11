@@ -4,6 +4,7 @@ from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.tools.structured import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+from agent.byo.langgraph.middleware import TruncationRetryMiddleware
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import load_session_mcp_config
@@ -55,11 +56,14 @@ class DiagnosisPhase:
             system_prompt=OVERALL_DIAGNOSIS_PROMPT,
             tools=self.tools,
             name=DIAGNOSIS,
+            # after_model hooks run in reverse order: list the retry first so
+            # the call limit counts a truncated turn before it is re-prompted.
             middleware=[
+                TruncationRetryMiddleware(),
                 ModelCallLimitMiddleware(
                     run_limit=self.max_steps,
                     exit_behavior="error",
-                )
+                ),
             ],
         )
         return agent

@@ -130,6 +130,18 @@ export interface BenchmarkProgressResponse {
   total: number;
 }
 
+/** Completed LLM request wall times of one session (server-side ledger port). */
+export interface LlmRequestStats {
+  n: number;
+  sum_ms: number;
+  min_ms?: number | null;
+  max_ms?: number | null;
+}
+
+export interface LlmStatsResponse {
+  stats: Record<string, LlmRequestStats>;
+}
+
 export interface SessionDetail extends SessionSummary {
   run: Record<string, unknown>;
   task_description?: string | null;
@@ -196,13 +208,18 @@ export interface ScoresResponse {
   llm_judge?: Record<string, unknown> | null;
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+/** ``fetch`` + JSON, surfacing the server's ``error`` message on failure. */
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
+}
+
+function getJson<T>(url: string): Promise<T> {
+  return requestJson<T>(url);
 }
 
 function withRoot(params: URLSearchParams, root?: string | null) {
@@ -247,26 +264,34 @@ export function fetchBenchmarkProgress(opts?: {
   );
 }
 
+/** One round trip for the run monitor instead of every session's timeline. */
+export function fetchLlmStats(
+  keys: string[],
+  root?: string | null,
+  signal?: AbortSignal,
+) {
+  return requestJson<LlmStatsResponse>(`/api/llm-stats${rootQuery(root)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+    signal,
+  });
+}
+
 export function fetchSession(id: string, root?: string | null) {
   return getJson<SessionDetail>(
     `/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`,
   );
 }
 
-export async function deleteSession(id: string, root?: string | null) {
-  const res = await fetch(
-    `/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`,
-    { method: "DELETE" },
-  );
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<{
+export function deleteSession(id: string, root?: string | null) {
+  return requestJson<{
     deleted: boolean;
     session_id: string;
     session_dir: string;
-  }>;
+  }>(`/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`, {
+    method: "DELETE",
+  });
 }
 
 export function fetchTimeline(id: string, source?: string, root?: string | null) {
@@ -297,12 +322,12 @@ export function fetchAnnotations(id: string, root?: string | null) {
   );
 }
 
-export async function saveAnnotations(
+export function saveAnnotations(
   id: string,
   annotations: Annotations,
   root?: string | null,
 ) {
-  const res = await fetch(
+  return requestJson<Annotations>(
     `/api/sessions/${encodeURIComponent(id)}/annotations${rootQuery(root)}`,
     {
       method: "PUT",
@@ -310,11 +335,6 @@ export async function saveAnnotations(
       body: JSON.stringify(annotations),
     },
   );
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<Annotations>;
 }
 
 export function fetchEvent(id: string, eventId: string, root?: string | null) {

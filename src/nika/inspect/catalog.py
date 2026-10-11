@@ -12,11 +12,12 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from nika.config import resolve_results_root
-from nika.inspect.adapters import iter_jsonl
+from nika.inspect.adapters import iter_jsonl, llm_request_durations, load_agent_events
 from nika.inspect.models import (
     Annotations,
     ArtifactFlags,
     BenchmarkRunSummary,
+    LlmRequestStats,
     RawArtifact,
     RawArtifactData,
     ScoresResponse,
@@ -453,6 +454,28 @@ def _build_session_summary(
         artifacts=_artifact_flags(session_dir),
         **bench,
     )
+
+
+_LLM_STATS_CACHE: dict[str, tuple[tuple, LlmRequestStats]] = {}
+
+
+def llm_request_stats(session_dir: Path) -> LlmRequestStats:
+    """Completed LLM request stats, cached on ``messages.jsonl`` mtime/size."""
+    path = session_dir / "messages.jsonl"
+    key = str(session_dir.absolute())
+    signature = _stat_signature([path])
+    cached = _LLM_STATS_CACHE.get(key)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    durations = llm_request_durations(load_agent_events(session_dir, slim=False))
+    stats = LlmRequestStats(
+        n=len(durations),
+        sum_ms=sum(durations),
+        min_ms=min(durations) if durations else None,
+        max_ms=max(durations) if durations else None,
+    )
+    _cache_put(_LLM_STATS_CACHE, key, (signature, stats))
+    return stats
 
 
 def detail_session_dir(

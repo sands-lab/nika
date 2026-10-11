@@ -33,7 +33,7 @@ Set provider credentials in the repo-root `.env` (same as `cli.claude`; see [`.e
 
 - `DEEPSEEK_API_KEY` with `agent.provider: deepseek`
 - `ANTHROPIC_API_KEY` with `agent.provider: anthropic`
-- Optional `NIKA_CUSTOM_API_KEY` with `agent.provider: custom` and `agent.custom.base_url`
+- Optional `NIKA_CUSTOM_API_KEY` with `agent.provider: custom` and `agent.base_url`
 
 ## Run
 

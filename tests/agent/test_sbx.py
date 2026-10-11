@@ -24,6 +24,7 @@ from agent.sandbox.sbx.client import (
 from agent.sandbox.sbx.credentials import (
     ensure_sbx_credentials,
     missing_credential_message,
+    require_anthropic_messages_route,
     required_services_for_agent,
 )
 from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
@@ -976,6 +977,9 @@ def test_ensure_sbx_credentials_custom_strips_v1_for_claude(tmp_path) -> None:
             "agent.sandbox.sbx.credentials.list_sbx_custom_secrets",
             return_value={},
         ),
+        patch(
+            "agent.sandbox.sbx.credentials.require_anthropic_messages_route"
+        ) as probe,
         patch("agent.sandbox.sbx.credentials.run_sbx_checked") as run,
         patch.dict(os.environ, {}, clear=True),
     ):
@@ -986,12 +990,34 @@ def test_ensure_sbx_credentials_custom_strips_v1_for_claude(tmp_path) -> None:
             agent_type="cli.claude",
         )
 
+    probe.assert_called_once_with(
+        "http://gateway.example:8000", api_key=CUSTOM_UNAUTHENTICATED_API_KEY
+    )
     run.assert_not_called()
     assert plan.third_party_anthropic
     assert plan.anthropic_base_url == "http://gateway.example:8000"
     runtime = plan.sentinel_runtime_env()
     assert runtime["ANTHROPIC_BASE_URL"] == "http://gateway.example:8000"
     assert runtime["ANTHROPIC_API_KEY"] == CUSTOM_UNAUTHENTICATED_API_KEY
+
+
+@pytest.mark.parametrize("status", [400, 401, 503])
+def test_messages_route_probe_accepts_non_404(status: int) -> None:
+    response = SimpleNamespace(status_code=status)
+    with patch("agent.sandbox.sbx.credentials.httpx.post", return_value=response):
+        require_anthropic_messages_route("http://ollama:11434")
+
+
+def test_messages_route_probe_rejects_missing_route() -> None:
+    response = SimpleNamespace(status_code=404)
+    with (
+        patch(
+            "agent.sandbox.sbx.credentials.httpx.post", return_value=response
+        ) as post,
+        pytest.raises(RuntimeError, match="no Anthropic Messages route"),
+    ):
+        require_anthropic_messages_route("http://ollama:11434/")
+    assert post.call_args.args[0] == "http://ollama:11434/v1/messages"
 
 
 def test_required_services_for_agent() -> None:

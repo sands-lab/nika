@@ -1,4 +1,4 @@
-import type { CanonicalTraceEvent, EventKind } from "./api";
+import type { CanonicalTraceEvent, EventKind, LlmRequestStats } from "./api";
 
 /** Visual role for DeepSeek-style color coding (English labels). */
 export type Role = "nika" | "assistant" | "tool" | "score" | "system" | "other";
@@ -1266,6 +1266,7 @@ export interface DurationStats {
   avgMs: number | null;
   maxMs: number | null;
   sumMs: number | null;
+  p50Ms: number | null;
 }
 
 /**
@@ -1283,16 +1284,36 @@ export function llmDurationStats(rows: DisplayEvent[]): DurationStats {
     values.push(row.durationMs);
   }
   if (!values.length) {
-    return { n: 0, minMs: null, avgMs: null, maxMs: null, sumMs: null };
+    return { n: 0, minMs: null, avgMs: null, maxMs: null, sumMs: null, p50Ms: null };
   }
   const sumMs = values.reduce((a, b) => a + b, 0);
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
   return {
     n: values.length,
-    minMs: Math.min(...values),
+    minMs: sorted[0]!,
     avgMs: sumMs / values.length,
-    maxMs: Math.max(...values),
+    maxMs: sorted[sorted.length - 1]!,
     sumMs,
+    p50Ms: sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2,
   };
+}
+
+/** Pool per-session server stats into one ``DurationStats`` (no median across sessions). */
+export function mergeLlmStats(parts: LlmRequestStats[]): DurationStats {
+  let n = 0;
+  let sumMs = 0;
+  let minMs: number | null = null;
+  let maxMs: number | null = null;
+  for (const p of parts) {
+    if (!p.n) continue;
+    n += p.n;
+    sumMs += p.sum_ms;
+    if (p.min_ms != null) minMs = minMs == null ? p.min_ms : Math.min(minMs, p.min_ms);
+    if (p.max_ms != null) maxMs = maxMs == null ? p.max_ms : Math.max(maxMs, p.max_ms);
+  }
+  if (!n) return { n: 0, minMs: null, avgMs: null, maxMs: null, sumMs: null, p50Ms: null };
+  return { n, minMs, avgMs: sumMs / n, maxMs, sumMs, p50Ms: null };
 }
 
 export interface LlmTokenUsage {

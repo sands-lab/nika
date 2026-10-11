@@ -36,7 +36,7 @@ def test_mcp_agent_custom_provider_uses_nika_custom(monkeypatch) -> None:
             {
                 "agent": {
                     "provider": "custom",
-                    "custom": {"base_url": "https://openrouter.ai/api/v1"},
+                    "base_url": "https://openrouter.ai/api/v1",
                 }
             }
         )
@@ -66,7 +66,7 @@ def test_autogen_create_model_client_uses_custom(monkeypatch) -> None:
             {
                 "agent": {
                     "provider": "custom",
-                    "custom": {"base_url": "https://openrouter.ai/api/v1"},
+                    "base_url": "https://openrouter.ai/api/v1",
                 }
             }
         )

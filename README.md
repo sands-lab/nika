@@ -154,7 +154,7 @@ agent:
   provider: openai          # or anthropic / deepseek
 ```
 
-**Custom** — use any OpenAI-compatible endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `base_url` (and optional `model`) under `agent.custom` in YAML:
+**Custom** — use a self-hosted or third-party endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `agent.base_url` next to `agent.model` in YAML. Only `provider: custom` reads `base_url`. Set it to the OpenAI-style API root, which usually ends in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. OpenAI-family agents call `/v1/chat/completions`. Claude-family agents (`cli.claude`, `sdk.claude_sdk`, `community.sade`) call the Anthropic `/v1/messages` route instead, so the endpoint must serve it (vLLM, Ollama 0.14 or later):
 
 ```shell
 # .env
@@ -163,9 +163,8 @@ NIKA_CUSTOM_API_KEY=...     # optional if the endpoint needs no auth
 # config/nika.yaml
 agent:
   provider: custom
-  custom:
-    base_url: https://openrouter.ai/api/v1
-    model: null
+  model: deepseek/deepseek-v4-flash
+  base_url: https://openrouter.ai/api/v1
 ```
 
 For repeatable evaluations, copy a per-agent template from `config/*.example.yaml` (for example `cli.codex.example.yaml` → `cli.codex.yaml`) and select it with `--run-config`.
@@ -195,6 +194,8 @@ uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
 ```
 
 That deploys the lab, injects the fault, runs the agent, closes the session, and writes evaluation results.
+
+Prefer picking over typing flags? Run `uv run nika` with no arguments to open an interactive shell: `/run` walks you through choosing a task and an agent, checks that the model endpoint is up, and runs the equivalent `nika` command. See [interactive shell](docs/operations/tui.md).
 
 For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](docs/operations/cli-reference.md).
 

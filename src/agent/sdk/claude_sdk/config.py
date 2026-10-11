@@ -23,7 +23,7 @@ def prepare_claude_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
         raise RuntimeError(
             "Model provider credentials are not set. Configure ANTHROPIC_API_KEY "
             "(native), DEEPSEEK_API_KEY with agent.provider=deepseek, or "
-            "agent.custom.base_url with agent.provider=custom and optional "
+            "agent.base_url with agent.provider=custom and optional "
             "NIKA_CUSTOM_API_KEY. Store keys in the repository-root .env and "
             "operational settings in config/nika.yaml. You can also authenticate "
             "with Claude `/login` "

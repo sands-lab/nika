@@ -125,7 +125,7 @@ class AgentConfigTest:
                     "type": "byo.langgraph",
                     "provider": "custom",
                     "model": "otel-31b",
-                    "custom": {"base_url": "http://example.com/v1"},
+                    "base_url": "http://example.com/v1",
                 }
             }
         )
@@ -138,3 +138,21 @@ class AgentConfigTest:
         # just-set values at teardown and leak into later provider tests).
         for key in ("NIKA_CUSTOM_MODEL", "NIKA_CUSTOM_BASE_URL", "CUSTOM_API_BASE"):
             os.environ.pop(key, None)
+
+    def test_apply_custom_provider_env_ignores_base_url_for_builtin_provider(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("NIKA_CUSTOM_BASE_URL", "http://stale/v1")
+        cfg = RunConfig.model_validate(
+            {
+                "agent": {
+                    "type": "byo.langgraph",
+                    "provider": "openai",
+                    "base_url": "http://example.com/v1",
+                }
+            }
+        )
+        apply_custom_provider_env(cfg)
+        import os
+
+        assert "NIKA_CUSTOM_BASE_URL" not in os.environ

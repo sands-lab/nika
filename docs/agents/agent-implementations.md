@@ -2,7 +2,7 @@
 
 NIKA lets you run different troubleshooting agents against the same network incidents. Choose an **agent implementation** (the model/tool loop), a **provider and model** (the service it calls), and an **execution location** (host or Docker Sandbox). Changing the model does not require writing a new agent.
 
-Every implementation investigates through NIKA's MCP tools, produces a diagnosis report, and submits structured root causes for evaluation. The host freezes the report before exposing the submission catalogs. See [Custom agent integration](custom-agents.md) to build your own.
+Troubleshooting agents investigate through NIKA's MCP tools, produce a diagnosis report, and submit structured root causes for evaluation. The host freezes the report before exposing the submission catalogs. See [Custom agent integration](custom-agents.md) to build your own.
 
 ## Choose an implementation
 
@@ -20,7 +20,7 @@ The BYO agents execute on the host; CLI, SDK, and SADE agents execute in Docker 
 
 ## Run with a hosted provider
 
-Install NIKA and its lab prerequisites using [Installation](../operations/installation.md), then run `uv sync`. Put your provider credential in the repository's `.env`, for example:
+Install NIKA and its lab prerequisites using [Installation](../operations/installation.md), then run `uv sync`. You can also run `uv run nika` to [choose a task and agent interactively](../operations/tui.md). For the command-line walkthrough below, put your provider credential in the repository's `.env`, for example:
 
 ```dotenv
 OPENAI_API_KEY=<your-api-key>
@@ -84,7 +84,7 @@ uv run nika agent run -a byo.langgraph -p custom \
 
 Use the model ID returned by `/v1/models` if you configured a different served name. For a server on another machine, replace `localhost` with its reachable address and configure server binding/authentication accordingly. A successful `/models` request checks connectivity; it does not prove that tool calls work. Inspect the NIKA trajectory for actual tool invocations.
 
-Both self-hosted examples use `provider: custom`, which selects the OpenAI-compatible interface for this BYO agent. To save the endpoint instead of repeating flags:
+Both self-hosted examples use `provider: custom`. Set `agent.base_url` to the API root, usually ending in `/v1`; only the custom provider reads this setting. To save the endpoint instead of repeating flags:
 
 ```yaml
 agent:
@@ -92,8 +92,7 @@ agent:
   provider: custom
   model: Qwen/Qwen2.5-7B-Instruct
   max_steps: 20
-  custom:
-    base_url: http://localhost:8000/v1
+  base_url: http://localhost:8000/v1
 ```
 
 Save these values in `config/nika.yaml`; then pass only `--problem` to `nika agent run`. See [Run configuration](../operations/configuration.md) for precedence and additional settings.
@@ -115,7 +114,9 @@ uv run nika agent run -a sdk.codex_sdk -p openai -m gpt-5-mini -n 20 \
   --problem dc_clos_s_link_down
 ```
 
-`localhost` inside a sandbox refers to that sandbox. Self-hosted endpoints need an address reachable from the microVM and sandbox network permission. Also check the API protocol required by the chosen agent: the BYO examples above use OpenAI-compatible chat, while Claude integrations use an Anthropic-compatible interface. See [sandbox authentication and networking](../operations/agent-sandbox.md) before adapting an endpoint example.
+For a custom endpoint, match its API to the agent: the BYO examples above use OpenAI-compatible chat; Claude-family agents (`cli.claude`, `sdk.claude_sdk`, `community.sade`) require Anthropic `/v1/messages`. Use a server that supports that route, such as a compatible vLLM deployment or Ollama 0.14 or later. NIKA checks the route before creating the sandbox and stops with an endpoint error if it is missing.
+
+`localhost` inside a sandbox refers to that sandbox. Self-hosted endpoints need an address reachable from the microVM and sandbox network permission. See [sandbox authentication and networking](../operations/agent-sandbox.md) before adapting an endpoint example.
 
 ## Inspect results
 

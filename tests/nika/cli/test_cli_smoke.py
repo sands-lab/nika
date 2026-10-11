@@ -25,6 +25,7 @@ CLI_COMMAND_MODULES = [
     "nika.cli.commands.remote",
     "nika.cli.commands.session",
     "nika.cli.commands.traffic",
+    "nika.cli.commands.tui",
 ]
 CLI_HANDLER_WORKFLOWS = [
     "nika.workflows.agent.run",
@@ -48,6 +49,7 @@ CLI_HELP_ARGS = [
     ["case", "run", "--help"],
     ["agent", "--help"],
     ["agent", "list", "--help"],
+    ["agent", "check", "--help"],
     ["agent", "run", "--help"],
     ["benchmark", "--help"],
     ["benchmark", "run", "--help"],
@@ -84,6 +86,7 @@ CLI_HELP_ARGS = [
     ["traffic", "--help"],
     ["traffic", "list", "--help"],
     ["traffic", "run", "--help"],
+    ["tui", "--help"],
 ]
 CLI_READ_ONLY_ARGS = [
     ["agent", "list"],

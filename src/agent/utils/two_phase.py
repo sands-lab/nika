@@ -4,8 +4,9 @@ Every agent runs the same contract:
 
 * **Diagnosis** uses at most ``max_steps`` LLM turns (model responses). When
   the budget runs out, the latest assistant text becomes the report
-  (:func:`max_steps_report`). A report that starts with ``ERROR:`` fails the
-  run with :class:`RuntimeError`, and submission never starts.
+  (:func:`max_steps_report`). An empty report, or one that starts with
+  ``ERROR:``, fails the run with :class:`RuntimeError`, and submission never
+  starts.
 * **Freeze and advance** happen on the host (:func:`begin_submission_mcp_phase`),
   which returns the submission context (fault ontology + resource catalog).
 * **Submission** gets the frozen report and context and calls ``submit()``.
@@ -70,6 +71,9 @@ class TwoPhaseAgent:
             logger.log_agent_error(exc)
             self.print_phase(DIAGNOSIS, f"failed ({str(exc)[:120]})")
             raise
+        if not report.strip():
+            # Never freeze an empty report: submission would run on nothing.
+            report = f"{ERROR_PREFIX} diagnosis phase produced an empty report"
         if report.startswith(ERROR_PREFIX):
             logger.log_agent_error(report)
             self.print_phase(DIAGNOSIS, f"failed ({report[:120]})")

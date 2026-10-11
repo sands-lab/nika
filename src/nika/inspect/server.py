@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.middleware.gzip import GZipMiddleware
@@ -27,6 +28,7 @@ from nika.inspect.catalog import (
     list_browse_entries,
     list_raw_artifacts,
     list_selectable_roots,
+    llm_request_stats,
     load_annotations,
     load_scores,
     read_raw_artifact,
@@ -41,6 +43,7 @@ from nika.inspect.models import (
     BenchmarkProgressResponse,
     BrowseResponse,
     ContentSearchResponse,
+    LlmStatsResponse,
     ResultsRootsResponse,
     SessionListResponse,
     TimelineResponse,
@@ -253,6 +256,35 @@ def create_inspect_app(
             )
         return session_dir
 
+    async def llm_stats(request: Request) -> JSONResponse:
+        """Completed LLM request stats for the posted session ids (one round trip)."""
+        active = _active_root(request)
+        if isinstance(active, JSONResponse):
+            return active
+        try:
+            body = await request.json()
+        except ValueError:
+            return _error("Body must be JSON")
+        keys = body.get("keys") if isinstance(body, dict) else None
+        if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+            return _error("keys must be a list of session ids")
+
+        def collect() -> dict[str, Any]:
+            stats: dict[str, Any] = {}
+            for key in keys:
+                try:
+                    session_dir = find_session_dir(key, results_root=active)
+                except AmbiguousSessionError:
+                    continue
+                if session_dir is None:
+                    continue
+                stats[key] = llm_request_stats(session_dir)
+            return stats
+
+        # Cold caches parse every log in the folder; keep the loop responsive.
+        stats = await run_in_threadpool(collect)
+        return JSONResponse(LlmStatsResponse(stats=stats).model_dump())
+
     def session_detail(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         resolved = _resolve(request, session_id)
@@ -417,6 +449,7 @@ def create_inspect_app(
         Route("/api/browse", browse),
         Route("/api/sessions", sessions),
         Route("/api/benchmark-progress", benchmark_progress),
+        Route("/api/llm-stats", llm_stats, methods=["POST"]),
         Route("/api/sessions/{session_id:path}/timeline", session_timeline),
         Route("/api/sessions/{session_id:path}/events/{event_id}", session_event),
         Route("/api/sessions/{session_id:path}/messages", session_messages),

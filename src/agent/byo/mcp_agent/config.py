@@ -121,7 +121,7 @@ def _openai_settings_for_provider(
 
 def _anthropic_settings_for_provider(model: str) -> AnthropicSettings:
     """Build Anthropic settings with an optional compatible gateway URL."""
-    base = os.environ.get(ENV_ANTHROPIC_BASE_URL) or resolve_custom_base_url() or None
+    base = os.environ.get(ENV_ANTHROPIC_BASE_URL) or None
     return AnthropicSettings(
         default_model=model,
         api_key=os.environ.get(ENV_ANTHROPIC_API_KEY) or None,

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import warnings
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -174,12 +175,6 @@ class NikaSettings(BaseModel):
     )
 
 
-class CustomModelSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    base_url: str | None = None
-
-
 class AgentLlmSettings(BaseModel):
     """Control request timeout, retries and streaming for the LangGraph model factory."""
 
@@ -237,6 +232,9 @@ class AgentSettings(BaseModel):
     type: str = "byo.langgraph"
     provider: str = "openai"
     model: str | None = None
+    # Inference endpoint for provider=custom; other providers ignore it.
+    # OpenAI-style API root, usually ending in /v1 (http://host:8000/v1).
+    base_url: str | None = None
     max_steps: int = 20
     # Wall-clock budget for one agent run (diagnosis + submission), all agent types.
     # 0 disables it. Keep it below benchmark.case_timeout_sec so the agent stops
@@ -249,9 +247,30 @@ class AgentSettings(BaseModel):
     reasoning_effort: str | None = None
     # Output-token cap per model response. Not applied by Codex agents or SADE.
     max_tokens: int = 8192
-    custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_legacy_custom(cls, data: Any) -> Any:
+        """Accept the old ``agent.custom.base_url`` layout used by saved configs."""
+        if not isinstance(data, dict) or "custom" not in data:
+            return data
+        data = dict(data)
+        legacy = data.pop("custom") or {}
+        if not isinstance(legacy, dict):
+            raise ValueError("agent.custom must be a mapping")
+        unknown = set(legacy) - {"base_url"}
+        if unknown:
+            raise ValueError(f"unknown agent.custom keys: {sorted(unknown)}")
+        if legacy.get("base_url") is not None:
+            warnings.warn(
+                "agent.custom.base_url is deprecated; use agent.base_url instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            data.setdefault("base_url", legacy["base_url"])
+        return data
 
     @field_validator("max_steps")
     @classmethod

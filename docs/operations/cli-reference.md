@@ -25,6 +25,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`, `burst`) against the running lab |
+| `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
 
@@ -151,7 +152,7 @@ Aligned with `nika agent run`:
 - **`-m` / `--model`**: model id.
 - **`-n` / `--max-steps`**: max LLM turns per phase (every agent).
 - **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), `cli.codex`, and `sdk.codex_sdk`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only.
-- **`--base-url`**: inference endpoint (`agent.custom.base_url`). Required for `provider=custom`; also overrides the OpenAI or Anthropic base URL.
+- **`--base-url`**: inference endpoint (`agent.base_url`), the OpenAI-style API root ending in `/v1` (for example `http://localhost:8000/v1`). Used only with `provider=custom`, where it is required.
 
 `nika eval judge` uses **`-p`** and **`-m`** for the judge only (no agent in that command).
 
@@ -252,6 +253,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 ## `nika agent`
 
 - **`nika agent list`**: supported agent types (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), LLM providers, and reasoning-effort levels.
+- **`nika agent check`**: lists models at the configured LLM endpoint and reports whether it is reachable, accepts the credentials, and serves `agent.model`. Takes `--run-config`, `-p`, `-m`, `--base-url`, and `--json`; exits non-zero when the endpoint is not usable. No tokens are spent.
 - **`nika agent run`**: two modes:
 
   1. **Task mode (recommended):** `--problem LABEL` runs the complete task lifecycle: deploy the lab, inject the fault (using defaults from the benchmark resolver), run the agent, close the session, and write metrics.
@@ -275,7 +277,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   | `-m` / `--model` | both | model id |
   | `-n` / `--max-steps` | both | Max LLM turns per phase (every agent) |
   | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO agents, `cli.codex`, `sdk.codex_sdk`) |
-  | `--base-url` | both | Inference endpoint (`agent.custom.base_url`) |
+  | `--base-url` | both | Inference endpoint (`agent.base_url`) |
   | `--role` | both | Diagnosis access role (default `agent.access.role`) |
   | `--run-config PATH` | both | Run config file (default `config/nika.yaml`; also `NIKA_RUN_CONFIG`) |
   | `--sandbox-keep-container` | both | Keep the `sbx` sandbox after the agent exits (debugging) |

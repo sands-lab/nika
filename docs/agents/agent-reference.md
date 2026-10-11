@@ -29,7 +29,7 @@ Every agent runs the same pipeline:
 
 A completed run writes `messages.jsonl` and `submission.json` under the session result directory. The [root-cause scoring reference](../benchmarks/root-cause-evaluation.md) defines the submission schema.
 
-A diagnosis report that starts with `ERROR:` fails the run, and the submission phase does not start.
+An empty diagnosis report, or one that starts with `ERROR:`, fails the run; the submission phase does not start.
 
 Configure shared values in `config/nika.yaml` or override them on `nika agent run`:
 
@@ -42,7 +42,7 @@ Configure shared values in `config/nika.yaml` or override them on `nika agent ru
 | (run config only) | `agent.timeout_sec` | `1800`; wall-clock budget for the whole agent run, for every agent |
 | (run config only) | `agent.max_tokens` | `8192`; output-token cap per model response, for every LLM agent except `cli.codex`, `sdk.codex_sdk`, and `community.sade` |
 | `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
-| `--base-url` | `agent.custom.base_url` | None |
+| `--base-url` | `agent.base_url` | None |
 
 See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules.
 
@@ -63,13 +63,17 @@ When diagnosis uses all `max_steps` turns, the agent stops, logs `max_steps_reac
 | `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
 | `mock` | Not applicable (no LLM) |
 
-`codex exec` reports no event per model response. `cli.codex` starts a new step at the first item after all tool calls of the previous response finished. Tool calls that Codex runs one after another from a single response therefore count as separate steps, so `cli.codex` can report more steps than the model made. `codex exec` also reports token usage once per run, so `cli.codex` puts all tokens on the last `llm_end` of the phase. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.custom.base_url=...`, or YAML.
+`codex exec` reports no event per model response. `cli.codex` starts a new step at the first item after all tool calls of the previous response finished. Tool calls that Codex runs one after another from a single response therefore count as separate steps, so `cli.codex` can report more steps than the model made. `codex exec` also reports token usage once per run, so `cli.codex` puts all tokens on the last `llm_end` of the phase. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.base_url=...`, or YAML.
 
 | Agent family | Providers |
 | --- | --- |
 | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
 | `cli.codex`, `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
 | `cli.claude`, `sdk.claude_sdk`, `community.sade` | `anthropic`, `deepseek`, `custom` |
+
+### Custom endpoint compatibility
+
+Only `provider: custom` reads `agent.base_url`. Set it to the OpenAI-style API root, usually ending in `/v1`. OpenAI-family agents use chat completions; Claude-family agents require the Anthropic `/v1/messages` route. NIKA probes that route with an empty POST before creating a Claude-family sandbox; HTTP 404 fails the run with an endpoint error. The provider adapter strips the trailing `/v1` when configuring an Anthropic client, which appends `/v1/messages` itself.
 
 CLI, SDK, and SADE agents run in Docker Sandboxes. The lab and MCP gateway remain on the host. See [Docker Sandbox execution](../operations/agent-sandbox.md) for installation, credentials, isolation, proxy settings, and troubleshooting.
 
@@ -151,3 +155,11 @@ Use [Run configuration](../operations/configuration.md) for every setting, [CLI]
 | `tool_error` | Matching tool name/call ID, error details | Failed tool invocation; increments tool-error count. |
 
 The logger supplies timestamp and phase. Preserve real usage and errors; do not emit synthetic model events for deterministic code. See [`loggers.py`](../../src/agent/utils/loggers.py), [`usage.py`](../../src/agent/utils/usage.py), and [`trace_parser.py`](../../src/nika/evaluator/trace_parser.py) for supported payload normalization and native CLI/SDK transcript handling.
+
+## Custom agent registration
+
+The [integration guide](custom-agents.md#register-and-configure-the-agent) shows the factory registration. Also extend `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py) to accept the agent ID with an explicit CLI/YAML model.
+
+For an agent that uses NIKA's provider routing, declare supported providers in `AGENT_PROVIDERS` and map credentials for its model client in [`provider_env.py`](../../src/agent/utils/provider_env.py). Add it to the registry's provider requirement list when its constructor requires `llm_provider`, and pass the relevant settings through the factory.
+
+The registry's sandbox set identifies implementations already wired into the sandbox runner; adding a name does not implement sandbox execution. Follow an existing sandbox agent for packaging, workers, phase handoff, and transcript handling. See [Docker Sandbox execution](../operations/agent-sandbox.md#architecture).

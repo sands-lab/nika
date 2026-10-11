@@ -2,7 +2,7 @@
 
 Bring your own investigation strategy or agent framework while letting NIKA provide the network lab, tools, submission format, and evaluation. Your agent can use any Python model client or orchestration framework that can invoke MCP tools.
 
-NIKA's Python integration surface is currently the protocol and shared helpers below. The registered `sdk.*` agents use vendor agent SDKs; they are not a separate NIKA SDK you must adopt.
+Use the Python protocol and shared helpers below to integrate with NIKA. Your model client and investigation loop remain your choice; the registered `sdk.*` implementations are examples using vendor agent SDKs.
 
 ## Understand the workflow
 
@@ -78,7 +78,7 @@ class MyAgent(TwoPhaseAgent):
         raise NotImplementedError
 ```
 
-The base class fails diagnosis reports starting with `ERROR:` and skips submission. Your loop must enforce `max_steps` model responses per phase; the base class does not enforce that limit. Reuse `max_steps_report()` for the shared limit behavior. The registry's runner applies the whole-run timeout. See [limits and telemetry](agent-reference.md#step-limit).
+The base class rejects empty diagnosis reports and reports starting with `ERROR:`, skipping submission. Your loop must enforce `max_steps` model responses per phase; the base class does not enforce that limit. Reuse `max_steps_report()` for the shared limit behavior. The registry's runner applies the whole-run timeout. See [limits and telemetry](agent-reference.md#step-limit).
 
 This skeleton is for a **host-run** integration. Sandboxed agents return the report to the host driver, which advances the phase between separate workers. They cannot advance it themselves or import host session code. Follow the existing sandbox integration if you need that execution mode; see [the phase boundary](../operations/agent-sandbox.md#phase-boundary).
 
@@ -140,6 +140,8 @@ result = await invoke_connection(
     "submit",
     {"is_anomaly": is_anomaly, "root_causes": root_causes},
 )
+if result.isError:
+    raise RuntimeError(str(result.content))
 return str(result)
 ```
 
@@ -163,7 +165,7 @@ case "community.my_agent":
     )
 ```
 
-Also extend `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py) so the new ID accepts an explicit CLI/YAML model. If the agent uses NIKA provider routing, update the provider support entries in [`provider_env.py`](../../src/agent/utils/provider_env.py) and the registry's provider requirement list. The registry's sandbox set is only for integrations wired into the sandbox runner, not a general execution switch.
+Enable model resolution for the new ID in [`agent_config.py`](../../src/nika/utils/agent_config.py). For provider routing or sandbox registration, follow the [registration reference](agent-reference.md#custom-agent-registration).
 
 Follow an existing implementation for the configuration your model client needs. Keep credentials in `.env` and operational settings in run configuration. NIKA's protocol does not mandate a particular model API.
 
@@ -173,7 +175,7 @@ Use [`MessageLogger`](../../src/agent/utils/loggers.py) in each worker phase to 
 
 Log one `llm_end` per actual model response, including available usage metadata. Log tool start, result, and errors with consistent tool names and call IDs. Do not log a deterministic operation as an LLM response: the evaluator uses these events to count steps, tokens, and tool calls. LangChain integrations can use `AgentCallbackLogger`; other frameworks can use `MessageLogger` directly.
 
-See [telemetry contract](agent-reference.md#trace-event-contract) for the event fields. Missing token usage should remain unavailable rather than being invented.
+See [telemetry contract](agent-reference.md#trace-event-contract) for the event fields. Omit usage metadata when the provider does not report it; do not estimate token counts from text.
 
 ## Validate through the normal workflow
 

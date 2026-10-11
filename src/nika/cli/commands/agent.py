@@ -98,6 +98,57 @@ def agent_list() -> None:
         typer.echo(f"  {level}")
 
 
+@agent_app.command("check")
+def agent_check(
+    llm_provider: str | None = typer.Option(
+        None, "-p", "--provider", help="LLM provider (default: agent.provider)."
+    ),
+    model: str | None = typer.Option(
+        None, "-m", "--model", help="Model id (default: agent.model)."
+    ),
+    base_url: str | None = typer.Option(
+        None, "--base-url", help="Endpoint URL for provider=custom."
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print the result as JSON."),
+) -> None:
+    """Check that the configured LLM endpoint is up and serves the model."""
+    from dataclasses import asdict
+
+    from agent.utils.endpoint_probe import probe_endpoint
+
+    cfg = merge_cli(
+        load_run_config(run_config),
+        llm_provider=llm_provider,
+        model=model,
+        base_url=base_url,
+    )
+    result = probe_endpoint(
+        cfg.agent.provider, cfg.agent.model, base_url=cfg.agent.base_url
+    )
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(asdict(result), indent=2))
+    else:
+        latency = f" ({result.latency_ms:.0f} ms)" if result.latency_ms else ""
+        typer.echo(f"agent:    {cfg.agent.type}")
+        typer.echo(f"provider: {result.provider}")
+        typer.echo(f"model:    {result.model}")
+        typer.echo(f"endpoint: {result.endpoint}")
+        typer.secho(
+            f"status:   {result.status}{latency}  {result.detail}",
+            fg=typer.colors.GREEN if result.ok else typer.colors.RED,
+        )
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
 @agent_app.command("run")
 def agent_run(
     agent_type: str | None = typer.Option(
@@ -141,8 +192,9 @@ def agent_run(
         None,
         "--base-url",
         help=(
-            "Inference endpoint URL (default: agent.custom.base_url). "
-            "Required for provider=custom; also overrides OpenAI/Anthropic base URL."
+            "Inference endpoint URL (default: agent.base_url). "
+            "OpenAI-style API root, usually ending in /v1. "
+            "Used only with provider=custom, where it is required."
         ),
     ),
     run_config: str | None = typer.Option(

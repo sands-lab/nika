@@ -337,7 +337,7 @@ def load_model(
         if max_tokens is not None:
             # Sent as ``max_completion_tokens``, as OpenAI reasoning models require.
             kwargs["max_tokens"] = max_tokens
-        base = os.getenv(ENV_OPENAI_BASE_URL) or resolve_custom_base_url() or None
+        base = os.getenv(ENV_OPENAI_BASE_URL) or None
         if base:
             kwargs["base_url"] = base
         return _openai_model(retries=retries, stream=stream, **kwargs)
@@ -364,14 +364,12 @@ def load_model(
             try:
                 from nika.run_config.loader import get_run_config
 
-                base_url = (
-                    get_run_config().agent.custom.base_url or ""
-                ).strip() or None
+                base_url = (get_run_config().agent.base_url or "").strip() or None
             except Exception:  # noqa: BLE001
                 base_url = None
         if not base_url:
             raise ValueError(
-                "Missing agent.custom.base_url: set it in config/nika.yaml "
+                "Missing agent.base_url: set it in config/nika.yaml "
                 "when agent.provider is custom."
             )
         # resolve_custom_api_key warns when it uses the deprecated CUSTOM_API_KEY.
@@ -402,9 +400,7 @@ def load_model(
         kwargs = {
             "model": model,
             "api_key": os.getenv(ENV_ANTHROPIC_API_KEY) or None,
-            "base_url": os.getenv(ENV_ANTHROPIC_BASE_URL)
-            or resolve_custom_base_url()
-            or None,
+            "base_url": os.getenv(ENV_ANTHROPIC_BASE_URL) or None,
             "default_request_timeout": timeout,
             "max_retries": retries,
         }

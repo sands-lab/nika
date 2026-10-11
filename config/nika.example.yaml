@@ -36,11 +36,12 @@ agent:
 #   type: byo.langgraph
 #   provider: custom
 #   model: deepseek/deepseek-v4-flash
+#   # Used only when provider is custom. Use the OpenAI-style API root,
+#   # usually ending in /v1 (not just host:port).
+#   base_url: https://openrouter.ai/api/v1
 #   max_steps: 20
 #   # Optional when the endpoint and model support this parameter.
 #   # reasoning_effort: medium
-#   custom:
-#     base_url: https://openrouter.ai/api/v1
 
 # Configure NIKA runtime and lab behavior.
 nika:
