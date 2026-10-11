@@ -6,7 +6,19 @@ Bring your own investigation loop or agent framework. NIKA provides the network 
 
 Give your agent the task description and access to NIKA's [MCP tools](mcp-servers.md). Let it investigate, then return a diagnosis with supporting evidence.
 
-Start from the [LangGraph harness](../../src/agent/byo/langgraph/react_agent.py) and its [diagnosis worker](../../src/agent/byo/langgraph/phases/diagnosis.py). Replace the investigation loop while keeping the existing session setup and NIKA lifecycle adapter. See the [integration reference](agent-reference.md#custom-agent-integration) for the Python interface and plumbing.
+Today, inherit the LangGraph harness to reuse its setup and submission adapter:
+
+```python
+from agent.byo.langgraph.react_agent import BasicReActAgent
+
+
+class MyAgent(BasicReActAgent):
+    async def diagnose(self, task_description: str) -> str:
+        # Run your investigation loop and return its diagnosis report.
+        raise NotImplementedError
+```
+
+The [diagnosis worker](../../src/agent/byo/langgraph/phases/diagnosis.py) shows how to connect tools. A framework-independent base with NIKA-owned setup and submission is tracked in [#172](https://github.com/sands-lab/nika/issues/172); see the [current integration reference](agent-reference.md#custom-agent-integration) for details.
 
 ## Register your harness
 
