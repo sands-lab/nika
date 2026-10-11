@@ -139,7 +139,20 @@ def _write_sanitized_trajectory_file(
             encoding="utf-8",
         )
         return
-    # JSONL / plain text
+    if src.suffix == ".jsonl":
+        with dest.open("w", encoding="utf-8") as output:
+            for line_number, line in enumerate(raw.splitlines(), start=1):
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise LeaderboardPackError(
+                        f"{trial_id}/{src.name}:{line_number}: invalid JSONL: {exc}"
+                    ) from exc
+                output.write(
+                    json.dumps(_sanitize_json_value(data), ensure_ascii=False) + "\n"
+                )
+        return
+    # Plain text
     dest.write_text(_redact_text(raw), encoding="utf-8")
 
 

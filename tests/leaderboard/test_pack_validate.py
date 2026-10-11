@@ -587,6 +587,100 @@ class TestLeaderboardPackValidate:
         assert validate_leaderboard_submission(result.scores_dir).ok
         assert (session / "messages.jsonl").read_text(encoding="utf-8") == original
 
+    def test_submit_preserves_jsonl_and_scans_decoded_records(
+        self, mini_release_env
+    ) -> None:
+        from nika.workflows.leaderboard.submit import submit_leaderboard_package
+
+        _release, result_dir = mini_release_env
+        session = next((result_dir / "trials").iterdir())
+        records = [
+            {
+                "role": "tool",
+                "content": 'cat /tmp/state; echo "done"\ncount D:\n0',
+                "output": {
+                    "path": r"C:\Users\operator\state.json",
+                    "result": ['read /etc/hosts; "next"', "bearer tokens"],
+                },
+            },
+            {"role": "assistant", "content": "Bearer authentication required."},
+        ]
+        original = "".join(json.dumps(record) + "\n" for record in records)
+        for name in ("messages.jsonl", "nika.jsonl"):
+            (session / name).write_text(original, encoding="utf-8")
+
+        result = submit_leaderboard_package(
+            result_dir, name="Test Agent", authors="NIKA Test", dry_run=True
+        )
+        for name in ("messages.jsonl", "nika.jsonl"):
+            packed = result.trajectories_dir / "trials" / session.name / name
+            lines = [json.loads(line) for line in packed.read_text().splitlines()]
+            assert lines == [
+                {
+                    "role": "tool",
+                    "content": 'cat <REDACTED_PATH> echo "done"\ncount D:\n0',
+                    "output": {
+                        "path": "<REDACTED_PATH>",
+                        "result": ['read <REDACTED_PATH> "next"', "bearer tokens"],
+                    },
+                },
+                records[1],
+            ]
+            assert (session / name).read_text() == original
+
+    @pytest.mark.parametrize("name", ["messages.jsonl", "nika.jsonl"])
+    def test_invalid_jsonl_stops_pack_and_validation(
+        self, mini_release_env, name
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        trajectories = package.parent / f"{package.name}_trajectories"
+        session = next((result_dir / "trials").iterdir())
+        malformed = '{"event":"ok"}\n{"content":"broken"quote"}\n'
+        (trajectories / "trials" / session.name / name).write_text(malformed)
+        report = validate_trajectory_package(trajectories, scores_dir=package)
+        assert not report.ok
+        assert any(f"{name}:2: invalid JSONL" in e for e in report.errors)
+        (session / name).write_text(malformed)
+        with pytest.raises(LeaderboardPackError, match=f"{name}:2: invalid JSONL"):
+            _pack(result_dir)
+
+    @pytest.mark.parametrize(
+        "content, expected_issue",
+        [
+            ("Authorization: Bearer short", "bearer_token"),
+            ("Authorization: Bearer tokens", "bearer_token"),
+            ("Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature", "bearer_token"),
+            ("Bearer token.secret", "bearer_token"),
+            ({"Authorization: Bearer short": "header"}, "bearer_token"),
+            ({"Authorization": "Bearer tokens"}, "bearer_token"),
+            ("sk-abcdefghijklmnopqrstuvwxyz0123456789", "openai_sk"),
+            ("hf_abcdefghijklmnopqrstuvwxyz0123456789", "hf_token"),
+            (r"C:\Users\operator\state.json", "absolute path"),
+        ],
+    )
+    def test_trajectory_validation_rejects_credentials_and_paths(
+        self, mini_release_env, content, expected_issue
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        trajectories = package.parent / f"{package.name}_trajectories"
+        trial = next((trajectories / "trials").iterdir())
+        (trial / "messages.jsonl").write_text(
+            json.dumps({"role": "tool", "output": [content]}) + "\n"
+        )
+        report = validate_trajectory_package(trajectories, scores_dir=package)
+        assert not report.ok
+        assert any(expected_issue in e for e in report.errors)
+
     def test_pack_from_submission_dir(self, mini_release_env, tmp_path: Path) -> None:
         _release, result_dir = mini_release_env
         staging = write_submission_templates(tmp_path / "submission")
