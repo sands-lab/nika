@@ -2,8 +2,7 @@
 
 Every agent is described by one :class:`AgentSpec`. Built-in agents are listed
 in :data:`BUILTIN_AGENTS`; agents developed outside NIKA are resolved by
-:mod:`agent.plugins` (``nika agent add``, ``nika.agents`` entry points, or a
-``module:Class`` import path).
+:mod:`agent.plugins` (``nika agent add`` or a ``module:Class`` import path).
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ import asyncio
 import importlib
 import inspect
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -36,14 +36,14 @@ class SbxWiring:
 class AgentSpec:
     """Everything NIKA needs to know to run an agent.
 
-    ``factory`` is a ``module:attribute`` path, imported only when the agent
-    runs. The factory receives the keyword arguments it declares among
+    ``class_path`` is a ``module:Class`` path, imported only when the agent
+    runs. The class receives the keyword arguments it declares among
     ``session_id``, ``model``, ``llm_provider``, ``max_steps``,
     ``reasoning_effort``, ``max_tokens``, and ``stream_output``.
     """
 
     id: str
-    factory: str
+    class_path: str
     providers: frozenset[str] = ALL_PROVIDERS
     # Which client family receives deepseek/custom credentials.
     credential_family: Literal["openai", "anthropic"] = "openai"
@@ -52,65 +52,71 @@ class AgentSpec:
     # Model used when neither the CLI nor agent.model sets one.
     default_model: str | None = None
     sbx: SbxWiring | None = None
-    # builtin, user (nika agent add), entry point, or import path.
+    # builtin, user (nika agent add), or import path.
     source: str = "builtin"
+    # Added project directory put on sys.path before importing class_path.
+    import_root: str | None = None
     # Declared sandbox definition of an external agent (validated, not executed yet).
     sandbox_definition: dict[str, Any] | None = field(default=None, compare=False)
 
-    def load_factory(self) -> Any:
-        module_name, _, attr = self.factory.partition(":")
+    def load_class(self) -> Any:
+        # Appended so an added project cannot shadow NIKA or its dependencies.
+        if self.import_root and self.import_root not in sys.path:
+            sys.path.append(self.import_root)
+        module_name, _, attr = self.class_path.partition(":")
         try:
             module = importlib.import_module(module_name)
             return getattr(module, attr)
         except (ImportError, AttributeError) as exc:
             hint = (
-                " If `uv sync` removed the package, run `nika agent add` again."
+                " Install the agent's dependencies into NIKA's environment;"
+                " `nika agent add` lists the missing ones."
                 if self.source == "user"
                 else ""
             )
             raise ValueError(
-                f"Cannot load agent {self.id!r} from {self.factory!r}: {exc}.{hint}"
+                f"Cannot load agent {self.id!r} from {self.class_path!r}: {exc}.{hint}"
             ) from exc
 
 
 BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     AgentSpec(
         id="byo.langgraph",
-        factory="agent.byo.langgraph.react_agent:BasicReActAgent",
+        class_path="agent.byo.langgraph.react_agent:BasicReActAgent",
     ),
-    AgentSpec(id="byo.mcp_agent", factory="agent.byo.mcp_agent.agent:McpAgent"),
-    AgentSpec(id="byo.autogen", factory="agent.byo.autogen.agent:AutogenAgent"),
+    AgentSpec(id="byo.mcp_agent", class_path="agent.byo.mcp_agent.agent:McpAgent"),
+    AgentSpec(id="byo.autogen", class_path="agent.byo.autogen.agent:AutogenAgent"),
     AgentSpec(
         id="cli.codex",
-        factory="agent.cli.codex.agent:CodexCliAgent",
+        class_path="agent.cli.codex.agent:CodexCliAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
         sbx=SbxWiring(native="codex"),
     ),
     AgentSpec(
         id="cli.claude",
-        factory="agent.cli.claude.agent:ClaudeAgent",
+        class_path="agent.cli.claude.agent:ClaudeAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",
         sbx=SbxWiring(native="claude"),
     ),
     AgentSpec(
         id="sdk.codex_sdk",
-        factory="agent.sdk.codex_sdk.agent:CodexSdkAgent",
+        class_path="agent.sdk.codex_sdk.agent:CodexSdkAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
         sbx=SbxWiring(native="shell", sdk=True),
     ),
     AgentSpec(
         id="sdk.claude_sdk",
-        factory="agent.sdk.claude_sdk.agent:ClaudeSdkAgent",
+        class_path="agent.sdk.claude_sdk.agent:ClaudeSdkAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",
         sbx=SbxWiring(native="shell", sdk=True),
     ),
     AgentSpec(
         id="community.sade",
-        factory="agent.community.sade.agent:SadeAgent",
+        class_path="agent.community.sade.agent:SadeAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",
         supports_max_tokens=False,
@@ -118,7 +124,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="mock",
-        factory="agent.mock.mock_agent:MockAgent",
+        class_path="agent.mock.mock_agent:MockAgent",
         requires_provider=False,
         supports_max_tokens=False,
         default_model="mock",
@@ -136,7 +142,7 @@ def find_agent_spec(agent_type: str) -> AgentSpec | None:
     """Return the spec for *agent_type*, or ``None`` when it is unknown.
 
     Built-in IDs win, then agents registered with ``nika agent add``, then
-    ``nika.agents`` entry points, then ``module:Class`` import paths.
+    ``module:Class`` import paths.
     """
     name = agent_type.strip()
     if spec := _BUILTINS_BY_ID.get(name.lower()):
@@ -206,7 +212,7 @@ def create_agent(
             "config/nika.yaml or pass -p/--provider."
         )
 
-    factory = spec.load_factory()
+    agent_class = spec.load_class()
     settings = {
         "session_id": session_id,
         "model": model,
@@ -216,7 +222,7 @@ def create_agent(
         "max_tokens": max_tokens,
         "stream_output": stream_output,
     }
-    params = inspect.signature(factory).parameters
+    params = inspect.signature(agent_class).parameters
     if not any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
         settings = {key: value for key, value in settings.items() if key in params}
-    return factory(**settings)
+    return agent_class(**settings)

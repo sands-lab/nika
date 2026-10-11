@@ -139,16 +139,15 @@ Workers enforce the [step limit](#step-limit) and record calls using the [trace 
 
 ## Custom agent registration
 
-NIKA describes every agent with one [`AgentSpec`](../../src/agent/registry.py): the factory to import, accepted providers, credential routing, and sandbox wiring. Provider validation, credential mapping, model defaults, and `nika agent list` all read the spec, so an agent never needs edits elsewhere in NIKA.
+NIKA describes every agent with one [`AgentSpec`](../../src/agent/registry.py): the class to import, accepted providers, credential routing, and sandbox wiring. Provider validation, credential mapping, model defaults, and `nika agent list` all read the spec, so an agent never needs edits elsewhere in NIKA.
 
 NIKA resolves `-a <name>` in this order:
 
 1. Built-in harnesses in `BUILTIN_AGENTS`.
-2. Agents registered with `nika agent add <project>` and recorded in `config/agents.yaml`.
-3. Installed packages that expose the `nika.agents` entry point group.
-4. A `module.path:ClassName` import path, with default settings.
+2. Agents registered with `nika agent add <project>` and recorded in `config/agents.yaml`. NIKA puts the project directory, or its `src/` directory, on `sys.path` before importing the class, so the project is never installed into NIKA's environment.
+3. A `module.path:ClassName` import path, with default settings. The module must already be importable, for example through `PYTHONPATH`.
 
-The factory receives the keyword arguments it declares among `session_id`, `model`, `llm_provider`, `max_steps`, `reasoning_effort`, `max_tokens`, and `stream_output`. Settings it does not declare are not passed.
+The class receives the keyword arguments it declares among `session_id`, `model`, `llm_provider`, `max_steps`, `reasoning_effort`, `max_tokens`, and `stream_output`. Settings it does not declare are not passed.
 
 ### Manifest fields
 
@@ -157,19 +156,14 @@ The factory receives the keyword arguments it declares among `session_id`, `mode
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `id` | required | Name for `-a`. Lowercase letters, digits, `.`, `_`, `-`; must not match a built-in harness. |
-| `factory` | required | `module.path:ClassName` that builds the agent. |
+| `class` | required | `module.path:ClassName` of the harness. |
 | `providers` | all | Providers accepted by CLI and YAML validation. |
 | `credential_family` | `openai` | Client family that receives `deepseek` and `custom` credentials (`OPENAI_*` or `ANTHROPIC_*`). |
 | `supports_max_tokens` | `true` | Whether `agent.max_tokens` applies and is recorded for the run. |
 | `default_model` | none | Model used when neither `-m` nor `agent.model` sets one. |
 | `sandbox` | none | Sandbox definition, described below. |
 
-Use `--no-install` when the package is already installed. A package that should be discoverable without `nika agent add` can expose an entry point whose value is the agent class or an `AgentSpec`:
-
-```toml
-[project.entry-points."nika.agents"]
-my_agent = "my_agent.agent:MyAgent"
-```
+`nika agent add` fails if NIKA cannot import `class` or if a dependency listed in the project's `pyproject.toml` is missing from NIKA's environment.
 
 ### Sandbox definition
 
@@ -181,7 +175,7 @@ sandbox:
   install:
     - pip install /nika/agent-src
   egress: [integrate.api.nvidia.com]
-  # entrypoint: optional; defaults to NIKA's in-sandbox runner, which imports factory
+  # entrypoint: optional; defaults to NIKA's in-sandbox runner, which imports class
 ```
 
 NIKA validates this definition but does not execute it yet: external agents run on the host, and `nika agent list` marks declared sandboxes. Built-in sandbox harnesses keep their [Docker Sandbox wiring](../operations/agent-sandbox.md#architecture) in their specs.

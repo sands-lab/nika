@@ -25,7 +25,8 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | --- | --- | --- |
 | Choose an agent and run hosted or self-hosted models | [Choose and run an agent](agents/agent-implementations.md) | How-to |
 | Check provider support, limits, and telemetry semantics | [Agent reference](agents/agent-reference.md) | Reference |
-| Build and register an agent harness | [Custom agent integration](agents/custom-agents.md) | How-to |
+| Build and register your own agent | [Custom agent integration](agents/custom-agents.md) | How-to |
+| Start from a complete agent built on another framework | [NOOA agent example](agents/nooa-example.md) | Example |
 | Find Pingmesh, INT, packet capture, and other agent tools | [MCP servers](agents/mcp-servers.md) | Reference |
 | Add reusable instructions for Claude or Codex agents | [Configure agent skills](agents/agent-skills.md) | How-to |
 | Configure a community-maintained agent | [Community agent references](agents/community/README.md) | Reference |

@@ -1,75 +1,141 @@
 # Integrate a custom agent
 
-Bring your own **investigation loop** or agent framework. NIKA provides the network lab, MCP tools, and evaluation.
+Bring your own agent, written with any framework, and NIKA tests it on real network incidents: it provides the lab, the tools your agent uses to inspect it, and the scoring.
 
-## 1. Implement the investigation
+This guide builds an agent with [NOOA](https://github.com/NVIDIA-NeMo/labs-OO-Agents), NVIDIA's object-oriented agent framework, in its own project outside NIKA. Other frameworks follow the same steps.
 
-Give your agent the task description and access to NIKA's [MCP tools](mcp-servers.md). Let it investigate, then return a diagnosis with supporting evidence.
+## How a run works
 
-Today, inherit the LangGraph harness to reuse its setup and submission adapter:
+Every run of `nika agent run` goes through the same steps:
+
+```mermaid
+flowchart LR
+    A[Start lab] --> B[Inject fault] --> C[Diagnose] --> D[Submit] --> E[Score]
+```
+
+1. **Start lab** and **inject fault**: NIKA deploys the network and breaks it, for example by taking a link down.
+2. **Diagnose**: your agent gets a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md), such as running commands on devices or measuring reachability. It returns a written diagnosis report.
+3. **Submit**: NIKA freezes the report, and the agent converts it into a structured answer: which component failed, and how.
+4. **Score**: NIKA compares that answer with the fault it injected, then closes the lab.
+
+Your agent implements **Diagnose**. NIKA handles the other steps, and an existing NIKA agent supplies **Submit**.
+
+## 1. Write your agent
+
+Your agent is a Python class. Inherit NIKA's LangGraph agent, which already implements submission, and override `diagnose`: it receives the incident description and returns the diagnosis report.
+
+The example has two classes. `NetworkInvestigator` is the NOOA agent that reasons about the network. `NooaAgent` is the class NIKA runs: it connects the investigator to the lab's MCP tools and returns its report.
 
 ```python
+from nooa import Agent
+from nooa.mcp import MCPManager, MCPTool
+from nooa.unifiedllm.registry import get_llm_client
+
 from agent.byo.langgraph.react_agent import BasicReActAgent
+from agent.protocols import DIAGNOSIS
+from agent.utils.mcp_client import load_session_mcp_config
 
 
-class MyAgent(BasicReActAgent):
+class NetworkInvestigator(Agent):
+    """You are a network operations engineer troubleshooting a live network lab."""
+
+    def __init__(self, servers: dict[str, MCPTool], **kwargs):
+        super().__init__(**kwargs)
+        self.servers: dict[str, MCPTool] = servers
+
+    async def investigate(self, task: str) -> str:
+        """Find the root cause of the incident, using the MCP tools in `self.servers`.
+
+        Return a report that names the faulty devices, interfaces or links,
+        the root cause, and the evidence for it.
+        """
+        ...  # NOOA's model writes and runs Python here
+
+
+class NooaAgent(BasicReActAgent):
     async def diagnose(self, task_description: str) -> str:
-        # Run your investigation loop and return its diagnosis report.
-        raise NotImplementedError
+        mcp = load_session_mcp_config(
+            self.session_id, self.session.scenario_name, phase=DIAGNOSIS
+        )
+        servers = {
+            name: await MCPManager.create_url_server(
+                name, cfg["url"], headers=cfg["headers"]
+            )
+            for name, cfg in mcp.items()
+        }
+        llm = get_llm_client(f"openai/{self.model}")
+        investigator = NetworkInvestigator(servers, llm=llm)
+        return await investigator.investigate(task_description)
 ```
 
-The [diagnosis worker](../../src/agent/byo/langgraph/phases/diagnosis.py) shows how to connect tools.
+The [complete NOOA agent](nooa-example.md) also records steps and tool calls for the evaluator and honors the step limit.
 
-> **Current contract:** setup and submission are inherited from LangGraph. A framework-independent base is tracked in [#172](https://github.com/sands-lab/nika/issues/172); see the [integration reference](agent-reference.md#custom-agent-integration).
+> Inheriting from LangGraph is a current limitation; a framework-independent base class is tracked in [#172](https://github.com/sands-lab/nika/issues/172). The [integration reference](agent-reference.md#custom-agent-integration) describes the full contract.
 
-## 2. Add it to NIKA
+## 2. Run it
 
-Keep the harness in its own project, which depends on your framework. To let NIKA run it by name, describe it in a `nika-agent.yaml` at the project root:
+Install your framework into NIKA's environment, then run the agent by its import path:
+
+```shell
+uv pip install 'nooa[mcp]==0.0.10' 'litellm<1.106'
+PYTHONPATH=../nika-nooa-agent uv run nika agent run -a nooa_nika.agent:NooaAgent --problem dc_clos_s_link_down
+```
+
+NIKA runs every step above and prints the score. The provider, model, and limits come from `config/nika.yaml`, as in the [LangGraph example configuration](../../config/byo.langgraph.example.yaml).
+
+## 3. Register it
+
+Running by import path is fine for a quick test, but every run needs the module path, and `PYTHONPATH` set to your project. NIKA also cannot check your configuration: it does not know which LLM providers the agent supports, so a wrong provider fails only mid-run.
+
+Registering gives the agent a short name, such as `nooa`, that works like a built-in one: with `-a nooa`, as `agent.type: nooa` in a run configuration, and in `nika agent list`. NIKA remembers where the project lives and which providers the agent supports.
+
+Describe the agent in a `nika-agent.yaml` next to its `pyproject.toml`:
+
+```text
+nika-nooa-agent/
+├── pyproject.toml        # dependencies = ["nooa[mcp]==0.0.10"]
+├── nika-agent.yaml
+└── nooa_nika/
+    └── agent.py
+```
 
 ```yaml
-id: my_agent
-factory: my_agent.agent:MyAgent
-providers: [openai, custom]   # providers your model client supports
+id: nooa                              # the name you run it by
+class: nooa_nika.agent:NooaAgent      # the class from step 1
+providers: [openai, custom]           # providers your model client supports
 ```
 
-Then register it from NIKA's checkout:
+Then register it once:
 
 ```shell
-uv run nika agent add ../my-agent
+uv run nika agent add ../nika-nooa-agent
+uv run nika agent run -a nooa --problem dc_clos_s_link_down
 ```
 
-`nika agent add` installs the project into NIKA's environment, checks that NIKA can import `factory`, and records the agent in `config/agents.yaml`. `nika agent list` shows it next to the built-in harnesses, and `nika agent remove my_agent` undoes the registration. If `uv sync` later removes the package, run `nika agent add` again.
+NIKA records the project directory in `config/agents.yaml` and imports the agent from there on every run, so your edits apply immediately. `nika agent remove nooa` unregisters it.
 
-Set the provider, model, and limits in `config/nika.yaml`, following an [example configuration](../../config/byo.langgraph.example.yaml). Keep credentials in `.env`. Other manifest fields, including a sandbox definition, are described in the [registration reference](agent-reference.md#custom-agent-registration).
+`nika agent add` names any dependency from `pyproject.toml` that is not installed. A plain `uv sync` uninstalls packages NIKA does not declare, so use `uv sync --inexact` to keep them.
 
-## 3. Run and check the result
-
-```shell
-uv run nika agent run -a my_agent --problem dc_clos_s_link_down
-```
-
-NIKA runs the incident, evaluates the answer, and closes the lab. The LangGraph harness prints progress in the terminal and records model output and tool calls in `messages.jsonl`.
-
-To try a harness before writing a manifest, pass its import path instead: `-a my_agent.agent:MyAgent`. The class must be importable from NIKA's environment.
+Other manifest fields, such as a default model, are listed in the [registration reference](agent-reference.md#custom-agent-registration).
 
 <details>
 <summary>Example investigation from a real run</summary>
 
-*LangGraph with `nvidia/Qwen3.6-35B-A3B-NVFP4`; shortened from the recorded trace.*
+*The NOOA agent on `dc_clos_s_link_down` with `nvidia/Qwen3.6-35B-A3B-NVFP4`; shortened from the recorded trace and report.*
 
 ```text
-Model: Let me start by gathering comprehensive information about the network state.
+Tool: run_pingmesh_snapshot(count=3)
+Result: client_0 → dns_pod0, webserver0_pod0: 100% loss; server-to-server paths healthy
 
-Tool: run_pingmesh_snapshot(count=8, max_pairs=64)
+Tool: exec_shell(host_name="client_0", command="ip addr show; ip route show …")
+Tool: exec_shell(host_name="super_spine_router_0", command="ip addr show …")
+Tool: exec_shell(host_name=…, command='vtysh -c "show bgp summary"') on each router
 
-Model: The ping mesh reveals a critical issue: client_0 is completely isolated
-       from both dns_pod0 and webserver0_pod0 (100% packet loss in both directions).
+Report: The physical link between client_0:eth0 and super_spine_router_0:eth2 is
+        DOWN, isolating client_0 from the fabric. BGP sessions are up, but
+        192.168.0.0/24 is not advertised because eth2 is down.
 
-Tool: exec_shell(host_name="client_0", command="ip addr show …")
-Result: eth0 … state DOWN
-
-Diagnosis: The root cause is a physical link failure between client_0
-           and super_spine_router_0.
+Score: detection, root cause, and localization 1.0 (17 steps, 20 tool calls)
 ```
 
 </details>
