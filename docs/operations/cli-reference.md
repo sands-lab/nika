@@ -25,6 +25,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`, `burst`) against the running lab |
+| `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
 
@@ -252,6 +253,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 ## `nika agent`
 
 - **`nika agent list`**: supported agent types (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), LLM providers, and reasoning-effort levels.
+- **`nika agent check`**: lists models at the configured LLM endpoint and reports whether it is reachable, accepts the credentials, and serves `agent.model`. Takes `--run-config`, `-p`, `-m`, `--base-url`, and `--json`; exits non-zero when the endpoint is not usable. No tokens are spent.
 - **`nika agent run`**: two modes:
 
   1. **Task mode (recommended):** `--problem LABEL` runs the complete task lifecycle: deploy the lab, inject the fault (using defaults from the benchmark resolver), run the agent, close the session, and write metrics.

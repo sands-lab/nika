@@ -1,5 +1,7 @@
 """Root Typer application for the ``nika`` console script (``nika.cli``)."""
 
+import sys
+
 import typer
 
 import nika.config  # noqa: F401 — load .env before Typer reads envvar defaults
@@ -63,6 +65,11 @@ LAZY_COMMANDS.update(
             "inspect_app",
             "Browse session trajectories in a local web UI.",
         ),
+        "tui": LazyCommandSpec(
+            "nika.cli.commands.tui",
+            "tui_app",
+            "Interactive shell with slash commands.",
+        ),
     }
 )
 
@@ -92,8 +99,11 @@ def main() -> None:
     from nika.utils.logger import set_console_events
 
     set_console_events(True)
+    # Bare ``nika`` in a terminal opens the interactive shell; scripts and
+    # pipes keep the usual "Missing command" error.
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
     try:
-        app()
+        app(args=["tui"] if len(sys.argv) == 1 and interactive else None)
     finally:
         # Flush any warnings buffered for non-benchmark commands (benchmark
         # run also prints them after its report; a second call is a no-op).
