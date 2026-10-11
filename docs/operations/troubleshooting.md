@@ -310,6 +310,73 @@ docker network rm nika-subnet-check
 - Pick ranges that lab topologies do not use for their own addresses. For example, `campus_lan` uses `10.200.0.0/24`.
 - On Docker Desktop, set the same keys under **Settings > Docker Engine**.
 
+## Kathará network plugin runs out of file descriptors
+
+On long-running Linux benchmark hosts, the `kathara/katharanp_vde` Docker network plugin can exhaust its file descriptor limit. Kathará deployment or teardown can then stall while Docker waits for the plugin.
+
+### Diagnose the stall
+
+`nika session close` or benchmark teardown stops returning, and `nika env run` can stall during deployment. `docker ps` may still work. Check the Docker daemon log:
+
+```shell
+sudo journalctl -u docker --since "-1h" --no-pager | grep -m3 "too many open files"
+```
+
+A plugin accept error identifies descriptor exhaustion:
+
+```text
+http: Accept error: accept unix /run/docker/plugins/katharanp.sock: accept4: too many open files
+```
+
+Find the plugin process and compare its descriptor count with its limit. These commands assume one local `katharanp` process; if there are several, inspect the PID for the affected plugin.
+
+```shell
+pgrep -a -x katharanp
+plugin_pid=$(pgrep -x katharanp)
+sudo ls "/proc/$plugin_pid/fd" | wc -l
+sudo cat "/proc/$plugin_pid/limits" | grep "open files"
+sudo ls -l "/proc/$plugin_pid/fd" | awk '{print $NF}' | sort | uniq -c | sort -rn | head
+```
+
+In one affected host, the plugin had 524288 descriptors, matching its hard limit, with most entries pointing to `anon_inode:[signalfd]`. Use your host's limit rather than this example as the threshold. A count that remains high after closing labs indicates retained descriptors; active labs also use descriptors for their interfaces.
+
+### Recover the plugin
+
+Restarting the plugin interrupts networking for **all Kathará labs on the host**, including labs from other NIKA worktrees or users. Stop benchmark runs and coordinate with their owners before restarting. List sessions and close each affected session when teardown still works:
+
+```shell
+uv run nika session ps
+uv run nika session close --session_id SESSION_ID
+```
+
+If teardown hangs, restart the plugin after arranging downtime for the affected labs. Check the installed name and architecture tag with `docker plugin ls`. For an installation named `kathara/katharanp_vde:amd64`:
+
+```shell
+sudo docker plugin disable -f kathara/katharanp_vde:amd64
+sudo docker plugin enable kathara/katharanp_vde:amd64
+```
+
+Use the installed name for both commands (for example, the `:arm64` tag on ARM hosts). Restarting the plugin does not close NIKA sessions or remove their containers. Retry closing the affected sessions, then redeploy labs that you need.
+
+To resume a benchmark, use the original run configuration and result directory with `--resume`. NIKA keeps valid completed trials and retries incomplete trials and trials marked `infra_error`. Check the resume summary before continuing.
+
+### Verify deployment and teardown
+
+Repeat the descriptor count command with the new plugin PID. After closing the affected labs, the count should be well below the limit. Deploy a small Kathará lab:
+
+```shell
+uv run nika env run dc_clos --size s --backend kathara
+```
+
+Use the `session_id` printed by that command to inspect connectivity and close only this test session:
+
+```shell
+uv run nika exec --session_id SESSION_ID client_0 ping -c 3 10.0.1.2
+uv run nika session close --session_id SESSION_ID
+```
+
+The ping should succeed, and deployment and teardown should finish. Monitor the descriptor count between benchmark runs. If it keeps growing after teardown, arrange another plugin restart before reaching the limit. Treat the restart as a recovery workaround for plugin descriptor exhaustion.
+
 ## Still stuck?
 
 If the steps above do not clear the failure, ask on the [NIKA Slack community](https://sands-lab.github.io/nika/community/) or [open a GitHub issue](https://github.com/sands-lab/nika/issues/new) with the error text, `nika` / OS versions, how you launched the run (`nika env run …` or `nika benchmark run …`, including `--batch-size` when relevant), and the relevant logs from your result dir (`nika.jsonl`, `run.json`, `messages.jsonl`, worker logs under `trials/`). For XRd, attach `docker logs` from an exited router container.
