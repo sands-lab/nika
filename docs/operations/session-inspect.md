@@ -4,6 +4,8 @@ How-to for operators who want a browser UI over session and benchmark results, a
 
 The CLI flag surface lives in the [CLI reference: `nika inspect`](cli-reference.md#nika-inspect).
 
+![NIKA Inspect timeline of a cli.claude session on dc_clos link_down, with a selected tool call open in the event inspector](../../assets/images/nika-inspect-timeline.png)
+
 ## Extra setup (source checkout)
 
 From a git checkout, build the front end once. Wheel installs already include `www/dist`.
