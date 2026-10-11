@@ -4,6 +4,21 @@ NIKA lets you run different troubleshooting agents against the same network inci
 
 Troubleshooting agents investigate through NIKA's MCP tools, produce a diagnosis report, and submit structured root causes for evaluation. The host freezes the report before exposing the submission catalogs. See [Custom agent integration](custom-agents.md) to build your own.
 
+```mermaid
+flowchart LR
+    deploy["Deploy lab,<br/>inject failure"] -- task description --> model
+    subgraph diagnosis["Diagnosis phase"]
+        model["Model reasons"] -- tool call --> tools["MCP tools on<br/>the live lab"]
+        tools -- observation --> model
+    end
+    model -- free-text report --> freeze["Host freezes report,<br/>reveals catalogs"]
+    freeze --> submit["Submission phase:<br/>select root causes"]
+    submit -- submit tool --> evaluate["Evaluate against<br/>ground truth"]
+    evaluate --> inspect["Review in<br/>NIKA Inspect"]
+```
+
+Every implementation follows this loop. Agents differ in how they choose the next tool call, not in what NIKA records or how it scores the result.
+
 ## Choose an implementation
 
 | Your goal | Agent | Why it is available |
@@ -120,14 +135,32 @@ For a custom endpoint, match its API to the agent: the BYO examples above use Op
 
 ## Inspect results
 
-Task mode writes results and removes its lab through NIKA's lifecycle. Use the printed session ID:
+Task mode writes results and removes its lab through NIKA's lifecycle. Open the trajectory in **NIKA Inspect**, the local dashboard over your result directories:
 
 ```shell
-uv run nika eval metrics --session_id <session_id>
 uv run nika inspect
 ```
 
-Look for the diagnosis report and model/tool events in `messages.jsonl`, and the structured answer in `submission.json` under the session result directory. Metrics distinguish diagnosis quality from steps, tokens, and tool calls; see [Root-cause scoring](../benchmarks/root-cause-evaluation.md).
+![NIKA Inspect timeline of a cli.claude session on dc_clos link_down: model reasoning, tool calls, and a selected vtysh call with its parameters and output](../../assets/images/nika-inspect-timeline.png)
+
+*A 62-step `cli.claude` run on `dc_clos_s_link_down`. The strip above the table maps NIKA, agent, and tool events over time; the right pane shows one `exec_shell` call and the router output the model received.*
+
+Use it to follow the agent's investigation step by step:
+
+- **Timeline:** NIKA lifecycle events (deploy, inject, verify), model thinking and output, and every MCP tool call, merged in time order. Filter by source or search tool inputs and outputs with `/`.
+- **Event inspector:** the exact tool parameters and returned output, so you can check whether the agent tested the right device and read the result correctly.
+- **Overview:** where the wall clock went (lab setup, LLM requests, tool execution) and the slowest operations.
+- **Scores:** detection, localization, and root-cause scores, a row-by-row comparison of the submission with ground truth, and step, token, and tool-call counts.
+
+`nika benchmark run` starts the same dashboard automatically. See [Browse sessions with `nika inspect`](../operations/session-inspect.md) for remote access, column filters, and tags.
+
+For scripted checks, print the metrics directly:
+
+```shell
+uv run nika eval metrics --session_id <session_id>
+```
+
+The underlying files are in the session result directory: the diagnosis report and model/tool events in `messages.jsonl`, and the structured answer in `submission.json`. Metrics distinguish diagnosis quality from steps, tokens, and tool calls; see [Root-cause scoring](../benchmarks/root-cause-evaluation.md).
 
 If you started a lab manually with `nika env run`, close that session explicitly when finished, including after a failed agent run:
 

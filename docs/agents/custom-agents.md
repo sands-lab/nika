@@ -6,14 +6,38 @@ Use the Python protocol and shared helpers below to integrate with NIKA. Your mo
 
 ## Understand the workflow
 
-```text
-NIKA starts a session and supplies its task description
-  → your agent investigates through diagnosis MCP tools
-  → your agent returns a free-text diagnosis report
-  → the host freezes the report and advances the gateway
-  → your agent maps the report to the supplied catalogs and calls submit
-  → NIKA evaluates the saved report, submission, and trajectory
+```mermaid
+sequenceDiagram
+    autonumber
+    participant N as NIKA host
+    participant A as Your agent
+    participant G as MCP gateway
+    participant L as Network lab
+
+    N->>L: Deploy lab, inject failure
+    N->>A: run(task_description)
+    rect rgb(235, 242, 255)
+    note over A,L: Diagnosis phase (up to max_steps model responses)
+    loop Investigate
+        A->>G: Call diagnosis tool (ping, show, capture, ...)
+        G->>L: Execute in the session's lab
+        L-->>G: Observed network state
+        G-->>A: Tool result
+    end
+    A-->>N: Free-text diagnosis report
+    end
+    N->>N: Freeze report, advance gateway
+    N->>A: submit(report, resources, fault ontology)
+    rect rgb(240, 250, 240)
+    note over A,G: Submission phase (task server only)
+    A->>G: submit(is_anomaly, root_causes)
+    G->>N: Validate IDs, write submission.json
+    G-->>A: Submission result
+    end
+    N->>N: Evaluate report, submission, trajectory
 ```
+
+For host-run agents, `TwoPhaseAgent` performs steps 8 and 9 for you; you implement the diagnosis loop (steps 3–7) and the `submit` call (step 10). Every step is recorded and can be replayed in [NIKA Inspect](agent-implementations.md#inspect-results).
 
 | Concept | What it means for your agent |
 | --- | --- |
@@ -194,7 +218,7 @@ uv run nika eval metrics --session_id <printed_session_id>
 uv run nika inspect
 ```
 
-Task mode handles lab deployment, injection, closure, and evaluation. Check that the trajectory shows actual network investigation, a frozen report before submission, and correctly counted model/tool calls. Confirm the task MCP tool created `submission.json` and that no resources from your run remain.
+Task mode handles lab deployment, injection, closure, and evaluation. Open the session in NIKA Inspect and check that the Timeline shows actual network investigation, a frozen report before submission, and correctly counted model/tool calls (see [Inspect results](agent-implementations.md#inspect-results)). Confirm the task MCP tool created `submission.json` and that no resources from your run remain.
 
 For explicit session control, start a lab with `nika env run`, inject a failure, and run the agent with `--session_id`. Use `nika exec --help` to inspect actual container state while the lab is running. Always close the session you created with `nika session close --session_id <session_id> -y`, including on failure. Never clean up unrelated Docker or emulator resources.
 

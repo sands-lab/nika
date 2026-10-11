@@ -195,6 +195,14 @@ uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
 
 That deploys the lab, injects the fault, runs the agent, closes the session, and writes evaluation results.
 
+Then replay the run in the NIKA Inspect dashboard, with every model turn, tool call, and score:
+
+```shell
+uv run nika inspect
+```
+
+![NIKA Inspect timeline: model reasoning, MCP tool calls, and a selected router command with its output](./assets/images/nika-inspect-timeline.png)
+
 Prefer picking over typing flags? Run `uv run nika` with no arguments to open an interactive shell: `/run` walks you through choosing a task and an agent, checks that the model endpoint is up, and runs the equivalent `nika` command. See [interactive shell](docs/operations/tui.md).
 
 For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](docs/operations/cli-reference.md).
