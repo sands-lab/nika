@@ -13,9 +13,10 @@ NIKA is a platform for generating and running executable benchmarks for network 
 
 ## Git and pull requests
 
-1. Branch off `dev`: `feat/<slug>` or `fix/<slug>`. When tracking a GitHub issue, prefer `feat/<issue>-<slug>` / `fix/<issue>-<slug>` (e.g. `fix/54-onos-rest-group-install`). Do not invent placeholders such as `noissue`.
-2. Develop on that branch.
-3. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
+1. Before starting new work, run `git fetch origin dev` and create the branch from the freshly fetched `origin/dev`, not a potentially stale local `dev`. Preserve uncommitted work and do not reset or overwrite diverged local branches. If fetching fails, report it rather than silently proceeding from a stale base.
+2. Name the branch `feat/<slug>` or `fix/<slug>`. When tracking a GitHub issue, prefer `feat/<issue>-<slug>` / `fix/<issue>-<slug>` (e.g. `fix/54-onos-rest-group-install`). Do not invent placeholders such as `noissue`.
+3. Develop on that branch.
+4. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
 
 `dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
 
