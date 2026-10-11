@@ -21,15 +21,15 @@ Prefer an interactive setup? Run `uv run nika` to [choose a task and agent](../o
 
 ## Available harnesses
 
-| Harness | Example configuration |
-| --- | --- |
-| LangGraph (`byo.langgraph`) | [Example config](../../config/byo.langgraph.example.yaml) |
-| mcp-agent (`byo.mcp_agent`) | [Example config](../../config/byo.mcp_agent.example.yaml) |
-| AutoGen (`byo.autogen`) | [Example config](../../config/byo.autogen.example.yaml) |
-| Codex CLI (`cli.codex`) | [Example config](../../config/cli.codex.example.yaml) |
-| Claude Code (`cli.claude`) | [Example config](../../config/cli.claude.example.yaml) |
-| Codex SDK (`sdk.codex_sdk`) | [Example config](../../config/sdk.codex_sdk.example.yaml) |
-| Claude Agent SDK (`sdk.claude_sdk`) | [Example config](../../config/sdk.claude_sdk.example.yaml) |
+Example configurations for the built-in harnesses:
+
+- [LangGraph](../../config/byo.langgraph.example.yaml) (`byo.langgraph`)
+- [mcp-agent](../../config/byo.mcp_agent.example.yaml) (`byo.mcp_agent`)
+- [AutoGen](../../config/byo.autogen.example.yaml) (`byo.autogen`)
+- [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
+- [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)
+- [Codex SDK](../../config/sdk.codex_sdk.example.yaml) (`sdk.codex_sdk`)
+- [Claude Agent SDK](../../config/sdk.claude_sdk.example.yaml) (`sdk.claude_sdk`)
 
 NIKA also includes [SADE](community/sade.md), a community agent with a structured troubleshooting workflow and skill library. See the [SADE paper](https://arxiv.org/abs/2605.04530). The deterministic `mock` harness checks the pipeline without an LLM.
 
