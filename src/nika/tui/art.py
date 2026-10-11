@@ -20,6 +20,9 @@ _LOGO = (
 _GRADIENT = ((0, 215, 255), (135, 95, 255), (255, 95, 215))
 
 TAGLINE = "Network Incident benchmarK for AI agents"
+# Tagline index of each acronym letter, paired with the centre column of the
+# same letter in the logo, so each one takes the colour above it.
+_ACRONYM = ((0, 4), (8, 11), (25, 17), (31, 25))
 
 
 def _blend(t: float) -> str:
@@ -40,7 +43,10 @@ def logo() -> Text:
             style = "grey42" if shadow else f"bold {_blend(col / (width - 1))}"
             text.append(char, style=style)
         text.append("\n")
-    text.append(TAGLINE, style="italic grey62")
+    tagline = Text(TAGLINE, style="italic grey62")
+    for index, col in _ACRONYM:
+        tagline.stylize(f"bold {_blend(col / (width - 1))}", index, index + 1)
+    text.append_text(tagline)
     return text
 
 
