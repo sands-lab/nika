@@ -77,6 +77,15 @@ def ping() -> str:
             2,
             True,
         ),
+        (
+            [
+                AIMessage(content="", response_metadata={"finish_reason": "stop"}),
+                AIMessage(content="final report"),
+            ],
+            10,
+            2,
+            False,
+        ),
         ([], 20, 20, True),
         ([AIMessage(content="final report")], 10, 1, False),
         (
@@ -93,7 +102,15 @@ def ping() -> str:
             False,
         ),
     ],
-    ids=["recover", "retry-cap", "retry-budget", "tool-budget", "normal", "tool-call"],
+    ids=[
+        "recover",
+        "retry-cap",
+        "retry-budget",
+        "empty-stop",
+        "tool-budget",
+        "normal",
+        "tool-call",
+    ],
 )
 async def test_phase_turns_respect_truncation_and_budget(
     phase_cls, responses, max_steps, expected_calls, limited
@@ -125,8 +142,11 @@ async def test_phase_turns_respect_truncation_and_budget(
         ]
         assert len(nudges) == (
             expected_calls - 1
-            if responses[0].response_metadata.get("finish_reason") == "length"
-            and not responses[0].tool_calls
+            if not responses[0].tool_calls
+            and (
+                responses[0].response_metadata.get("finish_reason") == "length"
+                or not responses[0].content
+            )
             else 0
         )
     assert model.n == expected_calls
