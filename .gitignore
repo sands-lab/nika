@@ -19,6 +19,12 @@ tmp/
 notebooks/
 uv.lock
 .agents/
+# Share the project documentation skill; keep other local agent files ignored.
+!/.agents/
+/.agents/*
+!/.agents/skills/
+/.agents/skills/*
+!/.agents/skills/nika-docs/
 !src/agent/skills/.agents/
 !src/agent/skills/.agents/**
 .cursor/
