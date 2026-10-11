@@ -5,7 +5,7 @@ NIKA is a platform for generating and running executable benchmarks for network 
 ## Development rules
 
 * Read relevant code before modifying behavior and make the smallest change needed.
-* Keep human-facing documentation concise: lead with the shortest useful path, link existing examples, and move implementation plumbing and secondary details to references. Avoid repeating code or overriding configured defaults unnecessarily.
+* For human-facing documentation, use the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md): establish purpose before instructions, keep essential contracts visible, and lead with the shortest useful path.
 * Reuse existing NIKA abstractions instead of creating parallel implementations.
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
 * Do not weaken tests to make changes pass.
