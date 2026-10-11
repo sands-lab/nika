@@ -810,6 +810,86 @@
       "rank": 1
     },
     {
+      "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
+      "dirname": "20261011_react_qwen3_8_27b_fp8",
+      "submission_name": "ReAct + Qwen3.8-27B-FP8",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261011_react_qwen3_8_27b_fp8",
+      "trajectories_relpath": "trajectories/0.2.0/20261011_react_qwen3_8_27b_fp8",
+      "model": "Qwen3.8-27B-FP8",
+      "framework": "ReAct",
+      "agent_type": "byo.langgraph",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "model_repository": "Qwen/Qwen3.8-27B-FP8",
+        "max_steps": 100,
+        "max_tokens": 32768,
+        "agent_timeout_sec": 14400,
+        "case_timeout_sec": 15000
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.49929098039215697,
+      "mean_localization_f1": 0.5748525490196079,
+      "mean_detection_score": 0.8549019607843137,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 255,
+      "n_agent_failed": 0,
+      "success_rate": 1.0,
+      "token_totals": {
+        "in_tokens": 130998318,
+        "out_tokens": 13479472
+      },
+      "steps_totals": {
+        "steps": 5160,
+        "tool_calls": 10629,
+        "tool_errors": 156
+      },
+      "mean_tokens": 566579.569,
+      "mean_steps": 20.235,
+      "total_tokens": 144477790,
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-10-11T12:28:06+00:00",
+      "run_id": "0c97c4d03d5b7ab4",
+      "official": true,
+      "nika_git_commit": "d22f922662c94e2ec8d0d6d7552420d897635aee",
+      "name": "Qwen3.8-27B-FP8 · ReAct",
+      "rca_f1_ci": [
+        0.413866,
+        0.58268
+      ],
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+      ],
+      "rank": 2
+    },
+    {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
       "dirname": "20261007_qwen3_6_35b_a3b_claudecode",
       "submission_name": "Qwen3.6-35B-A3B ClaudeCode",
@@ -868,9 +948,10 @@
         0.309107
       ],
       "beaten_by": [
-        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8"
       ],
-      "rank": 2
+      "rank": 3
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -931,9 +1012,10 @@
         0.270398
       ],
       "beaten_by": [
-        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8"
       ],
-      "rank": 2
+      "rank": 3
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -994,9 +1076,10 @@
         0.237909
       ],
       "beaten_by": [
-        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8"
       ],
-      "rank": 2
+      "rank": 3
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -1084,9 +1167,10 @@
         "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
         "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
         "0.2.0/20261008_qwen3_6_35b_a3b_codex",
-        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8"
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8"
       ],
-      "rank": 5
+      "rank": 6
     }
   ]
 }
