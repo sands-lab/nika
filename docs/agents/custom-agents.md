@@ -1,57 +1,52 @@
 # Integrate a custom agent
 
-This guide is for agent developers who want an implementation to run through `nika agent run` and participate in benchmark runs.
+Bring your own investigation strategy or agent framework while letting NIKA provide the network lab, tools, submission format, and evaluation. Your agent can use any Python model client or orchestration framework that can invoke MCP tools.
 
-Core contracts: [`protocols.py`](../../src/agent/protocols.py) defines the interface, and [`registry.py`](../../src/agent/registry.py) registers CLI names.
+NIKA's Python integration surface is currently the protocol and shared helpers below. The registered `sdk.*` agents use vendor agent SDKs; they are not a separate NIKA SDK you must adopt.
 
-## Implement the agent contract
+## Understand the workflow
 
-Every agent must satisfy `agent.protocols.TroubleshootingAgent`:
+```text
+NIKA starts a session and supplies its task description
+  → your agent investigates through diagnosis MCP tools
+  → your agent returns a free-text diagnosis report
+  → the host freezes the report and advances the gateway
+  → your agent maps the report to the supplied catalogs and calls submit
+  → NIKA evaluates the saved report, submission, and trajectory
+```
+
+| Concept | What it means for your agent |
+| --- | --- |
+| Session | One lab/task execution with session-scoped tool access and a result directory. Use the session passed by NIKA. |
+| Diagnosis | Investigate observable network state through MCP. Return your conclusion and supporting evidence, including uncertainty. |
+| Telemetry | Network telemetry is evidence available through tools; agent trace events record model and tool activity for inspection and metrics. Neither should expose ground truth. |
+| Frozen report | The host records the diagnosis before revealing the submission catalogs. Submission translates that report; it does not continue investigating. |
+| Submission | Call the task MCP `submit` tool with `is_anomaly` and `{resource_id, fault_type}` root causes selected from the supplied catalogs. |
+| Evaluator | NIKA compares the saved result against host-held ground truth and derives execution metrics from the trajectory. Your agent does not load ground truth or score itself. |
+
+The [MCP reference](mcp-servers.md) describes investigation tools. The [root-cause scoring reference](../benchmarks/root-cause-evaluation.md) defines valid answers, healthy cases, and metrics.
+
+## Implement the two phases
+
+The required interface is deliberately small:
 
 ```python
+from typing import Any, Protocol
+
+
 class TroubleshootingAgent(Protocol):
     session_id: str
 
     async def run(self, task_description: str) -> dict[str, Any]: ...
 ```
 
-The CLI creates the agent in `agent.registry.create_agent()`, then calls:
+NIKA constructs the registered implementation and calls `run()` with the session's task description. Subclass [`TwoPhaseAgent`](../../src/agent/utils/two_phase.py) to reuse report freezing, gateway advancement, and phase lifecycle logging. Implement `diagnose()` and `submit()`; you do not need to reproduce the host orchestration.
 
-```python
-await agent.run(task_description=session.task_description)
-```
-
-Expected behavior:
-
-- run diagnosis using the diagnosis MCP tools, within `max_steps` LLM turns
-- hand the report to the shared freeze step, then call `submit` with `resource_id` and `fault_type` pairs from the frozen submission context
-- write useful trace events to `results/{session_id}/messages.jsonl`
-- leave `submission.json` in the session directory through the task MCP `submit` tool
-
-Subclass `agent.utils.two_phase.TwoPhaseAgent` to get this pipeline. You implement `diagnose()` and `submit()`. The base class writes the phase bookends (`agent_start`, then `agent_done` or `agent_error`), fails the run on an `ERROR:` diagnosis report, freezes the report, and advances the MCP gateway before it calls `submit()`. See [Step limit](agent-implementations.md#step-limit) for the `max_steps` contract.
-
-## Use the recommended structure
-
-Place new implementations under `src/agent/community/<name>/` unless they are project-maintained backends.
-
-```text
-src/agent/community/my_agent/
-|-- __init__.py
-|-- agent.py
-|-- config.py
-`-- prompts.py
-```
-
-Minimal implementation (same MCP helpers as `mock`; run via `nika agent run`):
+This skeleton marks the two places where your own model/tool loop belongs. It is not a runnable diagnosis algorithm:
 
 ```python
 from typing import Any
 
-from langchain_mcp_adapters.client import MultiServerMCPClient
-
-from agent.protocols import DIAGNOSIS, SUBMISSION
-from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.two_phase import TwoPhaseAgent
 from nika.utils.session import Session
 
@@ -72,53 +67,89 @@ class MyAgent(TwoPhaseAgent):
         self.session.load_running_session(session_id=session_id)
         self.trace_dir = self.session.session_dir
 
-    async def _tools(self, phase: str) -> dict[str, Any]:
-        config = load_session_mcp_config(
-            self.session_id, self.session.scenario_name, phase=phase
-        )
-        client = MultiServerMCPClient(connections=config)
-        return {tool.name: tool for tool in await client.get_tools()}
-
     async def diagnose(self, task_description: str) -> str:
-        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
-        logger.log("llm_start", {"messages": {"role": "user", "content": task_description}})
-        tools = await self._tools(DIAGNOSIS)
-
-        # Replace this block with your framework or model loop.
-        result = await tools["exec_shell"].ainvoke(
-            {"host_name": "pc1", "command": "ping -c 2 195.11.14.1"}
-        )
-        diagnosis = f"Observed ping output: {result}"
-
-        logger.log("llm_end", {"text": diagnosis, "model": self.model})
-        return diagnosis
+        # Discover diagnosis tools; run your bounded investigation loop.
+        # Return its evidence-based report, or raise on execution failure.
+        raise NotImplementedError
 
     async def submit(self, diagnosis_report: str, context: dict[str, Any]) -> str:
-        logger = MessageLogger(phase=SUBMISSION, session_dir=self.trace_dir)
-        tools = await self._tools(SUBMISSION)
-        # Select resource_id and fault_type from context["resources"] and
-        # context["fault_ontology"] (entries are {id, description, owner_kind}),
-        # usually with your model or framework.
-        submission = {
-            "is_anomaly": True,
-            "root_causes": [
-                {
-                    "resource_id": context["resources"][0]["id"],
-                    "fault_type": context["fault_ontology"][0]["id"],
-                }
-            ],
-        }
-        logger.log("tool_start", {"tool": {"name": "submit"}, "input": submission})
-        output = await tools["submit"].ainvoke(submission)
-        logger.log("tool_end", {"output": str(output)})
-        return str(output)
+        # Use the frozen report and context to select valid root causes.
+        # Invoke the submission MCP tool and return its result as text.
+        raise NotImplementedError
 ```
 
-Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/cli/`, or `src/agent/sdk/` packages as framework-specific references.
+The base class fails diagnosis reports starting with `ERROR:` and skips submission. Your loop must enforce `max_steps` model responses per phase; the base class does not enforce that limit. Reuse `max_steps_report()` for the shared limit behavior. The registry's runner applies the whole-run timeout. See [limits and telemetry](agent-reference.md#step-limit).
 
-## Register the agent
+This skeleton is for a **host-run** integration. Sandboxed agents return the report to the host driver, which advances the phase between separate workers. They cannot advance it themselves or import host session code. Follow the existing sandbox integration if you need that execution mode; see [the phase boundary](../operations/agent-sandbox.md#phase-boundary).
 
-Add the agent id to `src/agent/registry.py`:
+## Discover and invoke tools with any Python framework
+
+Load the session's phase-specific HTTP MCP connections with the shared helper:
+
+```python
+from agent.utils.mcp_client import load_session_mcp_config
+
+connections = load_session_mcp_config(session_id, scenario_name, phase="diagnosis")
+```
+
+The helper resolves the session backend and gateway configuration. Use these connections with your framework's MCP adapter or the standard Python MCP client. Keep the returned headers: they carry session-scoped access. Do not build another Docker or emulator client for investigation.
+
+For example, the standard MCP client can list and invoke tools on each connection:
+
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+
+async def invoke_connection(connection: dict, name: str, arguments: dict):
+    async with streamablehttp_client(
+        connection["url"], headers=connection.get("headers")
+    ) as (read, write, _):
+        async with ClientSession(
+            read, write, **connection.get("session_kwargs", {})
+        ) as client:
+            await client.initialize()
+            tools = await client.list_tools()
+            # In your loop, give tools.tools to the model before choosing a call.
+            # Each tool supplies name, description, and inputSchema.
+            if name not in {tool.name for tool in tools.tools}:
+                raise ValueError(f"Unknown tool: {name}")
+            result = await client.call_tool(name, arguments=arguments)
+            return result
+```
+
+The snippet shows one invocation with a tool name and arguments chosen by your model. In a full loop, discover tools across the returned connections, retain the mapping to each server, and keep client sessions open. Feed `result.content` and `result.isError` back to the model before its next turn. Choose arguments from the discovered schemas rather than hardcoding a topology-specific host or address.
+
+When `TwoPhaseAgent` calls `submit()`, load connections again with `phase="submission"`. Only the task server belongs in this phase. The `context` argument provides:
+
+- `diagnosis_report`: the frozen report;
+- `resources`: valid resource IDs and kinds;
+- `fault_ontology`: valid fault IDs with descriptions and owner kinds.
+
+Select IDs supported by the report, not by their position in the catalog. A healthy conclusion uses `is_anomaly=False` and an empty root-cause list. Invoke the task server's discovered `submit` tool with that answer. It validates IDs and writes the scored `submission.json` on the host; returning a Python dictionary or writing a local file does not replace that call.
+
+For example, inside your submission worker, after your model has selected `is_anomaly` and `root_causes` from the report and catalogs:
+
+```python
+submission_connections = load_session_mcp_config(
+    self.session_id, self.session.scenario_name, phase="submission"
+)
+connection = next(iter(submission_connections.values()))
+result = await invoke_connection(
+    connection,
+    "submit",
+    {"is_anomaly": is_anomaly, "root_causes": root_causes},
+)
+return str(result)
+```
+
+This fragment belongs inside an async method; `invoke_connection` is the standard MCP example above. A model's proposal is not a recorded submission until the tool succeeds.
+
+## Register and configure the agent
+
+Place community implementations under `src/agent/community/my_agent/`. Keep model configuration and prompts there as needed; no particular internal file layout or framework is required.
+
+Add a case to [`create_agent()`](../../src/agent/registry.py):
 
 ```python
 case "community.my_agent":
@@ -132,81 +163,37 @@ case "community.my_agent":
     )
 ```
 
-If the agent needs custom environment variables, resolve them in `config.py` and keep registry construction small.
+Also extend `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py) so the new ID accepts an explicit CLI/YAML model. If the agent uses NIKA provider routing, update the provider support entries in [`provider_env.py`](../../src/agent/utils/provider_env.py) and the registry's provider requirement list. The registry's sandbox set is only for integrations wired into the sandbox runner, not a general execution switch.
 
-## Configure MCP access
+Follow an existing implementation for the configuration your model client needs. Keep credentials in `.env` and operational settings in run configuration. NIKA's protocol does not mandate a particular model API.
 
-NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helper, which returns only the servers of one phase:
+## Record real model and tool activity
 
-```python
-from agent.utils.mcp_client import load_session_mcp_config
+Use [`MessageLogger`](../../src/agent/utils/loggers.py) in each worker phase to record real calls in `messages.jsonl`. `TwoPhaseAgent` already writes phase start/done/error events and the host writes the frozen report.
 
-diagnosis_config = load_session_mcp_config(session_id, scenario_name, phase="diagnosis")
-submission_config = load_session_mcp_config(session_id, scenario_name, phase="submission")
-```
+Log one `llm_end` per actual model response, including available usage metadata. Log tool start, result, and errors with consistent tool names and call IDs. Do not log a deterministic operation as an LLM response: the evaluator uses these events to count steps, tokens, and tool calls. LangChain integrations can use `AgentCallbackLogger`; other frameworks can use `MessageLogger` directly.
 
-Common submission flow:
+See [telemetry contract](agent-reference.md#trace-event-contract) for the event fields. Missing token usage should remain unavailable rather than being invented.
 
-1. Return the report from `diagnose()`. `TwoPhaseAgent` calls `begin_submission_mcp_phase(session_id, diagnosis_report)` on the host, which freezes the report and advances the gateway.
-2. Read the resource inventory and fault ontology from the `context` argument of `submit()`.
-3. Call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
+## Validate through the normal workflow
 
-The gateway's phase-advance endpoint needs a host-only secret. An agent that runs in a sandbox cannot advance the phase itself, so it cannot read the submission context before diagnosis ends.
-
-The task server rejects IDs outside those catalogs. See [MCP servers](mcp-servers.md) for the server catalog and packet capture workflow, and [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md) for the submit contract.
-
-## Write trace logs
-
-Use `MessageLogger` for JSONL traces:
-
-```python
-from agent.utils.loggers import MessageLogger
-from agent.protocols import DIAGNOSIS
-
-logger = MessageLogger(phase=DIAGNOSIS, session_dir=session.session_dir)
-logger.log("tool_start", {"tool": {"name": "exec_shell"}, "input": {"host_name": "pc1", "command": "ip route"}})
-logger.log("tool_end", {"output": "success"})
-```
-
-For LangChain-based agents, use `AgentCallbackLogger` instead of manual event logging.
-
-## Run locally
-
-Use the mock agent first to validate the lab and task:
+First verify the lab/submission pipeline without spending model tokens:
 
 ```shell
-uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-uv run nika agent run -a mock -m mock-v1
-uv run nika session close -y
-uv run nika eval metrics --session_id <session_id>
+uv run nika agent run -a mock -m mock-v1 --problem dc_clos_s_link_down
 ```
 
-Then run your agent:
+Then exercise your registered agent on the same small incident:
 
 ```shell
-uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-uv run nika agent run -a community.my_agent -m <model> -n 20
+uv run nika agent run -a community.my_agent -m <model> -n 20 \
+  --problem dc_clos_s_link_down
+uv run nika eval metrics --session_id <printed_session_id>
+uv run nika inspect
 ```
 
-For benchmark mode:
+Task mode handles lab deployment, injection, closure, and evaluation. Check that the trajectory shows actual network investigation, a frozen report before submission, and correctly counted model/tool calls. Confirm the task MCP tool created `submission.json` and that no resources from your run remain.
 
-```shell
-uv run nika benchmark run dc_clos -s s --problem link_down \
-  --set host_name=pc_0_0 --set intf_name=eth0 \
-  -a community.my_agent -m <model> -n 20
-```
+For explicit session control, start a lab with `nika env run`, inject a failure, and run the agent with `--session_id`. Use `nika exec --help` to inspect actual container state while the lab is running. Always close the session you created with `nika session close --session_id <session_id> -y`, including on failure. Never clean up unrelated Docker or emulator resources.
 
-## Validate the integration
-
-- Agent class has `session_id` and `async run(task_description)` (inherited from `TwoPhaseAgent`).
-- Registry maps a stable CLI id to the class.
-- Diagnosis uses MCP tools instead of direct Docker/Kathara duplication.
-- Submission selects IDs from the frozen submission context, then uses the task MCP `submit` tool.
-- `messages.jsonl` and `submission.json` appear in the session result directory.
-- `uv run nika benchmark run ... -a community.my_agent` completes for a small case.
-
-## Add agent skills
-
-Claude Code and Codex agents can load reusable instructions during diagnosis. [Configure agent skills](agent-skills.md) covers the library layout, `SKILL.md` format, registration, and tests. SADE keeps its separate library under `src/agent/community/sade/.claude/`.
+Once that workflow works, use [benchmark configuration](../benchmarks/benchmark-configuration.md) to run a case matrix with your agent ID. Include healthy cases and diagnosis failures when checking an integration's behavior.

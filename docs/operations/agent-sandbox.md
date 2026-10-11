@@ -78,7 +78,7 @@ uv run nika session close -y
 uv run nika eval metrics --session_id <session_id>
 ```
 
-`-n` sets the LLM-turn budget per phase for every agent. See [Step limit](../agents/agent-implementations.md#step-limit).
+`-n` sets the LLM-turn budget per phase for every agent. See [Step limit](../agents/agent-reference.md#step-limit).
 
 ## Architecture
 

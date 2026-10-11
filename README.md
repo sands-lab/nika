@@ -101,7 +101,7 @@ Run `uv run nika failure describe <failure_id>` to see a failure's injection par
 
 ### Pluggable agents
 
-NIKA includes host-run framework agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex) and [Claude](https://github.com/anthropics/claude-code) agents driven through their CLIs or SDKs; and community integrations such as [SADE](docs/agents/community/sade.md). Every registered agent follows the same diagnosis and root-cause submission contract. See [built-in agents](docs/agents/agent-implementations.md) or [integrate your own agent](docs/agents/custom-agents.md).
+NIKA includes host-run framework agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex) and [Claude](https://github.com/anthropics/claude-code) agents driven through their CLIs or SDKs; and community integrations such as [SADE](docs/agents/community/sade.md). Every registered agent follows the same diagnosis and root-cause submission contract. See [choose and run an agent](docs/agents/agent-implementations.md) or [integrate your own agent](docs/agents/custom-agents.md).
 
 ### MCP servers
 
@@ -212,7 +212,7 @@ Pick the path that matches what you're trying to do:
 
 **🔌 I want to connect my own agent**
 
-1. [Built-in agents](docs/agents/agent-implementations.md): built-in agents and configuration.
+1. [Choose and run an agent](docs/agents/agent-implementations.md): agent choices and hosted/self-hosted walkthroughs; [agent reference](docs/agents/agent-reference.md) for configuration and limits.
 2. [Agent integration workflow](docs/agents/custom-agents.md): agent contract and integration workflow.
 3. [Agent skills](docs/agents/agent-skills.md): reusable troubleshooting knowledge you can attach to an agent.
 4. [Agent sandboxing](docs/operations/agent-sandbox.md): isolated microVM execution.

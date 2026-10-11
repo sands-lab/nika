@@ -1,174 +1,144 @@
-# Agent implementation reference
+# Choose and run an agent
 
-This reference helps operators choose a registered troubleshooting agent and configure its provider, model, and execution environment. Use [Custom agent integration](custom-agents.md) to implement a new agent.
+NIKA lets you run different troubleshooting agents against the same network incidents. Choose an **agent implementation** (the model/tool loop), a **provider and model** (the service it calls), and an **execution location** (host or Docker Sandbox). Changing the model does not require writing a new agent.
 
-[`protocols.py`](../../src/agent/protocols.py) defines the shared contract. [`registry.py`](../../src/agent/registry.py) maps the CLI names below to their implementations. Confirm the installed checkout with `uv run nika agent list`.
+Every implementation investigates through NIKA's MCP tools, produces a diagnosis report, and submits structured root causes for evaluation. The host freezes the report before exposing the submission catalogs. See [Custom agent integration](custom-agents.md) to build your own.
 
-## Agent catalog
+## Choose an implementation
 
-| CLI name | Orchestration | Execution | Skill support |
-| --- | --- | --- | --- |
-| `byo.langgraph` | LangGraph ReAct workers | Host | No |
-| `byo.mcp_agent` | mcp-agent `Agent` workers | Host | No |
-| `byo.autogen` | AutoGen `AssistantAgent` workers | Host | No |
-| `cli.codex` | Codex CLI, two phases | Docker Sandbox `codex` template | Shared Codex skills |
-| `cli.claude` | Claude Code CLI, two phases | Docker Sandbox `claude` template | Shared Claude skills |
-| `sdk.codex_sdk` | `openai-codex`, two threads | Docker Sandbox `shell` template | Shared Codex skills |
-| `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Docker Sandbox `shell` template | Shared Claude skills |
-| `community.sade` | Claude Agent SDK with a 15-skill library | Docker Sandbox `shell` template | SADE library |
-
-The deterministic `mock` agent supports tests and pipeline checks. Do not use it for benchmark comparisons.
-
-## Shared run contract
-
-Every agent runs the same pipeline:
-
-1. **Diagnosis.** The agent inspects the live lab through the diagnosis MCP servers and writes a free-text report.
-2. **Freeze and advance.** The host records the report as `diagnosis_frozen` in `messages.jsonl` and moves the MCP gateway to the submission phase. The gateway then returns the fault ontology and the resource catalog.
-3. **Submission.** The agent gets the frozen report and that context, with only the task MCP server, and calls `submit`.
-
-A completed run writes `messages.jsonl` and `submission.json` under the session result directory. The [root-cause scoring reference](../benchmarks/root-cause-evaluation.md) defines the submission schema.
-
-A diagnosis report that starts with `ERROR:` fails the run, and the submission phase does not start.
-
-Configure shared values in `config/nika.yaml` or override them on `nika agent run`:
-
-| CLI flag | Configuration key | Schema default |
+| Your goal | Agent | Why it is available |
 | --- | --- | --- |
-| `-a`, `--agent` | `agent.type` | `byo.langgraph` |
-| `-p`, `--provider` | `agent.provider` | `openai` |
-| `-m`, `--model` | `agent.model` | None |
-| `-n`, `--max-steps` | `agent.max_steps` | `20`; LLM turns per phase, for every agent (see [Step limit](#step-limit)) |
-| (run config only) | `agent.timeout_sec` | `1800`; wall-clock budget for the whole agent run, for every agent |
-| (run config only) | `agent.max_tokens` | `8192`; output-token cap per model response, for every LLM agent except `cli.codex`, `sdk.codex_sdk`, and `community.sade` |
-| `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
-| `--base-url` | `agent.custom.base_url` | None |
+| Start with a conventional tool-using agent, including self-hosted models | `byo.langgraph` | A host-run ReAct loop provides a straightforward baseline and configurable model endpoint. |
+| Use mcp-agent's orchestration | `byo.mcp_agent` | Runs diagnosis and submission with mcp-agent workers, for experiments within that framework. |
+| Use AutoGen's orchestration | `byo.autogen` | Runs the phases with AutoGen AssistantAgent workers. |
+| Evaluate the behavior of a complete agent CLI | `cli.codex`, `cli.claude` | Drives Codex or Claude Code in a Docker Sandbox, preserving the CLI's own agent loop. |
+| Integrate through a vendor's Python agent SDK | `sdk.codex_sdk`, `sdk.claude_sdk` | Uses SDK threads/sessions in a Docker Sandbox rather than invoking the agent CLI directly. |
+| Evaluate a specialized community implementation | `community.sade` | Adds SADE's network troubleshooting skill library to a Claude Agent SDK agent. See [SADE](community/sade.md). |
+| Check the lab and submission pipeline without an LLM | `mock` | Deterministic workflow check; unsuitable for comparing model diagnosis quality. |
 
-See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules.
+The BYO agents execute on the host; CLI, SDK, and SADE agents execute in Docker Sandboxes. The lab and MCP gateway stay on the host in both cases. Framework and execution differences can affect results: record the agent, model, configuration, and versions for comparisons. These choices do not imply a ranking of diagnosis quality.
 
-### Step limit
+## Run with a hosted provider
 
-`max_steps` is the number of LLM turns (model responses) a phase may use. The evaluator's `steps` metric counts the same unit: one `llm_end` event per model response in `messages.jsonl`.
+Install NIKA and its lab prerequisites using [Installation](../operations/installation.md), then run `uv sync`. Put your provider credential in the repository's `.env`, for example:
 
-When diagnosis uses all `max_steps` turns, the agent stops, logs `max_steps_reached`, and freezes its latest assistant text as the report. The submission phase then runs as usual. If the agent wrote no text before the limit, the report is `ERROR: ...` and the run fails.
-
-| Agent | How NIKA enforces `max_steps` |
-| --- | --- |
-| `byo.langgraph` | `ModelCallLimitMiddleware(run_limit=max_steps)` |
-| `byo.mcp_agent` | mcp-agent `max_iterations` |
-| `byo.autogen` | `max_tool_iterations = max_steps - 1`, plus one reflection turn that writes the report |
-| `cli.claude` | `claude --max-turns` |
-| `cli.codex` | NIKA counts model responses in the `codex exec --json` stream and stops Codex when a response past the limit starts |
-| `sdk.claude_sdk`, `community.sade` | Claude Agent SDK `max_turns` |
-| `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
-| `mock` | Not applicable (no LLM) |
-
-`codex exec` reports no event per model response. `cli.codex` starts a new step at the first item after all tool calls of the previous response finished. Tool calls that Codex runs one after another from a single response therefore count as separate steps, so `cli.codex` can report more steps than the model made. `codex exec` also reports token usage once per run, so `cli.codex` puts all tokens on the last `llm_end` of the phase. Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika config set agent.custom.base_url=...`, or YAML.
-
-| Agent family | Providers |
-| --- | --- |
-| `byo.langgraph`, `byo.mcp_agent`, `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `cli.codex`, `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
-| `cli.claude`, `sdk.claude_sdk`, `community.sade` | `anthropic`, `deepseek`, `custom` |
-
-CLI, SDK, and SADE agents run in Docker Sandboxes. The lab and MCP gateway remain on the host. See [Docker Sandbox execution](../operations/agent-sandbox.md) for installation, credentials, isolation, proxy settings, and troubleshooting.
-
-## BYO framework agents
-
-BYO agents run on the host and use one framework-specific worker per diagnosis or submission phase.
-
-| Agent | Entry point | Reasoning effort |
-| --- | --- | --- |
-| `byo.langgraph` | `agent.byo.langgraph.react_agent.BasicReActAgent` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
-| `byo.mcp_agent` | `agent.byo.mcp_agent.agent.McpAgent` | `none`, `low`, `medium`, `high` |
-| `byo.autogen` | `agent.byo.autogen.agent.AutogenAgent` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
-
-```yaml
-agent:
-  type: byo.langgraph
-  provider: deepseek
-  model: deepseek-v4-flash
-  max_steps: 20
-  reasoning_effort: medium
+```dotenv
+OPENAI_API_KEY=<your-api-key>
 ```
+
+Run a small link-down incident:
 
 ```shell
-uv run nika agent run
-uv run nika agent run -a byo.langgraph -p deepseek -m deepseek-v4-flash -n 20
-uv run nika agent run -a byo.mcp_agent -p deepseek -m deepseek-v4-flash -e low
+uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
+  --problem dc_clos_s_link_down
 ```
 
-### OpenAI-compatible endpoints
+`--problem` selects task mode: NIKA deploys the lab, injects the failure, runs both agent phases, closes the session, and evaluates the result. Keep the printed session ID for [Inspect results](#inspect-results). Without `--problem`, the command uses an already running session.
 
-Use the `custom` provider for Ollama, vLLM, OpenRouter, or another OpenAI-compatible server:
+## Run with Ollama
+
+Install [Ollama](https://docs.ollama.com/) separately. On the same host as the BYO agent, start its server in one terminal:
+
+```shell
+ollama serve
+```
+
+In another terminal, download a tool-capable model and check the endpoint:
+
+```shell
+ollama pull qwen2.5:7b
+curl http://localhost:11434/v1/models
+```
+
+Then run NIKA:
+
+```shell
+uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b -n 20 \
+  --base-url http://localhost:11434/v1 --problem dc_clos_s_link_down
+```
+
+Ollama exposes an [OpenAI-compatible API](https://docs.ollama.com/api/openai-compatibility). Choose a model that supports tool calling; a model that only produces text cannot reliably investigate through MCP. The example is a starting configuration, not a benchmark quality recommendation. Ensure the model's context budget accommodates tool descriptions and network output; see Ollama's context configuration in that reference.
+
+Local unauthenticated endpoints do not require `NIKA_CUSTOM_API_KEY`. For an authenticated gateway, put that credential in `.env`.
+
+## Run with vLLM
+
+Install [vLLM](https://docs.vllm.ai/en/stable/) separately on a machine with enough accelerator memory for the chosen model. Start a server with automatic tool calling enabled:
+
+```shell
+vllm serve Qwen/Qwen2.5-7B-Instruct \
+  --host 127.0.0.1 --port 8000 \
+  --enable-auto-tool-choice --tool-call-parser hermes
+```
+
+This model uses the Hermes tool format. Other models may require a different parser, chat template, or reasoning parser; follow the [vLLM tool-calling reference](https://docs.vllm.ai/en/stable/features/tool_calling/) for your installed version and checkpoint.
+
+From the agent host, check the server and run the incident:
+
+```shell
+curl http://localhost:8000/v1/models
+uv run nika agent run -a byo.langgraph -p custom \
+  -m Qwen/Qwen2.5-7B-Instruct -n 20 \
+  --base-url http://localhost:8000/v1 --problem dc_clos_s_link_down
+```
+
+Use the model ID returned by `/v1/models` if you configured a different served name. For a server on another machine, replace `localhost` with its reachable address and configure server binding/authentication accordingly. A successful `/models` request checks connectivity; it does not prove that tool calls work. Inspect the NIKA trajectory for actual tool invocations.
+
+Both self-hosted examples use `provider: custom`, which selects the OpenAI-compatible interface for this BYO agent. To save the endpoint instead of repeating flags:
 
 ```yaml
 agent:
   type: byo.langgraph
   provider: custom
-  model: qwen2.5:7b
+  model: Qwen/Qwen2.5-7B-Instruct
+  max_steps: 20
   custom:
-    base_url: http://localhost:11434/v1
+    base_url: http://localhost:8000/v1
 ```
+
+Save these values in `config/nika.yaml`; then pass only `--problem` to `nika agent run`. See [Run configuration](../operations/configuration.md) for precedence and additional settings.
+
+## Run a sandboxed agent
+
+Install and authenticate `sbx`, with the required virtualization support, using [Docker Sandbox execution](../operations/agent-sandbox.md#prerequisites). For an OpenAI API-key run, use the `.env` credential above:
 
 ```shell
-uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b \
-  --base-url http://localhost:11434/v1 --problem dc_clos_s_link_down
-uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
-  agent.custom.base_url=http://localhost:11434/v1
+uv run nika agent run -a cli.codex -p openai -m gpt-5-mini -n 20 \
+  --problem dc_clos_s_link_down
 ```
 
-Set `NIKA_CUSTOM_API_KEY` in `.env` only when the endpoint requires authentication.
-
-## CLI agents
-
-| Agent | Sandbox command | Model | Authentication |
-| --- | --- | --- | --- |
-| `cli.codex` | `codex exec` | `agent.model` | OpenAI API key, Codex OAuth, DeepSeek key, or custom endpoint |
-| `cli.claude` | `claude -p` | `agent.model` | Anthropic API key, Claude login, DeepSeek key, or custom endpoint |
-
-```shell
-uv run nika agent run -a cli.codex -m gpt-5-mini -e medium
-uv run nika agent run -a cli.claude -p deepseek -m deepseek-v4-flash
-```
-
-Codex accepts `none`, `minimal`, `low`, `medium`, `high`, or `xhigh` reasoning effort. Claude agents ignore the shared `-e` option. Claude runs with `--bare` when it uses environment credentials and uses its stored login in subscription mode.
-
-## SDK agents
-
-Install SDK agents with:
+To use the Python SDK implementation, install the SDK extra and change the agent:
 
 ```shell
 uv sync --extra sdk --prerelease=allow
+uv run nika agent run -a sdk.codex_sdk -p openai -m gpt-5-mini -n 20 \
+  --problem dc_clos_s_link_down
 ```
 
-| Agent | SDK | Model |
-| --- | --- | --- |
-| `sdk.codex_sdk` | `openai-codex` | `agent.model` |
-| `sdk.claude_sdk` | `claude-agent-sdk` | `agent.model` |
+`localhost` inside a sandbox refers to that sandbox. Self-hosted endpoints need an address reachable from the microVM and sandbox network permission. Also check the API protocol required by the chosen agent: the BYO examples above use OpenAI-compatible chat, while Claude integrations use an Anthropic-compatible interface. See [sandbox authentication and networking](../operations/agent-sandbox.md) before adapting an endpoint example.
 
-Both SDK agents follow the shared [step limit](#step-limit).
+## Inspect results
+
+Task mode writes results and removes its lab through NIKA's lifecycle. Use the printed session ID:
 
 ```shell
-uv run nika agent run -a sdk.codex_sdk -m gpt-5-mini -e medium
-uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash -n 20
+uv run nika eval metrics --session_id <session_id>
+uv run nika inspect
 ```
 
-SDK sandboxes install dependencies from host-cached wheels by default. Set `nika.sandbox.offline_sdk_wheels: false` to install them from PyPI instead. See [SDK offline wheels](../operations/agent-sandbox.md#sdk-agents-optional-offline-wheels).
+Look for the diagnosis report and model/tool events in `messages.jsonl`, and the structured answer in `submission.json` under the session result directory. Metrics distinguish diagnosis quality from steps, tokens, and tool calls; see [Root-cause scoring](../benchmarks/root-cause-evaluation.md).
 
-## Community agents
-
-Community implementations live under `src/agent/community/<name>/` and implement the shared agent contract. NIKA registers `community.sade`; its [reference](community/sade.md) covers dependencies, models, credentials, and skills.
-
-## LangGraph observability
-
-`byo.langgraph` can send traces to Langfuse. Install `uv sync --extra observability`, set `nika.observability.langfuse_enabled: true`, and put `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` in `.env`. Set a non-default host with `nika.observability.langfuse_host`.
-
-## Inspect the active interface
+If you started a lab manually with `nika env run`, close that session explicitly when finished, including after a failed agent run:
 
 ```shell
-uv run nika agent list
-uv run nika agent run --help
+uv run nika session close --session_id <session_id> -y
 ```
 
-Use [Run configuration](../operations/configuration.md) for every setting, [CLI](../operations/cli-reference.md#nika-agent) for command behavior, and [Testing](../development/testing.md#agent-tests-testsagent) for the agent test matrix.
+Use the ID of the session you created. Stopping an Ollama or vLLM server is separate from closing the NIKA lab.
+
+## Further configuration
+
+- [Agent reference](agent-reference.md): complete catalog, provider support, step limits, token caps, and observability.
+- [MCP servers](mcp-servers.md): available network investigation tools.
+- [Agent skills](agent-skills.md): reusable instructions for supported agents.
+- [Custom agent integration](custom-agents.md): the contract for a new implementation.
