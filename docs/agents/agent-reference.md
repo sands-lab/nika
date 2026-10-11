@@ -122,9 +122,17 @@ Use [Run configuration](../operations/configuration.md) for every setting, [CLI]
 
 The logger supplies timestamp and phase. Preserve real usage and errors; do not emit synthetic model events for deterministic code. See [`loggers.py`](../../src/agent/utils/loggers.py), [`usage.py`](../../src/agent/utils/usage.py), and [`trace_parser.py`](../../src/nika/evaluator/trace_parser.py) for supported payload normalization and native CLI/SDK transcript handling.
 
+## Custom agent integration
+
+Host-run harnesses can subclass [`TwoPhaseAgent`](../../src/agent/utils/two_phase.py). Initialize `session_id`, `trace_dir`, and `stream_output`; the current base class does not provide a constructor. Follow the [LangGraph constructor](../../src/agent/byo/langgraph/react_agent.py) for loading the running session and model settings.
+
+Implement `diagnose(task_description) -> str` for the investigation and `submit(diagnosis_report, context) -> str` for NIKA's structured-answer adapter. The orchestrator freezes the diagnosis and supplies the resource and fault catalogs before calling that adapter. The adapter invokes the task MCP `submit` tool; the current orchestrator does not generate the structured answer itself. See [the shared run contract](#shared-run-contract) and [Python MCP client](#python-mcp-client).
+
+Workers enforce the [step limit](#step-limit) and record calls using the [trace event contract](#trace-event-contract). Lifecycle events and report freezing belong to the base class and host.
+
 ## Custom agent registration
 
-The [integration guide](custom-agents.md#register-and-configure-the-agent) shows the factory registration. Explicit CLI/YAML models already pass through `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py). Extend it only if the agent needs model-default behavior.
+The [integration guide](custom-agents.md#register-your-harness) explains where to register a harness. Explicit CLI/YAML models already pass through `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py). Extend it only if the agent needs model-default behavior.
 
 Declare supported providers in `AGENT_PROVIDERS` so CLI provider validation accepts the new ID. For NIKA provider routing, map credentials for its model client in [`provider_env.py`](../../src/agent/utils/provider_env.py). Add it to the registry's provider requirement list when its constructor requires `llm_provider`, and pass the relevant settings through the factory.
 

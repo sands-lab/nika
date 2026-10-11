@@ -1,6 +1,6 @@
 # Choose and run an agent
 
-NIKA runs troubleshooting agents against network incidents and scores their diagnoses. To get started, use `byo.langgraph`; you can change its provider or model without writing a new agent.
+NIKA runs troubleshooting agents against network incidents and scores their diagnoses. A **harness** connects a model to the investigation loop and tools. Start with LangGraph (`byo.langgraph`); changing its provider or model does not require a new harness.
 
 ## Run your first incident
 
@@ -11,29 +11,32 @@ OPENAI_API_KEY=<your-api-key>
 ```
 
 ```shell
-uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
+uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
   --problem dc_clos_s_link_down
 ```
 
-NIKA creates the lab, injects the failure, runs the agent, evaluates its answer, and closes the lab. `-n 20` allows up to 20 model responses per phase. Keep the printed session ID.
+NIKA creates the lab, injects the failure, runs the agent, evaluates its answer, and closes the lab. Keep the printed session ID.
 
 Prefer an interactive setup? Run `uv run nika` to [choose a task and agent](../operations/tui.md).
 
-## Choose another agent
+## Available harnesses
 
-| If you want to… | Use |
+| Harness | Example configuration |
 | --- | --- |
-| Run a model through a host-based tool loop | `byo.langgraph` |
-| Use a specific orchestration framework | `byo.mcp_agent` or `byo.autogen` |
-| Evaluate Codex or Claude Code's own agent loop | `cli.codex` or `cli.claude` |
-| Use the vendor's Python agent SDK | `sdk.codex_sdk` or `sdk.claude_sdk` |
-| Use SADE's troubleshooting skills | [`community.sade`](community/sade.md) |
-| Check the pipeline without an LLM | `mock` |
+| LangGraph (`byo.langgraph`) | [YAML](../../config/byo.langgraph.example.yaml) |
+| mcp-agent (`byo.mcp_agent`) | [YAML](../../config/byo.mcp_agent.example.yaml) |
+| AutoGen (`byo.autogen`) | [YAML](../../config/byo.autogen.example.yaml) |
+| Codex CLI (`cli.codex`) | [YAML](../../config/cli.codex.example.yaml) |
+| Claude Code (`cli.claude`) | [YAML](../../config/cli.claude.example.yaml) |
+| Codex SDK (`sdk.codex_sdk`) | [YAML](../../config/sdk.codex_sdk.example.yaml) |
+| Claude Agent SDK (`sdk.claude_sdk`) | [YAML](../../config/sdk.claude_sdk.example.yaml) |
+
+NIKA also includes [SADE](community/sade.md), a community agent with a structured troubleshooting workflow and skill library. See the [SADE paper](https://arxiv.org/abs/2605.04530). The deterministic `mock` harness checks the pipeline without an LLM.
 
 BYO agents run on the host. CLI, SDK, and SADE agents require [Docker Sandbox setup](../operations/agent-sandbox.md#prerequisites). For example:
 
 ```shell
-uv run nika agent run -a cli.codex -p openai -m gpt-5-mini -n 20 \
+uv run nika agent run -a cli.codex -p openai -m gpt-5-mini \
   --problem dc_clos_s_link_down
 ```
 
