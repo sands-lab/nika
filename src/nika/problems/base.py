@@ -109,6 +109,12 @@ class ProblemBase:
     # Optional protocol whose adjacency effect this failure declares.
     effect_protocol: ClassVar[str | None] = None
     effect_property: ClassVar[str | None] = None
+    # Network symptom the benchmark audit measures (``nika.validation.symptom``):
+    # the probe kind and the symptom class it expects. ``None`` means undeclared.
+    symptom_probe: ClassVar[str | None] = None
+    symptom_class: ClassVar[str | None] = None
+    # The fault lives as a running worker, flap, or quota rather than static state.
+    dynamic_artifact: ClassVar[bool] = False
     # Instance attributes recorded in session injection metadata when present.
     RECORDED_ATTRS: ClassVar[tuple[str, ...]] = ()
     # Benchmark target enumeration: swap the root-cause node within its role

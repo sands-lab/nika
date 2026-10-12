@@ -25,23 +25,6 @@ from nika.utils.session_artifacts import json_safe
 
 DURING_AGENT_DELAY_SEC = 2.0
 
-# Faults whose effect is a live worker, flap, or quota. The recheck reads
-# that worker or setting on the injected instance. It does not replay traffic.
-DYNAMIC_ARTIFACT_FAULTS = frozenset(
-    {
-        "link_flap",
-        "link_capacity_bottleneck",
-        "incast_traffic_network_limitation",
-        "web_dos_attack",
-        "tcp_syn_flood_attack",
-        "load_balancer_overload",
-        "sender_resource_contention",
-        "receiver_resource_contention",
-        "arp_cache_poisoning",
-    }
-)
-
-
 _BOUND: dict[str, tuple[Any, Any]] = {}
 _BOUND_LOCK = threading.Lock()
 
@@ -167,7 +150,7 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
     if not present and not error:
         error = "fault artifact absent"
     evidence = raw.get("evidence") if isinstance(raw.get("evidence"), dict) else {}
-    if fault in DYNAMIC_ARTIFACT_FAULTS:
+    if getattr(problem, "dynamic_artifact", False):
         evidence = {**evidence, "dynamic_artifact": True}
     return {
         "present": present,

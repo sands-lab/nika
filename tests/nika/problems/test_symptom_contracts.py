@@ -3,12 +3,12 @@
 import pytest
 
 from nika.problems.registry import list_avail_problem_names
-from tests.support.symptom.types import ProbePath
-from tests.support.symptom import (
+from nika.validation.symptom.types import ProbePath
+from nika.validation.symptom import (
     get_symptom_contract,
     list_symptom_contracts,
 )
-from tests.support.symptom.custom import _CUSTOM
+from nika.validation.symptom.custom import _CUSTOM, _CUSTOM_BASELINE
 
 pytestmark = pytest.mark.contract
 
@@ -29,8 +29,28 @@ def test_symptom_contract_fields() -> None:
             assert failure in _CUSTOM, f"custom probe missing handler: {failure}"
 
 
+# Custom symptoms that the audit cannot admit without a same-metric healthy
+# baseline: BLOCKED faults whose frozen release cases cannot be made valid.
+# Do not add new entries; add a baseline instead.
+_CUSTOM_WITHOUT_BASELINE = frozenset(
+    {
+        # BLOCKED: the frozen attacker cannot reach gateway_1's connection table.
+        "lb_connection_state_exhaustion",
+    }
+)
+
+
+def test_custom_symptoms_declare_a_healthy_baseline() -> None:
+    custom = {c.failure for c in list_symptom_contracts() if c.probe == "custom"}
+    missing = {f for f in custom if f not in _CUSTOM_BASELINE}
+    unexpected = missing - _CUSTOM_WITHOUT_BASELINE
+    assert not unexpected, f"custom symptoms without a baseline: {sorted(unexpected)}"
+    unknown = _CUSTOM_WITHOUT_BASELINE - custom
+    assert not unknown, f"exceptions that are not custom symptoms: {sorted(unknown)}"
+
+
 def test_gray_probe_bounds() -> None:
-    from tests.support.symptom.gray_probes import probe_gray_packet_loss
+    from nika.validation.symptom.gray_probes import probe_gray_packet_loss
 
     class _Runtime:
         def exec(self, host, cmd, timeout=10.0):
@@ -99,12 +119,34 @@ def test_compare_symptom_unreachable_mtu_blackhole() -> None:
     from nika.net_env.verify import compare_symptom
 
     ok, details = compare_symptom(
-        {"ping_ok": True},
+        {"ping_ok": True, "mtu_blackhole": False},
         {"ping_ok": True, "mtu_blackhole": True},
         "unreachable",
     )
     assert ok
     assert details["observed"]["mtu_blackhole"] is True
+
+
+def test_compare_symptom_rejects_a_signal_already_present_before_inject() -> None:
+    from nika.net_env.verify import compare_symptom
+
+    # The healthy path already returned frag-needed, so inject changed nothing.
+    ok, _ = compare_symptom(
+        {"ping_ok": True, "mtu_frag_needed": True},
+        {"ping_ok": True, "mtu_frag_needed": True},
+        "unreachable",
+    )
+    assert not ok
+
+
+def test_compare_symptom_needs_a_measured_control_plane() -> None:
+    from nika.net_env.verify import compare_symptom
+
+    unmeasured = {"ping_ok": True, "control_plane_ok": None}
+    assert not compare_symptom(unmeasured, unmeasured, "control_plane_down")[0]
+    assert compare_symptom(
+        {"control_plane_ok": True}, {"control_plane_ok": False}, "control_plane_down"
+    )[0]
 
 
 def test_compare_symptom_degraded_rtt() -> None:
@@ -124,13 +166,20 @@ def test_compare_symptom_degraded_loss() -> None:
     from nika.net_env.verify import compare_symptom
 
     ok, details = compare_symptom(
-        {"loss_percent": None, "ping_ok": None},
+        {"loss_percent": 0.0, "ping_ok": True},
         {"loss_percent": 65.0, "ping_ok": True, "rtt_avg_ms": 4120.0},
         "degraded",
         loss_min_percent=10.0,
     )
     assert ok
     assert details["observed"]["loss_degraded"] is True
+    # Without a healthy loss reading there is nothing to compare against.
+    unmeasured, _ = compare_symptom(
+        {"loss_percent": None, "ping_ok": None},
+        {"loss_percent": 65.0, "ping_ok": True},
+        "degraded",
+    )
+    assert not unmeasured
 
 
 def test_compare_symptom_degraded_absolute_http() -> None:
@@ -144,26 +193,23 @@ def test_compare_symptom_degraded_absolute_http() -> None:
     assert ok
 
 
-def test_compare_symptom_isolation_after_only() -> None:
+def test_compare_symptom_isolation_needs_a_working_control() -> None:
     from nika.net_env.verify import compare_symptom
 
-    ok, details = compare_symptom(
-        {},
-        {"symptom_ok": False, "control_ok": True},
-        "isolation",
-    )
-    assert ok
-    assert details["observed"]["symptom_broken"] is True
-    assert details["observed"]["control_intact"] is True
-
-
-def test_compare_symptom_isolation_skips_missing_control() -> None:
-    from nika.net_env.verify import compare_symptom
-
+    # Isolation means the target broke while the control path kept working.
     ok, details = compare_symptom(
         {"symptom_ok": True},
         {"symptom_ok": False},
         "isolation",
     )
-    assert ok
-    assert details["observed"]["control_intact"] is True
+    assert not ok
+    assert details["observed"]["control_intact"] is False
+    assert compare_symptom(
+        {"symptom_ok": True},
+        {"symptom_ok": False, "control_ok": True},
+        "isolation",
+    )[0]
+    # Without a healthy reading of the target, the break is not shown.
+    assert not compare_symptom(
+        {}, {"symptom_ok": False, "control_ok": True}, "isolation"
+    )[0]
