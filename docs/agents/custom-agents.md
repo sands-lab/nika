@@ -11,7 +11,13 @@ Every run of `nika agent run` goes through the same steps:
 ```mermaid
 flowchart LR
     A[Start lab] --> B[Inject fault] --> C[Diagnose] --> D[Submit] --> E[Score]
+    classDef nika fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    classDef agent fill:#fef3c7,stroke:#b45309,color:#78350f
+    class A,B,D,E nika
+    class C agent
 ```
+
+Blue steps are run by NIKA; the orange step is run by your agent.
 
 1. **Start lab** and **inject fault**: NIKA deploys the network and breaks it, for example by taking a link down.
 2. **Diagnose**: your agent gets a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md), such as running commands on devices or measuring reachability. It returns a written diagnosis report.
