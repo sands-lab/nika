@@ -1,5 +1,0 @@
-{
-  "worktree": {
-    "setup": ["sh scripts/git-hooks/post-checkout 0000000000000000000000000000000000000000"]
-  }
-}
