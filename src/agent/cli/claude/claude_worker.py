@@ -30,9 +30,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from agent.cli.claude.claude_display import (
-    should_log_claude_event,
-)
 from agent.cli.claude.config import (
     custom_model_claude_env,
     prepare_claude_subprocess_env,
@@ -348,7 +345,9 @@ class ClaudeWorker:
                 print(raw, flush=True)
             return None
 
-        if should_log_claude_event(event):
+        if not (
+            event.get("type") == "system" and event.get("subtype") == "thinking_tokens"
+        ):
             self._logger.log(
                 event.get("type", "claude_event"),
                 {"claude_event": event},

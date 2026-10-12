@@ -139,3 +139,28 @@ def test_serialized_mcp_content_is_readable(capsys):
             },
         )
     assert capsys.readouterr().err == "✓ Tool exec_shell\nrouter1\nreachable\n"
+
+
+def test_model_text_and_tool_arguments_are_not_content_blocks(capsys):
+    blocks = [{"type": "text", "text": "literal input"}]
+    literal = repr(blocks)
+    with agent_output(True):
+        display_agent_event("llm_end", {"text": literal})
+        display_agent_event("tool_start", {"tool": {"name": "submit"}, "input": blocks})
+    output = capsys.readouterr().err
+    assert f"💬 Agent:\n{literal}" in output
+    assert f"🔧 Tool submit: {json.dumps(blocks)}" in output
+
+
+def test_json_tool_result_includes_embedded_resources(capsys):
+    output = json.dumps(
+        [
+            {"type": "text", "text": "reachable"},
+            {"type": "resource", "resource": {"text": "route installed"}},
+        ]
+    )
+    with agent_output(True):
+        display_agent_event(
+            "tool_end", {"tool": {"name": "show_route"}, "output": output}
+        )
+    assert capsys.readouterr().err == "✓ Tool show_route\nreachable\nroute installed\n"

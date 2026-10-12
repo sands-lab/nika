@@ -10,7 +10,6 @@ Layout::
       agent.py                    # ClaudeAgent — sequential phase runner
       config.py                   # Model defaults and auth helpers
       claude_worker.py            # ClaudeWorker — subprocess adapter
-      claude_display.py           # Claude stream-json event formatter
       phases/
         diagnosis.py              # ClaudeDiagnosisPhase
         submission.py             # ClaudeSubmissionPhase

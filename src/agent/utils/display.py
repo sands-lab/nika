@@ -9,41 +9,47 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator
 
-_output_enabled: ContextVar[bool] = ContextVar("nika_agent_output", default=False)
 _shown: ContextVar[dict[str, Any] | None] = ContextVar("nika_agent_shown", default=None)
 
 
 @contextmanager
 def agent_output(enabled: bool) -> Iterator[None]:
-    token = _output_enabled.set(enabled)
-    shown_token = _shown.set({"text": [], "reasoning_content": [], "tools": {}})
+    shown_token = _shown.set(
+        {"text": [], "reasoning_content": [], "tools": {}} if enabled else None
+    )
     try:
         yield
     finally:
         _shown.reset(shown_token)
-        _output_enabled.reset(token)
 
 
-def _text(value: Any) -> str:
-    if isinstance(value, str):
-        # Some SDKs persist MCP content blocks as a Python repr string.
-        if value.lstrip().startswith("[{"):
+def _text(value: Any, *, content_blocks: bool = False) -> str:
+    if content_blocks and isinstance(value, str) and value.lstrip().startswith("[{"):
+        # SDKs may persist MCP blocks as JSON or a Python repr string.
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
             try:
-                blocks = ast.literal_eval(value)
-            except (ValueError, SyntaxError):
+                value = ast.literal_eval(value)
+            except (ValueError, SyntaxError, RecursionError):
                 return value
-            if isinstance(blocks, list) and all(
-                isinstance(block, dict) and "type" in block for block in blocks
-            ):
-                return _text(blocks)
+    if (
+        content_blocks
+        and isinstance(value, list)
+        and all(isinstance(block, dict) and "type" in block for block in value)
+    ):
+        parts = []
+        for block in value:
+            if block.get("type") == "text":
+                parts.append(str(block.get("text", "")))
+            elif block.get("type") == "resource":
+                resource = block.get("resource") or {}
+                parts.append(str(resource.get("text") or resource.get("uri", "")))
+            else:
+                parts.append(f"[{block['type']}]")
+        return "\n".join(parts)
+    if isinstance(value, str):
         return value
-    if isinstance(value, list):
-        return "\n".join(
-            _text(block.get("text", block.get("content", "")))
-            if isinstance(block, dict)
-            else str(block)
-            for block in value
-        )
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
@@ -69,7 +75,9 @@ def format_agent_event(event: str, payload: dict[str, Any]) -> str | None:
             name = name.split("__", 2)[-1]
         if event == "tool_start":
             return f"🔧 Tool {name}: {_preview(payload.get('input', ''), 200)}"
-        output = payload.get("error", payload.get("output", ""))
+        output = _text(
+            payload.get("error", payload.get("output", "")), content_blocks=True
+        )
         mark = "✗" if event == "tool_error" else "✓"
         return f"{mark} Tool {name}\n{_preview(output, 800)}"
     if event in {"llm_end_error", "llm_retry"}:
@@ -78,10 +86,9 @@ def format_agent_event(event: str, payload: dict[str, Any]) -> str | None:
 
 
 def display_agent_event(event: str, payload: dict[str, Any]) -> None:
-    if not _output_enabled.get():
-        return
     shown = _shown.get()
-    assert shown is not None
+    if shown is None:
+        return
     if event in {"model_text", "model_reasoning"}:
         field = "text" if event == "model_text" else "reasoning_content"
         value = payload.get(field, "")
