@@ -11,6 +11,8 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from urllib.parse import urlsplit
+
 import httpx
 
 from agent.utils.provider_env import (
@@ -132,6 +134,15 @@ def probe_endpoint(
     if response.status_code >= 400:
         result.status = ERROR
         result.detail = f"HTTP {response.status_code}: {response.text[:200]}"
+        if (
+            provider == "custom"
+            and response.status_code == 404
+            and urlsplit(root).path.strip("/") == ""
+        ):
+            result.detail = (
+                f"HTTP 404 at {url}: agent.base_url has no API path; "
+                f"did you mean {root.rstrip('/')}/v1?"
+            )
         return result
     try:
         data = response.json().get("data") or []
