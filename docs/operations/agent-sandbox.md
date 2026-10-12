@@ -1,31 +1,165 @@
 # Run agents in Docker Sandboxes
 
-This guide is for operators who run NIKA CLI, SDK, or SADE agents in [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) (`sbx` microVMs). The network lab, MCP gateway, and orchestration stay on the host. The LLM agent process runs in the microVM. `byo.*` agents run on the host.
-
-## How it works
-
-NIKA uses **native sbx agent templates** (`codex`, `claude`, `shell`) from Docker Sandboxes.
-
-| Concern | Behavior |
-|---------|----------|
-| Isolation | per-session microVM + workspace; MCP gateway on ephemeral port; sbx policy blocks peer ports |
-| Agent binaries | Official `codex` / `claude` / `shell` sandbox templates; `cli.claude` with a custom provider sends LLM requests through a host shim ([details](#claude-code-with-custom-providers)) |
-| Credentials | Host `sbx secret` store; microVM sees placeholders (`proxy-managed` / custom placeholders) only |
-| Network policy | `sbx policy allow network` (MCP gateway + LLM hosts such as `api.deepseek.com`) |
-| Orchestration | Host two-phase driver; agent phases via `sbx exec`; the host freezes the diagnosis report and advances the MCP gateway between phases |
-| Lab / tools | Host MCP HTTP gateway only (no lab binaries inside the VM) |
+Run a troubleshooting agent in an isolated [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) while NIKA deploys the network environment and scores the diagnosis. This guide covers setup, credentials, and evaluation for CLI, SDK, and SADE agents. For host-side `byo.*` agents, use [Choose and run an agent](../agents/agent-implementations.md).
 
 ## Supported agents
 
-| NIKA agent | Native sbx agent | Execution model |
-|------------|------------------|-----------------|
-| `cli.codex` | `codex` | Host two-phase driver → `sbx exec codex exec ...` |
-| `cli.claude` | `claude` | Host two-phase driver → `sbx exec claude -p ...` |
-| `sdk.codex_sdk` | `shell` (+ optional offline SDK wheels) | In-sandbox Python runner, one `sbx exec` per phase |
-| `sdk.claude_sdk` | `shell` (+ optional offline SDK wheels) | In-sandbox Python runner, one `sbx exec` per phase |
-| `community.sade` | `shell` (+ optional offline SDK wheels) | In-sandbox Python runner, one `sbx exec` per phase |
+| NIKA agent | Native sbx template | Additional Python dependencies |
+|------------|---------------------|--------------------------------|
+| `cli.codex` | `codex` | None |
+| `cli.claude` | `claude` | None |
+| `sdk.codex_sdk` | `shell` | `uv sync --extra sdk` |
+| `sdk.claude_sdk` | `shell` | `uv sync --extra sdk` |
+| `community.sade` | `shell` | `uv sync --extra sade` |
 
-### Claude Code with custom providers
+## Prerequisites
+
+- Complete [NIKA installation](installation.md).
+- Install `sbx` and sign in to Docker. On Linux, `./scripts/install.sh --with-sbx` also sets up KVM access:
+
+  ```bash
+  ./scripts/install.sh --with-sbx
+  sbx login
+  ```
+
+- On Linux, your user needs read/write access to `/dev/kvm`, usually through the `kvm` group. `sbx diagnose` checks virtualization support. See [Manual sbx installation](installation.md#install-sbx-for-sandboxed-agents) for other install methods.
+- Run a Docker engine for the network environment.
+- Configure the agent's [API key or subscription login](#authentication) before starting an evaluation. `sbx login` authenticates Docker; agent credentials require separate setup.
+
+## Authentication
+
+Choose an API key or a supported subscription for your agent. NIKA keeps credentials in the host's sbx secret store; the sandbox receives placeholders. See [Docker credential isolation](https://docs.docker.com/ai/sandboxes/configuration/credentials/).
+
+### API keys (automatic)
+
+Set the key for your chosen provider in the repository-root `.env`:
+
+| Provider | Credential |
+|----------|------------|
+| `openai` | `OPENAI_API_KEY` |
+| `anthropic` | `ANTHROPIC_API_KEY` |
+| `deepseek` | `DEEPSEEK_API_KEY` |
+| `custom` | `NIKA_CUSTOM_API_KEY`, if the endpoint requires authentication |
+
+For example, to use an OpenAI API key:
+
+```dotenv
+OPENAI_API_KEY=YOUR_API_KEY
+```
+
+Select the matching `agent.provider` in `config/nika.yaml` or pass `-p` on the CLI. NIKA syncs the active provider's key into sbx before creating the sandbox. For a custom endpoint, also set `agent.base_url`; see [Endpoint compatibility](../agents/agent-reference.md#custom-endpoint-compatibility).
+
+### Subscription / OAuth (interactive, once)
+
+Your local Claude or Codex login does not authenticate a NIKA sandbox. To use a Claude or ChatGPT subscription for evaluation, first sign in through sbx. NIKA does not import local OAuth logins or copy host auth files into the sandbox.
+
+#### Claude subscription
+
+1. Start Claude Code in a sandbox:
+
+   ```bash
+   sbx run --name nika-claude-login claude
+   ```
+
+2. Enter `/login`, complete the browser flow, then exit Claude Code. Follow [Docker's Claude authentication instructions](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
+
+Use provider `anthropic` and a model available to your Claude subscription.
+
+#### Codex / ChatGPT subscription
+
+If you connect over SSH, prepare [callback port forwarding](#oauth-callback-opens-localhost-over-ssh) before opening the sign-in URL. Start the host OAuth flow and complete the browser login:
+
+```bash
+sbx secret set openai --oauth
+```
+
+Use provider `openai` and a model available to your ChatGPT account. See [Docker's Codex authentication instructions](https://docs.docker.com/ai/sandboxes/agents/codex/#authentication).
+
+#### Verify subscription credentials
+
+```bash
+sbx secret ls
+```
+
+Confirm a global `anthropic` service entry for Claude or `openai` for Codex. NIKA creates a new sandbox for each agent run, so a credential scoped to the login sandbox does not cover the evaluation.
+
+After confirming the global Claude credential, remove the sandbox you created for login:
+
+```bash
+sbx rm nika-claude-login
+```
+
+Subsequent agent and benchmark runs reuse the sbx login. If the login expires or is revoked, sign in through sbx again. This setup also applies to the corresponding SDK/SADE agents; host-side `byo.*` agents use provider API credentials.
+
+## Quick start
+
+Set `agent.type`, `agent.provider`, and `agent.model` in `config/nika.yaml`. For a Claude subscription, replace `YOUR_CLAUDE_MODEL` with a model available to your account:
+
+```yaml
+agent:
+  type: cli.claude
+  provider: anthropic
+  model: YOUR_CLAUDE_MODEL
+```
+
+For Codex, use `type: cli.codex`, `provider: openai`, and an accessible model. Check the active settings with `uv run nika config show`.
+
+Run a task with the configured agent:
+
+```bash
+uv run nika agent run --problem dc_clos_s_link_down
+```
+
+NIKA deploys the environment, injects the failure, runs the agent, writes evaluation metrics, and closes the session. Use [Inspect](session-inspect.md) to review the result. For a set of tasks, use [Benchmark configuration](../benchmarks/benchmark-configuration.md).
+
+To control each stage, run the same agent on an existing session. `nika env run` prints the `session_id` used to inspect metrics:
+
+```bash
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=client_0 --set intf_name=eth0
+uv run nika agent run
+uv run nika session close -y
+uv run nika eval metrics --session_id <session_id>
+```
+
+Use `-n` to change the LLM-turn budget per phase; see [Step limit](../agents/agent-reference.md#step-limit).
+
+## Configuration
+
+| Flag / config | Description |
+|---------------|-------------|
+| `nika.sandbox.*` in `config/nika.yaml` | Sandbox lifetime, resource limits, dependency installation, and upstream proxy |
+| `--sandbox-keep-container` | Keep the sandbox after agent exit (debug) |
+| `--sandbox-cpus` / `--sandbox-memory` | Resource limits |
+| `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | Install SDK/SADE dependencies from host-cached wheels (on by default) |
+| `--sandbox-proxy` | Upstream proxy for the sbx daemon and host `sbx` CLI (Docker Hub auth) |
+
+Use [Authentication](#authentication) to configure API keys or subscription login; NIKA has no separate sandbox environment file.
+
+NIKA preloads the matching `docker/sandbox-templates:*` image when ensuring environment images and at the start of agent or benchmark runs. SDK and SADE agents use the `shell` template with the dependencies below.
+
+### SDK agents (optional offline wheels)
+
+To reuse pinned dependencies without downloading them for each evaluation, SDK and SADE sandboxes install host-cached wheels by default. NIKA caches them under `.nika_cache/sbx-sdk-wheels/`, stages them in the sandbox workspace, and installs them with `pip --no-index`.
+
+If the host cannot cache the wheels, disable offline installation to download packages from PyPI inside the microVM:
+
+```yaml
+# config/nika.yaml
+nika:
+  sandbox:
+    offline_sdk_wheels: false
+```
+
+```bash
+# or CLI
+uv run nika agent run -a sdk.claude_sdk --no-sandbox-offline-sdk-wheels \
+  --problem dc_clos_s_link_down
+```
+
+Package versions are pinned in [`src/agent/sandbox/sbx/requirements-sdk.txt`](../../src/agent/sandbox/sbx/requirements-sdk.txt). Changing that file invalidates the wheel cache.
+
+## Claude Code with custom providers
 
 When you run `cli.claude` with `agent.provider: custom` (for example, a self-hosted vLLM server), the sandbox uses the Claude Code version that ships in the `claude` sandbox template. NIKA sets `DISABLE_AUTOUPDATER=1` for every sandboxed `claude -p` call, so the version stays fixed for the whole run. The agent transcript (`messages.jsonl`) records the version as `claude_code_version` on the `init` event.
 
@@ -39,48 +173,9 @@ NIKA adapts each agent phase to the custom server:
 
 If the server does not report `max_model_len`, Claude Code keeps its defaults. NIKA sends `NIKA_CUSTOM_API_KEY` with the `/models` request when you set it. Other providers use none of these adaptations. The shim lives in [`src/agent/cli/claude/vllm_shim.py`](../../src/agent/cli/claude/vllm_shim.py).
 
-## Prerequisites
-
-- `sbx` CLI installed and logged in. `./scripts/install.sh --with-sbx` installs it and sets up KVM access (see [Installation](installation.md#install-sbx-for-sandboxed-agents)):
-
-  ```shell
-  ./scripts/install.sh --with-sbx
-  sbx login
-  ```
-
-  To install manually: `curl -fsSL https://get.docker.com | sudo SBX=1 sh`, or `sudo apt install docker-sbx` on a host that already has Docker's apt repo. See the [Docker Sandboxes install guide](https://docs.docker.com/ai/sandboxes/install/).
-- KVM available on Linux (`/dev/kvm`); your user must be in the `kvm` group (or otherwise have read/write on the device). `--with-sbx` adds you to that group. `sbx diagnose` reports this under Virtualization.
-- Docker for Kathara / Containerlab labs
-- Credentials for the agent you run (see [Authentication](#authentication))
-
-When the run config (or CLI) selects a sandbox-supported agent (`cli.codex`,
-`cli.claude`, `sdk.*`, `community.sade`), NIKA preloads the matching
-`docker/sandbox-templates:*` image during lab image ensure and at the start of
-`nika agent run` / benchmark jobs, not on each case's `sbx create`.
-
-## Quick start
-
-Task mode deploys the lab, injects the fault, runs the agent, closes the session, and writes metrics in one command:
-
-```bash
-uv run nika agent run -a cli.codex -m gpt-5-mini -n 20 --problem dc_clos_s_link_down
-# or Claude Code through DeepSeek:
-# uv run nika agent run -a cli.claude -p deepseek -m deepseek-v4-flash -n 20 --problem dc_clos_s_link_down
-```
-
-Session mode gives you control of each step. `nika env run` prints the `session_id` that the last command needs:
-
-```bash
-uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-uv run nika agent run -a cli.codex -m gpt-5-mini -n 20
-uv run nika session close -y
-uv run nika eval metrics --session_id <session_id>
-```
-
-`-n` sets the LLM-turn budget per phase for every agent. See [Step limit](../agents/agent-reference.md#step-limit).
-
 ## Architecture
+
+The network environment, MCP gateway, and orchestration run on the host. The agent runs in an sbx microVM and uses the gateway to inspect the environment. NIKA allows the session gateway and the selected provider hosts through sbx network policy.
 
 ```
 Host (NIKA orchestration)          sbx microVM (agent-only)
@@ -88,7 +183,7 @@ Host (NIKA orchestration)          sbx microVM (agent-only)
 ├── ground_truth.json              └── Python SDK runner         (SDK / SADE)
 ├── Host phase driver (freeze + advance) workspace = runtime/agent_workspaces/{agent_session_id}/
 └── sbx create / exec / policy         bundled: agent/ + skills (+ optional wheels)
-                                       lab interaction: MCP HTTP only
+                                       environment tools: MCP HTTP only
 ```
 
 Each task uses an ephemeral `runtime/agent_workspaces/{agent_session_id}/` workspace (manifest and skills). The opaque `agent_session_id` is minted at env start and is what agents see in `NIKA_SESSION_ID`, MCP `NIKA-Session-Id`, sandbox hostname, and the bind-mount path. The human-readable host `session_id` / trial dirname (`trials/{case_key}__tNN/`) stays on the host for operators and never appears in those agent surfaces, so benchmark case keys cannot leak as shortcuts. Sessions created before this change (no `agent_session_id`) keep working: the gateway accepts the canonical id, and resolvers fall back to `session_id`.
@@ -104,7 +199,7 @@ After the run, NIKA copies `sandbox_manifest.json` and discards the opaque works
 
 ### Phase boundary
 
-The agent cannot reach the submission context (fault ontology and resource catalog) during diagnosis:
+During diagnosis, the agent cannot reach the submission context (fault ontology and resource catalog):
 
 1. The MCP gateway's phase-advance endpoint requires a per-session secret that the host keeps in memory. NIKA never writes that secret into the sandbox environment, workspace, or MCP config. A request that carries only the `NIKA-Session-Id` header gets HTTP 403.
 2. CLI agents freeze the report and advance the gateway from the host process.
@@ -113,77 +208,6 @@ The agent cannot reach the submission context (fault ontology and resource catal
 **Concurrent isolation:** each agent run gets its own sbx microVM (`nika-{agent_session_id}`), workspace, and host MCP gateway on an ephemeral port. The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark runs (`--batch-size N`) keep up to N trials concurrent (sliding window) and use one subprocess per active trial, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
 
 **Sandbox boundary:** SDK sandboxes do **not** bundle `nika/` source. The host writes MCP HTTP endpoints into `sandbox_manifest.json` (`mcp_servers`); the in-sandbox runner loads agent code, prompts/skills, and (when enabled) SDK wheels only.
-
-### SDK agents (optional offline wheels)
-
-`sdk.*` and SADE create a `shell` sandbox, then install Python deps after `sbx create`. Offline wheels are **on by default**: NIKA stages host-cached wheels (`.sdk_wheels/`, cached under `.nika_cache/sbx-sdk-wheels/`) and installs them with `pip --no-index`, so SDK/SADE sandbox runs reuse the same dependencies.
-
-Disable offline wheels to install packages from PyPI inside the microVM instead.
-
-Package versions are pinned in [`src/agent/sandbox/sbx/requirements-sdk.txt`](../../src/agent/sandbox/sbx/requirements-sdk.txt). Changing that file invalidates the wheel cache.
-
-```yaml
-# config/nika.yaml
-nika:
-  sandbox:
-    offline_sdk_wheels: false
-```
-
-```bash
-# or CLI
-uv run nika agent run -a sdk.claude_sdk --no-sandbox-offline-sdk-wheels ...
-```
-
-### Authentication
-
-Credentials follow Docker Sandboxes [credential isolation](https://docs.docker.com/ai/sandboxes/security/credentials/): the secret stays on the host, and the sandbox sees a sentinel or placeholder. NIKA does not copy `~/.codex/auth.json` or `~/.claude/.credentials.json` into the workspace.
-
-#### API keys (automatic)
-
-Put keys in the repo-root `.env`. Before `sbx create`, NIKA syncs them into sbx secrets.
-
-```dotenv
-# .env: credentials only
-OPENAI_API_KEY=sk-...
-DEEPSEEK_API_KEY=sk-...
-# ANTHROPIC_API_KEY=sk-ant-...
-# NIKA_CUSTOM_API_KEY=...
-```
-
-Select the matching provider in the run config:
-
-```yaml
-# config/nika.yaml
-agent:
-  provider: openai  # anthropic, deepseek, or custom
-  base_url: null  # custom only: API root ending in /v1, e.g. http://host:8000/v1
-```
-
-| Agent | Credential path |
-|-------|-----------------|
-| Codex CLI / SDK | Built-in `openai` sbx secret from active provider mapping (or OAuth below) |
-| Claude CLI / SDK / SADE | Native Anthropic secret, or `sbx secret set-custom` for DeepSeek/custom hosts |
-
-#### Subscription / OAuth (interactive, once)
-
-| Provider | User action |
-|----------|-------------|
-| Codex / ChatGPT | `sbx secret set -g openai --oauth` |
-| Claude | `/login` inside Claude Code so the host stores the `anthropic` secret ([docs](https://docs.docker.com/ai/sandboxes/agents/claude-code/)) |
-
-Confirm with `sbx secret ls`. Global secrets apply when a sandbox is created; recreate the sandbox after changing secrets.
-
-## Configuration
-
-| Flag / config | Description |
-|---------------|-------------|
-| `nika.sandbox.*` in `config/nika.yaml` | keep / cpus / memory / offline_sdk_wheels / upstream_proxy |
-| `--sandbox-keep-container` | Keep the sandbox after agent exit (debug) |
-| `--sandbox-cpus` / `--sandbox-memory` | Resource limits |
-| `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | Host-cached wheels for SDK/SADE (on by default) |
-| `--sandbox-proxy` | Upstream proxy for the sbx daemon and host `sbx` CLI (Docker Hub auth) |
-
-Credentials come from the repository-root `.env`; NIKA has no separate sandbox environment file.
 
 ## Troubleshoot sandbox runs
 
@@ -203,6 +227,24 @@ nika:
 ```
 
 Or pass `--sandbox-cpus 2 --sandbox-memory 4g`.
+
+### OAuth callback opens localhost over SSH
+
+When you run `sbx secret set openai --oauth` over SSH, the callback server runs on the remote host. Your browser opens `localhost` on your own computer, so sign-in cannot finish until you forward the callback port.
+
+1. Keep the remote OAuth command running. Find the callback port in the authorization URL's `redirect_uri` or the browser's failed callback address. Use that port; sbx can differ from the Codex CLI's default port.
+2. In another terminal on your own computer, create a tunnel to the same SSH server. For example, if the callback uses port `5411`:
+
+   ```bash
+   ssh -N -o ExitOnForwardFailure=yes \
+     -L 127.0.0.1:5411:127.0.0.1:5411 ubuntu@YOUR_SSH_HOST
+   ```
+
+   Replace both port numbers with your callback port and use your SSH username and host.
+3. Leave the tunnel open while completing the browser login. If the browser already reached the failed callback page, refresh that page after opening the tunnel.
+4. When the remote command reports success, stop the tunnel with Ctrl+C and [verify the sbx credential](#verify-subscription-credentials).
+
+If the OAuth command timed out, restart it and check the new callback port before signing in again. See [OpenAI's SSH callback guidance](https://learn.chatgpt.com/docs/auth#fallback-forward-the-localhost-callback-over-ssh).
 
 ### Sandbox cannot reach an LLM API
 

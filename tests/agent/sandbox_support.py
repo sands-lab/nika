@@ -42,18 +42,19 @@ def sandbox_runtime_available() -> bool:
     return sbx_available() and sbx_authenticated()
 
 
-def sandbox_openai_credential_available() -> bool:
-    from agent.sandbox.sbx.credentials import sbx_openai_credential_available
-    from nika.config import REPO_ROOT
+def sandbox_provider_credential_available(provider: str) -> bool:
+    """Require the selected provider's key or a global native sbx service secret."""
+    from agent.utils.provider_env import has_provider_credentials
+    from agent.sandbox.sbx.client import list_sbx_secret_services
 
-    return sbx_openai_credential_available(env_file=REPO_ROOT / ".env")
-
-
-def sandbox_anthropic_credential_available() -> bool:
-    from agent.sandbox.sbx.credentials import sbx_anthropic_credential_available
-    from nika.config import REPO_ROOT
-
-    return sbx_anthropic_credential_available(env_file=REPO_ROOT / ".env")
+    if has_provider_credentials(provider):
+        return True
+    if provider not in {"openai", "anthropic"} or not sbx_available():
+        return False
+    try:
+        return provider in list_sbx_secret_services(global_only=True)
+    except RuntimeError:
+        return False
 
 
 def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -> None:

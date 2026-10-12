@@ -36,7 +36,8 @@ from typing import Any
 
 from agent.protocols import PHASES
 from agent.sandbox.sbx.auth import apply_codex_auth
-from agent.sandbox.sbx.exec import exec_in_sandbox
+from agent.sandbox.sbx.client import run_sbx_checked
+from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
@@ -439,6 +440,38 @@ class CodexWorker:
             _build_mcp_toml(servers, provider=self.llm_provider),
             encoding="utf-8",
         )
+        sandbox_name = sandbox_name_from_env()
+        if sandbox_name and self.llm_provider == "openai":
+            # sbx supplies the subscription route and proxy bearer in its native
+            # provider config. Merge those inside the VM when isolating CODEX_HOME;
+            # no host OAuth file or token is read or passed to the sandbox.
+            run_sbx_checked(
+                [
+                    "exec",
+                    sandbox_name,
+                    "python3",
+                    "-c",
+                    "import os, pathlib, sys\n"
+                    "native = pathlib.Path(os.environ.get('CODEX_HOME', "
+                    "str(pathlib.Path.home() / '.codex'))) / 'config.toml'\n"
+                    "target = pathlib.Path(sys.argv[1])\n"
+                    "if native.is_file() and native != target:\n"
+                    "    roots, providers, section = [], [], ''\n"
+                    "    for line in native.read_text().splitlines(keepends=True):\n"
+                    "        text = line.strip()\n"
+                    "        if text.startswith('['):\n"
+                    "            section = text\n"
+                    "        if not section and text.split('=', 1)[0].strip() "
+                    "in {'model_provider', 'forced_login_method'}:\n"
+                    "            roots.append(line)\n"
+                    "        elif section.startswith('[model_providers.'):\n"
+                    "            providers.append(line)\n"
+                    "    if providers:\n"
+                    "        target.write_text(''.join(roots) + target.read_text() "
+                    "+ '\\n' + ''.join(providers))\n",
+                    str(config_path),
+                ]
+            )
 
     # ------------------------------------------------------------------
     # Subprocess invocation

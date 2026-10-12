@@ -31,7 +31,7 @@ Each harness name links to its example configuration.
 
 ### In Docker Sandbox
 
-Complete [Docker Sandbox setup](../operations/agent-sandbox.md#prerequisites), then choose a CLI or SDK harness:
+Complete [Docker Sandbox setup](../operations/agent-sandbox.md#prerequisites), then choose a CLI or SDK harness. For a Claude or ChatGPT subscription, complete [sbx subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) first; NIKA does not import your local CLI login:
 
 - [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
 - [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)

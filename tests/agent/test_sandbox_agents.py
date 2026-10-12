@@ -12,8 +12,7 @@ from tests.agent._assertions import (
     assert_no_codex_tool_item_mirrors,
 )
 from tests.agent.sandbox_support import (
-    sandbox_anthropic_credential_available,
-    sandbox_openai_credential_available,
+    sandbox_provider_credential_available,
     sandbox_runtime_available,
 )
 from tests.support.integration_base import OrderedPipelineTestCase
@@ -23,6 +22,8 @@ from tests.support.integration_pipeline import (
     claude_sdk_available,
     codex_cli_available,
     codex_sdk_available,
+    live_anthropic_test_config,
+    live_codex_test_model,
     load_test_env,
     sade_available,
 )
@@ -30,10 +31,9 @@ from tests.support.integration_pipeline import (
 pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
 
 load_test_env()
-DEEPSEEK_FLASH = "deepseek-v4-flash"
-# Codex CLI/SDK: ChatGPT host subscription via sbx openai secret; smallest model.
-# Codex Responses API ignores OPENAI_BASE_URL, so DeepSeek is not usable here.
-CODEX_MODEL = "gpt-5-mini"
+CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
+# Codex CLI/SDK use OpenAI API keys or a ChatGPT login stored in sbx.
+CODEX_MODEL = live_codex_test_model()
 MAX_STEPS = 20
 _SANDBOX_SKIP = not sandbox_runtime_available()
 _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
@@ -49,7 +49,6 @@ def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> 
                     "result_dir": "results/test",
                     "sandbox": {
                         "offline_sdk_wheels": True,
-                        "upstream_proxy": "http://127.0.0.1:7890",
                     },
                 },
                 "agent": {
@@ -66,8 +65,8 @@ def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> 
 
 class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     agent_type: str = ""
-    llm_provider: str = "deepseek"
-    model: str = DEEPSEEK_FLASH
+    llm_provider: str = CLAUDE_PROVIDER
+    model: str = CLAUDE_MODEL
     _agent_run_failed: bool = False
 
     def setup_method(self) -> None:
@@ -146,8 +145,8 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (codex_cli_available() and sandbox_openai_credential_available()),
-    reason="Codex CLI + openai sbx/.env credentials required",
+    not (codex_cli_available() and sandbox_provider_credential_available("openai")),
+    reason="Codex CLI + OPENAI_API_KEY or sbx openai secret required",
 )
 class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.codex"
@@ -157,18 +156,21 @@ class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (claude_cli_available() and sandbox_anthropic_credential_available()),
-    reason="Claude CLI + anthropic sbx/.env credentials required",
+    not (
+        claude_cli_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.claude"
-    model = DEEPSEEK_FLASH
+    model = CLAUDE_MODEL
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (codex_sdk_available() and sandbox_openai_credential_available()),
-    reason="Codex SDK + openai sbx/.env credentials required",
+    not (codex_sdk_available() and sandbox_provider_credential_available("openai")),
+    reason="Codex SDK + OPENAI_API_KEY or sbx openai secret required",
 )
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
@@ -178,22 +180,25 @@ class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (claude_sdk_available() and sandbox_anthropic_credential_available()),
-    reason="Claude SDK + anthropic sbx/.env credentials required",
+    not (
+        claude_sdk_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude SDK + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.claude_sdk"
-    model = DEEPSEEK_FLASH
+    model = CLAUDE_MODEL
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (sade_available() and sandbox_anthropic_credential_available()),
-    reason="SADE + anthropic sbx/.env credentials required",
+    not (sade_available() and sandbox_provider_credential_available(CLAUDE_PROVIDER)),
+    reason=f"SADE + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxSadePipelineTest(SandboxAgentPipelineBase):
     agent_type = "community.sade"
-    model = DEEPSEEK_FLASH
+    model = CLAUDE_MODEL
 
     def test_step_04_check_sandbox_artifacts(self) -> None:
         if type(self)._agent_run_failed:

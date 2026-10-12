@@ -160,8 +160,8 @@ def sbx_available() -> bool:
     return shutil.which(SBX_BIN) is not None
 
 
-def list_sbx_secret_services() -> set[str]:
-    """Return service names present in ``sbx secret ls`` (e.g. openai, anthropic)."""
+def list_sbx_secret_services(*, global_only: bool = False) -> set[str]:
+    """Return stored service names, optionally restricted to global credentials."""
     proc = run_sbx_optional(["secret", "ls"])
     if proc.returncode != 0:
         raise RuntimeError(
@@ -178,6 +178,8 @@ def list_sbx_secret_services() -> set[str]:
         if kind != "service":
             continue
         if scope in {"SCOPE", "NAME"}:
+            continue
+        if global_only and scope != "(global)":
             continue
         services.add(name)
     return services
