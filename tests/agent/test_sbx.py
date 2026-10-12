@@ -81,7 +81,6 @@ def test_agent_mapping_and_create_command(agent_type: str, sbx_agent: str) -> No
         sandbox_name="nika-test",
         sbx_agent=sbx_agent,
         workspace_dir=Path("/tmp/ws"),
-        agent_type=agent_type,
     ) == [
         "create",
         "--name",
@@ -332,6 +331,8 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
         session_dir=session_dir,
         manifest={"session_id": "sess-1", "task_description": "diagnose"},
         runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
+        agent_session_id="sess-1",
+        workspace_dir=tmp_path / "agent_workspace",
     )
 
     assert not (workspace.workspace_dir / "ground_truth.json").exists()
@@ -361,7 +362,7 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
     # Agent-writable workspace submissions must not reach scoring.
     assert not (session_dir / "submission.json").exists()
     assert (session_dir / "sandbox_manifest.json").is_file()
-    assert not (session_dir / ".sandbox_run").exists()
+    assert not workspace.workspace_dir.exists()
     assert not (session_dir / "codex_sdk_workspace").exists()
 
 
@@ -439,6 +440,8 @@ def test_collect_artifacts_preserves_host_mcp_submission(tmp_path) -> None:
         session_dir=session_dir,
         manifest={"session_id": "sess-submit", "task_description": "diagnose"},
         runtime_env={"NIKA_AGENT_TYPE": "sdk.claude_sdk"},
+        agent_session_id="sess-submit",
+        workspace_dir=tmp_path / "agent_workspace",
     )
     (workspace.workspace_dir / "messages.jsonl").write_text(
         "agent-log\n", encoding="utf-8"
@@ -732,7 +735,11 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
         assert "ground_truth" not in json.dumps(manifest)
         assert "submission_context" not in manifest
         workspace = prepare_workspace(
-            session_dir=session_dir, manifest=manifest, runtime_env={}
+            session_dir=session_dir,
+            manifest=manifest,
+            runtime_env={},
+            agent_session_id=session_id,
+            workspace_dir=session_dir.parent / "agent_workspace",
         )
         try:
             content = workspace.manifest_path.read_text(encoding="utf-8")

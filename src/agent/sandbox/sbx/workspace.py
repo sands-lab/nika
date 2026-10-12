@@ -18,7 +18,6 @@ from agent.utils.loggers import MESSAGES_FILENAME
 from agent.utils.skills import resolve_skills_root, skills_enabled
 from nika.config import RUNTIME_DIR
 
-SANDBOX_RUN_DIRNAME = ".sandbox_run"
 AGENT_WORKSPACES_DIRNAME = "agent_workspaces"
 SKILLS_DIRNAME = "skills"
 # Freeze events are host-written; a sandbox copy could replace the report that
@@ -44,11 +43,6 @@ class SandboxWorkspace:
     @property
     def manifest_path(self) -> Path:
         return self.workspace_dir / MANIFEST_FILENAME
-
-
-def sandbox_workspace_dir(session_dir: str | Path) -> Path:
-    """Legacy path under the host trial dir (in-flight / tests may still use)."""
-    return Path(session_dir).resolve() / SANDBOX_RUN_DIRNAME
 
 
 def opaque_agent_workspace_dir(agent_session_id: str) -> Path:
@@ -161,27 +155,23 @@ def prepare_workspace(
     session_dir: str | Path,
     manifest: dict,
     runtime_env: dict[str, str],
-    agent_session_id: str | None = None,
+    agent_session_id: str,
     workspace_dir: str | Path | None = None,
 ) -> SandboxWorkspace:
     """Create an isolated workspace with manifest, skills, and runtime env.
 
-    When ``agent_session_id`` is provided (new sessions), the workspace lives under
-    ``runtime/agent_workspaces/{agent_session_id}/`` so the bind-mount path does
-    not leak the human-readable trial dirname. Legacy callers omit it and keep
-    ``{session_dir}/.sandbox_run``.
+    The workspace defaults to ``runtime/agent_workspaces/{agent_session_id}/``
+    so the bind-mount path does not leak the human-readable trial dirname.
 
     The host keeps writing ``messages.jsonl`` in *session_dir*: CLI workers log
     there directly, and in-VM SDK traces reach it through :class:`TraceMirror`.
     """
     session_path = Path(session_dir).resolve()
-    opaque = (agent_session_id or "").strip()
-    if workspace_dir is not None:
-        workspace = Path(workspace_dir).resolve()
-    elif opaque:
-        workspace = opaque_agent_workspace_dir(opaque)
-    else:
-        workspace = sandbox_workspace_dir(session_path)
+    workspace = (
+        Path(workspace_dir).resolve()
+        if workspace_dir is not None
+        else opaque_agent_workspace_dir(agent_session_id)
+    )
     if workspace.exists():
         shutil.rmtree(workspace)
     workspace.mkdir(parents=True, exist_ok=True)
@@ -202,7 +192,7 @@ def prepare_workspace(
         _write_sandbox_run_json(
             run_src,
             workspace / RUN_FILENAME,
-            agent_session_id=opaque or str(manifest.get("session_id") or ""),
+            agent_session_id=agent_session_id,
         )
 
     skills_src = resolve_skills_root()

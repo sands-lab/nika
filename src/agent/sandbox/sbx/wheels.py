@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,7 +21,22 @@ SDK_REQUIREMENTS_FILE = _SBX_DIR / SDK_REQUIREMENTS_FILENAME
 _WHEEL_CACHE = REPO_ROOT / ".nika_cache" / "sbx-sdk-wheels"
 _CACHE_REQ_STAMP = ".requirements-sdk.txt"
 _TARGET_PYTHON = "3.14"
-_TARGET_PLATFORM = "manylinux_2_17_x86_64"
+
+
+def _target_platform() -> str:
+    """Wheel platform tag for the microVM, which shares the host architecture."""
+    machine = platform.machine().lower()
+    if machine in ("x86_64", "amd64"):
+        return "manylinux_2_17_x86_64"
+    if machine in ("aarch64", "arm64"):
+        return "manylinux_2_17_aarch64"
+    raise RuntimeError(f"Unsupported host architecture for SDK wheels: {machine}")
+
+
+def _cache_stamp_text() -> str:
+    """Pins plus target platform, so a cache built for another arch is refreshed."""
+    req_text = SDK_REQUIREMENTS_FILE.read_text(encoding="utf-8")
+    return f"# platform: {_target_platform()}\n{req_text}"
 
 
 def load_sdk_requirements() -> tuple[str, ...]:
@@ -85,9 +101,9 @@ def _requirement_wheel_present(names: str, req: str) -> bool:
     return needle in names
 
 
-def _cache_matches_requirements(dest: Path, req_text: str) -> bool:
+def _cache_matches_requirements(dest: Path, stamp_text: str) -> bool:
     stamp = dest / _CACHE_REQ_STAMP
-    if not stamp.is_file() or stamp.read_text(encoding="utf-8") != req_text:
+    if not stamp.is_file() or stamp.read_text(encoding="utf-8") != stamp_text:
         return False
     existing = list(dest.glob("*.whl"))
     if not existing:
@@ -98,8 +114,8 @@ def _cache_matches_requirements(dest: Path, req_text: str) -> bool:
 
 def _pip_download(dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
-    req_text = SDK_REQUIREMENTS_FILE.read_text(encoding="utf-8")
-    if _cache_matches_requirements(dest, req_text):
+    stamp_text = _cache_stamp_text()
+    if _cache_matches_requirements(dest, stamp_text):
         logger.debug(
             "Reusing %d cached SDK wheels in %s",
             len(list(dest.glob("*.whl"))),
@@ -107,7 +123,7 @@ def _pip_download(dest: Path) -> None:
         )
         return
     if any(dest.iterdir()):
-        # Incomplete or stale cache (pins changed) — refresh.
+        # Incomplete or stale cache (pins or platform changed) — refresh.
         shutil.rmtree(dest)
         dest.mkdir(parents=True, exist_ok=True)
 
@@ -122,7 +138,7 @@ def _pip_download(dest: Path) -> None:
         "--python-version",
         _TARGET_PYTHON,
         "--platform",
-        _TARGET_PLATFORM,
+        _target_platform(),
         "--implementation",
         "cp",
         "--abi",
@@ -149,7 +165,7 @@ def _pip_download(dest: Path) -> None:
             f"command: {' '.join(cmd)}\n"
             f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
-    (dest / _CACHE_REQ_STAMP).write_text(req_text, encoding="utf-8")
+    (dest / _CACHE_REQ_STAMP).write_text(stamp_text, encoding="utf-8")
 
 
 def stage_sdk_wheels(workspace_dir: Path) -> Path:
@@ -205,16 +221,3 @@ def install_sdk_packages_in_sandbox(
         logger.info("Installing frozen SDK packages from PyPI in %s", sandbox_name)
     inner = _pip_install_inner(workspace_dir=workspace_dir, offline=offline)
     run_sbx_checked(["exec", sandbox_name, "bash", "-lc", inner])
-
-
-def install_sdk_wheels_in_sandbox(
-    *,
-    sandbox_name: str,
-    workspace_dir: Path,
-) -> None:
-    """Install staged wheels inside an existing sbx shell sandbox."""
-    install_sdk_packages_in_sandbox(
-        sandbox_name=sandbox_name,
-        workspace_dir=workspace_dir,
-        offline=True,
-    )

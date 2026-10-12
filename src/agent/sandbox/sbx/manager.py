@@ -165,7 +165,6 @@ class SbxSandboxManager:
         sandbox_name: str,
         sbx_agent: str,
         workspace_dir: Path,
-        agent_type: str,
     ) -> list[str]:
         cmd = [
             "create",
@@ -273,7 +272,6 @@ class SbxSandboxManager:
             sandbox_name=sandbox_name,
             sbx_agent=sbx_agent,
             workspace_dir=workspace.workspace_dir,
-            agent_type=agent_type,
         )
         # Lifetime covers create → agent run → teardown; setup span is logged
         # on sandbox_start once the sandbox is ready (env_start-style).

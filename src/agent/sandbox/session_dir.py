@@ -13,7 +13,7 @@ def resolve_agent_session_dir(session_dir: str) -> str:
 
     Inside an sbx microVM, SDK runners set ``NIKA_SANDBOX_EXECUTION=1``.
     Host-side CLI orchestration sets ``NIKA_SBX_SANDBOX_NAME`` and
-    ``NIKA_SESSION_DIR`` to the mounted ``.sandbox_run`` workspace while
+    ``NIKA_SESSION_DIR`` to the mounted agent workspace while
     LangGraph stays on the host.
     """
     override = os.environ.get(ENV_SESSION_DIR, "").strip()

@@ -38,9 +38,8 @@ class SandboxConfig:
     offline_sdk_wheels: bool
 
 
-def sandbox_gateway_agent_host(network: str | None = None) -> str:
+def sandbox_gateway_agent_host() -> str:
     """Return the MCP gateway hostname reachable from a Docker Sandbox."""
-    _ = network
     return SANDBOX_GATEWAY_HOST_BRIDGE
 
 

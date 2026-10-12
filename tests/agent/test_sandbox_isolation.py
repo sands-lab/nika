@@ -79,5 +79,5 @@ def test_concurrent_gateways_bind_distinct_ephemeral_ports() -> None:
 )
 class SandboxCrossIsolationTest:
     def test_unallowed_mcp_gateway_port_is_blocked(self) -> None:
-        """Sandbox may reach its allowed gateway port, not a peer session port."""
+        """Sandbox reaches only its allowed gateway port, until access is revoked."""
         run_cross_sandbox_isolation_probe()
