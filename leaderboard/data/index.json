@@ -890,6 +890,85 @@
       "rank": 2
     },
     {
+      "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
+      "dirname": "20261012_claude_code_gemma_4_31b_it",
+      "submission_name": "Claude Code + Gemma-4-31B-it",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261012_claude_code_gemma_4_31b_it",
+      "trajectories_relpath": "trajectories/0.2.0/20261012_claude_code_gemma_4_31b_it",
+      "model": "gemma-4-31B-it",
+      "framework": "Claude Code",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "max_steps": 100,
+        "max_tokens": 32768,
+        "agent_timeout_sec": 14400,
+        "case_timeout_sec": 15000,
+        "model_repository": "google/gemma-4-31B-it",
+        "serving_precision": "BF16"
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.3172003921568628,
+      "mean_localization_f1": 0.4419478431372551,
+      "mean_detection_score": 0.8745098039215686,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 255,
+      "n_agent_failed": 0,
+      "success_rate": 1.0,
+      "token_totals": {
+        "in_tokens": 160934331,
+        "out_tokens": 2078830
+      },
+      "steps_totals": {
+        "steps": 8401,
+        "tool_calls": 8145,
+        "tool_errors": 0
+      },
+      "mean_tokens": 639267.298,
+      "mean_steps": 32.945,
+      "total_tokens": 163013161,
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-10-12T10:16:42+00:00",
+      "run_id": "3f319b6189246012",
+      "official": true,
+      "nika_git_commit": "63912570d6fd1b0bc9647d6e299d68e642a36210",
+      "name": "gemma-4-31B-it · Claude Code",
+      "rca_f1_ci": null,
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8"
+      ],
+      "rank": 3
+    },
+    {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
       "dirname": "20261007_qwen3_6_35b_a3b_claudecode",
       "submission_name": "Qwen3.6-35B-A3B ClaudeCode",
@@ -949,9 +1028,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
-        "0.2.0/20261011_react_qwen3_8_27b_fp8"
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261012_claude_code_gemma_4_31b_it"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -1013,9 +1093,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
-        "0.2.0/20261011_react_qwen3_8_27b_fp8"
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261012_claude_code_gemma_4_31b_it"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -1077,9 +1158,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
-        "0.2.0/20261011_react_qwen3_8_27b_fp8"
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261012_claude_code_gemma_4_31b_it"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -1168,9 +1250,10 @@
         "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
         "0.2.0/20261008_qwen3_6_35b_a3b_codex",
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
-        "0.2.0/20261011_react_qwen3_8_27b_fp8"
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261012_claude_code_gemma_4_31b_it"
       ],
-      "rank": 6
+      "rank": 7
     }
   ]
 }

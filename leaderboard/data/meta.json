@@ -11,6 +11,7 @@
     ],
     "llm_provider": [
       "att",
+      "google",
       "openai",
       "qwen"
     ],
@@ -22,7 +23,8 @@
       "Qwen3.5-27B",
       "Qwen3.6-27B",
       "Qwen3.6-35B-A3B-FP8",
-      "Qwen3.8-27B-FP8"
+      "Qwen3.8-27B-FP8",
+      "gemma-4-31B-it"
     ],
     "optimization_methods": [
       "GEPA",
@@ -44,5 +46,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-11T12:59:52+00:00"
+  "generated_at": "2026-10-12T10:24:18+00:00"
 }
