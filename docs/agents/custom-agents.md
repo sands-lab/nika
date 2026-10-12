@@ -68,10 +68,6 @@ class NooaAgent(BasicReActAgent):
         return await investigator.investigate(task_description)
 ```
 
-The [complete NOOA agent](nooa-example.md) also records steps and tool calls for the evaluator and honors the step limit.
-
-> Inheriting from LangGraph is a current limitation; a framework-independent base class is tracked in [#172](https://github.com/sands-lab/nika/issues/172). The [integration reference](agent-reference.md#custom-agent-integration) describes the full contract.
-
 ## 2. Run it
 
 Install your framework into NIKA's environment, then run the agent by its import path:
