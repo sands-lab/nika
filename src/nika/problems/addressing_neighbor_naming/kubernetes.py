@@ -80,6 +80,8 @@ class CoreDNSIsolationParams(K8sParams):
 
 class CoreDNSIsolation(K8sProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "isolation"
     root_cause_name: str = "k8s_coredns_isolated"
     description = "Path to cluster DNS (CoreDNS) is isolated/blocked."
     symptom_desc = (

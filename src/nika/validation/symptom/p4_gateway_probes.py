@@ -101,7 +101,7 @@ def int_headroom_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, An
     others = sorted(p for p, port in egress.items() if port != params.bmv2_port)[:8]
     problem._audit_int = {**ends, "selected": selected, "others": others}
     large = _large_reports(problem, ends, selected) if selected else 0
-    ok = bool(selected) and large > 0
+    ok = bool(selected) and bool(others) and large > 0
     return ok, {**problem._audit_int, "large_reports_on_port": large}
 
 
@@ -109,13 +109,13 @@ def int_headroom(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Near-MTU packets on the faulted port lose INT; small packets keep it."""
     state = getattr(problem, "_audit_int", None) or {}
     selected, others = state.get("selected") or [], state.get("others") or []
-    if not selected:
-        return False, {"error": "no_flow_selected_the_faulted_port"}
+    if not selected or not others:
+        return False, {"error": "no_flow_selected_the_faulted_port_and_another"}
     large_on_port = _large_reports(problem, state, selected)
     small = _send(problem, state, _SMALL_PAYLOAD, selected)
     small_on_port = sum(1 for record in small if int(record["src_port"]) in selected)
-    large_elsewhere = _large_reports(problem, state, others) if others else None
-    control_ok = large_elsewhere is None or large_elsewhere > 0
+    large_elsewhere = _large_reports(problem, state, others)
+    control_ok = large_elsewhere > 0
     verified = large_on_port == 0 and small_on_port > 0 and control_ok
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
@@ -132,18 +132,25 @@ def int_headroom(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 _LB_FLOWS = 16
 _LB_STATUS = "/tmp/nika-audit-lb-flows.status"
-# Each connection repeats a keep-alive request once a second and records its
-# local port and whether the connection is still serving.
+_LB_TRIAL_FLOWS = 8
+# Healthy learning takes about 10 ms; the trial waits two orders of magnitude
+# longer between opening its connections and the routine pool update.
+_LB_TRIAL_LEAD_SEC = 1.0
+_LB_TRIAL_SETTLE_SEC = 3.0
+# Each connection repeats a keep-alive request every PERIOD seconds for
+# DURATION seconds (0: forever) and records whether it is still serving.
 _LB_KEEPALIVE = r"""
-import http.client, os, sys, time
+import http.client, json, os, sys, time
 host, count, path = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+period, duration = float(sys.argv[4]), float(sys.argv[5])
 conns = {}
 for _ in range(count):
     conn = http.client.HTTPConnection(host, 80, timeout=3)
     conn.connect()
     conns[conn.sock.getsockname()[1]] = conn
+opened = time.time()
 state = {port: "alive" for port in conns}
-while True:
+while not duration or time.time() < opened + duration:
     for port, conn in conns.items():
         if state[port] != "alive":
             continue
@@ -153,18 +160,9 @@ while True:
         except Exception:
             state[port] = "broken"
     with open(path + ".tmp", "w") as out:
-        out.write("".join(f"{p} {s}\n" for p, s in state.items()))
+        json.dump({"opened": opened, "flows": state}, out)
     os.replace(path + ".tmp", path)
-    time.sleep(1)
-"""
-# New connections opened after the update, held long enough to be listed.
-_LB_HOLD = r"""
-import http.client, sys, time
-host = sys.argv[1]
-conns = [http.client.HTTPConnection(host, 80, timeout=3) for _ in range(8)]
-for conn in conns:
-    conn.connect()
-time.sleep(6)
+    time.sleep(period)
 """
 
 
@@ -184,78 +182,106 @@ def _lb_backends(problem: Any, client_ip: str) -> dict[int, str]:
     return owners
 
 
-def _lb_status(problem: Any, client: str) -> dict[int, str]:
-    out = problem.runtime.exec(client, f"cat {_LB_STATUS} 2>/dev/null", timeout=20)
-    return {
-        int(port): status
-        for port, status in (line.split() for line in out.splitlines() if line.strip())
-    }
+def _lb_flows(problem: Any, client: str, path: str) -> dict[str, Any]:
+    out = problem.runtime.exec(client, f"cat {path} 2>/dev/null", timeout=20)
+    try:
+        data = json.loads(out)
+    except ValueError:
+        return {}
+    data["flows"] = {int(port): s for port, s in data["flows"].items()}
+    return data
+
+
+def _lb_start(
+    problem: Any, client: str, count: int, path: str, period: float, duration: float
+) -> dict:
+    problem.runtime.exec(
+        client,
+        f"nohup python3 -c {shlex.quote(_LB_KEEPALIVE)} {VIP_IP} {count} {path} "
+        f"{period} {duration} >/dev/null 2>&1 </dev/null &",
+        timeout=20,
+    )
+    flows: dict[str, Any] = {}
+    for _ in range(20):
+        time.sleep(0.25)
+        flows = _lb_flows(problem, client, path)
+        if len(flows.get("flows") or {}) == count:
+            break
+    return flows
 
 
 def lb_race_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Long-lived VIP connections spread over both backends before the update."""
+    """Long-lived VIP connections, learned on both backends before any update."""
     model = problem.net_env.model
     client = model.client_on_gateway(params.host_name)
-    problem.runtime.exec(
-        client.name,
-        f"nohup python3 -c {shlex.quote(_LB_KEEPALIVE)} {VIP_IP} {_LB_FLOWS} "
-        f"{_LB_STATUS} >/tmp/nika-audit-lb-flows.log 2>&1 </dev/null &",
-        timeout=20,
-    )
-    status: dict[int, str] = {}
-    for _ in range(10):
-        time.sleep(1)
-        status = _lb_status(problem, client.name)
-        if len(status) == _LB_FLOWS:
-            break
+    flows = _lb_start(problem, client.name, _LB_FLOWS, _LB_STATUS, 1, 0)
+    time.sleep(2)
+    status = _lb_flows(problem, client.name, _LB_STATUS).get("flows") or {}
     owners = _lb_backends(problem, client.ip)
     problem._audit_lb = {
         "client": client.name,
         "client_ip": client.ip,
+        "gateway": params.host_name,
+        "device_id": model.switch_info[params.host_name].device_id,
         "owners": owners,
     }
     alive = sum(1 for s in status.values() if s == "alive")
     spread = len(set(owners.get(port) for port in status)) == 2
-    ok = alive == _LB_FLOWS and spread
+    ok = bool(flows) and alive == _LB_FLOWS and spread
     return ok, {**problem._audit_lb, "alive": alive}
 
 
 def lb_race(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Unlearned connections move to the new pool: flows on the old DIP break."""
+    """Connections opened just before a routine pool update break; learned ones do not.
+
+    Each read opens fresh trial connections, waits far longer than healthy
+    learning takes, and performs one routine pool update (a VIP version flip
+    that moves every bucket to another DIP).  A learned connection keeps its
+    DIP; a still-pending one follows the new pool and is reset.  The control is
+    the long-lived baseline connections, learned before inject.
+    """
+    from nika.net_env.p4_dc_gateway.l4_lb import routine_pool_update
+
     state = getattr(problem, "_audit_lb", None) or {}
     if not state:
         return False, {"error": "no_baseline_connections"}
-    old_dip, new_dip = (b.name for b in problem.net_env.model.backend_pool[:2])
-    time.sleep(3)
-    status = _lb_status(problem, state["client"])
-    owners = state["owners"]
-    old = [s for p, s in status.items() if owners.get(p) == old_dip]
-    kept = [s for p, s in status.items() if owners.get(p) == new_dip]
-    problem.runtime.exec(
-        state["client"],
-        f"nohup python3 -c {shlex.quote(_LB_HOLD)} {VIP_IP} >/dev/null 2>&1 </dev/null &",
-        timeout=20,
-    )
-    time.sleep(1.5)
-    new_owners = {
+    path = f"/tmp/nika-audit-lb-trial-{time.time_ns()}.status"
+    trial = _lb_start(problem, state["client"], _LB_TRIAL_FLOWS, path, 0.2, 15)
+    opened = trial.get("opened")
+    if len(trial.get("flows") or {}) != _LB_TRIAL_FLOWS:
+        return False, {**state, "error": "trial_connections_not_opened"}
+    trial_owners = {
         port: owner
         for port, owner in _lb_backends(problem, state["client_ip"]).items()
-        if port not in status
+        if port in trial["flows"]
     }
-    old_broken = bool(old) and all(s == "broken" for s in old)
-    control_ok = bool(kept) and all(s == "alive" for s in kept)
-    new_on_new = bool(new_owners) and set(new_owners.values()) == {new_dip}
-    verified = old_broken and control_ok and new_on_new
+    time.sleep(max(0.0, opened + _LB_TRIAL_LEAD_SEC - time.time()))
+    update = routine_pool_update(problem.runtime, state["gateway"], state["device_id"])
+    if not update.get("ok"):
+        return False, {**state, "error": "pool_update_failed", "update": update}
+    time.sleep(_LB_TRIAL_SETTLE_SEC)
+    trial_flows = _lb_flows(problem, state["client"], path).get("flows") or {}
+    control = _lb_flows(problem, state["client"], _LB_STATUS).get("flows") or {}
+    broken = sorted(p for p, s in trial_flows.items() if s == "broken")
+    control_alive = sum(1 for s in control.values() if s == "alive")
+    control_ok = len(control) == _LB_FLOWS and control_alive == _LB_FLOWS
+    verified = (
+        len(trial_flows) == _LB_TRIAL_FLOWS
+        and len(broken) == _LB_TRIAL_FLOWS
+        and control_ok
+    )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
         details={
             **state,
-            "old_backend": old_dip,
-            "new_backend": new_dip,
-            "old_backend_flows": old,
-            "new_backend_flows": kept,
-            "new_connection_backends": new_owners,
+            "pool_update": update,
+            "update_after_open_sec": round(float(update["time"]) - opened, 3),
+            "trial_backends": trial_owners,
+            "trial_broken": len(broken),
+            "trial_total": len(trial_flows),
+            "control_alive": control_alive,
+            "control_total": len(control),
             "control_ok": control_ok,
         },
     )
@@ -394,7 +420,11 @@ def silent_loss_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
         p for p, out in egress.items() if out != params.bmv2_port
     )
     problem._audit_loss = state
-    ok = bool(state["on_port"]) and len(arrived) >= 0.99 * _LOSS_FLOWS
+    ok = (
+        bool(state["on_port"])
+        and bool(state["elsewhere"])
+        and len(arrived) >= 0.99 * _LOSS_FLOWS
+    )
     return ok, {
         **{k: v for k, v in state.items() if k not in ("on_port", "elsewhere")},
         "flows_on_port": len(state["on_port"]),
@@ -406,12 +436,12 @@ def silent_loss_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
 def silent_loss(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Flows on the faulted port lose packets; flows on other ports do not."""
     state = getattr(problem, "_audit_loss", None) or {}
-    if not state.get("on_port"):
-        return False, {"error": "no_flow_selected_the_port"}
+    if not state.get("on_port") or not state.get("elsewhere"):
+        return False, {"error": "no_flow_selected_the_port_and_another"}
     arrived = _loss_round(problem, state)
     on_port, elsewhere = set(state["on_port"]), set(state["elsewhere"])
     port_loss = 100 * len(on_port - arrived) / len(on_port)
-    other_loss = 100 * len(elsewhere - arrived) / len(elsewhere) if elsewhere else 0.0
+    other_loss = 100 * len(elsewhere - arrived) / len(elsewhere)
     verified = port_loss >= 0.5 and port_loss - other_loss >= 0.5
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
@@ -446,7 +476,14 @@ def tcam_drop_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     others = sorted(set(sources) - set(egress))[:16]
     control = ends
     if on_gateway:
-        peer = next(c for c in model.clients if c.attached_switch != switch)
+        # The declared control client, unless it sits behind the faulted gateway.
+        peer = next(
+            c
+            for c in sorted(
+                model.clients, key=lambda c: c.name != params.control_source
+            )
+            if c.attached_switch != switch
+        )
         control = {"client": peer.name, "service_ip": params.target_ip}
         others = sources[:16]
     problem._audit_tcam = {

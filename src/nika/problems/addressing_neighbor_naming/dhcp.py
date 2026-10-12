@@ -33,6 +33,8 @@ class DHCPMissingSubnetParams(BaseModel):
 
 class DHCPMissingSubnet(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dhcp_missing_subnet"
 
     description = "DHCP server is missing a subnet configuration."

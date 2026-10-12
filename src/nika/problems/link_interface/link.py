@@ -43,6 +43,8 @@ class LinkFailureParams(BaseModel):
 
 class LinkFailure(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "link_down"
     description = "Carrier or operational link is down on the selected attachment."
     TAGS: str = ["link"]
@@ -246,6 +248,9 @@ class LinkFlapParams(BaseModel):
 
 class LinkFlap(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "loss"
+    dynamic_artifact = True
     root_cause_name: str = "link_flap"
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
@@ -426,6 +431,9 @@ class LinkCapacityBottleneckParams(BaseModel):
 
 class LinkCapacityBottleneck(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "link_capacity_bottleneck"
     description = "Logical link capacity is bottlenecked below demand."
     TAGS: str = ["link"]
@@ -643,6 +651,8 @@ class LinkDetachParams(BaseModel):
 
 class LinkDetach(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "link_detach"
     description = "Network attachment is detached; the interface is gone from the node."
     TAGS: str = ["link"]

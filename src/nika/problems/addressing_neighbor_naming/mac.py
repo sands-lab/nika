@@ -50,6 +50,8 @@ class MacAddressConflictParams(BaseModel):
 
 class MacAddressConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "mac_address_conflict"
     root_cause_owner = "interface"
     description = "Two hosts share the same MAC address."

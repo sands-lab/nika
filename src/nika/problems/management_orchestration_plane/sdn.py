@@ -93,6 +93,8 @@ class SDNControllerCrashParams(BaseModel):
 
 class SDNControllerCrash(ProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "sdn_controller_crash"
     description = "SDN controller is down."
     TAGS: str = ["sdn"]
@@ -174,6 +176,8 @@ class SouthboundPortBlock(ProblemBase):
     """
 
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "southbound_port_block"
     description = "Controller southbound channel port is blocked."
     TAGS: str = ["sdn"]
@@ -240,6 +244,8 @@ class SouthboundPortMismatch(ProblemBase):
     """
 
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "southbound_port_mismatch"
     description = "Controller southbound listen port mismatches switch config."
     TAGS: str = ["sdn"]
@@ -331,15 +337,14 @@ class SouthboundPortMismatch(ProblemBase):
         mismatched_listening = _tcp_listening(
             self.runtime, params.host_name, params.mismatched_port
         )
-        state, all_target_original, none_connected = self._switch_targets_original(
-            params
-        )
+        # The artifact is the listener config and the switch targets it no
+        # longer matches. Whether switches are connected is the symptom.
+        state, all_target_original, _ = self._switch_targets_original(params)
         verified = (
             config_mismatched
             and not original_listening
             and mismatched_listening
             and all_target_original
-            and none_connected
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -349,6 +354,8 @@ class SouthboundPortMismatch(ProblemBase):
                 "openflow_ports": ports,
                 "original_port_listening": original_listening,
                 "mismatched_port_listening": mismatched_listening,
-                "switch_controllers": state,
+                "switch_targets": {
+                    switch: item["target"] for switch, item in state.items()
+                },
             },
         )

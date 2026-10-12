@@ -20,6 +20,9 @@ class TcpSynFloodAttackParams(BaseModel):
 
 class TcpSynFloodAttack(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name = "tcp_syn_flood_attack"
     description = "TCP SYN flood attack against a target service."
     symptom_desc = (

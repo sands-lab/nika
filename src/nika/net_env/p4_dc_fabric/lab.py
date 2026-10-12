@@ -262,7 +262,12 @@ class P4DcFabric(NetworkEnvBase):
         clients = model.client_endpoints()
         src = clients[0]
         dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
-        peer = next((c for c in clients if c.name != src.name), None)
+        # A peer on a third leaf: its path to dst crosses the spines and dst's
+        # leaf but not src's leaf, so it controls for faults on src's leaf.
+        peer = next(
+            (c for c in clients if c.leaf_id not in {src.leaf_id, dst.leaf_id}),
+            next((c for c in clients if c.name != src.name), None),
+        )
         return ProbePath(
             src_host=src.name,
             dst_ip=dst.ip,

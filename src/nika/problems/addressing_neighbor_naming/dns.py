@@ -89,6 +89,8 @@ class DNSRecordErrorParams(BaseModel):
 
 class DNSRecordError(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dns_record_error"
 
     description = "DNS returns an incorrect record for a name."

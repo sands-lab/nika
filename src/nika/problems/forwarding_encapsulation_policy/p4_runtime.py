@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
+import json
+import shlex
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -17,7 +20,6 @@ from nika.problems.support.benchmark_targets import (
     choice,
     prefer_prefixed_node,
 )
-from nika.net_env.verify import http_ok
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     ecmp_target as _ecmp_target,
     gateway_backend_leaf,
@@ -27,7 +29,6 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     lpm_capacity,
     run_manager,
 )
-from nika.net_env.net_env_pool import get_probe_path
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -42,6 +43,8 @@ class P4ActionSelectorMemberMisconfigParams(BaseModel):
 
 class P4ActionSelectorMemberMisconfig(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "loss"
     root_cause_name = "p4_action_selector_member_misconfig"
     description = "A P4 ActionSelector member is misconfigured."
     TAGS = ["p4", "p4_runtime"]
@@ -128,6 +131,8 @@ class P4EcmpGroupMemberMissingParams(BaseModel):
 
 class P4EcmpGroupMemberMissing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "degradation"
     root_cause_name = "p4_ecmp_group_member_missing"
     description = "A member is missing from a P4 ECMP group."
     TAGS = ["p4", "p4_runtime"]
@@ -209,6 +214,8 @@ class P4RuntimePipelineMismatchParams(BaseModel):
 
 class P4RuntimePipelineMismatch(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name = "p4runtime_pipeline_mismatch"
     description = "Loaded P4 pipeline does not match the intended program."
     TAGS = ["p4", "p4_runtime"]
@@ -229,15 +236,6 @@ class P4RuntimePipelineMismatch(ProblemBase):
                 )
             }
         return {"host_name": choice(ctx.rng, bmv2_leaves(ctx.bmv2), "leaf_1")}
-
-    def _expected_pipeline_name(self) -> str:
-        if self.scenario_name == "p4_dc_gateway":
-            from nika.net_env.p4_dc_gateway.topology_model import PIPELINE_NAME
-
-            return PIPELINE_NAME
-        from nika.net_env.p4_dc_fabric.topology_model import PIPELINE_NAME
-
-        return PIPELINE_NAME
 
     def root_cause_resources(self, params: P4RuntimePipelineMismatchParams):
         return [node_resource(params.host_name)]
@@ -269,12 +267,9 @@ class P4RuntimePipelineMismatch(ProblemBase):
         )
         switch = (observed.get("switches") or {}).get(params.host_name) or {}
         pipeline = switch.get("pipeline") or {}
-        name = str(pipeline.get("pipeline_name") or "").lower()
-        expected = self._expected_pipeline_name().lower()
+        # A readable device whose loaded P4Info differs from the intended one.
         mismatched = (
-            name != expected
-            or not (switch.get("ipv4_lpm"))
-            or not observed.get("ok", True)
+            bool(pipeline.get("ok")) and pipeline.get("matches_intent") is False
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -291,8 +286,104 @@ class P4RuntimePartialWriteParams(BaseModel):
     host_name: str = Field(description="Target BMv2 switch name.")
 
 
+def partial_write_routes(intent: dict, switch: str) -> dict:
+    """Pick the two routes whose selector groups the partial batch exchanges.
+
+    One multi-path route (the faulted ECMP target) and the switch's first
+    locally attached host route. Also returns a second local host to send
+    from and an endpoint behind an untouched multi-path route as control.
+    """
+    state = intent["switches"][switch]
+    endpoints = {str(e["name"]): str(e["ip"]) for e in intent["endpoints"]}
+    peers = {int(m["member_id"]): str(m["peer"]) for m in state["members"]}
+    groups = {
+        int(g["group_id"]): [int(m) for m in g["member_ids"]] for g in state["groups"]
+    }
+    victim_prefix, victim_group, *_ = _ecmp_target(intent, switch)
+    local = [
+        (str(e["prefix"]), int(e["group_id"]), peers[groups[int(e["group_id"])][0]])
+        for e in state["ipv4_lpm"]
+        if len(groups[int(e["group_id"])]) == 1
+        and peers[groups[int(e["group_id"])][0]] in endpoints
+    ]
+    if len(local) < 2:
+        raise RuntimeError(f"{switch} has fewer than two local host routes")
+    (host_prefix, host_group, host), (_, _, sender) = local[:2]
+
+    def covered(prefix: str) -> str:
+        net = ipaddress.ip_network(prefix)
+        return next(n for n, ip in endpoints.items() if ipaddress.ip_address(ip) in net)
+
+    control_prefix = next(
+        str(e["prefix"])
+        for e in state["ipv4_lpm"]
+        if len(groups[int(e["group_id"])]) > 1 and str(e["prefix"]) != victim_prefix
+    )
+    victim, control = covered(victim_prefix), covered(control_prefix)
+    return {
+        "switch": switch,
+        "victim_prefix": victim_prefix,
+        "victim_group": int(victim_group),
+        "victim_members": groups[int(victim_group)],
+        "host_prefix": host_prefix,
+        "host_group": host_group,
+        "host_members": groups[host_group],
+        "host": host,
+        "host_ip": endpoints[host],
+        "sender": sender,
+        "victim": victim,
+        "victim_ip": endpoints[victim],
+        "control": control,
+        "control_ip": endpoints[control],
+    }
+
+
+# One WriteRequest (CONTINUE_ON_ERROR, the P4Runtime default for non-atomic
+# devices) from a controller that re-derived its selector-group IDs, e.g. a new
+# master after failover: it rewrites both groups in place, then re-sends the
+# routes that must follow them as INSERTs. BMv2 applies the group MODIFYs and
+# rejects the route INSERTs with ALREADY_EXISTS, so each route is left on a
+# group that now holds the other route's next hops.
+_PARTIAL_BATCH = r"""
+import json, sys
+sys.path.insert(0, "/opt/nika")
+import grpc
+import p4rt_manager as m
+from google.rpc import code_pb2, status_pb2
+name, plan, intent_path, p4info_path = sys.argv[1:5]
+plan = json.loads(plan)
+switch = m.load_json(intent_path)["switches"][name]
+index = m.P4InfoIndex(m.load_p4info(p4info_path))
+updates = [m.group_entity(index, g, insert=False) for g in plan["groups"]]
+updates += [m.lpm_entity(index, r, insert=True) for r in plan["routes"]]
+client = m.connect(switch)
+out = {"codes": ["OK"] * len(updates), "messages": [""] * len(updates)}
+try:
+    try:
+        client.write(updates, m.p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
+    except grpc.RpcError as exc:
+        details = [
+            status_pb2.Status.FromString(value).details
+            for key, value in exc.trailing_metadata() or []
+            if key == "grpc-status-details-bin"
+        ]
+        if not details:
+            raise
+        for i, detail in enumerate(details[0]):
+            error = m.p4runtime_pb2.Error()
+            detail.Unpack(error)
+            out["codes"][i] = code_pb2.Code.Name(error.canonical_code)
+            out["messages"][i] = error.message
+finally:
+    client.close()
+print(json.dumps(out))
+"""
+
+
 class P4RuntimePartialWrite(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "p4runtime_partial_write"
     description = "A P4Runtime update was only partially applied."
     TAGS = ["p4", "p4_runtime"]
@@ -310,92 +401,93 @@ class P4RuntimePartialWrite(ProblemBase):
             }
         return {"host_name": choice(ctx.rng, ctx.bmv2, ctx.host0)}
 
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
-        self._prefix: str | None = None
-
     def root_cause_resources(self, params: P4RuntimePartialWriteParams):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: P4RuntimePartialWriteParams):
-        intent = load_intent(self.runtime)
-        prefix, *_rest = _ecmp_target(intent, params.host_name)
-        self._prefix = prefix
-        result = run_manager(
-            self.runtime,
-            "partial-write",
-            "--switch",
-            params.host_name,
-            "--prefix",
-            prefix,
+        from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
+            INTENT_PATH,
+            P4INFO_PATH,
         )
-        if not result.get("ok"):
-            raise RuntimeError(
-                f"partial-write failed on {params.host_name} prefix {prefix}: {result}"
-            )
 
-    def _light_http_symptom(self) -> tuple[bool, dict]:
-        topo_size = getattr(self.net_env, "topo_size", None) or "s"
-        path = get_probe_path(self.scenario_name or "", topo_size=str(topo_size))
-        if path is None or not path.http_url:
-            return True, {"skipped": True, "reason": "no_probe_path"}
-        http_ok_val = http_ok(self.runtime, path.src_host, path.http_url)
-        return (not http_ok_val), {
-            "observer": path.src_host,
-            "http_url": path.http_url,
-            "http_ok": http_ok_val,
+        pair = partial_write_routes(load_intent(self.runtime), params.host_name)
+        victim, host = pair["victim_group"], pair["host_group"]
+        plan = {
+            "groups": [
+                {"group_id": victim, "member_ids": pair["host_members"]},
+                {"group_id": host, "member_ids": pair["victim_members"]},
+            ],
+            "routes": [
+                {"prefix": pair["victim_prefix"], "group_id": host},
+                {"prefix": pair["host_prefix"], "group_id": victim},
+            ],
         }
+        out = self.runtime.exec(
+            "fabric_mgr",
+            f"python3 -c {shlex.quote(_PARTIAL_BATCH)} {params.host_name} "
+            f"{shlex.quote(json.dumps(plan))} {INTENT_PATH} {P4INFO_PATH}",
+            timeout=60,
+        )
+        try:
+            result = json.loads(out.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"partial batch on {params.host_name}: {out}") from exc
+        codes = result["codes"]
+        if codes[:2] != ["OK", "OK"] or "OK" in codes[2:]:
+            raise RuntimeError(
+                f"batch on {params.host_name} was not partially applied: {result}"
+            )
+        logger.info("Partial P4Runtime batch on %s: %s", params.host_name, codes)
 
     def verify_fault(self, params: P4RuntimePartialWriteParams) -> dict:
-        intent = load_intent(self.runtime)
-        prefix = self._prefix or _ecmp_target(intent, params.host_name)[0]
-        observed = run_manager(
-            self.runtime, "read", "--switch", params.host_name, timeout=60
-        )
-        entries = (observed.get("switches") or {}).get(params.host_name, {}).get(
-            "ipv4_lpm"
-        ) or []
-        present = any(e.get("prefix") == prefix for e in entries)
-        remaining = len(entries)
-        artifact_ok = (not present) and remaining > 0
-        symptom_ok, symptom_details = self._light_http_symptom()
+        """Read groups and routes: the group rewrites applied, the routes did not."""
+        raw = self.recheck_artifact(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=artifact_ok and symptom_ok,
-            details={
-                "artifact": {
-                    "verified": artifact_ok,
-                    "host": params.host_name,
-                    "prefix": prefix,
-                    "present": present,
-                    "remaining_lpm": remaining,
-                },
-                "symptom": {"verified": symptom_ok, **symptom_details},
-            },
+            verified=bool(raw["present"]),
+            details=raw["evidence"],
         )
 
     def recheck_artifact(self, params: P4RuntimePartialWriteParams) -> dict:
-        """Re-read the LPM table. Does not send the HTTP symptom probe."""
-        intent = load_intent(self.runtime)
-        prefix = self._prefix or _ecmp_target(intent, params.host_name)[0]
+        pair = partial_write_routes(load_intent(self.runtime), params.host_name)
         observed = run_manager(
             self.runtime, "read", "--switch", params.host_name, timeout=30
         )
-        entries = (observed.get("switches") or {}).get(params.host_name, {}).get(
-            "ipv4_lpm"
-        ) or []
-        present = any(entry.get("prefix") == prefix for entry in entries)
-        remaining = len(entries)
-        artifact_ok = (not present) and remaining > 0
+        switch = (observed.get("switches") or {}).get(params.host_name) or {}
+        groups = {
+            int(g["group_id"]): sorted(int(m) for m in g["member_ids"])
+            for g in switch.get("groups") or []
+        }
+        routes = {
+            e.get("prefix"): int(e["group_id"]) for e in switch.get("ipv4_lpm") or []
+        }
+        victim, host = pair["victim_group"], pair["host_group"]
+        groups_rewritten = groups.get(victim) == sorted(
+            pair["host_members"]
+        ) and groups.get(host) == sorted(pair["victim_members"])
+        routes_unchanged = (
+            routes.get(pair["victim_prefix"]) == victim
+            and routes.get(pair["host_prefix"]) == host
+        )
+        artifact_ok = groups_rewritten and routes_unchanged
         return {
             "present": artifact_ok,
             "fault": self.root_cause_name,
             "scope": "artifact",
             "evidence": {
                 "host": params.host_name,
-                "prefix": prefix,
-                "entry_present": present,
-                "remaining_lpm": remaining,
+                "victim_prefix": pair["victim_prefix"],
+                "host_prefix": pair["host_prefix"],
+                "groups": {
+                    str(victim): groups.get(victim),
+                    str(host): groups.get(host),
+                },
+                "routes": {
+                    pair["victim_prefix"]: routes.get(pair["victim_prefix"]),
+                    pair["host_prefix"]: routes.get(pair["host_prefix"]),
+                },
+                "groups_rewritten": groups_rewritten,
+                "routes_unchanged": routes_unchanged,
             },
             "error": None if artifact_ok else "fault artifact absent",
         }
@@ -407,6 +499,8 @@ class P4TableResourceExhaustionParams(BaseModel):
 
 class P4TableResourceExhaustion(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name = "p4_table_resource_exhaustion"
     description = "A P4 table has exhausted its capacity."
     TAGS = ["p4", "p4_runtime"]
@@ -437,25 +531,21 @@ class P4TableResourceExhaustion(ProblemBase):
         self._fill = result
 
     def verify_fault(self, params: P4TableResourceExhaustionParams) -> dict:
-        intent = load_intent(self.runtime)
-        capacity = lpm_capacity(intent)
-        fill = self._fill or run_manager(
-            self.runtime,
-            "fill-table",
-            "--switch",
-            params.host_name,
-            "--size",
-            str(capacity),
-            timeout=120,
+        """Read the live LPM table and compare its occupancy with its size."""
+        capacity = lpm_capacity(load_intent(self.runtime))
+        observed = run_manager(
+            self.runtime, "read", "--switch", params.host_name, timeout=60
         )
-        occupancy = int(fill.get("occupancy") or 0)
-        at_cap = occupancy >= capacity
+        switch = (observed.get("switches") or {}).get(params.host_name) or {}
+        occupancy = len(switch.get("ipv4_lpm") or [])
+        at_cap = bool(switch) and occupancy >= capacity
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=at_cap,
             details={
                 "host": params.host_name,
-                "fill": fill,
+                "capacity": capacity,
+                "occupancy": occupancy,
                 "at_cap": at_cap,
             },
         )

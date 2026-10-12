@@ -46,7 +46,10 @@ def exec_or_empty(
 ) -> str:
     try:
         return runtime.exec(host, command, timeout=timeout)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - callers read "" as a failed check
+        from nika.runtime.shared.execution import note_exec_failure
+
+        note_exec_failure(host, command, f"{type(exc).__name__}: {exc}")
         return ""
 
 
@@ -127,6 +130,39 @@ def ping_stats(
     return _parse_ping_stats(output, count=count)
 
 
+def ping_unreachable(
+    runtime: "LabRuntime",
+    host: str,
+    targets: Iterable[str],
+    *,
+    count: int = 3,
+    netns: str | None = None,
+) -> list[str]:
+    """Ping every target concurrently from ``host`` in one exec.
+
+    Returns the targets that did not answer all ``count`` probes. ``netns``
+    runs ping in that network namespace (e.g. the SR Linux data plane).
+    """
+    wanted = sorted(set(targets))
+    if not wanted:
+        return []
+    ping = f"ip netns exec {netns} ping" if netns else "ping"
+    script = " ".join(
+        f"(echo {target} $({ping} -c {count} -i 0.2 -W 2 -q {target}"
+        " | grep -o '[0-9]* received')) &"
+        for target in wanted
+    )
+    output = exec_or_empty(
+        runtime, host, f"sh -c {shlex.quote(script + ' wait')}", timeout=30
+    )
+    answered = {
+        fields[0]
+        for fields in (line.split() for line in output.splitlines())
+        if fields[1:] == [str(count), "received"]
+    }
+    return [target for target in wanted if target not in answered]
+
+
 def _frag_needed_in_output(output: str) -> bool:
     lower = output.lower()
     return any(
@@ -154,20 +190,6 @@ def ping_df_probe(
     )
     ok = stats.received >= 1
     return ok, _frag_needed_in_output(stats.raw), stats.raw
-
-
-def ping_mtu_frag_needed(
-    runtime: "LabRuntime",
-    host: str,
-    target: str,
-    *,
-    small_size: int = 64,
-    large_size: int = 1400,
-) -> bool:
-    """True when small DF packets pass and large DF packets fail (path MTU / PMTUD)."""
-    small_ok, _, _ = ping_df_probe(runtime, host, target, packet_size=small_size)
-    large_ok, _, _ = ping_df_probe(runtime, host, target, packet_size=large_size)
-    return small_ok and not large_ok
 
 
 def ping_mtu_blackhole(
@@ -342,16 +364,6 @@ def median_throughput_bps(
     return median_float(values)
 
 
-def route_is_onlink(runtime: "LabRuntime", host: str, destination: str) -> bool | None:
-    """Return True when ``ip route get`` treats ``destination`` as on-link."""
-    output = exec_or_empty(
-        runtime, host, f"ip route get {destination} 2>/dev/null || true", timeout=10
-    )
-    if not output.strip():
-        return None
-    return " via " not in output.splitlines()[0]
-
-
 def _start_iperf3_server(runtime: "LabRuntime", host: str, port: int) -> str | None:
     """Start a one-shot iperf3 server and wait until it listens; return its PID."""
     output = runtime.exec(
@@ -439,25 +451,6 @@ def iperf_tcp_metrics(
         return None, None
 
 
-def tbf_overlimits(runtime: "LabRuntime", host: str, intf: str = "eth0") -> int | None:
-    """Return TBF overlimits/drops counter from ``tc -s qdisc``, if present."""
-    output = exec_or_empty(
-        runtime, host, f"tc -s qdisc show dev {intf} 2>/dev/null || true", timeout=10
-    )
-    if "tbf" not in output:
-        return None
-    total = 0
-    found = False
-    for line in output.splitlines():
-        lower = line.lower()
-        if "overlimits" in lower or "dropped" in lower:
-            found = True
-            for token in line.replace(",", " ").split():
-                if token.isdigit():
-                    total += int(token)
-    return total if found else 0
-
-
 SymptomExpectation = Literal[
     "reachable",
     "unreachable",
@@ -494,15 +487,14 @@ def compare_symptom(
         http_after = after.get("http_ok")
         mtu_blackhole = after.get("mtu_blackhole")
         mtu_frag_needed = after.get("mtu_frag_needed")
-        ping_broke = ping_before and not ping_after
-        http_broke = http_before and not http_after
-        ok = (
-            ping_broke
-            or http_broke
-            or (not ping_after and not http_after)
-            or bool(mtu_blackhole)
-            or bool(mtu_frag_needed)
+        # Every signal must have been healthy before inject and measured after.
+        ping_broke = ping_before is True and ping_after is False
+        http_broke = http_before is True and http_after is False
+        blackhole_new = before.get("mtu_blackhole") is False and mtu_blackhole is True
+        frag_needed_new = (
+            before.get("mtu_frag_needed") is False and mtu_frag_needed is True
         )
+        ok = ping_broke or http_broke or blackhole_new or frag_needed_new
         details["observed"] = {
             "ping_broke": ping_broke,
             "http_broke": http_broke,
@@ -513,7 +505,12 @@ def compare_symptom(
     if expect == "loss_increased":
         before_loss = float(before.get("loss_percent") or 0.0)
         after_loss = float(after.get("loss_percent") or 0.0)
-        ok = after_loss >= loss_min_percent and after_loss > before_loss
+        ok = (
+            before.get("loss_percent") is not None
+            and after.get("loss_percent") is not None
+            and after_loss >= loss_min_percent
+            and after_loss > before_loss
+        )
         details["observed"] = {
             "before_loss": before_loss,
             "after_loss": after_loss,
@@ -525,27 +522,36 @@ def compare_symptom(
         if before_ms is None or after_ms is None:
             before_ms = before.get("http_time_ms")
             after_ms = after.get("http_time_ms")
-        if before_ms is None or after_ms is None:
-            # Absolute latency gate for DNS delay faults when no baseline snap.
-            ok = after_ms is not None and float(after_ms) >= 500.0
-        else:
-            ok = float(after_ms) >= float(before_ms) * latency_factor
+        ok = (
+            before_ms is not None
+            and after_ms is not None
+            and float(after_ms) >= float(before_ms) * latency_factor
+        )
         details["observed"] = {"before_ms": before_ms, "after_ms": after_ms}
         return ok, details
     if expect == "gray_loss":
-        after_loss = float(after.get("loss_percent") or 0.0)
-        ok = 0.5 <= after_loss <= 15.0
-        details["observed"] = {"after_loss": after_loss}
+        before_loss = before.get("loss_percent")
+        after_loss = after.get("loss_percent")
+        ok = (
+            before_loss is not None
+            and after_loss is not None
+            and float(before_loss) < 0.5
+            and 0.5 <= float(after_loss) <= 15.0
+        )
+        details["observed"] = {"before_loss": before_loss, "after_loss": after_loss}
         return ok, details
     if expect == "control_plane_down":
-        ok = not bool(after.get("control_plane_ok", True))
+        ok = (
+            before.get("control_plane_ok") is True
+            and after.get("control_plane_ok") is False
+        )
         details["observed"] = after.get("control_plane_ok")
         return ok, details
     if expect == "isolation":
         after_symptom = after.get("symptom_ok")
         after_control = after.get("control_ok")
-        symptom_broken = after_symptom is False
-        control_intact = True if after_control is None else bool(after_control)
+        symptom_broken = before.get("symptom_ok") is True and after_symptom is False
+        control_intact = after_control is True
         ok = bool(symptom_broken) and control_intact
         details["observed"] = {
             "symptom_broken": symptom_broken,
@@ -555,7 +561,7 @@ def compare_symptom(
     if expect == "degraded":
         before_ms = before.get("http_time_ms")
         after_ms = after.get("http_time_ms")
-        http_broke = before.get("http_ok") and not after.get("http_ok")
+        http_broke = before.get("http_ok") is True and after.get("http_ok") is False
         slower_http = (
             before_ms is not None
             and after_ms is not None
@@ -579,21 +585,18 @@ def compare_symptom(
         before_bps = before.get("bits_per_second")
         after_bps = after.get("bits_per_second")
         throughput_drop = (
-            after_bps is not None
+            before_bps is not None
+            and after_bps is not None
             and float(after_bps) > 0
-            and (
-                (before_bps is not None and float(after_bps) < float(before_bps) * 0.5)
-                or float(after_bps) < 100_000.0
-            )
+            and float(after_bps) < float(before_bps) * 0.5
         )
         before_loss_raw = before.get("loss_percent")
         after_loss_raw = after.get("loss_percent")
         loss_degraded = False
-        if after_loss_raw is not None:
+        if after_loss_raw is not None and before_loss_raw is not None:
             after_loss = float(after_loss_raw)
-            before_loss = float(before_loss_raw) if before_loss_raw is not None else 0.0
+            before_loss = float(before_loss_raw)
             loss_degraded = after_loss >= loss_min_percent and after_loss > before_loss
-        onlink = after.get("route_onlink")
         ok = (
             http_broke
             or slower_http
@@ -601,7 +604,6 @@ def compare_symptom(
             or absolute_slow
             or throughput_drop
             or loss_degraded
-            or bool(onlink)
         )
         details["observed"] = {
             "http_broke": http_broke,
@@ -610,7 +612,6 @@ def compare_symptom(
             "absolute_slow": absolute_slow,
             "throughput_drop": throughput_drop,
             "loss_degraded": loss_degraded,
-            "route_onlink": onlink,
             "before_ms": before_ms,
             "after_ms": after_ms,
             "before_rtt": before_rtt,
@@ -736,16 +737,7 @@ def frr_bgp_established(
     runtime: "LabRuntime", router: str, *, min_neighbors: int = 1
 ) -> bool:
     output = exec_or_empty(runtime, router, "vtysh -c 'show bgp summary'", timeout=20)
-    if not output.strip() or "failed to connect" in output.lower():
-        return False
-    established = 0
-    for line in output.splitlines():
-        if "Established" in line:
-            established += 1
-        elif line.split() and line.split()[-1].isdigit() and int(line.split()[-1]) > 0:
-            # Prefix count column when the state column is omitted in summaries.
-            established += 1
-    return established >= min_neighbors
+    return len(frr_bgp_established_peers(output)) >= min_neighbors
 
 
 def frr_bgp_established_peers(summary: str) -> set[str]:
@@ -808,6 +800,25 @@ def k8s_ready_node_count(output: str) -> int:
         if len(fields) >= 2 and fields[1] == "Ready":
             ready += 1
     return ready
+
+
+def k8s_unready_pods(output: str) -> list[str] | None:
+    """Parse ``kubectl get pods --no-headers`` for pods that are not serving.
+
+    A pod serves when it is Running with all containers ready; finished job
+    pods (Completed) are fine. Returns ``None`` when no pod is listed.
+    """
+    pods = [line.split() for line in output.splitlines() if line.strip()]
+    pods = [fields for fields in pods if len(fields) >= 3 and "/" in fields[1]]
+    if not pods:
+        return None
+    unready = []
+    for name, ready, status, *_ in pods:
+        up, _, total = ready.partition("/")
+        if status == "Completed" or (status == "Running" and up == total):
+            continue
+        unready.append(name)
+    return unready
 
 
 def k8s_namespace_phase_active(output: str) -> bool:

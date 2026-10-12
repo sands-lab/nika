@@ -13,7 +13,7 @@ from typing import Any
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
 from nika.runtime.base import LabRuntime
-from tests.support.symptom.addressing_probes import _HOST_PREFIXES, _eth0_ip
+from nika.validation.symptom.addressing_probes import _HOST_PREFIXES, _eth0_ip
 
 _COUNT = 5
 

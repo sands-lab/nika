@@ -1,7 +1,7 @@
 """Docker e2e compatibility for ``bgp_missing_route_advertisement``.
 
 Covers matrix-compatible scenarios with two-tier checks:
-artifact ``verify_fault`` + ``evaluate_symptom`` (path_ping).
+artifact ``verify_fault`` + ``evaluate_symptom`` (remote BGP table withdrawal).
 
 Skipped by design (not practical here):
 - ``k8s_lab`` — unrelated bring-up flakiness
@@ -29,7 +29,8 @@ from nika.problems.registry import get_problem_class, list_avail_problem_names
 from nika.net_env.net_env_pool import get_probe_path
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
-from tests.support.symptom import evaluate_symptom, get_symptom_contract
+from nika.validation.symptom import evaluate_symptom, get_symptom_contract
+from nika.validation.symptom.custom import evaluate_custom_baseline
 
 PROBLEM = "bgp_missing_route_advertisement"
 SETTLE_S = 45.0
@@ -145,8 +146,8 @@ def test_failure_registers_and_contracts() -> None:
     cls = get_problem_class(PROBLEM)
     assert cls is not None
     contract = get_symptom_contract(PROBLEM)
-    assert contract.symptom_class == "unreachable"
-    assert contract.probe == "path_ping"
+    assert contract.symptom_class == "control_plane"
+    assert contract.probe == "custom"
 
 
 def _wait_ping(
@@ -307,6 +308,12 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
                     f"{case.id}: IGP stub path should pass before inject"
                 )
 
+            if case.symptom_mode != "artifact":
+                baseline_ok, baseline = evaluate_custom_baseline(
+                    PROBLEM, problem, parsed
+                )
+                assert baseline_ok is True, (case.id, baseline)
+
             problem.inject_fault(parsed)
             verify = problem.verify_fault(parsed)
             assert verify["verified"] is True, (case.id, verify)
@@ -337,18 +344,17 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
                     expect_ok=False,
                     timeout_s=WITHDRAW_TIMEOUT_S,
                 ), f"{case.id}: path should fail after inject ({src_host} -> {dst_ip})"
+
+            if case.symptom_mode != "artifact":
                 ok, symptom = evaluate_symptom(
                     runtime,
                     PROBLEM,
                     parsed,
                     scenario=case.scenario,
                     topo_size=case.topo_size or "s",
+                    problem=problem,
                 )
                 assert ok is True, (case.id, symptom)
-                assert symptom.get("after", {}).get("ping_ok") is False, (
-                    case.id,
-                    symptom,
-                )
 
             if igp_path is not None:
                 assert ping_ok(runtime, igp_path.src_host, igp_path.dst_ip), (

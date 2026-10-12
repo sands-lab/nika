@@ -29,6 +29,8 @@ class DHCPSpoofedGatewayParams(BaseModel):
 
 class DHCPSpoofedGateway(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dhcp_spoofed_gateway"
 
     description = "DHCP distributes a spoofed default gateway."
@@ -87,6 +89,8 @@ class DHCPSpoofedDNSParams(BaseModel):
 
 class DHCPSpoofedDNS(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dhcp_spoofed_dns"
 
     description = "DHCP distributes a spoofed DNS server option."
@@ -159,6 +163,8 @@ class DHCPSpoofedSubnet(ProblemBase):
     """
 
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dhcp_spoofed_subnet"
 
     description = "DHCP distributes a spoofed subnet mask to clients."

@@ -8,7 +8,7 @@ from nika.problems.support.benchmark_targets import (
     p4_gateway_port_target,
     p4_port_options,
 )
-from nika.problems.support.p4_gateway import set_deterministic_loss
+from nika.problems.support.p4_gateway import read_table, set_deterministic_loss
 
 
 class SilentEgressPacketLossParams(BaseModel):
@@ -23,6 +23,8 @@ class SilentEgressPacketLossParams(BaseModel):
 
 class SilentEgressPacketLoss(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "silent_egress_packet_loss"
     description = "Egress silently drops a subset of packets."
     symptom_desc = (
@@ -59,16 +61,26 @@ class SilentEgressPacketLoss(ProblemBase):
         )
 
     def verify_fault(self, params: SilentEgressPacketLossParams) -> dict:
-        # The P4Runtime read API does not list the loss table; trust the write ack.
-        output = getattr(self, "_result", "")
+        """Read the switch's private loss threshold for the egress port."""
         threshold = self.register_threshold(params.loss_basis_points)
+        rows = read_table(self.runtime, params.host_name, "internal_fault_loss_config")
+        observed = next(
+            (
+                row["params"].get("threshold")
+                for row in rows or []
+                if (row.get("match") or {}).get("egress_spec") == params.bmv2_port
+            ),
+            None,
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=str(threshold) in output,
+            verified=observed == threshold,
             details={
                 "interface": params.intf_name,
+                "bmv2_port": params.bmv2_port,
                 "loss_basis_points": params.loss_basis_points,
-                "seed": params.seed,
-                "output": output[:200],
+                "expected_threshold": threshold,
+                "observed_threshold": observed,
+                "readable": rows is not None,
             },
         )

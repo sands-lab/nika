@@ -28,6 +28,10 @@ VIP_IP = "20.0.0.1"
 VIP_PORT = 80
 CONN_TABLE_CAPACITY = 256
 CONNECTION_LEARNING_DELAY_MS = 5
+# Gateway-local L4 agent (lb_agent.py): connection learner and pool updates.
+LB_AGENT = "/lb_agent.py"
+LB_AGENT_CONFIG = "/etc/nika/lb_agent.json"
+LB_AGENT_STATUS = "/var/lib/nika/lb_agent.status.json"
 
 # gateways, spines, leaves, external clients, HTTP services
 SIZE_TABLE: dict[TopoSize, tuple[int, int, int, int, int]] = {

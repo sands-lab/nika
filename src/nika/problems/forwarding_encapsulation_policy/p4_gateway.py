@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import shlex
 
@@ -16,6 +17,7 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
 from nika.problems.support.p4_gateway import (
+    read_table,
     set_icmp_frag_needed_filter,
     set_int_mtu,
     set_silent_destination_drop,
@@ -60,6 +62,8 @@ class IcmpFragNeededFilterMisconfigurationParams(BaseModel):
 
 class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "icmp_frag_needed_filter_misconfiguration"
     description = "ICMP Fragmentation Needed messages are filtered."
     symptom_desc = (
@@ -114,12 +118,27 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
 
     def verify_fault(self, params: IcmpFragNeededFilterMisconfigurationParams) -> dict:
         if self._uses_p4_filter(params):
-            # The P4Runtime read API does not list this ACL; trust the write ack.
-            output = getattr(self, "_result", "")
+            # Read the switch's live ACL: a (type 3, code 4) entry must be installed.
+            output = self.runtime.exec(
+                "fabric_mgr",
+                "python3 /opt/nika/p4rt_manager.py read "
+                f"--switch {shlex.quote(params.host_name)}",
+                timeout=30,
+            )
+            try:
+                observed = json.loads(output)["switches"][params.host_name]
+                rows = observed["runtime_config"]["icmp_frag_needed_acl"]
+            except (ValueError, KeyError, TypeError):
+                rows = None
+            entries = [
+                row["keys"]
+                for row in rows or []
+                if not row.get("is_default") and row.get("keys")
+            ]
             return build_verify_result(
                 self.root_cause_name,
-                "icmp-frag-needed" in output,
-                {"gateway": params.host_name, "output": output[:200]},
+                [3, 4] in entries,
+                {"gateway": params.host_name, "acl_entries": entries},
             )
         verified = self.runtime.nft_drop_rule_present(
             params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
@@ -141,6 +160,8 @@ class P4TcamEntryCorruptionParams(BaseModel):
 
 class P4TcamEntryCorruption(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "p4_tcam_entry_corruption"
     description = "A forwarding/TCAM entry is silently corrupted for one flow."
     symptom_desc = "One destination flow stops after a switch whose P4Runtime state remains healthy."
@@ -177,14 +198,23 @@ class P4TcamEntryCorruption(ProblemBase):
         )
 
     def verify_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
-        output = getattr(self, "_result", "")
+        """Read the switch's private drop hook for the target address."""
+        target = int(ipaddress.IPv4Address(params.target_ip))
+        rows = read_table(self.runtime, params.host_name, "internal_fault_drop")
+        hits = [
+            row
+            for row in rows or []
+            if row.get("action") == "fault_drop"
+            and target in (row.get("match") or {}).values()
+        ]
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified="Error" not in output,
+            verified=bool(hits),
             details={
                 "switch": params.host_name,
                 "target_ip": params.target_ip,
-                "hook_programmed": "Error" not in output,
+                "readable": rows is not None,
+                "matching_entries": len(hits),
             },
         )
 
@@ -198,6 +228,8 @@ class IntInsufficientMtuHeadroomParams(BaseModel):
 
 class IntInsufficientMtuHeadroom(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "int_insufficient_mtu_headroom"
     root_cause_owner = "interface"
     description = "INT encapsulation lacks sufficient MTU headroom."

@@ -139,6 +139,8 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
     root_cause_owner = "interface"
     description = "WireGuard peer public key is incorrect."
@@ -352,6 +354,8 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "wireguard_allowed_ips_misconfiguration"
     root_cause_owner = "interface"
     description = "WireGuard AllowedIPs omits a required remote prefix."

@@ -14,4 +14,6 @@ _ARTIFACT_VALUES = frozenset({"artifact", "light", "1", "true", "yes"})
 
 def artifact_verify_only() -> bool:
     """True when CI requests boot/artifact checks without deep symptom verify."""
-    return os.environ.get("NIKA_CI_VERIFY_DEPTH", "").strip().lower() in _ARTIFACT_VALUES
+    return (
+        os.environ.get("NIKA_CI_VERIFY_DEPTH", "").strip().lower() in _ARTIFACT_VALUES
+    )

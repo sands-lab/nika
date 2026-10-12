@@ -31,8 +31,8 @@ from nika.workflows.failure.inject import inject_failure as inject_failure_workf
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_failure_compat import write_probe_report
-from tests.support.symptom import evaluate_symptom
-from tests.support.symptom.custom import evaluate_custom_baseline
+from nika.validation.symptom import evaluate_symptom
+from nika.validation.symptom.custom import evaluate_custom_baseline
 
 pytestmark = pytest.mark.integration
 

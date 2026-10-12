@@ -25,6 +25,8 @@ class P4EcnThresholdMisconfigurationParams(BaseModel):
 
 class P4EcnThresholdMisconfiguration(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "p4_ecn_threshold_misconfiguration"
     description = "ECN marking threshold is misconfigured (marking too late)."
     symptom_desc = (

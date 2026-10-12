@@ -9,9 +9,13 @@ import time
 from typing import Any
 
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import INTENT_PATH, P4INFO_PATH
-from nika.net_env.verify import ping_stats
+from nika.net_env.verify import http_ok, ping_stats
 from nika.problems.base import build_verify_result
-from nika.problems.forwarding_encapsulation_policy.p4_runtime import _BAD_PORT
+from nika.net_env.net_env_pool import get_probe_path
+from nika.problems.forwarding_encapsulation_policy.p4_runtime import (
+    _BAD_PORT,
+    partial_write_routes,
+)
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     ecmp_target,
     load_intent,
@@ -61,6 +65,18 @@ def _sweep_ends(problem: Any, params: Any) -> dict[str, Any]:
     network = ipaddress.ip_network(prefix)
     endpoints = problem.net_env.model.endpoints
     target = next(e for e in endpoints if ipaddress.ip_address(e.ip) in network)
+    # Each group member's next hop and the port on which it receives from us.
+    next_hops: dict[int, list] = {}
+    for member in state["members"]:
+        far = intent["switches"].get(str(member["peer"]))
+        if int(member["member_id"]) not in map(int, group["member_ids"]) or not far:
+            continue
+        port = next(
+            (int(m["port"]) for m in far["members"] if m["peer"] == params.host_name),
+            None,
+        )
+        if port is not None:
+            next_hops[int(member["port"])] = [str(member["peer"]), port]
     return {
         "switch": params.host_name,
         "source": next(e.name for e in endpoints if e.name in peers),
@@ -71,22 +87,40 @@ def _sweep_ends(problem: Any, params: Any) -> dict[str, Any]:
         "other_ports": sorted(
             ports[int(m)] for m in group["member_ids"] if int(m) != member_id
         ),
+        "next_hops": next_hops,
     }
 
 
-def _egress_packets(problem: Any, switch: str) -> dict[int, int]:
+def _port_packets(problem: Any, switch: str, direction: str) -> dict[int, int]:
     observed = run_manager(problem.runtime, "counters", "--switch", switch, timeout=60)
     counters = (observed.get("counters") or {}).get(switch)
     if not observed.get("ok") or counters is None:
         raise RuntimeError(f"counter read failed on {switch}: {observed}")
     return {
         int(port): int(value["packets"])
-        for port, value in (counters.get("egress") or {}).items()
+        for port, value in (counters.get(direction) or {}).items()
     }
 
 
-def _sweep(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
-    """Send every flow once; return delivered flows and per-port egress deltas."""
+def _egress_packets(problem: Any, switch: str) -> dict[int, int]:
+    return _port_packets(problem, switch, "egress")
+
+
+def _next_hop_packets(problem: Any, ends: dict[str, Any]) -> dict[int, int]:
+    """Packets each member's next hop received from the switch, by member port."""
+    return {
+        int(port): _port_packets(problem, hop, "ingress").get(int(hop_port), 0)
+        for port, (hop, hop_port) in ends["next_hops"].items()
+    }
+
+
+def _sweep(
+    problem: Any, ends: dict[str, Any], *, next_hops: bool = False
+) -> dict[str, Any]:
+    """Send every flow once; return delivered flows and per-port packet deltas.
+
+    With ``next_hops`` the deltas are also read on each member's next hop.
+    """
     runtime = problem.runtime
     started = runtime.exec(
         ends["target"],
@@ -100,6 +134,7 @@ def _sweep(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
         if started.strip() != "listening":
             return {"error": f"sweep listener did not start: {started[:300]}"}
         before = _egress_packets(problem, ends["switch"])
+        hops_before = _next_hop_packets(problem, ends) if next_hops else {}
         sent = runtime.exec(
             ends["source"],
             f"python3 -c {shlex.quote(_SWEEP_SEND)} {ends['target_ip']} "
@@ -108,6 +143,7 @@ def _sweep(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
         )
         time.sleep(1.5)
         after = _egress_packets(problem, ends["switch"])
+        hops_after = _next_hop_packets(problem, ends) if next_hops else {}
         received = runtime.exec(ends["target"], f"cat {_SWEEP_LOG}", timeout=20)
     except RuntimeError as exc:
         return {"error": f"sweep failed: {exc}"}
@@ -124,42 +160,71 @@ def _sweep(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
         return {"error": f"sweep receiver output unparseable: {received[:300]}"}
     ports = [ends["member_port"], *ends["other_ports"], _BAD_PORT]
     lost = sorted(set(_SWEEP_SOURCES) - set(map(int, lines)))
-    return {
+    sample = {
         "flows": len(_SWEEP_SOURCES),
         "delivered": len(_SWEEP_SOURCES) - len(lost),
         "lost_sources": lost,
         "egress_delta": {p: after.get(p, 0) - before.get(p, 0) for p in ports},
     }
+    if next_hops:
+        sample["next_hop_delta"] = {
+            p: hops_after.get(p, 0) - hops_before.get(p, 0) for p in hops_after
+        }
+    return sample
 
 
-def ecmp_sweep_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+def _sweep_baseline(
+    problem: Any, params: Any, *, next_hops: bool
+) -> tuple[bool, dict[str, Any]]:
     """Before inject the sweep arrives and spreads over every group member."""
     ends = _sweep_ends(problem, params)
     problem._audit_sweep = ends
-    sample = _sweep(problem, ends)
+    sample = _sweep(problem, ends, next_hops=next_hops)
     if "error" in sample:
         return False, {**ends, **sample}
-    delta = sample["egress_delta"]
-    spread = all(delta[p] > 0 for p in [ends["member_port"], *ends["other_ports"]])
+    delta = sample.get("next_hop_delta") if next_hops else sample["egress_delta"]
+    spread = all(
+        delta.get(p, 0) > 0 for p in [ends["member_port"], *ends["other_ports"]]
+    )
     delivered = sample["delivered"] >= _SWEEP_MIN_DELIVERED * sample["flows"]
-    ok = spread and delivered and delta[_BAD_PORT] == 0
+    ok = spread and delivered and sample["egress_delta"][_BAD_PORT] == 0
     return ok, {**ends, **sample, "spread": spread}
 
 
-def _faulted_sweep(problem: Any, params: Any) -> tuple[dict, dict]:
+def ecmp_sweep_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Every member's next hop receives part of the sweep before inject."""
+    return _sweep_baseline(problem, params, next_hops=True)
+
+
+def selector_sweep_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Every member port carries part of the sweep before inject."""
+    return _sweep_baseline(problem, params, next_hops=False)
+
+
+def _faulted_sweep(
+    problem: Any, params: Any, *, next_hops: bool = False
+) -> tuple[dict, dict]:
     ends = getattr(problem, "_audit_sweep", None) or _sweep_ends(problem, params)
-    return ends, _sweep(problem, ends)
+    return ends, _sweep(problem, ends, next_hops=next_hops)
+
+
+# A member's next hop that still receives this many sweep packets is in use.
+_IDLE_MAX_PACKETS = 2
 
 
 def ecmp_member_missing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The removed member's uplink carries no flow; the others deliver all."""
-    ends, sample = _faulted_sweep(problem, params)
+    """The removed member's next hop receives none of the sweep; nothing is lost.
+
+    Observed on the next-hop switches: the remaining members' next hops absorb
+    every flow while the removed member's healthy next hop sees none.
+    """
+    ends, sample = _faulted_sweep(problem, params, next_hops=True)
     if "error" in sample:
         return False, {**ends, **sample}
-    delta = sample["egress_delta"]
-    removed_idle = delta[ends["member_port"]] == 0
+    delta = sample["next_hop_delta"]
+    removed_idle = delta.get(ends["member_port"], 0) <= _IDLE_MAX_PACKETS
     control_ok = (
-        all(delta[p] > 0 for p in ends["other_ports"])
+        all(delta.get(p, 0) > _IDLE_MAX_PACKETS for p in ends["other_ports"])
         and sample["delivered"] >= _SWEEP_MIN_DELIVERED * sample["flows"]
     )
     verified = removed_idle and control_ok
@@ -169,7 +234,7 @@ def ecmp_member_missing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
         details={
             **ends,
             **sample,
-            "removed_member_idle": removed_idle,
+            "removed_next_hop_idle": removed_idle,
             "control_ok": control_ok,
         },
     )
@@ -321,4 +386,114 @@ def table_exhaustion(problem: Any, params: Any) -> tuple[bool, dict]:
         fault_type=problem.root_cause_name,
         verified=verified,
         details={**details, "rejected": rejected, "at_capacity": at_capacity},
+    )
+
+
+# The partial batch leaves two routes on each other's groups: traffic for the
+# multi-path route is handed to the local host, and traffic for that host
+# loops between the switch and its uplinks until the TTL runs out. The host
+# captures inbound only: a backend legitimately sends to the victim address.
+_CROSS_PINGS = 10
+_CROSS_HTTP_TRIES = 4
+_CROSS_LOG = "/tmp/nika-audit-cross.log"
+_CROSS_PID = "/tmp/nika-audit-cross.pid"
+_CROSS_MAX_LOSS = 10.0
+_CROSS_MIN_LOSS = 90.0
+
+
+def _crossed_reading(problem: Any, params: Any) -> dict[str, Any]:
+    """Probe both routes and an untouched one; capture victim traffic on the host."""
+    runtime = problem.runtime
+    pair = partial_write_routes(load_intent(runtime), params.host_name)
+    path = get_probe_path(
+        problem.scenario_name or "", topo_size=problem.net_env.model.topo_size
+    )
+    if path is None or not path.http_url:
+        return {**pair, "error": "no_probe_path"}
+    started = runtime.exec(
+        pair["host"],
+        f"rm -f {_CROSS_LOG}; nohup timeout 120 tcpdump -Q in -lni any "
+        f"dst host {pair['victim_ip']} >{_CROSS_LOG} 2>/dev/null </dev/null & "
+        f"echo $! > {_CROSS_PID}; sleep 1; kill -0 $(cat {_CROSS_PID}) && echo capturing",
+        timeout=20,
+    )
+    try:
+        if started.strip() != "capturing":
+            return {**pair, "error": f"capture did not start: {started[:300]}"}
+        http = [
+            http_ok(runtime, path.src_host, path.http_url)
+            for _ in range(_CROSS_HTTP_TRIES)
+        ]
+        victim = ping_stats(
+            runtime, pair["sender"], pair["victim_ip"], count=_CROSS_PINGS
+        )
+        host = ping_stats(runtime, pair["control"], pair["host_ip"], count=_CROSS_PINGS)
+        control = ping_stats(
+            runtime, pair["sender"], pair["control_ip"], count=_CROSS_PINGS
+        )
+        time.sleep(1)
+        captured = runtime.exec(
+            pair["host"],
+            f"kill $(cat {_CROSS_PID}) 2>/dev/null; sleep 0.5; grep -c . {_CROSS_LOG}",
+            timeout=20,
+        )
+    finally:
+        runtime.exec(pair["host"], f"rm -f {_CROSS_LOG} {_CROSS_PID}", timeout=20)
+    if not captured.strip().isdigit():
+        return {**pair, "error": f"capture unreadable: {captured[:300]}"}
+    return {
+        **pair,
+        "http_src": path.src_host,
+        "http_url": path.http_url,
+        "http_ok": sum(http),
+        "http_tries": len(http),
+        "victim_loss_percent": victim.loss_percent,
+        "host_loss_percent": host.loss_percent,
+        "control_loss_percent": control.loss_percent,
+        "victim_packets_at_host": int(captured.strip()),
+    }
+
+
+def crossed_routes_baseline(problem: Any, params: Any) -> tuple[bool, dict]:
+    """Healthy: both routes and the control deliver; the host sees no victim traffic."""
+    reading = _crossed_reading(problem, params)
+    ok = (
+        "error" not in reading
+        and reading["http_ok"] == reading["http_tries"]
+        and reading["victim_loss_percent"] <= _CROSS_MAX_LOSS
+        and reading["host_loss_percent"] <= _CROSS_MAX_LOSS
+        and reading["control_loss_percent"] <= _CROSS_MAX_LOSS
+        and reading["victim_packets_at_host"] == 0
+    )
+    return ok, reading
+
+
+def crossed_routes(problem: Any, params: Any) -> tuple[bool, dict]:
+    """Victim traffic lands on the local host, which is itself unreachable.
+
+    A missing route only drops the victim's traffic; here the two routes'
+    next hops are exchanged, so the victim's packets arrive at the other
+    route's host and that host's own traffic never reaches it. An untouched
+    route on the same switch keeps forwarding.
+    """
+    reading = _crossed_reading(problem, params)
+    if "error" in reading:
+        return False, reading
+    victim_lost = (
+        reading["http_ok"] == 0 and reading["victim_loss_percent"] >= _CROSS_MIN_LOSS
+    )
+    misdelivered = reading["victim_packets_at_host"] > 0
+    host_lost = reading["host_loss_percent"] >= _CROSS_MIN_LOSS
+    control_ok = reading["control_loss_percent"] <= _CROSS_MAX_LOSS
+    verified = victim_lost and misdelivered and host_lost and control_ok
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            **reading,
+            "victim_lost": victim_lost,
+            "misdelivered": misdelivered,
+            "host_lost": host_lost,
+            "control_ok": control_ok,
+        },
     )

@@ -1,6 +1,7 @@
 """Static forwarding-state failure implementations."""
 
 import ipaddress
+import json
 import re
 
 from pydantic import BaseModel, Field
@@ -9,10 +10,7 @@ from nika.problems.support.benchmark_targets import (
     access_router_victim,
     require_role_member,
 )
-from nika.problems.support.inject_resolve import (
-    resolve_victim_host,
-    resolve_victim_host_ip,
-)
+from nika.problems.support.inject_resolve import resolve_victim_host_ip
 
 from nika.problems.rca import node_resource
 
@@ -48,6 +46,8 @@ def _is_endpoint_host(name: str, *, kind: str = "") -> bool:
 
 class StaticBlackHole(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_static_blackhole"
     description = "A static blackhole route drops traffic to a prefix locally."
     TAGS: str = ["bgp"]
@@ -116,86 +116,58 @@ class StaticBlackHole(ProblemBase):
             return None
         return str(ipaddress.ip_network(ip, strict=False))
 
-    def _dataplane_host_ip(self, host: str) -> str | None:
-        if hasattr(self.runtime, "get_data_plane_host_ip"):
-            ip = self.runtime.get_data_plane_host_ip(host, with_prefix=False)
-            if ip:
-                return ip
-        return self.runtime.get_host_ip(host, with_prefix=False)
+    def blackhole_network(self, params: StaticBlackHoleParams) -> str:
+        """Return the remote prefix inject blackholes, read from the live router.
+
+        Prefer a BGP-learned remote prefix so traffic forwarded by this router
+        toward that prefix is dropped. Local attached subnets often stay
+        on-link and never hit a blackhole installed for them.
+        """
+        if self.lab_backend == "kathara":
+            bgp_routes = self.runtime.exec(
+                params.host_name, "ip -4 route show proto bgp 2>/dev/null || true"
+            )
+            remote_cidr = _first_bgp_prefix(bgp_routes)
+            if remote_cidr is not None:
+                return remote_cidr
+        connected = set(self.runtime.get_connected_devices(params.host_name) or [])
+        for host in self._endpoint_hosts():
+            if host in connected or host == params.host_name:
+                continue
+            cidr = self._dataplane_cidr(host)
+            if cidr:
+                return cidr
+        return str(
+            ipaddress.ip_network(
+                resolve_victim_host_ip(self.runtime, params.host_name), strict=False
+            )
+        )
+
+    def attached_hosts(self, params: StaticBlackHoleParams) -> list[str]:
+        """Return the end hosts attached to the router, whose traffic it forwards."""
+        connected = set(self.runtime.get_connected_devices(params.host_name) or [])
+        candidates = self._endpoint_hosts() + list(
+            (self.net_env.servers or {}).get("dns") or []
+        )
+        local = sorted(set(candidates) & connected)
+        return local or sorted(h for h in connected if _is_endpoint_host(h))
 
     def inject_fault(self, params: StaticBlackHoleParams):
-        # Prefer a BGP-learned remote prefix so traffic forwarded by this router
-        # toward that prefix is dropped. Local attached subnets often stay
-        # on-link and never hit a blackhole installed for them.
-        remote_cidr: str | None = None
-        match self.lab_backend:
-            case "kathara":
-                bgp_routes = self.runtime.exec(
-                    params.host_name, "ip -4 route show proto bgp 2>/dev/null || true"
-                )
-                remote_cidr = _first_bgp_prefix(bgp_routes)
-            case "containerlab":
-                remote_cidr = None
-            case _:
-                remote_cidr = None
-
-        connected = set(self.runtime.get_connected_devices(params.host_name) or [])
-        if remote_cidr is None:
-            for host in self._endpoint_hosts():
-                if host in connected or host == params.host_name:
-                    continue
-                cidr = self._dataplane_cidr(host)
-                if cidr:
-                    remote_cidr = cidr
-                    self.victim_device = host
-                    break
-        if remote_cidr is None:
-            self.victim_device = resolve_victim_host(self.runtime, params.host_name)
-            host_network = ipaddress.ip_network(
-                resolve_victim_host_ip(self.runtime, params.host_name),
-                strict=False,
-            )
-            remote_cidr = str(host_network)
-        else:
-            host_network = ipaddress.ip_network(remote_cidr, strict=False)
-        self._blackhole_network = remote_cidr
-        # Prefer probing from a locally attached endpoint through this router.
-        local_src = next(
-            (
-                h
-                for h in self._endpoint_hosts()
-                + list((self.net_env.servers or {}).get("dns") or [])
-                if h in connected
-            ),
-            None,
-        )
-        if local_src is None:
-            local_src = next(
-                (h for h in connected if _is_endpoint_host(h)),
-                None,
-            )
-        # Probe a real host address in the blackholed prefix (not network+2,
-        # which is often outside a /31 or an SRL interface that never answers).
-        probe_dst = None
-        victim = getattr(self, "victim_device", None)
-        if victim:
-            probe_dst = self._dataplane_host_ip(victim)
-        if not probe_dst:
-            hosts_in_net = list(host_network.hosts())
-            probe_dst = str(
-                hosts_in_net[-1] if hosts_in_net else host_network.network_address + 1
-            )
-        self._probe_dst = probe_dst
-        self._probe_src = local_src
+        self._blackhole_network = self.blackhole_network(params)
+        host_network = ipaddress.ip_network(self._blackhole_network, strict=False)
         match self.lab_backend:
             case "containerlab":
                 self.runtime.srl_add_blackhole_static(
                     params.host_name, self._blackhole_network
                 )
             case "kathara":
-                self.runtime.exec(
-                    params.host_name, f"ip route replace blackhole {host_network}"
-                )
+                # A VRF router forwards end-host traffic from the VRF's table,
+                # so the blackhole goes into every table that routes the prefix.
+                for table in self._tables_routing(params.host_name, host_network):
+                    self.runtime.exec(
+                        params.host_name,
+                        f"ip route replace blackhole {host_network} table {table}",
+                    )
             case backend:
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
@@ -203,6 +175,17 @@ class StaticBlackHole(ProblemBase):
         self.logger.info(
             f"Injected addition of blackhole route {host_network} on {params.host_name}."
         )
+
+    def _tables_routing(self, router: str, network) -> list[str]:
+        output = self.runtime.exec(
+            router, f"ip -j route show table all {network} 2>/dev/null"
+        )
+        try:
+            rows = json.loads(output or "[]")
+        except json.JSONDecodeError:
+            rows = []
+        tables = {str(row.get("table") or "main") for row in rows}
+        return sorted(tables | {"main"})
 
     def verify_fault(self, params: StaticBlackHoleParams) -> dict:
         """Verify a blackhole route for the victim's network exists."""
@@ -226,7 +209,7 @@ class StaticBlackHole(ProblemBase):
                 )
             case "kathara":
                 route_output = self.runtime.exec(
-                    params.host_name, "ip route show"
+                    params.host_name, "ip route show table all type blackhole"
                 ).strip()
                 verified = (
                     f"blackhole {host_network}" in route_output

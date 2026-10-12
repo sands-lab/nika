@@ -18,9 +18,15 @@ from nika.net_env.p4_dc_gateway.topology_model import (
     COLLECTOR_IMAGE,
     COLLECTOR_TELEMETRY_IP,
     CONTROLLER_IMAGE,
+    CONNECTION_LEARNING_DELAY_MS,
     CONTROLLER_OOB_IP,
+    LB_AGENT,
+    LB_AGENT_CONFIG,
+    LB_AGENT_STATUS,
     NGINX_IMAGE,
     SWITCH_IMAGE,
+    VIP_IP,
+    VIP_PORT,
     VIRTUAL_ROUTER_MAC,
     GatewayFabricModel,
     TopoSize,
@@ -138,6 +144,16 @@ class P4DcGateway(NetworkEnvBase):
                 f"--ports '{json.dumps(port_map)}' "
                 ">/tmp/hop-exporter.log 2>&1 &"
             )
+            if info.role == "gateway":
+                machine.create_file_from_path(str(_PKG / "lb_agent.py"), "lb_agent.py")
+                cmds.append(
+                    f"python3 {LB_AGENT} serve --device-id {info.device_id} "
+                    f"--vip {VIP_IP} --vip-port {VIP_PORT} "
+                    f"--learning-delay-ms {CONNECTION_LEARNING_DELAY_MS} "
+                    f"--config {LB_AGENT_CONFIG} --status {LB_AGENT_STATUS} "
+                    f"--ports '{json.dumps(sorted(port_map))}' "
+                    ">/tmp/lb-agent.log 2>&1 &"
+                )
             self.lab.create_file_from_list(cmds, f"{name}.startup")
 
         for item in self.model.endpoints:
@@ -207,12 +223,17 @@ class P4DcGateway(NetworkEnvBase):
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        model = build_gateway_fabric_model(
+            topo_size if topo_size in {"s", "m", "l"} else "s"
+        )
         return ProbePath(
-            src_host="client_1",
-            dst_ip="20.0.0.1",
-            http_url="http://20.0.0.1/",
-            control_plane_host="gateway_1",
-            peer_host="client_2",
+            src_host=model.clients[0].name,
+            dst_ip=VIP_IP,
+            http_url=f"http://{VIP_IP}/",
+            control_plane_host=model.clients[0].attached_switch,
+            peer_host=model.clients[1].name,
+            # The VIP answers TCP only; its first backend answers ICMP.
+            icmp_ip=model.backend_pool[0].ip,
         )
 
     def startup_verify_lab(self) -> dict:
