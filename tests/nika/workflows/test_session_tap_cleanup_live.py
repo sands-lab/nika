@@ -41,28 +41,28 @@ def test_close_cleans_detached_tap_and_preserves_sibling_session(tmp_path) -> No
         peer_env = get_net_env_instance("simple_bgp", lab_name=sibling["lab_name"])
         peer_runtime = peer_env._build_runtime()
 
-        # Reproduce an interface stranded on the host after namespace loss.
-        # Use the real TAP created by the session, not a synthetic replacement.
-        for owner_runtime, node, suffix in (
-            (runtime, "router1", "a"),
-            (peer_runtime, "pc2", "b"),
-        ):
-            container = owner_runtime.get_container(node)
+        # Strand actual session TAPs on the host to exercise the cleanup path.
+        for owner_runtime, suffix in ((runtime, "a"), (peer_runtime, "b")):
+            container = owner_runtime.get_container("pc2")
             container.reload()
-            pid = container.attrs["State"]["Pid"]
             name = f"tap{token}{suffix}"
+            owner_runtime.exec(
+                "pc2", f"ip link set eth0 down; ip link set eth0 name {name}"
+            )
             subprocess.run(
                 [
                     "sudo",
                     "-n",
                     "nsenter",
                     "-t",
-                    str(pid),
+                    str(container.attrs["State"]["Pid"]),
                     "-n",
-                    "sh",
-                    "-ec",
-                    f"ip link set eth0 down; ip link set eth0 name {name}; "
-                    f"ip link set {name} netns 1",
+                    "ip",
+                    "link",
+                    "set",
+                    name,
+                    "netns",
+                    "1",
                 ],
                 check=True,
                 capture_output=True,
@@ -80,6 +80,7 @@ def test_close_cleans_detached_tap_and_preserves_sibling_session(tmp_path) -> No
         assert "0% packet loss" in peer_runtime.exec(
             "router1", "ping -c 2 -W 2 193.10.11.2"
         )
+        assert not peer_runtime.interface_exists("pc2", "eth0")
         close_session(session_id=sessions[1])
         assert not peer_runtime.has_leftover_resources()
     finally:

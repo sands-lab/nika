@@ -65,7 +65,12 @@ def cleanup_host_taps(lab_name: str) -> None:
     links = owned_host_taps(lab_name)
     if not links:
         return
-    from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+    from nika.net_env.utils.kathara.docker_files.docker_images import (
+        ensure_nika_docker_images,
+        nika_image,
+    )
+
+    ensure_nika_docker_images([nika_image("base")])
 
     # Recheck the alias and kernel identity immediately before each deletion.
     # A helper avoids adding a host-sudo requirement to Kathara deployments.

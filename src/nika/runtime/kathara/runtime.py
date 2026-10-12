@@ -199,7 +199,14 @@ class KatharaRuntime(LabRuntime):
         # Enroll older sessions after lifting CPU caps so Docker exec can run.
         for container in self._machine_containers():
             if container.status == "running":
-                record_container_taps(container, self.lab_name)
+                try:
+                    record_container_taps(container, self.lab_name)
+                except Exception as exc:
+                    log_error_event(
+                        "tap_ownership_error",
+                        f"Could not record TAPs before closing {self.lab_name}: {exc}",
+                        lab_name=self.lab_name,
+                    )
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:
