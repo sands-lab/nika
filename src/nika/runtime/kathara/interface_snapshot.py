@@ -26,6 +26,9 @@ class LinkAttachmentState:
     addresses: tuple[str, ...]
     routes: tuple[dict, ...] = ()
     neighbors: tuple[dict, ...] = ()
+    # OpenFlow port number of an Open vSwitch port. Controller flows name it, so
+    # the re-created NIC must get the same number back.
+    ofport: int | None = None
 
 
 def capture_link_state(
@@ -44,6 +47,7 @@ def capture_link_state(
         addresses=_addresses(runtime, node, intf),
         routes=_routes(runtime, node, intf),
         neighbors=_neighbors(runtime, node, intf),
+        ofport=_ofport(runtime, node, intf) if master == "ovs-system" else None,
     )
 
 
@@ -76,7 +80,14 @@ def restore_link_state(runtime: LabRuntime, state: LinkAttachmentState) -> None:
                 f"ip link set dev {current} name {state.intf}",
             )
         runtime.exec(state.node, f"ip link set dev {state.intf} mtu {state.mtu}")
-        if state.master:
+        if state.ofport is not None:
+            # Open vSwitch re-adds the port by name but assigns the next free
+            # OpenFlow number, which the controller's flows do not match.
+            runtime.exec(
+                state.node,
+                f"ovs-vsctl set Interface {state.intf} ofport_request={state.ofport}",
+            )
+        elif state.master:
             runtime.exec(
                 state.node,
                 f"ip link set dev {state.intf} master {state.master}",
@@ -182,6 +193,11 @@ def restart_bmv2_dataplane(runtime: LabRuntime, node: str) -> None:
     runtime.exec(node, f"nohup {line} >> sw.log 2>&1 &", timeout=10)
     wait_for_bmv2_dataplane(runtime, [node])
     wait_for_bmv2_grpc_listen(runtime, [node])
+
+
+def _ofport(runtime: LabRuntime, node: str, intf: str) -> int | None:
+    output = runtime.exec(node, f"ovs-vsctl get Interface {intf} ofport").strip()
+    return int(output) if output.isdigit() else None
 
 
 def _neighbors(runtime: LabRuntime, node: str, intf: str) -> tuple[dict, ...]:

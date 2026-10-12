@@ -20,6 +20,8 @@ class Bmv2SwitchDownParams(BaseModel):
 
 class Bmv2SwitchDown(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_http"
+    symptom_class = "unreachable"
     root_cause_name = "bmv2_switch_down"
     description = "BMv2 switch dataplane process is down."
     TAGS: str = ["p4"]

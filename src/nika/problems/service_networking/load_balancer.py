@@ -40,8 +40,11 @@ _VIP_PING_HOST = "web99.local"
 # Pinned LB under ab flood typically lands ~0.7–0.9 of quota; 0.80 was flaky.
 _NGINX_CPU_MIN_RATIO = 0.65
 # The release pin of 0.2 CPU is wider than the ab flood on this nginx.
-# Cap the applied quota so that flood fills the slice.
-_APPLIED_QUOTA_CAP = 0.05
+# Cap the applied quota so that flood fills the slice. At 0.05 CPU nginx still
+# serves ~120 req/s (~2.5 kpps per hop), which saturates the emulated links on
+# the flood path, so the shared farm uplink congested and slowed web0 as well;
+# at 0.02 CPU (~600 pps) the LB accept queue is the only bottleneck.
+_APPLIED_QUOTA_CAP = 0.02
 _VIP_TAIL_MIN_RATIO = 2.0
 # web0 shares the campus farm uplink with VIP flood traffic, so mild inflation
 # is expected. Require success and that control stays clearly healthier than VIP.
@@ -128,6 +131,9 @@ class LoadBalancerOverloadParams(BaseModel):
 
 class LoadBalancerOverload(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "load_balancer_overload"
     description = "Software load balancer is overloaded by offered HTTP load."
     TAGS: list[str] = ["load_balancer", "http"]

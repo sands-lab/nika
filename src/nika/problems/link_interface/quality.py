@@ -44,6 +44,8 @@ class LinkPacketCorruptionParams(BaseModel):
 
 class LinkPacketCorruption(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "degradation"
     root_cause_name: str = "link_packet_corruption"
     description = "A faulty link corrupts a fraction of the frames it carries."
     TAGS: str = ["link"]

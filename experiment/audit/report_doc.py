@@ -6,19 +6,29 @@ execute stays ``not_run``. That status is not a pass.
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections import Counter
+import os
 from pathlib import Path
 
 from experiment.audit.coverage import cover_release, gap_count, release_cases
 from experiment.audit.environment import CaseAudit, identity_from_row
 from experiment.audit.provenance import provenance_complete
-from experiment.audit.live import declared_probe
+from experiment.audit.live import (
+    FINAL_WAIT_SEC,
+    PERSISTENCE_WAIT_SEC,
+    declared_probe,
+)
 
 DOC_PATH = (
     Path(__file__).resolve().parents[2] / "docs" / "benchmarks" / "benchmark-audit.md"
 )
-RESULTS_DIR = DOC_PATH.parents[2] / "runtime" / "environment-audit-results"
+# One directory per audit run; NIKA_AUDIT_RESULTS_DIR points it elsewhere.
+RESULTS_DIR = Path(
+    os.environ.get("NIKA_AUDIT_RESULTS_DIR")
+    or DOC_PATH.parents[2] / "runtime" / "environment-audit-results"
+)
 
 
 def _design(identity) -> str:
@@ -40,19 +50,64 @@ def _inject(identity) -> str:
     return ", ".join(f"{key}={identity.inject[key]}" for key in sorted(identity.inject))
 
 
+# What each shared contract probe checks; custom probes describe themselves
+# in their handler's docstring.
+_PROBE_SUMMARY = {
+    "path_ping": "Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up.",
+    "path_http": "HTTP on the scenario probe path works before inject and fails after; the control path, if any, stays up.",
+    "http_by_name": "Fetching the service by name works before inject and fails after.",
+    "isolation_http": "The isolated path stops answering HTTP while a control path still answers.",
+}
+
+
+_CLASS_SUMMARY = {
+    "unreachable": "Traffic or a service that worked before inject stops working.",
+    "control_plane": "A protocol session, route, or forwarding table changes; traffic may still flow.",
+    "degradation": "Throughput, latency, or success rate gets far worse; traffic still flows.",
+    "gray": "Part of the traffic is lost or corrupted.",
+    "loss": "Packets are lost on the faulted path.",
+    "latency": "Packets are delayed on the faulted path.",
+    "isolation": "One path is cut off while a control path keeps working.",
+    "healthy": "No fault: the lab must pass its scenario checks.",
+}
+
+
+def _symptom_class(fault: str) -> str:
+    from nika.problems.registry import get_problem_class
+
+    cls = get_problem_class(fault)
+    return str(getattr(cls, "symptom_class", "") or "healthy") if cls else "healthy"
+
+
+def _symptom_summary(fault: str, probe: str) -> str:
+    """One line on what the audit checks for this case."""
+    if not probe:
+        return "Healthy lab: the scenario checks pass, no symptom."
+    if probe == "custom":
+        from nika.validation.symptom.custom import _CUSTOM
+
+        doc = inspect.getdoc(_CUSTOM.get(fault)) or ""
+        return doc.split("\n\n")[0].replace("\n", " ") or "custom"
+    return _PROBE_SUMMARY.get(probe, probe)
+
+
 def _cell(value: str) -> str:
     return value.replace("|", "\\|")
 
 
-def load_stored_records() -> list[dict]:
-    """Return stored full-audit records. Missing files yield an empty list."""
+def load_stored_records(*, allow_dirty: bool = False) -> list[dict]:
+    """Return stored records; records from uncommitted edits are left out."""
     if not RESULTS_DIR.is_dir():
         return []
     records: list[dict] = []
     for path in sorted(RESULTS_DIR.glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(payload, dict) and isinstance(payload.get("audit"), dict):
-            records.append(payload)
+        if not isinstance(payload, dict) or not isinstance(payload.get("audit"), dict):
+            continue
+        provenance = payload["audit"].get("provenance") or {}
+        if provenance.get("git_dirty") and not allow_dirty:
+            continue
+        records.append(payload)
     return records
 
 
@@ -61,9 +116,14 @@ def render_benchmark_audit_doc(
     version: str = "0.2.0",
     audits: list[CaseAudit] | None = None,
     records: list[dict] | None = None,
+    allow_dirty: bool = False,
 ) -> str:
     """Return the reference page for release ``version``."""
-    stored = load_stored_records() if records is None and audits is None else records
+    stored = (
+        load_stored_records(allow_dirty=allow_dirty)
+        if records is None and audits is None
+        else records
+    )
     stored = [
         item
         for item in (stored or [])
@@ -82,7 +142,7 @@ def render_benchmark_audit_doc(
     live = list(audits or [])
     covered = cover_release(rows, live)
     counts = gap_count(covered)
-    probes = Counter(str(item["symptom_probe"] or "healthy") for item in covered)
+    classes = Counter(_symptom_class(item["identity"].fault) for item in covered)
     lines = [
         "# Benchmark audit",
         "",
@@ -101,19 +161,19 @@ def render_benchmark_audit_doc(
         "| --- | --- |",
     ]
     for status in ("pass", "fail", "skipped", "unsupported", "no_evidence", "not_run"):
-        lines.append(f"| `{status}` | {counts[status]} |")
+        if counts[status]:
+            lines.append(f"| `{status}` | {counts[status]} |")
     lines.extend(
         [
             "",
-            "Each case declares one symptom probe. The probe decides what the audit measures after inject.",
+            "Each fault declares the kind of symptom it must cause. The Symptom checked column in [Cases](#cases) says what the audit measures for each case.",
             "",
-            "| Probe | Cases |",
-            "| --- | --- |",
+            "| Symptom kind | Meaning | Cases |",
+            "| --- | --- | --- |",
         ]
     )
-    for probe, count in sorted(probes.items()):
-        label = probe or "healthy"
-        lines.append(f"| `{label}` | {count} |")
+    for kind, count in sorted(classes.items(), key=lambda kv: -kv[1]):
+        lines.append(f"| `{kind}` | {_CLASS_SUMMARY.get(kind, '')} | {count} |")
     lines.extend(_environment_section(stored or []))
     lines.extend(_procedure_section())
     lines.extend(_run_section())
@@ -136,15 +196,15 @@ def render_benchmark_audit_doc(
             [
                 f"### `{scenario}`",
                 "",
-                "| Split | Fault | Scale | Backend | Design | Inject | Symptom probe | Admission |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Split | Fault | Scale | Backend | Design | Inject | Symptom checked | Repeats passed | Admission |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for item in items:
             identity = item["identity"]
             backend = identity.backend or "scenario default"
             scale = identity.topo_size or "none"
-            probe = item["symptom_probe"] or "healthy"
+            probe = _symptom_summary(identity.fault, item["symptom_probe"])
             lines.append(
                 "| "
                 + " | ".join(
@@ -157,14 +217,18 @@ def render_benchmark_audit_doc(
                         _design(identity),
                         _inject(identity),
                         probe,
+                        f"{item['repeats_passed']}/{item['repeats']}",
                         str(item["admission"]),
                     )
                 )
                 + " |"
             )
         lines.append("")
-    lines.append("Rows with admission `not_run` are coverage gaps for the full audit.")
-    lines.append("")
+    if counts["not_run"]:
+        lines.append(
+            "Rows with admission `not_run` are coverage gaps for the full audit."
+        )
+        lines.append("")
     lines.extend(
         _inspect_section(
             [
@@ -350,14 +414,17 @@ def _procedure_section() -> list[str]:
         "",
         "1. Deploy the lab with `start_net_env`, using the case scenario, scale, backend, and design options.",
         "2. Run the scenario health checks (`verify_lab`). This is stage `baseline_lab`.",
-        "3. Probe the fault path while the lab is healthy. This is stage `baseline_path`. It shows that the symptom probe sees a working path before inject.",
-        "4. Inject the fault with the case inject parameters and run `verify_fault`. This is stage `inject_artifact`.",
-        "5. Run the declared symptom probe (stage `symptom`) and a control path that avoids the root cause (stage `control_path`).",
-        "6. Wait for the persistence window, then read the fault artifact and the symptom again (stages `persistence_artifact` and `persistence_symptom`).",
-        "7. Read the artifact and the symptom once more (stages `final_artifact` and `final_symptom`).",
-        "8. Undeploy the lab with `close_session`, even when a stage fails.",
+        "3. Measure the symptom signal while the lab is healthy. This is stage `baseline_path`. It reads the same metric, on the same path, that the symptom probe compares against after inject. A fault without such a baseline is `unsupported`.",
+        "4. Negative control: evaluate the symptom predicate on the healthy lab, before inject. This is stage `sham_symptom`, and it passes only when the predicate does not hold. A predicate that fires on a healthy lab cannot show that the fault caused the symptom.",
+        "5. Inject the fault with the case inject parameters and run `verify_fault`. This is stage `inject_artifact`.",
+        "6. Run the declared symptom probe (stage `symptom`) and a control path that avoids the root cause (stage `control_path`).",
+        f"7. Wait {PERSISTENCE_WAIT_SEC:g} s, then read the fault artifact and the symptom again (stages `persistence_artifact` and `persistence_symptom`).",
+        f"8. Wait {FINAL_WAIT_SEC:g} s more and read both once more (stages `final_artifact` and `final_symptom`).",
+        "9. Undeploy the lab with `close_session`, even when a stage fails.",
         "",
-        "A `healthy` case runs `verify_lab` before and after a 2-second window and skips steps 3 to 7.",
+        f"A `healthy` case runs `verify_lab`, waits {PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC:g} s, and runs it again.",
+        "",
+        "Every stage records its start time and duration. A symptom stage in which a probe command timed out or raised is `fail`, because a timed-out command reads the same as a broken path.",
         "",
         "The control path starts from a host that is not a root-cause node, a host behind a root-cause interface or link, or an attacker or load generator named in the inject parameters.",
         "When no such path exists, the stage records `no_control_path`. That status does not block admission. A control path that exists and fails does block admission.",
@@ -375,14 +442,12 @@ def _procedure_section() -> list[str]:
         "| `skipped` | The audit ran and skipped the stage. |",
         "| `unsupported` | The fault has no behavioral check for the stage. `reason` names the scope. |",
         "| `no_evidence` | The stage produced no observation. |",
-        "| `not_run` | No complete stored result exists for this case. |",
         "",
-        "A stored result counts only when it has a finished run, a Git commit, image identities for every lab node, and the symptom probe that the fault declares today. Otherwise the case shows `not_run`.",
+        "A stored result counts only when it has a finished run, image identities for every lab node, the symptom probe that the fault declares today, and a clean, committed working tree. Each record keeps its commit and source fingerprint. A case audited with `--repeats N` passes only when all N fresh-lab runs pass. A case without such a result is not admitted.",
     ]
 
 
 def _run_section() -> list[str]:
-    from experiment.audit.live import _DYNAMIC_WINDOW_SEC
     from experiment.audit.matrix import (
         _ADMISSION_SPACING_SEC,
         _CLASS_SLOTS,
@@ -398,8 +463,8 @@ def _run_section() -> list[str]:
         "The release 0.2.0 audit used these commands:",
         "",
         "```shell",
-        "# Audit every release case and replace stored results",
-        "uv run python -m experiment.audit.matrix --jobs 8 --force",
+        "# Audit every release case three times on fresh labs, replacing stored results",
+        "uv run python -m experiment.audit.matrix --jobs 8 --repeats 3 --force",
         "",
         "# Resume after an interruption. Cases with a stored result are skipped.",
         "uv run python -m experiment.audit.matrix --jobs 8",
@@ -416,6 +481,8 @@ def _run_section() -> list[str]:
         "| `--scenario NAME` | all | Select cases of one scenario. |",
         "| `--fault NAME` | all | Select cases of one fault. |",
         "| `--resource-class CLASS` | all | Select `light`, `large`, `k8s`, or `clab` cases. |",
+        "| `--repeats N` | `1` | Run each case on N fresh labs. |",
+        "| `--allow-dirty` | off | Run on uncommitted edits. Those records never count on this page. |",
         "",
         "The command exits with status 1 when any selected case lacks a passing result.",
         "",
@@ -431,19 +498,6 @@ def _run_section() -> list[str]:
         lines.append(
             f"| `{name}` | {_CLASS_SLOTS[name]} | {_MEMORY_FLOOR_GIB[name]} GiB | {_ADMISSION_SPACING_SEC[name]} s |"
         )
-    lines.extend(
-        [
-            "",
-            "### Persistence window",
-            "",
-            "Static faults wait 2 seconds between the symptom read and the persistence read. Dynamic faults wait longer:",
-            "",
-            "| Fault | Window |",
-            "| --- | --- |",
-        ]
-    )
-    for fault, seconds in sorted(_DYNAMIC_WINDOW_SEC.items()):
-        lines.append(f"| `{fault}` | {seconds:g} s |")
     lines.extend(
         [
             "",
@@ -466,8 +520,7 @@ def _limits_section() -> list[str]:
         "",
         "## Limits",
         "",
-        "- The persistence window lasts seconds. It does not cover the 2400-second trial budget. In this release, the SYN flood, incast, and sender and receiver contention cases set `duration=3600`, and the load balancer overload workers run until recovery. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).",
-        "- The P4 gateway ECN probe counts ECN marks from a virtual queue that drains about 61 packets per second. It does not measure congestion of a physical egress queue. The `queue_occupancy` register in that scenario reports the modeled queue depth.",
+        f"- The audit observes each case for about {(PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC) / 60:g} minutes after inject. It does not cover the 2400-second trial budget. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).",
         "",
         "## Checks during a benchmark trial",
         "",
@@ -475,7 +528,7 @@ def _limits_section() -> list[str]:
         "",
         "1. `startup_verify_lab` after the lab starts.",
         "2. `verify_fault` after inject.",
-        "3. `PresenceWatch` reads the fault artifact on the problem instance that injected it: once 2 seconds after the agent starts, and once before NIKA removes the lab. For the faults in `DYNAMIC_ARTIFACT_FAULTS`, the read checks the live worker, flap, or quota.",
+        "3. `PresenceWatch` reads the fault artifact on the problem instance that injected it: once 2 seconds after the agent starts, and once before NIKA removes the lab. For faults that declare `dynamic_artifact`, the read checks the live worker, flap, or quota.",
         "",
         "The trial logs each read as a `fault_presence_recheck` event in the session log. A `present` read means the artifact was still on the lab. It does not measure the network effect.",
         "An `absent` or `error` read is only logged. It does not change the trial outcome or score, and the trial is not retried.",
@@ -483,9 +536,13 @@ def _limits_section() -> list[str]:
     ]
 
 
-def write_benchmark_audit_doc(path: Path | None = None) -> Path:
+def write_benchmark_audit_doc(
+    path: Path | None = None, *, allow_dirty: bool = False
+) -> Path:
     """Write the release audit reference and return its path."""
     target = path or DOC_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_benchmark_audit_doc(), encoding="utf-8")
+    target.write_text(
+        render_benchmark_audit_doc(allow_dirty=allow_dirty), encoding="utf-8"
+    )
     return target

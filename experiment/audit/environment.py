@@ -37,6 +37,7 @@ _REASON_STATUS: dict[str, AuditStatus] = {
     "no_probe_path": "no_evidence",
     "custom_requires_problem_instance": "no_evidence",
     "no_control_path": "unsupported",
+    "undeclared_symptom": "unsupported",
     "not_run": "not_run",
 }
 
@@ -80,6 +81,8 @@ class StageResult(BaseModel):
     status: AuditStatus
     reason: str | None = None
     evidence: dict[str, Any] = Field(default_factory=dict)
+    started_at: str | None = None
+    duration_sec: float | None = None
 
 
 class CaseAudit(BaseModel):
@@ -97,6 +100,7 @@ class CaseAudit(BaseModel):
             else {
                 "baseline_lab",
                 "baseline_path",
+                "sham_symptom",
                 "inject_artifact",
                 "symptom",
                 "persistence_artifact",
@@ -105,9 +109,10 @@ class CaseAudit(BaseModel):
                 "final_symptom",
             }
         )
-        # A separate sibling path is useful evidence when available. Some
-        # faults have no independent sibling; their healthy baseline and
-        # repeated symptom observations still establish the network effect.
+        # A control path is required when the topology has one. When every
+        # peer path crosses the root cause, the stage records no_control_path
+        # with the reason, and the baseline, negative control, and repeated
+        # symptom reads still establish the effect.
         required = [
             stage.status
             for stage in self.stages
@@ -150,7 +155,7 @@ def classify_observation(
     if payload.get("skipped") or reason_text in _REASON_STATUS:
         key = reason_text or "skipped"
         return _REASON_STATUS.get(key, "skipped"), key
-    error = payload.get("error")
+    error = payload.get("error") or _nested_error(payload)
     if error:
         error_text = str(error)
         mapped = _REASON_STATUS.get(error_text)
@@ -161,9 +166,16 @@ def classify_observation(
         return "fail", "observation failed"
     if ok is True or payload.get("verified") is True:
         return "pass", None
-    if "comparison" in payload or "checks" in payload:
-        return "pass", None
     return "no_evidence", "missing observation"
+
+
+def _nested_error(payload: dict[str, Any]) -> str | None:
+    """An error reported by a before, after, or details snapshot."""
+    for key in ("before", "after", "details"):
+        inner = payload.get(key)
+        if isinstance(inner, dict) and inner.get("error"):
+            return str(inner["error"])
+    return None
 
 
 def identity_from_row(row: dict[str, Any]) -> CaseIdentity:

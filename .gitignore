@@ -40,3 +40,4 @@ config/**
 !config/**/
 !config/**/*.example.yaml
 !config/**/*.example.yml
+.nika_cache

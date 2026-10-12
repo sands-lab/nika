@@ -18,10 +18,8 @@ from nika.problems.support.benchmark_targets import (
     prefer_named,
     resolve_link_flap_params,
 )
-from nika.net_env.net_env_pool import get_probe_path
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
-from nika.traffic.burst import BurstTrafficGenerator
 from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption_bpf import (
     SwitchNamespaceBitflip,
 )
@@ -173,6 +171,8 @@ class DeviceForwardingPacketCorruption(ProblemBase):
     """Inject a payload bitflip after a fabric node forwards a TCP packet."""
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "device_forwarding_packet_corruption"
     description = "A forwarding device silently corrupts selected packets."
     symptom_desc = (
@@ -222,7 +222,6 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         self._bitflip_token = SwitchNamespaceBitflip(self.runtime).attach(
             params.forwarding_device, params.intf_name, params.seed
         )
-        self._start_cross_leaf_workload(params.seed)
 
     def verify_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
         return build_verify_result(
@@ -243,12 +242,6 @@ class DeviceForwardingPacketCorruption(ProblemBase):
             params.intf_name,
             getattr(self, "_bitflip_token", None),
         )
-        # Stop the 60 s cross-leaf burst so the restored path is not congested.
-        for host in getattr(self, "_workload_hosts", ()):
-            try:
-                self.runtime.exec(host, "pkill -f 'iperf3' >/dev/null 2>&1 || true")
-            except Exception:  # noqa: BLE001
-                pass
         return {
             "verified": not injector.attached(
                 params.forwarding_device, params.intf_name
@@ -258,42 +251,3 @@ class DeviceForwardingPacketCorruption(ProblemBase):
                 "intf": params.intf_name,
             },
         }
-
-    def _start_cross_leaf_workload(self, seed: int) -> None:
-        """Generate stable TCP tuples on the default probe path."""
-        scenario = getattr(self, "scenario_name", None) or ""
-        topo_size = getattr(self.net_env, "topo_size", None) or "s"
-        path = get_probe_path(scenario, topo_size=topo_size)
-        if path is not None and path.peer_host and path.peer_host != path.src_host:
-            self._workload_hosts = (path.src_host, path.peer_host)
-            BurstTrafficGenerator(self.runtime).run(
-                sources=[path.src_host],
-                destination=path.peer_host,
-                protocol="tcp",
-                rate="10M",
-                packet_size=1200,
-                duration=60,
-                synchronized_start=0,
-                seed=seed,
-                flows_per_source=24,
-            )
-            return
-        hosts = sorted(
-            name
-            for name, identity in self.net_env.machine_identities.items()
-            if identity.role is NodeRole.HOST
-        )
-        if len(hosts) < 2:
-            return
-        self._workload_hosts = (hosts[0], hosts[-1])
-        BurstTrafficGenerator(self.runtime).run(
-            sources=[hosts[0]],
-            destination=hosts[-1],
-            protocol="tcp",
-            rate="10M",
-            packet_size=1200,
-            duration=60,
-            synchronized_start=0,
-            seed=seed,
-            flows_per_source=24,
-        )

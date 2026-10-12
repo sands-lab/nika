@@ -70,6 +70,8 @@ class VrfDscpRemarking(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "degradation"
     root_cause_name: str = "vrf_dscp_remarking"
     root_cause_owner = "interface"
     description = "VRF edge incorrectly remarks high-priority DSCP."

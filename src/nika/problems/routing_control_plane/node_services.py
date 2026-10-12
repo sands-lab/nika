@@ -26,6 +26,8 @@ class FrrDown(ProblemBase):
     """FRR device down problem."""
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "frr_service_down"
     description = "FRR routing daemon is unavailable."
     TAGS: str = ["frr"]

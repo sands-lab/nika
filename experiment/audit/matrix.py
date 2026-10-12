@@ -24,6 +24,7 @@ from typing import IO, Any
 
 from experiment.audit.environment import CaseAudit, StageResult, identity_from_row
 from experiment.audit.provenance import provenance_complete
+from nika.workflows.benchmark.release import read_git_commit
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
@@ -86,19 +87,27 @@ def audit_plan() -> list[dict[str, Any]]:
     return plan
 
 
-def result_path(row: dict[str, Any]) -> Path:
+def result_path(row: dict[str, Any], repeat: int = 0) -> Path:
     identity = identity_from_row(row)
     digest = hashlib.sha256(identity.key().encode()).hexdigest()[:10]
-    return RESULTS_DIR / f"{identity.scenario}__{identity.fault}__{digest}.json"
+    return (
+        RESULTS_DIR / f"{identity.scenario}__{identity.fault}__{digest}__r{repeat}.json"
+    )
 
 
-def result_current(row: dict[str, Any]) -> bool:
-    """True when a stored run used the currently declared symptom probe."""
-    path = result_path(row)
+def result_current(
+    row: dict[str, Any], repeat: int = 0, *, allow_dirty: bool = False
+) -> bool:
+    """True when a stored run audited this case with its declared probe.
+
+    Records from a dirty tree count only with ``allow_dirty``.
+    """
+    path = result_path(row, repeat)
     if not path.is_file():
         return False
     record = json.loads(path.read_text(encoding="utf-8"))
     audit = CaseAudit.model_validate(record["audit"])
+    provenance = audit.provenance
     probe = (
         ""
         if is_healthy_case(str(row["problem"]))
@@ -107,7 +116,9 @@ def result_current(row: dict[str, Any]) -> bool:
     return (
         audit.identity.key() == identity_from_row(row).key()
         and audit.symptom_probe == probe
-        and provenance_complete(audit.provenance)
+        and provenance_complete(provenance)
+        and provenance is not None
+        and (allow_dirty or not provenance.git_dirty)
     )
 
 
@@ -117,7 +128,11 @@ _ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 180, "k8s": 90}
 # Labs keep growing after admission, so heavy classes also hold a slot for the whole case.
 _CLASS_SLOTS = {"light": 8, "large": 3, "clab": 1, "k8s": 2}
 _LOAD_CEILING = 2 * (os.cpu_count() or 1)
-_ADMISSION_LOCK = RESULTS_DIR.parent / ".environment-audit-admission.lock"
+# Host-wide, so audits from several worktrees share the class slots.
+_ADMISSION_LOCK = (
+    Path(os.environ.get("NIKA_AUDIT_LOCK_DIR") or "/tmp/nika-audit-locks")
+    / "admission.lock"
+)
 
 
 def _available_gib() -> float:
@@ -145,8 +160,9 @@ def _hold_class_slot(resource_class: str) -> IO[str]:
 def wait_for_slot(row: dict[str, Any]) -> None:
     """Keep a per-class memory floor and a load ceiling while other NIKA workloads run.
 
-    Admissions are serialized and spaced so the next check sees the memory the
-    previous lab claimed while deploying.
+    Admissions are serialized. The lock file records the last admission, and
+    the next one waits out that lab's spacing before it reads memory, so the
+    check sees the memory the previous lab claimed while deploying.
     """
     resource_class = effective_class(row)
     floor = _MEMORY_FLOOR_GIB[resource_class]
@@ -154,12 +170,21 @@ def wait_for_slot(row: dict[str, Any]) -> None:
     while True:
         # Release the lock between checks so a waiting heavy lab does not block
         # smaller cases that still fit.
-        with _ADMISSION_LOCK.open("w") as lock:
+        with _ADMISSION_LOCK.open("a+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            lock.seek(0)
+            last = lock.read().split()
+            if len(last) == 2 and last[1] in _ADMISSION_SPACING_SEC:
+                settle = float(last[0]) + _ADMISSION_SPACING_SEC[last[1]] - time.time()
+                if settle > 0:
+                    time.sleep(settle)
             memory = _available_gib()
             load = os.getloadavg()[0]
             if memory >= floor and load < _LOAD_CEILING:
-                time.sleep(_ADMISSION_SPACING_SEC[resource_class])
+                lock.seek(0)
+                lock.truncate()
+                lock.write(f"{time.time()} {resource_class}")
+                lock.flush()
                 return
         print(
             f"waiting memory={memory:.1f}GiB floor={floor}GiB "
@@ -298,10 +323,7 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
         started = time.monotonic()
         error: str | None = None
         try:
-            if is_healthy_case(str(row.get("problem") or "")):
-                audit = audit_case(row, window_sec=2)
-            else:
-                audit = audit_case(row)
+            audit = audit_case(row)
         except Exception as exc:  # noqa: BLE001 - one case must not stop the matrix
             error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
             audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
@@ -314,13 +336,13 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _store(row: dict[str, Any], record: dict[str, Any]) -> None:
+def _store(row: dict[str, Any], repeat: int, record: dict[str, Any]) -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    path = result_path(row)
+    path = result_path(row, repeat)
     write_json_atomic(path, record)
     audit = CaseAudit.model_validate(record["audit"])
     print(
-        f"{audit.identity.scenario} {audit.identity.fault} "
+        f"{audit.identity.scenario} {audit.identity.fault} r{repeat} "
         f"{audit.admission()} {record['diagnosis']}",
         flush=True,
     )
@@ -334,9 +356,19 @@ def run_matrix(
     fault: str | None = None,
     resource_class: str | None = None,
     force: bool = False,
+    repeats: int = 1,
+    allow_dirty: bool = False,
 ) -> bool:
-    """Audit missing cases, or also rerun recorded non-passing cases."""
-    pending: list[dict[str, Any]] = []
+    """Audit missing cases, or also rerun recorded non-passing cases.
+
+    Each case runs ``repeats`` times on a fresh lab. A case passes only when
+    every repeat passes.
+    """
+    if not allow_dirty and read_git_commit()[1]:
+        raise SystemExit(
+            "the working tree has uncommitted changes; commit them or pass --allow-dirty"
+        )
+    pending: list[tuple[dict[str, Any], int]] = []
     selected: list[dict[str, Any]] = []
     for row in audit_plan():
         if scenario and row["scenario"] != scenario:
@@ -346,42 +378,61 @@ def run_matrix(
         if resource_class and effective_class(row) != resource_class:
             continue
         selected.append(row)
-        path = result_path(row)
-        if force or not result_current(row):
-            pending.append(row)
-        elif retry_failed:
-            record = json.loads(path.read_text(encoding="utf-8"))
-            if CaseAudit.model_validate(record["audit"]).admission() != "pass":
-                pending.append(row)
-    by_class: dict[str, list[dict[str, Any]]] = {}
-    for row in pending:
-        by_class.setdefault(effective_class(row), []).append(row)
+        if force:
+            # Repeats beyond this run's count would still feed the report.
+            for stale in result_path(row, 0).parent.glob(
+                result_path(row, 0).name.replace("__r0.json", "__r*.json")
+            ):
+                if int(stale.stem.rsplit("__r", 1)[1]) >= repeats:
+                    stale.unlink()
+        for repeat in range(repeats):
+            path = result_path(row, repeat)
+            if force or not result_current(row, repeat, allow_dirty=allow_dirty):
+                pending.append((row, repeat))
+            elif retry_failed:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                if CaseAudit.model_validate(record["audit"]).admission() != "pass":
+                    pending.append((row, repeat))
+    by_class: dict[str, list[tuple[dict[str, Any], int]]] = {}
+    for item in sorted(pending, key=lambda item: item[1]):
+        by_class.setdefault(effective_class(item[0]), []).append(item)
     # Interleave classes so workers waiting for a heavy slot do not idle the pool.
     groups = [by_class.get(name, []) for name in ("k8s", "clab", "large", "light")]
-    queue = [row for batch in zip_longest(*groups) for row in batch if row is not None]
+    queue = [
+        item for batch in zip_longest(*groups) for item in batch if item is not None
+    ]
     _run_group(queue, jobs=max(1, jobs))
     passed = 0
     for row in selected:
-        if result_current(row):
-            record = json.loads(result_path(row).read_text(encoding="utf-8"))
-            passed += CaseAudit.model_validate(record["audit"]).admission() == "pass"
+        passed += all(
+            result_current(row, repeat, allow_dirty=allow_dirty)
+            and CaseAudit.model_validate(
+                json.loads(result_path(row, repeat).read_text(encoding="utf-8"))[
+                    "audit"
+                ]
+            ).admission()
+            == "pass"
+            for repeat in range(repeats)
+        )
     print(f"Current passing audits: {passed}/{len(selected)}", flush=True)
     return bool(selected) and passed == len(selected)
 
 
-def _run_group(rows: list[dict[str, Any]], *, jobs: int) -> None:
-    if not rows:
+def _run_group(items: list[tuple[dict[str, Any], int]], *, jobs: int) -> None:
+    if not items:
         return
-    workers = 1 if jobs < 2 or len(rows) == 1 else jobs
+    workers = 1 if jobs < 2 or len(items) == 1 else jobs
     if workers == 1:
-        for row in rows:
-            _store(row, run_audit_row(row))
+        for row, repeat in items:
+            _store(row, repeat, run_audit_row(row))
         return
     context = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
-        futures = {pool.submit(run_audit_row, row): row for row in rows}
+        futures = {
+            pool.submit(run_audit_row, row): (row, repeat) for row, repeat in items
+        }
         for future in as_completed(futures):
-            row = futures[future]
+            row, repeat = futures[future]
             try:
                 record = future.result()
             except Exception as exc:  # noqa: BLE001 - persist the worker failure
@@ -394,7 +445,7 @@ def _run_group(rows: list[dict[str, Any]], *, jobs: int) -> None:
                     "error": f"{type(exc).__name__}: {exc}",
                     "resource_class": effective_class(row),
                 }
-            _store(row, record)
+            _store(row, repeat, record)
 
 
 if __name__ == "__main__":
@@ -407,6 +458,14 @@ if __name__ == "__main__":
     parser.add_argument("--scenario")
     parser.add_argument("--fault")
     parser.add_argument("--resource-class", choices=("light", "large", "k8s", "clab"))
+    parser.add_argument(
+        "--repeats", type=int, default=1, help="Fresh-lab runs per case"
+    )
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Run on uncommitted edits; such records never count for a release report",
+    )
     args = parser.parse_args()
     ok = run_matrix(
         jobs=args.jobs,
@@ -415,5 +474,7 @@ if __name__ == "__main__":
         fault=args.fault,
         resource_class=args.resource_class,
         force=args.force,
+        repeats=args.repeats,
+        allow_dirty=args.allow_dirty,
     )
     raise SystemExit(0 if ok else 1)

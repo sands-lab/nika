@@ -1,0 +1,150 @@
+"""Symptom probes for egress-queue faults (test-path only)."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from nika.net_env.verify import ping_stats
+from nika.problems.base import build_verify_result
+from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+
+_SAMPLE_PINGS = 30
+_PING_INTERVAL_S = 0.2
+# The shallow egress queue delays a victim flow that shares it (queueing
+# latency) rather than dropping it. The victim must be this many times slower
+# than a control flow that avoids the queue, and slower by at least this share
+# of the queue's drain time (limit / rate), so the threshold scales with the
+# configured port.
+_RTT_FACTOR = 3.0
+_QUEUE_DELAY_SHARE = 0.5
+_RATE_RE = re.compile(r"^(\d+(?:\.\d+)?)([kmg]?)bit$", re.IGNORECASE)
+
+
+def _queue_delay_ms(problem: Any, params: Any, device: str) -> float | None:
+    """Drain time of the full egress queue the fault configures, from its params."""
+    from nika.problems.traffic_queueing_resource.link import (
+        _BMV2_RATES,
+        _KERNEL_RATES,
+        tc_size_bytes,
+    )
+
+    bmv2 = device in (problem.net_env.bmv2_switches or [])
+    rate = params.port_rate or (_BMV2_RATES if bmv2 else _KERNEL_RATES)[0]
+    match = _RATE_RE.match(rate.strip())
+    limit = tc_size_bytes(params.queue_limit)
+    if match is None or not limit:
+        return None
+    scale = {"": 1, "k": 1e3, "m": 1e6, "g": 1e9}[match.group(2).lower()]
+    return limit * 8 / (float(match.group(1)) * scale) * 1000.0
+
+
+def _control(problem: Any, params: Any, device: str) -> tuple[str, str] | None:
+    """A server or host the observer reaches without leaving ``device`` toward it."""
+    links = [
+        {parse_endpoint(str(ep))[0] for ep in tps}
+        for _key, tps in iter_link_termination_points(problem.net_env)
+    ]
+    attached = set().union(*(nodes for nodes in links if device in nodes))
+    observer_side = set().union(
+        *(nodes for nodes in links if params.observer_device in nodes)
+    )
+    switches = observer_side - {params.observer_device}
+    near = set().union(*(nodes for nodes in links if nodes & switches))
+    servers = (getattr(problem.net_env, "servers", None) or {}).get("web") or []
+    hosts = getattr(problem.net_env, "hosts", None) or []
+    skip = {params.host_name, params.observer_device, device}
+    # Prefer a destination off the observer's own switch so the control crosses
+    # the fabric like the victim does.
+    candidates = sorted(dict.fromkeys([*servers, *hosts]), key=lambda n: n in near)
+    for name in candidates:
+        if name in skip or name in attached:
+            continue
+        try:
+            ip = problem.runtime.get_host_ip(name, with_prefix=False)
+        except Exception:  # noqa: BLE001 - try the next candidate
+            continue
+        if ip:
+            return name, ip
+    return None
+
+
+def _receiver_ip(problem: Any, params: Any) -> str | None:
+    if params.probe_dst_ip:
+        return params.probe_dst_ip
+    try:
+        return problem.runtime.get_host_ip(params.host_name, with_prefix=False)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _flow(problem: Any, observer: str, dst_ip: str) -> Any:
+    return ping_stats(
+        problem.runtime,
+        observer,
+        dst_ip,
+        count=_SAMPLE_PINGS,
+        interval_sec=_PING_INTERVAL_S,
+    )
+
+
+def _sample(problem: Any, params: Any) -> dict[str, Any]:
+    """RTT and loss of the victim flow and of a control flow that avoids the queue."""
+    device, intf = problem._egress_port(params)
+    observer = params.observer_device
+    receiver_ip = _receiver_ip(problem, params)
+    victim = _flow(problem, observer, receiver_ip) if observer and receiver_ip else None
+    control = _control(problem, params, device)
+    control_stats = (
+        _flow(problem, observer, control[1]) if observer and control else None
+    )
+    return {
+        "egress": f"{device}:{intf}",
+        "queue_delay_ms": _queue_delay_ms(problem, params, device),
+        "observer": observer,
+        "receiver_ip": receiver_ip,
+        "victim_rtt_ms": getattr(victim, "rtt_avg_ms", None),
+        "victim_loss_percent": getattr(victim, "loss_percent", None),
+        "control": control[0] if control else None,
+        "control_rtt_ms": getattr(control_stats, "rtt_avg_ms", None),
+        "control_loss_percent": getattr(control_stats, "loss_percent", None),
+    }
+
+
+def _delayed(sample: dict[str, Any]) -> bool:
+    victim, control = sample["victim_rtt_ms"], sample["control_rtt_ms"]
+    queue = sample["queue_delay_ms"]
+    if victim is None or control is None or not queue:
+        return False
+    return (
+        victim >= control * _RTT_FACTOR
+        and victim - control >= queue * _QUEUE_DELAY_SHARE
+    )
+
+
+def incast_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Before the bursts both flows answer and the victim is not queue-delayed."""
+    sample = _sample(problem, params)
+    ok = (
+        sample["victim_rtt_ms"] is not None
+        and sample["control_rtt_ms"] is not None
+        and sample["queue_delay_ms"] is not None
+        and not _delayed(sample)
+    )
+    return ok, sample
+
+
+def incast_queueing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Synchronized bursts fill the shallow egress queue: a victim flow through it
+    is delayed by a large share of the queue's drain time; a control flow is not."""
+    sample = _sample(problem, params)
+    verified = _delayed(sample)
+    control_ok = (
+        sample["control_rtt_ms"] is not None
+        and not (sample["control_loss_percent"] or 0.0) > 20.0
+    )
+    return verified and control_ok, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified and control_ok,
+        details={**sample, "victim_delayed": verified, "control_ok": control_ok},
+    )

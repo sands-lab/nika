@@ -62,7 +62,12 @@ cases:
 - scenario: enterprise_branch
   problem: bgp_hijacking
   inject:
+    export_prefix_list: LOCAL-ADV
     host_name: br1_edge
+    observer_host: br2_corp_pc
+    probe_dst_ip: 10.9.10.2
+    symptom_host: br2_edge
+    target_network: 10.9.10.0/24
   topo_size: l
   root_causes:
   - resource:
@@ -330,12 +335,12 @@ cases:
 - scenario: k8s_lab
   problem: host_incorrect_netmask
   inject:
-    host_name: client
+    host_name: worker3
     netmask_prefix: '8'
   root_causes:
   - resource:
       kind: interface
-      node: client
+      node: worker3
       name: eth0
     fault_type: host_incorrect_netmask
 - scenario: llmd_lab
@@ -479,27 +484,20 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
-  problem: lb_connection_state_exhaustion
+  problem: p4_table_resource_exhaustion
   inject:
-    attacker_device: client_2
-    backend_dip: 10.0.1.11
-    capacity: '256'
-    client_host: client_1
-    host_name: gateway_1
-    seed: '42'
-    syn_timeout_sec: '10'
-    vip_url: http://20.0.0.1:80/
+    host_name: leaf_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
-    fault_type: lb_connection_state_exhaustion
+      node: leaf_1
+    fault_type: p4_table_resource_exhaustion
 - scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
-    learning_delay_ms: '5'
+    learning_delay_ms: '8000'
     seed: '42'
   topo_size: l
   root_causes:
@@ -605,16 +603,16 @@ cases:
       kind: node
       node: load_balancer
     fault_type: load_balancer_overload
-- scenario: p4_dc_gateway
+- scenario: campus_lan
   problem: mac_address_conflict
   inject:
-    host_name: service_1_2
-    host_name_2: client_1
+    host_name: web_server_1
+    host_name_2: web_server_0
   topo_size: s
   root_causes:
   - resource:
       kind: interface
-      node: service_1_2
+      node: web_server_1
       name: eth0
     fault_type: mac_address_conflict
 - scenario: isp_geant_ebgp_rpki

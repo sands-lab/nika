@@ -2,12 +2,14 @@
 
 Spoofed-option faults read the configuration the client applied from its
 lease and the reachability it implies. Missing-subnet and service-down faults
-also send a one-shot DHCPDISCOVER that never applies the offered lease.
+also send a one-shot DHCPDISCOVER that never applies the offered lease; both
+renew client leases at inject, so the client is left without an address.
 """
 
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 from nika.net_env.campus_lan.verify import PROBE_HOST
@@ -15,6 +17,8 @@ from nika.problems.base import build_verify_result
 from nika.runtime.base import LabRuntime
 
 _NAME = "web0.local"
+_RENEWAL_REREADS = 2
+_RENEWAL_REREAD_SEC = 3.0
 _CLIENT_STATE = (
     "ip -4 -o addr show dev eth0 scope global; echo @route; "
     "ip -4 route show default; echo @dns; cat /etc/resolv.conf"
@@ -130,6 +134,14 @@ def _observe(problem: Any, params: Any) -> tuple[dict | None, dict]:
         return None, {"error": "no_baseline_lease"}
     client = _client(params)
     state = _client_state(problem.runtime, client)
+    # Campus leases last 30 s, so dhclient renews every ~15 s and briefly
+    # removes the route while it reapplies the lease. Re-read before trusting
+    # a missing route; a client that really lost its lease stays without one.
+    for _ in range(_RENEWAL_REREADS):
+        if state is None or state["gateway"] is not None:
+            break
+        time.sleep(_RENEWAL_REREAD_SEC)
+        state = _client_state(problem.runtime, client)
     if state is None:
         return None, {"error": "client_lease_unreadable", "client": client}
     return base, {"client": client, "baseline_state": base["state"], "state": state}
@@ -220,7 +232,7 @@ def _no_offer(problem: Any, params: Any, details: dict) -> tuple[bool, dict]:
     }
 
 
-def dhcp_missing_subnet(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+def dhcp_unleased(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The client segment gets no offer, holds no address and loses its gateway."""
     base, details = _observe(problem, params)
     if base is None:
@@ -237,14 +249,3 @@ def dhcp_missing_subnet(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
         no_offer and unleased and gateway == 0,
         {**details, "unleased": unleased, "gateway_replies": gateway},
     )
-
-
-def dhcp_service_down(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """A fresh DHCPDISCOVER gets no offer while the server host stays reachable."""
-    base, details = _observe(problem, params)
-    if base is None:
-        return False, details
-    no_offer, details = _no_offer(problem, params, details)
-    if "error" in details:
-        return False, details
-    return _result(problem, no_offer, details)

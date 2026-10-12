@@ -1,7 +1,8 @@
-"""Deterministic control-plane model for the gateway L4 load balancer.
+"""Gateway L4 load balancer: a small reference model and live agent controls.
 
-The model deliberately keeps the state-machine small: it is used to build
-P4Runtime intent and to make benchmark connection selection reproducible.
+``L4GatewayState`` keeps the ConnTable/pool-version state machine small for
+offline reasoning.  The runtime helpers drive the gateway-local agent
+(``lb_agent.py``) that learns connections and performs pool updates.
 """
 
 from __future__ import annotations
@@ -9,8 +10,20 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass, field
 import hashlib
+import json
+import shlex
 
-from .topology_model import CONN_TABLE_CAPACITY, CONNECTION_LEARNING_DELAY_MS
+from nika.runtime.base import LabRuntime
+
+from .topology_model import (
+    CONN_TABLE_CAPACITY,
+    CONNECTION_LEARNING_DELAY_MS,
+    LB_AGENT,
+    LB_AGENT_CONFIG,
+    LB_AGENT_STATUS,
+    VIP_IP,
+    VIP_PORT,
+)
 
 
 FiveTuple = tuple[str, str, int, int, int]
@@ -59,3 +72,42 @@ class L4GatewayState:
     @property
     def occupancy(self) -> int:
         return len(self.connections)
+
+
+def set_learning_delay(runtime: LabRuntime, gateway: str, delay_ms: int) -> None:
+    """Set the gateway agent's connection-learning delay (read once a second)."""
+    config = json.dumps({"learning_delay_ms": int(delay_ms)})
+    runtime.exec(
+        gateway,
+        f"printf '%s' {shlex.quote(config)} > {LB_AGENT_CONFIG}.tmp && "
+        f"mv {LB_AGENT_CONFIG}.tmp {LB_AGENT_CONFIG}",
+        timeout=20,
+    )
+
+
+def learner_status(runtime: LabRuntime, gateway: str) -> dict:
+    """Live state of the gateway learner, with the age of its last heartbeat."""
+    raw = runtime.exec(
+        gateway, f"cat {LB_AGENT_STATUS} 2>/dev/null; echo; date +%s.%N", timeout=20
+    )
+    lines = [line for line in raw.splitlines() if line.strip()]
+    try:
+        status = json.loads(lines[0])
+        status["age_sec"] = round(float(lines[-1]) - float(status["time"]), 2)
+    except (IndexError, KeyError, TypeError, ValueError):
+        return {"error": "learner_status_unavailable", "raw": raw[-300:]}
+    return status
+
+
+def routine_pool_update(runtime: LabRuntime, gateway: str, device_id: int) -> dict:
+    """Flip the VIP to the other DIP pool version through the gateway agent."""
+    raw = runtime.exec(
+        gateway,
+        f"python3 {LB_AGENT} update --device-id {device_id} "
+        f"--vip {VIP_IP} --vip-port {VIP_PORT}",
+        timeout=30,
+    )
+    try:
+        return json.loads(raw.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        return {"ok": False, "error": raw[-300:]}

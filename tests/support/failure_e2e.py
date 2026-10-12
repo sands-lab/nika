@@ -10,10 +10,10 @@ from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.problems.registry import get_problem_class
 from tests.support.ci_depth import artifact_verify_only
 from tests.support.failure_e2e_hooks import HOOKS, FailureE2EContext
-from tests.support.symptom import evaluate_symptom
-from tests.support.symptom.contracts import get_symptom_contract
-from tests.support.symptom.custom import evaluate_custom_baseline
-from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
+from nika.validation.symptom import evaluate_symptom
+from nika.validation.symptom.contracts import get_symptom_contract
+from nika.validation.symptom.custom import evaluate_custom_baseline
+from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
 
 
 @dataclass(frozen=True)
