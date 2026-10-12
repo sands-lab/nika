@@ -94,7 +94,7 @@ CLI, SDK, and SADE agents run in Docker Sandboxes. The lab and MCP gateway remai
 
 ## Sandbox credentials and dependencies
 
-Codex agents accept an OpenAI API key or stored Codex OAuth login; Claude agents accept an Anthropic API key or stored Claude login. Both families also support DeepSeek and compatible custom endpoints. Claude uses `--bare` with environment credentials and its stored login in subscription mode.
+Codex agents accept an OpenAI API key or a Codex OAuth login stored in sbx; Claude agents accept an Anthropic API key or a Claude login stored in sbx. Complete [sbx subscription setup](../operations/agent-sandbox.md#subscription--oauth-interactive-once) before evaluating with a subscription. Both families also support DeepSeek and compatible custom endpoints. Claude uses `--bare` with environment credentials and its stored login in subscription mode.
 
 Install SDK agents with `uv sync --extra sdk --prerelease=allow`. Their sandboxes install host-cached wheels by default; set `nika.sandbox.offline_sdk_wheels: false` to use PyPI. See [SDK offline wheels](../operations/agent-sandbox.md#sdk-agents-optional-offline-wheels).
 

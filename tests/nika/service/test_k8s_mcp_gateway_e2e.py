@@ -24,12 +24,11 @@ from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
 from tests.agent._assertions import _extract_tool_names
-from tests.agent.sandbox_support import (
-    sandbox_anthropic_credential_available,
-)
+from tests.agent.sandbox_support import sandbox_provider_credential_available
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.integration_pipeline import (
     claude_cli_available,
+    live_anthropic_test_config,
     load_test_env,
     tool_text_list,
 )
@@ -38,7 +37,7 @@ from nika.utils.session_id import resolve_session_tag
 
 load_test_env()
 
-CLAUDE_MODEL = "deepseek-v4-flash"
+CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
 
 
 def _tool_payload(result: object) -> object:
@@ -349,8 +348,11 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
     reason="Requires Docker and privileged Kathara/k3s support",
 )
 @pytest.mark.skipif(
-    not (claude_cli_available() and sandbox_anthropic_credential_available()),
-    reason="Claude CLI + DeepSeek/Anthropic credentials required",
+    not (
+        claude_cli_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
     """cli.claude against k8s_lab with a real k8s fault."""
@@ -393,6 +395,7 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
 
         self._run_agent(
             agent_type="cli.claude",
+            llm_provider=CLAUDE_PROVIDER,
             model=CLAUDE_MODEL,
             max_steps=25,
         )
@@ -506,8 +509,11 @@ class LlmdMcpGatewayIntegrationTest(SharedSessionTestCase):
     reason="Requires Docker and privileged Kathara/k3s support",
 )
 @pytest.mark.skipif(
-    not (claude_cli_available() and sandbox_anthropic_credential_available()),
-    reason="Claude CLI + DeepSeek/Anthropic credentials required",
+    not (
+        claude_cli_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
     """cli.claude against llmd_lab with a real k8s fault."""
@@ -541,6 +547,7 @@ class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
 
         self._run_agent(
             agent_type="cli.claude",
+            llm_provider=CLAUDE_PROVIDER,
             model=CLAUDE_MODEL,
             max_steps=25,
         )

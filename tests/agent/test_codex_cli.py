@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import subprocess
+import tomllib
 
 import pytest
 
@@ -156,8 +159,9 @@ class CodexWorkerConfigTest:
             (SUBMISSION, {"task_mcp_server"}),
         ],
     )
+    @pytest.mark.parametrize("sandbox_provider", [False, True])
     def test_writes_only_phase_allowed_mcp_servers(
-        self, monkeypatch, tmp_path, phase, expected_servers
+        self, monkeypatch, tmp_path, phase, expected_servers, sandbox_provider
     ) -> None:
         monkeypatch.setattr(
             "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
@@ -172,6 +176,31 @@ class CodexWorkerConfigTest:
                 "task_mcp_server": {"transport": "http", "url": "http://task"},
             },
         )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.sandbox_name_from_env",
+            lambda: "codex-config-test" if sandbox_provider else None,
+        )
+        if sandbox_provider:
+            native_home = tmp_path / "native_codex_home"
+            native_home.mkdir()
+            (native_home / "config.toml").write_text(
+                'model_provider = "sandboxd"\n'
+                'forced_login_method = "api"\n'
+                "[model_providers.sandboxd]\n"
+                'name = "Sandbox Proxy"\n'
+                'base_url = "https://chatgpt.com/backend-api/codex"\n'
+                'experimental_bearer_token = "test-proxy-placeholder"\n'
+                "requires_openai_auth = false\n"
+                "[mcp_servers.native_server]\n"
+                'url = "http://native"\n'
+            )
+            monkeypatch.setenv("CODEX_HOME", str(native_home))
+            monkeypatch.setattr(
+                "agent.cli.codex.codex_worker.run_sbx_checked",
+                lambda args: subprocess.run(
+                    args[2:], env=dict(os.environ), check=True, capture_output=True
+                ),
+            )
         worker = CodexWorker(
             session_id="sess-123",
             session_dir=tmp_path,
@@ -179,12 +208,17 @@ class CodexWorkerConfigTest:
             llm_provider="openai",
         )
         worker._setup_workspace()
-        config = (worker._codex_home / "config.toml").read_text()
-        assert {
-            name
-            for name in ("kathara_base_mcp_server", "task_mcp_server")
-            if name in config
-        } == expected_servers
+        config = tomllib.loads((worker._codex_home / "config.toml").read_text())
+        assert set(config["mcp_servers"]) == expected_servers
+        if sandbox_provider:
+            assert config["model_provider"] == "sandboxd"
+            assert config["forced_login_method"] == "api"
+            assert config["model_providers"]["sandboxd"] == {
+                "name": "Sandbox Proxy",
+                "base_url": "https://chatgpt.com/backend-api/codex",
+                "experimental_bearer_token": "test-proxy-placeholder",
+                "requires_openai_auth": False,
+            }
 
 
 class CodexToolLoggingTest:
