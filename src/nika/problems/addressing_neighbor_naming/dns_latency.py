@@ -23,6 +23,8 @@ class DNSLookupLatencyParams(BaseModel):
 
 class DNSLookupLatency(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "latency"
     root_cause_name: str = "dns_lookup_latency"
     description = "DNS lookups are abnormally slow."
     symptom_desc: str = "Users experience high latency when accessing web services."

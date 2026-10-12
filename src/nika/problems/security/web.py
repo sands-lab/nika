@@ -110,6 +110,9 @@ def _pick_attacker(
 
 class WebDoS(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "web_dos_attack"
     description = "Web service is under a denial-of-service attack."
     symptom_desc: str = "Users reports high latency when accessing some web services."

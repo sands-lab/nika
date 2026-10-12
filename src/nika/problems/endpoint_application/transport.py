@@ -150,6 +150,9 @@ class SenderResourceContentionParams(BaseModel):
 
 class SenderResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "sender_resource_contention"
     description = "Sender/server endpoint is under CPU resource contention."
     TAGS: list[str] = ["http"]
@@ -454,8 +457,7 @@ class SenderResourceContention(ProblemBase):
         original = read_nano_cpus(self.runtime, params.host_name)
         self._original_nano_cpus = original
 
-        # Cap applied quota so selected Clos cases with 0.05 still contend hard.
-        applied_quota = min(float(params.cpu_quota), 0.02)
+        applied_quota = float(params.cpu_quota)
         injected = cpu_quota_to_nano_cpus(applied_quota)
         set_nano_cpus(self.runtime, params.host_name, injected)
         self._injected_nano_cpus = injected
@@ -501,7 +503,7 @@ class SenderResourceContention(ProblemBase):
         )
         current_nano = read_nano_cpus(self.runtime, params.host_name)
         expected_nano = self._injected_nano_cpus or cpu_quota_to_nano_cpus(
-            min(float(params.cpu_quota), 0.02)
+            float(params.cpu_quota)
         )
         quota_ok = current_nano == expected_nano
         verified = bool(stress_running and quota_ok and cpu_http_running)
@@ -615,6 +617,9 @@ class ReceiverResourceContentionParams(BaseModel):
 
 class ReceiverResourceContention(ProblemBase):
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "receiver_resource_contention"
     description = "Receiver endpoint is under resource contention."
     TAGS: list[str] = ["http"]

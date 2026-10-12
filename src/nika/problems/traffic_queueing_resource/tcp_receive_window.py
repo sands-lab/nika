@@ -75,6 +75,8 @@ class TcpReceiveWindowLimited(ProblemBase):
     """Receiver TCP receive buffer undersized relative to path BDP."""
 
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
+    symptom_probe = "custom"
+    symptom_class = "degradation"
     root_cause_name: str = "tcp_receive_window_limited"
     description = "Receiver TCP window/buffer is too small for the path."
     TAGS: list[str] = ["http"]

@@ -46,6 +46,8 @@ class MtuMismatchParams(BaseModel):
 
 class MtuMismatch(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "mtu_mismatch"
     root_cause_owner = "interface"
     description = "Path MTU is misconfigured on an intermediate hop."

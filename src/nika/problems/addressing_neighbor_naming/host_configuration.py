@@ -40,6 +40,10 @@ def _read_host_ipv4(
     return match.group(1) if match else None
 
 
+# Route state that ``ip route show`` prints but ``ip route replace`` rejects.
+_ROUTE_STATE_FLAGS = frozenset({"linkdown", "dead", "offload", "trap", "rt_offload"})
+
+
 def _inject_ip_change(
     runtime,
     *,
@@ -49,10 +53,47 @@ def _inject_ip_change(
     intf_name: str,
     new_gateway: str | None = None,
 ) -> None:
+    # Deleting the last IPv4 address also flushes the interface's static routes
+    # and permanent neighbours (the on-link gateway of a /32 host). Re-apply
+    # them, as a config-managed host would, so only the address changes.
+    routes = runtime.exec(host_name, f"ip -4 route show dev {intf_name}")
+    neighs = runtime.exec(host_name, f"ip -4 neigh show dev {intf_name} nud permanent")
     runtime.exec(host_name, f"ip addr del {old_ip} dev {intf_name}")
     runtime.exec(host_name, f"ip addr add {new_ip} dev {intf_name}")
+    for line in neighs.splitlines():
+        match = re.match(r"(\S+) lladdr (\S+)", line.strip())
+        if match:
+            runtime.exec(
+                host_name,
+                f"ip neigh replace {match[1]} lladdr {match[2]} "
+                f"dev {intf_name} nud permanent",
+            )
+    static: list[str] = []
+    for line in routes.splitlines():
+        line = line.strip()
+        if line.startswith("nexthop") and static:
+            static[-1] += f" {line}"  # a multipath route's next hops
+        elif line:
+            static.append(line)
+    old_addr, new_addr = old_ip.split("/")[0], new_ip.split("/")[0]
+    # On-link routes first, so the gateways of the ``via`` routes resolve.
+    for route in sorted(static, key=lambda r: " via " in r):
+        if "proto kernel" in route:
+            continue
+        words = [w for w in route.split() if w not in _ROUTE_STATE_FLAGS]
+        words = [
+            new_addr if w == old_addr and i and words[i - 1] == "src" else w
+            for i, w in enumerate(words)
+        ]
+        if "dev" not in words:
+            words += ["dev", intf_name]
+        runtime.exec(host_name, f"ip route replace {' '.join(words)}")
     if new_gateway:
-        runtime.exec(host_name, f"ip route add default via {new_gateway}")
+        onlink = " onlink" if new_ip.endswith("/32") else ""
+        runtime.exec(
+            host_name,
+            f"ip route replace default via {new_gateway} dev {intf_name}{onlink}",
+        )
 
 
 # ==========================================
@@ -69,6 +110,8 @@ class HostMissingIPParams(BaseModel):
 
 class HostMissingIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_missing_ip"
     root_cause_owner = "interface"
     description = "Host interface has no IP address."
@@ -158,6 +201,8 @@ class HostIPConflictParams(BaseModel):
 
 class HostIPConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_ip_conflict"
     root_cause_owner = "interface"
     description = "Two hosts are configured with the same IP address."
@@ -245,6 +290,8 @@ class HostIncorrectIPParams(BaseModel):
 
 class HostIncorrectIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_ip"
     root_cause_owner = "interface"
     description = "Host IP address is incorrect."
@@ -335,6 +382,8 @@ class HostIncorrectGatewayParams(BaseModel):
 
 class HostIncorrectGateway(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_gateway"
     description = "Host default gateway is incorrect."
     TAGS: str = ["pc", "frr"]
@@ -429,6 +478,8 @@ class HostIncorrectNetmaskParams(BaseModel):
 
 class HostIncorrectNetmask(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_netmask"
     root_cause_owner = "interface"
     description = "Host netmask/prefix length is incorrect."
@@ -508,6 +559,8 @@ class HostIncorrectDNSParams(BaseModel):
 
 class HostIncorrectDNS(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "http_by_name"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_dns"
     description = "Host is configured with an incorrect DNS resolver."
     TAGS: str = ["dns"]
