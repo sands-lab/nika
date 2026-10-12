@@ -40,4 +40,5 @@ config/**
 !config/**/
 !config/**/*.example.yaml
 !config/**/*.example.yml
+!config/custom/README.md
 .nika_cache
