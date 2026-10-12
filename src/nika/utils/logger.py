@@ -127,6 +127,10 @@ def _build_logger() -> logging.Logger:
     logger = logging.getLogger("SystemLogger")
     logger.setLevel(logging.INFO)
     logger.propagate = False
+    # Without a handler, WARNING+ falls through to logging.lastResort (stderr)
+    # even when console events are off, e.g. under the TUI.
+    if not any(isinstance(h, logging.NullHandler) for h in logger.handlers):
+        logger.addHandler(logging.NullHandler())
     return logger
 
 
