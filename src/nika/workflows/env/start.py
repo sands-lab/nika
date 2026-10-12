@@ -321,6 +321,11 @@ def start_net_env(
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
+    if resolved_backend == "kathara":
+        from nika.runtime.kathara.tap import tap_owner
+
+        net_env.metadata["tap_owner"] = tap_owner(net_env.name)
+        metadata = net_env.metadata
     session.init_session(
         session_id=resolved_session_id,
         scenario_name=canonical,
