@@ -9,6 +9,11 @@ import nika.runtime.kathara.patch  # noqa: F401
 from Kathara.manager.Kathara import Kathara
 
 from nika.runtime.base import LabRuntime
+from nika.runtime.kathara.tap import (
+    cleanup_host_taps,
+    owned_host_taps,
+    record_container_taps,
+)
 from nika.runtime.shared.containers import (
     lift_cpu_cap,
     pause_container,
@@ -78,24 +83,18 @@ class KatharaRuntime(LabRuntime):
 
     def _machine_count(self, *, running_only: bool) -> int:
         """Number of this lab's machine containers (optionally only running)."""
-        try:
-            containers = self._machine_containers()
-        except Exception:
-            return 0
+        containers = self._machine_containers()
         if not running_only:
             return len(containers)
         return sum(1 for container in containers if container.status == "running")
 
     def _link_count(self) -> int:
         """Number of this lab's collision-domain networks still on the host."""
-        try:
-            return len(self._instance.get_links_api_objects(lab_name=self.lab_name))
-        except Exception:
-            return 0
+        return len(self._instance.get_links_api_objects(lab_name=self.lab_name))
 
     def has_leftover_resources(self) -> bool:
         # Links without machines remain after an interrupted deploy or teardown.
-        return self._link_count() > 0
+        return self._link_count() > 0 or bool(owned_host_taps(self.lab_name))
 
     def _wait_deploy_ready(self, timeout: float) -> None:
         """Poll until every expected machine has a running container.
@@ -132,6 +131,9 @@ class KatharaRuntime(LabRuntime):
         # Strict probe: a Docker/Kathara API error must surface here instead
         # of being mistaken for "lab exists" and silently skipping deploy.
         if self._lab_present():
+            for container in self._machine_containers():
+                if container.status == "running":
+                    record_container_taps(container, self.lab_name)
             log_event(
                 "lab_deploy_skipped",
                 f"Lab {self.lab_name} already exists; skipping deploy",
@@ -147,6 +149,8 @@ class KatharaRuntime(LabRuntime):
             try:
                 Kathara.get_instance().deploy_lab(lab=self._net_env.lab)
                 self._wait_deploy_ready(lab.deploy_ready_timeout_sec)
+                for container in self._machine_containers():
+                    record_container_taps(container, self.lab_name)
                 return True
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc
@@ -192,6 +196,10 @@ class KatharaRuntime(LabRuntime):
                 f"Could not lift CPU caps before undeploying {self.lab_name}: {exc}",
                 lab_name=self.lab_name,
             )
+        # Enroll older sessions after lifting CPU caps so Docker exec can run.
+        for container in self._machine_containers():
+            if container.status == "running":
+                record_container_taps(container, self.lab_name)
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:
@@ -208,6 +216,7 @@ class KatharaRuntime(LabRuntime):
             # undeploy_lab removes links only after every machine call succeeds;
             # a failed machine removal leaves collision domains behind.
             if machines == 0 and self._link_count() == 0:
+                cleanup_host_taps(self.lab_name)
                 return
             if not retried or machines == 0:
                 # one forced second attempt before we give up
@@ -232,6 +241,7 @@ class KatharaRuntime(LabRuntime):
             "`nika session close <session_id>` for the session that owns it.",
             lab_name=self.lab_name,
         )
+        raise RuntimeError(f"Lab {self.lab_name} still has resources after undeploy")
 
     def _lab_present(self) -> bool:
         """Return whether the lab has machines; raise on API errors."""

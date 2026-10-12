@@ -622,14 +622,16 @@ done
             f"could not resolve deployed VDE LAN for {node}:eth{number}"
         )
 
-    @staticmethod
     def _connect(
-        container, network, number: int, link_name: str, mac: str | None = None
+        self, container, network, number: int, link_name: str, mac: str | None = None
     ) -> None:
         options = {"kathara.iface": str(number), "kathara.link": link_name}
         if mac:
             options["kathara.mac_addr"] = mac
         network.connect(container, driver_opt=options)
+        from nika.runtime.kathara.tap import record_container_taps
+
+        record_container_taps(container, self.runtime.lab_name)
 
     @staticmethod
     def _bridge(proxy) -> None:
