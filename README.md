@@ -140,16 +140,33 @@ If the installer adds you to the `kvm` group, open a new login shell and run `sb
 
 ### Choose and configure an agent
 
-The installer creates `config/nika.yaml` for settings and `.env` for credentials. NIKA ships preconfigured agents with templates in [`config/`](config/); list the agents with `uv run nika agent list`.
+NIKA ships preconfigured agents with templates in [`config/`](config/). The example below sets up the LangGraph agent with an OpenAI model.
 
-To use the LangGraph agent with an OpenAI model, start from its template and select the provider and model:
+**Step 1. Pick an agent.** List the available agents:
+
+```shell
+uv run nika agent list
+```
+
+**Step 2. Start from its template.** The installer creates `config/nika.yaml` for settings. Replace it with the LangGraph template:
 
 ```shell
 cp config/byo.langgraph.example.yaml config/nika.yaml
+```
+
+**Step 3. Select the provider and model:**
+
+```shell
 uv run nika config set agent.provider=openai agent.model=gpt-5-mini
 ```
 
-Add `OPENAI_API_KEY=<your key>` to `.env`, then check the active configuration:
+**Step 4. Add your API key.** The installer also creates `.env` for credentials. Add your key to it:
+
+```ini
+OPENAI_API_KEY=<your key>
+```
+
+**Step 5. Check the active configuration:**
 
 ```shell
 uv run nika config show
@@ -190,6 +207,8 @@ NIKA also provides a terminal UI for browsing tasks and running agents:
 ```shell
 uv run nika
 ```
+
+![NIKA interactive shell: home screen with the active agent profile and the command menu](./assets/images/nika-tui-home.png)
 
 - `/tasks` — browse and search benchmark tasks.
 - `/run` — choose a task and an agent, then start a run.
