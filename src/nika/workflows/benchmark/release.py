@@ -29,7 +29,11 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.problems.registry import (
+    compatible_columns,
+    get_problem_class,
+    list_avail_problem_instances,
+)
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
     MCP_SERVER_SPECS,
@@ -427,6 +431,15 @@ def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set
     return families, scales, backends
 
 
+def _benchmark_failures() -> set[str]:
+    """Registered failures that some benchmark scenario can host.
+
+    A failure that ``INCOMPATIBLE_SCENARIOS`` keeps off every scenario stays
+    registered but cannot enter a split.
+    """
+    return {name for name in list_avail_problem_instances() if compatible_columns(name)}
+
+
 def _validate_release_splits(
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
@@ -543,7 +556,7 @@ def preflight_release(
             _validate_release_splits(
                 dev,
                 test,
-                expected_failures=set(list_avail_problem_instances()),
+                expected_failures=_benchmark_failures(),
             )
 
     _verify_mcp_policy(release.cases, release.tools)
@@ -825,7 +838,7 @@ def freeze_split_release(
     _validate_release_splits(
         dev,
         test,
-        expected_failures=set(list_avail_problem_instances()),
+        expected_failures=_benchmark_failures(),
     )
 
     dest = out_dir or (releases_dir() / version)

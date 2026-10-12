@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from nika.problems.registry import list_avail_problem_instances
+from nika.problems.registry import compatible_columns, list_avail_problem_instances
 from nika.workflows.benchmark.candidate_context import (
     collapse_candidates,
     deployment_environment_key,
@@ -262,7 +262,9 @@ def test_real_catalog_selection_constraints() -> None:
         return
     collapsed = collapse_candidates(load_candidate_catalog(catalog))
     cases, _state = select_benchmark_cases(collapsed, seed=42)
-    registry = {cls.root_cause_name for cls in list_avail_problem_instances().values()}
+    registry = {
+        name for name in list_avail_problem_instances() if compatible_columns(name)
+    }
     selected_failures = {
         row["problem"] for row in cases if row["problem"] != HEALTHY_PROBLEM
     }
