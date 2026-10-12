@@ -1,11 +1,17 @@
-"""Run troubleshooting agents using native Docker Sandboxes agents."""
+"""Run troubleshooting agents inside a sandbox runtime.
+
+Runtime-specific work (creating the sandbox, credentials, network access,
+command execution) goes through :class:`~agent.sandbox.backend.SandboxBackend`.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
 import os
+import shlex
 import shutil
+import sys
 import threading
 import time
 from collections.abc import Iterator
@@ -13,73 +19,42 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from agent.registry import BUILTIN_AGENTS
-from agent.sandbox.config import ENV_SESSION_DIR, SandboxConfig
+from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.sandbox.backend import SandboxBackend, get_backend
+from agent.sandbox.config import ENV_SANDBOX_NAME, ENV_SESSION_DIR, SandboxConfig
 from agent.sandbox.constants import (
     CREDENTIAL_ENV_KEYS,
     DIAGNOSIS_REPORT_FILENAME,
     MANIFEST_FILENAME,
+    SDK_AGENT_TYPES,
     SUBMISSION_CONTEXT_FILENAME,
 )
 from agent.sandbox.env import format_env_for_log
 from agent.sandbox.mcp_manifest import build_sandbox_mcp_servers
-from agent.protocols import DIAGNOSIS, SUBMISSION
-from agent.sandbox.redact import redact_text
-from agent.sandbox.sbx.agents import (
-    ENV_SBX_SANDBOX_NAME,
-    native_sbx_agent,
-    sbx_template_image,
-)
-from agent.sandbox.sbx.client import (
-    ensure_sbx_ready,
-    require_sbx_authenticated,
-    run_sbx_checked,
-    run_sbx_optional,
-    sbx_host_lock,
-    stream_sbx,
-)
-from agent.sandbox.sbx.credentials import (
-    ensure_sbx_credentials,
-    required_services_for_agent,
-)
-from agent.sandbox.sbx.policy import (
-    allow_mcp_gateway,
-    deny_mcp_gateway,
-    ensure_llm_network_policy,
-    ensure_pypi_network_policy,
-    sanitize_sandbox_name,
-)
-from agent.sandbox.sbx.proxy import ensure_sbx_proxy_config, resolve_sbx_upstream_proxy
-from agent.utils.skills import ENV_ENABLE_SKILLS, skills_enabled
-from agent.sandbox.sbx.wheels import (
-    install_sdk_packages_in_sandbox,
-    stage_sdk_wheels,
-)
-from agent.sandbox.sbx.workspace import (
+from agent.sandbox.workspace import (
     TraceMirror,
     cleanup_workspace,
     collect_artifacts,
+    opaque_agent_workspace_dir,
     prepare_workspace,
+    read_workspace_text,
     trace_mirror,
+    write_workspace_text,
 )
+from agent.utils.skills import ENV_ENABLE_SKILLS, skills_enabled
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
 from nika.utils.session import Session
 
 logger = logging.getLogger(__name__)
 
-SDK_AGENT_TYPES = frozenset(
-    spec.id for spec in BUILTIN_AGENTS if spec.sbx is not None and spec.sbx.sdk
-)
-# Covers a first-run template image pull; a normal create takes under a minute.
-_SBX_CREATE_TIMEOUT_SEC = 600
 # The Claude Agent SDK waits for the bundled CLI's ``initialize`` reply
 # for CLAUDE_CODE_STREAM_CLOSE_TIMEOUT ms. Default is 60s and on slow hosts
 # it can easily exceed, causing a failure. We bump it to 5min.
 _CLAUDE_SDK_AGENT_TYPES = frozenset({"sdk.claude_sdk", "community.sade"})
 _CLAUDE_SDK_INIT_TIMEOUT_MS = 300_000
 
-# Host-side CLI sandboxes read ``NIKA_SBX_SANDBOX_NAME`` / ``NIKA_SESSION_DIR``
+# Host-side CLI sandboxes read ``NIKA_SANDBOX_NAME`` / ``NIKA_SESSION_DIR``
 # from process env. Concurrent sessions in one process must not interleave
 # save/restore of those keys (benchmark parallel batches use spawn workers;
 # this lock still protects in-process callers and nested contexts).
@@ -87,13 +62,14 @@ _sandbox_env_lock = threading.RLock()
 
 
 @dataclass
-class SbxSandboxRunResult:
+class SandboxRunResult:
     returncode: int
     sandbox_name: str
 
 
 @dataclass
-class SbxSession:
+class SandboxSession:
+    # Backend sandbox id (the sbx sandbox name for Docker Sandboxes).
     sandbox_name: str
     workspace_dir: Path
     gateway_port: int
@@ -102,11 +78,14 @@ class SbxSession:
     trace_mirror: TraceMirror | None = None
 
 
-class SbxSandboxManager:
-    """Create native sbx sandboxes and run NIKA agents on the host."""
+class SandboxManager:
+    """Create a sandbox per session and run a NIKA agent against it."""
 
-    def __init__(self, config: SandboxConfig) -> None:
+    def __init__(
+        self, config: SandboxConfig, backend: SandboxBackend | None = None
+    ) -> None:
         self.config = config
+        self.backend = backend if backend is not None else get_backend(config)
 
     def write_manifest(
         self,
@@ -167,32 +146,6 @@ class SbxSandboxManager:
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache"),
         )
 
-    def build_create_command(
-        self,
-        *,
-        sandbox_name: str,
-        sbx_agent: str,
-        workspace_dir: Path,
-    ) -> list[str]:
-        cmd = [
-            "create",
-            "--name",
-            sandbox_name,
-            "--template",
-            sbx_template_image(sbx_agent),
-            sbx_agent,
-            str(workspace_dir),
-        ]
-        # SDK agents install deps after create (offline wheels when enabled;
-        # otherwise PyPI via sbx exec). Avoid `--kit` install hooks: slow PyPI
-        # downloads inside the microVM are frequently SIGKILL'd (exit 137),
-        # surfacing as sbx HTTP 500.
-        if self.config.cpus:
-            cmd.extend(["--cpus", str(self.config.cpus)])
-        if self.config.memory:
-            cmd.extend(["-m", self.config.memory])
-        return cmd
-
     @contextmanager
     def open_session(
         self,
@@ -207,17 +160,15 @@ class SbxSandboxManager:
         mcp_gateway_agent_url: str,
         gateway_port: int,
         stream_output: bool,
-    ) -> Iterator[SbxSession]:
+    ) -> Iterator[SandboxSession]:
+        backend = self.backend
+        backend.ensure_available()
         agent_sid = resolve_agent_session_id(session)
-        sandbox_name = sanitize_sandbox_name(agent_sid)
-        sbx_agent = native_sbx_agent(agent_type)
         session_dir = Path(session.session_dir).resolve()
 
-        upstream_proxy = resolve_sbx_upstream_proxy(env_file=self.config.env_file)
-        ensure_sbx_proxy_config(upstream_proxy)
-        require_sbx_authenticated()
-        ensure_sbx_ready()
-
+        credential_env = backend.prepare_host(
+            agent_type=agent_type, llm_provider=llm_provider
+        )
         manifest = self.write_manifest(
             session=session,
             agent_type=agent_type,
@@ -230,40 +181,27 @@ class SbxSandboxManager:
             stream_output=stream_output,
         )
 
-        # Workspace path is chosen before prepare so PYTHONPATH matches the mount.
-        from agent.sandbox.sbx.workspace import opaque_agent_workspace_dir
-
+        # Workspace path is chosen before prepare so PYTHONPATH matches the
+        # path the sandbox sees.
         workspace_path = opaque_agent_workspace_dir(agent_sid)
+        sandbox_workspace = backend.workspace_path(workspace_path)
 
         runtime_env = {
             "NIKA_SANDBOX_EXECUTION": "1",
             "NIKA_SESSION_ID": agent_sid,
             "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
-            "PYTHONPATH": str(workspace_path / "agent"),
+            "PYTHONPATH": f"{sandbox_workspace}/agent",
             ENV_ENABLE_SKILLS: "1" if skills_enabled() else "0",
         }
-        backend = getattr(session, "backend", "").strip()
-        if backend:
-            runtime_env["NIKA_SESSION_BACKEND"] = backend
+        lab_backend = getattr(session, "backend", "").strip()
+        if lab_backend:
+            runtime_env["NIKA_SESSION_BACKEND"] = lab_backend
         if agent_type in _CLAUDE_SDK_AGENT_TYPES:
             runtime_env["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = str(
                 _CLAUDE_SDK_INIT_TIMEOUT_MS
             )
+        runtime_env.update(credential_env)
 
-        cred_plan = ensure_sbx_credentials(
-            env_file=self.config.env_file,
-            required_services=required_services_for_agent(agent_type),
-            provider=llm_provider,
-            agent_type=agent_type,
-        )
-        # Allow custom / self-hosted LLM hosts in addition to the stock list.
-        from agent.sandbox.sbx.policy import llm_network_resources_for_url
-
-        extra_hosts: list[str] = []
-        for url in (cred_plan.openai_base_url, cred_plan.anthropic_base_url):
-            extra_hosts.extend(llm_network_resources_for_url(url))
-        ensure_llm_network_policy(*extra_hosts)
-        runtime_env.update(cred_plan.sentinel_runtime_env())
         workspace = prepare_workspace(
             session_dir=session_dir,
             manifest=manifest,
@@ -274,66 +212,47 @@ class SbxSandboxManager:
         mirror: TraceMirror | None = None
         if agent_type in SDK_AGENT_TYPES:
             self._bundle_agent_sources(workspace.workspace_dir)
-            if self.config.offline_sdk_wheels:
-                stage_sdk_wheels(workspace.workspace_dir)
             mirror = trace_mirror(workspace)
+        backend.stage_workspace(workspace.workspace_dir, agent_type=agent_type)
 
-        run_sbx_optional(["rm", "--force", sandbox_name])
-
-        create_cmd = self.build_create_command(
-            sandbox_name=sandbox_name,
-            sbx_agent=sbx_agent,
-            workspace_dir=workspace.workspace_dir,
-        )
         # Lifetime covers create → agent run → teardown; setup span is logged
         # on sandbox_start once the sandbox is ready (env_start-style).
         lifetime_started = time.perf_counter()
-        setup_started = lifetime_started
 
         # Serialize host env mutation for the lifetime of this sandbox session so
-        # a sibling session cannot restore/clobber our NIKA_SBX_* values mid-run.
+        # a sibling session cannot restore/clobber our NIKA_SANDBOX_* values.
         _sandbox_env_lock.acquire()
         prior_session_dir = os.environ.get(ENV_SESSION_DIR)
-        prior_sbx_name = os.environ.get(ENV_SBX_SANDBOX_NAME)
+        prior_sandbox_name = os.environ.get(ENV_SANDBOX_NAME)
         prior_runtime_env = {key: os.environ.get(key) for key in runtime_env}
+        sandbox_id: str | None = None
         try:
-            # sbx fails a microVM that does not connect within a fixed 15s, and
-            # concurrent boots on a loaded host routinely exceed that. The
-            # timeout bounds how long a hung create can stall sibling trials.
-            with sbx_host_lock("create"):
-                run_sbx_checked(create_cmd, timeout=_SBX_CREATE_TIMEOUT_SEC)
-            if agent_type in SDK_AGENT_TYPES:
-                if not self.config.offline_sdk_wheels:
-                    ensure_pypi_network_policy()
-                install_sdk_packages_in_sandbox(
-                    sandbox_name=sandbox_name,
-                    workspace_dir=workspace.workspace_dir,
-                    offline=self.config.offline_sdk_wheels,
-                )
-            allow_mcp_gateway(
-                sandbox_name=sandbox_name,
-                port=gateway_port,
-                gateway_url=mcp_gateway_agent_url,
+            sandbox_id = backend.create(
+                agent_session_id=agent_sid,
+                agent_type=agent_type,
+                workspace_dir=workspace.workspace_dir,
+            )
+            backend.allow_gateway(
+                sandbox_id, port=gateway_port, gateway_url=mcp_gateway_agent_url
             )
             log_event(
                 "sandbox_start",
-                f"Created native Docker Sandbox ({sbx_agent}) for session {session.session_id}",
+                f"Created {backend.name} sandbox {sandbox_id} "
+                f"for session {session.session_id}",
                 session_id=session.session_id,
                 agent_session_id=agent_sid,
                 agent_type=agent_type,
-                sandbox_name=sandbox_name,
-                native_sbx_agent=sbx_agent,
+                sandbox_backend=backend.name,
+                sandbox_name=sandbox_id,
                 mcp_gateway=mcp_gateway_agent_url,
-                upstream_proxy=upstream_proxy,
-                offline_sdk_wheels=self.config.offline_sdk_wheels,
-                sbx_command=redact_text("sbx " + " ".join(create_cmd)),
                 env=format_env_for_log(runtime_env),
-                duration_ms=elapsed_ms(setup_started),
+                duration_ms=elapsed_ms(lifetime_started),
+                **backend.start_log_fields(),
             )
-            os.environ[ENV_SBX_SANDBOX_NAME] = sandbox_name
+            os.environ[ENV_SANDBOX_NAME] = sandbox_id
             os.environ[ENV_SESSION_DIR] = str(workspace.workspace_dir)
             # Force credential placeholders over host .env API keys so the
-            # microVM never receives real secrets (and DeepSeek set-custom
+            # sandbox never receives real secrets (and DeepSeek set-custom
             # placeholders are not shadowed by host dotenv values).
             for key, value in runtime_env.items():
                 if key in CREDENTIAL_ENV_KEYS:
@@ -342,8 +261,8 @@ class SbxSandboxManager:
                     os.environ.setdefault(key, value)
             if mirror is not None:
                 mirror.start()
-            yield SbxSession(
-                sandbox_name=sandbox_name,
+            yield SandboxSession(
+                sandbox_name=sandbox_id,
                 workspace_dir=workspace.workspace_dir,
                 gateway_port=gateway_port,
                 agent_session_id=agent_sid,
@@ -353,10 +272,10 @@ class SbxSandboxManager:
             try:
                 if mirror is not None:
                     mirror.stop()
-                if prior_sbx_name is None:
-                    os.environ.pop(ENV_SBX_SANDBOX_NAME, None)
+                if prior_sandbox_name is None:
+                    os.environ.pop(ENV_SANDBOX_NAME, None)
                 else:
-                    os.environ[ENV_SBX_SANDBOX_NAME] = prior_sbx_name
+                    os.environ[ENV_SANDBOX_NAME] = prior_sandbox_name
                 if prior_session_dir is None:
                     os.environ.pop(ENV_SESSION_DIR, None)
                 else:
@@ -368,15 +287,16 @@ class SbxSandboxManager:
                         os.environ[key] = prior_value
 
                 try:
-                    deny_mcp_gateway(
-                        sandbox_name=sandbox_name,
-                        port=gateway_port,
-                        gateway_url=mcp_gateway_agent_url,
-                    )
+                    if sandbox_id is not None:
+                        backend.revoke_gateway(
+                            sandbox_id,
+                            port=gateway_port,
+                            gateway_url=mcp_gateway_agent_url,
+                        )
                 finally:
                     try:
-                        if not self.config.keep_container:
-                            run_sbx_optional(["rm", "--force", sandbox_name])
+                        if sandbox_id is not None and not self.config.keep_container:
+                            backend.remove(sandbox_id)
                     finally:
                         try:
                             collect_artifacts(workspace)
@@ -390,10 +310,12 @@ class SbxSandboxManager:
                             cleanup_workspace(workspace)
                             log_event(
                                 "sandbox_end",
-                                f"Docker Sandbox finished for session {session.session_id}",
+                                f"{backend.name} sandbox finished "
+                                f"for session {session.session_id}",
                                 session_id=session.session_id,
                                 agent_type=agent_type,
-                                sandbox_name=sandbox_name,
+                                sandbox_backend=backend.name,
+                                sandbox_name=sandbox_id or "",
                                 duration_ms=elapsed_ms(lifetime_started),
                             )
             finally:
@@ -402,20 +324,20 @@ class SbxSandboxManager:
     def _run_sdk_step(
         self,
         *,
-        sbx_session: SbxSession,
+        sandbox_session: SandboxSession,
         phase: str,
         stream_output: bool,
         timeout_sec: float | None,
         budget_sec: int,
     ) -> None:
         """Run one pipeline phase of the SDK agent inside the sandbox."""
-        workspace = sbx_session.workspace_dir
-        py_path = workspace / "agent"
+        workspace = self.backend.workspace_path(sandbox_session.workspace_dir)
         inner = (
-            f"cd {workspace} && PYTHONPATH={py_path} "
+            f"cd {shlex.quote(workspace)} && "
+            f"PYTHONPATH={shlex.quote(workspace + '/agent')} "
             f"python3 -m agent.sandbox.runner {phase}"
         )
-        proc = stream_sbx(["exec", sbx_session.sandbox_name, "bash", "-lc", inner])
+        proc = self.backend.exec_stream(sandbox_session.sandbox_name, inner)
         assert proc.stdout is not None
         timed_out = threading.Event()
 
@@ -435,8 +357,6 @@ class SbxSandboxManager:
             for line in proc.stdout:
                 captured.append(line)
                 if stream_output:
-                    import sys
-
                     sys.stdout.write(line)
                     sys.stdout.flush()
             returncode = proc.wait()
@@ -458,15 +378,15 @@ class SbxSandboxManager:
     def _run_sdk_in_sandbox(
         self,
         *,
-        sbx_session: SbxSession,
+        sandbox_session: SandboxSession,
         stream_output: bool,
         timeout_sec: int,
     ) -> None:
-        """Diagnosis in the VM, freeze + phase advance on the host, then submission.
+        """Diagnosis in the sandbox, freeze + phase advance on the host, then submission.
 
         The gateway's phase-advance secret stays in this host process, so the
-        in-VM agent cannot reach the submission context before its diagnosis
-        step has exited.
+        sandboxed agent cannot reach the submission context before its
+        diagnosis step has exited.
         """
         from agent.utils.mcp_client import begin_submission_mcp_phase
 
@@ -475,30 +395,34 @@ class SbxSandboxManager:
         def remaining() -> float | None:
             return None if deadline is None else deadline - time.monotonic()
 
-        workspace = sbx_session.workspace_dir
-        mirror = sbx_session.trace_mirror
+        sandbox_id = sandbox_session.sandbox_name
+        workspace = sandbox_session.workspace_dir
+        mirror = sandbox_session.trace_mirror
         self._run_sdk_step(
-            sbx_session=sbx_session,
+            sandbox_session=sandbox_session,
             phase=DIAGNOSIS,
             stream_output=stream_output,
             timeout_sec=remaining(),
             budget_sec=timeout_sec,
         )
+        self.backend.pull_files(sandbox_id, workspace, [DIAGNOSIS_REPORT_FILENAME])
         report_path = workspace / DIAGNOSIS_REPORT_FILENAME
         try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))["report"]
+            report = json.loads(read_workspace_text(report_path))["report"]
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise RuntimeError(f"SDK diagnosis step left no report: {exc}") from exc
         if not isinstance(report, str):
             raise RuntimeError("SDK diagnosis step left a non-text report")
         if mirror is not None:
             mirror.set_phase(SUBMISSION)
-        context = begin_submission_mcp_phase(sbx_session.agent_session_id, report)
-        (workspace / SUBMISSION_CONTEXT_FILENAME).write_text(
-            json.dumps(context, ensure_ascii=False), encoding="utf-8"
+        context = begin_submission_mcp_phase(sandbox_session.agent_session_id, report)
+        write_workspace_text(
+            workspace / SUBMISSION_CONTEXT_FILENAME,
+            json.dumps(context, ensure_ascii=False),
         )
+        self.backend.push_files(sandbox_id, workspace, [SUBMISSION_CONTEXT_FILENAME])
         self._run_sdk_step(
-            sbx_session=sbx_session,
+            sandbox_session=sandbox_session,
             phase=SUBMISSION,
             stream_output=stream_output,
             timeout_sec=remaining(),
@@ -519,8 +443,8 @@ class SbxSandboxManager:
         mcp_gateway_agent_url: str,
         gateway_port: int,
         stream_output: bool = True,
-    ) -> SbxSandboxRunResult:
-        """Create a native sandbox, run the agent, collect artifacts."""
+    ) -> SandboxRunResult:
+        """Create a sandbox, run the agent, collect artifacts."""
         with self.open_session(
             session=session,
             agent_type=agent_type,
@@ -532,10 +456,10 @@ class SbxSandboxManager:
             mcp_gateway_agent_url=mcp_gateway_agent_url,
             gateway_port=gateway_port,
             stream_output=stream_output,
-        ) as sbx_session:
+        ) as sandbox_session:
             if agent_type in SDK_AGENT_TYPES:
                 self._run_sdk_in_sandbox(
-                    sbx_session=sbx_session,
+                    sandbox_session=sandbox_session,
                     stream_output=stream_output,
                     timeout_sec=timeout_sec,
                 )
@@ -554,7 +478,4 @@ class SbxSandboxManager:
                 )
                 run_agent(agent, session.task_description, timeout_sec=timeout_sec)
 
-        return SbxSandboxRunResult(
-            returncode=0,
-            sandbox_name=sanitize_sandbox_name(resolve_agent_session_id(session)),
-        )
+        return SandboxRunResult(returncode=0, sandbox_name=sandbox_session.sandbox_name)

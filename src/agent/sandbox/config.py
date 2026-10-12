@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +15,8 @@ ENV_SANDBOX_EXECUTION = "NIKA_SANDBOX_EXECUTION"
 ENV_SESSION_DIR = "NIKA_SESSION_DIR"
 ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
+# Host-side CLI workers find the active sandbox of their session here.
+ENV_SANDBOX_NAME = "NIKA_SANDBOX_NAME"
 
 SANDBOX_GATEWAY_HOST_BRIDGE = "host.docker.internal"
 
@@ -31,11 +34,18 @@ def project_credentials_env_file() -> Path:
 
 @dataclass(frozen=True)
 class SandboxConfig:
+    backend: str
     env_file: Path
     keep_container: bool
     cpus: int | None
     memory: str | None
     offline_sdk_wheels: bool
+
+
+def sandbox_name_from_env() -> str | None:
+    """Return the sandbox that host-side CLI workers should exec in, if any."""
+    name = os.environ.get(ENV_SANDBOX_NAME, "").strip()
+    return name or None
 
 
 def sandbox_gateway_agent_host() -> str:
@@ -67,6 +77,7 @@ def resolve_sandbox_config(
 
     sbx = get_run_config().nika.sandbox
     return SandboxConfig(
+        backend=sbx.backend,
         env_file=project_credentials_env_file(),
         keep_container=(
             keep_container if keep_container is not None else bool(sbx.keep)

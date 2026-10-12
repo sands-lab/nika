@@ -35,9 +35,10 @@ from pathlib import Path
 from typing import Any
 
 from agent.protocols import PHASES
+from agent.sandbox.config import sandbox_name_from_env
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.sandbox.sbx.client import run_sbx_checked
-from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
+from agent.sandbox.sbx.exec import exec_in_sandbox
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,

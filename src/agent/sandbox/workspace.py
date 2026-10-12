@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import stat
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 from agent.sandbox.constants import (
     MANIFEST_FILENAME,
@@ -33,6 +36,44 @@ SANDBOX_RUN_JSON_ALLOWLIST = frozenset(
         "status",
     }
 )
+
+
+def open_workspace_file(path: Path) -> BinaryIO:
+    """Open an agent-writable workspace file for reading on the host.
+
+    The agent can replace any file in its workspace, including with a symlink
+    to a host path or a FIFO. Refuse both, so host reads only ever see a
+    regular file the sandbox wrote. *path* must sit directly in the workspace
+    root (the mount point), which the agent cannot replace.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    handle = os.fdopen(fd, "rb")
+    if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+        handle.close()
+        raise OSError(f"Not a regular file: {path}")
+    return handle
+
+
+def read_workspace_text(path: Path) -> str:
+    """Read an agent-writable workspace file (see :func:`open_workspace_file`)."""
+    with open_workspace_file(path) as handle:
+        return handle.read().decode("utf-8")
+
+
+def write_workspace_text(path: Path, text: str) -> None:
+    """Write a host file into the workspace without following a planted symlink.
+
+    Removes whatever the agent left at *path* (unlinking a symlink, not its
+    target) and creates the file exclusively, so a symlink recreated in
+    between makes the write fail instead of redirecting it.
+    """
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
 
 
 @dataclass
@@ -104,9 +145,12 @@ class TraceMirror:
     def sync(self) -> None:
         """Append complete new workspace lines to the host trace."""
         with self._lock:
-            if not self._source.is_file():
+            try:
+                handle = open_workspace_file(self._source)
+            except OSError:
+                # Missing yet, or not a regular file the sandbox wrote.
                 return
-            with self._source.open("rb") as handle:
+            with handle:
                 handle.seek(0, 2)
                 size = handle.tell()
                 if size < self._offset:
@@ -224,9 +268,11 @@ def collect_artifacts(workspace: SandboxWorkspace) -> None:
     mirrored with :class:`TraceMirror`), and ``submission.json`` is written by
     MCP ``submit()`` on the host after validation.
     """
-    manifest_src = workspace.manifest_path
-    if manifest_src.is_file():
-        shutil.copy2(manifest_src, workspace.session_dir / MANIFEST_FILENAME)
+    try:
+        manifest = read_workspace_text(workspace.manifest_path)
+    except OSError:
+        return
+    (workspace.session_dir / MANIFEST_FILENAME).write_text(manifest, encoding="utf-8")
 
 
 def cleanup_workspace(workspace: SandboxWorkspace) -> None:

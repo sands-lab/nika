@@ -130,7 +130,7 @@ def prepare_claude_subprocess_env(
     host environment (judge / Langfuse / remote / unused provider keys stay out).
     """
     from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
-    from agent.sandbox.sbx.exec import sandbox_name_from_env
+    from agent.sandbox.config import sandbox_name_from_env
     from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
 
     prov = require_provider(provider)

@@ -15,7 +15,7 @@ TEST_SKILL_NAME = "nika-test-skill"
 
 # Default package: src/agent/skills/
 _DEFAULT_SKILLS_ROOT = Path(__file__).resolve().parent.parent / "skills"
-# Sandbox copies that package to $NIKA_SESSION_DIR/skills (see sbx/workspace.py).
+# Sandbox copies that package to $NIKA_SESSION_DIR/skills (see sandbox/workspace.py).
 _SANDBOX_SKILLS_DIRNAME = "skills"
 
 CLAUDE_SETTING_SOURCES = ["project"]

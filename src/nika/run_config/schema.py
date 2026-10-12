@@ -28,6 +28,7 @@ class RemoteSettings(BaseModel):
 class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    backend: Literal["sbx"] = "sbx"
     keep: bool = False
     # Explicit null hands sizing to sbx: every host vCPU and half of host memory.
     cpus: StrictInt | None = 2

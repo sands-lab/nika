@@ -16,8 +16,6 @@ NATIVE_SBX_TEMPLATE_IMAGES: dict[str, str] = {
     "shell": "docker/sandbox-templates:shell-docker@sha256:1560168ac5fb9ce23d413c878349334c5845c07e264cd675d7867f0c78ad1761",
 }
 
-ENV_SBX_SANDBOX_NAME = "NIKA_SBX_SANDBOX_NAME"
-
 
 def native_sbx_agent(agent_type: str) -> str:
     try:

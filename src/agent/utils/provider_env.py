@@ -108,7 +108,7 @@ _BASE_SUBPROCESS_KEYS = frozenset(
         "CODEX_HOME",
         "CLAUDE_CONFIG_DIR",
         # Sandbox markers
-        "NIKA_SBX_SANDBOX_NAME",
+        "NIKA_SANDBOX_NAME",
     }
 )
 

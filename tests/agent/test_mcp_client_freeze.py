@@ -12,7 +12,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from agent.sandbox.config import ENV_GATEWAY_URL, ENV_SANDBOX_EXECUTION
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+from agent.sandbox.config import ENV_SANDBOX_NAME
 from agent.utils import mcp_client
 from nika.mcp.gateway.app import create_gateway_app
 from nika.mcp.gateway.phase import phase_advance_token
@@ -101,7 +101,7 @@ def test_begin_submission_refuses_inside_the_sandbox(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(ENV_SANDBOX_EXECUTION, "1")
-    monkeypatch.delenv(ENV_SBX_SANDBOX_NAME, raising=False)
+    monkeypatch.delenv(ENV_SANDBOX_NAME, raising=False)
     with pytest.raises(RuntimeError, match="runs on the host"):
         mcp_client.begin_submission_mcp_phase("sess-vm", "report")
 
