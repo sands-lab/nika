@@ -16,6 +16,7 @@ from pathlib import Path
 from agent.registry import BUILTIN_AGENTS
 from agent.sandbox.config import ENV_SESSION_DIR, SandboxConfig
 from agent.sandbox.constants import (
+    CREDENTIAL_ENV_KEYS,
     DIAGNOSIS_REPORT_FILENAME,
     MANIFEST_FILENAME,
     SUBMISSION_CONTEXT_FILENAME,
@@ -72,6 +73,11 @@ SDK_AGENT_TYPES = frozenset(
 )
 # Covers a first-run template image pull; a normal create takes under a minute.
 _SBX_CREATE_TIMEOUT_SEC = 600
+# The Claude Agent SDK waits for the bundled CLI's ``initialize`` reply
+# for CLAUDE_CODE_STREAM_CLOSE_TIMEOUT ms. Default is 60s and on slow hosts
+# it can easily exceed, causing a failure. We bump it to 5min.
+_CLAUDE_SDK_AGENT_TYPES = frozenset({"sdk.claude_sdk", "community.sade"})
+_CLAUDE_SDK_INIT_TIMEOUT_MS = 300_000
 
 # Host-side CLI sandboxes read ``NIKA_SBX_SANDBOX_NAME`` / ``NIKA_SESSION_DIR``
 # from process env. Concurrent sessions in one process must not interleave
@@ -167,7 +173,6 @@ class SbxSandboxManager:
         sandbox_name: str,
         sbx_agent: str,
         workspace_dir: Path,
-        agent_type: str,
     ) -> list[str]:
         cmd = [
             "create",
@@ -240,6 +245,10 @@ class SbxSandboxManager:
         backend = getattr(session, "backend", "").strip()
         if backend:
             runtime_env["NIKA_SESSION_BACKEND"] = backend
+        if agent_type in _CLAUDE_SDK_AGENT_TYPES:
+            runtime_env["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = str(
+                _CLAUDE_SDK_INIT_TIMEOUT_MS
+            )
 
         cred_plan = ensure_sbx_credentials(
             env_file=self.config.env_file,
@@ -275,7 +284,6 @@ class SbxSandboxManager:
             sandbox_name=sandbox_name,
             sbx_agent=sbx_agent,
             workspace_dir=workspace.workspace_dir,
-            agent_type=agent_type,
         )
         # Lifetime covers create → agent run → teardown; setup span is logged
         # on sandbox_start once the sandbox is ready (env_start-style).
@@ -327,15 +335,8 @@ class SbxSandboxManager:
             # Force credential placeholders over host .env API keys so the
             # microVM never receives real secrets (and DeepSeek set-custom
             # placeholders are not shadowed by host dotenv values).
-            _force_env_keys = {
-                "OPENAI_API_KEY",
-                "OPENAI_BASE_URL",
-                "DEEPSEEK_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "ANTHROPIC_BASE_URL",
-            }
             for key, value in runtime_env.items():
-                if key in _force_env_keys:
+                if key in CREDENTIAL_ENV_KEYS:
                     os.environ[key] = value
                 else:
                     os.environ.setdefault(key, value)

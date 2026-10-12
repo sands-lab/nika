@@ -21,6 +21,7 @@ import sys
 from typing import Any
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.display import agent_output
 from agent.utils.loggers import MessageLogger
 
 ERROR_PREFIX = "ERROR:"
@@ -66,7 +67,8 @@ class TwoPhaseAgent:
         self.print_phase(DIAGNOSIS, "starting network fault analysis")
         logger.log_agent_start()
         try:
-            report = await self.diagnose(task_description)
+            with agent_output(self.stream_output):
+                report = await self.diagnose(task_description)
         except BaseException as exc:
             logger.log_agent_error(exc)
             self.print_phase(DIAGNOSIS, f"failed ({str(exc)[:120]})")
@@ -89,7 +91,8 @@ class TwoPhaseAgent:
         self.print_phase(SUBMISSION, "recording structured result")
         logger.log_agent_start()
         try:
-            result = await self.submit(diagnosis_report, context)
+            with agent_output(self.stream_output):
+                result = await self.submit(diagnosis_report, context)
         except BaseException as exc:
             logger.log_agent_error(exc)
             self.print_phase(SUBMISSION, f"failed ({str(exc)[:120]})")

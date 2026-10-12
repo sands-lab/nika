@@ -9,7 +9,7 @@ from unittest.mock import patch
 from agent.sandbox.config import resolve_sandbox_config
 from agent.sandbox.sbx.wheels import (
     SDK_WHEEL_DIRNAME,
-    install_sdk_wheels_in_sandbox,
+    install_sdk_packages_in_sandbox,
     sdk_wheel_dir,
     stage_sdk_wheels,
 )
@@ -33,9 +33,10 @@ def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
 
     wheels = sdk_wheel_dir(workspace)
     with patch("agent.sandbox.sbx.wheels.run_sbx_checked") as run:
-        install_sdk_wheels_in_sandbox(
+        install_sdk_packages_in_sandbox(
             sandbox_name="nika-test",
             workspace_dir=workspace,
+            offline=True,
         )
 
     command = run.call_args.args[0]

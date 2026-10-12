@@ -350,16 +350,16 @@ cases:
       node: br1_corp_pc
       name: eth0
     fault_type: host_incorrect_netmask
-- scenario: p4_dc_gateway
+- scenario: enterprise_branch
   problem: host_ip_conflict
   inject:
-    host_name: service_4_2
-    host_name_2: service_2_1
+    host_name: br1_corp_pc
+    host_name_2: br1_corp_pc2
   topo_size: l
   root_causes:
   - resource:
       kind: interface
-      node: service_2_1
+      node: br1_corp_pc2
       name: eth0
     fault_type: host_ip_conflict
 - scenario: p4_dc_fabric
@@ -504,27 +504,20 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
-  problem: lb_connection_state_exhaustion
+  problem: p4_action_selector_member_misconfig
   inject:
-    attacker_device: client_8
-    backend_dip: 10.0.1.11
-    capacity: '256'
-    client_host: client_1
-    host_name: gateway_1
-    seed: '42'
-    syn_timeout_sec: '10'
-    vip_url: http://20.0.0.1:80/
+    host_name: leaf_1
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
-    fault_type: lb_connection_state_exhaustion
+      node: leaf_1
+    fault_type: p4_action_selector_member_misconfig
 - scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
-    learning_delay_ms: '5'
+    learning_delay_ms: '8000'
     seed: '42'
   topo_size: m
   root_causes:
@@ -649,16 +642,16 @@ cases:
       kind: node
       node: load_balancer
     fault_type: load_balancer_overload
-- scenario: p4_dc_fabric
+- scenario: campus_lan
   problem: mac_address_conflict
   inject:
-    host_name: web_2
-    host_name_2: client_3_2
+    host_name: pc_1_1_1_2
+    host_name_2: pc_1_1_1_1
   topo_size: m
   root_causes:
   - resource:
       kind: interface
-      node: web_2
+      node: pc_1_1_1_2
       name: eth0
     fault_type: mac_address_conflict
 - scenario: enterprise_branch

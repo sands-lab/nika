@@ -105,6 +105,9 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
 
 class IncastTrafficNetworkLimitation(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "incast_traffic_network_limitation"
     description = (
         "An egress port buffer is too shallow to absorb synchronized many-to-one "

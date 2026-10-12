@@ -23,21 +23,11 @@ from agent.sandbox.config import (
 )
 from agent.protocols import DIAGNOSIS, PHASES
 from agent.sandbox.constants import (
+    CREDENTIAL_ENV_KEYS,
     DIAGNOSIS_REPORT_FILENAME,
     MANIFEST_FILENAME,
     RUNTIME_ENV_FILENAME,
     SUBMISSION_CONTEXT_FILENAME,
-)
-
-
-_FORCE_RUNTIME_ENV_KEYS = frozenset(
-    {
-        "OPENAI_API_KEY",
-        "DEEPSEEK_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_BASE_URL",
-    }
 )
 
 
@@ -52,7 +42,7 @@ def _apply_runtime_env(workspace_dir: Path) -> None:
         text = str(value)
         # Credential placeholders must overwrite any sandbox-injected sentinel
         # (e.g. proxy-managed) so DeepSeek set-custom keys are not shadowed.
-        if key in _FORCE_RUNTIME_ENV_KEYS:
+        if key in CREDENTIAL_ENV_KEYS:
             os.environ[key] = text
         elif text.strip():
             os.environ.setdefault(key, text)

@@ -34,6 +34,9 @@ class ArpCachePoisoningParams(BaseModel):
 
 class ArpCachePoisoning(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
+    dynamic_artifact = True
     root_cause_name: str = "arp_cache_poisoning"
     description = "ARP cache is poisoned with a false MAC mapping."
     TAGS: str = ["arp"]

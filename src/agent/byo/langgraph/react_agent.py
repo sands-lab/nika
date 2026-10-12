@@ -66,7 +66,7 @@ class BasicReActAgent(TwoPhaseAgent):
         max_steps: int = 20,
         reasoning_effort: str | None = None,
         max_tokens: int | None = None,
-        stream_output: bool = False,
+        stream_output: bool = True,
     ):
         self.session_id = session_id
         self.max_steps = max_steps

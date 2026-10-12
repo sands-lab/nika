@@ -38,6 +38,8 @@ class P4TableEntryMissingParams(BaseModel):
 
 class P4TableEntryMissing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_http"
+    symptom_class = "unreachable"
     root_cause_name = "p4_table_entry_missing"
     description = "A required P4 forwarding table entry is missing."
     TAGS: str = ["p4", "p4_runtime"]
@@ -126,6 +128,8 @@ class P4TableEntryMisconfigParams(BaseModel):
 
 class P4TableEntryMisconfig(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_http"
+    symptom_class = "unreachable"
     root_cause_name = "p4_table_entry_misconfig"
     description = "A P4 forwarding table entry is misconfigured."
     TAGS: str = ["p4", "p4_runtime"]

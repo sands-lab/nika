@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
+
 import pytest
+from nika.net_env.dc_clos.lab import DCClos
 from nika.net_env.dc_clos.verify import verify_dc_clos_lab, verify_dc_clos_lab_startup
 from nika.net_env.enterprise_branch.verify import (
     verify_enterprise_branch_lab,
@@ -16,7 +19,10 @@ from nika.net_env.sdn_l3_clos.verify import (
 )
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
-from tests.support.net_env import assert_verify_success
+from tests.support.net_env import (
+    assert_verify_success,
+    instantiate_with_mocked_kathara,
+)
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_evaluate import evaluate_scenario
 from tests.support.simple_bgp.verify import verify_simple_bgp_lab
@@ -132,6 +138,36 @@ HOST_ADDRS = {
 }
 
 
+def _bgp_summary(established: list[str], idle: tuple[str, ...] = ()) -> str:
+    """Render FRR ``show bgp summary`` with Established and Idle neighbors."""
+    rows = [f"{peer} 4 65000 25 9 6 0 0 00:00:30 5 1 N/A" for peer in established]
+    rows += [f"{peer} 4 65000 0 0 0 0 0 never Idle 0 N/A" for peer in idle]
+    return (
+        "BGP table version 16\n"
+        "Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down "
+        "State/PfxRcd PfxSnt Desc\n" + "\n".join(rows) + "\n\n"
+        f"Total number of neighbors {len(rows)}\n"
+    )
+
+
+def _dc_clos_lab(
+    idle: tuple[str, str] | None = None,
+) -> tuple[DCClos, dict[tuple[str, str], str]]:
+    """Return a dc_clos s lab and BGP summaries with its planned sessions up.
+
+    ``idle`` = (router, peer) leaves that one planned session Idle.
+    """
+    lab = instantiate_with_mocked_kathara(
+        "nika.net_env.dc_clos.lab.Kathara.get_instance", lambda: DCClos("s")
+    )
+    summaries = {}
+    for router, peers in lab.bgp_neighbors.items():
+        down = tuple(p for p in peers if idle == (router, p))
+        up = [p for p in peers if p not in down]
+        summaries[router, "vtysh -c 'show bgp summary'"] = _bgp_summary(up, down)
+    return lab, summaries
+
+
 class FakeRuntime:
     def __init__(
         self,
@@ -148,6 +184,19 @@ class FakeRuntime:
     def exec(self, host: str, command: str, timeout: float = 10.0) -> str:
         if (host, command) in self.overrides:
             return self.overrides[host, command]
+        if command.startswith("sh -c "):
+            # Batched probes: every ping, dig, and curl in the script succeeds.
+            lines = [
+                f"{target} 3 received"
+                for target in re.findall(r"ping -c 3 -i 0\.2 -W 2 -q (\S+)", command)
+            ]
+            lines += [
+                f"dns {addr} {addr}" for addr in re.findall(r"echo dns (\S+)", command)
+            ]
+            lines += [
+                f"http {url} 200" for url in re.findall(r"echo http (\S+)", command)
+            ]
+            return "\n".join(lines)
         # Guest/IOT: isolation checks use count=1 and must fail.
         if command.startswith("ping -c") and ("guest" in host or "iot" in host):
             return "0 packets received"
@@ -209,19 +258,12 @@ class FakeRuntime:
         if command.startswith("ip neigh show"):
             return "10.0.1.1 lladdr 02:00:00:00:00:01 REACHABLE"
         if command == "vtysh -c 'show bgp summary'":
-            # Legacy short lines for frr_bgp_established(); modern lines for
-            # enterprise_branch peer checks (cover scaled /30 tunnel peers).
-            peers = "\n".join(
-                f"172.30.0.{i} 4 65000 25 9 6 0 0 00:00:30 5 1 N/A"
-                for i in range(1, 40)
-            )
-            return (
-                "eth0 4 65000 1\n"
-                "eth1 4 65001 2\n"
-                "Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down "
-                "State/PfxRcd PfxSnt Desc\n"
-                f"{peers}\n"
-            )
+            # Established numbered peers (enterprise_branch /30 tunnels),
+            # unnumbered k8s_lab fabric peers, and the k8s_lab AS1-AS2 link.
+            peers = [f"172.30.0.{i}" for i in range(1, 40)]
+            peers += [f"peer({iface})" for iface in ("eth0", "eth1", "eth2", "eth3")]
+            peers += ["10.0.4.1", "10.0.4.2"]
+            return _bgp_summary(peers)
         if command == "vtysh -c 'show ip bgp'":
             return (
                 "*> 10.0.10.0/24\n*> 10.0.20.0/24\n"
@@ -283,11 +325,13 @@ class FakeRuntime:
         if "jsonpath={.status.loadBalancer.ingress[0].ip}" in command:
             return "101.0.0.1"
         if command == "kubectl get pods -n metallb-system --no-headers":
-            return "speaker Running"
+            return "speaker-x 1/1 Running 0 1m\ncontroller-y 1/1 Running 0 1m"
         if command.startswith("kubectl get gateway -n llm-d llm-d-gateway"):
             return "200.0.0.240"
         if command == "kubectl get pods -n agentgateway-system --no-headers":
-            return "agentgateway Running"
+            return "agentgateway-x 1/1 Running 0 1m"
+        if command == "kubectl get pods -n llm-d --no-headers":
+            return "gaie-epp-x 1/1 Running 0 1m\nms-decode-y 2/2 Running 0 1m"
         if command == "kubectl get gateway -A --no-headers":
             return "default pd-gateway"
         return ""
@@ -302,27 +346,48 @@ class KatharaVerifyUnitTest:
         assert_verify_success(verify_simple_bgp_lab(FakeRuntime(), scenario_name="x"))
 
     def test_dc_clos_startup_verify_passes(self) -> None:
+        lab, summaries = _dc_clos_lab()
         assert_verify_success(
-            verify_dc_clos_lab_startup(FakeRuntime(), scenario_name="x")
+            verify_dc_clos_lab_startup(
+                FakeRuntime(overrides=summaries),
+                scenario_name="dc_clos",
+                nodes=tuple(lab.lab.machines),
+                bgp_neighbors=lab.bgp_neighbors,
+                client_addresses=lab.client_addresses,
+            )
         )
 
     def test_dc_clos_verify_passes(self) -> None:
-        assert_verify_success(verify_dc_clos_lab(FakeRuntime(), scenario_name="x"))
+        lab, summaries = _dc_clos_lab()
+        assert_verify_success(
+            verify_dc_clos_lab(
+                FakeRuntime(overrides=summaries),
+                scenario_name="dc_clos",
+                nodes=tuple(lab.lab.machines),
+                bgp_neighbors=lab.bgp_neighbors,
+                client_addresses=lab.client_addresses,
+                dns_servers=lab.dns_servers,
+                web_urls=tuple(lab.web_urls),
+            )
+        )
 
-    def test_dc_clos_startup_bgp_failure(self) -> None:
+    def test_dc_clos_startup_one_idle_session_fails(self) -> None:
+        # "Total number of neighbors N" and "BGP table version N" must not
+        # count as Established sessions.
+        lab, summaries = _dc_clos_lab(idle=("leaf_router_0_1", "172.16.0.6"))
+        assert "172.16.0.6" in lab.bgp_neighbors["leaf_router_0_1"]
         result = verify_dc_clos_lab_startup(
-            FakeRuntime(
-                overrides={
-                    (
-                        "super_spine_router_0",
-                        "vtysh -c 'show bgp summary'",
-                    ): "failed to connect to bgpd"
-                }
-            ),
-            scenario_name="x",
+            FakeRuntime(overrides=summaries),
+            scenario_name="dc_clos",
+            nodes=tuple(lab.lab.machines),
+            bgp_neighbors=lab.bgp_neighbors,
+            client_addresses=lab.client_addresses,
         )
         assert not result["verified"]
-        assert not result["checks"]["super_spine_bgp_established"]
+        assert not result["checks"]["bgp_sessions_established"]
+        assert result["details"]["failures"]["bgp_not_established"] == {
+            "leaf_router_0_1": ["172.16.0.6"]
+        }
 
     def test_sdn_l3_clos_startup_verify_passes(self) -> None:
         model = build_clos_fabric_model("s")
@@ -426,6 +491,25 @@ class KatharaVerifyUnitTest:
 
     def test_llmd_verify_passes(self) -> None:
         assert_verify_success(verify_llmd_lab(FakeRuntime(), scenario_name="x"))
+
+    def test_llmd_unready_model_server_fails(self) -> None:
+        result = verify_llmd_lab(
+            FakeRuntime(
+                overrides={
+                    (
+                        "controller",
+                        "kubectl get pods -n llm-d --no-headers",
+                    ): "gaie-epp-x 1/1 Running 0 1m\n"
+                    "ms-decode-y 1/2 CrashLoopBackOff 5 9m"
+                }
+            ),
+            scenario_name="x",
+        )
+        assert not result["verified"]
+        assert not result["checks"]["serving_pods_ready"]
+        assert result["details"]["failures"]["unready_pods"] == {
+            "llm-d": ["ms-decode-y"]
+        }
 
     def test_missing_node_fails(self) -> None:
         result = verify_simple_bgp_lab(

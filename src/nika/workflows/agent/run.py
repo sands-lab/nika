@@ -122,14 +122,14 @@ def start_agent(
         presence.start()
     agent_started = time.perf_counter()
     agent_exc: BaseException | None = None
-    if agent_type == "cli.codex" and stream_output:
+    if stream_output:
         effort_line = (
             f" | Reasoning effort: {reasoning_effort}" if reasoning_effort else ""
         )
-        mode_line = " | Sandbox: enabled"
+        mode_line = " | Sandbox: enabled" if use_sandbox else ""
         print(
             f"Session {session.session_id}\n"
-            f"Agent: cli.codex | Model: {model}{effort_line}{mode_line}\n"
+            f"Agent: {agent_type} | Model: {model}{effort_line}{mode_line}\n"
             f"Results: {session.session_dir}\n",
             flush=True,
         )
@@ -267,5 +267,5 @@ def start_agent(
         agent_type=agent_type,
         duration_ms=elapsed_ms(agent_started),
     )
-    if agent_type == "cli.codex" and stream_output:
+    if stream_output:
         print(f"\nDone. Results saved to {session.session_dir}\n", flush=True)

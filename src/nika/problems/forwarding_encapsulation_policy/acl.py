@@ -58,6 +58,8 @@ class BGPAclBlockParams(BaseModel):
 
 class BGPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name = "bgp_acl_block"
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
@@ -144,6 +146,8 @@ class OSPFAclBlockParams(BaseModel):
 
 class OSPFAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name = "ospf_acl_block"
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
@@ -180,6 +184,8 @@ class ARPAclBlockParams(BaseModel):
 
 class ARPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name = "arp_acl_block"
     description = "ARP is blocked by an ACL."
     TAGS: str = ["arp"]
@@ -219,6 +225,8 @@ class IcmpAclBlockParams(BaseModel):
 
 class IcmpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name = "icmp_acl_block"
     description = "ICMP is blocked by an ACL."
     TAGS: str = ["icmp"]
@@ -257,6 +265,8 @@ class HttpAclBlockParams(BaseModel):
 
 class HttpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_http"
+    symptom_class = "unreachable"
     root_cause_name = "http_acl_block"
     description = "HTTP traffic is blocked by an ACL."
     TAGS: str = ["http", "pc"]
@@ -293,6 +303,8 @@ class DNSPortBlockedParams(BaseModel):
 
 class DNSPortBlocked(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dns_port_blocked"
 
     description = "DNS service port is blocked."

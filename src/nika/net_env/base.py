@@ -25,6 +25,9 @@ class ProbePath:
     http_name_url: str | None = None
     peer_host: str | None = None
     old_ip: str | None = None
+    # An address that answers ICMP on the way to ``dst_ip`` when ``dst_ip`` is
+    # an L4-only service address such as a load-balancer VIP.
+    icmp_ip: str | None = None
 
 
 class NetworkEnvBase:

@@ -6,7 +6,7 @@ failure:
   - topo_size: s
     inject:
       host_name: gateway_1
-      learning_delay_ms: '5'
+      learning_delay_ms: '8000'
       seed: '42'
     root_causes:
     - resource:
@@ -16,7 +16,7 @@ failure:
   - topo_size: m
     inject:
       host_name: gateway_1
-      learning_delay_ms: '5'
+      learning_delay_ms: '8000'
       seed: '42'
     root_causes:
     - resource:
@@ -26,7 +26,7 @@ failure:
   - topo_size: l
     inject:
       host_name: gateway_1
-      learning_delay_ms: '5'
+      learning_delay_ms: '8000'
       seed: '42'
     root_causes:
     - resource:

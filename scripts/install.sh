@@ -40,7 +40,8 @@ the clab and gnmic binaries to .venv/bin, and uv with its cache to
 .nika_cache/. Containerlab needs sudo once for its setuid bit and the
 clab_admins group. Raises and persists host inotify limits for k3s and XRd
 labs, and loads and persists the vrf kernel module. Creates .env
-and config/nika.yaml from examples when missing.
+and config/nika.yaml from examples when missing, and enables the repo git
+hooks that copy config/custom/ into new worktrees.
 
 Then builds and pulls every Docker image the non-vendor scenarios use and
 caches the Kubernetes workload images and Helm charts, so benchmarks start
@@ -352,6 +353,17 @@ bootstrap_config() {
     fi
   else
     log "config/nika.yaml already present"
+  fi
+
+  # Copies untracked config/custom/ files into new git worktrees.
+  local hooks_path
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  hooks_path="$(git config --get core.hooksPath || true)"
+  if [[ -z "${hooks_path}" ]]; then
+    git config core.hooksPath scripts/git-hooks
+    log "Enabled repository git hooks (core.hooksPath=scripts/git-hooks)"
+  elif [[ "${hooks_path}" != "scripts/git-hooks" ]]; then
+    warn "core.hooksPath is ${hooks_path}; config/custom/ is not copied into new worktrees"
   fi
 }
 

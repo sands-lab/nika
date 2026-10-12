@@ -11,7 +11,6 @@ from nika.workflows.benchmark.release import load_run_config
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import trial_dir
 from nika.workflows.leaderboard.meta_input import (
-    slugify_name,
     write_submission_templates,
 )
 from nika.workflows.leaderboard.submit import submit_leaderboard_package
@@ -158,7 +157,7 @@ def test_release_submit_packs_validates_and_opens_prs(
             work_dir=tmp_path / "submit-work",
         )
 
-    slug = slugify_name("Submit Mock Agent")
+    slug = "mock_mock_v1"
     package_name = result.package_dir.name
     assert package_name.endswith(f"_{slug}")
     assert result.pr_url.endswith("/pull/99")

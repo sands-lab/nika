@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from agent.sandbox.sbx.auth import apply_codex_auth
-from agent.cli.codex.codex_display import format_codex_event
 from agent.cli.codex.codex_worker import (
     _build_mcp_toml,
     _codex_model_provider_id,
@@ -120,10 +119,6 @@ class CodexSdkWorker:
     def _log_codex_event(self, event: dict[str, Any]) -> None:
         event_type = event.get("type", "codex_event")
         self._logger.log(event_type, {"codex_event": event})
-        if self._stream_output:
-            display = format_codex_event(event)
-            if display:
-                print(display, flush=True)
 
     async def _collect_turn_with_logging(self, turn: Any, stream: Any) -> str:
         """Log the turn and return its final text under the shared step contract.

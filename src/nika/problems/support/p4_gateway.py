@@ -26,6 +26,22 @@ def _config(runtime: LabRuntime, switch: str, kind: str, **values: object) -> st
     return output
 
 
+def read_table(runtime: LabRuntime, switch: str, table: str) -> list[dict] | None:
+    """Read the live entries of one P4 table, or ``None`` when the read fails."""
+    output = runtime.exec(
+        "fabric_mgr",
+        f"python3 /opt/nika/p4rt_manager.py read-table --switch {shlex.quote(switch)} "
+        f"--table {shlex.quote(table)}",
+        timeout=30,
+    )
+    try:
+        payload = json.loads(output)
+    except ValueError:
+        return None
+    rows = (payload.get("tables") or {}).get(table) if payload.get("ok") else None
+    return rows if isinstance(rows, list) else None
+
+
 def set_silent_destination_drop(
     runtime: LabRuntime, switch: str, target_ip: str
 ) -> str:

@@ -22,6 +22,11 @@ NIKA is a platform for generating and running executable benchmarks for network 
 
 `dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
 
+### Leaderboard submissions
+
+* Use `YYYYMMDD_<framework>_<model>` package directories, with normalized public harness names, for scores and Hugging Face trajectories.
+* Before merging a leaderboard entry, register sourced model release dates and reference prices in the leaderboard catalogs and confirm both required checks (`model-metadata` and `validate`) pass. Existing reviewed model entries may be reused.
+
 ### Commit message
 
 Conventional Commits + GitHub auto-close, e.g.:

@@ -55,6 +55,9 @@ router bgp {AS_number}
 line vty
 """
 
+# glibc reads at most three ``nameserver`` lines from /etc/resolv.conf.
+_RESOLV_MAXNS = 3
+
 FRR_NEIGHBOR_ADD_TEMPLATE = """neighbor {neighbor_ip} remote-as {neighbor_as}
 """
 
@@ -69,6 +72,7 @@ class RouterMeta:
         self.router_id = ""
         self.frr_config = ""
         self.frr_neighbor_configs = []
+        self.neighbor_ips: list[str] = []
         self.host_network = None
 
 
@@ -204,12 +208,14 @@ class DCClos(NetworkEnvBase):
                         neighbor_as=spine_meta.AS_number,
                     )
                 )
+                super_spine_meta.neighbor_ips.append(b_ip.split("/")[0])
                 spine_meta.frr_neighbor_configs.append(
                     FRR_NEIGHBOR_ADD_TEMPLATE.format(
                         neighbor_ip=a_ip.split("/")[0],
                         neighbor_as=super_spine_meta.AS_number,
                     )
                 )
+                spine_meta.neighbor_ips.append(a_ip.split("/")[0])
                 if super_spine_meta.router_id == "":
                     super_spine_meta.router_id = a_ip.split("/")[0]
                 if spine_meta.router_id == "":
@@ -243,12 +249,14 @@ class DCClos(NetworkEnvBase):
                             neighbor_as=leaf_meta.AS_number,
                         )
                     )
+                    spine_meta.neighbor_ips.append(b_ip.split("/")[0])
                     leaf_meta.frr_neighbor_configs.append(
                         FRR_NEIGHBOR_ADD_TEMPLATE.format(
                             neighbor_ip=a_ip.split("/")[0],
                             neighbor_as=spine_meta.AS_number,
                         )
                     )
+                    leaf_meta.neighbor_ips.append(a_ip.split("/")[0])
                     if spine_meta.router_id == "":
                         spine_meta.router_id = a_ip.split("/")[0]
                     if leaf_meta.router_id == "":
@@ -260,6 +268,11 @@ class DCClos(NetworkEnvBase):
             pod_leaves=pod_leaves,
             tot_super_spines=tot_super_spines,
         )
+        # Every configured eBGP session, by router, for lab verification.
+        self.bgp_neighbors = {
+            meta.name: tuple(meta.neighbor_ips)
+            for meta in tot_super_spines + tot_spines + tot_leaves
+        }
         advertise_routers = tot_leaves + tot_super_spines
         plain_routers = tot_spines
 
@@ -452,6 +465,12 @@ class DCClos(NetworkEnvBase):
             super_spine_meta.host_network = str(subnet)
             client_meta.ip_address = str(client_ip.ip)
 
+        self.client_addresses = {
+            client.name: client.ip_address for client in tot_clients
+        }
+        self.dns_servers = tuple(
+            (dns.ip_address, f"ns{idx}.pod{idx}") for idx, dns in enumerate(tot_dns)
+        )
         for host in tot_clients:
             ns_add_cmd = ""
             for dns in tot_dns:
@@ -462,6 +481,14 @@ class DCClos(NetworkEnvBase):
                 f"{host.machine.name}.startup",
             )
 
+        # The client resolver reads at most _RESOLV_MAXNS nameservers, so with
+        # more pods each server forwards the other pods' zones to their owner.
+        forward = len(tot_dns) > _RESOLV_MAXNS
+        recursion = (
+            "recursion yes; dnssec-validation no; max-cache-ttl 1; max-ncache-ttl 1;"
+            if forward
+            else "recursion no;"
+        )
         for dns_idx, dns in enumerate(tot_dns):
             zone_name = f"pod{dns_idx}"
             ns_name = f"ns{dns_idx}"
@@ -471,7 +498,7 @@ class DCClos(NetworkEnvBase):
                     directory "/var/cache/bind";
                     listen-on port 53 {{ any; }};
                     allow-query     {{ any; }};
-                    recursion no;
+                    {recursion}
                 }};
 
                 zone "{zone_name}" IN {{
@@ -479,6 +506,14 @@ class DCClos(NetworkEnvBase):
                     file "/etc/bind/db.{zone_name}";
                 }};"""
             )
+            if forward:
+                name_config += "".join(
+                    f'\n\nzone "pod{idx}" IN {{\n'
+                    "    type forward;\n    forward only;\n"
+                    f"    forwarders {{ {other.ip_address}; }};\n}};"
+                    for idx, other in enumerate(tot_dns)
+                    if idx != dns_idx
+                )
             dns.machine.create_file_from_string(name_config, "/etc/bind/named.conf")
 
             basic_bind_conf = textwrap.dedent(f"""\
@@ -540,6 +575,9 @@ class DCClos(NetworkEnvBase):
         return verify_dc_clos_lab_startup(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
+            nodes=tuple(self.lab.machines),
+            bgp_neighbors=self.bgp_neighbors,
+            client_addresses=self.client_addresses,
         )
 
     def verify_lab(self) -> dict:
@@ -548,4 +586,9 @@ class DCClos(NetworkEnvBase):
         return verify_dc_clos_lab(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
+            nodes=tuple(self.lab.machines),
+            bgp_neighbors=self.bgp_neighbors,
+            client_addresses=self.client_addresses,
+            dns_servers=self.dns_servers,
+            web_urls=tuple(self.web_urls),
         )

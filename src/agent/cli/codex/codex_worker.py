@@ -19,7 +19,7 @@ isolated, per-session workspace.  It handles:
   ``--output-last-message``; JSONL events emitted via ``--json`` are streamed
   line-by-line, logged to the host ``messages.jsonl`` (``trace_dir``) in real
   time, and pretty-printed to the terminal via
-  :func:`~agent.cli.codex.codex_display.format_codex_event`.
+  :func:`~agent.utils.display.display_agent_event`.
 * **Step budget** – ``codex exec`` has no turn limit and reports usage only
   once per ``codex exec`` turn, so the worker infers model responses from item
   boundaries (:class:`_ResponseCounter`), logs one ``llm_end`` per response,
@@ -34,7 +34,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from agent.cli.codex.codex_display import format_codex_event
 from agent.protocols import PHASES
 from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.sandbox.sbx.exec import exec_in_sandbox
@@ -759,11 +758,6 @@ class CodexWorker:
                 text = str(item.get("text") or "").strip()
                 if text:
                     self._response_reasoning.append(text)
-
-        if self._stream_output:
-            display = format_codex_event(event)
-            if display:
-                print(display, flush=True)
 
     def _log_mcp_tool_item(self, event_type: str, item: dict) -> None:
         tool = str(item.get("tool", ""))

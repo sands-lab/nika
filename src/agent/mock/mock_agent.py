@@ -217,11 +217,12 @@ class MockAgent(TwoPhaseAgent):
         session_id: str,
         model: str = "mock-v1",
         max_steps: int = 20,
+        stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
         self.model = model
         self.max_steps = max_steps
-        self.stream_output = False
+        self.stream_output = stream_output
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
         self.trace_dir = self.session.session_dir

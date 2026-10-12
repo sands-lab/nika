@@ -505,27 +505,20 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
-  problem: lb_connection_state_exhaustion
+  problem: p4_action_selector_member_misconfig
   inject:
-    attacker_device: client_8
-    backend_dip: 10.0.1.11
-    capacity: '256'
-    client_host: client_1
-    host_name: gateway_1
-    seed: '42'
-    syn_timeout_sec: '10'
-    vip_url: http://20.0.0.1:80/
+    host_name: leaf_1
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
-    fault_type: lb_connection_state_exhaustion
+      node: leaf_1
+    fault_type: p4_action_selector_member_misconfig
 - scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
-    learning_delay_ms: '5'
+    learning_delay_ms: '8000'
     seed: '42'
   topo_size: m
   root_causes:
@@ -1507,27 +1500,20 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
-  problem: lb_connection_state_exhaustion
+  problem: p4_table_resource_exhaustion
   inject:
-    attacker_device: client_2
-    backend_dip: 10.0.1.11
-    capacity: '256'
-    client_host: client_1
-    host_name: gateway_1
-    seed: '42'
-    syn_timeout_sec: '10'
-    vip_url: http://20.0.0.1:80/
+    host_name: leaf_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
-    fault_type: lb_connection_state_exhaustion
+      node: leaf_1
+    fault_type: p4_table_resource_exhaustion
 - scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
-    learning_delay_ms: '5'
+    learning_delay_ms: '8000'
     seed: '42'
   topo_size: l
   root_causes:

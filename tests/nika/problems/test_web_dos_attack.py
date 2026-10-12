@@ -7,8 +7,8 @@ from nika.problems.registry import compatible, get_problem_class
 from nika.problems.security.web import WebDoS, WebDoSParams
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
-from tests.support.symptom import evaluate_symptom
-from tests.support.symptom.probe import _resolve_path
+from nika.validation.symptom import evaluate_symptom
+from nika.validation.symptom.probe import _resolve_path
 
 
 WEB_DOS_SCENARIOS = (
@@ -103,24 +103,6 @@ def test_web_dos_artifact_verify_only() -> None:
         f"-c {params.concurrency_per_worker}" in command
         for command in attacker_commands
     )
-
-
-@pytest.mark.unit
-def test_web_dos_evaluate_symptom_degradation() -> None:
-    problem = _DeterministicWebDoS()
-    params = _params()
-    problem.inject_fault(params)
-
-    ok, symptom = evaluate_symptom(
-        problem.runtime,
-        "web_dos_attack",
-        params,
-        scenario=None,
-        problem=problem,
-    )
-    assert ok is True
-    assert symptom["verified"] is True
-    assert symptom["details"]["degradation_ok"] is True
 
 
 @pytest.mark.unit

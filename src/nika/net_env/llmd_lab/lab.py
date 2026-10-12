@@ -118,6 +118,7 @@ def ensure_helm_charts() -> list[Path]:
                         tmp,
                     ],
                     check=True,
+                    capture_output=True,
                     timeout=120,
                 )
                 staged = Path(tmp) / chart_path.name
@@ -262,37 +263,6 @@ class LLMDInferenceCluster(NetworkEnvBase):
         self.lab.connect_machine_to_link("web", "A")
         all_machines["web"] = web
 
-        # Inject Helm into controller FS from host cache (busybox wget cannot fetch HTTPS).
-        helm_bin = _ensure_helm_binary()
-        all_machines["controller"].create_file_from_path(
-            str(helm_bin), "/usr/local/bin/helm"
-        )
-        # Stage charts now; the preload-time cache_scenario() runs after
-        # machine files are staged, and BusyBox wget cannot fetch HTTPS.
-        chart_paths = ensure_helm_charts()
-        gateway_images = {
-            image.split("@")[0].split("/")[-1].split(":")[0]: image.split("/")[
-                -1
-            ].split(":", 1)[1]
-            for image in self.K8S_WORKLOAD_IMAGES
-            if image.startswith("cr.agentgateway.dev/")
-        }
-        all_machines["controller"].create_file_from_string(
-            yaml.safe_dump(
-                {
-                    "controller": {"image": {"tag": gateway_images["controller"]}},
-                    "proxy": {"image": {"tag": gateway_images["agentgateway"]}},
-                    "inferenceExtension": {"enabled": True},
-                    "image": {"pullPolicy": "Never"},
-                }
-            ),
-            "/helm-charts/values.yaml",
-        )
-        for chart_path in chart_paths:
-            all_machines["controller"].create_file_from_path(
-                str(chart_path), f"/helm-charts/{chart_path.name}"
-            )
-
         all_machines["controller"].create_file_from_path(
             str(Path(__file__).resolve().parent.parent / "utils" / "k8s_bootstrap.sh"),
             "/nika-bootstrap.sh",
@@ -308,6 +278,38 @@ class LLMDInferenceCluster(NetworkEnvBase):
                 self.lab.create_file_from_path(startup_file, f"{name}.startup")
 
         self.load_machines()
+
+    def deploy(self):
+        # Stage Helm and its charts only at deploy time: offline loads (task
+        # catalog, RCA inventory) must not download them. BusyBox wget in the
+        # controller cannot fetch HTTPS, so they come from the host cache.
+        controller = self.lab.get_machine("controller")
+        helm_bin = _ensure_helm_binary()
+        controller.create_file_from_path(str(helm_bin), "/usr/local/bin/helm")
+        chart_paths = ensure_helm_charts()
+        gateway_images = {
+            image.split("@")[0].split("/")[-1].split(":")[0]: image.split("/")[
+                -1
+            ].split(":", 1)[1]
+            for image in self.K8S_WORKLOAD_IMAGES
+            if image.startswith("cr.agentgateway.dev/")
+        }
+        controller.create_file_from_string(
+            yaml.safe_dump(
+                {
+                    "controller": {"image": {"tag": gateway_images["controller"]}},
+                    "proxy": {"image": {"tag": gateway_images["agentgateway"]}},
+                    "inferenceExtension": {"enabled": True},
+                    "image": {"pullPolicy": "Never"},
+                }
+            ),
+            "/helm-charts/values.yaml",
+        )
+        for chart_path in chart_paths:
+            controller.create_file_from_path(
+                str(chart_path), f"/helm-charts/{chart_path.name}"
+            )
+        super().deploy()
 
     def _prepare_runtime_files(self) -> None:
         lab_name = self.name

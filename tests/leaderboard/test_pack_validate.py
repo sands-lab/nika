@@ -331,7 +331,7 @@ def test_cli_submit_generates_metadata_and_validates_offline(
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
     assert "Local preflight complete" in result.output
-    package = next(p for p in result_dir.glob("*_quick_agent") if p.is_dir())
+    package = next(p for p in result_dir.glob("*_mock_mock_v1") if p.is_dir())
     metadata = load_metadata_file(package / METADATA_FILENAME)
     assert metadata.info.authors == "NIKA Test"
     assert metadata.agent.model == "mock-v1"
@@ -341,7 +341,7 @@ def test_cli_submit_generates_metadata_and_validates_offline(
     assert f"trajectories/{release.version}/{package.name}" in result.output
 
     # An explicit original output path keeps both identities paired on a later retry.
-    original = result_dir / "20260101_quick_agent"
+    original = result_dir / "20260101_mock_mock_v1"
     retry = runner.invoke(app, [*args, "--skip-github", "--out", str(original)])
     assert retry.exit_code == 0, retry.output
     identity = yaml.safe_load(_identity_path(original).read_text())
@@ -388,7 +388,7 @@ class TestLeaderboardPackValidate:
         meta["agent"]["optimization_methods"] = ["reflection"]
         meta["agent"]["tags"] = ["research"]
         package = _pack(result_dir, metadata=meta)
-        assert package.name.endswith("_meta_agent")
+        assert package.name.endswith("_react_mock_v1")
         assert (package / METADATA_FILENAME).is_file()
         assert (package / README_FILENAME).is_file()
         assert _identity_path(package).is_file()

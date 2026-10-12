@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -103,6 +104,8 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
             session_dir=session_dir,
             manifest=manifest,
             runtime_env={"NIKA_AGENT_TYPE": agent_type},
+            agent_session_id=session_id,
+            workspace_dir=Path(tmp) / "agent_workspace",
         )
         probe_in_workspace = workspace.workspace_dir / "security_probe.sh"
         shutil.copy(SECURITY_PROBE_SCRIPT, probe_in_workspace)
@@ -145,7 +148,6 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
                         sandbox_name=sandbox_name,
                         sbx_agent=sbx_agent,
                         workspace_dir=workspace.workspace_dir,
-                        agent_type=agent_type,
                     )
                     run_sbx_checked(create_cmd)
                     allow_mcp_gateway(
@@ -191,6 +193,7 @@ def run_cross_sandbox_isolation_probe() -> None:
     Starts two lightweight host listeners on distinct ports, creates one sbx
     microVM, allows only the first port, then checks from inside the VM that
     the allowed port succeeds and the peer port is blocked by network policy.
+    Finally revokes the allowed port and checks that it is blocked too.
     """
     if not sandbox_runtime_available():
         raise RuntimeError("sbx is required for cross-sandbox isolation probe")
@@ -239,6 +242,8 @@ def run_cross_sandbox_isolation_probe() -> None:
                     "backend": "kathara",
                 },
                 runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
+                agent_session_id=session_id,
+                workspace_dir=Path(tmp) / "agent_workspace",
             )
 
             run_sbx_optional(["rm", "--force", sandbox_name])
@@ -248,10 +253,15 @@ def run_cross_sandbox_isolation_probe() -> None:
                         sandbox_name=sandbox_name,
                         sbx_agent="shell",
                         workspace_dir=workspace.workspace_dir,
-                        agent_type="cli.codex",
                     )
                 )
                 allow_mcp_gateway(sandbox_name=sandbox_name, port=own_port)
+
+                # The peer server must answer on the host, so a non-200 inside
+                # the sandbox can only come from the network policy.
+                direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                with direct.open(f"http://127.0.0.1:{peer_port}/", timeout=5) as resp:
+                    assert resp.status == 200
 
                 own_url = f"http://{agent_host}:{own_port}/"
                 peer_url = f"http://{agent_host}:{peer_port}/"
@@ -265,8 +275,7 @@ def run_cross_sandbox_isolation_probe() -> None:
                     "peer_body=$(cat /tmp/nika_peer_body 2>/dev/null || true); "
                     'echo "peer_http=$peer_code"; '
                     'echo "peer_body=$peer_body"; '
-                    'test "$peer_code" != "200"; '
-                    'echo "$peer_body" | grep -qi "Blocked by network policy"'
+                    'test "$peer_code" != "200"'
                 )
                 result = subprocess.run(
                     ["sbx", "exec", sandbox_name, "bash", "-lc", inner],
@@ -280,6 +289,28 @@ def run_cross_sandbox_isolation_probe() -> None:
                         f"MCP gateway port isolation failed for {sandbox_name} "
                         f"(own={own_port} peer={peer_port}):\n"
                         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+                    )
+
+                deny_mcp_gateway(sandbox_name=sandbox_name, port=own_port)
+                revoked = subprocess.run(
+                    [
+                        "sbx",
+                        "exec",
+                        sandbox_name,
+                        "bash",
+                        "-lc",
+                        "curl -s -o /dev/null --connect-timeout 3 --max-time 5 "
+                        f"-w '%{{http_code}}' '{own_url}' || true",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=90,
+                )
+                if revoked.stdout.strip() == "200":
+                    raise AssertionError(
+                        f"Revoked MCP gateway port {own_port} is still reachable "
+                        f"from {sandbox_name}"
                     )
             finally:
                 # Removing the sandbox drops its network policy; avoid a separate

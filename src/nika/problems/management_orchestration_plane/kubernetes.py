@@ -61,6 +61,8 @@ class WorkerApiServerPartitionParams(K8sParams):
 
 class WorkerApiServerPartition(K8sProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "k8s_worker_apiserver_partition"
     description = "Worker is partitioned from the Kubernetes API server."
     symptom_desc = (
