@@ -1331,13 +1331,17 @@ class NikaTui:
         status.add_column(style="grey62", no_wrap=True)
         status.add_column()
         if self.profile:
-            badge, style = probe_badge(self.probes.get(self.profile.path))
+            probe = self.probes.get(self.profile.path)
+            badge, style = probe_badge(probe)
             status.add_row("profile", self.profile.display_path)
             status.add_row("agent", self.profile.agent_type)
             status.add_row(
                 "model", f"{self.profile.provider} / {self.profile.model or '—'}"
             )
-            status.add_row("endpoint", Text(badge, style=style))
+            endpoint = Text(badge, style=style)
+            if probe is not None and not probe.ok and probe.detail:
+                endpoint.append(f"\n{probe.detail}", style="grey50")
+            status.add_row("endpoint", endpoint)
         else:
             status.add_row("profile", Text("none — run /agents", style="yellow"))
         sessions = "…" if self.sessions is None else str(len(self.sessions))
