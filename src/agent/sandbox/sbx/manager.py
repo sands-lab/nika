@@ -15,6 +15,7 @@ from pathlib import Path
 
 from agent.sandbox.config import ENV_SESSION_DIR, SandboxConfig
 from agent.sandbox.constants import (
+    CREDENTIAL_ENV_KEYS,
     DIAGNOSIS_REPORT_FILENAME,
     MANIFEST_FILENAME,
     SUBMISSION_CONTEXT_FILENAME,
@@ -324,15 +325,8 @@ class SbxSandboxManager:
             # Force credential placeholders over host .env API keys so the
             # microVM never receives real secrets (and DeepSeek set-custom
             # placeholders are not shadowed by host dotenv values).
-            _force_env_keys = {
-                "OPENAI_API_KEY",
-                "OPENAI_BASE_URL",
-                "DEEPSEEK_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "ANTHROPIC_BASE_URL",
-            }
             for key, value in runtime_env.items():
-                if key in _force_env_keys:
+                if key in CREDENTIAL_ENV_KEYS:
                     os.environ[key] = value
                 else:
                     os.environ.setdefault(key, value)
