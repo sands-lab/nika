@@ -52,11 +52,15 @@ def load_profile(path: Path) -> AgentProfile:
 
 
 def list_profiles() -> list[AgentProfile]:
-    """Run configs under ``config/``: user copies first, then shipped templates."""
+    """Run configs under ``config/`` (recursively): user copies first, then shipped templates."""
     profiles: list[AgentProfile] = []
     paths = sorted(
-        CONFIG_DIR.glob("*.yaml"),
-        key=lambda p: (p.name.endswith(".example.yaml"), p.name != "nika.yaml", p.name),
+        CONFIG_DIR.rglob("*.yaml"),
+        key=lambda p: (
+            p.name.endswith(".example.yaml"),
+            p != CONFIG_DIR / "nika.yaml",
+            p.relative_to(CONFIG_DIR).as_posix(),
+        ),
     )
     for path in paths:
         try:
