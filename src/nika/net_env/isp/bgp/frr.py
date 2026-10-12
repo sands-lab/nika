@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
+from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
 # Prefix-list of routes a router must not export to eBGP peers (RPKI profile).
 EXPORT_DENY_PREFIX_LIST = "EXPORT-DENY"
@@ -177,7 +178,7 @@ def _rpki_stanza(cache: tuple[str, int] | None) -> list[str]:
 def _render_ibgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     lines = ["!", "! ISP BGP (iBGP RR)", "!"]
     if node.originated:
-        lines.extend(["interface lo"])
+        lines.append(f"interface {BGP_ORIGIN_IFACE}")
         for prefix in sorted(node.originated, key=lambda item: item.prefix):
             prefixlen = prefix.prefix.rsplit("/", 1)[1]
             lines.append(f" ip address {prefix.ping_address}/{prefixlen}")
@@ -226,7 +227,7 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
         title = "eBGP"
     lines = ["!", f"! ISP BGP ({title})", "!"]
     if node.originated:
-        lines.extend(["interface lo"])
+        lines.append(f"interface {BGP_ORIGIN_IFACE}")
         for prefix in sorted(node.originated, key=lambda item: item.prefix):
             prefixlen = prefix.prefix.rsplit("/", 1)[1]
             lines.append(f" ip address {prefix.ping_address}/{prefixlen}")

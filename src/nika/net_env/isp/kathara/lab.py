@@ -41,6 +41,10 @@ from nika.net_env.isp.contract import (
 )
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.net_env.utils.kathara.frr_origin import (
+    BGP_ORIGIN_IFACE,
+    ENSURE_BGP_ORIGIN_IFACE_CMD,
+)
 from nika.topology.catalog import is_zoo_topology
 
 IgpLiteral = Literal["isis", "ospf"]
@@ -305,9 +309,13 @@ class Isp(NetworkEnvBase):
                 fragment = render_bgp_frr_fragment(bgp_node, self.bgp_plan)
                 frr_conf = merge_frr_conf(frr_conf, fragment)
                 extras = []
+                if bgp_node.originated:
+                    extras.append(ENSURE_BGP_ORIGIN_IFACE_CMD)
                 for pref in bgp_node.originated:
                     plen = pref.prefix.rsplit("/", 1)[1]
-                    extras.append(f"ip addr add {pref.ping_address}/{plen} dev lo")
+                    extras.append(
+                        f"ip addr add {pref.ping_address}/{plen} dev {BGP_ORIGIN_IFACE}"
+                    )
                 if (
                     self._rpki_attachment is not None
                     and node.device_name == self._rpki_attachment["router"]

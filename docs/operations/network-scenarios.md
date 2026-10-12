@@ -375,7 +375,7 @@ uv run nika env run isp_france --backend containerlab \
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
 | `--bgp-mode` | `none`, `ibgp_rr`, `ebgp` | `none` | Adds a NIKA-defined BGP preset |
 
-`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive.
+`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. Originators hold these prefixes on a `lo1` dummy interface that no IGP runs on, so only BGP carries them. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive.
 
 ### Named ISP specials
 

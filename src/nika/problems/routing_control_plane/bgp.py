@@ -335,7 +335,7 @@ class BGPMissingAdvertiseParams(BaseModel):
 class BGPMissingAdvertise(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     # Remote speakers lose the route. Reachability can survive when the IGP
-    # also carries the prefix (IS-IS advertises every loopback address).
+    # also carries the prefix (see INCOMPATIBLE_SCENARIOS).
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "bgp_missing_route_advertisement"
