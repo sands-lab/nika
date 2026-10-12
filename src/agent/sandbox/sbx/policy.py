@@ -10,8 +10,8 @@ from urllib.parse import urlparse
 
 from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
 from agent.sandbox.sbx.client import (
-    SBX_BIN,
     ensure_sbx_ready,
+    run_sbx,
     run_sbx_checked,
     run_sbx_optional,
 )
@@ -168,28 +168,37 @@ def deny_mcp_gateway(
         resource = mcp_policy_resource_from_url(gateway_url, fallback_port=port)
     else:
         resource = mcp_policy_resource(port, host=host)
-    # ``sbx policy deny`` can hang against a stopped/missing sandbox; bound it.
+    # Remove the allow rule: sbx rejects a deny rule that conflicts with it.
+    # ``sbx policy`` can hang against a stopped/missing sandbox; bound it.
     try:
-        subprocess.run(
+        proc = run_sbx(
             [
-                SBX_BIN,
                 "policy",
-                "deny",
+                "rm",
                 "network",
+                "--force",
                 "--sandbox",
                 sandbox_name,
+                "--resource",
                 resource,
             ],
-            capture_output=True,
-            text=True,
             check=False,
+            capture_output=True,
             timeout=20,
         )
     except subprocess.TimeoutExpired:
         logger.warning(
-            "Timed out denying MCP gateway policy for %s (%s)",
+            "Timed out revoking MCP gateway policy for %s (%s)",
             sandbox_name,
             resource,
+        )
+        return
+    if proc.returncode != 0:
+        logger.warning(
+            "Failed to revoke MCP gateway policy for %s (%s): %s",
+            sandbox_name,
+            resource,
+            (proc.stderr or proc.stdout).strip(),
         )
 
 
