@@ -16,8 +16,9 @@ NIKA is a platform for generating and running executable benchmarks for network 
 
 1. Before starting new work, run `git fetch origin dev` and create the branch from the freshly fetched `origin/dev`, not a potentially stale local `dev`. Preserve uncommitted work and do not reset or overwrite diverged local branches. If fetching fails, report it rather than silently proceeding from a stale base.
 2. Name the branch `feat/<slug>` or `fix/<slug>`. When tracking a GitHub issue, prefer `feat/<issue>-<slug>` / `fix/<issue>-<slug>` (e.g. `fix/54-onos-rest-group-install`). Do not invent placeholders such as `noissue`.
-3. Develop on that branch.
-4. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
+3. Develop on that branch. Before starting each task on an existing branch, sync it with its upstream to catch conflicts early: on a `feat/` or `fix/` branch, fetch and merge `origin/dev`; on `dev`, fetch and merge `origin/main`. Merge rather than rebase once the branch is pushed: squash merge flattens the history anyway, and rebasing a shared branch requires a force-push.
+4. Before merging or resolving conflicts, run `git status`. If the worktree is clean, merge in place and use `git merge --abort` to back out; use a scratch worktree only when uncommitted work must be protected.
+5. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
 
 `dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
 
