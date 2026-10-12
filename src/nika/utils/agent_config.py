@@ -9,6 +9,7 @@ import os
 
 from nika.run_config.loader import get_run_config
 from nika.run_config.schema import RunConfig
+from agent.registry import find_agent_spec, get_agent_spec
 from agent.utils.provider_env import validate_provider_for_agent
 
 
@@ -31,17 +32,17 @@ def resolve_llm_provider(
     config: RunConfig | None = None,
 ) -> str | None:
     cfg = _cfg(config)
-    normalized = agent_type.lower()
-    if normalized == "mock":
+    spec = find_agent_spec(agent_type)
+    if spec is not None and not spec.requires_provider:
         if value:
-            return validate_provider_for_agent(normalized, value)
+            return validate_provider_for_agent(agent_type, value)
         return None
     raw = value or cfg.agent.provider
     if not raw:
         raise ValueError(
             "Missing agent.provider: set it in config/nika.yaml or pass -p/--provider."
         )
-    return validate_provider_for_agent(normalized, raw)
+    return validate_provider_for_agent(agent_type, raw)
 
 
 def resolve_max_steps(
@@ -64,17 +65,12 @@ def resolve_reasoning_effort(
     return _cfg(config).agent.reasoning_effort
 
 
-# mock has no LLM; SADE is excluded; Codex exposes no output-token cap setting.
-_MAX_TOKENS_UNSUPPORTED = frozenset(
-    {"mock", "community.sade", "cli.codex", "sdk.codex_sdk"}
-)
-
-
 def resolve_max_tokens(
     agent_type: str, *, config: RunConfig | None = None
 ) -> int | None:
     """Effective ``agent.max_tokens`` for *agent_type* (None when not applied)."""
-    if agent_type.lower() in _MAX_TOKENS_UNSUPPORTED:
+    spec = find_agent_spec(agent_type)
+    if spec is not None and not spec.supports_max_tokens:
         return None
     return _cfg(config).agent.max_tokens
 
@@ -93,25 +89,11 @@ def resolve_agent_model(
     if yaml_model := (cfg.agent.model or "").strip():
         return yaml_model
 
-    match agent_type.lower():
-        case "cli.claude" | "sdk.claude_sdk" | "community.sade":
-            raise ValueError(
-                "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
-            )
-        case "mock":
-            return "mock"
-        case "cli.codex" | "sdk.codex_sdk":
-            raise ValueError(
-                "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
-            )
-        case "byo.langgraph" | "byo.mcp_agent" | "byo.autogen":
-            raise ValueError(
-                "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
-            )
-        case _:
-            raise ValueError(
-                f"Unsupported agent type for model resolution: {agent_type!r}"
-            )
+    if default_model := get_agent_spec(agent_type).default_model:
+        return default_model
+    raise ValueError(
+        "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
+    )
 
 
 def resolve_judge_provider(

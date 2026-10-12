@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
+from agent.registry import BUILTIN_AGENTS
+
 NATIVE_SBX_AGENTS: dict[str, str] = {
-    "cli.codex": "codex",
-    "cli.claude": "claude",
-    "sdk.codex_sdk": "shell",
-    "sdk.claude_sdk": "shell",
-    "community.sade": "shell",
+    spec.id: spec.sbx.native for spec in BUILTIN_AGENTS if spec.sbx is not None
 }
 
 # Template images for ``sbx create <agent>`` (Docker Hub ``docker/sandbox-templates``),

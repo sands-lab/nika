@@ -25,8 +25,17 @@ Help readers understand the purpose, essential contract, and next action with mi
 * **Let figures speak.** Do not narrate what a diagram or screenshot already shows. Keep descriptive alt text so the figure remains accessible.
 * **Prefer concrete evidence to dense explanation.** When an output excerpt makes behavior clearer, use a short, verified example and identify its source accurately. Distinguish terminal output from recorded logs; do not fabricate observations or add transcripts without a reader benefit.
 * **Keep simplification accurate.** Check the current implementation before describing an interface. Verify every command, flag, path, and configuration field against the code or a real run. If the desired simpler contract requires runtime changes, explain the limitation briefly and track the proposed change in an issue when authorized.
+* **Stay within the reader's task.** Include only what a reader outside the project needs to complete the guide's task. Leave out internal limitations, roadmap issues, and evaluator or runtime internals; put them in references or issues instead.
 
 For example, “To investigate incidents with your own agent, implement the diagnosis contract” makes the purpose clear before the instruction.
+
+Avoid notes like this one, taken from an earlier integration guide. It refers to internal evaluator behavior, an open issue, and a full contract that the reader does not need to finish the task:
+
+```markdown
+The complete NOOA agent also records steps and tool calls for the evaluator and honors the step limit.
+
+Inheriting from LangGraph is a current limitation; a framework-independent base class is tracked in #172. The integration reference describes the full contract.
+```
 
 ## Homepage README
 

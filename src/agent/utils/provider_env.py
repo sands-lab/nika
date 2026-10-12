@@ -41,29 +41,21 @@ DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
 
 SUPPORTED_PROVIDERS = ("openai", "anthropic", "deepseek", "custom")
 
-# Which providers each agent accepts
-AGENT_PROVIDERS: dict[str, frozenset[str]] = {
-    "byo.langgraph": frozenset({"openai", "anthropic", "deepseek", "custom"}),
-    "byo.mcp_agent": frozenset({"openai", "anthropic", "deepseek", "custom"}),
-    "byo.autogen": frozenset({"openai", "anthropic", "deepseek", "custom"}),
-    "cli.codex": frozenset({"openai", "deepseek", "custom"}),
-    "sdk.codex_sdk": frozenset({"openai", "deepseek", "custom"}),
-    "cli.claude": frozenset({"anthropic", "deepseek", "custom"}),
-    "sdk.claude_sdk": frozenset({"anthropic", "deepseek", "custom"}),
-    "community.sade": frozenset({"anthropic", "deepseek", "custom"}),
-    "mock": frozenset(SUPPORTED_PROVIDERS),
-}
 
-_CLAUDE_FAMILY = frozenset({"cli.claude", "sdk.claude_sdk", "community.sade"})
-_OPENAI_FAMILY = frozenset(
-    {
-        "byo.langgraph",
-        "byo.mcp_agent",
-        "byo.autogen",
-        "cli.codex",
-        "sdk.codex_sdk",
-    }
-)
+def agent_providers(agent_type: str) -> frozenset[str] | None:
+    """Providers *agent_type* accepts, or ``None`` for an unknown agent."""
+    from agent.registry import find_agent_spec
+
+    spec = find_agent_spec(agent_type)
+    return spec.providers if spec is not None else None
+
+
+def _credential_family(agent_type: str) -> str:
+    from agent.registry import find_agent_spec
+
+    spec = find_agent_spec(agent_type)
+    return spec.credential_family if spec is not None else "openai"
+
 
 # Keys that must never be forwarded into agent subprocess / sandbox runtime
 _FORBIDDEN_AGENT_KEYS = frozenset(
@@ -191,14 +183,13 @@ def require_provider(provider: str | None) -> str:
 
 def validate_provider_for_agent(agent_type: str, provider: str) -> str:
     """Normalize and validate *provider* for *agent_type*."""
-    normalized_agent = agent_type.lower()
     normalized = provider.strip().lower()
     if normalized not in SUPPORTED_PROVIDERS:
         raise ValueError(
             f"Unsupported LLM provider {provider!r}. "
             f"Choose one of: {', '.join(SUPPORTED_PROVIDERS)}."
         )
-    allowed = AGENT_PROVIDERS.get(normalized_agent)
+    allowed = agent_providers(agent_type)
     if allowed is not None and normalized not in allowed:
         raise ValueError(
             f"Provider {normalized!r} is not supported for agent {agent_type!r}. "
@@ -247,7 +238,7 @@ def map_provider_credentials(
     Only includes keys the agent needs. Does not copy unrelated provider keys.
     """
     provider = validate_provider_for_agent(agent_type, provider)
-    agent = agent_type.lower()
+    family = _credential_family(agent_type)
     out: dict[str, str] = {}
 
     if provider == "openai":
@@ -273,7 +264,7 @@ def map_provider_credentials(
         if not key:
             return out
         out[ENV_DEEPSEEK_API_KEY] = key
-        if agent in _CLAUDE_FAMILY:
+        if family == "anthropic":
             out[ENV_ANTHROPIC_API_KEY] = key
             out[ENV_ANTHROPIC_AUTH_TOKEN] = key
             out[ENV_ANTHROPIC_BASE_URL] = DEEPSEEK_ANTHROPIC_BASE_URL
@@ -302,13 +293,13 @@ def map_provider_credentials(
     if model:
         out[ENV_CUSTOM_MODEL] = model
 
-    if agent in _CLAUDE_FAMILY:
+    if family == "anthropic":
         if key:
             out[ENV_ANTHROPIC_API_KEY] = key
             out[ENV_ANTHROPIC_AUTH_TOKEN] = key
         if base:
             out[ENV_ANTHROPIC_BASE_URL] = openai_compat_to_anthropic_base_url(base)
-    elif agent in _OPENAI_FAMILY or agent == "mock":
+    else:
         if key:
             out[ENV_OPENAI_API_KEY] = key
         if base:

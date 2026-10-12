@@ -139,11 +139,46 @@ Workers enforce the [step limit](#step-limit) and record calls using the [trace 
 
 ## Custom agent registration
 
-The [integration guide](custom-agents.md#2-register-your-harness) explains where to register a harness. Explicit CLI/YAML models already pass through `resolve_agent_model()` in [`agent_config.py`](../../src/nika/utils/agent_config.py). Extend it only if the agent needs model-default behavior.
+NIKA describes every agent with one [`AgentSpec`](../../src/agent/registry.py): the class to import, accepted providers, credential routing, and sandbox wiring. Provider validation, credential mapping, model defaults, and `nika agent list` all read the spec, so an agent never needs edits elsewhere in NIKA.
 
-Declare supported providers in `AGENT_PROVIDERS` so CLI provider validation accepts the new ID. For NIKA provider routing, map credentials for its model client in [`provider_env.py`](../../src/agent/utils/provider_env.py). Add it to the registry's provider requirement list when its constructor requires `llm_provider`, and pass the relevant settings through the factory.
+NIKA resolves `-a <name>` in this order:
 
-The registry's sandbox set identifies implementations already wired into the sandbox runner; adding a name does not implement sandbox execution. Follow an existing sandbox agent for packaging, workers, phase handoff, and transcript handling. See [Docker Sandbox execution](../operations/agent-sandbox.md#architecture).
+1. Built-in harnesses in `BUILTIN_AGENTS`.
+2. Agents registered with `nika agent add <project>` and recorded in `config/agents.yaml`. NIKA puts the project directory, or its `src/` directory, on `sys.path` before importing the class, so the project is never installed into NIKA's environment.
+3. A `module.path:ClassName` import path, with default settings. The module must already be importable, for example through `PYTHONPATH`.
+
+The class receives the keyword arguments it declares among `session_id`, `model`, `llm_provider`, `max_steps`, `reasoning_effort`, `max_tokens`, and `stream_output`. Settings it does not declare are not passed.
+
+### Manifest fields
+
+`nika agent add` reads `nika-agent.yaml` from the project directory:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `id` | required | Name for `-a`. Lowercase letters, digits, `.`, `_`, `-`; must not match a built-in harness. |
+| `class` | required | `module.path:ClassName` of the harness. |
+| `providers` | all | Providers accepted by CLI and YAML validation. |
+| `credential_family` | `openai` | Client family that receives `deepseek` and `custom` credentials (`OPENAI_*` or `ANTHROPIC_*`). |
+| `supports_max_tokens` | `true` | Whether `agent.max_tokens` applies and is recorded for the run. |
+| `default_model` | none | Model used when neither `-m` nor `agent.model` sets one. |
+| `sandbox` | none | Sandbox definition, described below. |
+
+`nika agent add` fails if NIKA cannot import `class` or if a dependency listed in the project's `pyproject.toml` is missing from NIKA's environment.
+
+### Sandbox definition
+
+An agent can declare how it would be installed in an isolated sandbox. NIKA keeps the network policy, credentials, and phase boundary; the agent only states what to install and which LLM hosts it must reach:
+
+```yaml
+sandbox:
+  base: python:3.12-slim
+  install:
+    - pip install /nika/agent-src
+  egress: [integrate.api.nvidia.com]
+  # entrypoint: optional; defaults to NIKA's in-sandbox runner, which imports class
+```
+
+NIKA validates this definition but does not execute it yet: external agents run on the host, and `nika agent list` marks declared sandboxes. Built-in sandbox harnesses keep their [Docker Sandbox wiring](../operations/agent-sandbox.md#architecture) in their specs.
 
 ## Python MCP client
 
