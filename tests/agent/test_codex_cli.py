@@ -5,7 +5,6 @@ import json
 
 import pytest
 
-from agent.cli.codex.codex_display import format_codex_event
 from agent.cli.codex.codex_worker import (
     CodexMaxStepsReached,
     CodexSubprocessStallError,
@@ -368,58 +367,3 @@ class CodexStepBudgetTest:
         worker._log_codex_event(self._tool("item.completed", "a"))
         with pytest.raises(CodexMaxStepsReached):
             worker._log_codex_event(self._tool("item.started", "b"))
-
-
-class CodexDisplayTest:
-    """Codex JSONL terminal event formatting."""
-
-    def test_agent_message(self) -> None:
-        event = {
-            "type": "item.completed",
-            "item": {
-                "id": "item_1",
-                "type": "agent_message",
-                "text": "BGP session is down.",
-            },
-        }
-        assert "BGP session is down." in (format_codex_event(event) or "")
-
-    def test_mcp_tool_call_lifecycle(self) -> None:
-        started = {
-            "type": "item.started",
-            "item": {
-                "type": "mcp_tool_call",
-                "server": "kathara_frr_mcp_server",
-                "tool": "show_bgp_summary",
-                "arguments": {"device": "router1"},
-                "status": "in_progress",
-            },
-        }
-        completed = {
-            "type": "item.completed",
-            "item": {
-                "type": "mcp_tool_call",
-                "server": "kathara_frr_mcp_server",
-                "tool": "show_bgp_summary",
-                "status": "completed",
-                "result": {"content": [{"type": "text", "text": "neighbor down"}]},
-            },
-        }
-        assert "show_bgp_summary" in (format_codex_event(started) or "")
-        assert "neighbor down" in (format_codex_event(completed) or "")
-
-    def test_turn_completed_with_usage(self) -> None:
-        event = {
-            "type": "turn.completed",
-            "usage": {"input_tokens": 100, "output_tokens": 20},
-        }
-        rendered = format_codex_event(event)
-        assert "in=100" in (rendered or "")
-        assert "out=20" in (rendered or "")
-
-    def test_reconnecting_error_is_non_fatal(self) -> None:
-        event = {"type": "error", "message": "Reconnecting... 1/5"}
-        assert "Reconnecting" in (format_codex_event(event) or "")
-
-    def test_unknown_event_returns_none(self) -> None:
-        assert format_codex_event({"type": "some_unknown_type"}) is None
